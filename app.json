@@ -20,7 +20,11 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to your camera to take photos and videos for posts and stories.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select photos and videos for posts and stories.",
-        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record videos with audio."
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record videos with audio.",
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos."
       }
     },
     "android": {
@@ -38,8 +42,19 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.READ_MEDIA_AUDIO"
-      ]
+        "android.permission.READ_MEDIA_AUDIO",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
+        "READ_MEDIA_AUDIO",
+        "READ_MEDIA_VISUAL_USER_SELECTED",
+        "ACCESS_MEDIA_LOCATION"
+      ],
+      "manifest": {
+        "android:supportsPictureInPicture": true
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png",
