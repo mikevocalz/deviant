@@ -1,38 +1,30 @@
-import { View, Text, TextInput, Pressable, ScrollView, Keyboard, Platform } from "react-native"
+import { View, Text, TextInput, Pressable, ScrollView, Keyboard } from "react-native"
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Image } from "expo-image"
-import { X, Send, Heart, MessageCircle } from "lucide-react-native"
-import { useEffect } from "react"
+import { X, Send, Heart } from "lucide-react-native"
+import { useEffect, useCallback } from "react"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { getPostById } from "@/lib/constants"
 import { useCommentsStore } from "@/lib/stores/comments-store"
-
-export const unstable_settings = {
-  options: {
-    detents: ["medium", "large"],
-    cornerRadius: 16,
-  },
-}
 
 export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>()
   const { commentId } = useLocalSearchParams<{ commentId?: string }>()
   const router = useRouter()
-  const { newComment: comment, replyingTo, setNewComment: setComment, setReplyingTo, clearComment } = useCommentsStore()
+  const { newComment: comment, replyingTo, setNewComment: setComment, setReplyingTo } = useCommentsStore()
   const insets = useSafeAreaInsets()
 
   const post = getPostById(postId || "")
   const comments = post?.comments || []
 
-  const handleSend = () => {
+  const handleSend = useCallback(() => {
     if (!comment.trim()) return
     setComment("")
     setReplyingTo(null)
     Keyboard.dismiss()
-  }
+  }, [comment, setComment, setReplyingTo])
 
-  // Handle keyboard dismiss
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
       setReplyingTo(null)
@@ -41,82 +33,101 @@ export default function CommentsScreen() {
     return () => {
       keyboardDidHideListener.remove()
     }
-  }, [])
+  }, [setReplyingTo])
 
-  const handleReply = (username: string, commentId: string) => {
-    setReplyingTo(commentId)
+  const handleReply = useCallback((username: string, commentIdParam: string) => {
+    setReplyingTo(commentIdParam)
     setComment(`@${username} `)
-  }
+  }, [setReplyingTo, setComment])
 
-  const handleViewReplies = (commentId: string) => {
-    router.push(`/(protected)/comments/replies/${commentId}`)
-  }
+  const handleViewReplies = useCallback((commentIdParam: string) => {
+    router.push(`/(protected)/comments/replies/${commentIdParam}`)
+  }, [router])
+
+  const handleProfilePress = useCallback((username: string) => {
+    router.push(`/(protected)/profile/${username}`)
+  }, [router])
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
-      {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#333", paddingHorizontal: 16, paddingVertical: 12 }}>
+      <View style={{ 
+        flexDirection: "row", 
+        alignItems: "center", 
+        justifyContent: "space-between", 
+        borderBottomWidth: 1, 
+        borderBottomColor: "#1a1a1a", 
+        paddingHorizontal: 16, 
+        paddingVertical: 12 
+      }}>
         <View style={{ width: 24 }} />
         <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>Comments</Text>
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
           <X size={24} color="#fff" />
         </Pressable>
       </View>
 
-      {/* Comments List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
         {comments.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ color: "#999" }}>No comments yet</Text>
-            <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>Post ID: {postId}</Text>
-            <Text style={{ color: "#666", fontSize: 12, marginTop: 4 }}>Try posts with IDs: f1, f2, f3, f4, f5</Text>
+            <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>Be the first to comment!</Text>
           </View>
         ) : (
           comments.map((item) => {
             const isHighlightedComment = item.id === commentId
             return (
               <View key={item.id} style={{ marginBottom: 20 }}>
-                {/* Highlight border for targeted comment */}
                 {isHighlightedComment && (
-                  <View style={{ borderLeftWidth: 3, borderLeftColor: "#6366f1", paddingLeft: 8, marginLeft: -11 }} />
+                  <View style={{ 
+                    position: "absolute", 
+                    left: -4, 
+                    top: 0, 
+                    bottom: 0, 
+                    width: 3, 
+                    backgroundColor: "#3EA4E5", 
+                    borderRadius: 2 
+                  }} />
                 )}
                 <View style={{ flexDirection: "row", gap: 12 }}>
-                  <Image source={{ uri: item.avatar }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                  <Pressable onPress={() => handleProfilePress(item.username)}>
+                    <Image source={{ uri: item.avatar }} style={{ width: 36, height: 36, borderRadius: 18 }} />
+                  </Pressable>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                      <Text style={{ fontWeight: "600", fontSize: 14, color: "#fff" }}>{item.username}</Text>
-                      <Text style={{ color: "#999", fontSize: 12 }}>{item.timeAgo}</Text>
-                      {isHighlightedComment && (
-                        <Text style={{ color: "#6366f1", fontSize: 11, fontWeight: "500" }}>• Viewing replies</Text>
-                      )}
+                      <Pressable onPress={() => handleProfilePress(item.username)}>
+                        <Text style={{ fontWeight: "600", fontSize: 14, color: "#fff" }}>{item.username}</Text>
+                      </Pressable>
+                      <Text style={{ color: "#666", fontSize: 12 }}>{item.timeAgo}</Text>
                     </View>
                     <Text style={{ fontSize: 14, marginTop: 4, lineHeight: 20, color: "#fff" }}>{item.text}</Text>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 16, marginTop: 8 }}>
                       <Pressable style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                        <Heart size={16} color="#999" />
-                        <Text style={{ color: "#999", fontSize: 12 }}>{item.likes || 0}</Text>
+                        <Heart size={16} color="#666" />
+                        <Text style={{ color: "#666", fontSize: 12 }}>{item.likes || 0}</Text>
                       </Pressable>
                       <Pressable onPress={() => handleReply(item.username, item.id)}>
-                        <Text style={{ color: "#999", fontSize: 12, fontWeight: "500" }}>Reply</Text>
+                        <Text style={{ color: "#666", fontSize: 12, fontWeight: "500" }}>Reply</Text>
                       </Pressable>
                     </View>
 
-                    {/* Replies preview */}
                     {item.replies && item.replies.length > 0 && (
                       <View style={{ marginTop: 12 }}>
-                        {/* Show all replies if this is the highlighted comment */}
                         {isHighlightedComment ? (
                           <>
-                            <Text style={{ color: "#6366f1", fontSize: 12, fontWeight: "600", marginBottom: 8 }}>
+                            <Text style={{ color: "#3EA4E5", fontSize: 12, fontWeight: "600", marginBottom: 8 }}>
                               All {item.replies.length} replies
                             </Text>
                             {item.replies.map((reply) => (
                               <View key={reply.id} style={{ flexDirection: "row", gap: 8, marginBottom: 8, marginLeft: 12 }}>
-                                <Image source={{ uri: reply.avatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                                <Pressable onPress={() => handleProfilePress(reply.username)}>
+                                  <Image source={{ uri: reply.avatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                                </Pressable>
                                 <View style={{ flex: 1 }}>
                                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                                    <Text style={{ fontWeight: "600", fontSize: 13, color: "#fff" }}>{reply.username}</Text>
-                                    <Text style={{ color: "#999", fontSize: 11 }}>{reply.timeAgo}</Text>
+                                    <Pressable onPress={() => handleProfilePress(reply.username)}>
+                                      <Text style={{ fontWeight: "600", fontSize: 13, color: "#fff" }}>{reply.username}</Text>
+                                    </Pressable>
+                                    <Text style={{ color: "#666", fontSize: 11 }}>{reply.timeAgo}</Text>
                                   </View>
                                   <Text style={{ fontSize: 13, marginTop: 2, lineHeight: 18, color: "#fff" }}>{reply.text}</Text>
                                 </View>
@@ -125,30 +136,34 @@ export default function CommentsScreen() {
                           </>
                         ) : (
                           <>
-                            {/* Show first 2 replies for other comments */}
                             {item.replies.slice(0, 2).map((reply) => (
                               <View key={reply.id} style={{ flexDirection: "row", gap: 8, marginBottom: 8, marginLeft: 12 }}>
-                                <Image source={{ uri: reply.avatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                                <Pressable onPress={() => handleProfilePress(reply.username)}>
+                                  <Image source={{ uri: reply.avatar }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                                </Pressable>
                                 <View style={{ flex: 1 }}>
                                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                                    <Text style={{ fontWeight: "600", fontSize: 13, color: "#fff" }}>{reply.username}</Text>
-                                    <Text style={{ color: "#999", fontSize: 11 }}>{reply.timeAgo}</Text>
+                                    <Pressable onPress={() => handleProfilePress(reply.username)}>
+                                      <Text style={{ fontWeight: "600", fontSize: 13, color: "#fff" }}>{reply.username}</Text>
+                                    </Pressable>
+                                    <Text style={{ color: "#666", fontSize: 11 }}>{reply.timeAgo}</Text>
                                   </View>
                                   <Text style={{ fontSize: 13, marginTop: 2, lineHeight: 18, color: "#fff" }}>{reply.text}</Text>
                                 </View>
                               </View>
                             ))}
                             
-                            {/* View all replies link */}
-                            <Pressable
-                              onPress={() => handleViewReplies(item.id)}
-                              style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginLeft: 12 }}
-                            >
-                              <View style={{ width: 20, height: 1, backgroundColor: "#666" }} />
-                              <Text style={{ color: "#999", fontSize: 12 }}>
-                                View all {item.replies.length} {item.replies.length === 1 ? "reply" : "replies"}
-                              </Text>
-                            </Pressable>
+                            {item.replies.length > 2 && (
+                              <Pressable
+                                onPress={() => handleViewReplies(item.id)}
+                                style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4, marginLeft: 12 }}
+                              >
+                                <View style={{ width: 20, height: 1, backgroundColor: "#333" }} />
+                                <Text style={{ color: "#666", fontSize: 12 }}>
+                                  View all {item.replies.length} replies
+                                </Text>
+                              </Pressable>
+                            )}
                           </>
                         )}
                       </View>
@@ -161,14 +176,13 @@ export default function CommentsScreen() {
         )}
       </ScrollView>
 
-      {/* Input */}
       <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0}>
-        <View style={{ borderTopWidth: 1, borderTopColor: "#333", paddingHorizontal: 16, paddingVertical: 12 }}>
+        <View style={{ borderTopWidth: 1, borderTopColor: "#1a1a1a", paddingHorizontal: 16, paddingVertical: 12 }}>
           {replyingTo && (
             <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <Text style={{ color: "#999", fontSize: 12 }}>Replying to comment</Text>
-              <Pressable onPress={() => { setReplyingTo(null); setComment(""); Keyboard.dismiss(); }}>
-                <X size={16} color="#999" />
+              <Text style={{ color: "#666", fontSize: 12 }}>Replying to comment</Text>
+              <Pressable onPress={() => { setReplyingTo(null); setComment(""); Keyboard.dismiss(); }} hitSlop={8}>
+                <X size={16} color="#666" />
               </Pressable>
             </View>
           )}
@@ -177,16 +191,36 @@ export default function CommentsScreen() {
               value={comment}
               onChangeText={setComment}
               placeholder="Add a comment..."
-              placeholderTextColor="#999"
+              placeholderTextColor="#666"
               multiline
               returnKeyType="send"
               onSubmitEditing={handleSend}
               blurOnSubmit={false}
               enablesReturnKeyAutomatically={true}
-              style={{ flex: 1, minHeight: 40, maxHeight: 100, backgroundColor: "#1f1f1f", borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: "#fff" }}
+              style={{ 
+                flex: 1, 
+                minHeight: 40, 
+                maxHeight: 100, 
+                backgroundColor: "#1a1a1a", 
+                borderRadius: 20, 
+                paddingHorizontal: 16, 
+                paddingVertical: 10, 
+                color: "#fff" 
+              }}
             />
-            <Pressable onPress={handleSend} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#6366f1", justifyContent: "center", alignItems: "center" }}>
-              <Send size={20} color="#fff" />
+            <Pressable 
+              onPress={handleSend} 
+              disabled={!comment.trim()}
+              style={{ 
+                width: 40, 
+                height: 40, 
+                borderRadius: 20, 
+                backgroundColor: comment.trim() ? "#3EA4E5" : "#1a1a1a", 
+                justifyContent: "center", 
+                alignItems: "center" 
+              }}
+            >
+              <Send size={20} color={comment.trim() ? "#fff" : "#666"} />
             </Pressable>
           </View>
         </View>
