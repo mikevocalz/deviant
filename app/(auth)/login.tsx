@@ -29,7 +29,7 @@ export default function LoginScreen() {
         isVerified: true,
       })
       setIsLoading(false)
-      router.replace("/(protected)/(tabs)")
+      router.replace("/(protected)/(tabs)" as any)
     }, 1500)
   }
 
@@ -115,8 +115,8 @@ export default function LoginScreen() {
 
             {/* Sign Up Link */}
             <View className="flex-row justify-center items-center mt-6">
-              <Text className="text-muted-foreground font-sans">Don't have an account? </Text>
-              <Link href="/(auth)/signup" asChild>
+              <Text className="text-muted-foreground font-sans">Don&apos;t have an account? </Text>
+              <Link href={"/(auth)/signup" as any} asChild>
                 <Pressable>
                   <Text className="text-primary font-sans-bold">Sign Up</Text>
                 </Pressable>
