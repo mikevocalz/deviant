@@ -57,7 +57,7 @@ export default function OnboardingScreen() {
 
   const handleDone = async () => {
     await setHasSeenOnboarding(true)
-    router.replace("/(protected)/(tabs)")
+    router.replace("/(protected)/(tabs)" as any)
   }
 
   const currentPage = ONBOARDING_PAGES[currentIndex]

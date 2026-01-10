@@ -4,7 +4,7 @@ import { router } from "expo-router"
 import { User, Mail, Lock, Calendar, CheckCircle } from "lucide-react-native"
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller"
 import { LinearGradient } from "expo-linear-gradient"
-import * as DocumentScanner from "@microblink/blinkid-react-native"
+
 import { useEffect } from "react"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { useSignupStore } from "@/lib/stores/signup-store"
@@ -22,7 +22,7 @@ export default function SignupScreen() {
   // Reset signup state when entering screen
   useEffect(() => {
     resetSignup()
-  }, [])
+  }, [resetSignup])
 
   const handleScanID = async () => {
     try {
@@ -47,7 +47,7 @@ export default function SignupScreen() {
         name: formData.name,
         isVerified: formData.idVerified,
       })
-      router.replace("/(auth)/onboarding")
+      router.replace("/(auth)/onboarding" as any)
     }, 1500)
   }
 
@@ -143,7 +143,7 @@ export default function SignupScreen() {
                 <Calendar size={64} color="#6366f1" />
                 <Text className="text-xl font-display-bold text-foreground mt-4">Verify Your Age</Text>
                 <Text className="text-muted-foreground text-center mt-2">
-                  Scan your ID to confirm you're 18 or older
+                  Scan your ID to confirm you&apos;re 18 or older
                 </Text>
 
                 {formData.idVerified ? (

@@ -53,25 +53,25 @@ export default function SettingsScreenIOS() {
             <SettingsListItem
               icon={<User size={20} color="#666" />}
               label="Account Information"
-              onPress={() => router.push("/settings/account")}
+              onPress={() => router.push("/settings/account" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Lock size={20} color="#666" />}
               label="Privacy"
-              onPress={() => router.push("/settings/privacy")}
+              onPress={() => router.push("/settings/privacy" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Eye size={20} color="#666" />}
               label="Close Friends"
-              onPress={() => router.push("/settings/close-friends")}
+              onPress={() => router.push("/settings/close-friends" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<UserX size={20} color="#666" />}
               label="Blocked"
-              onPress={() => router.push("/settings/blocked")}
+              onPress={() => router.push("/settings/blocked" as any)}
             />
           </SettingsSection>
 
@@ -80,19 +80,19 @@ export default function SettingsScreenIOS() {
             <SettingsListItem
               icon={<Bell size={20} color="#666" />}
               label="Push Notifications"
-              onPress={() => router.push("/settings/notifications")}
+              onPress={() => router.push("/settings/notifications" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<MessageCircle size={20} color="#666" />}
               label="Messages"
-              onPress={() => router.push("/settings/messages")}
+              onPress={() => router.push("/settings/messages" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Heart size={20} color="#666" />}
               label="Likes and Comments"
-              onPress={() => router.push("/settings/likes-comments")}
+              onPress={() => router.push("/settings/likes-comments" as any)}
             />
           </SettingsSection>
 
@@ -101,21 +101,21 @@ export default function SettingsScreenIOS() {
             <SettingsListItem
               icon={<Archive size={20} color="#666" />}
               label="Archived"
-              onPress={() => router.push("/settings/archived")}
+              onPress={() => router.push("/settings/archived" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Moon size={20} color="#666" />}
               label="Theme"
               value="System"
-              onPress={() => router.push("/settings/theme")}
+              onPress={() => router.push("/settings/theme" as any)}
             />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Globe size={20} color="#666" />}
               label="Language"
               value="English"
-              onPress={() => router.push("/settings/language")}
+              onPress={() => router.push("/settings/language" as any)}
             />
           </SettingsSection>
 

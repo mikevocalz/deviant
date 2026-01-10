@@ -59,22 +59,22 @@ export default function SettingsScreenAndroid() {
             <SettingsListItem
               icon={<User size={22} color="#666" />}
               label="Account Information"
-              onPress={() => router.push("/settings/account")}
+              onPress={() => router.push("/settings/account" as any)}
             />
             <SettingsListItem
               icon={<Lock size={22} color="#666" />}
               label="Privacy"
-              onPress={() => router.push("/settings/privacy")}
+              onPress={() => router.push("/settings/privacy" as any)}
             />
             <SettingsListItem
               icon={<Eye size={22} color="#666" />}
               label="Close Friends"
-              onPress={() => router.push("/settings/close-friends")}
+              onPress={() => router.push("/settings/close-friends" as any)}
             />
             <SettingsListItem
               icon={<UserX size={22} color="#666" />}
               label="Blocked"
-              onPress={() => router.push("/settings/blocked")}
+              onPress={() => router.push("/settings/blocked" as any)}
             />
           </SettingsSection>
 
@@ -83,17 +83,17 @@ export default function SettingsScreenAndroid() {
             <SettingsListItem
               icon={<Bell size={22} color="#666" />}
               label="Push Notifications"
-              onPress={() => router.push("/settings/notifications")}
+              onPress={() => router.push("/settings/notifications" as any)}
             />
             <SettingsListItem
               icon={<MessageCircle size={22} color="#666" />}
               label="Messages"
-              onPress={() => router.push("/settings/messages")}
+              onPress={() => router.push("/settings/messages" as any)}
             />
             <SettingsListItem
               icon={<Heart size={22} color="#666" />}
               label="Likes and Comments"
-              onPress={() => router.push("/settings/likes-comments")}
+              onPress={() => router.push("/settings/likes-comments" as any)}
             />
           </SettingsSection>
 
@@ -102,19 +102,19 @@ export default function SettingsScreenAndroid() {
             <SettingsListItem
               icon={<Archive size={22} color="#666" />}
               label="Archived"
-              onPress={() => router.push("/settings/archived")}
+              onPress={() => router.push("/settings/archived" as any)}
             />
             <SettingsListItem
               icon={<Moon size={22} color="#666" />}
               label="Theme"
               value="System"
-              onPress={() => router.push("/settings/theme")}
+              onPress={() => router.push("/settings/theme" as any)}
             />
             <SettingsListItem
               icon={<Globe size={22} color="#666" />}
               label="Language"
               value="English"
-              onPress={() => router.push("/settings/language")}
+              onPress={() => router.push("/settings/language" as any)}
             />
           </SettingsSection>
 
