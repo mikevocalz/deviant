@@ -1,6 +1,11 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
-
+const { withNativeWind } = require("nativewind/metro");
 const config = getDefaultConfig(__dirname);
 
-module.exports = withRorkMetro(config);
+// Allow bundling Rive .riv assets.
+config.resolver.assetExts.push("riv");
+
+module.exports = withNativeWind(config, {
+  input: "./global.css",
+  inlineRem: 16,
+});

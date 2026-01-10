@@ -1,44 +1,108 @@
 {
   "expo": {
-    "name": "Hello World Screen",
-    "slug": "hello-world-screen",
+    "name": "DVNT",
+    "slug": "dvnt",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "rork-app",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": false,
-      "bundleIdentifier": "app.rork.hello-world-screen"
+      "supportsTablet": true,
+      "bundleIdentifier": "com.dvnt.social",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app needs access to your camera to take photos and videos for posts and stories.",
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select photos and videos for posts and stories.",
+        "NSMicrophoneUsageDescription": "This app needs access to your microphone to record videos with audio."
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "app.rork.hello_world_screen"
+      "package": "com.dvnt.social",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
     },
     "web": {
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "plugins": [
       [
         "expo-router",
         {
-          "origin": "https://rork.com/"
+          "origin": "http://localhost:8081"
         }
       ],
-      "expo-font",
-      "expo-web-browser"
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "16.0"
+          }
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to share in posts and stories.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos and videos.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record videos with audio."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photo library.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera.",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone.",
+          "recordAudioAndroid": true
+        }
+      ]
     ],
+    "scheme": "pulse",
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": "http://localhost:8081"
+      },
+      "eas": {
+        "projectId": "c6612fd8-4495-4508-ac22-d963db430275"
+      }
     }
   }
 }
