@@ -1,8 +1,9 @@
 import { View, Text, Pressable, ScrollView } from "react-native"
 import { Image } from "expo-image"
-import { PlusSquare } from "lucide-react-native"
+import { Plus } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { storiesData } from "@/lib/constants"
+import { useCallback } from "react"
 
 const yourStory = storiesData[0]
 const otherStories = storiesData.slice(1)
@@ -10,44 +11,85 @@ const otherStories = storiesData.slice(1)
 export function StoriesBar() {
   const router = useRouter()
 
-  const handleCreateStory = () => {
+  const handleCreateStory = useCallback(() => {
     router.push("/(protected)/story/create")
-  }
+  }, [router])
 
-  const handleStoryPress = (storyId: string) => {
+  const handleStoryPress = useCallback((storyId: string) => {
     router.push(`/(protected)/story/${storyId}`)
-  }
+  }, [router])
+
+  const handleProfilePress = useCallback((username: string) => {
+    router.push(`/(protected)/profile/${username}`)
+  }, [router])
 
   return (
-    <View className="border-b border-border">
+    <View style={{ borderBottomWidth: 1, borderBottomColor: "#1a1a1a" }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
-        {/* Your Story */}
-        <Pressable onPress={handleCreateStory} className="items-center p-2">
-          <View className="relative">
-            <View className="h-16 w-16 items-center justify-center rounded-full border-2 border-primary">
-              <Image source={{ uri: yourStory.avatar }} style={{ width: 56, height: 56, borderRadius: 28 }} />
+        <Pressable onPress={handleCreateStory} style={{ alignItems: "center", padding: 8 }}>
+          <View style={{ position: "relative" }}>
+            <View style={{ 
+              height: 68, 
+              width: 68, 
+              alignItems: "center", 
+              justifyContent: "center", 
+              borderRadius: 34, 
+              borderWidth: 2, 
+              borderColor: "#3EA4E5" 
+            }}>
+              <Image source={{ uri: yourStory.avatar }} style={{ width: 60, height: 60, borderRadius: 30 }} />
             </View>
-            <View className="absolute -bottom-0.5 -right-0.5 h-5 w-5 items-center justify-center rounded-full bg-primary">
-              <PlusSquare size={12} color="#fff" />
+            <View style={{ 
+              position: "absolute", 
+              bottom: -2, 
+              right: -2, 
+              height: 24, 
+              width: 24, 
+              alignItems: "center", 
+              justifyContent: "center", 
+              borderRadius: 12, 
+              backgroundColor: "#3EA4E5",
+              borderWidth: 2,
+              borderColor: "#000"
+            }}>
+              <Plus size={14} color="#fff" strokeWidth={3} />
             </View>
           </View>
-          <Text className="mt-1 text-xs text-muted-foreground">Your story</Text>
+          <Text style={{ marginTop: 6, fontSize: 12, color: "#999" }}>Your story</Text>
         </Pressable>
 
-        {/* Other Stories */}
         {otherStories.map((story) => (
-          <Pressable key={story.id} onPress={() => handleStoryPress(story.id)} className="items-center p-2">
-            <View
-              className={`h-16 w-16 items-center justify-center rounded-full border-2 ${
-                story.isViewed ? "border-muted" : "border-primary"
-              }`}
-            >
-              <Image source={{ uri: story.avatar }} style={{ width: 56, height: 56, borderRadius: 28 }} />
-            </View>
-            <Text className="mt-1 max-w-[64px] text-center text-xs text-muted-foreground" numberOfLines={1}>
-              {story.username}
-            </Text>
-          </Pressable>
+          <View key={story.id} style={{ alignItems: "center", padding: 8 }}>
+            <Pressable onPress={() => handleStoryPress(story.id)}>
+              <View
+                style={{
+                  height: 68,
+                  width: 68,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: 34,
+                  borderWidth: 2,
+                  borderColor: story.isViewed ? "#333" : "#3EA4E5",
+                }}
+              >
+                <Image source={{ uri: story.avatar }} style={{ width: 60, height: 60, borderRadius: 30 }} />
+              </View>
+            </Pressable>
+            <Pressable onPress={() => handleProfilePress(story.username)}>
+              <Text 
+                style={{ 
+                  marginTop: 6, 
+                  maxWidth: 68, 
+                  textAlign: "center", 
+                  fontSize: 12, 
+                  color: "#999" 
+                }} 
+                numberOfLines={1}
+              >
+                {story.username}
+              </Text>
+            </Pressable>
+          </View>
         ))}
       </ScrollView>
     </View>
