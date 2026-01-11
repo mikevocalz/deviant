@@ -24,7 +24,7 @@ export default function LoginScreen() {
           id: "1",
           email: value.email,
           username: "alex.creator",
-          name: "Alex Thompson", 
+          name: "Alex Thompson",
           isVerified: true,
         })
         router.replace('/(protected)/(tabs)' as any)
