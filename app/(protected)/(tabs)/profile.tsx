@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native"
 import { Image } from "expo-image"
 import { Main } from "@expo/html-elements"
-import { Settings, Grid, Bookmark, Play } from "lucide-react-native"
+import { Settings, Grid, Bookmark, Play, User, Camera, Link, ChevronRight } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
 import { useMemo, useState, useEffect } from "react"
@@ -10,6 +10,7 @@ import { useProfileStore } from "@/lib/stores/profile-store"
 import { posts } from "@/lib/constants"
 import { ProfileSkeleton } from "@/components/skeletons"
 import Animated, { FadeInUp } from "react-native-reanimated"
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 
 const { width } = Dimensions.get("window")
 const columnWidth = (width - 8) / 3
@@ -113,9 +114,41 @@ export default function ProfileScreen() {
             </View>
 
             <View className="mt-4 flex-row gap-2">
-              <Pressable onPress={() => router.push("/(protected)/profile/edit" as any)} className="flex-1 items-center rounded-lg bg-secondary py-2">
-                <Text className="font-semibold">Edit profile</Text>
-              </Pressable>
+              <Popover>
+                <PopoverTrigger>
+                  <View className="flex-1 items-center rounded-lg bg-secondary py-2">
+                    <Text className="font-semibold">Edit profile</Text>
+                  </View>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="start" sideOffset={4}>
+                  <Pressable
+                    onPress={() => router.push("/(protected)/profile/edit" as any)}
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
+                  >
+                    <User size={20} color={colors.foreground} />
+                    <Text className="flex-1 text-base text-foreground">Edit Profile</Text>
+                    <ChevronRight size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                  <View className="mx-4 h-px bg-white/10" />
+                  <Pressable
+                    onPress={() => console.log("Change avatar")}
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
+                  >
+                    <Camera size={20} color={colors.foreground} />
+                    <Text className="flex-1 text-base text-foreground">Change Avatar</Text>
+                    <ChevronRight size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                  <View className="mx-4 h-px bg-white/10" />
+                  <Pressable
+                    onPress={() => console.log("Edit links")}
+                    className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
+                  >
+                    <Link size={20} color={colors.foreground} />
+                    <Text className="flex-1 text-base text-foreground">Edit Links</Text>
+                    <ChevronRight size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                </PopoverContent>
+              </Popover>
             </View>
           </View>
 
