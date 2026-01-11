@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, Dimensions, StyleSheet } from "react-native"
+import { View, Text, ScrollView, Pressable, Dimensions } from "react-native"
 import { Image } from "expo-image"
 import { Settings, Grid, Bookmark, Play, User, Camera, Link, ChevronRight } from "lucide-react-native"
 import { useRouter } from "expo-router"
@@ -73,41 +73,39 @@ export default function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-        <View style={styles.headerSpacer} />
+        <View className="w-10" />
         <Text className="text-lg font-semibold text-foreground">{userProfile.username}</Text>
         <Pressable onPress={() => router.push("/settings")} hitSlop={8}>
           <Settings size={24} color={colors.foreground} />
         </Pressable>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Profile Info */}
-        <View style={styles.profileSection}>
-          <View style={styles.profileHeader}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="pb-5">
+        <View className="px-5 pt-5 pb-4">
+          <View className="flex-row items-center gap-6">
             <Image 
               source={{ uri: userProfile.avatar }} 
-              style={styles.avatar}
+              className="w-[88px] h-[88px] rounded-full"
               contentFit="cover"
             />
-            <View style={styles.statsContainer}>
-              <Pressable style={styles.statItem}>
+            <View className="flex-1 flex-row justify-around">
+              <Pressable className="items-center px-2">
                 <Text className="text-xl font-bold text-foreground">{userProfile.postsCount}</Text>
                 <Text className="text-xs text-muted-foreground">Posts</Text>
               </Pressable>
-              <Pressable style={styles.statItem}>
+              <Pressable className="items-center px-2">
                 <Text className="text-xl font-bold text-foreground">{(userProfile.followersCount / 1000).toFixed(1)}K</Text>
                 <Text className="text-xs text-muted-foreground">Followers</Text>
               </Pressable>
-              <Pressable style={styles.statItem}>
+              <Pressable className="items-center px-2">
                 <Text className="text-xl font-bold text-foreground">{userProfile.followingCount}</Text>
                 <Text className="text-xs text-muted-foreground">Following</Text>
               </Pressable>
             </View>
           </View>
 
-          <View style={styles.bioSection}>
+          <View className="mt-4">
             <Text className="text-base font-semibold text-foreground">{userProfile.fullName}</Text>
             <Text className="mt-1.5 text-sm leading-5 text-foreground/90">{userProfile.bio}</Text>
             {userProfile.website && (
@@ -115,10 +113,10 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <View style={styles.actionsRow}>
+          <View className="mt-5 flex-row gap-2">
             <Popover>
               <PopoverTrigger>
-                <View style={styles.editButton} className="bg-secondary">
+                <View className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary">
                   <Text className="font-semibold text-secondary-foreground">Edit profile</Text>
                 </View>
               </PopoverTrigger>
@@ -154,47 +152,39 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Tabs */}
-        <View style={styles.tabsContainer} className="border-t border-border">
+        <View className="flex-row mt-2 border-t border-border">
           <Pressable
             onPress={() => setActiveTab("posts")}
-            style={[
-              styles.tabItem,
-              activeTab === "posts" && styles.tabItemActive,
-            ]}
+            className={`flex-1 items-center justify-center py-3.5 border-t ${activeTab === "posts" ? "border-t-2 border-white" : "border-transparent"}`}
           >
             <Grid size={22} color={activeTab === "posts" ? colors.foreground : colors.mutedForeground} />
           </Pressable>
           <Pressable
             onPress={() => setActiveTab("saved")}
-            style={[
-              styles.tabItem,
-              activeTab === "saved" && styles.tabItemActive,
-            ]}
+            className={`flex-1 items-center justify-center py-3.5 border-t ${activeTab === "saved" ? "border-t-2 border-white" : "border-transparent"}`}
           >
             <Bookmark size={22} color={activeTab === "saved" ? colors.foreground : colors.mutedForeground} />
           </Pressable>
         </View>
 
-        {/* Grid */}
-        <View style={styles.gridContainer}>
+        <View className="flex-row flex-wrap">
           {displayPosts.map((item, index) => (
             <Animated.View
               key={item.id}
               entering={FadeInUp.delay(index * 50).duration(400).springify()}
-              style={[styles.gridItem, { width: columnWidth, height: columnWidth }]}
+              style={{ width: columnWidth, height: columnWidth, padding: 1 }}
             >
               <Pressable
                 onPress={() => router.push(`/post/${item.id}`)}
-                style={styles.gridItemPressable}
+                className="flex-1 rounded-sm overflow-hidden"
               >
                 <Image
                   source={{ uri: item.thumbnail }}
-                  style={styles.gridImage}
+                  className="w-full h-full"
                   contentFit="cover"
                 />
                 {item.type === "video" && (
-                  <View style={styles.videoIndicator}>
+                  <View className="absolute top-2 right-2">
                     <Play size={18} color="#fff" fill="#fff" />
                   </View>
                 )}
@@ -204,7 +194,7 @@ export default function ProfileScreen() {
         </View>
 
         {displayPosts.length === 0 && (
-          <View style={styles.emptyState}>
+          <View className="items-center justify-center py-16">
             <Bookmark size={48} color={colors.mutedForeground} />
             <Text className="mt-4 text-base text-muted-foreground">
               {activeTab === "saved" ? "No saved posts yet" : "No posts yet"}
@@ -215,93 +205,3 @@ export default function ProfileScreen() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  headerSpacer: {
-    width: 40,
-  },
-  scrollContent: {
-    paddingBottom: 20,
-  },
-  profileSection: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
-  },
-  profileHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 24,
-  },
-  avatar: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-  },
-  statsContainer: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "space-around",
-  },
-  statItem: {
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  bioSection: {
-    marginTop: 16,
-  },
-  actionsRow: {
-    marginTop: 20,
-    flexDirection: "row",
-    gap: 8,
-  },
-  editButton: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  tabsContainer: {
-    flexDirection: "row",
-    marginTop: 8,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    borderTopWidth: 1,
-    borderTopColor: "transparent",
-  },
-  tabItemActive: {
-    borderTopWidth: 2,
-    borderTopColor: "#fff",
-  },
-  gridContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  gridItem: {
-    padding: 1,
-  },
-  gridItemPressable: {
-    flex: 1,
-    borderRadius: 2,
-    overflow: "hidden",
-  },
-  gridImage: {
-    width: "100%",
-    height: "100%",
-  },
-  videoIndicator: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-  },
-})

@@ -1,4 +1,4 @@
-import { View, Text, Pressable, Dimensions, ScrollView, StyleSheet } from "react-native"
+import { View, Text, Pressable, Dimensions, ScrollView } from "react-native"
 import { Image } from "expo-image"
 import { SharedImage } from "@/components/shared-image"
 import { Article } from "@expo/html-elements"
@@ -182,10 +182,9 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
         damping: 20,
         stiffness: 300,
       }}
-      style={styles.container}
+      className="w-full"
     >
       <Article className="mx-3 my-4 overflow-hidden rounded-xl border border-border bg-card">
-        {/* Header */}
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-3">
             <Pressable onPress={handleProfilePress}>
@@ -224,7 +223,6 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           </Pressable>
         </View>
 
-        {/* Media */}
         <Pressable
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
@@ -262,7 +260,7 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                   showsHorizontalScrollIndicator={false}
                   onScroll={handleScroll}
                   scrollEventThrottle={16}
-                  style={{ zIndex:50 }}
+                  className="z-50"
                 >
                   {media.map((medium, index) => (
                     <Image
@@ -306,7 +304,6 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           </View>
         </Pressable>
 
-        {/* Actions */}
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-4">
             <Pressable onPress={handleLike}>
@@ -361,7 +358,6 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           </Pressable>
         </View>
 
-        {/* Info */}
         <View className="px-3 pb-3">
           <Text className="text-sm font-semibold">
             {likeCount.toLocaleString()} likes
@@ -395,11 +391,5 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
     </Motion.View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    width: "100%",
-  },
-})
 
 export const FeedPost = memo(FeedPostComponent)
