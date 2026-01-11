@@ -96,7 +96,7 @@ export default function SearchScreen() {
           </>
         ) : (
           <View style={{ flex: 1 }}>
-            <Text style={{ padding: 16, color: "#999" }}>Results for "{searchQuery}"</Text>
+            <Text style={{ padding: 16, color: "#999" }}>Results for {`"${searchQuery}"`}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
               {searchResults.map((item) => (
                 <Pressable

@@ -1,15 +1,13 @@
-import { View, Text, ScrollView, Pressable, Dimensions } from "react-native"
+import { View, Text, ScrollView, Pressable } from "react-native"
 import { Image } from "expo-image"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { Calendar, MapPin, Clock, Users, Share2, Heart, ChevronDown, ArrowLeft, Check } from "lucide-react-native"
+import { Calendar, MapPin, Clock, Users, Share2, Heart, ArrowLeft, Check } from "lucide-react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
 import { LinearGradient } from "expo-linear-gradient"
 import { Motion } from "@legendapp/motion"
 import Animated, { FadeInDown } from "react-native-reanimated"
 import { useEventViewStore } from "@/lib/stores/event-store"
-
-const { width } = Dimensions.get("window")
 
 const eventsData: Record<string, any> = {
   "lower-east-side-winter-bar-fest": {
@@ -223,7 +221,7 @@ export default function EventDetailScreen() {
           {/* Who's Going */}
           <Animated.View entering={FadeInDown.delay(700)} style={{ marginBottom: 24 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <Text style={{ fontSize: 24, fontWeight: "bold", color: colors.foreground }}>Who's Going</Text>
+              <Text style={{ fontSize: 24, fontWeight: "bold", color: colors.foreground }}>{"Who's Going"}</Text>
               <Text style={{ fontSize: 14, color: colors.mutedForeground }}>{event.totalAttendees} attending</Text>
             </View>
             <View style={{ backgroundColor: colors.card, borderRadius: 12, padding: 16 }}>
@@ -291,7 +289,7 @@ export default function EventDetailScreen() {
             {hasTicket ? (
               <View style={{ backgroundColor: colors.muted, paddingVertical: 16, borderRadius: 12, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 }}>
                 <Check size={20} color={colors.foreground} />
-                <Text style={{ fontWeight: "600", color: colors.foreground }}>You're Attending</Text>
+                <Text style={{ fontWeight: "600", color: colors.foreground }}>{"You're Attending"}</Text>
               </View>
             ) : (
               <Motion.View whileTap={{ scale: 0.98 }}>

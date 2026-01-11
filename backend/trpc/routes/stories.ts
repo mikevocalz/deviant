@@ -7,7 +7,7 @@ export const storiesRouter = createTRPCRouter({
     .input(z.object({
       limit: z.number().optional().default(20),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.getFeed] Fetching stories feed");
       const response = await payloadFetch(
         `/stories/feed?limit=${input.limit}`,
@@ -25,7 +25,7 @@ export const storiesRouter = createTRPCRouter({
       userId: z.string(),
       limit: z.number().optional().default(10),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[stories.getByUser] Fetching stories for user:", input.userId);
       const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       const response = await payloadFetch(
@@ -36,7 +36,7 @@ export const storiesRouter = createTRPCRouter({
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[stories.getById] Fetching story:", input.id);
       const response = await payloadFetch(`/stories/${input.id}`);
       return response;
@@ -56,7 +56,7 @@ export const storiesRouter = createTRPCRouter({
         position: z.object({ x: z.number(), y: z.number() }),
       })).optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.create] Creating story");
       const response = await payloadFetch("/stories", {
         method: "POST",
@@ -71,7 +71,7 @@ export const storiesRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.delete] Deleting story:", input.id);
       const response = await payloadFetch(`/stories/${input.id}`, {
         method: "DELETE",
@@ -84,7 +84,7 @@ export const storiesRouter = createTRPCRouter({
 
   view: protectedProcedure
     .input(z.object({ storyId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.view] Marking story as viewed:", input.storyId);
       const response = await payloadFetch("/story-views", {
         method: "POST",
@@ -101,7 +101,7 @@ export const storiesRouter = createTRPCRouter({
       storyId: z.string(),
       reaction: z.string(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.react] Reacting to story:", input.storyId);
       const response = await payloadFetch("/story-reactions", {
         method: "POST",
@@ -118,7 +118,7 @@ export const storiesRouter = createTRPCRouter({
       storyId: z.string(),
       limit: z.number().optional().default(50),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[stories.getViewers] Fetching viewers for story:", input.storyId);
       const response = await payloadFetch(
         `/story-views?where[story][equals]=${input.storyId}&limit=${input.limit}`,

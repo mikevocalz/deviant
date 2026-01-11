@@ -13,13 +13,14 @@ export const createContext = async (opts: FetchCreateContextFnOptions) => {
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
 
-const t = initTRPC.context<Context>().create({
+const t = (initTRPC as any).context().create({
   transformer: superjson,
 });
 
 export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
-export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
+export const protectedProcedure = t.procedure.use(async (opts: any) => {
+  const { ctx, next } = opts;
   if (!ctx.token) {
     throw new Error("Unauthorized");
   }

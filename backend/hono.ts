@@ -18,7 +18,7 @@ app.use(
   }),
 );
 
-app.get("/", (c) => {
+app.get("/", (c: any) => {
   return c.json({ status: "ok", message: "DVNT API is running" });
 });
 

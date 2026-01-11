@@ -9,7 +9,7 @@ export const commentsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[comments.getByPost] Fetching comments for post:", input.postId);
       const response = await payloadFetch(
         `/comments?where[post][equals]=${input.postId}&where[parent][exists]=false&limit=${input.limit}&page=${input.page}&sort=-createdAt`
@@ -23,7 +23,7 @@ export const commentsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[comments.getReplies] Fetching replies for comment:", input.commentId);
       const response = await payloadFetch(
         `/comments?where[parent][equals]=${input.commentId}&limit=${input.limit}&page=${input.page}&sort=createdAt`
@@ -37,7 +37,7 @@ export const commentsRouter = createTRPCRouter({
       content: z.string().min(1),
       parentId: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[comments.create] Creating comment on post:", input.postId);
       const response = await payloadFetch("/comments", {
         method: "POST",
@@ -59,7 +59,7 @@ export const commentsRouter = createTRPCRouter({
       id: z.string(),
       content: z.string().min(1),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[comments.update] Updating comment:", input.id);
       const response = await payloadFetch(`/comments/${input.id}`, {
         method: "PATCH",
@@ -73,7 +73,7 @@ export const commentsRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[comments.delete] Deleting comment:", input.id);
       const response = await payloadFetch(`/comments/${input.id}`, {
         method: "DELETE",
@@ -86,7 +86,7 @@ export const commentsRouter = createTRPCRouter({
 
   like: protectedProcedure
     .input(z.object({ commentId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[comments.like] Liking comment:", input.commentId);
       const response = await payloadFetch("/comment-likes", {
         method: "POST",
@@ -100,7 +100,7 @@ export const commentsRouter = createTRPCRouter({
 
   unlike: protectedProcedure
     .input(z.object({ commentId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[comments.unlike] Unliking comment:", input.commentId);
       const response = await payloadFetch(`/comment-likes?where[comment][equals]=${input.commentId}`, {
         method: "DELETE",

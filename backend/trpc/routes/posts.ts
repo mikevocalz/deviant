@@ -8,7 +8,7 @@ export const postsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[posts.getAll] Fetching posts, page:", input.page);
       const response = await payloadFetch(
         `/posts?limit=${input.limit}&page=${input.page}&sort=-createdAt`
@@ -18,7 +18,7 @@ export const postsRouter = createTRPCRouter({
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[posts.getById] Fetching post:", input.id);
       const response = await payloadFetch(`/posts/${input.id}`);
       return response;
@@ -30,7 +30,7 @@ export const postsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[posts.getByUser] Fetching posts for user:", input.userId);
       const response = await payloadFetch(
         `/posts?where[author][equals]=${input.userId}&limit=${input.limit}&page=${input.page}&sort=-createdAt`
@@ -43,7 +43,7 @@ export const postsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.getFeed] Fetching feed");
       const response = await payloadFetch(
         `/posts/feed?limit=${input.limit}&page=${input.page}`,
@@ -65,7 +65,7 @@ export const postsRouter = createTRPCRouter({
       })).optional(),
       location: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.create] Creating post");
       const response = await payloadFetch("/posts", {
         method: "POST",
@@ -83,7 +83,7 @@ export const postsRouter = createTRPCRouter({
       id: z.string(),
       content: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.update] Updating post:", input.id);
       const { id, ...data } = input;
       const response = await payloadFetch(`/posts/${id}`, {
@@ -98,7 +98,7 @@ export const postsRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.delete] Deleting post:", input.id);
       const response = await payloadFetch(`/posts/${input.id}`, {
         method: "DELETE",
@@ -111,7 +111,7 @@ export const postsRouter = createTRPCRouter({
 
   like: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.like] Liking post:", input.postId);
       const response = await payloadFetch("/likes", {
         method: "POST",
@@ -125,7 +125,7 @@ export const postsRouter = createTRPCRouter({
 
   unlike: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.unlike] Unliking post:", input.postId);
       const response = await payloadFetch(`/likes?where[post][equals]=${input.postId}`, {
         method: "DELETE",
@@ -138,7 +138,7 @@ export const postsRouter = createTRPCRouter({
 
   bookmark: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.bookmark] Bookmarking post:", input.postId);
       const response = await payloadFetch("/bookmarks", {
         method: "POST",
@@ -152,7 +152,7 @@ export const postsRouter = createTRPCRouter({
 
   unbookmark: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[posts.unbookmark] Removing bookmark:", input.postId);
       const response = await payloadFetch(`/bookmarks?where[post][equals]=${input.postId}`, {
         method: "DELETE",

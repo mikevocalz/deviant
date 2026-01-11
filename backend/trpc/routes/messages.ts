@@ -8,7 +8,7 @@ export const messagesRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.getConversations] Fetching conversations");
       const response = await payloadFetch(
         `/conversations?limit=${input.limit}&page=${input.page}&sort=-updatedAt`,
@@ -23,7 +23,7 @@ export const messagesRouter = createTRPCRouter({
 
   getConversation: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.getConversation] Fetching conversation:", input.id);
       const response = await payloadFetch(`/conversations/${input.id}`, {
         headers: {
@@ -39,7 +39,7 @@ export const messagesRouter = createTRPCRouter({
       limit: z.number().optional().default(50),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.getMessages] Fetching messages for conversation:", input.conversationId);
       const response = await payloadFetch(
         `/messages?where[conversation][equals]=${input.conversationId}&limit=${input.limit}&page=${input.page}&sort=-createdAt`,
@@ -54,9 +54,9 @@ export const messagesRouter = createTRPCRouter({
 
   createConversation: protectedProcedure
     .input(z.object({
-      participantIds: z.array(z.string()).min(1),
+      participantIds: z.array(z.string()),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.createConversation] Creating conversation with:", input.participantIds);
       const response = await payloadFetch("/conversations", {
         method: "POST",
@@ -74,7 +74,7 @@ export const messagesRouter = createTRPCRouter({
       content: z.string().min(1),
       mentions: z.array(z.string()).optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.sendMessage] Sending message to conversation:", input.conversationId);
       const response = await payloadFetch("/messages", {
         method: "POST",
@@ -93,7 +93,7 @@ export const messagesRouter = createTRPCRouter({
 
   markAsRead: protectedProcedure
     .input(z.object({ conversationId: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.markAsRead] Marking conversation as read:", input.conversationId);
       const response = await payloadFetch(`/conversations/${input.conversationId}/read`, {
         method: "POST",
@@ -106,7 +106,7 @@ export const messagesRouter = createTRPCRouter({
 
   deleteMessage: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[messages.deleteMessage] Deleting message:", input.id);
       const response = await payloadFetch(`/messages/${input.id}`, {
         method: "DELETE",
