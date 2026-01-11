@@ -1,20 +1,18 @@
-import { View, Text, Pressable, Platform, ActivityIndicator, StyleSheet, Dimensions, FlatList } from "react-native"
+import { View, Text, Pressable, Platform, ActivityIndicator, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { router } from "expo-router"
 import { ChevronRight, Camera, Image as ImageIcon, Mic, Check, X } from "lucide-react-native"
 import { LinearGradient } from "expo-linear-gradient"
 import { useAuthStore } from "@/lib/stores/auth-store"
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback } from "react"
 import * as ImagePicker from "expo-image-picker"
 import { Camera as ExpoCamera } from "expo-camera"
-import { Image } from "expo-image"
 import Animated, { 
   FadeIn, 
   FadeInDown, 
   FadeInUp
 } from "react-native-reanimated"
-
-const { width, height } = Dimensions.get("window")
+import Onboarding from "@blazejkustra/react-native-onboarding"
 
 type PermissionStatus = "pending" | "granted" | "denied" | "loading"
 
@@ -26,42 +24,14 @@ interface PermissionItem {
   status: PermissionStatus
 }
 
-const ONBOARDING_PAGES = [
-  {
-    id: "1",
-    title: "Your Feed",
-    description: "Discover amazing content from creators you love. Stay updated with posts, stories, and trending moments.",
-    image: require("@/assets/images/onboarding/FEED.jpg"),
-    gradient: ["#1a1a2e", "#0f0f1a"] as [string, string],
-  },
-  {
-    id: "2",
-    title: "Share Videos",
-    description: "Create and share stunning videos with your community. Express yourself through powerful visual storytelling.",
-    image: require("@/assets/images/onboarding/VIDEO.png"),
-    gradient: ["#1a1a2e", "#0f0f1a"] as [string, string],
-  },
-  {
-    id: "3",
-    title: "Discover Events",
-    description: "Find exciting events near you and connect with like-minded people. Never miss out on what matters.",
-    image: require("@/assets/images/onboarding/EVENTS.png"),
-    gradient: ["#1a1a2e", "#0f0f1a"] as [string, string],
-  },
-  {
-    id: "4",
-    title: "Your Profile",
-    description: "Build your personal brand and showcase your best content. Let the world see who you really are.",
-    image: require("@/assets/images/onboarding/PROFILE.png"),
-    gradient: ["#1a1a2e", "#0f0f1a"] as [string, string],
-  },
-]
+const FEED_IMAGE = require("@/assets/images/onboarding/FEED.jpg")
+const VIDEO_IMAGE = require("@/assets/images/onboarding/VIDEO.png")
+const EVENTS_IMAGE = require("@/assets/images/onboarding/EVENTS.png")
+const PROFILE_IMAGE = require("@/assets/images/onboarding/PROFILE.png")
 
 export default function OnboardingScreen() {
   const setHasSeenOnboarding = useAuthStore((state) => state.setHasSeenOnboarding)
-  const [currentIndex, setCurrentIndex] = useState(0)
   const [showPermissions, setShowPermissions] = useState(false)
-  const flatListRef = useRef<FlatList>(null)
   
   const [permissions, setPermissions] = useState<PermissionItem[]>([
     {
@@ -158,48 +128,17 @@ export default function OnboardingScreen() {
 
   const allPermissionsHandled = permissions.every(p => p.status === "granted" || p.status === "denied")
 
-  const handleNext = () => {
-    if (currentIndex < ONBOARDING_PAGES.length - 1) {
-      const nextIndex = currentIndex + 1
-      flatListRef.current?.scrollToIndex({ index: nextIndex, animated: true })
-      setCurrentIndex(nextIndex)
-    } else {
-      setShowPermissions(true)
-    }
+  const handleOnboardingComplete = () => {
+    setShowPermissions(true)
   }
 
-  const handleSkip = () => {
+  const handleOnboardingSkip = () => {
     setShowPermissions(true)
   }
 
   const handleDone = async () => {
     await setHasSeenOnboarding(true)
     router.replace("/(protected)/(tabs)" as any)
-  }
-
-  const renderPage = ({ item, index }: { item: typeof ONBOARDING_PAGES[0], index: number }) => {
-    return (
-      <View style={styles.pageContainer}>
-        <LinearGradient colors={item.gradient} style={StyleSheet.absoluteFill} />
-        
-        <View style={styles.imageContainer}>
-          <Image
-            source={item.image}
-            style={styles.image}
-            contentFit="cover"
-          />
-          <LinearGradient
-            colors={["transparent", "rgba(15, 15, 26, 0.8)", "#0f0f1a"]}
-            style={styles.imageOverlay}
-          />
-        </View>
-
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.description}>{item.description}</Text>
-        </View>
-      </View>
-    )
   }
 
   if (showPermissions) {
@@ -320,55 +259,46 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={ONBOARDING_PAGES}
-        renderItem={renderPage}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        scrollEnabled={false}
-        getItemLayout={(_, index) => ({
-          length: width,
-          offset: width * index,
-          index,
-        })}
+      <Onboarding
+        introPanel={{
+          title: "Welcome to DVNT",
+          subtitle: "Your creative community awaits. Share moments, discover events, and connect with creators.",
+          button: "Get Started",
+          image: FEED_IMAGE,
+        }}
+        steps={[
+          {
+            title: "Your Feed",
+            description: "Discover amazing content from creators you love. Stay updated with posts, stories, and trending moments.",
+            buttonLabel: "Next",
+            image: FEED_IMAGE,
+            position: "top",
+          },
+          {
+            title: "Share Videos",
+            description: "Create and share stunning videos with your community. Express yourself through powerful visual storytelling.",
+            buttonLabel: "Next",
+            image: VIDEO_IMAGE,
+            position: "top",
+          },
+          {
+            title: "Discover Events",
+            description: "Find exciting events near you and connect with like-minded people. Never miss out on what matters.",
+            buttonLabel: "Next",
+            image: EVENTS_IMAGE,
+            position: "top",
+          },
+          {
+            title: "Your Profile",
+            description: "Build your personal brand and showcase your best content. Let the world see who you really are.",
+            buttonLabel: "Continue",
+            image: PROFILE_IMAGE,
+            position: "top",
+          },
+        ]}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
       />
-
-      <SafeAreaView style={styles.controlsOverlay} edges={["bottom"]}>
-        <View style={styles.skipContainer}>
-          <Pressable onPress={handleSkip}>
-            <Text style={styles.skipText}>Skip</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.dotsContainer}>
-          {ONBOARDING_PAGES.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.dot,
-                index === currentIndex && styles.activeDot,
-              ]}
-            />
-          ))}
-        </View>
-
-        <Pressable onPress={handleNext} style={styles.nextButton}>
-          <LinearGradient
-            colors={["#34A2DF", "#8A40CF", "#FF5BFC"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.nextButtonGradient}
-          >
-            <Text style={styles.nextButtonText}>
-              {currentIndex === ONBOARDING_PAGES.length - 1 ? "Continue" : "Next"}
-            </Text>
-            <ChevronRight size={20} color="#fff" />
-          </LinearGradient>
-        </Pressable>
-      </SafeAreaView>
     </View>
   )
 }
@@ -377,95 +307,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#0f0f1a",
-  },
-  pageContainer: {
-    width,
-    height,
-    justifyContent: "flex-end" as const,
-  },
-  imageContainer: {
-    position: "absolute" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    height: height * 0.65,
-  },
-  image: {
-    width: "100%",
-    height: "100%",
-  },
-  imageOverlay: {
-    position: "absolute" as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 200,
-  },
-  contentContainer: {
-    paddingHorizontal: 32,
-    paddingBottom: 200,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: "700" as const,
-    color: "#ffffff",
-    marginBottom: 16,
-  },
-  description: {
-    fontSize: 17,
-    color: "rgba(255, 255, 255, 0.7)",
-    lineHeight: 26,
-  },
-  controlsOverlay: {
-    position: "absolute" as const,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-  },
-  skipContainer: {
-    alignItems: "flex-end" as const,
-    marginBottom: 24,
-  },
-  skipText: {
-    color: "rgba(255, 255, 255, 0.6)",
-    fontSize: 16,
-    fontWeight: "500" as const,
-  },
-  dotsContainer: {
-    flexDirection: "row" as const,
-    justifyContent: "center" as const,
-    alignItems: "center" as const,
-    marginBottom: 24,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "rgba(255, 255, 255, 0.3)",
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    width: 32,
-    backgroundColor: "#8A40CF",
-  },
-  nextButton: {
-    borderRadius: 16,
-    overflow: "hidden" as const,
-  },
-  nextButtonGradient: {
-    flexDirection: "row" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    paddingVertical: 18,
-    paddingHorizontal: 32,
-  },
-  nextButtonText: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "600" as const,
-    marginRight: 8,
   },
   permissionsContainer: {
     flex: 1,
