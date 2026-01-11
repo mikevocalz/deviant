@@ -12,6 +12,7 @@ interface FeedPostUIState {
   videoStates: Record<string, VideoState>
   previewMedia: { type: "image" | "video"; uri: string } | null
   showPreviewModal: boolean
+  activePostId: string | null
 
   setPressedPost: (postId: string, pressed: boolean) => void
   setLikeAnimating: (postId: string, animating: boolean) => void
@@ -20,6 +21,7 @@ interface FeedPostUIState {
   setPreviewMedia: (media: { type: "image" | "video"; uri: string } | null) => void
   setShowPreviewModal: (show: boolean) => void
   resetVideoState: (postId: string) => void
+  setActivePostId: (postId: string | null) => void
 }
 
 const defaultVideoState: VideoState = {
@@ -34,6 +36,7 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
   videoStates: {},
   previewMedia: null,
   showPreviewModal: false,
+  activePostId: null,
 
   setPressedPost: (postId, pressed) =>
     set((state) => ({
@@ -63,4 +66,6 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
     set((state) => ({
       videoStates: { ...state.videoStates, [postId]: defaultVideoState },
     })),
+
+  setActivePostId: (postId) => set({ activePostId: postId }),
 }))
