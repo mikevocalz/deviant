@@ -11,10 +11,11 @@ import { useState, useRef, useEffect, useCallback } from "react"
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const CANVAS_WIDTH = SCREEN_WIDTH - 32
-const CANVAS_HEIGHT = Math.min(SCREEN_HEIGHT * 0.55, CANVAS_WIDTH * (16 / 9))
+const CANVAS_HEIGHT = Math.min(SCREEN_HEIGHT * 0.6, CANVAS_WIDTH * (16 / 9))
 
 const MAX_STORY_ITEMS = 4
-const MAX_VIDEO_DURATION = 15
+const MAX_VIDEO_DURATION = 30
+const MAX_FILE_SIZE_MB = 50
 
 const bgGradients = [
   { colors: ["#1a1a2e", "#16213e"] as [string, string], label: "Midnight" },
@@ -47,7 +48,7 @@ export default function CreateStoryScreen() {
     prevSlide,
   } = useCreateStoryStore()
 
-  const { pickFromLibrary, recordVideo, requestPermissions } = useMediaPicker()
+  const { pickStoryMedia, recordStoryVideo, requestPermissions } = useMediaPicker()
   const [isSharing, setIsSharing] = useState(false)
   const [showTextInput, setShowTextInput] = useState(false)
   const [activeGradientIndex, setActiveGradientIndex] = useState(0)
@@ -78,20 +79,27 @@ export default function CreateStoryScreen() {
       )
     }
 
+    const validMedia: MediaAsset[] = []
+    const errors: string[] = []
+
     for (const item of newItems) {
-      if (item.type === "video" && item.duration && item.duration > MAX_VIDEO_DURATION) {
-        Alert.alert(
-          "Video Too Long",
-          `Story videos must be ${MAX_VIDEO_DURATION} seconds or less.`,
-          [{ text: "Got it" }]
-        )
-        continue
+      if (item.type === "video") {
+        if (item.duration && item.duration > MAX_VIDEO_DURATION) {
+          errors.push(`Video must be ${MAX_VIDEO_DURATION}s or less`)
+          continue
+        }
+        const fileSizeMB = item.fileSize ? item.fileSize / (1024 * 1024) : 0
+        if (fileSizeMB > MAX_FILE_SIZE_MB) {
+          errors.push(`Video exceeds ${MAX_FILE_SIZE_MB}MB limit`)
+          continue
+        }
       }
+      validMedia.push(item)
     }
 
-    const validMedia = newItems.filter(
-      (item) => item.type !== "video" || !item.duration || item.duration <= MAX_VIDEO_DURATION
-    )
+    if (errors.length > 0) {
+      Alert.alert("Some videos couldn't be added", errors.join("\n"), [{ text: "Got it" }])
+    }
 
     if (validMedia.length > 0) {
       const updatedAssets = [...mediaAssets, ...validMedia]
@@ -110,10 +118,9 @@ export default function CreateStoryScreen() {
       return
     }
 
-    const remaining = MAX_STORY_ITEMS - mediaAssets.length
-    const media = await pickFromLibrary({
-      maxSelection: remaining,
-      allowsMultipleSelection: true,
+    const media = await pickStoryMedia({
+      maxDuration: MAX_VIDEO_DURATION,
+      maxFileSizeMB: MAX_FILE_SIZE_MB,
     })
 
     if (media && media.length > 0) {
@@ -127,12 +134,11 @@ export default function CreateStoryScreen() {
       return
     }
 
-    const media = await recordVideo()
+    const media = await recordStoryVideo({
+      maxDuration: MAX_VIDEO_DURATION,
+      maxFileSizeMB: MAX_FILE_SIZE_MB,
+    })
     if (media) {
-      if (media.duration && media.duration > MAX_VIDEO_DURATION) {
-        Alert.alert("Video Too Long", `Story videos must be ${MAX_VIDEO_DURATION} seconds or less.`)
-        return
-      }
       handleMediaSelected([media])
     }
   }
@@ -553,7 +559,7 @@ export default function CreateStoryScreen() {
             >
               <Video size={24} color="#fff" />
             </View>
-            <Text style={{ color: "#999", fontSize: 12 }}>Video</Text>
+            <Text style={{ color: "#999", fontSize: 12 }}>Video (30s)</Text>
           </Pressable>
 
           <Pressable
