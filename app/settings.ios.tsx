@@ -17,14 +17,18 @@ import {
   UserX,
   MessageCircle,
   Eye,
+  EyeOff,
 } from "lucide-react-native"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { useAppStore } from "@/lib/stores/app-store"
 import { SettingsSection } from "@/components/settings/SettingsSection"
 import { SettingsListItem } from "@/components/settings/SettingsListItem"
+import { Switch } from "@/components/ui/switch"
 
 export default function SettingsScreenIOS() {
   const router = useRouter()
   const { user, logout } = useAuthStore()
+  const { nsfwEnabled, setNsfwEnabled } = useAppStore()
 
   const handleLogout = () => {
     logout()
@@ -103,6 +107,17 @@ export default function SettingsScreenIOS() {
               label="Archived"
               onPress={() => router.push("/settings/archived" as any)}
             />
+            <View className="ml-12 h-px bg-border" />
+            <View className="flex-row items-center justify-between bg-card px-4 py-3">
+              <View className="flex-row items-center gap-3">
+                <EyeOff size={20} color="#666" />
+                <View>
+                  <Text className="text-base text-foreground">Show NSFW Content</Text>
+                  <Text className="text-xs text-muted-foreground">Display sensitive content in feed</Text>
+                </View>
+              </View>
+              <Switch checked={nsfwEnabled} onCheckedChange={setNsfwEnabled} />
+            </View>
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Moon size={20} color="#666" />}

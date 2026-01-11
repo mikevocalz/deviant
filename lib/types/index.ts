@@ -22,6 +22,7 @@ export type Post = {
   comments: Comment[]
   timeAgo: string
   location?: string
+  isNSFW?: boolean
 }
 
 export type StoryItem = {
