@@ -26,5 +26,6 @@ This is a React Native/Expo project using:
 
 - Use TypeScript
 - Follow existing code patterns
+- Use NativeWind v4 for styling
 - Do not add or remove comments unless asked
 - Preserve existing formatting
