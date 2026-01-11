@@ -189,17 +189,14 @@ export default function ActivityScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-background">
-        <Main className="flex-1">
+        <Main className="flex-1bg-background">
           <ActivitySkeleton />
         </Main>
-      </View>
     )
   }
 
   return (
-    <View className="flex-1 bg-background">
-      <Main className="flex-1">
+    <Main className="flex-1 bg-background w-full min-h-screen max-w-4xl">
         <View className="border-b border-border px-4 py-3">
           <View className="flex-row items-center justify-between">
             <Text className="text-lg font-semibold text-foreground">Activity</Text>
@@ -298,7 +295,7 @@ export default function ActivityScreen() {
             ))
           )}
         </ScrollView>
-      </Main>
-    </View>
+  
+    </Main>
   )
 }

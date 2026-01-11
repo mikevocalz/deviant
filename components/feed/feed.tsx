@@ -30,6 +30,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
         comments={item.comments.length}
         timeAgo={item.timeAgo}
         location={item.location}
+        isNSFW={item.isNSFW}
       />
     </Animated.View>
   )

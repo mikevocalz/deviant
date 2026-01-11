@@ -41,6 +41,87 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followersCount: 8900,
     followingCount: 123,
   },
+  naturephoto: {
+    username: "naturephoto",
+    fullName: "Nature Photography",
+    avatar: "https://i.pravatar.cc/150?img=13",
+    bio: "Capturing the beauty of our planet 🌿\nSony Ambassador | DM for prints",
+    postsCount: 892,
+    followersCount: 156000,
+    followingCount: 312,
+  },
+  urban_explorer: {
+    username: "urban_explorer",
+    fullName: "Urban Explorer",
+    avatar: "https://i.pravatar.cc/150?img=8",
+    bio: "Street photography | City vibes 🏙️\nBased in Tokyo & NYC",
+    postsCount: 445,
+    followersCount: 67800,
+    followingCount: 189,
+  },
+  foodie_adventures: {
+    username: "foodie_adventures",
+    fullName: "Foodie Adventures",
+    avatar: "https://i.pravatar.cc/150?img=9",
+    bio: "Eating my way around the world 🍜\nMichelin hunter | Food blogger",
+    postsCount: 678,
+    followersCount: 89400,
+    followingCount: 445,
+  },
+  travel_with_me: {
+    username: "travel_with_me",
+    fullName: "Sarah Anderson",
+    avatar: "https://i.pravatar.cc/150?img=10",
+    bio: "Full-time traveler ✈️\n50+ countries | Content creator",
+    postsCount: 1234,
+    followersCount: 234000,
+    followingCount: 567,
+  },
+  coffee_culture: {
+    username: "coffee_culture",
+    fullName: "Marcus Chen",
+    avatar: "https://i.pravatar.cc/150?img=31",
+    bio: "Coffee enthusiast ☕\nBarista | Roaster | Educator",
+    postsCount: 312,
+    followersCount: 28900,
+    followingCount: 234,
+  },
+  street_style: {
+    username: "street_style",
+    fullName: "Olivia Park",
+    avatar: "https://i.pravatar.cc/150?img=33",
+    bio: "Fashion designer 👗\nSeoul | Paris | NYC\nShop link below ⬇️",
+    postsCount: 567,
+    followersCount: 445000,
+    followingCount: 178,
+  },
+  astro_captures: {
+    username: "astro_captures",
+    fullName: "David Starr",
+    avatar: "https://i.pravatar.cc/150?img=35",
+    bio: "Astrophotographer 🌌\nChasing the cosmos one photo at a time",
+    postsCount: 234,
+    followersCount: 178000,
+    followingCount: 89,
+  },
+  pet_paradise: {
+    username: "pet_paradise",
+    fullName: "Luna & Max",
+    avatar: "https://i.pravatar.cc/150?img=37",
+    bio: "Two rescue pups living their best life 🐕\nAdopt don't shop!",
+    postsCount: 445,
+    followersCount: 123000,
+    followingCount: 567,
+  },
+  minimalist_home: {
+    username: "minimalist_home",
+    fullName: "Interior Studio",
+    avatar: "https://i.pravatar.cc/150?img=40",
+    bio: "Interior design studio 🏠\nScandinavian inspired | Less is more",
+    postsCount: 289,
+    followersCount: 67800,
+    followingCount: 156,
+  },
 }
 
 const mockPosts = [
@@ -50,6 +131,15 @@ const mockPosts = [
   { id: "4", thumbnail: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800" },
   { id: "5", thumbnail: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800" },
   { id: "6", thumbnail: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800" },
+  { id: "f1", thumbnail: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800" },
+  { id: "f2", thumbnail: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800" },
+  { id: "f3", thumbnail: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800" },
+  { id: "f4", thumbnail: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800" },
+  { id: "f5", thumbnail: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800" },
+  { id: "f6", thumbnail: "https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=800" },
+  { id: "f7", thumbnail: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800" },
+  { id: "f8", thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800" },
+  { id: "f9", thumbnail: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800" },
 ]
 
 function UserProfileScreenComponent() {
@@ -89,7 +179,7 @@ function UserProfileScreenComponent() {
         <Pressable onPress={() => router.back()}>
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="text-lg font-semibold">{user.username}</Text>
+        <Text className="text-lg font-semibold text-foreground">{user.username}</Text>
         <Pressable>
           <MoreHorizontal size={24} color={colors.foreground} />
         </Pressable>
@@ -101,27 +191,28 @@ function UserProfileScreenComponent() {
           <View className="flex-row items-center gap-6">
             <SharedImage 
               source={{ uri: user.avatar }} 
-              style={styles.avatar}
+              style={{ ...styles.avatar, backgroundColor: '#2a2a2a' }}
+              contentFit="cover"
               sharedTag={`profile-avatar-${user.username}`}
             />
             <View className="flex-1 flex-row justify-around">
               <View className="items-center">
-                <Text className="text-lg font-bold">{user.postsCount}</Text>
+                <Text className="text-lg font-bold text-foreground">{user.postsCount}</Text>
                 <Text className="text-xs text-muted-foreground">Posts</Text>
               </View>
               <View className="items-center">
-                <Text className="text-lg font-bold">{(user.followersCount / 1000).toFixed(1)}K</Text>
+                <Text className="text-lg font-bold text-foreground">{(user.followersCount / 1000).toFixed(1)}K</Text>
                 <Text className="text-xs text-muted-foreground">Followers</Text>
               </View>
               <View className="items-center">
-                <Text className="text-lg font-bold">{user.followingCount}</Text>
+                <Text className="text-lg font-bold text-foreground">{user.followingCount}</Text>
                 <Text className="text-xs text-muted-foreground">Following</Text>
               </View>
             </View>
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold">{user.fullName}</Text>
+            <Text className="font-semibold text-foreground">{user.fullName}</Text>
             <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>
           </View>
 

@@ -32,12 +32,13 @@ interface FeedPostProps {
   comments: number
   timeAgo: string
   location?: string
+  isNSFW?: boolean
 }
 
 const { width } = Dimensions.get("window")
 const mediaSize = width - 24
 
-function FeedPostComponent({ id, author, media, caption, likes, comments, timeAgo, location }: FeedPostProps) {
+function FeedPostComponent({ id, author, media, caption, likes, comments, timeAgo, location, isNSFW }: FeedPostProps) {
   const router = useRouter()
   const { colors } = useColorScheme()
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore()
@@ -179,21 +180,30 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
               >
-                <Image source={{ uri: author.avatar }} className="h-8 w-8 rounded-full" />
+                <Image
+                  source={{ uri: author.avatar }}
+                  className="h-8 w-8 rounded-full"
+                />
               </Motion.View>
             </Pressable>
             <View>
               <View className="flex-row items-center gap-1">
                 <Pressable onPress={handleProfilePress}>
-                  <Text className="text-sm font-semibold text-foreground">{author.username}</Text>
+                  <Text className="text-sm font-semibold text-foreground">
+                    {author.username}
+                  </Text>
                 </Pressable>
-                {author.verified && (
-                  <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-primary">
+                {isNSFW && (
+                  <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-[#FC253A]">
                     <Text className="text-[8px] text-white">✓</Text>
                   </View>
                 )}
               </View>
-              {location && <Text className="text-xs text-muted-foreground">{location}</Text>}
+              {location && (
+                <Text className="text-xs text-muted-foreground">
+                  {location}
+                </Text>
+              )}
             </View>
           </View>
           <Pressable className="p-2">
@@ -207,14 +217,22 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           onPressOut={handlePressOut}
           onPress={handlePostPress}
         >
-          <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted">
+          <View
+            style={{ width: mediaSize, height: mediaSize }}
+            className="bg-muted"
+          >
             {isVideo ? (
-              <Pressable 
+              <Pressable
                 onPress={handlePostPress}
                 onPressIn={handleLongPressStart}
                 onPressOut={handleLongPressEnd}
               >
-                <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
+                <VideoView
+                  player={player}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  nativeControls={false}
+                />
                 <VideoSeekBar
                   currentTime={videoCurrentTime}
                   duration={videoDuration}
@@ -231,6 +249,7 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                   showsHorizontalScrollIndicator={false}
                   onScroll={handleScroll}
                   scrollEventThrottle={16}
+                  style={{ zIndex:50 }}
                 >
                   {media.map((medium, index) => (
                     <Image
@@ -249,19 +268,25 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                         width: index === currentSlide ? 12 : 6,
                         opacity: index === currentSlide ? 1 : 0.5,
                       }}
-                      transition={{ type: "spring", damping: 15, stiffness: 300 }}
+                      transition={{
+                        type: "spring",
+                        damping: 15,
+                        stiffness: 300,
+                      }}
                       className={`h-1.5 rounded-full ${
-                        index === currentSlide ? "bg-primary" : "bg-foreground/50"
+                        index === currentSlide
+                          ? "bg-primary"
+                          : "bg-foreground/50"
                       }`}
                     />
                   ))}
                 </View>
               </>
             ) : (
-              <SharedImage 
-                source={{ uri: media[0].url }} 
-                style={{ width: "100%", height: "100%" }} 
-                contentFit="cover" 
+              <SharedImage
+                source={{ uri: media[0].url }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
                 sharedTag={`post-image-${id}`}
               />
             )}
@@ -282,16 +307,28 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                   stiffness: 400,
                 }}
               >
-                <Heart size={24} color={isLiked ? "#FF5BFC" : colors.foreground} fill={isLiked ? "#FF5BFC" : "none"} />
+                <Heart
+                  size={24}
+                  color={isLiked ? "#FF5BFC" : colors.foreground}
+                  fill={isLiked ? "#FF5BFC" : "none"}
+                />
               </Motion.View>
             </Pressable>
-            <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
-              <Motion.View whileTap={{ scale: 0.85 }} transition={{ type: "spring", damping: 15, stiffness: 400 }}>
+            <Pressable
+              onPress={() => router.push(`/(protected)/comments/${id}`)}
+            >
+              <Motion.View
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+              >
                 <MessageCircle size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
             <Pressable onPress={() => sharePost(id, caption)}>
-              <Motion.View whileTap={{ scale: 0.85 }} transition={{ type: "spring", damping: 15, stiffness: 400 }}>
+              <Motion.View
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+              >
                 <Share2 size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
@@ -302,32 +339,48 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
               animate={{ rotate: isSaved ? "0deg" : "0deg" }}
               transition={{ type: "spring", damping: 15, stiffness: 400 }}
             >
-              <Bookmark size={24} color={colors.foreground} fill={isSaved ? colors.foreground : "none"} />
+              <Bookmark
+                size={24}
+                color={colors.foreground}
+                fill={isSaved ? colors.foreground : "none"}
+              />
             </Motion.View>
           </Pressable>
         </View>
 
         {/* Info */}
         <View className="px-3 pb-3">
-          <Text className="text-sm font-semibold">{likeCount.toLocaleString()} likes</Text>
+          <Text className="text-sm font-semibold">
+            {likeCount.toLocaleString()} likes
+          </Text>
           {caption && (
             <Text className="mt-1 text-sm">
-              <Text className="font-semibold text-foreground">{author.username}</Text>{" "}
+              <Text className="font-semibold text-foreground">
+                {author.username}
+              </Text>{" "}
               <Text className="text-foreground/90">{caption}</Text>
             </Text>
           )}
           {comments > 0 ? (
-            <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
-              <Text className="mt-1 text-sm text-muted-foreground">View all {comments} comments</Text>
+            <Pressable
+              onPress={() => router.push(`/(protected)/comments/${id}`)}
+            >
+              <Text className="mt-1 text-sm text-muted-foreground">
+                View all {comments} comments
+              </Text>
             </Pressable>
           ) : (
-            <Text className="mt-1 text-sm text-muted-foreground">No comments yet. Be the first to comment!</Text>
+            <Text className="mt-1 text-sm text-muted-foreground">
+              No comments yet. Be the first to comment!
+            </Text>
           )}
-          <Text className="mt-1 text-xs uppercase text-muted-foreground">{timeAgo}</Text>
+          <Text className="mt-1 text-xs uppercase text-muted-foreground">
+            {timeAgo}
+          </Text>
         </View>
       </Article>
     </Motion.View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({

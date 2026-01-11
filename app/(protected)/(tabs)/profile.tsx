@@ -78,7 +78,7 @@ export default function ProfileScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
           <View className="w-10" />
-          <Text className="text-lg font-semibold">{userProfile.username}</Text>
+          <Text className="text-lg font-semibold text-foreground">{userProfile.username}</Text>
           <Pressable onPress={() => router.push("/settings")}>
             <Settings size={24} color={colors.foreground} />
           </Pressable>
@@ -88,25 +88,29 @@ export default function ProfileScreen() {
           {/* Profile Info */}
           <View className="p-4">
             <View className="flex-row items-center gap-6">
-              <Image source={{ uri: userProfile.avatar }} className="h-20 w-20 rounded-full" />
+              <Image 
+                source={{ uri: userProfile.avatar }} 
+                className="h-20 w-20 rounded-full bg-muted" 
+                contentFit="cover"
+              />
               <View className="flex-1 flex-row justify-around">
                 <View className="items-center">
-                  <Text className="text-lg font-bold">{userProfile.postsCount}</Text>
+                  <Text className="text-lg font-bold text-foreground">{userProfile.postsCount}</Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-lg font-bold">{(userProfile.followersCount / 1000).toFixed(1)}K</Text>
+                  <Text className="text-lg font-bold text-foreground">{(userProfile.followersCount / 1000).toFixed(1)}K</Text>
                   <Text className="text-xs text-muted-foreground">Followers</Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-lg font-bold">{userProfile.followingCount}</Text>
+                  <Text className="text-lg font-bold text-foreground">{userProfile.followingCount}</Text>
                   <Text className="text-xs text-muted-foreground">Following</Text>
                 </View>
               </View>
             </View>
 
             <View className="mt-4">
-              <Text className="font-semibold">{userProfile.fullName}</Text>
+              <Text className="font-semibold text-foreground">{userProfile.fullName}</Text>
               <Text className="mt-1 text-sm text-foreground/90">{userProfile.bio}</Text>
               {userProfile.website && (
                 <Text className="mt-1 text-sm font-medium text-primary">{userProfile.website}</Text>
@@ -117,7 +121,7 @@ export default function ProfileScreen() {
               <Popover>
                 <PopoverTrigger>
                   <View className="flex-1 items-center rounded-lg bg-secondary py-2">
-                    <Text className="font-semibold">Edit profile</Text>
+                    <Text className="font-semibold text-secondary-foreground">Edit profile</Text>
                   </View>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="start" sideOffset={4}>
