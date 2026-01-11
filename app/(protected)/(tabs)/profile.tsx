@@ -3,9 +3,10 @@ import { Image } from "expo-image"
 import { Settings, Grid, Bookmark, Play, User, Camera, Link, ChevronRight } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
-import { useMemo, useState, useEffect } from "react"
+import { useMemo, useEffect } from "react"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { useProfileStore } from "@/lib/stores/profile-store"
+import { useUIStore } from "@/lib/stores/ui-store"
 import { posts } from "@/lib/constants"
 import { ProfileSkeleton } from "@/components/skeletons"
 import Animated, { FadeInUp } from "react-native-reanimated"
@@ -39,15 +40,16 @@ export default function ProfileScreen() {
   const { colors } = useColorScheme()
   const { activeTab, setActiveTab } = useProfileStore()
   const bookmarkedPosts = useBookmarkStore((state) => state.bookmarkedPosts)
-  const [isLoading, setIsLoading] = useState(true)
+  const { loadingScreens, setScreenLoading } = useUIStore()
+  const isLoading = loadingScreens.profile
 
   useEffect(() => {
     const loadProfile = async () => {
       await new Promise(resolve => setTimeout(resolve, 600))
-      setIsLoading(false)
+      setScreenLoading("profile", false)
     }
     loadProfile()
-  }, [])
+  }, [setScreenLoading])
 
   const savedPosts = useMemo(() => {
     return posts

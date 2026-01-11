@@ -8,8 +8,9 @@ import { useColorScheme } from "@/lib/hooks"
 import { LinearGradient } from "expo-linear-gradient"
 import { Motion } from "@legendapp/motion"
 import Animated, { useAnimatedScrollHandler, useSharedValue, useAnimatedStyle, FadeInDown } from "react-native-reanimated"
-import { useState, useEffect } from "react"
+import { useEffect } from "react"
 import { EventsSkeleton } from "@/components/skeletons"
+import { useUIStore } from "@/lib/stores/ui-store"
 
 const CARD_HEIGHT = 500
 
@@ -242,15 +243,16 @@ export default function EventsScreen() {
   const { colors } = useColorScheme()
   const scrollY = useSharedValue(0)
   const insets = useSafeAreaInsets()
-  const [isLoading, setIsLoading] = useState(true)
+  const { loadingScreens, setScreenLoading } = useUIStore()
+  const isLoading = loadingScreens.events
 
   useEffect(() => {
     const loadEvents = async () => {
       await new Promise(resolve => setTimeout(resolve, 700))
-      setIsLoading(false)
+      setScreenLoading("events", false)
     }
     loadEvents()
-  }, [])
+  }, [setScreenLoading])
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {

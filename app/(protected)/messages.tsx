@@ -3,8 +3,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { ArrowLeft, Edit } from "lucide-react-native"
 import { Image } from "expo-image"
-import { useCallback, useState, useEffect } from "react"
+import { useCallback, useEffect } from "react"
 import { MessagesSkeleton } from "@/components/skeletons"
+import { useUIStore } from "@/lib/stores/ui-store"
 
 const conversations = [
   {
@@ -40,15 +41,16 @@ const conversations = [
 export default function MessagesScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const [isLoading, setIsLoading] = useState(true)
+  const { loadingScreens, setScreenLoading } = useUIStore()
+  const isLoading = loadingScreens.messages
 
   useEffect(() => {
     const loadMessages = async () => {
       await new Promise(resolve => setTimeout(resolve, 500))
-      setIsLoading(false)
+      setScreenLoading("messages", false)
     }
     loadMessages()
-  }, [])
+  }, [setScreenLoading])
 
   const handleChatPress = useCallback((id: string) => {
     router.push(`/(protected)/chat/${id}`)
