@@ -9,6 +9,7 @@ import { usePostStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { Image } from "expo-image"
+import { SharedImage } from "@/components/shared-image"
 
 const { width } = Dimensions.get("window")
 
@@ -29,7 +30,7 @@ export default function PostDetailScreen() {
       return () => {
         try {
           player?.pause()
-        } catch (e) {
+        } catch {
           // Player may have been released
         }
       }
@@ -77,7 +78,12 @@ export default function PostDetailScreen() {
             {isVideo ? (
               <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls />
             ) : (
-              <Image source={{ uri: post.media[0].url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+              <SharedImage 
+                source={{ uri: post.media[0].url }} 
+                style={{ width: "100%", height: "100%" }} 
+                contentFit="cover" 
+                sharedTag={`post-image-${post.id}`}
+              />
             )}
           </View>
 

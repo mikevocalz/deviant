@@ -68,9 +68,25 @@ export default function RootLayout() {
               entering={FadeIn.duration(600).easing(Easing.out(Easing.cubic))}
             >
               <StatusBar backgroundColor="#000" style="dark" animated />
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(protected)" />
-                <Stack.Screen name="settings" />
+              <Stack 
+                screenOptions={{ 
+                  headerShown: false,
+                  animation: "fade",
+                  animationDuration: 200,
+                  contentStyle: { backgroundColor: "#000" },
+                }}
+              >
+                <Stack.Screen name="(protected)" options={{ animation: "none" }} />
+                <Stack.Screen 
+                  name="settings" 
+                  options={{ 
+                    presentation: "modal",
+                    animation: "slide_from_bottom",
+                    animationDuration: 300,
+                    gestureEnabled: true,
+                    gestureDirection: "vertical",
+                  }} 
+                />
               </Stack>
             </Animated.View>
             <PortalHost />

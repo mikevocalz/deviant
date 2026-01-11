@@ -1,11 +1,20 @@
 import { create } from "zustand"
 
+export interface MediaAttachment {
+  type: "image" | "video"
+  uri: string
+  width?: number
+  height?: number
+  duration?: number
+}
+
 export interface Message {
   id: string
   text: string
   sender: "me" | "them"
   time: string
   mentions?: string[]
+  media?: MediaAttachment
 }
 
 export interface User {
@@ -21,11 +30,14 @@ interface ChatState {
   mentionQuery: string
   showMentions: boolean
   cursorPosition: number
+  pendingMedia: MediaAttachment | null
   setCurrentMessage: (message: string) => void
   setMentionQuery: (query: string) => void
   setShowMentions: (show: boolean) => void
   setCursorPosition: (position: number) => void
+  setPendingMedia: (media: MediaAttachment | null) => void
   sendMessage: (chatId: string) => void
+  sendMediaMessage: (chatId: string, media: MediaAttachment, caption?: string) => void
   initializeChat: (chatId: string, initialMessages: Message[]) => void
   insertMention: (username: string) => void
 }
@@ -71,6 +83,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   mentionQuery: "",
   showMentions: false,
   cursorPosition: 0,
+  pendingMedia: null,
+  
+  setPendingMedia: (media) => set({ pendingMedia: media }),
   
   setCurrentMessage: (message) => {
     const { cursorPosition } = get()
@@ -96,8 +111,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
   
   sendMessage: (chatId) => {
-    const { currentMessage, messages } = get()
-    if (!currentMessage.trim()) return
+    const { currentMessage, messages, pendingMedia } = get()
+    if (!currentMessage.trim() && !pendingMedia) return
     
     const chatMessages = messages[chatId] || mockMessages
     const mentions = extractMentions(currentMessage)
@@ -108,6 +123,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sender: "me",
       time: "Now",
       mentions: mentions.length > 0 ? mentions : undefined,
+      media: pendingMedia || undefined,
     }
     
     set({
@@ -118,6 +134,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentMessage: "",
       mentionQuery: "",
       showMentions: false,
+      pendingMedia: null,
+    })
+  },
+  
+  sendMediaMessage: (chatId, media, caption) => {
+    const { messages } = get()
+    const chatMessages = messages[chatId] || mockMessages
+    
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: caption || "",
+      sender: "me",
+      time: "Now",
+      media,
+    }
+    
+    set({
+      messages: {
+        ...messages,
+        [chatId]: [...chatMessages, newMessage],
+      },
     })
   },
   
