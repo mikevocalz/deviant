@@ -1,16 +1,16 @@
-import { View, Text, Pressable, Dimensions } from "react-native"
+import { View, Text, Pressable } from "react-native"
 import { Image } from "expo-image"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { Main } from "@expo/html-elements"
-import { Heart, Share2, Bookmark, Plus, ArrowLeft } from "lucide-react-native"
+import { Heart, Share2, Bookmark, Plus } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
 import { LinearGradient } from "expo-linear-gradient"
 import { Motion } from "@legendapp/motion"
-import Animated, { useAnimatedScrollHandler, useSharedValue, useAnimatedStyle, interpolate, FadeInDown } from "react-native-reanimated"
-import { useCallback } from "react"
+import Animated, { useAnimatedScrollHandler, useSharedValue, useAnimatedStyle, FadeInDown } from "react-native-reanimated"
+import { useState, useEffect } from "react"
+import { EventsSkeleton } from "@/components/skeletons"
 
-const { width, height } = Dimensions.get("window")
 const CARD_HEIGHT = 500
 
 const events = [
@@ -250,6 +250,15 @@ export default function EventsScreen() {
   const { colors } = useColorScheme()
   const scrollY = useSharedValue(0)
   const insets = useSafeAreaInsets()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadEvents = async () => {
+      await new Promise(resolve => setTimeout(resolve, 700))
+      setIsLoading(false)
+    }
+    loadEvents()
+  }, [])
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -262,6 +271,16 @@ export default function EventsScreen() {
       return `${(likes / 1000).toFixed(1)}k`
     }
     return likes.toString()
+  }
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
+        <Main className="flex-1">
+          <EventsSkeleton />
+        </Main>
+      </View>
+    )
   }
 
   return (

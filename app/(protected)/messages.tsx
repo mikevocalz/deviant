@@ -3,7 +3,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { ArrowLeft, Edit } from "lucide-react-native"
 import { Image } from "expo-image"
-import { useCallback } from "react"
+import { useCallback, useState, useEffect } from "react"
+import { MessagesSkeleton } from "@/components/skeletons"
 
 const conversations = [
   {
@@ -39,6 +40,15 @@ const conversations = [
 export default function MessagesScreen() {
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadMessages = async () => {
+      await new Promise(resolve => setTimeout(resolve, 500))
+      setIsLoading(false)
+    }
+    loadMessages()
+  }, [])
 
   const handleChatPress = useCallback((id: string) => {
     router.push(`/(protected)/chat/${id}`)
@@ -47,6 +57,14 @@ export default function MessagesScreen() {
   const handleProfilePress = useCallback((username: string) => {
     router.push(`/(protected)/profile/${username}`)
   }, [router])
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
+        <MessagesSkeleton />
+      </View>
+    )
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>

@@ -3,9 +3,10 @@ import { Main } from "@expo/html-elements"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Heart, MessageCircle, UserPlus, AtSign } from "lucide-react-native"
 import { Motion } from "@legendapp/motion"
+import { ActivitySkeleton } from "@/components/skeletons"
 
 interface Activity {
   id: string
@@ -124,9 +125,20 @@ function getActivityText(activity: Activity): string {
 export default function ActivityScreen() {
   const router = useRouter()
   const { colors } = useColorScheme()
-  const [activities, setActivities] = useState<Activity[]>(initialActivities)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [followedUsers, setFollowedUsers] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    const loadActivities = async () => {
+      setIsLoading(true)
+      await new Promise(resolve => setTimeout(resolve, 800))
+      setActivities(initialActivities)
+      setIsLoading(false)
+    }
+    loadActivities()
+  }, [])
 
   const onRefresh = useCallback(() => {
     setRefreshing(true)
@@ -174,6 +186,16 @@ export default function ActivityScreen() {
   }, [handlePostPress, handleUserPress])
 
   const unreadCount = activities.filter(a => !a.isRead).length
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background">
+        <Main className="flex-1">
+          <ActivitySkeleton />
+        </Main>
+      </View>
+    )
+  }
 
   return (
     <View className="flex-1 bg-background">

@@ -1,17 +1,14 @@
 import { FlatList, View, Text } from "react-native"
 import { FeedPost } from "./feed-post"
 import { useFeedPosts } from "@/lib/hooks/use-posts"
+import { FeedSkeleton } from "@/components/skeletons"
 import Animated, { FadeInDown } from "react-native-reanimated"
 
 export function Feed() {
   const { data: posts, isLoading, error } = useFeedPosts()
 
   if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center pb-20">
-        <Text className="text-muted-foreground">Loading posts...</Text>
-      </View>
-    )
+    return <FeedSkeleton />
   }
 
   if (error) {

@@ -4,10 +4,11 @@ import { Main } from "@expo/html-elements"
 import { Settings, Grid, Bookmark, Play } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
-import { useMemo } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { useProfileStore } from "@/lib/stores/profile-store"
 import { posts } from "@/lib/constants"
+import { ProfileSkeleton } from "@/components/skeletons"
 import Animated, { FadeInUp } from "react-native-reanimated"
 
 const { width } = Dimensions.get("window")
@@ -38,6 +39,15 @@ export default function ProfileScreen() {
   const { colors } = useColorScheme()
   const { activeTab, setActiveTab } = useProfileStore()
   const getBookmarkedPostIds = useBookmarkStore((state) => state.getBookmarkedPostIds)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      await new Promise(resolve => setTimeout(resolve, 600))
+      setIsLoading(false)
+    }
+    loadProfile()
+  }, [])
 
   const savedPosts = useMemo(() => {
     const bookmarkedIds = getBookmarkedPostIds()
@@ -51,6 +61,16 @@ export default function ProfileScreen() {
   }, [getBookmarkedPostIds])
 
   const displayPosts = activeTab === "posts" ? userPosts : savedPosts
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background">
+        <Main className="flex-1">
+          <ProfileSkeleton />
+        </Main>
+      </View>
+    )
+  }
 
   return (
     <View className="flex-1 bg-background">

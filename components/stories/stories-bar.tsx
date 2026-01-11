@@ -3,13 +3,23 @@ import { Image } from "expo-image"
 import { Plus } from "lucide-react-native"
 import { useRouter } from "expo-router"
 import { storiesData } from "@/lib/constants"
-import { useCallback } from "react"
+import { useCallback, useState, useEffect } from "react"
+import { StoriesBarSkeleton } from "@/components/skeletons"
 
 const yourStory = storiesData[0]
 const otherStories = storiesData.slice(1)
 
 export function StoriesBar() {
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadStories = async () => {
+      await new Promise(resolve => setTimeout(resolve, 400))
+      setIsLoading(false)
+    }
+    loadStories()
+  }, [])
 
   const handleCreateStory = useCallback(() => {
     router.push("/(protected)/story/create")
@@ -22,6 +32,10 @@ export function StoriesBar() {
   const handleProfilePress = useCallback((username: string) => {
     router.push(`/(protected)/profile/${username}`)
   }, [router])
+
+  if (isLoading) {
+    return <StoriesBarSkeleton />
+  }
 
   return (
     <View style={{ borderBottomWidth: 1, borderBottomColor: "#1a1a1a" }}>
