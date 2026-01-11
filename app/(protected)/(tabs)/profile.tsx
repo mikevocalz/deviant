@@ -38,7 +38,7 @@ export default function ProfileScreen() {
   const router = useRouter()
   const { colors } = useColorScheme()
   const { activeTab, setActiveTab } = useProfileStore()
-  const getBookmarkedPostIds = useBookmarkStore((state) => state.getBookmarkedPostIds)
+  const bookmarkedPosts = useBookmarkStore((state) => state.bookmarkedPosts)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -50,15 +50,14 @@ export default function ProfileScreen() {
   }, [])
 
   const savedPosts = useMemo(() => {
-    const bookmarkedIds = getBookmarkedPostIds()
     return posts
-      .filter((post) => bookmarkedIds.includes(post.id))
+      .filter((post) => bookmarkedPosts.includes(post.id))
       .map((post) => ({
         id: post.id,
         thumbnail: post.media[0]?.url || "/placeholder.svg",
         type: post.media[0]?.type === "video" ? "video" : "image",
       }))
-  }, [getBookmarkedPostIds])
+  }, [bookmarkedPosts])
 
   const displayPosts = activeTab === "posts" ? userPosts : savedPosts
 
