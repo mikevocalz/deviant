@@ -24,7 +24,7 @@ const queryClient = new QueryClient()
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme()
-  const { loadAuthState } = useAuthStore()
+  const { loadAuthState, isAuthenticated, hasSeenOnboarding } = useAuthStore()
   const { appReady, splashAnimationFinished, setAppReady, onAnimationFinish } = useAppStore()
   const insets = useSafeAreaInsets()
 
@@ -47,7 +47,7 @@ export default function RootLayout() {
       setAppReady(true)
       SplashScreen.hideAsync()
     }
-  }, [fontsLoaded, fontError])
+  }, [fontsLoaded, fontError, setAppReady])
 
   const showAnimatedSplash = !appReady || !splashAnimationFinished
   if (showAnimatedSplash) {
@@ -77,17 +77,26 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: "#000" },
                 }}
               >
-                <Stack.Screen name="(protected)" options={{ animation: "none" }} />
-                <Stack.Screen 
-                  name="settings" 
-                  options={{ 
-                    presentation: "modal",
-                    animation: "slide_from_bottom",
-                    animationDuration: 300,
-                    gestureEnabled: true,
-                    gestureDirection: "vertical",
-                  }} 
-                />
+                <Stack.Protected guard={!hasSeenOnboarding}>
+                  <Stack.Screen name="(auth)/onboarding" options={{ animation: "none" }} />
+                </Stack.Protected>
+                <Stack.Protected guard={hasSeenOnboarding && !isAuthenticated}>
+                  <Stack.Screen name="(auth)/login" />
+                  <Stack.Screen name="(auth)/signup" />
+                </Stack.Protected>
+                <Stack.Protected guard={isAuthenticated}>
+                  <Stack.Screen name="(protected)" options={{ animation: "none" }} />
+                  <Stack.Screen 
+                    name="settings" 
+                    options={{ 
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      animationDuration: 300,
+                      gestureEnabled: true,
+                      gestureDirection: "vertical",
+                    }} 
+                  />
+                </Stack.Protected>
               </Stack>
             </Animated.View>
             <PortalHost />
