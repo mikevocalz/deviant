@@ -14,7 +14,6 @@
   "dependencies": {
     "@birdwingo/react-native-instagram-stories": "^1.3.18",
     "@expo/html-elements": "^0.13.8",
-    "@hono/trpc-server": "^0.4.1",
     "@legendapp/list": "beta",
     "@legendapp/motion": "^2.5.3",
     "@legendapp/state": "beta",
@@ -24,13 +23,9 @@
     "@react-navigation/native": "^7.1.8",
     "@rive-app/react-native": "^0.1.2",
     "@rn-primitives/portal": "^1.3.0",
-    "@rork-ai/toolkit-sdk": "0.2.54",
     "@shopify/flash-list": "^2.0.2",
     "@tanstack/react-form": "^1.27.7",
     "@tanstack/react-query": "^5.90.16",
-    "@trpc/client": "^11.8.1",
-    "@trpc/react-query": "^11.8.1",
-    "@trpc/server": "^11.8.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "~54.0.30",
@@ -50,7 +45,6 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "expo-video": "~3.0.15",
-    "hono": "^4.11.3",
     "lucide-react-native": "^0.562.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -69,21 +63,20 @@
     "react-native-web": "~0.21.2",
     "react-native-worklets": "0.5.1",
     "rn-icon-mapper": "^0.0.1",
-    "superjson": "^2.2.6",
     "tailwind-merge": "^3.0.2",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "1.0.7",
-    "zod": "^4.3.5",
-    "zustand": "^5.0.9"
+    "zustand": "^5.0.9",
+    "@rork-ai/toolkit-sdk": "0.2.51"
   },
   "devDependencies": {
-    "@expo/ngrok": "^4.1.0",
     "@types/node": "25.0.3",
     "@types/react": "~19.1.17",
     "@types/react-dom": "~19.1.11",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.10",
-    "typescript": "~5.9.3"
+    "typescript": "~5.9.3",
+    "@expo/ngrok": "^4.1.0"
   },
   "private": true
 }
