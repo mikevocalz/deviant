@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from "@tanstack/react-query"
 import { postsApi } from "@/lib/api/posts"
 import type { Post } from "@/lib/constants"
 
@@ -6,15 +6,26 @@ import type { Post } from "@/lib/constants"
 export const postKeys = {
   all: ["posts"] as const,
   feed: () => [...postKeys.all, "feed"] as const,
+  feedInfinite: () => [...postKeys.all, "feed", "infinite"] as const,
   profile: (username: string) => [...postKeys.all, "profile", username] as const,
   detail: (id: string) => [...postKeys.all, "detail", id] as const,
 }
 
-// Fetch feed posts
+// Fetch feed posts (legacy - for backwards compatibility)
 export function useFeedPosts() {
   return useQuery({
     queryKey: postKeys.feed(),
     queryFn: postsApi.getFeedPosts,
+  })
+}
+
+// Fetch feed posts with infinite scroll
+export function useInfiniteFeedPosts() {
+  return useInfiniteQuery({
+    queryKey: postKeys.feedInfinite(),
+    queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
   })
 }
 

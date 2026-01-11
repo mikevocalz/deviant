@@ -3,13 +3,37 @@ import type { Post } from "@/lib/constants"
 // Simulated API delay
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+const PAGE_SIZE = 5
+
+export interface PaginatedResponse<T> {
+  data: T[]
+  nextCursor: number | null
+  hasMore: boolean
+}
+
 // API functions that simulate server calls
 export const postsApi = {
-  // Fetch feed posts
+  // Fetch feed posts with pagination
   async getFeedPosts(): Promise<Post[]> {
     await delay(500)
     const { feedPosts } = await import("@/lib/constants")
     return feedPosts
+  },
+
+  // Fetch feed posts with pagination (infinite scroll)
+  async getFeedPostsPaginated(cursor: number = 0): Promise<PaginatedResponse<Post>> {
+    await delay(600)
+    const { feedPosts } = await import("@/lib/constants")
+    const start = cursor
+    const end = start + PAGE_SIZE
+    const paginatedPosts = feedPosts.slice(start, end)
+    const hasMore = end < feedPosts.length
+    
+    return {
+      data: paginatedPosts,
+      nextCursor: hasMore ? end : null,
+      hasMore,
+    }
   },
 
   // Fetch profile posts
