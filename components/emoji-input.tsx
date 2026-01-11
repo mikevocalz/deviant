@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react"
 import { View, TextInput, Pressable, StyleSheet, TextInputProps, Platform } from "react-native"
 import { Smile } from "lucide-react-native"
-import EmojiPopup from "react-native-emoji-popup"
+import { EmojiPopup } from "react-native-emoji-popup"
 
 interface EmojiInputProps extends Omit<TextInputProps, "value" | "onChangeText"> {
   value: string
@@ -70,28 +70,15 @@ export function EmojiInput({
         {emojiButtonPosition === "right" && emojiButton}
       </View>
       
-      {Platform.OS !== "web" && (
+      {Platform.OS !== "web" && showEmojiPicker && (
         <EmojiPopup
-          isOpen={showEmojiPicker}
-          onClose={() => setShowEmojiPicker(false)}
-          onSelectEmoji={handleEmojiSelect}
-          backdropColor="rgba(0,0,0,0.5)"
-          containerStyles={{
-            backgroundColor: "#1a1a1a",
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
+          onEmojiSelected={(emoji: string) => {
+            handleEmojiSelect(emoji)
+            setShowEmojiPicker(false)
           }}
-          headerStyles={{
-            backgroundColor: "#1a1a1a",
-          }}
-          searchBarStyles={{
-            backgroundColor: "#2a2a2a",
-            color: "#fff",
-          }}
-          categoryBarStyles={{
-            backgroundColor: "#1a1a1a",
-          }}
-        />
+        >
+          <View />
+        </EmojiPopup>
       )}
     </View>
   )

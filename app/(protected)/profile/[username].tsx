@@ -1,11 +1,13 @@
 import { View, Text, ScrollView, Pressable, Dimensions, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
-import { ArrowLeft, Grid, MoreHorizontal } from "lucide-react-native"
+import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { shareProfile } from "@/lib/utils/sharing"
 import { SharedImage } from "@/components/shared-image"
 import { Motion } from "@legendapp/motion"
-import * as Haptics from "expo-haptics"
+
 import { useCallback, memo } from "react"
 
 const { width } = Dimensions.get("window")
@@ -54,6 +56,9 @@ function UserProfileScreenComponent() {
   const { username } = useLocalSearchParams<{ username: string }>()
   const router = useRouter()
   const { colors } = useColorScheme()
+  const currentUser = useAuthStore((state) => state.user)
+  
+  const isOwnProfile = currentUser?.username === username
 
   const user = mockUsers[username || ""] || {
     username: username || "unknown",
@@ -66,16 +71,15 @@ function UserProfileScreenComponent() {
   }
 
   const handlePostPress = useCallback((postId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     router.push(`/(protected)/post/${postId}`)
   }, [router])
 
   const handleFollowPress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+    // Haptic feedback
   }, [])
 
   const handleMessagePress = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    // Haptic feedback
   }, [])
 
   return (
@@ -123,24 +127,48 @@ function UserProfileScreenComponent() {
 
           {/* Action Buttons */}
           <View className="mt-4 flex-row gap-2">
-            <Pressable onPress={handleFollowPress}>
-              <Motion.View
-                whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                style={styles.primaryButton}
-              >
-                <Text className="font-semibold text-primary-foreground">Follow</Text>
-              </Motion.View>
-            </Pressable>
-            <Pressable onPress={handleMessagePress}>
-              <Motion.View
-                whileTap={{ scale: 0.95 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                style={styles.secondaryButton}
-              >
-                <Text className="font-semibold text-secondary-foreground">Message</Text>
-              </Motion.View>
-            </Pressable>
+            {isOwnProfile ? (
+              <>
+                <Pressable onPress={() => router.push("/(protected)/profile/edit" as any)} style={{ flex: 1 }}>
+                  <Motion.View
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                    style={styles.secondaryButton}
+                  >
+                    <Text className="font-semibold text-secondary-foreground">Edit Profile</Text>
+                  </Motion.View>
+                </Pressable>
+                <Pressable onPress={() => shareProfile(user.username, user.fullName)} style={styles.shareButton}>
+                  <Motion.View
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                  >
+                    <Share2 size={20} color="#fff" />
+                  </Motion.View>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <Pressable onPress={handleFollowPress} style={{ flex: 1 }}>
+                  <Motion.View
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                    style={styles.primaryButton}
+                  >
+                    <Text className="font-semibold text-primary-foreground">Follow</Text>
+                  </Motion.View>
+                </Pressable>
+                <Pressable onPress={handleMessagePress} style={{ flex: 1 }}>
+                  <Motion.View
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                    style={styles.secondaryButton}
+                  >
+                    <Text className="font-semibold text-secondary-foreground">Message</Text>
+                  </Motion.View>
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
 
@@ -213,6 +241,14 @@ const styles = StyleSheet.create({
   postImage: {
     width: "100%",
     height: "100%",
+  },
+  shareButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
   },
 })
 

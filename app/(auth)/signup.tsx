@@ -41,9 +41,11 @@ export default function SignupScreen() {
   const handleSignup = async () => {
     // Simulate API call
     setTimeout(() => {
+      const generatedUsername = formData.name.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '')
       setUser({
         id: "1",
         email: formData.email,
+        username: generatedUsername,
         name: formData.name,
         isVerified: formData.idVerified,
       })

@@ -12,7 +12,7 @@ import { useRef, useCallback, useEffect, useState, memo } from "react"
 import { useIsFocused } from "@react-navigation/native"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 import { Motion } from "@legendapp/motion"
-import * as Haptics from "expo-haptics"
+import { sharePost } from "@/lib/utils/sharing"
 
 const LONG_PRESS_DELAY = 300
 
@@ -127,14 +127,12 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   const likeCount = getLikeCount(id, likes)
 
   const handleLike = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     setLikeAnimating(true)
     toggleLike(id, likes)
     setTimeout(() => setLikeAnimating(false), 300)
   }, [id, likes, toggleLike])
 
   const handleSave = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
     toggleBookmark(id)
   }, [id, toggleBookmark])
 
@@ -145,7 +143,6 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
 
   const handlePressIn = useCallback(() => {
     setIsPressed(true)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
   }, [])
 
   const handlePressOut = useCallback(() => {
@@ -157,7 +154,7 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   }, [router, id])
 
   const handleProfilePress = useCallback(() => {
-    router.push(`/profile/${author.username}`)
+    router.push(`/(protected)/profile/${author.username}`)
   }, [router, author.username])
 
   return (
@@ -293,7 +290,7 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                 <MessageCircle size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
-            <Pressable>
+            <Pressable onPress={() => sharePost(id, caption)}>
               <Motion.View whileTap={{ scale: 0.85 }} transition={{ type: "spring", damping: 15, stiffness: 400 }}>
                 <Share2 size={24} color={colors.foreground} />
               </Motion.View>

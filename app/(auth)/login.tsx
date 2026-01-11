@@ -25,7 +25,8 @@ export default function LoginScreen() {
       setUser({
         id: "1",
         email,
-        name: "John Doe",
+        username: "alex.creator",
+        name: "Alex Thompson",
         isVerified: true,
       })
       setIsLoading(false)

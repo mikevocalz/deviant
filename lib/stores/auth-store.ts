@@ -5,6 +5,7 @@ import { storage } from "@/lib/utils/storage"
 interface User {
   id: string
   email: string
+  username: string
   name: string
   avatar?: string
   isVerified: boolean

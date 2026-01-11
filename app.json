@@ -51,7 +51,8 @@
         "READ_MEDIA_AUDIO",
         "READ_MEDIA_VISUAL_USER_SELECTED",
         "ACCESS_MEDIA_LOCATION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "android.permission.VIBRATE"
       ],
       "manifest": {
         "android:supportsPictureInPicture": true
