@@ -7,8 +7,11 @@ import { useColorScheme } from "@/lib/hooks"
 import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { VideoView, useVideoPlayer } from "expo-video"
-import { useRef, useCallback, useEffect } from "react"
+import { useRef, useCallback, useEffect, useState } from "react"
 import { useIsFocused } from "@react-navigation/native"
+import { VideoSeekBar } from "@/components/video-seek-bar"
+
+const LONG_PRESS_DELAY = 300
 
 interface FeedPostProps {
   id: string
@@ -43,6 +46,10 @@ export function FeedPost({ id, author, media, caption, likes, comments, timeAgo,
   const hasMultipleMedia = media.length > 1 && !isVideo
 
   const isFocused = useIsFocused()
+  const [showSeekBar, setShowSeekBar] = useState(false)
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
+  const [videoDuration, setVideoDuration] = useState(0)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const player = useVideoPlayer(isVideo ? media[0].url : "", (player) => {
     player.loop = false
@@ -51,16 +58,64 @@ export function FeedPost({ id, author, media, caption, likes, comments, timeAgo,
   useEffect(() => {
     if (isVideo && player) {
       try {
-        if (isFocused) {
+        if (isFocused && !showSeekBar) {
           player.play()
         } else {
           player.pause()
         }
-      } catch (e) {
+      } catch {
         // Player may have been released
       }
     }
-  }, [isFocused, isVideo, player])
+  }, [isFocused, isVideo, player, showSeekBar])
+
+  useEffect(() => {
+    if (!isVideo || !player) return
+
+    const interval = setInterval(() => {
+      try {
+        setVideoCurrentTime(player.currentTime)
+        setVideoDuration(player.duration || 0)
+      } catch {
+        // Player may have been released
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [isVideo, player])
+
+  const handleLongPressStart = useCallback(() => {
+    if (!isVideo) return
+    longPressTimer.current = setTimeout(() => {
+      setShowSeekBar(true)
+      try {
+        player?.pause()
+      } catch {}
+    }, LONG_PRESS_DELAY)
+  }, [isVideo, player])
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    if (showSeekBar) {
+      setShowSeekBar(false)
+      try {
+        player?.play()
+      } catch {}
+    }
+  }, [showSeekBar, player])
+
+  const handleVideoSeek = useCallback((time: number) => {
+    try {
+      if (player) {
+        player.currentTime = time
+      }
+    } catch (e) {
+      console.log("Seek error:", e)
+    }
+  }, [player])
 
   const isLiked = isPostLiked(id)
   const isSaved = isBookmarked(id)
@@ -104,8 +159,19 @@ export function FeedPost({ id, author, media, caption, likes, comments, timeAgo,
       {/* Media */}
       <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted">
         {isVideo ? (
-          <Pressable onPress={() => router.push(`/(protected)/post/${id}`)}>
-            <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls />
+          <Pressable 
+            onPress={() => router.push(`/(protected)/post/${id}`)}
+            onPressIn={handleLongPressStart}
+            onPressOut={handleLongPressEnd}
+          >
+            <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
+            <VideoSeekBar
+              currentTime={videoCurrentTime}
+              duration={videoDuration}
+              onSeek={handleVideoSeek}
+              visible={showSeekBar}
+              barWidth={mediaSize - 32}
+            />
           </Pressable>
         ) : hasMultipleMedia ? (
           <>

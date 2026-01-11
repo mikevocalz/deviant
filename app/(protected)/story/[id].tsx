@@ -3,13 +3,15 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
 import { Image } from "expo-image"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { X, ChevronLeft, ChevronRight } from "lucide-react-native"
-import { useEffect, useCallback, useRef } from "react"
+import { useEffect, useCallback, useRef, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from "react-native-reanimated"
 import { storiesData } from "@/lib/constants"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
+import { VideoSeekBar } from "@/components/video-seek-bar"
 
 const { width, height } = Dimensions.get("window")
+const LONG_PRESS_DELAY = 300
 
 function ProgressBar({ progress }: { progress: SharedValue<number> }) {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -26,12 +28,17 @@ export default function StoryViewerScreen() {
   const router = useRouter()
   const { currentStoryId, currentItemIndex, setCurrentStoryId, setCurrentItemIndex } = useStoryViewerStore()
   const progress = useSharedValue(0)
+  const [showSeekBar, setShowSeekBar] = useState(false)
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
+  const [videoDuration, setVideoDuration] = useState(0)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isPaused = useRef(false)
 
   useEffect(() => {
     if (id && currentStoryId !== id) {
       setCurrentStoryId(id)
     }
-  }, [id])
+  }, [id, currentStoryId, setCurrentStoryId])
 
   // Filter stories that have content (exclude "your-story" if empty)
   const availableStories = storiesData.filter((s) => s.stories.length > 0)
@@ -49,12 +56,63 @@ export default function StoryViewerScreen() {
     player.play()
   })
 
+  useEffect(() => {
+    if (!isVideo || !player) return
+
+    const interval = setInterval(() => {
+      try {
+        setVideoCurrentTime(player.currentTime)
+        setVideoDuration(player.duration || 0)
+      } catch {
+        // Player may have been released
+      }
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [isVideo, player])
+
+  const handleLongPressStart = useCallback(() => {
+    if (!isVideo) return
+    longPressTimer.current = setTimeout(() => {
+      setShowSeekBar(true)
+      isPaused.current = true
+      progress.value = progress.value // Pause the animation
+      try {
+        player?.pause()
+      } catch {}
+    }, LONG_PRESS_DELAY)
+  }, [isVideo, player, progress])
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+    if (showSeekBar) {
+      setShowSeekBar(false)
+      isPaused.current = false
+      try {
+        player?.play()
+      } catch {}
+    }
+  }, [showSeekBar, player])
+
+  const handleSeek = useCallback((time: number) => {
+    try {
+      if (player) {
+        player.currentTime = time
+      }
+    } catch (e) {
+      console.log("Seek error:", e)
+    }
+  }, [player])
+
   useFocusEffect(
     useCallback(() => {
       return () => {
         try {
           player?.pause()
-        } catch (e) {
+        } catch {
           // Player may have been released
         }
       }
@@ -79,6 +137,7 @@ export default function StoryViewerScreen() {
     return () => {
       progress.value = 0
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentItemIndex])
 
   const handleNext = () => {
@@ -174,12 +233,21 @@ export default function StoryViewerScreen() {
         {/* Content */}
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           {isVideo ? (
-            <VideoView
-              player={player}
-              style={{ width, height: height * 0.7 }}
-              contentFit="contain"
-              nativeControls={false}
-            />
+            <View style={{ width, height: height * 0.7 }}>
+              <VideoView
+                player={player}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="contain"
+                nativeControls={false}
+              />
+              <VideoSeekBar
+                currentTime={videoCurrentTime}
+                duration={videoDuration}
+                onSeek={handleSeek}
+                visible={showSeekBar}
+                barWidth={width - 32}
+              />
+            </View>
           ) : (
             <Image
               source={{ uri: currentItem.url }}
@@ -191,8 +259,18 @@ export default function StoryViewerScreen() {
 
         {/* Touch areas for navigation */}
         <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }}>
-          <Pressable onPress={handlePrev} style={{ flex: 1 }} />
-          <Pressable onPress={handleNext} style={{ flex: 1 }} />
+          <Pressable 
+            onPress={handlePrev} 
+            onPressIn={handleLongPressStart}
+            onPressOut={handleLongPressEnd}
+            style={{ flex: 1 }} 
+          />
+          <Pressable 
+            onPress={handleNext} 
+            onPressIn={handleLongPressStart}
+            onPressOut={handleLongPressEnd}
+            style={{ flex: 1 }} 
+          />
         </View>
 
         {/* Arrow buttons for user navigation */}
