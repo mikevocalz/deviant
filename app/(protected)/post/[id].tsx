@@ -7,6 +7,7 @@ import { useColorScheme } from "@/lib/hooks"
 import { usePost } from "@/lib/hooks/use-posts"
 import { usePostStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
+import { sharePost } from "@/lib/utils/sharing"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { Image } from "expo-image"
 import { SharedImage } from "@/components/shared-image"
@@ -96,7 +97,7 @@ export default function PostDetailScreen() {
               <Pressable onPress={() => router.push(`/(protected)/comments/${post.id}`)}>
                 <MessageCircle size={28} color={colors.foreground} />
               </Pressable>
-              <Pressable>
+              <Pressable onPress={() => sharePost(post.id, post.caption)}>
                 <Share2 size={28} color={colors.foreground} />
               </Pressable>
             </View>

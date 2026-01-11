@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, View, Platform } from "react-native"
 import { LinearGradient } from "expo-linear-gradient"
 import { Plus } from "lucide-react-native"
-import AnimatedGlow from "react-native-animated-glow"
+// AnimatedGlow removed due to compatibility issues
 
 interface GradientGlowButtonProps {
   onPress: () => void
@@ -45,14 +45,8 @@ export function GradientGlowButton({
 
   return (
     <View style={styles.container}>
-      <AnimatedGlow
-        color="#8A40CF"
-        intensity={focused ? 0.8 : 0.5}
-        size={size + 24}
-        duration={2000}
-      >
-        {buttonContent}
-      </AnimatedGlow>
+      <View style={[styles.nativeGlow, { width: size + 20, height: size + 20, borderRadius: (size + 20) / 2 }]} />
+      {buttonContent}
     </View>
   )
 }
@@ -81,5 +75,18 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 20,
+  },
+  glowContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nativeGlow: {
+    position: "absolute",
+    backgroundColor: "rgba(138, 64, 207, 0.25)",
+    shadowColor: "#8A40CF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 12,
   },
 })
