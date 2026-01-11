@@ -4,6 +4,7 @@ import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts"
 import { FeedSkeleton } from "@/components/skeletons"
 import { useAppStore } from "@/lib/stores/app-store"
 import { useMemo, useEffect, useRef, useCallback } from "react"
+import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
 import Animated, { FadeInDown, FadeOut, Layout } from "react-native-reanimated"
 import type { Post } from "@/lib/types"
 
@@ -104,6 +105,7 @@ export function Feed() {
   } = useInfiniteFeedPosts()
   
   const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore()
+  const { setActivePostId } = useFeedPostUIStore()
   const prevNsfwEnabled = useRef(nsfwEnabled)
   
 
@@ -155,6 +157,23 @@ export function Feed() {
     return <LoadMoreIndicator />
   }, [isFetchingNextPage])
 
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+    minimumViewTime: 300,
+  }).current
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: Post; isViewable: boolean }[] }) => {
+    if (viewableItems.length > 0) {
+      const firstViewable = viewableItems[0]
+      if (firstViewable?.isViewable && firstViewable?.item?.id) {
+        console.log("[Feed] Active post:", firstViewable.item.id)
+        setActivePostId(firstViewable.item.id)
+      }
+    } else {
+      setActivePostId(null)
+    }
+  }).current
+
   if (isLoading || !nsfwLoaded) {
     return <FeedSkeleton />
   }
@@ -178,6 +197,8 @@ export function Feed() {
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
       ListFooterComponent={renderFooter}
+      viewabilityConfig={viewabilityConfig}
+      onViewableItemsChanged={onViewableItemsChanged}
       refreshControl={
         <RefreshControl
           refreshing={isRefetching}

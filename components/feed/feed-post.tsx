@@ -58,7 +58,10 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
     setLikeAnimating,
     setVideoState,
     getVideoState,
+    activePostId,
   } = useFeedPostUIStore()
+  
+  const isActivePost = activePostId === id
   
   const videoState = getVideoState(id)
   const showSeekBar = videoState.showSeekBar
@@ -75,16 +78,18 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   useEffect(() => {
     if (isVideo && player) {
       try {
-        if (isFocused && !showSeekBar) {
+        if (isFocused && isActivePost && !showSeekBar) {
+          console.log("[FeedPost] Playing video:", id)
           player.play()
         } else {
+          console.log("[FeedPost] Pausing video:", id)
           player.pause()
         }
       } catch {
         // Player may have been released
       }
     }
-  }, [isFocused, isVideo, player, showSeekBar])
+  }, [isFocused, isVideo, player, showSeekBar, isActivePost, id])
 
   useEffect(() => {
     if (!isVideo || !player) return
