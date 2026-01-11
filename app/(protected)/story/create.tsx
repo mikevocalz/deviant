@@ -1,4 +1,4 @@
-import { View, Text, Pressable, TextInput, Dimensions, ScrollView, Alert, Animated } from "react-native"
+import { View, Text, Pressable, TextInput, Dimensions, ScrollView, Alert, Animated, StyleSheet } from "react-native"
 import { Image } from "expo-image"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { X, Image as ImageIcon, Video, Type, ChevronLeft, ChevronRight, Sparkles } from "lucide-react-native"
@@ -50,6 +50,8 @@ export default function CreateStoryScreen() {
 
   const { pickStoryMedia, recordStoryVideo, requestPermissions } = useMediaPicker()
   const [isSharing, setIsSharing] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const progressAnim = useRef(new Animated.Value(0)).current
   const [showTextInput, setShowTextInput] = useState(false)
   const [activeGradientIndex, setActiveGradientIndex] = useState(0)
   const [activeTextColorIndex, setActiveTextColorIndex] = useState(0)
@@ -156,6 +158,35 @@ export default function CreateStoryScreen() {
     animateTransition()
   }
 
+  const simulateUploadProgress = useCallback(() => {
+    setUploadProgress(0)
+    progressAnim.setValue(0)
+    
+    const stages = [
+      { progress: 15, delay: 200 },
+      { progress: 35, delay: 400 },
+      { progress: 55, delay: 300 },
+      { progress: 75, delay: 350 },
+      { progress: 90, delay: 400 },
+      { progress: 100, delay: 300 },
+    ]
+    
+    let totalDelay = 0
+    stages.forEach(({ progress, delay }) => {
+      totalDelay += delay
+      setTimeout(() => {
+        setUploadProgress(progress)
+        Animated.timing(progressAnim, {
+          toValue: progress / 100,
+          duration: delay * 0.8,
+          useNativeDriver: false,
+        }).start()
+      }, totalDelay)
+    })
+    
+    return totalDelay + 200
+  }, [progressAnim])
+
   const handleShare = async () => {
     if (selectedMedia.length === 0 && !text) {
       Alert.alert("Empty Story", "Please add media or text to your story")
@@ -170,13 +201,17 @@ export default function CreateStoryScreen() {
 
     console.log("[Story] Creating story with:", { text, mediaCount: selectedMedia.length })
 
+    const uploadDuration = simulateUploadProgress()
+    
     setTimeout(() => {
       setIsSharing(false)
+      setUploadProgress(0)
+      progressAnim.setValue(0)
       Alert.alert("Success", "Story shared successfully!")
       reset()
       setMediaAssets([])
       router.back()
-    }, 1500)
+    }, uploadDuration)
   }
 
   const handleClose = () => {
@@ -256,6 +291,27 @@ export default function CreateStoryScreen() {
           </Pressable>
         </Animated.View>
       </View>
+
+      {isSharing && (
+        <View style={styles.progressContainer}>
+          <View style={styles.progressBackground}>
+            <Animated.View
+              style={[
+                styles.progressBar,
+                {
+                  width: progressAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                },
+              ]}
+            />
+          </View>
+          <Text style={styles.progressText}>
+            {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : 'Processing...'}
+          </Text>
+        </View>
+      )}
 
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 16 }}>
         <Animated.View
@@ -642,3 +698,34 @@ export default function CreateStoryScreen() {
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  progressContainer: {
+    position: 'absolute',
+    top: 70,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    borderRadius: 12,
+    padding: 16,
+    zIndex: 100,
+  },
+  progressBackground: {
+    height: 6,
+    backgroundColor: '#333',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#3EA4E5',
+    borderRadius: 3,
+  },
+  progressText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+})
