@@ -38,30 +38,16 @@ export default function NewMessageScreen() {
   }, [router])
 
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: "#000" }}>
-      <View style={{ 
-        flexDirection: "row", 
-        alignItems: "center", 
-        gap: 12, 
-        borderBottomWidth: 1, 
-        borderBottomColor: "#1a1a1a", 
-        paddingHorizontal: 16, 
-        paddingVertical: 12 
-      }}>
+    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <Text style={{ flex: 1, fontSize: 18, fontWeight: "700", color: "#fff" }}>New Message</Text>
+        <Text className="flex-1 text-lg font-bold text-foreground">New Message</Text>
       </View>
 
-      <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: "#1a1a1a" }}>
-        <View style={{ 
-          flexDirection: "row", 
-          alignItems: "center", 
-          backgroundColor: "#1a1a1a", 
-          borderRadius: 12, 
-          paddingHorizontal: 12 
-        }}>
+      <View className="px-4 py-3 border-b border-border">
+        <View className="flex-row items-center bg-secondary rounded-xl px-3">
           <Search size={20} color="#666" />
           <TextInput
             value={searchQuery}
@@ -69,7 +55,7 @@ export default function NewMessageScreen() {
             placeholder="Search users..."
             placeholderTextColor="#666"
             autoFocus
-            style={{ flex: 1, height: 44, marginLeft: 8, color: "#fff", fontSize: 16 }}
+            className="flex-1 h-11 ml-2 text-foreground text-base"
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
@@ -79,56 +65,38 @@ export default function NewMessageScreen() {
         </View>
       </View>
 
-      <ScrollView style={{ flex: 1 }}>
-        <Text style={{ 
-          paddingHorizontal: 16, 
-          paddingTop: 16, 
-          paddingBottom: 8, 
-          color: "#666", 
-          fontSize: 14, 
-          fontWeight: "600" 
-        }}>
+      <ScrollView className="flex-1">
+        <Text className="px-4 pt-4 pb-2 text-muted-foreground text-sm font-semibold">
           {searchQuery ? "Search Results" : "Suggested"}
         </Text>
         {filteredUsers.map((user) => (
           <View
             key={user.id}
-            style={{ 
-              flexDirection: "row", 
-              alignItems: "center", 
-              gap: 12, 
-              paddingHorizontal: 16, 
-              paddingVertical: 12 
-            }}
+            className="flex-row items-center gap-3 px-4 py-3"
           >
             <Pressable onPress={() => handleProfilePress(user.username)}>
-              <Image source={{ uri: user.avatar }} style={{ width: 50, height: 50, borderRadius: 25 }} />
+              <Image source={{ uri: user.avatar }} className="w-[50px] h-[50px] rounded-full" />
             </Pressable>
             <Pressable 
               onPress={() => handleSelectUser(user.id)}
-              style={{ flex: 1 }}
+              className="flex-1"
             >
               <Pressable onPress={() => handleProfilePress(user.username)}>
-                <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>{user.username}</Text>
+                <Text className="text-base font-semibold text-foreground">{user.username}</Text>
               </Pressable>
-              <Text style={{ fontSize: 14, color: "#666" }}>{user.name}</Text>
+              <Text className="text-sm text-muted-foreground">{user.name}</Text>
             </Pressable>
             <Pressable 
               onPress={() => handleSelectUser(user.id)}
-              style={{
-                backgroundColor: "#3EA4E5",
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 20
-              }}
+              className="bg-primary px-4 py-2 rounded-full"
             >
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>Message</Text>
+              <Text className="text-white font-semibold text-sm">Message</Text>
             </Pressable>
           </View>
         ))}
         {filteredUsers.length === 0 && (
-          <View style={{ padding: 32, alignItems: "center" }}>
-            <Text style={{ color: "#666" }}>No users found</Text>
+          <View className="p-8 items-center">
+            <Text className="text-muted-foreground">No users found</Text>
           </View>
         )}
       </ScrollView>

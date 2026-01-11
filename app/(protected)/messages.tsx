@@ -60,61 +60,35 @@ export default function MessagesScreen() {
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
         <MessagesSkeleton />
       </View>
     )
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
-      <View style={{ 
-        flexDirection: "row", 
-        alignItems: "center", 
-        justifyContent: "space-between", 
-        borderBottomWidth: 1, 
-        borderBottomColor: "#1a1a1a", 
-        paddingHorizontal: 16, 
-        paddingVertical: 12 
-      }}>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>Messages</Text>
+        <Text className="text-lg font-bold text-foreground">Messages</Text>
         <Pressable onPress={() => router.push("/(protected)/messages/new")} hitSlop={12}>
           <Edit size={24} color="#fff" />
         </Pressable>
       </View>
 
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView className="flex-1">
         {conversations.map((item) => (
           <View
             key={item.id}
-            style={{ 
-              flexDirection: "row", 
-              alignItems: "center", 
-              gap: 12, 
-              borderBottomWidth: 1, 
-              borderBottomColor: "#1a1a1a", 
-              paddingHorizontal: 16, 
-              paddingVertical: 12 
-            }}
+            className="flex-row items-center gap-3 border-b border-border px-4 py-3"
           >
             <Pressable onPress={() => handleProfilePress(item.user.username)}>
-              <View style={{ position: "relative" }}>
-                <Image source={{ uri: item.user.avatar }} style={{ height: 56, width: 56, borderRadius: 28 }} />
+              <View className="relative">
+                <Image source={{ uri: item.user.avatar }} className="h-14 w-14 rounded-full" />
                 {item.unread && (
-                  <View style={{ 
-                    position: "absolute", 
-                    bottom: 0, 
-                    right: 0, 
-                    height: 14, 
-                    width: 14, 
-                    borderRadius: 7, 
-                    borderWidth: 2, 
-                    borderColor: "#000", 
-                    backgroundColor: "#3EA4E5" 
-                  }} />
+                  <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />
                 )}
               </View>
             </Pressable>
@@ -122,18 +96,18 @@ export default function MessagesScreen() {
             <TouchableOpacity
               onPress={() => handleChatPress(item.id)}
               activeOpacity={0.7}
-              style={{ flex: 1 }}
+              className="flex-1"
             >
-              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <View className="flex-row items-center justify-between">
                 <Pressable onPress={() => handleProfilePress(item.user.username)}>
-                  <Text style={{ fontSize: 16, fontWeight: item.unread ? "700" : "500", color: "#fff" }}>
+                  <Text className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}>
                     {item.user.username}
                   </Text>
                 </Pressable>
-                <Text style={{ fontSize: 12, color: "#666" }}>{item.timeAgo}</Text>
+                <Text className="text-xs text-muted-foreground">{item.timeAgo}</Text>
               </View>
               <Text
-                style={{ fontSize: 14, color: item.unread ? "#fff" : "#666", marginTop: 2 }}
+                className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
                 numberOfLines={1}
               >
                 {item.lastMessage}
@@ -143,13 +117,13 @@ export default function MessagesScreen() {
         ))}
 
         {conversations.length === 0 && (
-          <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 60 }}>
-            <Text style={{ color: "#666", fontSize: 16 }}>No messages yet</Text>
+          <View className="items-center justify-center py-16">
+            <Text className="text-muted-foreground text-base">No messages yet</Text>
             <Pressable 
               onPress={() => router.push("/(protected)/messages/new")}
-              style={{ marginTop: 16 }}
+              className="mt-4"
             >
-              <Text style={{ color: "#3EA4E5", fontWeight: "600" }}>Start a conversation</Text>
+              <Text className="text-primary font-semibold">Start a conversation</Text>
             </Pressable>
           </View>
         )}

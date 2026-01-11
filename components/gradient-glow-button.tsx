@@ -1,7 +1,6 @@
-import { Pressable, StyleSheet, View, Platform } from "react-native"
+import { Pressable, View, Platform } from "react-native"
 import { LinearGradient } from "expo-linear-gradient"
 import { Plus } from "lucide-react-native"
-// AnimatedGlow removed due to compatibility issues
 
 interface GradientGlowButtonProps {
   onPress: () => void
@@ -19,15 +18,17 @@ export function GradientGlowButton({
   const gradientColors = ["#34A2DF", "#8A40CF", "#FF5BFC"] as const
 
   const buttonContent = (
-    <Pressable onPress={onPress} style={styles.pressable}>
+    <Pressable 
+      onPress={onPress} 
+      className="shadow-lg shadow-purple"
+      style={{ elevation: 8 }}
+    >
       <LinearGradient
         colors={gradientColors}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[
-          styles.gradientButton,
-          { width: size, height: size, borderRadius: size / 2 }
-        ]}
+        className="items-center justify-center"
+        style={{ width: size, height: size, borderRadius: size / 2 }}
       >
         <Plus size={iconSize} color="#fff" strokeWidth={2.5} />
       </LinearGradient>
@@ -36,57 +37,40 @@ export function GradientGlowButton({
 
   if (Platform.OS === "web") {
     return (
-      <View style={styles.container}>
-        <View style={[styles.webGlow, { width: size + 20, height: size + 20, borderRadius: (size + 20) / 2 }]} />
+      <View className="items-center justify-center -mt-[30px]">
+        <View 
+          className="absolute bg-purple/30"
+          style={{ 
+            width: size + 20, 
+            height: size + 20, 
+            borderRadius: (size + 20) / 2,
+            shadowColor: "#8A40CF",
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.6,
+            shadowRadius: 20,
+          }} 
+        />
         {buttonContent}
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.nativeGlow, { width: size + 20, height: size + 20, borderRadius: (size + 20) / 2 }]} />
+    <View className="items-center justify-center -mt-[30px]">
+      <View 
+        className="absolute bg-purple/25"
+        style={{ 
+          width: size + 20, 
+          height: size + 20, 
+          borderRadius: (size + 20) / 2,
+          shadowColor: "#8A40CF",
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.8,
+          shadowRadius: 16,
+          elevation: 12,
+        }} 
+      />
       {buttonContent}
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -30,
-  },
-  pressable: {
-    shadowColor: "#8A40CF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  gradientButton: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  webGlow: {
-    position: "absolute",
-    backgroundColor: "rgba(138, 64, 207, 0.3)",
-    shadowColor: "#8A40CF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 20,
-  },
-  glowContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nativeGlow: {
-    position: "absolute",
-    backgroundColor: "rgba(138, 64, 207, 0.25)",
-    shadowColor: "#8A40CF",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 16,
-    elevation: 12,
-  },
-})

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, RefreshControl, StyleSheet } from "react-native"
+import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native"
 import { Main } from "@expo/html-elements"
 import { Image } from "expo-image"
 import { useRouter } from "expo-router"
@@ -204,8 +204,8 @@ export default function ActivityScreen() {
           <View className="flex-row items-center justify-between">
             <Text className="text-lg font-semibold text-foreground">Activity</Text>
             {unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{unreadCount}</Text>
+              <View className="bg-accent rounded-full px-2 py-0.5 min-w-[20px] items-center">
+                <Text className="text-white text-xs font-semibold">{unreadCount}</Text>
               </View>
             )}
           </View>
@@ -235,18 +235,17 @@ export default function ActivityScreen() {
               >
                 <Pressable 
                   onPress={() => handleActivityPress(activity)}
-                  style={[
-                    styles.activityItem,
-                    !activity.isRead && styles.unreadItem
-                  ]}
+                  className={`flex-row items-center px-4 py-3 border-b border-border ${
+                    !activity.isRead ? "bg-primary/10" : ""
+                  }`}
                 >
                   <Pressable onPress={() => handleUserPress(activity.user.username)}>
-                    <View style={styles.avatarContainer}>
+                    <View className="relative">
                       <Image 
                         source={{ uri: activity.user.avatar }} 
-                        style={styles.avatar}
+                        className="w-11 h-11 rounded-full"
                       />
-                      <View style={styles.iconBadge}>
+                      <View className="absolute -bottom-0.5 -right-0.5 bg-card rounded-full p-1 border-2 border-background">
                         <ActivityIcon type={activity.type} colors={colors} />
                       </View>
                     </View>
@@ -271,7 +270,7 @@ export default function ActivityScreen() {
                     <Pressable onPress={() => handlePostPress(activity.post!.id)}>
                       <Image 
                         source={{ uri: activity.post.thumbnail }} 
-                        style={styles.postThumbnail}
+                        className="w-12 h-12 rounded-lg ml-3"
                       />
                     </Pressable>
                   )}
@@ -279,15 +278,17 @@ export default function ActivityScreen() {
                   {activity.type === "follow" && (
                     <Pressable 
                       onPress={() => handleFollowBack(activity.user.username)}
-                      style={[
-                        styles.followButton,
-                        followedUsers.has(activity.user.username) && styles.followingButton
-                      ]}
+                      className={`px-4 py-2 rounded-lg ml-3 ${
+                        followedUsers.has(activity.user.username) 
+                          ? "bg-transparent border border-border" 
+                          : "bg-primary"
+                      }`}
                     >
-                      <Text style={[
-                        styles.followButtonText,
-                        followedUsers.has(activity.user.username) && styles.followingButtonText
-                      ]}>
+                      <Text className={`text-[13px] font-semibold ${
+                        followedUsers.has(activity.user.username) 
+                          ? "text-muted-foreground" 
+                          : "text-white"
+                      }`}>
                         {followedUsers.has(activity.user.username) ? "Following" : "Follow"}
                       </Text>
                     </Pressable>
@@ -301,74 +302,3 @@ export default function ActivityScreen() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  activityItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
-  },
-  unreadItem: {
-    backgroundColor: "rgba(62, 164, 229, 0.08)",
-  },
-  avatarContainer: {
-    position: "relative",
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-  },
-  iconBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 10,
-    padding: 4,
-    borderWidth: 2,
-    borderColor: "#000",
-  },
-  postThumbnail: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-    marginLeft: 12,
-  },
-  followButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#3EA4E5",
-    marginLeft: 12,
-  },
-  followingButton: {
-    backgroundColor: "transparent",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.3)",
-  },
-  followButtonText: {
-    fontSize: 13,
-    fontWeight: "600" as const,
-    color: "#fff",
-  },
-  followingButtonText: {
-    color: "rgba(255,255,255,0.7)",
-  },
-  badge: {
-    backgroundColor: "#FF5BFC",
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: "center",
-  },
-  badgeText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "600" as const,
-  },
-})
