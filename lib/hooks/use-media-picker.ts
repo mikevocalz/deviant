@@ -11,7 +11,17 @@ export interface MediaAsset {
   height?: number
   duration?: number
   fileName?: string
+  fileSize?: number
 }
+
+export interface StoryMediaOptions {
+  maxDuration?: number
+  maxFileSizeMB?: number
+}
+
+const STORY_MAX_DURATION = 30
+const STORY_MAX_FILE_SIZE_MB = 50
+const STORY_ASPECT_RATIO = 9 / 16
 
 export function useMediaPicker() {
   const [selectedMedia, setSelectedMedia] = useState<MediaAsset[]>([])
@@ -103,15 +113,16 @@ export function useMediaPicker() {
     }
   }
 
-  const recordVideo = async () => {
+  const recordVideo = async (maxDuration: number = 60) => {
     const hasPermission = await requestPermissions()
     if (!hasPermission) return
 
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["videos"],
-        videoMaxDuration: 60,
-        quality: 1,
+        videoMaxDuration: maxDuration,
+        quality: 0.7,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       })
 
       if (!result.canceled && result.assets[0]) {
@@ -124,13 +135,148 @@ export function useMediaPicker() {
           height: asset.height,
           duration: asset.duration ?? undefined,
           fileName: asset.fileName ?? undefined,
+          fileSize: asset.fileSize ?? undefined,
         }
 
         setSelectedMedia((prev) => [...prev, newMedia])
         return newMedia
       }
     } catch (error) {
-      console.error("[v0] Error recording video:", error)
+      console.error("[MediaPicker] Error recording video:", error)
+      Alert.alert("Error", "Failed to record video. Please try again.")
+    }
+  }
+
+  const pickStoryMedia = async (options?: StoryMediaOptions) => {
+    const hasPermission = await requestPermissions()
+    if (!hasPermission) return
+
+    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION
+    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB
+
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images", "videos"],
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        videoMaxDuration: maxDuration,
+        selectionLimit: 4,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      })
+
+      if (!result.canceled && result.assets) {
+        const validMedia: MediaAsset[] = []
+        const errors: string[] = []
+
+        for (const asset of result.assets) {
+          if (asset.type === "video") {
+            if (asset.duration && asset.duration > maxDuration) {
+              errors.push(`Video exceeds ${maxDuration}s limit`)
+              continue
+            }
+
+            const fileSizeMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0
+            if (fileSizeMB > maxFileSizeMB) {
+              errors.push(`Video exceeds ${maxFileSizeMB}MB limit`)
+              continue
+            }
+
+            if (asset.width && asset.height) {
+              const aspectRatio = asset.width / asset.height
+              const targetRatio = STORY_ASPECT_RATIO
+              const tolerance = 0.15
+              
+              if (Math.abs(aspectRatio - targetRatio) > tolerance) {
+                console.log(`[MediaPicker] Video aspect ratio ${aspectRatio.toFixed(2)} differs from 9:16 (${targetRatio.toFixed(2)}), will be cropped to fit`)
+              }
+            }
+          }
+
+          validMedia.push({
+            id: asset.assetId || asset.uri,
+            uri: asset.uri,
+            type: asset.type === "video" ? "video" : "image",
+            width: asset.width,
+            height: asset.height,
+            duration: asset.duration ?? undefined,
+            fileName: asset.fileName ?? undefined,
+            fileSize: asset.fileSize ?? undefined,
+          })
+        }
+
+        if (errors.length > 0) {
+          Alert.alert(
+            "Some media couldn't be added",
+            errors.join("\n"),
+            [{ text: "OK" }]
+          )
+        }
+
+        if (validMedia.length > 0) {
+          setSelectedMedia((prev) => [...prev, ...validMedia])
+          return validMedia
+        }
+      }
+    } catch (error) {
+      console.error("[MediaPicker] Error picking story media:", error)
+      Alert.alert("Error", "Failed to pick media. Please try again.")
+    }
+  }
+
+  const recordStoryVideo = async (options?: StoryMediaOptions) => {
+    const hasPermission = await requestPermissions()
+    if (!hasPermission) return
+
+    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION
+    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["videos"],
+        videoMaxDuration: maxDuration,
+        quality: 0.7,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      })
+
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0]
+
+        if (asset.duration && asset.duration > maxDuration) {
+          Alert.alert(
+            "Video Too Long",
+            `Story videos must be ${maxDuration} seconds or less.`,
+            [{ text: "OK" }]
+          )
+          return
+        }
+
+        const fileSizeMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0
+        if (fileSizeMB > maxFileSizeMB) {
+          Alert.alert(
+            "Video Too Large",
+            `Video file size (${fileSizeMB.toFixed(1)}MB) exceeds the ${maxFileSizeMB}MB limit. Try recording a shorter video.`,
+            [{ text: "OK" }]
+          )
+          return
+        }
+
+        const newMedia: MediaAsset = {
+          id: asset.assetId || asset.uri,
+          uri: asset.uri,
+          type: "video",
+          width: asset.width,
+          height: asset.height,
+          duration: asset.duration ?? undefined,
+          fileName: asset.fileName ?? undefined,
+          fileSize: asset.fileSize ?? undefined,
+        }
+
+        console.log(`[MediaPicker] Story video recorded: ${asset.duration?.toFixed(1)}s, ${fileSizeMB.toFixed(1)}MB`)
+        setSelectedMedia((prev) => [...prev, newMedia])
+        return newMedia
+      }
+    } catch (error) {
+      console.error("[MediaPicker] Error recording story video:", error)
       Alert.alert("Error", "Failed to record video. Please try again.")
     }
   }
@@ -152,5 +298,9 @@ export function useMediaPicker() {
     removeMedia,
     clearAll,
     requestPermissions,
+    pickStoryMedia,
+    recordStoryVideo,
+    STORY_MAX_DURATION,
+    STORY_MAX_FILE_SIZE_MB,
   }
 }
