@@ -4,6 +4,7 @@ import { useCallback } from "react"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark } from "lucide-react-native"
 import { useColorScheme } from "@/lib/hooks"
+import { PostDetailSkeleton } from "@/components/skeletons"
 import { usePost } from "@/lib/hooks/use-posts"
 import { usePostStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
@@ -40,10 +41,14 @@ export default function PostDetailScreen() {
 
   if (isLoading || !post) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-muted-foreground">Loading post...</Text>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable onPress={() => router.back()} className="mr-4">
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
         </View>
+        <PostDetailSkeleton />
       </SafeAreaView>
     )
   }
