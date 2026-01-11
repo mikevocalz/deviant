@@ -5,7 +5,9 @@ import { useRouter } from "expo-router"
 import { useMediaPicker } from "@/lib/hooks"
 import type { MediaAsset } from "@/lib/hooks/use-media-picker"
 import { useCreatePostStore } from "@/lib/stores/create-post-store"
-import { useState, useRef, useCallback, useEffect } from "react"
+import { useCreatePost } from "@/lib/hooks/use-posts"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { useRef, useCallback, useEffect } from "react"
 
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window")
@@ -20,7 +22,8 @@ export default function CreateScreen() {
   const { caption, location, setCaption, setLocation, reset } = useCreatePostStore()
   const { selectedMedia, setSelectedMedia } = useCreatePostStore()
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } = useMediaPicker()
-  const [isUploading, setIsUploading] = useState(false)
+  const { mutate: createPost, isPending: isUploading } = useCreatePost()
+  const { user } = useAuthStore()
   const buttonScale = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
@@ -182,8 +185,6 @@ export default function CreateScreen() {
     }
 
     animateButton()
-    setIsUploading(true)
-    
 
     console.log("[Create] Creating post with:", { 
       caption, 
@@ -192,12 +193,34 @@ export default function CreateScreen() {
       mediaTypes: selectedMedia.map(m => m.type)
     })
 
-    setTimeout(() => {
-      setIsUploading(false)
-      Alert.alert("Success", "Post created successfully!")
-      reset()
-      router.back()
-    }, 1500)
+    const postMedia = selectedMedia.map(m => ({
+      type: m.type,
+      url: m.uri,
+    }))
+
+    createPost(
+      {
+        caption,
+        location,
+        media: postMedia,
+        author: user ? {
+          username: user.username || "you",
+          avatar: user.avatar || "https://i.pravatar.cc/150?img=12",
+          verified: false,
+        } : undefined,
+      },
+      {
+        onSuccess: (newPost) => {
+          console.log("[Create] Post created successfully:", newPost.id)
+          reset()
+          router.replace("/(protected)/(tabs)")
+        },
+        onError: (error) => {
+          console.error("[Create] Failed to create post:", error)
+          Alert.alert("Error", "Failed to create post. Please try again.")
+        },
+      }
+    )
   }
 
   const handleClose = () => {
