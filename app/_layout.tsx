@@ -35,7 +35,8 @@ export default function RootLayout() {
     "SpaceGrotesk-Regular": require("../assets/fonts/SpaceGrotesk-Regular.ttf"),
     "SpaceGrotesk-SemiBold": require("../assets/fonts/SpaceGrotesk-SemiBold.ttf"),
     "SpaceGrotesk-Bold": require("../assets/fonts/SpaceGrotesk-Bold.ttf"),
-  })
+    "Republica-Minor": require("../assets/fonts/Republica-Minor.ttf"),
+  });
 
   useEffect(() => {
     loadAuthState()
