@@ -1,131 +1,106 @@
-import { View, Text, Pressable, TextInput } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Link, router } from "expo-router"
-import { useAuthStore } from "@/lib/stores/auth-store"
-import { useLoginStore } from "@/lib/stores/login-store"
-import { Mail, Lock, Eye, EyeOff } from "lucide-react-native"
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller"
-import { LinearGradient } from "expo-linear-gradient"
+import { useState } from 'react'
+import { View, Text, Pressable, ScrollView } from 'react-native'
+import { useForm } from '@tanstack/react-form'
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller'
+import { FormInput } from '@/components/form'
+import { Button } from '@/components/ui/button'
+import { router } from 'expo-router'
+import { useAuthStore } from '@/lib/stores/auth-store'
+import { Lock } from 'lucide-react-native'
 
 export default function LoginScreen() {
-  const email = useLoginStore((state) => state.email)
-  const password = useLoginStore((state) => state.password)
-  const showPassword = useLoginStore((state) => state.showPassword)
-  const isLoading = useLoginStore((state) => state.isLoading)
-  const setEmail = useLoginStore((state) => state.setEmail)
-  const setPassword = useLoginStore((state) => state.setPassword)
-  const toggleShowPassword = useLoginStore((state) => state.toggleShowPassword)
-  const setIsLoading = useLoginStore((state) => state.setIsLoading)
   const setUser = useAuthStore((state) => state.setUser)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleLogin = async () => {
-    setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
-      setUser({
-        id: "1",
-        email,
-        username: "alex.creator",
-        name: "Alex Thompson",
-        isVerified: true,
-      })
-      setIsLoading(false)
-      router.replace("/(protected)/(tabs)" as any)
-    }, 1500)
-  }
+  const form = useForm({
+    defaultValues: { email: '', password: '' },
+    onSubmit: async ({ value }) => {
+      setIsSubmitting(true)
+
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      if (value.email && value.password) {
+        setUser({
+          id: "1",
+          email: value.email,
+          username: "alex.creator",
+          name: "Alex Thompson",
+          isVerified: true,
+        })
+        router.replace('/(protected)/(tabs)' as any)
+      }
+
+      setIsSubmitting(false)
+    },
+  })
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <KeyboardAwareScrollView
-        className="flex-1"
-        contentContainerStyle={{ flexGrow: 1 }}
-        keyboardShouldPersistTaps="handled"
-      >
-        <View className="flex-1 px-6 py-8">
-          {/* Logo/Header */}
-          <View className="items-center mb-12">
-            <LinearGradient
-              colors={["#6366f1", "#ec4899", "#a855f7"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-20 h-20 rounded-3xl items-center justify-center mb-4"
-            >
-              <Text className="text-white text-4xl font-display-bold">P</Text>
-            </LinearGradient>
-            <Text className="text-3xl font-display-bold text-foreground">Welcome Back</Text>
-            <Text className="text-muted-foreground mt-2">Sign in to continue</Text>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }} className="bg-background">
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24 }}>
+        <View className="gap-6">
+          <View className="items-center gap-4">
+            <View className="h-16 w-16 rounded-full bg-primary/10 items-center justify-center">
+              <Lock size={32} color="#34A2DF" />
+            </View>
+            <View className="items-center gap-1">
+              <Text className="text-3xl font-bold text-foreground">Welcome back</Text>
+              <Text className="text-muted-foreground">Sign in to your account to continue</Text>
+            </View>
           </View>
 
-          {/* Login Form */}
-          <View className="space-y-4">
-            {/* Email Input */}
-            <View>
-              <Text className="text-sm font-sans-semibold text-foreground mb-2">Email</Text>
-              <View className="flex-row items-center bg-muted rounded-xl px-4 py-3">
-                <Mail size={20} color="#6b7280" />
-                <TextInput
-                  className="flex-1 ml-3 text-foreground font-sans"
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9ca3af"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                />
-              </View>
+          <View className="gap-4">
+            <FormInput
+              form={form}
+              name="email"
+              label="Email"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              validators={{
+                onChange: ({ value }: any) => {
+                  if (!value) return 'Email is required'
+                  if (!value.includes('@')) return 'Please enter a valid email'
+                  return undefined
+                },
+              }}
+            />
+
+            <FormInput
+              form={form}
+              name="password"
+              label="Password"
+              placeholder="Enter your password"
+              secureTextEntry
+              validators={{
+                onChange: ({ value }: any) => {
+                  if (!value) return 'Password is required'
+                  if (value.length < 8) return 'Password must be at least 8 characters'
+                  return undefined
+                },
+              }}
+            />
+
+            <Button onPress={form.handleSubmit} disabled={isSubmitting} loading={isSubmitting}>
+              {isSubmitting ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </View>
+
+          <View className="items-center gap-2">
+            <View className="flex-row items-center gap-2 w-full">
+              <View className="flex-1 h-px bg-border" />
+              <Text className="text-muted-foreground text-xs">Or</Text>
+              <View className="flex-1 h-px bg-border" />
             </View>
 
-            {/* Password Input */}
-            <View>
-              <Text className="text-sm font-sans-semibold text-foreground mb-2">Password</Text>
-              <View className="flex-row items-center bg-muted rounded-xl px-4 py-3">
-                <Lock size={20} color="#6b7280" />
-                <TextInput
-                  className="flex-1 ml-3 text-foreground font-sans"
-                  placeholder="Enter your password"
-                  placeholderTextColor="#9ca3af"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  autoCapitalize="none"
-                  autoComplete="password"
-                />
-                <Pressable onPress={toggleShowPassword}>
-                  {showPassword ? <EyeOff size={20} color="#6b7280" /> : <Eye size={20} color="#6b7280" />}
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Forgot Password */}
-            <Pressable className="self-end">
-              <Text className="text-primary font-sans-semibold">Forgot Password?</Text>
-            </Pressable>
-
-            {/* Login Button */}
-            <Pressable onPress={handleLogin} disabled={isLoading} className="mt-6">
-              <LinearGradient
-                colors={["#6366f1", "#ec4899"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="rounded-xl py-4 items-center"
-              >
-                <Text className="text-white font-sans-bold text-lg">{isLoading ? "Signing in..." : "Sign In"}</Text>
-              </LinearGradient>
-            </Pressable>
-
-            {/* Sign Up Link */}
-            <View className="flex-row justify-center items-center mt-6">
-              <Text className="text-muted-foreground font-sans">Don&apos;t have an account? </Text>
-              <Link href={"/(auth)/signup" as any} asChild>
-                <Pressable>
-                  <Text className="text-primary font-sans-bold">Sign Up</Text>
-                </Pressable>
-              </Link>
+            <View className="flex-row items-center gap-1">
+              <Text className="text-muted-foreground">Don't have an account?</Text>
+              <Pressable onPress={() => router.push('/(auth)/signup' as any)}>
+                <Text className="text-primary font-medium">Sign up</Text>
+              </Pressable>
             </View>
           </View>
         </View>
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
