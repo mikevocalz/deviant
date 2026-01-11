@@ -4,6 +4,8 @@ import { useRouter } from "expo-router"
 import { ArrowLeft, Search, X, Play } from "lucide-react-native"
 import { Image } from "expo-image"
 import { useSearchStore } from "@/lib/stores/search-store"
+import { useState, useEffect } from "react"
+import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons"
 
 const { width } = Dimensions.get("window")
 const columnWidth = (width - 8) / 3
@@ -31,6 +33,24 @@ export default function SearchScreen() {
   const router = useRouter()
   const { searchQuery, setSearchQuery, clearSearch } = useSearchStore()
   const insets = useSafeAreaInsets()
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSearching, setIsSearching] = useState(false)
+
+  useEffect(() => {
+    const loadInitial = async () => {
+      await new Promise(resolve => setTimeout(resolve, 400))
+      setIsLoading(false)
+    }
+    loadInitial()
+  }, [])
+
+  useEffect(() => {
+    if (searchQuery.length > 0) {
+      setIsSearching(true)
+      const timer = setTimeout(() => setIsSearching(false), 300)
+      return () => clearTimeout(timer)
+    }
+  }, [searchQuery])
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
@@ -59,7 +79,9 @@ export default function SearchScreen() {
 
       {/* Content */}
       <ScrollView className="flex-1">
-        {searchQuery.length === 0 ? (
+        {isLoading ? (
+          <SearchSkeleton />
+        ) : searchQuery.length === 0 ? (
           <>
             {/* Recent Searches */}
             <View style={{ padding: 16 }}>
@@ -94,6 +116,8 @@ export default function SearchScreen() {
               ))}
             </View>
           </>
+        ) : isSearching ? (
+          <SearchResultsSkeleton />
         ) : (
           <View style={{ flex: 1 }}>
             <Text style={{ padding: 16, color: "#999" }}>Results for {`"${searchQuery}"`}</Text>

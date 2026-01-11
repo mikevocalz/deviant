@@ -4,7 +4,8 @@ import { Image } from "expo-image"
 import { ArrowLeft, Send, ImageIcon, X, Play } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useChatStore, allUsers, Message, MediaAttachment } from "@/lib/stores/chat-store"
-import { useRef, useCallback, useMemo, useState } from "react"
+import { useRef, useCallback, useMemo, useState, useEffect } from "react"
+import { ChatSkeleton } from "@/components/skeletons"
 import * as ImagePicker from "expo-image-picker"
 import { MediaPreviewModal } from "@/components/media-preview-modal"
 import { VideoView, useVideoPlayer } from "expo-video"
@@ -103,6 +104,15 @@ export default function ChatScreen() {
   
   const [previewMedia, setPreviewMedia] = useState<{ type: "image" | "video"; uri: string } | null>(null)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    const loadChat = async () => {
+      await new Promise(resolve => setTimeout(resolve, 400))
+      setIsLoading(false)
+    }
+    loadChat()
+  }, [])
 
   const filteredUsers = useMemo(() => {
     if (!mentionQuery) return allUsers.slice(0, 5)
@@ -183,6 +193,14 @@ export default function ChatScreen() {
   }, [])
 
   const canSend = currentMessage.trim() || pendingMedia
+
+  if (isLoading) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.container}>
+        <ChatSkeleton />
+      </SafeAreaView>
+    )
+  }
 
   return (
     <SafeAreaView edges={["top"]} style={styles.container}>
