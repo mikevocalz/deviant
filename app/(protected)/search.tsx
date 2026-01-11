@@ -4,7 +4,8 @@ import { useRouter } from "expo-router"
 import { ArrowLeft, Search, X, Play } from "lucide-react-native"
 import { Image } from "expo-image"
 import { useSearchStore } from "@/lib/stores/search-store"
-import { useState, useEffect } from "react"
+import { useUIStore } from "@/lib/stores/ui-store"
+import { useEffect } from "react"
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons"
 
 const { width } = Dimensions.get("window")
@@ -33,24 +34,25 @@ export default function SearchScreen() {
   const router = useRouter()
   const { searchQuery, setSearchQuery, clearSearch } = useSearchStore()
   const insets = useSafeAreaInsets()
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSearching, setIsSearching] = useState(false)
+  const { loadingScreens, setScreenLoading, searchingState, setSearching } = useUIStore()
+  const isLoading = loadingScreens.search
+  const isSearching = searchingState
 
   useEffect(() => {
     const loadInitial = async () => {
       await new Promise(resolve => setTimeout(resolve, 400))
-      setIsLoading(false)
+      setScreenLoading("search", false)
     }
     loadInitial()
-  }, [])
+  }, [setScreenLoading])
 
   useEffect(() => {
     if (searchQuery.length > 0) {
-      setIsSearching(true)
-      const timer = setTimeout(() => setIsSearching(false), 300)
+      setSearching(true)
+      const timer = setTimeout(() => setSearching(false), 300)
       return () => clearTimeout(timer)
     }
-  }, [searchQuery])
+  }, [searchQuery, setSearching])
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>

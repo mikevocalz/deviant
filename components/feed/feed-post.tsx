@@ -8,11 +8,12 @@ import { useColorScheme } from "@/lib/hooks"
 import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { VideoView, useVideoPlayer } from "expo-video"
-import { useRef, useCallback, useEffect, useState, memo } from "react"
+import { useRef, useCallback, useEffect, memo } from "react"
 import { useIsFocused } from "@react-navigation/native"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 import { Motion } from "@legendapp/motion"
 import { sharePost } from "@/lib/utils/sharing"
+import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
 
 const LONG_PRESS_DELAY = 300
 
@@ -50,11 +51,21 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   const hasMultipleMedia = media.length > 1 && !isVideo
 
   const isFocused = useIsFocused()
-  const [showSeekBar, setShowSeekBar] = useState(false)
-  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
-  const [videoDuration, setVideoDuration] = useState(0)
-  const [isPressed, setIsPressed] = useState(false)
-  const [likeAnimating, setLikeAnimating] = useState(false)
+  const {
+    pressedPosts,
+    likeAnimatingPosts,
+    setPressedPost,
+    setLikeAnimating,
+    setVideoState,
+    getVideoState,
+  } = useFeedPostUIStore()
+  
+  const videoState = getVideoState(id)
+  const showSeekBar = videoState.showSeekBar
+  const videoCurrentTime = videoState.currentTime
+  const videoDuration = videoState.duration
+  const isPressed = pressedPosts[id] || false
+  const likeAnimating = likeAnimatingPosts[id] || false
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const player = useVideoPlayer(isVideo ? media[0].url : "", (player) => {
@@ -80,25 +91,27 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
 
     const interval = setInterval(() => {
       try {
-        setVideoCurrentTime(player.currentTime)
-        setVideoDuration(player.duration || 0)
+        setVideoState(id, {
+          currentTime: player.currentTime,
+          duration: player.duration || 0,
+        })
       } catch {
         // Player may have been released
       }
     }, 100)
 
     return () => clearInterval(interval)
-  }, [isVideo, player])
+  }, [isVideo, player, id, setVideoState])
 
   const handleLongPressStart = useCallback(() => {
     if (!isVideo) return
     longPressTimer.current = setTimeout(() => {
-      setShowSeekBar(true)
+      setVideoState(id, { showSeekBar: true })
       try {
         player?.pause()
       } catch {}
     }, LONG_PRESS_DELAY)
-  }, [isVideo, player])
+  }, [isVideo, player, id, setVideoState])
 
   const handleLongPressEnd = useCallback(() => {
     if (longPressTimer.current) {
@@ -106,12 +119,12 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
       longPressTimer.current = null
     }
     if (showSeekBar) {
-      setShowSeekBar(false)
+      setVideoState(id, { showSeekBar: false })
       try {
         player?.play()
       } catch {}
     }
-  }, [showSeekBar, player])
+  }, [showSeekBar, player, id, setVideoState])
 
   const handleVideoSeek = useCallback((time: number) => {
     try {
@@ -128,10 +141,10 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   const likeCount = getLikeCount(id, likes)
 
   const handleLike = useCallback(() => {
-    setLikeAnimating(true)
+    setLikeAnimating(id, true)
     toggleLike(id, likes)
-    setTimeout(() => setLikeAnimating(false), 300)
-  }, [id, likes, toggleLike])
+    setTimeout(() => setLikeAnimating(id, false), 300)
+  }, [id, likes, toggleLike, setLikeAnimating])
 
   const handleSave = useCallback(() => {
     toggleBookmark(id)
@@ -143,12 +156,12 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   }
 
   const handlePressIn = useCallback(() => {
-    setIsPressed(true)
-  }, [])
+    setPressedPost(id, true)
+  }, [id, setPressedPost])
 
   const handlePressOut = useCallback(() => {
-    setIsPressed(false)
-  }, [])
+    setPressedPost(id, false)
+  }, [id, setPressedPost])
 
   const handlePostPress = useCallback(() => {
     router.push(`/(protected)/post/${id}`)

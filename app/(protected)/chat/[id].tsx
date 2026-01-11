@@ -4,8 +4,10 @@ import { Image } from "expo-image"
 import { ArrowLeft, Send, ImageIcon, X, Play } from "lucide-react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useChatStore, allUsers, Message, MediaAttachment } from "@/lib/stores/chat-store"
-import { useRef, useCallback, useMemo, useState, useEffect } from "react"
+import { useRef, useCallback, useMemo, useEffect } from "react"
 import { ChatSkeleton } from "@/components/skeletons"
+import { useUIStore } from "@/lib/stores/ui-store"
+import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
 import * as ImagePicker from "expo-image-picker"
 import { MediaPreviewModal } from "@/components/media-preview-modal"
 import { VideoView, useVideoPlayer } from "expo-video"
@@ -102,17 +104,17 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null)
   const sendButtonScale = useRef(new Animated.Value(1)).current
   
-  const [previewMedia, setPreviewMedia] = useState<{ type: "image" | "video"; uri: string } | null>(null)
-  const [showPreviewModal, setShowPreviewModal] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const { previewMedia, showPreviewModal, setPreviewMedia, setShowPreviewModal } = useFeedPostUIStore()
+  const { loadingScreens, setScreenLoading } = useUIStore()
+  const isLoading = loadingScreens.chat
 
   useEffect(() => {
     const loadChat = async () => {
       await new Promise(resolve => setTimeout(resolve, 400))
-      setIsLoading(false)
+      setScreenLoading("chat", false)
     }
     loadChat()
-  }, [])
+  }, [setScreenLoading])
 
   const filteredUsers = useMemo(() => {
     if (!mentionQuery) return allUsers.slice(0, 5)
@@ -185,12 +187,12 @@ export default function ChatScreen() {
   const handleMediaPreview = useCallback((media: MediaAttachment) => {
     setPreviewMedia({ type: media.type, uri: media.uri })
     setShowPreviewModal(true)
-  }, [])
+  }, [setPreviewMedia, setShowPreviewModal])
 
   const handleClosePreview = useCallback(() => {
     setShowPreviewModal(false)
     setPreviewMedia(null)
-  }, [])
+  }, [setShowPreviewModal, setPreviewMedia])
 
   const canSend = currentMessage.trim() || pendingMedia
 
