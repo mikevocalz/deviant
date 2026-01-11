@@ -1,4 +1,4 @@
-import { FlatList, View, Text, LayoutAnimation, Platform, UIManager, RefreshControl, StyleSheet } from "react-native"
+import { FlatList, View, Text, LayoutAnimation, Platform, UIManager, RefreshControl, StyleSheet, Animated as RNAnimated } from "react-native"
 import { FeedPost } from "./feed-post"
 import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts"
 import { FeedSkeleton } from "@/components/skeletons"
@@ -43,6 +43,49 @@ function LoadMoreIndicator() {
         <View style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[1] }]} />
         <View style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[2] }]} />
       </View>
+    </View>
+  )
+}
+
+function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
+  const dot1Anim = useRef(new RNAnimated.Value(0)).current
+  const dot2Anim = useRef(new RNAnimated.Value(0)).current
+  const dot3Anim = useRef(new RNAnimated.Value(0)).current
+  const animationRef = useRef<RNAnimated.CompositeAnimation | null>(null)
+
+  useEffect(() => {
+    if (refreshing) {
+      animationRef.current = RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(dot1Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
+          RNAnimated.timing(dot2Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
+          RNAnimated.timing(dot3Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
+          RNAnimated.timing(dot1Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
+          RNAnimated.timing(dot2Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
+          RNAnimated.timing(dot3Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
+        ])
+      )
+      animationRef.current.start()
+    } else {
+      animationRef.current?.stop()
+      dot1Anim.setValue(0)
+      dot2Anim.setValue(0)
+      dot3Anim.setValue(0)
+    }
+    return () => {
+      animationRef.current?.stop()
+    }
+  }, [refreshing, dot1Anim, dot2Anim, dot3Anim])
+
+  const dot1Scale = dot1Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
+  const dot2Scale = dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
+  const dot3Scale = dot3Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
+
+  return (
+    <View style={styles.gradientRefreshContainer}>
+      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[0], transform: [{ scale: dot1Scale }] }]} />
+      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[1], transform: [{ scale: dot2Scale }] }]} />
+      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[2], transform: [{ scale: dot3Scale }] }]} />
     </View>
   )
 }
@@ -138,12 +181,12 @@ export function Feed() {
         <RefreshControl
           refreshing={isRefetching}
           onRefresh={handleRefresh}
-          tintColor={REFRESH_COLORS[1]}
+          tintColor={Platform.OS === "ios" ? "transparent" : REFRESH_COLORS[1]}
           colors={REFRESH_COLORS}
           progressBackgroundColor="#ffffff"
-          title="Pull to refresh"
-          titleColor={REFRESH_COLORS[1]}
-        />
+        >
+          {Platform.OS === "ios" && <GradientRefreshIndicator refreshing={isRefetching} />}
+        </RefreshControl>
       }
     />
   )
@@ -163,5 +206,17 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  gradientRefreshContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    height: 40,
+  },
+  gradientDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 })
