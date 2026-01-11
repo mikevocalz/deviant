@@ -2,11 +2,6 @@ import type { Comment, Post, Story, StoryItem } from "@/lib/types"
 
 export type { Comment, Post, Story, StoryItem }
 
-const profileUser = {
-  username: "alex.creator",
-  avatar: "https://i.pravatar.cc/150?img=12",
-}
-
 export const feedPosts: Post[] = [
   {
     id: "1",
@@ -235,6 +230,7 @@ export const feedPosts: Post[] = [
     ],
     caption: "City lights and late nights. The urban jungle comes alive after dark.",
     likes: 8432,
+    isNSFW: true,
     comments: [
       {
         id: "c7",
@@ -767,6 +763,7 @@ export const feedPosts: Post[] = [
     ],
     caption: "Spring in the mountains. Flowers and wildlife at their peak.",
     likes: 19876,
+    isNSFW: true,
     comments: [
       {
         id: "c25",
