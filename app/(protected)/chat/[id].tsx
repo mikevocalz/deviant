@@ -1,4 +1,4 @@
-import { View, Text, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Animated, StyleSheet, Alert } from "react-native"
+import { View, Text, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Animated, Alert } from "react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Image } from "expo-image"
 import { ArrowLeft, Send, ImageIcon, X, Play } from "lucide-react-native"
@@ -36,7 +36,7 @@ function renderMessageText(text: string, onMentionPress: (username: string) => v
         <Text
           key={index}
           onPress={() => onMentionPress(username)}
-          style={{ color: "#3EA4E5", fontWeight: "600" as const }}
+          className="text-primary font-semibold"
         >
           {part}
         </Text>
@@ -58,18 +58,18 @@ function MediaMessage({ media, onPress }: MediaMessageProps) {
   )
 
   return (
-    <Pressable onPress={onPress} style={styles.mediaMessage}>
+    <Pressable onPress={onPress} className="w-[200px] h-[200px] rounded-xl overflow-hidden mb-2">
       {media.type === "image" ? (
-        <Image source={{ uri: media.uri }} style={styles.messageMedia} contentFit="cover" />
+        <Image source={{ uri: media.uri }} className="w-full h-full" contentFit="cover" />
       ) : (
-        <View style={styles.videoContainer}>
-          <VideoView player={player} style={styles.messageMedia} contentFit="cover" nativeControls={false} />
-          <View style={styles.playOverlay}>
+        <View className="w-full h-full relative">
+          <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
+          <View className="absolute inset-0 justify-center items-center bg-black/30">
             <LinearGradient
               colors={["rgba(52,162,223,0.8)", "rgba(138,64,207,0.8)", "rgba(255,91,252,0.8)"]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.playButton}
+              className="w-11 h-11 rounded-full justify-center items-center"
             >
               <Play size={20} color="#fff" fill="#fff" />
             </LinearGradient>
@@ -196,23 +196,23 @@ export default function ChatScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView edges={["top"]} style={styles.container}>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <ChatSkeleton />
       </SafeAreaView>
     )
   }
 
   return (
-    <SafeAreaView edges={["top"]} style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <Pressable onPress={handleProfilePress} style={styles.headerProfile}>
-          <Image source={{ uri: user.avatar }} style={styles.headerAvatar} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.headerUsername}>{user.username}</Text>
-            <Text style={styles.headerStatus}>Active now</Text>
+        <Pressable onPress={handleProfilePress} className="flex-row items-center gap-3 flex-1">
+          <Image source={{ uri: user.avatar }} className="w-10 h-10 rounded-full" />
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-foreground">{user.username}</Text>
+            <Text className="text-xs text-muted-foreground">Active now</Text>
           </View>
         </Pressable>
       </View>
@@ -220,19 +220,23 @@ export default function ChatScreen() {
       <FlatList
         data={chatMessages}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messagesList}
+        contentContainerClassName="p-4 gap-2"
         inverted={false}
         renderItem={({ item }) => (
-          <View style={[styles.messageBubble, item.sender === "me" ? styles.myMessage : styles.theirMessage]}>
+          <View className={`px-4 py-2.5 rounded-2xl max-w-[80%] mb-2 ${
+            item.sender === "me" ? "self-end bg-primary" : "self-start bg-secondary"
+          }`}>
             {item.media && (
               <MediaMessage media={item.media} onPress={() => handleMediaPreview(item.media!)} />
             )}
             {item.text ? (
-              <Text style={styles.messageText}>
+              <Text className="text-foreground text-[15px]">
                 {renderMessageText(item.text, handleMentionPress)}
               </Text>
             ) : null}
-            <Text style={[styles.messageTime, item.sender === "me" ? styles.myMessageTime : styles.theirMessageTime]}>
+            <Text className={`text-[11px] mt-1 ${
+              item.sender === "me" ? "text-foreground/70" : "text-muted-foreground"
+            }`}>
               {item.time}
             </Text>
           </View>
@@ -240,18 +244,18 @@ export default function ChatScreen() {
       />
 
       {showMentions && filteredUsers.length > 0 && (
-        <View style={styles.mentionsContainer}>
-          <Text style={styles.mentionsLabel}>Mention a user</Text>
+        <View className="bg-card border-t border-border max-h-[200px]">
+          <Text className="text-muted-foreground text-xs px-4 pt-3 pb-2">Mention a user</Text>
           {filteredUsers.map((u) => (
             <Pressable
               key={u.id}
               onPress={() => handleMentionSelect(u.username)}
-              style={styles.mentionItem}
+              className="flex-row items-center gap-3 px-4 py-2.5 bg-card"
             >
-              <Image source={{ uri: u.avatar }} style={styles.mentionAvatar} />
+              <Image source={{ uri: u.avatar }} className="w-9 h-9 rounded-full" />
               <View>
-                <Text style={styles.mentionUsername}>{u.username}</Text>
-                <Text style={styles.mentionName}>{u.name}</Text>
+                <Text className="text-foreground font-medium">{u.username}</Text>
+                <Text className="text-muted-foreground text-xs">{u.name}</Text>
               </View>
             </Pressable>
           ))}
@@ -260,20 +264,20 @@ export default function ChatScreen() {
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
         {pendingMedia && (
-          <View style={styles.pendingMediaContainer}>
-            <Image source={{ uri: pendingMedia.uri }} style={styles.pendingMediaThumb} contentFit="cover" />
-            <View style={styles.pendingMediaInfo}>
-              <Text style={styles.pendingMediaType}>{pendingMedia.type === "video" ? "Video" : "Photo"}</Text>
-              <Text style={styles.pendingMediaText}>Ready to send</Text>
+          <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
+            <Image source={{ uri: pendingMedia.uri }} className="w-12 h-12 rounded-lg" contentFit="cover" />
+            <View className="flex-1">
+              <Text className="text-foreground font-semibold text-sm">{pendingMedia.type === "video" ? "Video" : "Photo"}</Text>
+              <Text className="text-muted-foreground text-xs">Ready to send</Text>
             </View>
-            <Pressable onPress={() => setPendingMedia(null)} style={styles.removePendingMedia}>
+            <Pressable onPress={() => setPendingMedia(null)} className="w-8 h-8 rounded-full bg-white/10 justify-center items-center">
               <X size={18} color="#fff" />
             </Pressable>
           </View>
         )}
         
-        <View style={styles.inputContainer}>
-          <Pressable onPress={handlePickMedia} style={styles.mediaButton}>
+        <View className="flex-row items-center gap-2 border-t border-border px-3 py-3">
+          <Pressable onPress={handlePickMedia} className="w-10 h-10 rounded-full bg-secondary justify-center items-center">
             <ImageIcon size={22} color="#3EA4E5" />
           </Pressable>
           
@@ -284,7 +288,7 @@ export default function ChatScreen() {
             onSelectionChange={handleSelectionChange}
             placeholder="Message... (use @ to mention)"
             placeholderTextColor="#666"
-            style={styles.input}
+            className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
             multiline
           />
           
@@ -292,7 +296,9 @@ export default function ChatScreen() {
             <Pressable 
               onPress={handleSend} 
               disabled={!canSend}
-              style={[styles.sendButton, canSend ? styles.sendButtonActive : styles.sendButtonInactive]}
+              className={`w-10 h-10 rounded-full justify-center items-center ${
+                canSend ? "bg-primary" : "bg-secondary"
+              }`}
             >
               <Send size={20} color={canSend ? "#fff" : "#666"} />
             </Pressable>
@@ -308,210 +314,3 @@ export default function ChatScreen() {
     </SafeAreaView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1a1a1a",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerProfile: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  headerAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-  },
-  headerUsername: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  headerStatus: {
-    fontSize: 12,
-    color: "#999",
-  },
-  messagesList: {
-    padding: 16,
-    gap: 8,
-  },
-  messageBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    maxWidth: "80%",
-    marginBottom: 8,
-  },
-  myMessage: {
-    alignSelf: "flex-end",
-    backgroundColor: "#3EA4E5",
-  },
-  theirMessage: {
-    alignSelf: "flex-start",
-    backgroundColor: "#1a1a1a",
-  },
-  messageText: {
-    color: "#fff",
-    fontSize: 15,
-  },
-  messageTime: {
-    fontSize: 11,
-    marginTop: 4,
-  },
-  myMessageTime: {
-    color: "rgba(255,255,255,0.7)",
-  },
-  theirMessageTime: {
-    color: "#666",
-  },
-  mediaMessage: {
-    width: 200,
-    height: 200,
-    borderRadius: 12,
-    overflow: "hidden",
-    marginBottom: 8,
-  },
-  messageMedia: {
-    width: "100%",
-    height: "100%",
-  },
-  videoContainer: {
-    width: "100%",
-    height: "100%",
-    position: "relative",
-  },
-  playOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
-  playButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  mentionsContainer: {
-    backgroundColor: "#111",
-    borderTopWidth: 1,
-    borderTopColor: "#1a1a1a",
-    maxHeight: 200,
-  },
-  mentionsLabel: {
-    color: "#666",
-    fontSize: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  mentionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: "#111",
-  },
-  mentionAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  mentionUsername: {
-    color: "#fff",
-    fontWeight: "500",
-  },
-  mentionName: {
-    color: "#666",
-    fontSize: 12,
-  },
-  pendingMediaContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#1a1a1a",
-    padding: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    borderRadius: 12,
-    gap: 12,
-  },
-  pendingMediaThumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 8,
-  },
-  pendingMediaInfo: {
-    flex: 1,
-  },
-  pendingMediaType: {
-    color: "#fff",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  pendingMediaText: {
-    color: "#666",
-    fontSize: 12,
-  },
-  removePendingMedia: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#1a1a1a",
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  mediaButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#1a1a1a",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  input: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    backgroundColor: "#1a1a1a",
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: "#fff",
-  },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  sendButtonActive: {
-    backgroundColor: "#3EA4E5",
-  },
-  sendButtonInactive: {
-    backgroundColor: "#1a1a1a",
-  },
-})

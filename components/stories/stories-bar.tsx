@@ -38,66 +38,34 @@ export function StoriesBar() {
   }
 
   return (
-    <View style={{ borderBottomWidth: 1, borderBottomColor: "#1a1a1a" }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 8 }}>
-        <Pressable onPress={handleCreateStory} style={{ alignItems: "center", padding: 8 }}>
-          <View style={{ position: "relative" }}>
-            <View style={{ 
-              height: 68, 
-              width: 68, 
-              alignItems: "center", 
-              justifyContent: "center", 
-              borderRadius: 34, 
-              borderWidth: 2, 
-              borderColor: "#3EA4E5" 
-            }}>
-              <Image source={{ uri: yourStory.avatar }} style={{ width: 60, height: 60, borderRadius: 30 }} />
+    <View className="border-b border-border">
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-2">
+        <Pressable onPress={handleCreateStory} className="items-center p-2">
+          <View className="relative">
+            <View className="h-[68px] w-[68px] items-center justify-center rounded-full border-2 border-primary">
+              <Image source={{ uri: yourStory.avatar }} className="h-[60px] w-[60px] rounded-full" />
             </View>
-            <View style={{ 
-              position: "absolute", 
-              bottom: -2, 
-              right: -2, 
-              height: 24, 
-              width: 24, 
-              alignItems: "center", 
-              justifyContent: "center", 
-              borderRadius: 12, 
-              backgroundColor: "#3EA4E5",
-              borderWidth: 2,
-              borderColor: "#000"
-            }}>
+            <View className="absolute -bottom-0.5 -right-0.5 h-6 w-6 items-center justify-center rounded-full bg-primary border-2 border-background">
               <Plus size={14} color="#fff" strokeWidth={3} />
             </View>
           </View>
-          <Text style={{ marginTop: 6, fontSize: 12, color: "#999" }}>Your story</Text>
+          <Text className="mt-1.5 text-xs text-muted-foreground">Your story</Text>
         </Pressable>
 
         {otherStories.map((story) => (
-          <View key={story.id} style={{ alignItems: "center", padding: 8 }}>
+          <View key={story.id} className="items-center p-2">
             <Pressable onPress={() => handleStoryPress(story.id)}>
               <View
-                style={{
-                  height: 68,
-                  width: 68,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: 34,
-                  borderWidth: 2,
-                  borderColor: story.isViewed ? "#333" : "#3EA4E5",
-                }}
+                className={`h-[68px] w-[68px] items-center justify-center rounded-full border-2 ${
+                  story.isViewed ? "border-muted" : "border-primary"
+                }`}
               >
-                <Image source={{ uri: story.avatar }} style={{ width: 60, height: 60, borderRadius: 30 }} />
+                <Image source={{ uri: story.avatar }} className="h-[60px] w-[60px] rounded-full" />
               </View>
             </Pressable>
             <Pressable onPress={() => handleProfilePress(story.username)}>
               <Text 
-                style={{ 
-                  marginTop: 6, 
-                  maxWidth: 68, 
-                  textAlign: "center", 
-                  fontSize: 12, 
-                  color: "#999" 
-                }} 
+                className="mt-1.5 max-w-[68px] text-center text-xs text-muted-foreground"
                 numberOfLines={1}
               >
                 {story.username}

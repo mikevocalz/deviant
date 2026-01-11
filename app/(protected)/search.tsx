@@ -53,13 +53,13 @@ export default function SearchScreen() {
   }, [searchQuery])
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Header */}
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: 1, borderBottomColor: "#333", paddingHorizontal: 16, paddingVertical: 12 }}>
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <View style={{ flex: 1, flexDirection: "row", alignItems: "center", backgroundColor: "#1f1f1f", borderRadius: 12, paddingHorizontal: 12 }}>
+        <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
           <Search size={20} color="#999" />
           <TextInput
             value={searchQuery}
@@ -67,7 +67,7 @@ export default function SearchScreen() {
             placeholder="Search"
             placeholderTextColor="#999"
             autoFocus
-            style={{ flex: 1, height: 40, marginLeft: 8, color: "#fff" }}
+            className="flex-1 h-10 ml-2 text-foreground"
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={clearSearch}>
@@ -84,33 +84,33 @@ export default function SearchScreen() {
         ) : searchQuery.length === 0 ? (
           <>
             {/* Recent Searches */}
-            <View style={{ padding: 16 }}>
-              <Text style={{ fontSize: 16, fontWeight: "600", marginBottom: 12, color: "#fff" }}>Recent Searches</Text>
+            <View className="p-4">
+              <Text className="text-base font-semibold mb-3 text-foreground">Recent Searches</Text>
               {recentSearches.map((search, index) => (
                 <Pressable
                   key={index}
                   onPress={() => setSearchQuery(search)}
-                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10 }}
+                  className="flex-row items-center py-2.5"
                 >
                   <Search size={18} color="#999" />
-                  <Text style={{ marginLeft: 12, color: "#fff" }}>{search}</Text>
+                  <Text className="ml-3 text-foreground">{search}</Text>
                 </Pressable>
               ))}
             </View>
 
             {/* Suggested Users */}
-            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: "#333" }}>
-              <Text style={{ fontSize: 16, fontWeight: "600", marginBottom: 12, color: "#fff" }}>Suggested</Text>
+            <View className="p-4 border-t border-border">
+              <Text className="text-base font-semibold mb-3 text-foreground">Suggested</Text>
               {suggestedUsers.map((user) => (
                 <Pressable
                   key={user.id}
                   onPress={() => router.push(`/(protected)/profile/${user.username}` as any)}
-                  style={{ flexDirection: "row", alignItems: "center", paddingVertical: 10 }}
+                  className="flex-row items-center py-2.5"
                 >
-                  <Image source={{ uri: user.avatar }} style={{ width: 44, height: 44, borderRadius: 22 }} />
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={{ fontWeight: "600", color: "#fff" }}>{user.username}</Text>
-                    <Text style={{ color: "#999", fontSize: 13 }}>{user.name}</Text>
+                  <Image source={{ uri: user.avatar }} className="w-11 h-11 rounded-full" />
+                  <View className="ml-3">
+                    <Text className="font-semibold text-foreground">{user.username}</Text>
+                    <Text className="text-muted-foreground text-[13px]">{user.name}</Text>
                   </View>
                 </Pressable>
               ))}
@@ -119,19 +119,19 @@ export default function SearchScreen() {
         ) : isSearching ? (
           <SearchResultsSkeleton />
         ) : (
-          <View style={{ flex: 1 }}>
-            <Text style={{ padding: 16, color: "#999" }}>Results for {`"${searchQuery}"`}</Text>
-            <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+          <View className="flex-1">
+            <Text className="p-4 text-muted-foreground">Results for {`"${searchQuery}"`}</Text>
+            <View className="flex-row flex-wrap">
               {searchResults.map((item) => (
                 <Pressable
                   key={item.id}
                   onPress={() => router.push(`/(protected)/post/${item.id}`)}
                   style={{ width: columnWidth, height: columnWidth }}
                 >
-                  <View style={{ flex: 1, margin: 1, overflow: "hidden", backgroundColor: "#1a1a1a" }}>
+                  <View className="flex-1 m-px overflow-hidden bg-secondary">
                     <Image source={{ uri: item.thumbnail }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
                     {item.type === "video" && (
-                      <View style={{ position: "absolute", top: 8, right: 8 }}>
+                      <View className="absolute top-2 right-2">
                         <Play size={20} color="#fff" fill="#fff" />
                       </View>
                     )}
