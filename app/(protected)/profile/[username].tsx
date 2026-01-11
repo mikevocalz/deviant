@@ -1,9 +1,12 @@
-import { View, Text, ScrollView, Pressable, Dimensions } from "react-native"
-import { Image } from "expo-image"
+import { View, Text, ScrollView, Pressable, Dimensions, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { ArrowLeft, Grid, MoreHorizontal } from "lucide-react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
+import { SharedImage } from "@/components/shared-image"
+import { Motion } from "@legendapp/motion"
+import * as Haptics from "expo-haptics"
+import { useCallback, memo } from "react"
 
 const { width } = Dimensions.get("window")
 const columnWidth = (width - 8) / 3
@@ -47,7 +50,7 @@ const mockPosts = [
   { id: "6", thumbnail: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800" },
 ]
 
-export default function UserProfileScreen() {
+function UserProfileScreenComponent() {
   const { username } = useLocalSearchParams<{ username: string }>()
   const router = useRouter()
   const { colors } = useColorScheme()
@@ -61,6 +64,19 @@ export default function UserProfileScreen() {
     followersCount: 0,
     followingCount: 0,
   }
+
+  const handlePostPress = useCallback((postId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    router.push(`/(protected)/post/${postId}`)
+  }, [router])
+
+  const handleFollowPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
+  }, [])
+
+  const handleMessagePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  }, [])
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -79,7 +95,11 @@ export default function UserProfileScreen() {
         {/* Profile Info */}
         <View className="p-4">
           <View className="flex-row items-center gap-6">
-            <Image source={{ uri: user.avatar }} className="h-20 w-20 rounded-full" />
+            <SharedImage 
+              source={{ uri: user.avatar }} 
+              style={styles.avatar}
+              sharedTag={`profile-avatar-${user.username}`}
+            />
             <View className="flex-1 flex-row justify-around">
               <View className="items-center">
                 <Text className="text-lg font-bold">{user.postsCount}</Text>
@@ -103,11 +123,23 @@ export default function UserProfileScreen() {
 
           {/* Action Buttons */}
           <View className="mt-4 flex-row gap-2">
-            <Pressable className="flex-1 items-center rounded-lg bg-primary py-2">
-              <Text className="font-semibold text-primary-foreground">Follow</Text>
+            <Pressable onPress={handleFollowPress}>
+              <Motion.View
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                style={styles.primaryButton}
+              >
+                <Text className="font-semibold text-primary-foreground">Follow</Text>
+              </Motion.View>
             </Pressable>
-            <Pressable className="flex-1 items-center rounded-lg bg-secondary py-2">
-              <Text className="font-semibold text-secondary-foreground">Message</Text>
+            <Pressable onPress={handleMessagePress}>
+              <Motion.View
+                whileTap={{ scale: 0.95 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                style={styles.secondaryButton}
+              >
+                <Text className="font-semibold text-secondary-foreground">Message</Text>
+              </Motion.View>
             </Pressable>
           </View>
         </View>
@@ -124,12 +156,21 @@ export default function UserProfileScreen() {
           {mockPosts.map((post) => (
             <Pressable
               key={post.id}
-              onPress={() => router.push(`/(protected)/post/${post.id}`)}
+              onPress={() => handlePostPress(post.id)}
               style={{ width: columnWidth, height: columnWidth }}
             >
-              <View className="m-0.5 flex-1 overflow-hidden bg-muted">
-                <Image source={{ uri: post.thumbnail }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-              </View>
+              <Motion.View
+                whileTap={{ scale: 0.95, opacity: 0.8 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+                style={styles.postContainer}
+              >
+                <SharedImage 
+                  source={{ uri: post.thumbnail }} 
+                  style={styles.postImage} 
+                  contentFit="cover"
+                  sharedTag={`post-image-${post.id}`}
+                />
+              </Motion.View>
             </Pressable>
           ))}
         </View>
@@ -137,3 +178,42 @@ export default function UserProfileScreen() {
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  avatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  primaryButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#3EA4E5",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  secondaryButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+    backgroundColor: "#1a1a1a",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  postContainer: {
+    flex: 1,
+    margin: 2,
+    overflow: "hidden",
+    backgroundColor: "#1a1a1a",
+    borderRadius: 4,
+  },
+  postImage: {
+    width: "100%",
+    height: "100%",
+  },
+})
+
+export default memo(UserProfileScreenComponent)

@@ -1,5 +1,6 @@
-import { View, Text, Pressable, Dimensions, ScrollView } from "react-native"
+import { View, Text, Pressable, Dimensions, ScrollView, StyleSheet } from "react-native"
 import { Image } from "expo-image"
+import { SharedImage } from "@/components/shared-image"
 import { Article } from "@expo/html-elements"
 import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal } from "lucide-react-native"
 import { useRouter } from "expo-router"
@@ -7,9 +8,11 @@ import { useColorScheme } from "@/lib/hooks"
 import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store"
 import { useBookmarkStore } from "@/lib/stores/bookmark-store"
 import { VideoView, useVideoPlayer } from "expo-video"
-import { useRef, useCallback, useEffect, useState } from "react"
+import { useRef, useCallback, useEffect, useState, memo } from "react"
 import { useIsFocused } from "@react-navigation/native"
 import { VideoSeekBar } from "@/components/video-seek-bar"
+import { Motion } from "@legendapp/motion"
+import * as Haptics from "expo-haptics"
 
 const LONG_PRESS_DELAY = 300
 
@@ -34,7 +37,7 @@ interface FeedPostProps {
 const { width } = Dimensions.get("window")
 const mediaSize = width - 24
 
-export function FeedPost({ id, author, media, caption, likes, comments, timeAgo, location }: FeedPostProps) {
+function FeedPostComponent({ id, author, media, caption, likes, comments, timeAgo, location }: FeedPostProps) {
   const router = useRouter()
   const { colors } = useColorScheme()
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore()
@@ -49,6 +52,8 @@ export function FeedPost({ id, author, media, caption, likes, comments, timeAgo,
   const [showSeekBar, setShowSeekBar] = useState(false)
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
+  const [isPressed, setIsPressed] = useState(false)
+  const [likeAnimating, setLikeAnimating] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const player = useVideoPlayer(isVideo ? media[0].url : "", (player) => {
@@ -121,131 +126,217 @@ export function FeedPost({ id, author, media, caption, likes, comments, timeAgo,
   const isSaved = isBookmarked(id)
   const likeCount = getLikeCount(id, likes)
 
-  const handleLike = () => toggleLike(id, likes)
-  const handleSave = () => toggleBookmark(id)
+  const handleLike = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    setLikeAnimating(true)
+    toggleLike(id, likes)
+    setTimeout(() => setLikeAnimating(false), 300)
+  }, [id, likes, toggleLike])
+
+  const handleSave = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+    toggleBookmark(id)
+  }, [id, toggleBookmark])
 
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(event.nativeEvent.contentOffset.x / mediaSize)
     setCurrentSlide(id, slideIndex)
   }
 
+  const handlePressIn = useCallback(() => {
+    setIsPressed(true)
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+  }, [])
+
+  const handlePressOut = useCallback(() => {
+    setIsPressed(false)
+  }, [])
+
+  const handlePostPress = useCallback(() => {
+    router.push(`/(protected)/post/${id}`)
+  }, [router, id])
+
+  const handleProfilePress = useCallback(() => {
+    router.push(`/profile/${author.username}`)
+  }, [router, author.username])
+
   return (
-    <Article className="mx-3 my-4 overflow-hidden rounded-xl border border-border bg-card">
-      {/* Header */}
-      <View className="flex-row items-center justify-between p-3">
-        <View className="flex-row items-center gap-3">
-          <Pressable onPress={() => router.push(`/profile/${author.username}`)}>
-            <Image source={{ uri: author.avatar }} className="h-8 w-8 rounded-full" />
-          </Pressable>
-          <View>
-            <View className="flex-row items-center gap-1">
-              <Pressable onPress={() => router.push(`/profile/${author.username}`)}>
-                <Text className="text-sm font-semibold text-foreground">{author.username}</Text>
-              </Pressable>
-              {author.verified && (
-                <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-primary">
-                  <Text className="text-[8px] text-white">✓</Text>
-                </View>
-              )}
-            </View>
-            {location && <Text className="text-xs text-muted-foreground">{location}</Text>}
-          </View>
-        </View>
-        <Pressable className="p-2">
-          <MoreHorizontal size={20} color={colors.foreground} />
-        </Pressable>
-      </View>
-
-      {/* Media */}
-      <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted">
-        {isVideo ? (
-          <Pressable 
-            onPress={() => router.push(`/(protected)/post/${id}`)}
-            onPressIn={handleLongPressStart}
-            onPressOut={handleLongPressEnd}
-          >
-            <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
-            <VideoSeekBar
-              currentTime={videoCurrentTime}
-              duration={videoDuration}
-              onSeek={handleVideoSeek}
-              visible={showSeekBar}
-              barWidth={mediaSize - 32}
-            />
-          </Pressable>
-        ) : hasMultipleMedia ? (
-          <>
-            <ScrollView
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onScroll={handleScroll}
-              scrollEventThrottle={16}
-            >
-              {media.map((medium, index) => (
-                <Pressable key={index} onPress={() => router.push(`/(protected)/post/${id}`)}>
-                  <Image
-                    source={{ uri: medium.url }}
-                    style={{ width: mediaSize, height: mediaSize }}
-                    contentFit="cover"
-                  />
+    <Motion.View
+      animate={{
+        scale: isPressed ? 0.98 : 1,
+        opacity: isPressed ? 0.95 : 1,
+      }}
+      transition={{
+        type: "spring",
+        damping: 20,
+        stiffness: 300,
+      }}
+      style={styles.container}
+    >
+      <Article className="mx-3 my-4 overflow-hidden rounded-xl border border-border bg-card">
+        {/* Header */}
+        <View className="flex-row items-center justify-between p-3">
+          <View className="flex-row items-center gap-3">
+            <Pressable onPress={handleProfilePress}>
+              <Motion.View
+                whileTap={{ scale: 0.9 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+              >
+                <Image source={{ uri: author.avatar }} className="h-8 w-8 rounded-full" />
+              </Motion.View>
+            </Pressable>
+            <View>
+              <View className="flex-row items-center gap-1">
+                <Pressable onPress={handleProfilePress}>
+                  <Text className="text-sm font-semibold text-foreground">{author.username}</Text>
                 </Pressable>
-              ))}
-            </ScrollView>
-            <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5">
-              {media.map((_, index) => (
-                <View
-                  key={index}
-                  className={`h-1.5 rounded-full ${
-                    index === currentSlide ? "w-3 bg-primary" : "w-1.5 bg-foreground/50"
-                  }`}
-                />
-              ))}
+                {author.verified && (
+                  <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-primary">
+                    <Text className="text-[8px] text-white">✓</Text>
+                  </View>
+                )}
+              </View>
+              {location && <Text className="text-xs text-muted-foreground">{location}</Text>}
             </View>
-          </>
-        ) : (
-          <Pressable onPress={() => router.push(`/(protected)/post/${id}`)}>
-            <Image source={{ uri: media[0].url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-          </Pressable>
-        )}
-      </View>
-
-      {/* Actions */}
-      <View className="flex-row items-center justify-between p-3">
-        <View className="flex-row items-center gap-4">
-          <Pressable onPress={handleLike}>
-            <Heart size={24} color={isLiked ? "#FF5BFC" : colors.foreground} fill={isLiked ? "#FF5BFC" : "none"} />
-          </Pressable>
-          <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
-            <MessageCircle size={24} color={colors.foreground} />
-          </Pressable>
-          <Pressable>
-            <Share2 size={24} color={colors.foreground} />
+          </View>
+          <Pressable className="p-2">
+            <MoreHorizontal size={20} color={colors.foreground} />
           </Pressable>
         </View>
-        <Pressable onPress={handleSave}>
-          <Bookmark size={24} color={colors.foreground} fill={isSaved ? colors.foreground : "none"} />
-        </Pressable>
-      </View>
 
-      {/* Info */}
-      <View className="px-3 pb-3">
-        <Text className="text-sm font-semibold">{likeCount.toLocaleString()} likes</Text>
-        {caption && (
-          <Text className="mt-1 text-sm">
-            <Text className="font-semibold text-foreground">{author.username}</Text>{" "}
-            <Text className="text-foreground/90">{caption}</Text>
-          </Text>
-        )}
-        {comments > 0 ? (
-          <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
-            <Text className="mt-1 text-sm text-muted-foreground">View all {comments} comments</Text>
+        {/* Media */}
+        <Pressable
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          onPress={handlePostPress}
+        >
+          <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted">
+            {isVideo ? (
+              <Pressable 
+                onPress={handlePostPress}
+                onPressIn={handleLongPressStart}
+                onPressOut={handleLongPressEnd}
+              >
+                <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
+                <VideoSeekBar
+                  currentTime={videoCurrentTime}
+                  duration={videoDuration}
+                  onSeek={handleVideoSeek}
+                  visible={showSeekBar}
+                  barWidth={mediaSize - 32}
+                />
+              </Pressable>
+            ) : hasMultipleMedia ? (
+              <>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}
+                >
+                  {media.map((medium, index) => (
+                    <Image
+                      key={index}
+                      source={{ uri: medium.url }}
+                      style={{ width: mediaSize, height: mediaSize }}
+                      contentFit="cover"
+                    />
+                  ))}
+                </ScrollView>
+                <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5">
+                  {media.map((_, index) => (
+                    <Motion.View
+                      key={index}
+                      animate={{
+                        width: index === currentSlide ? 12 : 6,
+                        opacity: index === currentSlide ? 1 : 0.5,
+                      }}
+                      transition={{ type: "spring", damping: 15, stiffness: 300 }}
+                      className={`h-1.5 rounded-full ${
+                        index === currentSlide ? "bg-primary" : "bg-foreground/50"
+                      }`}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <SharedImage 
+                source={{ uri: media[0].url }} 
+                style={{ width: "100%", height: "100%" }} 
+                contentFit="cover" 
+                sharedTag={`post-image-${id}`}
+              />
+            )}
+          </View>
+        </Pressable>
+
+        {/* Actions */}
+        <View className="flex-row items-center justify-between p-3">
+          <View className="flex-row items-center gap-4">
+            <Pressable onPress={handleLike}>
+              <Motion.View
+                animate={{
+                  scale: likeAnimating ? 1.3 : 1,
+                }}
+                transition={{
+                  type: "spring",
+                  damping: 10,
+                  stiffness: 400,
+                }}
+              >
+                <Heart size={24} color={isLiked ? "#FF5BFC" : colors.foreground} fill={isLiked ? "#FF5BFC" : "none"} />
+              </Motion.View>
+            </Pressable>
+            <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
+              <Motion.View whileTap={{ scale: 0.85 }} transition={{ type: "spring", damping: 15, stiffness: 400 }}>
+                <MessageCircle size={24} color={colors.foreground} />
+              </Motion.View>
+            </Pressable>
+            <Pressable>
+              <Motion.View whileTap={{ scale: 0.85 }} transition={{ type: "spring", damping: 15, stiffness: 400 }}>
+                <Share2 size={24} color={colors.foreground} />
+              </Motion.View>
+            </Pressable>
+          </View>
+          <Pressable onPress={handleSave}>
+            <Motion.View
+              whileTap={{ scale: 0.85 }}
+              animate={{ rotate: isSaved ? "0deg" : "0deg" }}
+              transition={{ type: "spring", damping: 15, stiffness: 400 }}
+            >
+              <Bookmark size={24} color={colors.foreground} fill={isSaved ? colors.foreground : "none"} />
+            </Motion.View>
           </Pressable>
-        ) : (
-          <Text className="mt-1 text-sm text-muted-foreground">No comments yet. Be the first to comment!</Text>
-        )}
-        <Text className="mt-1 text-xs uppercase text-muted-foreground">{timeAgo}</Text>
-      </View>
-    </Article>
+        </View>
+
+        {/* Info */}
+        <View className="px-3 pb-3">
+          <Text className="text-sm font-semibold">{likeCount.toLocaleString()} likes</Text>
+          {caption && (
+            <Text className="mt-1 text-sm">
+              <Text className="font-semibold text-foreground">{author.username}</Text>{" "}
+              <Text className="text-foreground/90">{caption}</Text>
+            </Text>
+          )}
+          {comments > 0 ? (
+            <Pressable onPress={() => router.push(`/(protected)/comments/${id}`)}>
+              <Text className="mt-1 text-sm text-muted-foreground">View all {comments} comments</Text>
+            </Pressable>
+          ) : (
+            <Text className="mt-1 text-sm text-muted-foreground">No comments yet. Be the first to comment!</Text>
+          )}
+          <Text className="mt-1 text-xs uppercase text-muted-foreground">{timeAgo}</Text>
+        </View>
+      </Article>
+    </Motion.View>
   )
 }
+
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+  },
+})
+
+export const FeedPost = memo(FeedPostComponent)
