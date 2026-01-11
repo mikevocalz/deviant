@@ -8,7 +8,7 @@ export const authRouter = createTRPCRouter({
       email: z.string().email(),
       password: z.string().min(1),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: { input: any }) => {
       console.log("[auth.login] Attempting login for:", input.email);
       const response = await payloadFetch("/users/login", {
         method: "POST",
@@ -25,7 +25,7 @@ export const authRouter = createTRPCRouter({
       username: z.string().min(3),
       displayName: z.string().optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }: { input: any }) => {
       console.log("[auth.signup] Creating user:", input.username);
       const response = await payloadFetch("/users", {
         method: "POST",
@@ -36,7 +36,7 @@ export const authRouter = createTRPCRouter({
     }),
 
   me: protectedProcedure
-    .query(async ({ ctx }) => {
+    .query(async ({ ctx }: { ctx: any }) => {
       console.log("[auth.me] Fetching current user");
       const response = await payloadFetch("/users/me", {
         headers: {
@@ -47,7 +47,7 @@ export const authRouter = createTRPCRouter({
     }),
 
   logout: protectedProcedure
-    .mutation(async ({ ctx }) => {
+    .mutation(async ({ ctx }: { ctx: any }) => {
       console.log("[auth.logout] Logging out user");
       const response = await payloadFetch("/users/logout", {
         method: "POST",
@@ -59,7 +59,7 @@ export const authRouter = createTRPCRouter({
     }),
 
   refreshToken: protectedProcedure
-    .mutation(async ({ ctx }) => {
+    .mutation(async ({ ctx }: { ctx: any }) => {
       console.log("[auth.refreshToken] Refreshing token");
       const response = await payloadFetch("/users/refresh-token", {
         method: "POST",

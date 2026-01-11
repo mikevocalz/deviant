@@ -60,7 +60,7 @@ export default function TermsScreen() {
 
           <Text className="mb-2 text-lg font-semibold">6. Limitation of Liability</Text>
           <Text className="mb-6 text-base leading-6 text-foreground/90">
-            Our service is provided "as is" without warranties of any kind. We shall not be liable for any indirect,
+            Our service is provided as-is without warranties of any kind. We shall not be liable for any indirect,
             incidental, or consequential damages.
           </Text>
         </ScrollView>

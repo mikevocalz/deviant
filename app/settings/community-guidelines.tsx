@@ -25,7 +25,7 @@ export default function CommunityGuidelinesScreen() {
           <View className="mb-6">
             <Text className="mb-2 text-lg font-semibold">Our Mission</Text>
             <Text className="leading-relaxed text-foreground">
-              We're building a safe, inclusive community where everyone can express themselves authentically. These
+              We are building a safe, inclusive community where everyone can express themselves authentically. These
               guidelines help us maintain a positive environment for all users.
             </Text>
           </View>
@@ -49,7 +49,7 @@ export default function CommunityGuidelinesScreen() {
           <View className="mb-6">
             <Text className="mb-2 text-lg font-semibold">Protect Privacy</Text>
             <Text className="leading-relaxed text-foreground">
-              Respect others' privacy. Don't share personal information about others without their consent. Report any
+              Respect others privacy. Do not share personal information about others without their consent. Report any
               privacy violations you encounter.
             </Text>
           </View>

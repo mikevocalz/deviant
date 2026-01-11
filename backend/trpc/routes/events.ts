@@ -8,7 +8,7 @@ export const eventsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[events.getAll] Fetching events, page:", input.page);
       const response = await payloadFetch(
         `/events?limit=${input.limit}&page=${input.page}&sort=startDate`
@@ -18,7 +18,7 @@ export const eventsRouter = createTRPCRouter({
 
   getById: publicProcedure
     .input(z.object({ id: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[events.getById] Fetching event:", input.id);
       const response = await payloadFetch(`/events/${input.id}`);
       return response;
@@ -28,7 +28,7 @@ export const eventsRouter = createTRPCRouter({
     .input(z.object({
       limit: z.number().optional().default(10),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[events.getUpcoming] Fetching upcoming events");
       const now = new Date().toISOString();
       const response = await payloadFetch(
@@ -48,7 +48,7 @@ export const eventsRouter = createTRPCRouter({
       isOnline: z.boolean().optional(),
       maxAttendees: z.number().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[events.create] Creating event:", input.title);
       const response = await payloadFetch("/events", {
         method: "POST",
@@ -71,7 +71,7 @@ export const eventsRouter = createTRPCRouter({
       location: z.string().optional(),
       coverImage: z.string().optional(),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[events.update] Updating event:", input.id);
       const { id, ...data } = input;
       const response = await payloadFetch(`/events/${id}`, {
@@ -86,7 +86,7 @@ export const eventsRouter = createTRPCRouter({
 
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[events.delete] Deleting event:", input.id);
       const response = await payloadFetch(`/events/${input.id}`, {
         method: "DELETE",
@@ -102,7 +102,7 @@ export const eventsRouter = createTRPCRouter({
       eventId: z.string(),
       status: z.enum(["going", "interested", "not_going"]),
     }))
-    .mutation(async ({ input, ctx }) => {
+    .mutation(async ({ input, ctx }: { input: any; ctx: any }) => {
       console.log("[events.rsvp] RSVP to event:", input.eventId, "status:", input.status);
       const response = await payloadFetch("/event-rsvps", {
         method: "POST",
@@ -121,7 +121,7 @@ export const eventsRouter = createTRPCRouter({
       limit: z.number().optional().default(20),
       page: z.number().optional().default(1),
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input }: { input: any }) => {
       console.log("[events.getAttendees] Fetching attendees for event:", input.eventId);
       let url = `/event-rsvps?where[event][equals]=${input.eventId}&limit=${input.limit}&page=${input.page}`;
       if (input.status) {
