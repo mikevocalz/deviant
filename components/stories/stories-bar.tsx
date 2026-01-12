@@ -26,6 +26,7 @@ export function StoriesBar() {
   }, [router])
 
   const handleStoryPress = useCallback((storyId: string) => {
+    console.log("[Stories] Navigating to story:", storyId)
     router.push(`/(protected)/story/${storyId}`)
   }, [router])
 

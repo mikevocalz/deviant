@@ -1,47 +1,98 @@
 import { create } from "zustand"
 
 interface SignupFormData {
-  name: string
+  firstName: string
+  lastName: string
   email: string
-  password: string
+  phone: string
   dateOfBirth: string
-  idVerified: boolean
-  termsAccepted: boolean
+  password: string
+  confirmPassword: string
+}
+
+interface IDVerification {
+  idImage: string | null
+  faceImage: string | null
+  isVerified: boolean
+  extractedDOB: string | null
+  isOver18: boolean | null
 }
 
 interface SignupStore {
-  currentStep: number
+  activeStep: number
   formData: SignupFormData
+  idVerification: IDVerification
   hasScrolledToBottom: boolean
-  setCurrentStep: (step: number) => void
+  termsAccepted: boolean
+  isSubmitting: boolean
+  setActiveStep: (step: number) => void
   updateFormData: (data: Partial<SignupFormData>) => void
+  setIDImage: (image: string) => void
+  setFaceImage: (image: string) => void
+  setVerified: (verified: boolean) => void
+  setExtractedDOB: (dob: string | null, isOver18: boolean | null) => void
   setHasScrolledToBottom: (scrolled: boolean) => void
+  setTermsAccepted: (accepted: boolean) => void
+  setIsSubmitting: (submitting: boolean) => void
   resetSignup: () => void
 }
 
 const initialFormData: SignupFormData = {
-  name: "",
+  firstName: "",
+  lastName: "",
   email: "",
-  password: "",
+  phone: "",
   dateOfBirth: "",
-  idVerified: false,
-  termsAccepted: false,
+  password: "",
+  confirmPassword: "",
+}
+
+const initialIdVerification: IDVerification = {
+  idImage: null,
+  faceImage: null,
+  isVerified: false,
+  extractedDOB: null,
+  isOver18: null,
 }
 
 export const useSignupStore = create<SignupStore>((set) => ({
-  currentStep: 0,
+  activeStep: 0,
   formData: initialFormData,
+  idVerification: initialIdVerification,
   hasScrolledToBottom: false,
-  setCurrentStep: (step) => set({ currentStep: step }),
+  termsAccepted: false,
+  isSubmitting: false,
+  setActiveStep: (step) => set({ activeStep: step }),
   updateFormData: (data) =>
     set((state) => ({
       formData: { ...state.formData, ...data },
     })),
+  setIDImage: (image) =>
+    set((state) => ({
+      idVerification: { ...state.idVerification, idImage: image },
+    })),
+  setFaceImage: (image) =>
+    set((state) => ({
+      idVerification: { ...state.idVerification, faceImage: image },
+    })),
+  setVerified: (verified) =>
+    set((state) => ({
+      idVerification: { ...state.idVerification, isVerified: verified },
+    })),
+  setExtractedDOB: (dob, isOver18) =>
+    set((state) => ({
+      idVerification: { ...state.idVerification, extractedDOB: dob, isOver18 },
+    })),
   setHasScrolledToBottom: (scrolled) => set({ hasScrolledToBottom: scrolled }),
+  setTermsAccepted: (accepted) => set({ termsAccepted: accepted }),
+  setIsSubmitting: (submitting) => set({ isSubmitting: submitting }),
   resetSignup: () =>
     set({
-      currentStep: 0,
+      activeStep: 0,
       formData: initialFormData,
+      idVerification: initialIdVerification,
       hasScrolledToBottom: false,
+      termsAccepted: false,
+      isSubmitting: false,
     }),
 }))

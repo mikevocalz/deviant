@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Pressable, Text, ActivityIndicator } from 'react-native'
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/cn'
 
 type Variant = 'default' | 'secondary' | 'outline' | 'link'
 
@@ -51,7 +51,7 @@ export function Button({
       className={cn(base, bg, opacity, 'items-center justify-center', className)}
     >
       {loading ? (
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator />
       ) : (
         shouldWrapText ? (
           <Text className={cn(textClassName, 'font-semibold')}>{children}</Text>

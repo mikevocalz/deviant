@@ -15,6 +15,7 @@ interface VideoSeekBarProps {
   currentTime: number
   duration: number
   onSeek: (time: number) => void
+  onSeekEnd?: () => void
   visible: boolean
   barWidth?: number
 }
@@ -22,7 +23,8 @@ interface VideoSeekBarProps {
 export function VideoSeekBar({ 
   currentTime, 
   duration, 
-  onSeek, 
+  onSeek,
+  onSeekEnd,
   visible,
   barWidth = SCREEN_WIDTH - 32
 }: VideoSeekBarProps) {
@@ -64,9 +66,11 @@ export function VideoSeekBar({
       },
       onPanResponderRelease: () => {
         setIsDragging(false)
+        onSeekEnd?.()
       },
       onPanResponderTerminate: () => {
         setIsDragging(false)
+        onSeekEnd?.()
       },
     })
   ).current

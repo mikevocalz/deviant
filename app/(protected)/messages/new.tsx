@@ -1,4 +1,5 @@
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { ArrowLeft, Search, X } from "lucide-react-native"
@@ -38,7 +39,8 @@ export default function NewMessageScreen() {
   }, [router])
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
@@ -100,6 +102,7 @@ export default function NewMessageScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   )
 }

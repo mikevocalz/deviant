@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { TextInput, View, Text, Pressable } from 'react-native'
 import { Eye, EyeOff } from 'lucide-react-native'
-import { cn } from '@/lib/utils/cn'
+import { cn } from '@/lib/cn'
 
 export interface InputProps extends React.ComponentPropsWithoutRef<typeof TextInput> {
   label?: string
@@ -16,7 +16,7 @@ export const Input = React.forwardRef<TextInput, InputProps>(
 
     return (
       <View className="gap-1">
-        {label ? <Text className="text-sm font-medium text-muted-foreground">{label}</Text> : null}
+        {label ? <Text className="text-sm font-medium text-muted">{label}</Text> : null}
 
         <View className={cn('flex-row items-center rounded-xl border px-3', error ? 'border-destructive' : 'border-border', 'bg-card')}>
           {leftIcon ? <View className="mr-2">{leftIcon}</View> : null}

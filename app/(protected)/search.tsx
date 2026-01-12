@@ -1,4 +1,5 @@
 import { View, Text, TextInput, Pressable, ScrollView, Dimensions } from "react-native"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { ArrowLeft, Search, X, Play } from "lucide-react-native"
@@ -55,7 +56,8 @@ export default function SearchScreen() {
   }, [searchQuery, setSearching])
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Header */}
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()}>
@@ -144,6 +146,7 @@ export default function SearchScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   )
 }

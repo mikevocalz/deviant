@@ -54,9 +54,12 @@ export function useMediaPicker() {
     if (!hasPermission) return
 
     try {
+      const allowMultiple = options?.allowsMultipleSelection ?? true
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images", "videos"],
-        allowsMultipleSelection: options?.allowsMultipleSelection ?? true,
+        allowsMultipleSelection: allowMultiple,
+        allowsEditing: !allowMultiple,
+        aspect: [5, 4],
         quality: 1,
         videoMaxDuration: 60,
         selectionLimit: options?.maxSelection ?? 10,
@@ -69,7 +72,7 @@ export function useMediaPicker() {
           type: asset.type === "video" ? "video" : "image",
           width: asset.width,
           height: asset.height,
-          duration: asset.duration ?? undefined,
+          duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
         }))
 
@@ -91,6 +94,7 @@ export function useMediaPicker() {
         mediaTypes: ["images"],
         quality: 1,
         allowsEditing: true,
+        aspect: [5, 4],
       })
 
       if (!result.canceled && result.assets[0]) {
@@ -133,7 +137,7 @@ export function useMediaPicker() {
           type: "video",
           width: asset.width,
           height: asset.height,
-          duration: asset.duration ?? undefined,
+          duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
           fileSize: asset.fileSize ?? undefined,
         }
@@ -170,7 +174,7 @@ export function useMediaPicker() {
 
         for (const asset of result.assets) {
           if (asset.type === "video") {
-            if (asset.duration && asset.duration > maxDuration) {
+            if (asset.duration && asset.duration / 1000 > maxDuration) {
               errors.push(`Video exceeds ${maxDuration}s limit`)
               continue
             }
@@ -198,7 +202,7 @@ export function useMediaPicker() {
             type: asset.type === "video" ? "video" : "image",
             width: asset.width,
             height: asset.height,
-            duration: asset.duration ?? undefined,
+            duration: asset.duration ? asset.duration / 1000 : undefined,
             fileName: asset.fileName ?? undefined,
             fileSize: asset.fileSize ?? undefined,
           })
@@ -241,7 +245,7 @@ export function useMediaPicker() {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0]
 
-        if (asset.duration && asset.duration > maxDuration) {
+        if (asset.duration && asset.duration / 1000 > maxDuration) {
           Alert.alert(
             "Video Too Long",
             `Story videos must be ${maxDuration} seconds or less.`,
@@ -266,7 +270,7 @@ export function useMediaPicker() {
           type: "video",
           width: asset.width,
           height: asset.height,
-          duration: asset.duration ?? undefined,
+          duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
           fileSize: asset.fileSize ?? undefined,
         }

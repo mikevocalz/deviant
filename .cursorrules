@@ -15,6 +15,34 @@ This is a React Native/Expo project using:
 - Expo Router for navigation
 - Rive for animations (.riv files)
 - React Native Reanimated for animations
+- Zustand for state management (DO NOT use useState, use zustand stores)
+
+## Known Platform Fixes
+
+### Android - react-native-vision-camera-text-recognition
+Kotlin type mismatch error. Edit `VisionCameraTextRecognitionPlugin.kt` lines 54/58:
+```kotlin
+@Suppress("UNCHECKED_CAST")
+return WritableNativeMap().toHashMap() as HashMap<String, Any>?
+```
+
+### Android - Regula Face SDK
+Add Maven repo to `android/build.gradle` in `allprojects.repositories`:
+```gradle
+maven { url 'https://maven.regulaforensics.com/RegulaDocumentReader' }
+```
+
+### iOS - GoogleMLKit Version Conflict
+Conflict between `@react-native-ml-kit/text-recognition` (GoogleMLKit 8.0.0) and `vision-camera-face-detection` (GoogleMLKit 7.0.0).
+Fix in `ios/Podfile`:
+```ruby
+$GoogleMLKitVersion = '7.0.0'
+pod 'GoogleMLKit/MLKitCore', $GoogleMLKitVersion, :modular_headers => true
+pod 'GoogleMLKit/FaceDetection', $GoogleMLKitVersion, :modular_headers => true
+```
+
+### Native Rebuild
+After adding native dependencies: `npx expo run:android` or `npx expo run:ios`
 
 ## Code Style
 - Use TypeScript

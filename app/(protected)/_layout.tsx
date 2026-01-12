@@ -49,7 +49,8 @@ export default function ProtectedLayout() {
         name="post/[id]" 
         options={{
           animation: "fade",
-          animationDuration: 200,
+          animationDuration: 300,
+          animationTypeForReplace: "push",
         }} 
       />
       <Stack.Screen 

@@ -138,7 +138,7 @@ export default function OnboardingScreen() {
 
   const handleDone = async () => {
     await setHasSeenOnboarding(true)
-    router.replace("/(protected)/(tabs)" as any)
+    router.replace("/(protected)/(tabs)")
   }
 
   if (showPermissions) {

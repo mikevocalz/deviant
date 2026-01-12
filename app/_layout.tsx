@@ -57,7 +57,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, height: '100%', backgroundColor: '#000' }}>
+    <GestureHandlerRootView style={{ flex: 1, height: '100%', width: '100%', backgroundColor: '#000' }}>
       <KeyboardProvider>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider value={NAV_THEME[colorScheme]}>
@@ -77,12 +77,8 @@ export default function RootLayout() {
                   contentStyle: { backgroundColor: "#000" },
                 }}
               >
-                <Stack.Protected guard={!hasSeenOnboarding}>
-                  <Stack.Screen name="(auth)/onboarding" options={{ animation: "none" }} />
-                </Stack.Protected>
-                <Stack.Protected guard={hasSeenOnboarding && !isAuthenticated}>
-                  <Stack.Screen name="(auth)/login" />
-                  <Stack.Screen name="(auth)/signup" />
+                <Stack.Protected guard={!isAuthenticated}>
+                  <Stack.Screen name="(auth)" options={{ animation: "none" }} />
                 </Stack.Protected>
                 <Stack.Protected guard={isAuthenticated}>
                   <Stack.Screen name="(protected)" options={{ animation: "none" }} />

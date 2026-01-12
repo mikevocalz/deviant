@@ -120,68 +120,72 @@ export default function StoryViewerScreen() {
   )
 
   useEffect(() => {
-    if (!currentItem) return
+    if (!currentItem || !currentStoryId) return
 
     // Reset progress for new item
     progress.value = 0
     
     const duration = currentItem.duration || 5000
     
-    // Animate progress bar
-    progress.value = withTiming(1, { duration }, (finished) => {
-      if (finished) {
-        runOnJS(handleNext)()
-      }
-    })
+    // Small delay to ensure component is mounted
+    const timer = setTimeout(() => {
+      // Animate progress bar
+      progress.value = withTiming(1, { duration }, (finished) => {
+        if (finished) {
+          runOnJS(handleNext)()
+        }
+      })
+    }, 50)
 
     return () => {
+      clearTimeout(timer)
       progress.value = 0
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex])
+  }, [currentItemIndex, currentStoryId])
 
-  const handleNext = () => {
+  const goToNextUser = useCallback(() => {
+    if (currentStoryIndex < availableStories.length - 1) {
+      const nextStory = availableStories[currentStoryIndex + 1]
+      setCurrentStoryId(nextStory.id)
+      setCurrentItemIndex(0)
+      progress.value = 0
+    }
+  }, [currentStoryIndex, availableStories, setCurrentStoryId, setCurrentItemIndex, progress])
+
+  const goToPrevUser = useCallback(() => {
+    if (currentStoryIndex > 0) {
+      const prevStory = availableStories[currentStoryIndex - 1]
+      setCurrentStoryId(prevStory.id)
+      setCurrentItemIndex(prevStory.stories.length - 1)
+      progress.value = 0
+    }
+  }, [currentStoryIndex, availableStories, setCurrentStoryId, setCurrentItemIndex, progress])
+
+  const handleNext = useCallback(() => {
     if (!story) return
 
     if (currentItemIndex < story.stories.length - 1) {
       // Next story item for current user
       setCurrentItemIndex(currentItemIndex + 1)
-    } else if (hasNextUser) {
+    } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
       goToNextUser()
     } else {
       // No more stories, exit
       router.back()
     }
-  }
+  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router])
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (currentItemIndex > 0) {
       // Previous story item for current user
       setCurrentItemIndex(currentItemIndex - 1)
-    } else if (hasPrevUser) {
+    } else if (currentStoryIndex > 0) {
       // Move to previous user's last story
       goToPrevUser()
     }
-  }
-
-  const goToNextUser = () => {
-    if (hasNextUser) {
-      const nextStory = availableStories[currentStoryIndex + 1]
-      setCurrentStoryId(nextStory.id)
-      setCurrentItemIndex(0)
-      progress.value = 0
-    }
-  }
-
-  const goToPrevUser = () => {
-    if (hasPrevUser) {
-      const prevStory = availableStories[currentStoryIndex - 1]
-      setCurrentStoryId(prevStory.id)
-      setCurrentItemIndex(prevStory.stories.length - 1)
-      progress.value = 0
-    }
-  }
+  }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
 
   if (!story || !currentItem) {
     return (
@@ -257,61 +261,19 @@ export default function StoryViewerScreen() {
           )}
         </View>
 
-        {/* Touch areas for navigation */}
-        <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }}>
+        {/* Touch areas for navigation - full screen overlay */}
+        <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
+          {/* Left tap area - previous */}
           <Pressable 
             onPress={handlePrev} 
-            onPressIn={handleLongPressStart}
-            onPressOut={handleLongPressEnd}
             style={{ flex: 1 }} 
           />
+          {/* Right tap area - next */}
           <Pressable 
             onPress={handleNext} 
-            onPressIn={handleLongPressStart}
-            onPressOut={handleLongPressEnd}
             style={{ flex: 1 }} 
           />
         </View>
-
-        {/* Arrow buttons for user navigation */}
-        {hasPrevUser && (
-          <Pressable
-            onPress={goToPrevUser}
-            style={{
-              position: "absolute",
-              left: 8,
-              top: "50%",
-              marginTop: -20,
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: "rgba(255,255,255,0.2)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ChevronLeft size={24} color="#fff" />
-          </Pressable>
-        )}
-        {hasNextUser && (
-          <Pressable
-            onPress={goToNextUser}
-            style={{
-              position: "absolute",
-              right: 8,
-              top: "50%",
-              marginTop: -20,
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: "rgba(255,255,255,0.2)",
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-          >
-            <ChevronRight size={24} color="#fff" />
-          </Pressable>
-        )}
       </SafeAreaView>
     </View>
   )

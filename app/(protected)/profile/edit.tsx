@@ -1,4 +1,5 @@
 import { View, Text, TextInput, Pressable, ScrollView } from "react-native"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
 import { ArrowLeft } from "lucide-react-native"
@@ -11,7 +12,8 @@ export default function EditProfileScreen() {
   const { editName, editBio, editWebsite, setEditName, setEditBio, setEditWebsite } = useProfileStore()
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} className="h-10 w-10 items-center justify-center rounded-full bg-secondary">
@@ -63,6 +65,7 @@ export default function EditProfileScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   )
 }
