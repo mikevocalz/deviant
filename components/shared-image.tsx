@@ -16,6 +16,7 @@ export function SharedImage({ sharedTag, style, ...props }: SharedImageProps) {
 
   return (
     <AnimatedImage
+      // @ts-ignore - sharedTransitionTag is valid in Reanimated
       sharedTransitionTag={sharedTag}
       style={style as ImageStyle}
       {...props}

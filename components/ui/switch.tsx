@@ -1,98 +1,36 @@
-import { useCallback, useEffect, useRef } from "react"
-import { Animated, Pressable, StyleSheet, View } from "react-native"
-import { LinearGradient } from "expo-linear-gradient"
+import { cn } from '@/lib/cn';
+import * as SwitchPrimitives from '@rn-primitives/switch';
+import { Platform } from 'react-native';
 
-interface SwitchProps {
-  checked: boolean
-  onCheckedChange: (checked: boolean) => void
-  disabled?: boolean
-}
-
-const TRACK_WIDTH = 52
-const TRACK_HEIGHT = 32
-const THUMB_SIZE = 28
-const THUMB_OFFSET = 2
-
-export function Switch({ checked, onCheckedChange, disabled = false }: SwitchProps) {
-  const translateX = useRef(new Animated.Value(checked ? TRACK_WIDTH - THUMB_SIZE - THUMB_OFFSET * 2 : 0)).current
-  const scaleAnim = useRef(new Animated.Value(1)).current
-
-  useEffect(() => {
-    Animated.spring(translateX, {
-      toValue: checked ? TRACK_WIDTH - THUMB_SIZE - THUMB_OFFSET * 2 : 0,
-      useNativeDriver: true,
-      tension: 60,
-      friction: 8,
-    }).start()
-  }, [checked, translateX])
-
-  const handlePress = useCallback(() => {
-    if (disabled) return
-
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start()
-
-    onCheckedChange(!checked)
-  }, [checked, onCheckedChange, disabled, scaleAnim])
-
+function Switch({
+  className,
+  ...props
+}: SwitchPrimitives.RootProps & React.RefAttributes<SwitchPrimitives.RootRef>) {
   return (
-    <Pressable onPress={handlePress} disabled={disabled}>
-      <Animated.View style={[styles.track, { transform: [{ scale: scaleAnim }] }]}>
-        {checked ? (
-          <LinearGradient
-            colors={["#34A2DF", "#8A40CF", "#FF5BFC"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={StyleSheet.absoluteFill}
-          />
-        ) : (
-          <View style={[StyleSheet.absoluteFill, styles.trackOff]} />
+    <SwitchPrimitives.Root
+      className={cn(
+        'flex h-[1.15rem] w-8 shrink-0 flex-row items-center rounded-full border border-transparent shadow-sm shadow-black/5',
+        Platform.select({
+          web: 'focus-visible:border-ring focus-visible:ring-ring/50 peer inline-flex outline-none transition-all focus-visible:ring-[3px] disabled:cursor-not-allowed',
+        }),
+        props.checked ? 'bg-primary' : 'bg-input dark:bg-input/80',
+        props.disabled && 'opacity-50',
+        className
+      )}
+      {...props}>
+      <SwitchPrimitives.Thumb
+        className={cn(
+          'bg-background size-4 rounded-full transition-transform',
+          Platform.select({
+            web: 'pointer-events-none block ring-0',
+          }),
+          props.checked
+            ? 'dark:bg-primary-foreground translate-x-3.5'
+            : 'dark:bg-foreground translate-x-0'
         )}
-        <Animated.View
-          style={[
-            styles.thumb,
-            {
-              transform: [{ translateX }],
-              opacity: disabled ? 0.5 : 1,
-            },
-          ]}
-        />
-      </Animated.View>
-    </Pressable>
-  )
+      />
+    </SwitchPrimitives.Root>
+  );
 }
 
-const styles = StyleSheet.create({
-  track: {
-    width: TRACK_WIDTH,
-    height: TRACK_HEIGHT,
-    borderRadius: TRACK_HEIGHT / 2,
-    justifyContent: "center",
-    padding: THUMB_OFFSET,
-    overflow: "hidden",
-  },
-  trackOff: {
-    backgroundColor: "#3A3A3C",
-  },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-})
+export { Switch };

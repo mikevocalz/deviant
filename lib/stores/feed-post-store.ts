@@ -13,6 +13,7 @@ interface FeedPostUIState {
   previewMedia: { type: "image" | "video"; uri: string } | null
   showPreviewModal: boolean
   activePostId: string | null
+  isMuted: boolean
 
   setPressedPost: (postId: string, pressed: boolean) => void
   setLikeAnimating: (postId: string, animating: boolean) => void
@@ -22,6 +23,7 @@ interface FeedPostUIState {
   setShowPreviewModal: (show: boolean) => void
   resetVideoState: (postId: string) => void
   setActivePostId: (postId: string | null) => void
+  toggleMute: () => void
 }
 
 const defaultVideoState: VideoState = {
@@ -37,6 +39,7 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
   previewMedia: null,
   showPreviewModal: false,
   activePostId: null,
+  isMuted: true,
 
   setPressedPost: (postId, pressed) =>
     set((state) => ({
@@ -68,4 +71,6 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
     })),
 
   setActivePostId: (postId) => set({ activePostId: postId }),
+
+  toggleMute: () => set((state) => ({ isMuted: !state.isMuted })),
 }))

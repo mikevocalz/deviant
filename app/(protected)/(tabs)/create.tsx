@@ -7,6 +7,7 @@ import type { MediaAsset } from "@/lib/hooks/use-media-picker"
 import { useCreatePostStore } from "@/lib/stores/create-post-store"
 import { useCreatePost } from "@/lib/hooks/use-posts"
 import { useAuthStore } from "@/lib/stores/auth-store"
+import { useUIStore } from "@/lib/stores/ui-store"
 import { useRef, useCallback, useEffect } from "react"
 
 
@@ -16,6 +17,7 @@ const ASPECT_RATIO = 5 / 4
 
 const MAX_PHOTOS = 4
 const MAX_VIDEO_DURATION = 60
+const MIN_CAPTION_LENGTH = 100
 
 export default function CreateScreen() {
   const router = useRouter()
@@ -24,6 +26,7 @@ export default function CreateScreen() {
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } = useMediaPicker()
   const { mutate: createPost, isPending: isUploading } = useCreatePost()
   const { user } = useAuthStore()
+  const showToast = useUIStore((s) => s.showToast)
   const buttonScale = useRef(new Animated.Value(1)).current
 
   useEffect(() => {
@@ -184,6 +187,11 @@ export default function CreateScreen() {
       return
     }
 
+    if (caption.trim().length < MIN_CAPTION_LENGTH) {
+      showToast('error', 'Caption Too Short', `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${caption.trim().length}`)
+      return
+    }
+
     animateButton()
 
     console.log("[Create] Creating post with:", { 
@@ -256,7 +264,7 @@ export default function CreateScreen() {
         <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
           <Pressable 
             onPress={handlePost}
-            disabled={isUploading || selectedMedia.length === 0}
+            disabled={isUploading || selectedMedia.length === 0 || caption.trim().length < MIN_CAPTION_LENGTH}
             style={{
               backgroundColor: selectedMedia.length > 0 ? "#3EA4E5" : "#1a1a1a",
               paddingHorizontal: 16,

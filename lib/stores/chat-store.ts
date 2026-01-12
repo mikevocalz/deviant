@@ -114,14 +114,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { currentMessage, messages, pendingMedia } = get()
     if (!currentMessage.trim() && !pendingMedia) return
     
-    const chatMessages = messages[chatId] || mockMessages
+    const existingMessages = messages[chatId] || [...mockMessages]
     const mentions = extractMentions(currentMessage)
     
     const newMessage: Message = {
       id: Date.now().toString(),
-      text: currentMessage,
+      text: currentMessage || "",
       sender: "me",
-      time: "Now",
+      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       mentions: mentions.length > 0 ? mentions : undefined,
       media: pendingMedia || undefined,
     }
@@ -129,7 +129,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: {
         ...messages,
-        [chatId]: [...chatMessages, newMessage],
+        [chatId]: [...existingMessages, newMessage],
       },
       currentMessage: "",
       mentionQuery: "",
@@ -140,7 +140,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   
   sendMediaMessage: (chatId, media, caption) => {
     const { messages } = get()
-    const chatMessages = messages[chatId] || mockMessages
+    const existingMsgs = messages[chatId] || mockMessages
     
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -153,7 +153,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: {
         ...messages,
-        [chatId]: [...chatMessages, newMessage],
+        [chatId]: [...existingMsgs, newMessage],
       },
     })
   },

@@ -1,4 +1,5 @@
-import { View, Text, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Animated, Alert } from "react-native"
+import { View, Text, TextInput, Pressable, FlatList, Animated, Alert, Platform } from "react-native"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Image } from "expo-image"
 import { ArrowLeft, Send, ImageIcon, X, Play } from "lucide-react-native"
@@ -60,9 +61,9 @@ function MediaMessage({ media, onPress }: MediaMessageProps) {
   )
 
   return (
-    <Pressable onPress={onPress} className="w-[200px] h-[200px] rounded-xl overflow-hidden mb-2">
+    <Pressable onPress={onPress} style={{ width: 200, height: 200, borderRadius: 12, overflow: "hidden", marginBottom: 8, backgroundColor: "#222" }}>
       {media.type === "image" ? (
-        <Image source={{ uri: media.uri }} className="w-full h-full" contentFit="cover" />
+        <Image source={{ uri: media.uri }} style={{ width: 200, height: 200 }} contentFit="cover" />
       ) : (
         <View className="w-full h-full relative">
           <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />
@@ -102,7 +103,17 @@ export default function ChatScreen() {
   const chatMessages = messages[chatId] || mockMessages
   const user = users[chatId] || users["1"]
   const inputRef = useRef<TextInput>(null)
+  const flatListRef = useRef<FlatList>(null)
   const sendButtonScale = useRef(new Animated.Value(1)).current
+  
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true })
+      }, 100)
+    }
+  }, [chatMessages.length])
   
   const { previewMedia, showPreviewModal, setPreviewMedia, setShowPreviewModal } = useFeedPostUIStore()
   const { loadingScreens, setScreenLoading } = useUIStore()
@@ -205,8 +216,13 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+    <KeyboardAvoidingView 
+      behavior="padding" 
+      style={{ flex: 1 }}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+    >
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
@@ -220,27 +236,33 @@ export default function ChatScreen() {
       </View>
 
       <FlatList
+        ref={flatListRef}
         data={chatMessages}
+        extraData={chatMessages}
         keyExtractor={(item) => item.id}
         contentContainerClassName="p-4 gap-2"
         inverted={false}
         renderItem={({ item }) => (
-          <View className={`px-4 py-2.5 rounded-2xl max-w-[80%] mb-2 ${
-            item.sender === "me" ? "self-end bg-primary" : "self-start bg-secondary"
-          }`}>
+          <View className={`rounded-2xl mb-2 ${
+            item.sender === "me" ? "self-end" : "self-start"
+          }`} style={{ maxWidth: "80%" }}>
             {item.media && (
               <MediaMessage media={item.media} onPress={() => handleMediaPreview(item.media!)} />
             )}
-            {item.text ? (
-              <Text className="text-foreground text-[15px]">
-                {renderMessageText(item.text, handleMentionPress)}
-              </Text>
-            ) : null}
-            <Text className={`text-[11px] mt-1 ${
-              item.sender === "me" ? "text-foreground/70" : "text-muted-foreground"
+            <View className={`px-4 py-2.5 rounded-2xl ${
+              item.sender === "me" ? "bg-primary" : "bg-secondary"
             }`}>
-              {item.time}
-            </Text>
+              {item.text ? (
+                <Text className="text-foreground text-[15px]">
+                  {renderMessageText(item.text, handleMentionPress)}
+                </Text>
+              ) : null}
+              <Text className={`text-[11px] mt-1 ${
+                item.sender === "me" ? "text-foreground/70" : "text-muted-foreground"
+              }`}>
+                {item.time}
+              </Text>
+            </View>
           </View>
         )}
       />
@@ -264,7 +286,7 @@ export default function ChatScreen() {
         </View>
       )}
 
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <View>
         {pendingMedia && (
           <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
             <Image source={{ uri: pendingMedia.uri }} className="w-12 h-12 rounded-lg" contentFit="cover" />
@@ -306,13 +328,14 @@ export default function ChatScreen() {
             </Pressable>
           </Animated.View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       <MediaPreviewModal
         visible={showPreviewModal}
         onClose={handleClosePreview}
         media={previewMedia}
       />
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   )
 }

@@ -5,7 +5,7 @@ import { FeedSkeleton } from "@/components/skeletons"
 import { useAppStore } from "@/lib/stores/app-store"
 import { useMemo, useEffect, useRef, useCallback } from "react"
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
-import Animated, { FadeInDown, FadeOut, Layout } from "react-native-reanimated"
+import Animated, { FadeInDown, FadeOut } from "react-native-reanimated"
 import type { Post } from "@/lib/types"
 
 
@@ -20,7 +20,6 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
     <Animated.View
       entering={FadeInDown.delay(index * 100).duration(600).springify()}
       exiting={FadeOut.duration(300)}
-      layout={Platform.OS !== "web" ? Layout.springify() : undefined}
     >
       <FeedPost
         id={item.id}
@@ -142,13 +141,11 @@ export function Feed() {
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
-      console.log("[Feed] Loading more posts...")
       fetchNextPage()
     }
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   const handleRefresh = useCallback(async () => {
-    console.log("[Feed] Refreshing feed...")
     await refetch()
   }, [refetch])
 
@@ -158,15 +155,14 @@ export function Feed() {
   }, [isFetchingNextPage])
 
   const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-    minimumViewTime: 300,
+    itemVisiblePercentThreshold: 70,
+    minimumViewTime: 50,
   }).current
 
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: Post; isViewable: boolean }[] }) => {
     if (viewableItems.length > 0) {
       const firstViewable = viewableItems[0]
       if (firstViewable?.isViewable && firstViewable?.item?.id) {
-        console.log("[Feed] Active post:", firstViewable.item.id)
         setActivePostId(firstViewable.item.id)
       }
     } else {

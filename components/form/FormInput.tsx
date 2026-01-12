@@ -1,6 +1,6 @@
 import * as React from 'react'
-import { Input } from '@/components/ui/input'
-import type { InputProps } from '@/components/ui/input'
+import { Input } from '@/components/ui'
+import type { InputProps } from '@/components/ui'
 
 export function FormInput<TValues extends Record<string, any>>({
   form,

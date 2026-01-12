@@ -1,0 +1,177 @@
+diff --git a/src/components/Modal/index.tsx b/src/components/Modal/index.tsx
+--- a/src/components/Modal/index.tsx
++++ b/src/components/Modal/index.tsx
+@@ -2,8 +2,9 @@ import React, {
+   forwardRef, memo, useEffect, useImperativeHandle, useState,
+ } from 'react';
+ import { GestureResponderEvent, Modal, Pressable } from 'react-native';
++import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+ import Animated, {
+-  cancelAnimation, interpolate, runOnJS, useAnimatedGestureHandler, useAnimatedReaction,
++  cancelAnimation, interpolate, runOnJS, useAnimatedReaction,
+   useAnimatedStyle,
+   useDerivedValue, useSharedValue, withTiming,
+ } from 'react-native-reanimated';
+@@ -11,7 +12,6 @@ import {
+   HEIGHT, LONG_PRESS_DURATION, STORY_ANIMATION_DURATION, WIDTH,
+ } from '../../core/constants';
+ import { GestureContext, StoryModalProps, StoryModalPublicMethods } from '../../core/dto/componentsDTO';
+-import GestureHandler from './gesture';
+ import StoryList from '../List';
+ import ModalStyles from './Modal.styles';
+ 
+@@ -56,6 +56,15 @@ const StoryModal = forwardRef<StoryModalPublicMethods, StoryModalProps>( ( {
+     backgroundColor,
+   } ) );
+ 
++  const gestureContext = useSharedValue<GestureContext>( {
++    x: 0,
++    pressedX: 0,
++    pressedAt: 0,
++    moving: false,
++    vertical: false,
++    userId: undefined,
++  } );
++
+   const onClose = () => {
+ 
+     'worklet';
+@@ -261,87 +270,95 @@ const StoryModal = forwardRef<StoryModalPublicMethods, StoryModalProps>( ( {
+ 
+   };
+ 
+-  const onGestureEvent = useAnimatedGestureHandler( {
+-    onStart: ( e, ctx: GestureContext ) => {
+-
+-      ctx.x = x.value;
+-      ctx.userId = userId.value;
++  const onGestureEvent = Gesture.Pan()
++    .onStart( ( _ ) => {
++      gestureContext.modify( ( ctx ) => {
++        ctx.x = x.value;
++        ctx.userId = userId.value;
++        return ctx;
++      } );
+       paused.value = true;
+-
+-    },
+-    onActive: ( e, ctx ) => {
+-
+-      if ( ctx.x === x.value
+-        && ( ctx.vertical || ( Math.abs( e.velocityX ) < Math.abs( e.velocityY ) ) ) ) {
+-
+-        ctx.vertical = true;
++    } )
++    .onUpdate( ( e ) => {
++      const ctx = gestureContext.value;
++      if ( ctx.x === x.value && ( ctx.vertical || ( Math.abs( e.velocityX ) < Math.abs( e.velocityY ) ) ) ) {
++        gestureContext.modify( ( c ) => {
++          c.vertical = true;
++          return c;
++        } );
+         y.value = e.translationY / 2;
+-
+       } else {
+-
+-        ctx.moving = true;
++        gestureContext.modify( ( c ) => {
++          c.moving = true;
++          return c;
++        } );
+         x.value = Math.max(
+           0,
+           Math.min( ctx.x + -e.translationX, WIDTH * ( stories.length - 1 ) ),
+         );
+-
+       }
+-
+-    },
+-    onFinish: ( e, ctx ) => {
+-
++    } )
++    .onFinalize( ( e ) => {
++      const ctx = gestureContext.value;
+       if ( ctx.vertical ) {
+-
+         if ( e.translationY > 100 ) {
+-
+           onClose();
+-
+         } else {
+-
+           if ( e.translationY < -100 && onSwipeUp ) {
+-
+             runOnJS( onSwipeUp )(
+               stories[userIndex.value]?.id,
+               stories[userIndex.value]?.stories[storyIndex.value ?? 0]?.id,
+             );
+-
+           }
+-
+           y.value = withTiming( 0 );
+           startAnimation( true );
+-
+         }
+-
+       } else if ( ctx.moving ) {
+-
+         const diff = x.value - ctx.x;
+         let newX;
+-
+         if ( Math.abs( diff ) < WIDTH / 4 ) {
+-
+           newX = ctx.x;
+-
+         } else {
+-
+           newX = diff > 0
+             ? Math.ceil( x.value / WIDTH ) * WIDTH
+             : Math.floor( x.value / WIDTH ) * WIDTH;
+-
+         }
+-
+         const newUserId = stories[Math.round( newX / WIDTH )]?.id;
+         if ( newUserId !== undefined ) {
+-
+           scrollTo( newUserId, true, newUserId === ctx.userId, ctx.userId );
+-
+         }
+-
+       }
+-
+-      ctx.moving = false;
+-      ctx.vertical = false;
+-      ctx.userId = undefined;
++      gestureContext.modify( ( c ) => {
++        c.moving = false;
++        c.vertical = false;
++        c.userId = undefined;
++        return c;
++      } );
+       hideElements.value = false;
+       paused.value = false;
+-
+-    },
+-  } );
++    } );
+ 
+   const onPressIn = () => {
+ 
+@@ -457,7 +474,7 @@ const StoryModal = forwardRef<StoryModalPublicMethods, StoryModalProps>( ( {
+ 
+   return (
+     <Modal statusBarTranslucent={statusBarTranslucent} visible={visible} transparent animationType="none" testID="storyRNModal" onRequestClose={onClose}>
+-      <GestureHandler onGestureEvent={onGestureEvent}>
++      <GestureDetector gesture={onGestureEvent}>
+         <Animated.View style={ModalStyles.container} testID="storyModal">
+           <Pressable
+             onPressIn={onPressIn}
+@@ -505,7 +522,7 @@ const StoryModal = forwardRef<StoryModalPublicMethods, StoryModalProps>( ( {
+           </Pressable>
+           {footerComponent && footerComponent}
+         </Animated.View>
+-      </GestureHandler>
++      </GestureDetector>
+     </Modal>
+   );
+ 

@@ -276,20 +276,14 @@ function UserProfileScreenComponent() {
             <Pressable
               key={post.id}
               onPress={() => handlePostPress(post.id)}
-              style={{ width: columnWidth, height: columnWidth }}
+              style={{ width: columnWidth, height: columnWidth, padding: 1 }}
             >
-              <Motion.View
-                whileTap={{ scale: 0.95, opacity: 0.8 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                style={styles.postContainer}
-              >
-                <SharedImage 
-                  source={{ uri: post.thumbnail }} 
-                  style={styles.postImage} 
-                  contentFit="cover"
-                  sharedTag={`post-image-${post.id}`}
-                />
-              </Motion.View>
+              <SharedImage 
+                source={{ uri: post.thumbnail }} 
+                style={{ width: columnWidth - 2, height: columnWidth - 2, borderRadius: 2, backgroundColor: "#1a1a1a" }} 
+                contentFit="cover"
+                sharedTag={`post-image-${post.id}`}
+              />
             </Pressable>
           ))}
         </View>
