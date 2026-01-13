@@ -1,13 +1,16 @@
 import { View, Text, ScrollView, Pressable } from "react-native"
 import { Image } from "expo-image"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Calendar, MapPin, Clock, Users, Share2, Heart, ArrowLeft, Check } from "lucide-react-native"
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
+import { Calendar, MapPin, Clock, Users, Share2, Heart, ArrowLeft, Check, Ticket } from "lucide-react-native"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
 import { LinearGradient } from "expo-linear-gradient"
 import { Motion } from "@legendapp/motion"
 import Animated, { FadeInDown } from "react-native-reanimated"
 import { useEventViewStore } from "@/lib/stores/event-store"
+import { useTicketStore } from "@/lib/stores/ticket-store"
+import { TicketModal } from "@/components/ticket-modal"
+import { useTicketModalStore } from "@/lib/stores/ticket-modal-store"
 
 const eventsData: Record<string, any> = {
   "lower-east-side-winter-bar-fest": {
@@ -113,9 +116,14 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { colors } = useColorScheme()
+  const insets = useSafeAreaInsets()
   const eventId = id || "lower-east-side-winter-bar-fest"
   const { isRsvped, toggleRsvp } = useEventViewStore()
-  const hasTicket = isRsvped[eventId] || false
+  const { getTicketByEventId, hasValidTicket } = useTicketStore()
+  const { isVisible, openModal, closeModal } = useTicketModalStore()
+  
+  const ticket = getTicketByEventId(eventId)
+  const hasTicket = hasValidTicket(eventId) || isRsvped[eventId] || false
 
   const event = eventsData[eventId] || eventsData["lower-east-side-winter-bar-fest"]
 
@@ -255,17 +263,6 @@ export default function EventDetailScreen() {
 
           {/* Ticket Card */}
           <Animated.View entering={FadeInDown.delay(800)} style={{ backgroundColor: colors.card, borderRadius: 16, padding: 24, marginBottom: 100 }}>
-            {hasTicket && (
-              <View style={{ alignItems: "center", paddingBottom: 24, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: 24 }}>
-                <Text style={{ fontWeight: "600", color: colors.foreground, marginBottom: 16 }}>Your Ticket</Text>
-                <View style={{ width: 150, height: 150, backgroundColor: "#fff", borderRadius: 12, alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ fontSize: 64 }}>🎟️</Text>
-                  <Text style={{ fontSize: 10, color: colors.foreground }}>QR Code</Text>
-                </View>
-                <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 8 }}>Show this QR code at the venue for entry</Text>
-              </View>
-            )}
-
             <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 8 }}>
               <Text style={{ fontSize: 32, fontWeight: "bold", color: colors.foreground }}>${event.price}.00</Text>
               <Text style={{ fontSize: 14, color: colors.mutedForeground, textDecorationLine: "line-through" }}>${event.originalPrice}.00</Text>
@@ -316,6 +313,57 @@ export default function EventDetailScreen() {
           </Animated.View>
         </View>
       </ScrollView>
+
+      {hasTicket && (
+        <Animated.View 
+          entering={FadeInDown.delay(900).springify()}
+          style={{ 
+            position: "absolute", 
+            bottom: insets.bottom + 16, 
+            left: 16, 
+            right: 16,
+          }}
+        >
+          <Motion.View whileTap={{ scale: 0.98 }}>
+            <Pressable
+              onPress={openModal}
+              style={{ 
+                backgroundColor: colors.primary, 
+                paddingVertical: 16, 
+                borderRadius: 16, 
+                flexDirection: "row",
+                alignItems: "center", 
+                justifyContent: "center",
+                gap: 10,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              <Ticket size={22} color="#fff" />
+              <Text style={{ fontWeight: "bold", color: "#fff", fontSize: 16 }}>View Your Ticket</Text>
+            </Pressable>
+          </Motion.View>
+        </Animated.View>
+      )}
+
+      <TicketModal
+        visible={isVisible}
+        onClose={closeModal}
+        ticket={ticket || {
+          id: `ticket-${eventId}`,
+          eventId: eventId,
+          userId: "current-user",
+          paid: true,
+          status: "valid",
+          qrToken: `mock-token-${eventId}`,
+        }}
+        eventTitle={event.title}
+        eventDate={event.date}
+        eventLocation={event.location}
+      />
     </View>
   )
 }
