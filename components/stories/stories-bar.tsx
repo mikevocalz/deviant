@@ -43,8 +43,8 @@ export function StoriesBar() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-2">
         <Pressable onPress={handleCreateStory} className="items-center p-2">
           <View className="relative">
-            <View className="h-[68px] w-[68px] items-center justify-center rounded-full border-2 border-primary">
-              <Image source={{ uri: yourStory.avatar }} className="h-[60px] w-[60px] rounded-full" />
+            <View className="h-[108px] aspect-video w-[68px] items-center justify-center rounded-sm border-2 border-primary">
+              <Image source={{ uri: yourStory.avatar }} className="h-[108px] w-[60px] rounded-sm" />
             </View>
             <View className="absolute -bottom-0.5 -right-0.5 h-6 w-6 items-center justify-center rounded-full bg-primary border-2 border-background">
               <Plus size={14} color="#fff" strokeWidth={3} />
@@ -57,11 +57,11 @@ export function StoriesBar() {
           <View key={story.id} className="items-center p-2">
             <Pressable onPress={() => handleStoryPress(story.id)}>
               <View
-                className={`h-[68px] w-[68px] items-center justify-center rounded-full border-2 ${
+                className={`h-[108px] aspect-video w-[68px] items-center justify-center rounded-sm border-2 ${
                   story.isViewed ? "border-muted" : "border-primary"
                 }`}
               >
-                <Image source={{ uri: story.avatar }} className="h-[60px] w-[60px] rounded-full" />
+                <Image source={{ uri: story.avatar }} className="h-[108px] w-[60px] rounded-sm" />
               </View>
             </Pressable>
             <Pressable onPress={() => handleProfilePress(story.username)}>

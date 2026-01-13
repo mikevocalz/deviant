@@ -17,13 +17,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.dvnt.social",
+      "buildNumber": "1.0.0",
       "infoPlist": {
         "NSCameraUsageDescription": "This app needs access to your camera to take photos and videos for posts and stories.",
         "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to select photos and videos for posts and stories.",
         "NSMicrophoneUsageDescription": "This app needs access to your microphone to record videos with audio.",
-        "UIBackgroundModes": [
-          "audio"
-        ],
+        "UIBackgroundModes": ["audio"],
         "NSPhotoLibraryAddUsageDescription": "Allow $(PRODUCT_NAME) to save photos."
       }
     },
