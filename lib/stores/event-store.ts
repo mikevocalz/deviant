@@ -1,15 +1,24 @@
 import { create } from "zustand"
 
+interface LocationData {
+  name: string
+  latitude?: number
+  longitude?: number
+  placeId?: string
+}
+
 interface CreateEventState {
   title: string
   date: string
   time: string
   location: string
+  locationData: LocationData | null
   price: string
   setTitle: (title: string) => void
   setDate: (date: string) => void
   setTime: (time: string) => void
   setLocation: (location: string) => void
+  setLocationData: (data: LocationData | null) => void
   setPrice: (price: string) => void
   reset: () => void
 }
@@ -30,13 +39,15 @@ export const useCreateEventStore = create<CreateEventState>((set) => ({
   date: "",
   time: "",
   location: "",
+  locationData: null,
   price: "",
   setTitle: (title) => set({ title }),
   setDate: (date) => set({ date }),
   setTime: (time) => set({ time }),
   setLocation: (location) => set({ location }),
+  setLocationData: (data) => set({ locationData: data, location: data?.name || "" }),
   setPrice: (price) => set({ price }),
-  reset: () => set({ title: "", date: "", time: "", location: "", price: "" }),
+  reset: () => set({ title: "", date: "", time: "", location: "", locationData: null, price: "" }),
 }))
 
 export const useEventViewStore = create<EventViewState>((set, get) => ({

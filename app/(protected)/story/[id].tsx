@@ -147,20 +147,22 @@ export default function StoryViewerScreen() {
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
       const nextStory = availableStories[currentStoryIndex + 1]
-      setCurrentStoryId(nextStory.id)
       setCurrentItemIndex(0)
       progress.value = 0
+      // Navigate to the next user's story
+      router.replace(`/(protected)/story/${nextStory.id}`)
     }
-  }, [currentStoryIndex, availableStories, setCurrentStoryId, setCurrentItemIndex, progress])
+  }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
 
   const goToPrevUser = useCallback(() => {
     if (currentStoryIndex > 0) {
       const prevStory = availableStories[currentStoryIndex - 1]
-      setCurrentStoryId(prevStory.id)
       setCurrentItemIndex(prevStory.stories.length - 1)
       progress.value = 0
+      // Navigate to the previous user's story
+      router.replace(`/(protected)/story/${prevStory.id}`)
     }
-  }, [currentStoryIndex, availableStories, setCurrentStoryId, setCurrentItemIndex, progress])
+  }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
 
   const handleNext = useCallback(() => {
     if (!story) return
@@ -186,6 +188,16 @@ export default function StoryViewerScreen() {
       goToPrevUser()
     }
   }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
+
+  // Video end detection - auto-advance when video finishes
+  useEffect(() => {
+    if (!isVideo || !player || videoDuration === 0) return
+    
+    // Check if video has ended (within 0.3s of end)
+    if (videoCurrentTime >= videoDuration - 0.3 && !isPaused.current) {
+      handleNext()
+    }
+  }, [isVideo, player, videoCurrentTime, videoDuration, handleNext])
 
   if (!story || !currentItem) {
     return (

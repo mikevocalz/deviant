@@ -1,7 +1,7 @@
-import { View, Text, ScrollView, Pressable } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { Main } from "@expo/html-elements"
-import { useRouter } from "expo-router"
+import { View, Text, ScrollView, Pressable } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Main } from "@expo/html-elements";
+import { useRouter } from "expo-router";
 import {
   User,
   Bell,
@@ -18,22 +18,26 @@ import {
   MessageCircle,
   Eye,
   EyeOff,
-} from "lucide-react-native"
-import { useAuthStore } from "@/lib/stores/auth-store"
-import { useAppStore } from "@/lib/stores/app-store"
-import { SettingsSection } from "@/components/settings/SettingsSection"
-import { SettingsListItem } from "@/components/settings/SettingsListItem"
-import { Switch } from "@/components/ui/switch"
+  Info,
+  CheckCircle,
+  ShieldCheck,
+  Megaphone,
+} from "lucide-react-native";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAppStore } from "@/lib/stores/app-store";
+import { SettingsSection } from "@/components/settings/SettingsSection";
+import { SettingsListItem } from "@/components/settings/SettingsListItem";
+import { Switch } from "@/components/ui/switch";
 
 export default function SettingsScreenIOS() {
-  const router = useRouter()
-  const { user, logout } = useAuthStore()
-  const { nsfwEnabled, setNsfwEnabled } = useAppStore()
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
+  const { nsfwEnabled, setNsfwEnabled } = useAppStore();
 
   const handleLogout = () => {
-    logout()
-    router.replace("/login")
-  }
+    logout();
+    router.replace("/login");
+  };
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -48,7 +52,9 @@ export default function SettingsScreenIOS() {
           {user && (
             <View className="mx-4 mt-4 rounded-lg bg-card p-4">
               <Text className="text-lg font-semibold">{user.name}</Text>
-              <Text className="mt-1 text-sm text-muted-foreground">{user.email}</Text>
+              <Text className="mt-1 text-sm text-muted-foreground">
+                {user.email}
+              </Text>
             </View>
           )}
 
@@ -112,8 +118,12 @@ export default function SettingsScreenIOS() {
               <View className="flex-row items-center gap-3">
                 <EyeOff size={20} color="#666" />
                 <View>
-                  <Text className="text-base text-foreground">Show NSFW Content</Text>
-                  <Text className="text-xs text-muted-foreground">Display sensitive content in feed</Text>
+                  <Text className="text-base text-foreground">
+                    Show NSFW Content
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Display sensitive content in feed
+                  </Text>
                 </View>
               </View>
               <Switch checked={nsfwEnabled} onCheckedChange={setNsfwEnabled} />
@@ -134,14 +144,29 @@ export default function SettingsScreenIOS() {
             />
           </SettingsSection>
 
-          {/* Support & About */}
-          <SettingsSection title="Support & About">
+          {/* About DVNT */}
+          <SettingsSection title="About DVNT">
             <SettingsListItem
-              icon={<HelpCircle size={20} color="#666" />}
-              label="Help Center"
-              onPress={() => router.push("/settings/faq")}
+              icon={<Info size={20} color="#666" />}
+              label="About / Community Focus"
+              onPress={() => router.push("/settings/about")}
             />
             <View className="ml-12 h-px bg-border" />
+            <SettingsListItem
+              icon={<CheckCircle size={20} color="#666" />}
+              label="Eligibility Criteria"
+              onPress={() => router.push("/settings/eligibility")}
+            />
+            <View className="ml-12 h-px bg-border" />
+            <SettingsListItem
+              icon={<ShieldCheck size={20} color="#666" />}
+              label="Identity Protection"
+              onPress={() => router.push("/settings/identity-protection")}
+            />
+          </SettingsSection>
+
+          {/* Legal & Policies */}
+          <SettingsSection title="Legal & Policies">
             <SettingsListItem
               icon={<Shield size={20} color="#666" />}
               label="Privacy Policy"
@@ -156,8 +181,23 @@ export default function SettingsScreenIOS() {
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<FileText size={20} color="#666" />}
-              label="Community Guidelines"
+              label="Community Standards"
               onPress={() => router.push("/settings/community-guidelines")}
+            />
+            <View className="ml-12 h-px bg-border" />
+            <SettingsListItem
+              icon={<Megaphone size={20} color="#666" />}
+              label="Advertising Policy"
+              onPress={() => router.push("/settings/ad-policy")}
+            />
+          </SettingsSection>
+
+          {/* Support */}
+          <SettingsSection title="Support">
+            <SettingsListItem
+              icon={<HelpCircle size={20} color="#666" />}
+              label="Help Center / FAQ"
+              onPress={() => router.push("/settings/faq")}
             />
           </SettingsSection>
 
@@ -179,5 +219,5 @@ export default function SettingsScreenIOS() {
         </ScrollView>
       </Main>
     </SafeAreaView>
-  )
+  );
 }

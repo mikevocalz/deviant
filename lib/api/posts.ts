@@ -1,84 +1,157 @@
-import type { Post } from "@/lib/constants"
+import { posts } from "@/lib/api-client";
+import type { Post } from "@/lib/types";
 
-// Simulated API delay
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const PAGE_SIZE = 5
+const PAGE_SIZE = 10;
 
 export interface PaginatedResponse<T> {
-  data: T[]
-  nextCursor: number | null
-  hasMore: boolean
+  data: T[];
+  nextCursor: number | null;
+  hasMore: boolean;
 }
 
-// API functions that simulate server calls
+// Transform API response to match Post type
+function transformPost(doc: Record<string, unknown>): Post {
+  return {
+    id: doc.id as string,
+    author: {
+      username:
+        ((doc.author as Record<string, unknown>)?.username as string) ||
+        "unknown",
+      avatar: (doc.author as Record<string, unknown>)?.avatar as string,
+      verified:
+        ((doc.author as Record<string, unknown>)?.isVerified as boolean) ||
+        false,
+      name: (doc.author as Record<string, unknown>)?.name as string,
+    },
+    media: (doc.media as Array<{ type: "image" | "video"; url: string }>) || [],
+    caption: doc.caption as string,
+    likes: (doc.likes as number) || 0,
+    comments: [],
+    timeAgo: formatTimeAgo(doc.createdAt as string),
+    location: doc.location as string,
+    isNSFW: doc.isNSFW as boolean,
+  };
+}
+
+function formatTimeAgo(dateString: string): string {
+  if (!dateString) return "Just now";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
+
+// Real API functions
 export const postsApi = {
-  // Fetch feed posts with pagination
+  // Fetch feed posts
   async getFeedPosts(): Promise<Post[]> {
-    await delay(500)
-    const { feedPosts } = await import("@/lib/constants")
-    return feedPosts
+    try {
+      const response = await posts.find({ limit: 20, sort: "-createdAt" });
+      return response.docs.map(transformPost);
+    } catch (error) {
+      console.error("[postsApi] getFeedPosts error:", error);
+      return [];
+    }
   },
 
   // Fetch feed posts with pagination (infinite scroll)
-  async getFeedPostsPaginated(cursor: number = 0): Promise<PaginatedResponse<Post>> {
-    await delay(600)
-    const { feedPosts } = await import("@/lib/constants")
-    const start = cursor
-    const end = start + PAGE_SIZE
-    const paginatedPosts = feedPosts.slice(start, end)
-    const hasMore = end < feedPosts.length
-    
-    return {
-      data: paginatedPosts,
-      nextCursor: hasMore ? end : null,
-      hasMore,
+  async getFeedPostsPaginated(
+    cursor: number = 0,
+  ): Promise<PaginatedResponse<Post>> {
+    try {
+      const page = Math.floor(cursor / PAGE_SIZE) + 1;
+      const response = await posts.find({
+        limit: PAGE_SIZE,
+        page,
+        sort: "-createdAt",
+        depth: 2,
+      });
+
+      return {
+        data: response.docs.map(transformPost),
+        nextCursor: response.hasNextPage ? cursor + PAGE_SIZE : null,
+        hasMore: response.hasNextPage,
+      };
+    } catch (error) {
+      console.error("[postsApi] getFeedPostsPaginated error:", error);
+      return { data: [], nextCursor: null, hasMore: false };
     }
   },
 
   // Fetch profile posts
-  async getProfilePosts(username: string): Promise<Post[]> {
-    await delay(500)
-    const { profilePosts } = await import("@/lib/constants")
-    return profilePosts
+  async getProfilePosts(userId: string): Promise<Post[]> {
+    try {
+      const response = await posts.find({
+        limit: 50,
+        sort: "-createdAt",
+        where: { author: { equals: userId } },
+      });
+      return response.docs.map(transformPost);
+    } catch (error) {
+      console.error("[postsApi] getProfilePosts error:", error);
+      return [];
+    }
   },
 
   // Fetch single post by ID
   async getPostById(id: string): Promise<Post | null> {
-    await delay(300)
-    const { getPostById } = await import("@/lib/constants")
-    return getPostById(id) || null
+    try {
+      const doc = await posts.findByID(id, 2);
+      return transformPost(doc as Record<string, unknown>);
+    } catch (error) {
+      console.error("[postsApi] getPostById error:", error);
+      return null;
+    }
   },
 
   // Like a post
   async likePost(postId: string): Promise<{ postId: string; likes: number }> {
-    await delay(200)
-    return { postId, likes: Math.floor(Math.random() * 10000) }
+    try {
+      const post = await posts.findByID(postId);
+      const currentLikes =
+        ((post as Record<string, unknown>).likes as number) || 0;
+      await posts.update(postId, { likes: currentLikes + 1 });
+      return { postId, likes: currentLikes + 1 };
+    } catch (error) {
+      console.error("[postsApi] likePost error:", error);
+      return { postId, likes: 0 };
+    }
   },
 
   // Create a new post
   async createPost(data: Partial<Post>): Promise<Post> {
-    await delay(800)
-    const newPost: Post = {
-      id: `p-${Date.now()}`,
-      author: data.author || {
-        username: "alex.creator",
-        avatar: "https://i.pravatar.cc/150?img=12",
-        verified: true,
-      },
-      media: data.media || [],
-      caption: data.caption,
-      likes: 0,
-      comments: [],
-      timeAgo: "Just now",
-      location: data.location,
+    try {
+      const doc = await posts.create({
+        author: data.author,
+        media: data.media,
+        caption: data.caption,
+        location: data.location,
+        likes: 0,
+        isNSFW: data.isNSFW || false,
+      });
+      return transformPost(doc as Record<string, unknown>);
+    } catch (error) {
+      console.error("[postsApi] createPost error:", error);
+      throw error;
     }
-    return newPost
   },
 
   // Delete a post
   async deletePost(postId: string): Promise<string> {
-    await delay(300)
-    return postId
+    try {
+      await posts.delete(postId);
+      return postId;
+    } catch (error) {
+      console.error("[postsApi] deletePost error:", error);
+      throw error;
+    }
   },
-}
+};

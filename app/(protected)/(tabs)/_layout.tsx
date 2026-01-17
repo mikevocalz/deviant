@@ -1,8 +1,9 @@
 import { Tabs, useRouter } from "expo-router"
 import { View, Pressable, Text } from "react-native"
-import { Image } from "expo-image"
-import { Home, Search, PlusSquare, Heart, User, MessageSquare, CalendarDays } from "lucide-react-native"
+import { Home, Search, Plus, Heart, User, MessageSquare, CalendarDays } from "lucide-react-native"
 import { useColorScheme } from "@/lib/hooks"
+import Logo from "@/components/logo"
+import { CenterButton } from "@/components/center-button"
 
 export default function TabsLayout() {
   const router = useRouter()
@@ -17,13 +18,7 @@ export default function TabsLayout() {
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
         },
-        headerTitle: () => (
-            <Image
-              source={{ uri: "https://placehold.co/192x64/6366f1/white?text=Social" }}
-              style={{ width: 96, height: 32 }}
-              contentFit="contain"
-            />
-        ),
+        headerTitle: () => <Logo width={100} height={50} />,
         headerRight: () => (
           <View className="mr-4 flex-row items-center gap-4">
             <Pressable onPress={() => router.push("/(protected)/search")}>
@@ -38,6 +33,8 @@ export default function TabsLayout() {
           </View>
         ),
         tabBarShowLabel: false,
+        tabBarActiveTintColor: colors.foreground,
+        tabBarInactiveTintColor: colors.mutedForeground,
         tabBarStyle: {
           backgroundColor: colors.background,
           borderTopWidth: 1,
@@ -68,11 +65,19 @@ export default function TabsLayout() {
       />
       <Tabs.Screen
         name="create"
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault()
+            router.push("/(protected)/(tabs)/create")
+          },
+        }}
         options={{
-          tabBarIcon: ({ focused }) => (
-            <View className="items-center mt-0.5 justify-center">
-              <PlusSquare size={24} color={focused ? colors.foreground : colors.mutedForeground} strokeWidth={focused ? 2.5 : 2} />
-            </View>
+          title: "",
+          tabBarButton: (props) => (
+            <CenterButton
+              onPress={() => router.push("/(protected)/(tabs)/create")}
+              Icon={Plus}
+            />
           ),
         }}
       />

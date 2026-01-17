@@ -1,13 +1,15 @@
 import { create } from "zustand"
 
+type ProfileTab = "posts" | "video" | "saved" | "tagged"
+
 interface ProfileState {
-  activeTab: "posts" | "saved"
+  activeTab: ProfileTab
   following: Record<string, boolean>
   followers: Record<string, number>
   editName: string
   editBio: string
   editWebsite: string
-  setActiveTab: (tab: "posts" | "saved") => void
+  setActiveTab: (tab: ProfileTab) => void
   toggleFollow: (userId: string, initialFollowers: number) => void
   setEditName: (name: string) => void
   setEditBio: (bio: string) => void

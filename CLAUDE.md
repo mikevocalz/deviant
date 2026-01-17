@@ -17,7 +17,12 @@ The following files should **NEVER** be modified unless explicitly requested by 
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: [["babel-preset-expo", {jsxImportSource: "nativewind", unstable_transformImportMeta: true }]],
+    presets: [
+      [
+        "babel-preset-expo",
+        { jsxImportSource: "nativewind", unstable_transformImportMeta: true },
+      ],
+    ],
     plugins: ["react-native-worklets/plugin"],
   };
 };
@@ -34,7 +39,9 @@ const config = getDefaultConfig(__dirname);
 
 config.resolver.assetExts.push("riv");
 
-module.exports = withRorkMetro(withNativeWind(config, { input: "./global.css" }));
+module.exports = withRorkMetro(
+  withNativeWind(config, { input: "./global.css" }),
+);
 ```
 
 ## 🚫 Protected Dependencies - DO NOT REMOVE
@@ -82,18 +89,63 @@ maven { url 'https://maven.regulaforensics.com/RegulaDocumentReader' }
 
 ### iOS - GoogleMLKit Version Conflict
 
-Conflict between `@react-native-ml-kit/text-recognition` (GoogleMLKit 8.0.0) and `vision-camera-face-detection` (GoogleMLKit 7.0.0).
+**Problem:** `@react-native-ml-kit/text-recognition` and `vision-camera-face-detection` require incompatible GoogleMLKit versions. The text-recognition package hardcodes specific GoogleMLKit versions in its podspec that conflict with face-detection.
 
-Fix in `ios/Podfile`:
+**Solution:** Remove `@react-native-ml-kit/text-recognition` and `react-native-vision-camera-text-recognition` packages, keep only FaceDetection in Podfile:
+
+```bash
+# Remove conflicting packages
+pnpm remove @react-native-ml-kit/text-recognition react-native-vision-camera-text-recognition
+```
+
+In `ios/Podfile`, use only FaceDetection:
 
 ```ruby
 $GoogleMLKitVersion = '7.0.0'
-pod 'GoogleMLKit/MLKitCore', $GoogleMLKitVersion, :modular_headers => true
-pod 'GoogleMLKit/TextRecognition', :modular_headers => true
-pod 'GoogleMLKit/FaceDetection', $GoogleMLKitVersion, :modular_headers => true
+
+target 'DVNT' do
+  pod 'GoogleMLKit/FaceDetection', $GoogleMLKitVersion, :modular_headers => true
+  # ... rest of target
+end
 ```
 
-Then run: `cd ios && pod install --repo-update`
+Then run:
+
+```bash
+cd ios && pod install --repo-update
+```
+
+**Note:** If text recognition is needed later, find a version of `@react-native-ml-kit/text-recognition` compatible with GoogleMLKit 7.0.0, or use a different OCR solution.
+
+### Android - TextRecognition Import Error
+
+**Error:** `Unable to resolve "@react-native-ml-kit/text-recognition"` when building Android after removing the package.
+
+**Cause:** The `IdScanTab.tsx` component imports TextRecognition which was removed due to GoogleMLKit conflicts.
+
+**Fix:** The import in `components/verification/tabs/IdScanTab.tsx` has been commented out:
+
+```tsx
+// TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
+// TODO: Re-add OCR when compatible version is available
+```
+
+**Prevention:** When removing any native package, ALWAYS search the codebase for imports:
+
+```bash
+grep -r "package-name" --include="*.tsx" --include="*.ts" .
+```
+
+### Android - Metro Bundler Cache Issues
+
+**Error:** Changes not reflected after editing files, old errors persist.
+
+**Fix:** Kill Metro and restart with clear cache:
+
+```bash
+lsof -ti:8081 | xargs kill -9
+npx expo start --clear --android
+```
 
 ### Native Rebuild Commands
 
@@ -106,6 +158,15 @@ npx expo run:android
 # iOS (after fixing pod conflicts)
 npx expo run:ios
 ```
+
+### ⚠️ Pre-Build Checklist
+
+Before running native builds, verify:
+
+1. **Check for removed package imports** - Search codebase for any imports of removed packages
+2. **Read CLAUDE.md** - Always read this file for known fixes before building
+3. **Clear Metro cache** - If builds fail unexpectedly, clear the cache
+4. **Check Podfile/build.gradle** - Ensure native config matches package requirements
 
 ---
 
@@ -127,3 +188,367 @@ npx expo run:ios
 - `backend/` - Backend/API related code
 - `assets/` - Static assets (images, fonts, etc.)
 - `theme/` - Theme configuration
+
+---
+
+## 🎬 Screen Transitions & Animations
+
+- Use **@legendapp/motion** (`Motion.View`) for animations instead of `react-native-reanimated` `Animated.View`
+- For smooth modal transitions, use Expo Router's modal presentation:
+
+  ```tsx
+  // In _layout.tsx
+  <Stack screenOptions={{ presentation: "modal" }} />
+  ```
+
+- Enable shared element transitions for seamless navigation between screens
+- Use spring animations with `type: "spring", damping: 20, stiffness: 300` for natural motion
+- Avoid `LayoutAnimation` as it's deprecated in the New Architecture
+
+---
+
+## 📍 Location Autocomplete & Maps
+
+### Google Places Autocomplete
+
+Use the `LocationAutocomplete` component for location search inputs:
+
+```tsx
+import {
+  LocationAutocomplete,
+  type LocationData,
+} from "@/components/ui/location-autocomplete";
+
+// In your component
+<LocationAutocomplete
+  value={location}
+  placeholder="Search location..."
+  onLocationSelect={(data: LocationData) => {
+    // data contains: name, latitude, longitude, placeId
+    setLocationData(data);
+  }}
+  onClear={() => setLocationData(null)}
+/>;
+```
+
+**Requirements:**
+
+- Set `EXPO_PUBLIC_GOOGLE_PLACES_API_KEY` environment variable
+- Package: `react-native-google-places-autocomplete` (already installed)
+
+### Expo Maps (Event Location Preview)
+
+For displaying maps with location markers (events screen):
+
+```tsx
+import { AppleMaps, GoogleMaps } from "expo-maps";
+import { Platform } from "react-native";
+
+// Render platform-specific map
+{
+  Platform.OS === "ios" ? (
+    <AppleMaps.View
+      style={{ flex: 1 }}
+      cameraPosition={{
+        coordinates: { latitude, longitude },
+        zoom: 15,
+      }}
+      markers={[
+        {
+          id: "location",
+          coordinates: { latitude, longitude },
+        },
+      ]}
+    />
+  ) : (
+    <GoogleMaps.View
+      style={{ flex: 1 }}
+      cameraPosition={{
+        coordinates: { latitude, longitude },
+        zoom: 15,
+      }}
+      markers={[
+        {
+          id: "location",
+          coordinates: { latitude, longitude },
+        },
+      ]}
+    />
+  );
+}
+```
+
+**Requirements:**
+
+- Package: `expo-maps` (already installed)
+- Google Maps API key configured via environment variable
+
+### Secure API Key Configuration
+
+API keys are securely configured in `app.config.js` using environment variables:
+
+```bash
+# Copy .env.example to .env and set your keys
+cp .env.example .env
+
+# Required environment variables:
+EXPO_PUBLIC_GOOGLE_MAPS_API_KEY=your_key_here
+EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=your_key_here
+```
+
+Get API keys from [Google Cloud Console](https://console.cloud.google.com/apis/credentials). Enable:
+
+- Maps SDK for Android
+- Maps SDK for iOS
+- Places API
+
+**Important:** After changing environment variables, run `npx expo prebuild --clean` to regenerate native code with new keys.
+
+---
+
+## 🔌 Payload CMS Integration
+
+### Architecture
+
+```
+Expo Client (iOS/Android/Web)
+         ↓
+Expo Router API Route (+api.ts)
+         ↓
+Payload REST Client (lib/payload.server.ts)
+         ↓
+Payload CMS
+```
+
+**Security:** Payload API keys are NEVER exposed to the client. All CMS access goes through server-side API routes.
+
+### Server-only Payload Client
+
+`lib/payload.server.ts` - Import ONLY in `+api.ts` files:
+
+```typescript
+import {
+  payloadClient,
+  getCookiesFromRequest,
+  createErrorResponse,
+} from "@/lib/payload.server";
+
+export async function GET(request: Request) {
+  const cookies = getCookiesFromRequest(request);
+  const result = await payloadClient.find(
+    {
+      collection: "posts",
+      limit: 10,
+      page: 1,
+      depth: 2,
+      sort: "-createdAt",
+      where: { status: { equals: "published" } },
+    },
+    cookies,
+  );
+  return Response.json(result);
+}
+```
+
+### Client-side API Usage
+
+`lib/api-client.ts` - Use in React components:
+
+```typescript
+import { posts, users, createCollectionAPI } from "@/lib/api-client";
+
+// Fetch posts
+const { docs, totalPages } = await posts.find({ limit: 10, page: 1 });
+
+// Get single post
+const post = await posts.findByID("abc123");
+
+// Create post
+const newPost = await posts.create({ title: "Hello", content: "..." });
+
+// Get current user
+const { user } = await users.me();
+
+// Generic collection
+const events = createCollectionAPI("events");
+const { docs } = await events.find({ limit: 5 });
+```
+
+### API Routes Structure
+
+```
+app/
+  api/
+    posts+api.ts          # GET (list), POST (create)
+    posts/[id]+api.ts     # GET, PATCH, DELETE by ID
+    users+api.ts          # GET (list), POST (register)
+    users/me+api.ts       # GET current user
+```
+
+### Environment Variables
+
+```bash
+# Server-only (NEVER prefix with EXPO_PUBLIC_)
+PAYLOAD_URL=http://localhost:3000
+PAYLOAD_API_KEY=your_api_key_here
+```
+
+### Auth Forwarding
+
+Cookies are automatically forwarded from client requests to Payload for user authentication:
+
+```typescript
+const cookies = getCookiesFromRequest(request);
+await payloadClient.find({ collection: "posts" }, cookies);
+```
+
+---
+
+## 🔐 Better Auth Integration
+
+### Architecture
+
+```
+Expo Client (iOS/Android/Web)
+         ↓
+Better Auth Client (lib/auth-client.ts)
+         ↓
+Expo Router API Route (app/api/auth/[...all]+api.ts)
+         ↓
+Better Auth Server (lib/auth.ts)
+         ↓
+PostgreSQL Database
+```
+
+### Server Configuration
+
+`lib/auth.ts` - Import ONLY in `+api.ts` files:
+
+```typescript
+import { betterAuth } from "better-auth";
+import { expo } from "@better-auth/expo";
+
+export const auth = betterAuth({
+  database: { provider: "pg", url: DATABASE_URI },
+  plugins: [expo()],
+  emailAndPassword: { enabled: true },
+  trustedOrigins: ["dvnt://", "dvnt://*"],
+});
+```
+
+### Client Usage
+
+`lib/auth-client.ts` - Use in React components:
+
+```typescript
+import {
+  authClient,
+  useSession,
+  signIn,
+  signUp,
+  signOut,
+} from "@/lib/auth-client";
+
+// Sign up
+await signUp.email({
+  email: "user@example.com",
+  password: "password123",
+  name: "User Name",
+});
+
+// Sign in
+await signIn.email({
+  email: "user@example.com",
+  password: "password123",
+});
+
+// Sign out
+await signOut();
+
+// Get session (hook)
+const { data: session } = useSession();
+
+// Social sign in
+await signIn.social({
+  provider: "google",
+  callbackURL: "/dashboard", // converts to dvnt://dashboard
+});
+```
+
+### Making Authenticated Requests
+
+```typescript
+import { authenticatedFetch, getAuthCookies } from "@/lib/auth-client";
+
+// Option 1: Use helper
+const response = await authenticatedFetch("/api/posts");
+
+// Option 2: Manual cookies
+const cookies = getAuthCookies();
+const response = await fetch("/api/posts", {
+  headers: { Cookie: cookies || "" },
+  credentials: "omit",
+});
+```
+
+### Environment Variables
+
+```bash
+# Server-only
+BETTER_AUTH_SECRET=your_secret_here
+DATABASE_URI=postgresql://...
+
+# Client-accessible
+EXPO_PUBLIC_AUTH_URL=http://localhost:8081
+```
+
+### API Routes Structure
+
+```
+app/
+  api/
+    auth/[...all]+api.ts  # All auth endpoints (sign in, sign up, etc.)
+```
+
+---
+
+## 📤 Post/Upload Progress Pattern
+
+When creating content (posts, events, etc.), use the `Progress` component with an overlay:
+
+```tsx
+import { Progress } from "@/components/ui/progress";
+
+// State
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [uploadProgress, setUploadProgress] = useState(0);
+
+// Simulate progress during upload
+const progressInterval = setInterval(() => {
+  setUploadProgress((prev) => (prev >= 90 ? prev : prev + 10));
+}, 200);
+
+// On complete
+setUploadProgress(100);
+
+// Progress Overlay JSX
+{
+  isSubmitting && (
+    <View className="absolute inset-0 bg-black/80 items-center justify-center z-50">
+      <Motion.View
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ type: "spring", damping: 20, stiffness: 300 }}
+        className="bg-card rounded-3xl p-8 items-center gap-4"
+      >
+        <View className="w-48 mb-2">
+          <Progress value={uploadProgress} />
+        </View>
+        <Text className="text-lg font-semibold text-foreground">
+          Creating...
+        </Text>
+      </Motion.View>
+    </View>
+  );
+}
+```

@@ -1,0 +1,90 @@
+import { View } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
+import { Image } from 'expo-image'
+import { cn } from '@/lib/utils'
+
+interface StoryRingProps {
+  src?: string
+  alt: string
+  hasStory?: boolean
+  isViewed?: boolean
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
+}
+
+const sizeStyles = {
+  sm: { height: 88, width: 56 },
+  md: { height: 104, width: 80 },
+  lg: { height: 120, width: 96 },
+}
+
+const ringPadding = {
+  sm: 2,
+  md: 3,
+  lg: 3,
+}
+
+export function StoryRing({
+  src,
+  alt,
+  hasStory = false,
+  isViewed = false,
+  size = 'md',
+  className,
+}: StoryRingProps) {
+  const showGradient = hasStory && !isViewed
+  const dimensions = sizeStyles[size]
+  const padding = ringPadding[size]
+
+  const avatarContent = (
+    <View 
+      style={{ 
+        height: dimensions.height - (padding * 2), 
+        width: dimensions.width - (padding * 2),
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: '#0c0a09',
+        overflow: 'hidden',
+      }}
+    >
+      <Image
+        source={{ uri: src }}
+        style={{ width: '100%', height: '100%' }}
+        contentFit="cover"
+      />
+    </View>
+  )
+
+  if (showGradient) {
+    return (
+      <LinearGradient
+        colors={['#3FDCFF', '#FF5BFC', '#8A40CF']}
+        start={{ x: 0, y: 1 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          borderRadius: 12,
+          padding: padding,
+          height: dimensions.height,
+          width: dimensions.width,
+        }}
+      >
+        {avatarContent}
+      </LinearGradient>
+    )
+  }
+
+  return (
+    <View
+      style={{
+        borderRadius: 12,
+        padding: padding,
+        height: dimensions.height,
+        width: dimensions.width,
+        backgroundColor: hasStory && isViewed ? '#292524' : 'rgba(28, 25, 23, 0.6)',
+      }}
+      className={cn(className)}
+    >
+      {avatarContent}
+    </View>
+  )
+}

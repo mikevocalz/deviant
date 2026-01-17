@@ -1,82 +1,122 @@
 # Terms of Service
 
-**Last Updated:** January 2025
+**Effective Date:** January 2026
+**Last Updated:** January 2026
 
-## 1. Acceptance of Terms
+These Terms of Service ("Terms") govern your access to and use of the DVNT (Members Only Platform) ("DVNT," or the "Platform"), operated by Deviant LLC and Counter Culture Society ("Deviant Entities").
 
-By accessing or using Pulse Social Network ("Pulse"), you agree to be bound by these Terms of Service ("Terms"). If you do not agree to these Terms, do not use our services.
+Use of DVNT indicates acceptance of:
 
-## 2. Eligibility
+- These Terms
+- The Privacy Policy
+- The Community Standards
+- Verification Requirements
 
-You must be at least 18 years old to use Pulse. By using our services, you represent and warrant that you meet this age requirement and have provided accurate age verification.
+## 1. Eligibility and Account Requirements
 
-## 3. User Accounts
+### 1.1 18+ Requirement
 
-### Account Creation
-- You must provide accurate, complete, and current information
-- You are responsible for maintaining the security of your account
-- You must verify your age through our ID scanning process
+DVNT is strictly for adults 18+.
 
-### Account Responsibilities
-- You are responsible for all activities under your account
-- You must not share your account credentials
-- You must notify us immediately of any unauthorized access
+### 1.2 Mandatory Verification
 
-## 4. User Content
+All Members must complete DVNT's ID + selfie verification to confirm:
 
-### Your Content
-- You retain ownership of content you post
-- You grant Pulse a license to use, display, and distribute your content
-- You are responsible for the content you post
+- Age (18+)
+- Human identity
+- Eligibility to join
+- Non-fraudulent account status
 
-### Prohibited Content
-You may not post content that:
-- Violates laws or regulations
-- Infringes on intellectual property rights
-- Contains hate speech or harassment
-- Depicts violence or illegal activities
-- Contains explicit sexual content
-- Involves minors inappropriately
+### 1.3 Identity Verification Data & Document Capture
 
-## 5. User Conduct
+During verification, DVNT collects:
 
-You agree not to:
+- A government-issued ID image
+- A live selfie
+- Verification metadata
+
+Used exclusively to:
+
+- Enforce 18+ requirement
+- Maintain a human-only community
+- Block bots, AI-generated profiles, fraud
+- Protect Members from impersonation and harm
+- Comply with safety and legal obligations
+
+Verification data is:
+
+- Encrypted
+- Privately stored
+- Never sold
+- Never shown to other Members
+- Separate from your public profile
+
+Falsifying verification = immediate removal.
+
+## 2. Member Responsibilities
+
+You agree to:
+
+- Provide accurate information
+- Maintain account security
+- Follow Community Standards
+- Respect other Members
+
+## 3. Community Standards
+
+Your use is subject to our Community Standards & Code of Conduct, incorporated by reference.
+
+## 4. Privacy & Data Use
+
+Your use is subject to our Privacy Policy, incorporated by reference.
+
+## 5. Intellectual Property
+
+DVNT and its content (excluding user content) are protected by intellectual property laws.
+
+## 6. User Content
+
+You retain ownership of content you post. You grant DVNT a license to display your content on the platform.
+
+## 7. User Safety & Prohibited Conduct
+
+You may not:
+
+- Harass or bully others
+- Post illegal content
 - Impersonate others
-- Harass or bully other users
-- Spam or send unsolicited messages
-- Use automated systems (bots)
-- Attempt to hack or compromise our services
-- Collect user data without permission
+- Use bots or automated systems
+- Attempt to compromise security
+- Violate others' privacy
 
-## 6. Intellectual Property
+## 8. Paid Services
 
-Pulse and its content (excluding user content) are protected by copyright, trademark, and other intellectual property laws. You may not copy, modify, or distribute our content without permission.
+DVNT is free to use. Future paid features will be clearly disclosed. In-feed ethical advertising only; no popups.
 
-## 7. Privacy
+## 9. Suspension & Termination
 
-Your use of Pulse is subject to our Privacy Policy, which is incorporated into these Terms by reference.
+We may suspend or terminate accounts for violations. You may delete your account at any time.
 
-## 8. Termination
+## 10. Disclaimers
 
-We may suspend or terminate your account if you violate these Terms. You may delete your account at any time through the app settings.
+DVNT is provided "as is" without warranties of any kind.
 
-## 9. Disclaimers
+## 11. Limitation of Liability
 
-Pulse is provided "as is" without warranties of any kind. We do not guarantee that our services will be uninterrupted or error-free.
+To the fullest extent permitted by law, DVNT shall not be liable for indirect, incidental, or consequential damages.
 
-## 10. Limitation of Liability
+## 12. Indemnification
 
-To the fullest extent permitted by law, Pulse shall not be liable for any indirect, incidental, special, consequential, or punitive damages.
+You agree to indemnify DVNT against claims arising from your use or violations.
 
-## 11. Dispute Resolution
+## 13. Governing Law & Dispute Resolution
 
-Any disputes shall be resolved through binding arbitration in accordance with the rules of the American Arbitration Association.
+These Terms are governed by the laws of the District of Columbia. Disputes shall be resolved through binding arbitration.
 
-## 12. Changes to Terms
+## 14. Amendments
 
-We may modify these Terms at any time. Continued use of Pulse after changes constitutes acceptance of the new Terms.
+We may modify these Terms. Continued use constitutes acceptance.
 
-## 13. Contact
+## 15. Contact Information
 
-For questions about these Terms, contact us at:
-legal@pulsesocial.app
+For questions: DeviantEventsDC@gmail.com

@@ -1,4 +1,4 @@
-import { Stack, Redirect } from "expo-router"
+import { Stack } from "expo-router"
 import { KeyboardProvider } from "react-native-keyboard-controller"
 import { useAuthStore } from "@/lib/stores/auth-store"
 
@@ -11,9 +11,10 @@ export default function AuthLayout() {
         screenOptions={{ headerShown: false }}
         initialRouteName={hasSeenOnboarding ? "login" : "onboarding"}
       >
-        <Stack.Screen name="onboarding" />
         <Stack.Screen name="login" />
-        <Stack.Screen name="signup" />
+        <Stack.Screen name="signup" /> 
+        <Stack.Screen name="onboarding" />
+   
       </Stack>
     </KeyboardProvider>
   )
