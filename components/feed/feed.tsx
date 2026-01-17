@@ -1,38 +1,49 @@
-import { FlatList, View, Text, LayoutAnimation, Platform, UIManager, RefreshControl, StyleSheet, Animated as RNAnimated } from "react-native"
+import { FlatList, View, Text, Platform, RefreshControl, StyleSheet, Animated as RNAnimated, Pressable } from "react-native"
 import { FeedPost } from "./feed-post"
 import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts"
 import { FeedSkeleton } from "@/components/skeletons"
 import { useAppStore } from "@/lib/stores/app-store"
 import { useMemo, useEffect, useRef, useCallback } from "react"
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
-import Animated, { FadeInDown, FadeOut } from "react-native-reanimated"
+import { Motion } from "@legendapp/motion"
+import { useRouter } from "expo-router"
+import { StoriesBar } from "@/components/stories/stories-bar"
 import type { Post } from "@/lib/types"
-
-
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"]
 
 function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
+  const router = useRouter()
+  
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 100).duration(600).springify()}
-      exiting={FadeOut.duration(300)}
+    <Motion.View
+      className="px-1 py-3"
+      initial={{ opacity: 0, scale: 0.9, y: 50 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ 
+        type: 'spring',
+        damping: 20,
+        stiffness: 100,
+        delay: index * 0.1
+      }}
     >
-      <FeedPost
-        id={item.id}
-        author={item.author}
-        media={item.media}
-        caption={item.caption}
-        likes={item.likes}
-        comments={item.comments.length}
-        timeAgo={item.timeAgo}
-        location={item.location}
-        isNSFW={item.isNSFW}
-      />
-    </Animated.View>
+      <Pressable
+        onPress={() => router.push(`/(protected)/post/${item.id}`)}
+        className="rounded-2xl"
+      >
+        <FeedPost
+          id={item.id}
+          author={item.author}
+          media={item.media}
+          caption={item.caption}
+          likes={item.likes}
+          comments={item.comments.length}
+          timeAgo={item.timeAgo}
+          location={item.location}
+          isNSFW={item.isNSFW}
+        />
+      </Pressable>
+    </Motion.View>
   )
 }
 
@@ -113,13 +124,6 @@ export function Feed() {
   }, [loadNsfwSetting])
 
   useEffect(() => {
-    if (prevNsfwEnabled.current !== nsfwEnabled && Platform.OS !== "web") {
-      LayoutAnimation.configureNext({
-        duration: 300,
-        update: { type: LayoutAnimation.Types.easeInEaseOut },
-        delete: { type: LayoutAnimation.Types.easeOut, property: LayoutAnimation.Properties.opacity },
-      })
-    }
     prevNsfwEnabled.current = nsfwEnabled
   }, [nsfwEnabled])
 
@@ -192,6 +196,7 @@ export function Feed() {
       removeClippedSubviews={false}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
+      ListHeaderComponent={StoriesBar}
       ListFooterComponent={renderFooter}
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged}

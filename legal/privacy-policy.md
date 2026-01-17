@@ -1,70 +1,130 @@
 # Privacy Policy
 
-**Effective Date:** January 2025
+**Effective Date:** January 2026
+**Last Updated:** January 2026
 
-## Introduction
+This Privacy Policy ("Policy") describes how Deviant LLC and Counter Culture Society ("Deviant Entities," "we") collect, use, store, and protect personal information when individuals ("Members," "users") access or use the DVNT (Members Only Platform) ("DVNT," or the "Platform").
 
-Welcome to Pulse Social Network ("Pulse," "we," "us," or "our"). We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.
+Use of DVNT constitutes acceptance of this Policy.
 
-## Information We Collect
+DVNT is designed as a safe, ethical, human-only digital space centering Black and Brown LGBTQ+ communities.
 
-### Personal Information
-- Name and email address
-- Profile picture and bio
-- Date of birth (for age verification)
-- User-generated content (posts, stories, comments, messages)
+## 1. Introduction
 
-### Automatically Collected Information
-- Device information (device type, operating system)
-- Usage data (features used, time spent)
-- Location data (if you grant permission)
-- Camera and photo library access (for posting content)
+Your privacy is critically important to us. DVNT was built with privacy, autonomy, and protection at the core.
 
-### Information from Third Parties
-- Social media profile information (if you choose to connect)
-- Age verification data from ID scanning
+## 2. Categories of Personal Information Collected
 
-## How We Use Your Information
+### 2.1 Account Information
+
+- Email address
+- Chosen display name
+- Profile photo
+- Bio and interests
+
+### 2.2 Age & Identity Verification Information
+
+DVNT requires:
+
+- Government-issued Photo ID
+- Selfie or verification video
+- Age and authenticity metadata
+
+#### 2.2(a) Identity Verification Data & Document Capture
+
+Data is collected solely to:
+
+- Confirm age (18+)
+- Confirm human identity
+- Prevent bots, AI accounts, or impersonation
+- Provide safety for marginalized Members
+- Comply with legal/safety requirements
+
+**Privacy protections:**
+
+- Encrypted in transit + at rest
+- Never publicly displayed
+- Never sold or provided to advertisers
+- Not used for behavioral analysis or surveillance
+- Stored separately from profile data
+
+Data is retained only as needed for safety, anti-fraud, and compliance, then deleted or anonymized.
+
+## 3. Human-Only Policy
+
+DVNT maintains a strict human-only policy. We do not allow bots, AI-generated profiles, or automated accounts.
+
+## 4. Profile Information
+
+You control what appears on your public profile. Your legal identity from verification is never displayed.
+
+## 5. User Content
+
+Content you post (photos, text, comments) is stored to provide the service. You retain ownership of your content.
+
+## 6. Safety & Fraud Prevention
 
 We use your information to:
-- Provide and maintain our services
-- Verify your age and identity
-- Personalize your experience
-- Send notifications and updates
-- Improve our services
-- Ensure safety and security
+
+- Prevent fraud and abuse
+- Enforce community standards
+- Respond to safety concerns
 - Comply with legal obligations
 
-## Data Sharing and Disclosure
+## 7. Sharing & Disclosure
 
-We may share your information with:
-- Other users (based on your privacy settings)
-- Service providers and partners
-- Law enforcement (when required by law)
-- In connection with business transfers
+**DVNT does NOT:**
 
-## Your Rights
+- Sell user data
+- Share data with advertisers
+- Allow targeted advertising based on personal data
+
+We may share data only:
+
+- With your consent
+- To comply with legal requirements
+- To protect safety
+
+## 8. Security Measures
+
+We implement:
+
+- Encryption (in transit and at rest)
+- Secure storage
+- Access controls
+- Regular security audits
+- Anti-bot systems
+
+## 9. Member Privacy Rights
 
 You have the right to:
-- Access your personal data
+
+- Access your data
 - Correct inaccurate data
-- Delete your account and data
-- Object to data processing
+- Delete your account
 - Export your data
+- Object to processing
 
-## Data Security
+## 10. Data Retention
 
-We implement appropriate technical and organizational measures to protect your data, including encryption, secure servers, and regular security audits.
+We retain data only as long as necessary for the purposes described. Verification data is deleted or anonymized after its purpose is fulfilled.
 
-## Children's Privacy
+## 11. International Transfers
 
-Pulse is not intended for users under 18 years of age. We verify age through ID scanning during registration.
+If you access DVNT from outside the United States, your data may be transferred to and processed in the United States.
 
-## Changes to This Policy
+## 12. Children's Privacy (Strict 18+)
 
-We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy in the app.
+DVNT is strictly for adults 18 and older. We do not knowingly collect data from anyone under 18.
 
-## Contact Us
+## 13. Cookies
 
-If you have questions about this privacy policy, please contact us at:
-privacy@pulsesocial.app
+DVNT uses essential cookies for functionality. We do not use tracking cookies for advertising.
+
+## 14. Policy Changes
+
+We may update this Policy. Continued use constitutes acceptance of changes.
+
+## 15. Contact Information
+
+For privacy inquiries: DeviantEventsDC@gmail.com

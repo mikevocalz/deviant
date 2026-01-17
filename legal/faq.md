@@ -1,84 +1,138 @@
-# Frequently Asked Questions (FAQ)
+# Frequently Asked Questions
 
-## Account & Registration
+**DVNT: A safer, human-only space for Black & Brown LGBTQ+ community.**
 
-**Q: How do I create an account?**
-A: Download the Pulse app, tap "Sign Up," and follow the three-step registration process including basic info, ID verification, and accepting our terms.
+## General
 
-**Q: Why do I need to verify my age with an ID?**
-A: Pulse is for users 18 and older. ID verification ensures a safe community and compliance with regulations.
+### What is DVNT?
 
-**Q: Is my ID information secure?**
-A: Yes. We use industry-standard encryption. Your ID is only used for age verification and is not stored permanently.
+DVNT is a free, members-only platform built for Black & Brown LGBTQ+ people. It's a safe, affirming community focused on culture, connection, and care.
 
-**Q: Can I use Pulse without providing my real name?**
-A: You can use a display name, but we require accurate account information for safety and security purposes.
+### Who operates DVNT?
 
-## Privacy & Security
+DVNT is operated by Deviant LLC and Counter Culture Society (the "Deviant Entities").
 
-**Q: Who can see my posts?**
-A: You control who sees your posts through privacy settings. Options include public, friends only, or custom lists.
+### Who can join DVNT?
 
-**Q: How do I report inappropriate content?**
-A: Tap the three dots on any post and select "Report." Our team reviews all reports promptly.
+DVNT is strictly for adults 18+ who agree to DVNT's Verification Requirements, Community Standards, and Terms of Service.
 
-**Q: Can I delete my account?**
-A: Yes. Go to Settings > Account > Delete Account. This permanently removes your data.
+### How does DVNT enforce that the platform is for Queer POC?
 
-**Q: How do you protect my data?**
-A: We use encryption, secure servers, and regular security audits. See our Privacy Policy for details.
+During the beta phase, DVNT uses a closed-access model limited to individuals who have attended our LIVE events. Over the past decade, Deviant LLC and Counter Culture Society have built a verified community of more than 78,000 real people who've attended in-person nightlife, cultural, and community events.
 
-## Features & Usage
+Every attendee signs in using their name, email, and phone number, and this data allows DVNT to authenticate members during account creation. This approach ensures:
 
-**Q: How do Stories work?**
-A: Stories are photos or videos that disappear after 24 hours. Swipe right on the home screen to create a story.
+- 100% real humans (no bots, trolls, or burner accounts)
+- People we've already engaged with in real physical spaces
+- A community of individuals who already show up for Black & Brown LGBTQ+ events
+- Higher trust, reduced harm, and increased safety
 
-**Q: Can I edit posts after publishing?**
-A: Yes, tap the three dots on your post and select "Edit."
+## Verification
 
-**Q: How do I block someone?**
-A: Go to their profile, tap the three dots, and select "Block User."
+### Why do I need to verify?
 
-**Q: What's the difference between posts and stories?**
-A: Posts are permanent (until deleted) and appear in your profile grid. Stories disappear after 24 hours.
+Verification ensures DVNT stays:
 
-## Technical Issues
+- Human-only (no bots, no AI profiles)
+- Safe from impersonation and bad actors
+- Exclusively 18+
+- Protective of Black & Brown LGBTQ+ users
 
-**Q: The app is crashing. What should I do?**
-A: Try restarting the app, checking for updates, or reinstalling. Contact support if issues persist.
+### What do I need to verify?
 
-**Q: I forgot my password. How do I reset it?**
-A: Tap "Forgot Password?" on the login screen and follow the instructions sent to your email.
+You'll upload:
 
-**Q: Why aren't my notifications working?**
-A: Check your device settings to ensure notifications are enabled for Pulse.
+- A government-issued photo ID
+- A live selfie
 
-## Content Guidelines
+### Will anyone see my ID or legal name?
 
-**Q: What content is not allowed?**
-A: Prohibited content includes hate speech, violence, explicit sexual content, harassment, illegal activities, and content involving minors.
+No. Never. Your legal identity is:
 
-**Q: What happens if I violate community guidelines?**
-A: Violations may result in content removal, account suspension, or permanent ban depending on severity.
+- Private
+- Encrypted
+- Stored securely
+- Never shared or displayed
+- Separate from your public DVNT profile
 
-**Q: Can I appeal a content removal decision?**
-A: Yes. Contact support@pulsesocial.app with details about the removed content.
+Your chosen name and chosen profile photo are what Members see.
 
-## Monetization & Business
+## Safety & Community
 
-**Q: Can I use Pulse for business purposes?**
-A: Yes! We offer business accounts with additional features. Contact business@pulsesocial.app for details.
+### What behavior is required in DVNT?
 
-**Q: How do I become a verified user?**
-A: Verified badges are for notable public figures and brands. Apply through Settings > Account > Request Verification.
+Members must follow DVNT's values:
 
-## Contact & Support
+- Kindness
+- Consent
+- Consideration
+- Zero-tolerance for discrimination and abuse
 
-**Q: How do I contact support?**
-A: Email support@pulsesocial.app or use the in-app support feature in Settings > Help & Support.
+### What behavior is prohibited?
 
-**Q: Where can I suggest new features?**
-A: We love feedback! Email feedback@pulsesocial.app with your ideas.
+DVNT does not tolerate:
 
-**Q: Is Pulse available in my country?**
-A: Pulse is available in most countries. Check your app store to confirm availability.
+- Racism, anti-Blackness
+- Transphobia, homophobia, femme-phobia
+- Fat-phobia, body shaming, ableism
+- Sexism, misogyny
+- Xenophobia, HIV stigma
+- Harassment, threats, bullying
+- Doxxing or privacy violations
+- Involving or engaging with minors (strict 18+)
+
+### Can I report someone?
+
+Yes. DVNT has in-app reporting tools. The DVNT Safety Team reviews all reports.
+
+## Privacy & Data
+
+### Does DVNT sell my data?
+
+No. DVNT does not sell data, share data with advertisers, or run targeted ads.
+
+### Who can see my profile?
+
+You choose:
+
+- Public inside DVNT
+- Partially visible
+- Friends-only
+- Fully private
+
+### How does DVNT protect my data?
+
+We use:
+
+- Encryption
+- Secure storage
+- Restricted access
+- Safety audits
+- Anti-bot systems
+
+## Ads & Monetization
+
+### Is DVNT free?
+
+Yes — DVNT is 100% free to join and use.
+
+### Will DVNT show ads?
+
+Yes, but only ethical in-feed ads such as:
+
+- LGBTQ+ events & hosts
+- Queer-owned brands
+- Culturally relevant products
+- Local community businesses
+
+### Will ads interrupt my experience?
+
+Never. DVNT uses no popups, no forced videos, and no intrusive ads. Ads blend naturally into the feed.
+
+## Support
+
+### How do I contact DVNT Support?
+
+Email: DeviantEventsDC@gmail.com
+
+For verification issues, safety reports, or technical help.

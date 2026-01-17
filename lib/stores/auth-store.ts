@@ -1,24 +1,29 @@
-import { create } from "zustand"
-import { persist, createJSONStorage } from "zustand/middleware"
-import { storage } from "@/lib/utils/storage"
+import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { storage } from "@/lib/utils/storage";
 
 interface User {
-  id: string
-  email: string
-  username: string
-  name: string
-  avatar?: string
-  isVerified: boolean
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+  avatar?: string;
+  bio?: string;
+  website?: string;
+  isVerified: boolean;
+  postsCount: number;
+  followersCount: number;
+  followingCount: number;
 }
 
 interface AuthStore {
-  user: User | null
-  hasSeenOnboarding: boolean
-  isAuthenticated: boolean
-  setUser: (user: User | null) => void
-  setHasSeenOnboarding: (seen: boolean) => void
-  logout: () => void
-  loadAuthState: () => Promise<void>
+  user: User | null;
+  hasSeenOnboarding: boolean;
+  isAuthenticated: boolean;
+  setUser: (user: User | null) => void;
+  setHasSeenOnboarding: (seen: boolean) => void;
+  logout: () => void;
+  loadAuthState: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -39,4 +44,4 @@ export const useAuthStore = create<AuthStore>()(
       storage: createJSONStorage(() => storage),
     },
   ),
-)
+);

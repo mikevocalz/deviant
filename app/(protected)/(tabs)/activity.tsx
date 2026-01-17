@@ -1,133 +1,149 @@
-import { View, Text, Pressable, RefreshControl } from "react-native"
-import { FlashList } from "@shopify/flash-list"
-import { Image } from "expo-image"
-import { useRouter } from "expo-router"
-import { useColorScheme } from "@/lib/hooks"
-import { useCallback, useEffect, memo } from "react"
-import { Heart, MessageCircle, UserPlus, AtSign } from "lucide-react-native"
-import { ActivitySkeleton } from "@/components/skeletons"
-import { useActivityStore, type Activity } from "@/lib/stores/activity-store"
-import { useUIStore } from "@/lib/stores/ui-store"
+import { View, Text, Pressable, RefreshControl } from "react-native";
+import { FlashList } from "@shopify/flash-list";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import { useColorScheme } from "@/lib/hooks";
+import { useCallback, useEffect, memo, useState } from "react";
+import {
+  Heart,
+  MessageCircle,
+  UserPlus,
+  AtSign,
+  Bell,
+  BellOff,
+  CheckCheck,
+  Settings,
+} from "lucide-react-native";
+import { ActivitySkeleton } from "@/components/skeletons";
+import { useActivityStore, type Activity } from "@/lib/stores/activity-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
+type TabType = (typeof TABS)[number];
 
 const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
   switch (type) {
     case "like":
-      return <Heart size={16} color="#FF5BFC" fill="#FF5BFC" />
+      return <Heart size={16} color="#FF5BFC" fill="#FF5BFC" />;
     case "comment":
-      return <MessageCircle size={16} color="#3EA4E5" />
+      return <MessageCircle size={16} color="#3EA4E5" />;
     case "follow":
-      return <UserPlus size={16} color="#8A40CF" />
+      return <UserPlus size={16} color="#8A40CF" />;
     case "mention":
-      return <AtSign size={16} color="#34A2DF" />
+      return <AtSign size={16} color="#34A2DF" />;
     default:
-      return null
+      return null;
   }
-})
+});
 
 function getActivityText(activity: Activity): string {
   switch (activity.type) {
     case "like":
-      return " liked your post."
+      return " liked your post.";
     case "comment":
-      return ` commented: "${activity.comment}"`
+      return ` commented: "${activity.comment}"`;
     case "follow":
-      return " started following you."
+      return " started following you.";
     case "mention":
-      return ` mentioned you: "${activity.comment}"`
+      return ` mentioned you: "${activity.comment}"`;
     default:
-      return ""
+      return "";
   }
 }
 
 interface ActivityItemProps {
-  activity: Activity
-  isFollowed: boolean
-  onActivityPress: (activity: Activity) => void
-  onUserPress: (username: string) => void
-  onPostPress: (postId: string) => void
-  onFollowBack: (username: string) => void
+  activity: Activity;
+  isFollowed: boolean;
+  onActivityPress: (activity: Activity) => void;
+  onUserPress: (username: string) => void;
+  onPostPress: (postId: string) => void;
+  onFollowBack: (username: string) => void;
 }
 
-const ActivityItem = memo(({ 
-  activity, 
-  isFollowed,
-  onActivityPress, 
-  onUserPress, 
-  onPostPress, 
-  onFollowBack 
-}: ActivityItemProps) => (
-  <Pressable
-    onPress={() => onActivityPress(activity)}
-    className={`flex-row items-center pl-6 pr-4 py-3 border-b border-border ${
-      !activity.isRead ? "bg-primary/10" : ""
-    }`}
-  >
-    <Pressable onPress={() => onUserPress(activity.user.username)}>
-      <View className="relative">
-        <Image
-          source={{ uri: activity.user.avatar }}
-          className="w-11 h-11 rounded-full"
-        />
-        <View className="absolute -bottom-0.5 -right-0.5 bg-card rounded-full p-1 border-2 border-background">
-          <ActivityIcon type={activity.type} />
-        </View>
-      </View>
-    </Pressable>
-
-    <View className="flex-1 ml-3 overflow-hidden">
-      <Text
-        className="text-sm text-foreground"
-        numberOfLines={1}
-        ellipsizeMode="tail"
-      >
-        <Text
-          className="font-semibold text-foreground"
-          onPress={() => onUserPress(activity.user.username)}
-        >
-          {activity.user.username}
-        </Text>
-        {getActivityText(activity)}
-      </Text>
-      <Text className="mt-0.5 text-xs text-muted-foreground">
-        {activity.timeAgo}
-      </Text>
-    </View>
-
-    {activity.post && (
-      <Pressable onPress={() => onPostPress(activity.post!.id)}>
-        <Image
-          source={{ uri: activity.post.thumbnail }}
-          className="w-12 h-12 rounded-lg ml-3"
-        />
-      </Pressable>
-    )}
-
-    {activity.type === "follow" && (
+const ActivityItem = memo(
+  ({
+    activity,
+    isFollowed,
+    onActivityPress,
+    onUserPress,
+    onPostPress,
+    onFollowBack,
+  }: ActivityItemProps) => (
+    <Pressable
+      onPress={() => onActivityPress(activity)}
+      className={`flex-row items-center py-4 border-b border-border ${
+        !activity.isRead ? "bg-primary/10" : ""
+      }`}
+      style={{ paddingLeft: 16, paddingRight: 16 }}
+    >
       <Pressable
-        onPress={() => onFollowBack(activity.user.username)}
-        className={`px-4 py-2 rounded-lg ml-3 ${
-          isFollowed
-            ? "bg-transparent border border-border"
-            : "bg-primary"
-        }`}
+        onPress={() => onUserPress(activity.user.username)}
+        style={{ overflow: "visible", marginRight: 4 }}
       >
-        <Text
-          className={`text-[13px] font-semibold ${
-            isFollowed
-              ? "text-muted-foreground"
-              : "text-white"
+        <View style={{ overflow: "visible", width: 48, height: 48 }}>
+          <Image
+            source={{ uri: activity.user.avatar }}
+            style={{ width: 44, height: 44, borderRadius: 22 }}
+          />
+          <View
+            className="absolute bg-card rounded-full p-1 border-2 border-background"
+            style={{ bottom: 0, right: 0 }}
+          >
+            <ActivityIcon type={activity.type} />
+          </View>
+        </View>
+      </Pressable>
+
+      <View className="flex-1 ml-3">
+        <Text className="text-sm text-foreground" numberOfLines={2}>
+          <Text
+            className="font-semibold text-foreground"
+            onPress={() => onUserPress(activity.user.username)}
+          >
+            {activity.user.username}
+          </Text>
+          {getActivityText(activity)}
+        </Text>
+        <Text className="mt-0.5 text-xs text-muted-foreground">
+          {activity.timeAgo}
+        </Text>
+      </View>
+
+      {activity.post && (
+        <Pressable onPress={() => onPostPress(activity.post!.id)}>
+          <Image
+            source={{ uri: activity.post.thumbnail }}
+            className="w-12 h-12 rounded-lg ml-3"
+          />
+        </Pressable>
+      )}
+
+      {activity.type === "follow" && (
+        <Pressable
+          onPress={() => onFollowBack(activity.user.username)}
+          className={`px-4 py-2 rounded-lg ml-3 ${
+            isFollowed ? "bg-transparent border border-border" : "bg-primary"
           }`}
         >
-          {isFollowed ? "Following" : "Follow"}
-        </Text>
-      </Pressable>
-    )}
-  </Pressable>
-))
+          <Text
+            className={`text-[13px] font-semibold ${
+              isFollowed ? "text-muted-foreground" : "text-white"
+            }`}
+          >
+            {isFollowed ? "Following" : "Follow"}
+          </Text>
+        </Pressable>
+      )}
+    </Pressable>
+  ),
+);
 
 export default function ActivityScreen() {
-  const router = useRouter()
-  const { colors } = useColorScheme()
+  const router = useRouter();
+  const { colors } = useColorScheme();
+  const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState<TabType>("All");
   const {
     activities,
     refreshing,
@@ -138,55 +154,75 @@ export default function ActivityScreen() {
     markAllAsRead,
     loadInitialActivities,
     getUnreadCount,
-  } = useActivityStore()
-  const { loadingScreens, setScreenLoading } = useUIStore()
-  const isLoading = loadingScreens.activity
+  } = useActivityStore();
+  const { loadingScreens, setScreenLoading } = useUIStore();
+  const isLoading = loadingScreens.activity;
+  const unreadCount = getUnreadCount();
 
   useEffect(() => {
     const loadActivities = async () => {
-      await new Promise(resolve => setTimeout(resolve, 800))
-      loadInitialActivities()
-      setScreenLoading("activity", false)
-    }
-    loadActivities()
-  }, [loadInitialActivities, setScreenLoading])
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      loadInitialActivities();
+      setScreenLoading("activity", false);
+    };
+    loadActivities();
+  }, [loadInitialActivities, setScreenLoading]);
+
+  const filteredActivities = activities.filter((activity) => {
+    if (activeTab === "All") return true;
+    if (activeTab === "Follows") return activity.type === "follow";
+    if (activeTab === "Likes") return activity.type === "like";
+    if (activeTab === "Comments") return activity.type === "comment";
+    if (activeTab === "Mentions") return activity.type === "mention";
+    return true;
+  });
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true)
-    console.log("[Activity] Refreshing activities...")
+    setRefreshing(true);
+    console.log("[Activity] Refreshing activities...");
     setTimeout(() => {
-      markAllAsRead()
-      setRefreshing(false)
-      console.log("[Activity] Refresh complete")
-    }, 1000)
-  }, [setRefreshing, markAllAsRead])
+      markAllAsRead();
+      setRefreshing(false);
+      console.log("[Activity] Refresh complete");
+    }, 1000);
+  }, [setRefreshing, markAllAsRead]);
 
-  const handleUserPress = useCallback((username: string) => {
-    console.log("[Activity] Navigating to profile:", username)
-    router.push(`/(protected)/profile/${username}`)
-  }, [router])
+  const handleUserPress = useCallback(
+    (username: string) => {
+      console.log("[Activity] Navigating to profile:", username);
+      router.push(`/(protected)/profile/${username}`);
+    },
+    [router],
+  );
 
-  const handlePostPress = useCallback((postId: string) => {
-    console.log("[Activity] Navigating to post:", postId)
-    router.push(`/(protected)/post/${postId}`)
-  }, [router])
+  const handlePostPress = useCallback(
+    (postId: string) => {
+      console.log("[Activity] Navigating to post:", postId);
+      router.push(`/(protected)/post/${postId}`);
+    },
+    [router],
+  );
 
-  const handleFollowBack = useCallback((username: string) => {
-    console.log("[Activity] Following back:", username)
-    toggleFollowUser(username)
-  }, [toggleFollowUser])
+  const handleFollowBack = useCallback(
+    (username: string) => {
+      console.log("[Activity] Following back:", username);
+      toggleFollowUser(username);
+    },
+    [toggleFollowUser],
+  );
 
-  const handleActivityPress = useCallback((activity: Activity) => {
-    markActivityAsRead(activity.id)
-    
-    if (activity.post) {
-      handlePostPress(activity.post.id)
-    } else {
-      handleUserPress(activity.user.username)
-    }
-  }, [handlePostPress, handleUserPress, markActivityAsRead])
+  const handleActivityPress = useCallback(
+    (activity: Activity) => {
+      markActivityAsRead(activity.id);
 
-  const unreadCount = getUnreadCount()
+      if (activity.post) {
+        handlePostPress(activity.post.id);
+      } else {
+        handleUserPress(activity.user.username);
+      }
+    },
+    [handlePostPress, handleUserPress, markActivityAsRead],
+  );
 
   if (isLoading) {
     return (
@@ -196,53 +232,130 @@ export default function ActivityScreen() {
     );
   }
 
-  const renderItem = useCallback(({ item: activity }: { item: Activity }) => (
-    <ActivityItem
-      activity={activity}
-      isFollowed={isUserFollowed(activity.user.username)}
-      onActivityPress={handleActivityPress}
-      onUserPress={handleUserPress}
-      onPostPress={handlePostPress}
-      onFollowBack={handleFollowBack}
-    />
-  ), [handleActivityPress, handleUserPress, handlePostPress, handleFollowBack, isUserFollowed]);
+  const renderItem = useCallback(
+    ({ item: activity }: { item: Activity }) => (
+      <ActivityItem
+        activity={activity}
+        isFollowed={isUserFollowed(activity.user.username)}
+        onActivityPress={handleActivityPress}
+        onUserPress={handleUserPress}
+        onPostPress={handlePostPress}
+        onFollowBack={handleFollowBack}
+      />
+    ),
+    [
+      handleActivityPress,
+      handleUserPress,
+      handlePostPress,
+      handleFollowBack,
+      isUserFollowed,
+    ],
+  );
 
-  const ListHeader = useCallback(() => (
-    <View className="border-b border-border pl-6 pr-4 py-3">
-      <View className="flex-row items-center justify-between">
-        <Text className="text-lg font-semibold text-foreground">Activity</Text>
-        {unreadCount > 0 && (
-          <View className="bg-accent rounded-full px-2 py-0.5 min-w-[20px] items-center">
-            <Text className="text-white text-xs font-semibold">{unreadCount}</Text>
+  const ListHeader = useCallback(
+    () => (
+      <View className="px-4 py-3">
+        {/* Header */}
+        <View className="flex-row items-center justify-between mb-4">
+          <View className="flex-row items-center">
+            <Bell size={24} color={colors.foreground} />
+            <Text className="text-2xl font-bold text-foreground ml-2">
+              Notifications
+            </Text>
+            {unreadCount > 0 && (
+              <View className="ml-2 bg-primary px-2 py-0.5 rounded-full">
+                <Text className="text-xs font-semibold text-white">
+                  {unreadCount}
+                </Text>
+              </View>
+            )}
           </View>
-        )}
+          {unreadCount > 0 && (
+            <Pressable
+              onPress={markAllAsRead}
+              className="flex-row items-center px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+            >
+              <CheckCheck size={14} color={colors.primary} />
+              <Text className="text-xs font-medium text-primary ml-1">
+                Mark all read
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Tabs */}
+        <View
+          className="flex-row justify-around items-center px-1 py-2 rounded-lg"
+          style={{
+            backgroundColor: "rgba(28, 28, 28, 0.6)",
+            borderColor: "rgba(68, 68, 68, 0.8)",
+            borderWidth: 1,
+            minHeight: 44,
+          }}
+        >
+          {TABS.map((tab) => (
+            <Pressable
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              className="flex-1 items-center justify-center py-1.5 rounded-md"
+              style={
+                activeTab === tab
+                  ? { backgroundColor: "rgba(255,255,255,0.1)" }
+                  : {}
+              }
+            >
+              <Text
+                style={{
+                  color: activeTab === tab ? "#f5f5f4" : "#a3a3a3",
+                  fontSize: 11,
+                  fontWeight: "600",
+                }}
+              >
+                {tab}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
-    </View>
-  ), [unreadCount])
+    ),
+    [activeTab, unreadCount, colors, markAllAsRead],
+  );
 
-  const ListEmpty = useCallback(() => (
-    <View className="flex-1 items-center justify-center py-20">
-      <Text className="text-muted-foreground">No activity yet</Text>
-    </View>
-  ), [])
+  const ListEmpty = useCallback(
+    () => (
+      <View className="flex-1 items-center justify-center py-20">
+        <BellOff size={48} color={colors.mutedForeground} />
+        <Text className="text-lg font-semibold text-foreground mt-4">
+          No notifications yet
+        </Text>
+        <Text className="text-sm text-muted-foreground mt-1 text-center px-8">
+          When someone likes, comments, or follows you, you'll see it here
+        </Text>
+      </View>
+    ),
+    [colors],
+  );
 
-  const keyExtractor = useCallback((item: Activity) => item.id, [])
+  const keyExtractor = useCallback((item: Activity) => item.id, []);
 
   return (
-    <FlashList
-      data={activities}
-      renderItem={renderItem}
-      keyExtractor={keyExtractor}
-      ListHeaderComponent={ListHeader}
-      ListEmptyComponent={ListEmpty}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          tintColor={colors.primary}
-        />
-      }
-    />
-  )
+    <View className="flex-1 bg-background">
+      <FlashList
+        data={filteredActivities}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+          />
+        }
+      />
+    </View>
+  );
 }

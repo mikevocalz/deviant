@@ -1,4 +1,5 @@
 import { View, Text, ScrollView, Pressable } from "react-native"
+import React, { useState } from "react"
 import { Image } from "expo-image"
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Calendar, MapPin, Clock, Users, Share2, Heart, ArrowLeft, Check, Ticket } from "lucide-react-native"
@@ -6,11 +7,9 @@ import { useLocalSearchParams, useRouter } from "expo-router"
 import { useColorScheme } from "@/lib/hooks"
 import { LinearGradient } from "expo-linear-gradient"
 import { Motion } from "@legendapp/motion"
-import Animated, { FadeInDown } from "react-native-reanimated"
+import Animated, { FadeInDown, useAnimatedScrollHandler, useSharedValue, useAnimatedStyle, interpolate } from "react-native-reanimated"
 import { useEventViewStore } from "@/lib/stores/event-store"
 import { useTicketStore } from "@/lib/stores/ticket-store"
-import { TicketModal } from "@/components/ticket-modal"
-import { useTicketModalStore } from "@/lib/stores/ticket-modal-store"
 
 const eventsData: Record<string, any> = {
   "lower-east-side-winter-bar-fest": {
@@ -110,6 +109,24 @@ const allAttendees = [
   { name: "Chris B.", initials: "CB", color: "#14b8a6" },
   { name: "Amanda S.", image: "https://i.pravatar.cc/150?img=20" },
   { name: "Tyler N.", initials: "TN", color: "#f59e0b" },
+  { name: "Lisa K.", image: "https://i.pravatar.cc/150?img=1" },
+  { name: "John D.", initials: "JD", color: "#8b5cf6" },
+  { name: "Maria G.", image: "https://i.pravatar.cc/150?img=2" },
+  { name: "Steve H.", initials: "SH", color: "#ef4444" },
+  { name: "Anna P.", image: "https://i.pravatar.cc/150?img=3" },
+  { name: "Ryan M.", initials: "RM", color: "#10b981" },
+  { name: "Sophie L.", image: "https://i.pravatar.cc/150?img=4" },
+  { name: "Kevin W.", initials: "KW", color: "#f59e0b" },
+  { name: "Nina R.", image: "https://i.pravatar.cc/150?img=6" },
+  { name: "Tom B.", initials: "TB", color: "#3b82f6" },
+  { name: "Grace S.", image: "https://i.pravatar.cc/150?img=7" },
+  { name: "Daniel C.", initials: "DC", color: "#ec4899" },
+  { name: "Olivia M.", image: "https://i.pravatar.cc/150?img=8" },
+  { name: "James H.", initials: "JH", color: "#14b8a6" },
+  { name: "Henry T.", image: "https://i.pravatar.cc/150?img=11" },
+  { name: "Isabella R.", initials: "IR", color: "#f97316" },
+  { name: "Sam K.", image: "https://i.pravatar.cc/150?img=12" },
+  { name: "Jordan P.", initials: "JP", color: "#8b5cf6" },
 ]
 
 export default function EventDetailScreen() {
@@ -120,7 +137,26 @@ export default function EventDetailScreen() {
   const eventId = id || "lower-east-side-winter-bar-fest"
   const { isRsvped, toggleRsvp } = useEventViewStore()
   const { getTicketByEventId, hasValidTicket } = useTicketStore()
-  const { isVisible, openModal, closeModal } = useTicketModalStore()
+  const [isAttendeesExpanded, setIsAttendeesExpanded] = useState(false)
+  const scrollY = useSharedValue(0)
+  
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y
+    },
+  })
+  
+  const headerTitleStyle = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(scrollY.value, [200, 300], [0, 1]),
+    }
+  })
+  
+  const headerBackgroundStyle = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(scrollY.value, [200, 300], [0, 1]),
+    }
+  })
   
   const ticket = getTicketByEventId(eventId)
   const hasTicket = hasValidTicket(eventId) || isRsvped[eventId] || false
@@ -131,6 +167,22 @@ export default function EventDetailScreen() {
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <SafeAreaView edges={["top"]} style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 50 }}>
+        {/* Animated Background */}
+        <Animated.View 
+          style={[
+            { 
+              position: "absolute", 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              backgroundColor: colors.background,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            },
+            headerBackgroundStyle
+          ]} 
+        />
         <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12 }}>
           <Pressable
             onPress={() => router.back()}
@@ -138,18 +190,44 @@ export default function EventDetailScreen() {
           >
             <ArrowLeft size={24} color="#fff" />
           </Pressable>
+          
+          {/* Animated Title */}
+          <Animated.Text 
+            style={[
+              { 
+                flex: 1, 
+                marginLeft: 12, 
+                fontSize: 18, 
+                fontWeight: "600", 
+                color: colors.foreground,
+              },
+              headerTitleStyle
+            ]}
+            numberOfLines={1}
+          >
+            {event.title}
+          </Animated.Text>
         </View>
       </SafeAreaView>
 
-      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView 
+        style={{ flex: 1 }} 
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
         {/* Hero Image */}
-        <View style={{ height: 400, width: "100%" }}>
+        <Animated.View 
+          // @ts-ignore - sharedTransitionTag is valid but not in types
+          sharedTransitionTag={`event-image-${id}`}
+          style={{ height: 400, width: "100%" }}
+        >
           <Image source={{ uri: event.image }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
           <LinearGradient
             colors={["transparent", colors.background]}
             style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 150 }}
           />
-        </View>
+        </Animated.View>
 
         {/* Content */}
         <View style={{ padding: 16, marginTop: -60 }}>
@@ -234,9 +312,12 @@ export default function EventDetailScreen() {
             </View>
             <View style={{ backgroundColor: colors.card, borderRadius: 12, padding: 16 }}>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {allAttendees.map((attendee, index) => (
-                  <View
+                {allAttendees.slice(0, isAttendeesExpanded ? allAttendees.length : 10).map((attendee, index) => (
+                  <Motion.View
                     key={index}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ type: "spring", damping: 20, stiffness: 300, delay: isAttendeesExpanded ? index * 0.05 : 0 }}
                     style={{
                       width: 44,
                       height: 44,
@@ -252,12 +333,40 @@ export default function EventDetailScreen() {
                     ) : (
                       <Text style={{ color: colors.foreground, fontSize: 14, fontWeight: "600" }}>{attendee.initials}</Text>
                     )}
-                  </View>
+                  </Motion.View>
                 ))}
-                <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.muted, alignItems: "center", justifyContent: "center" }}>
-                  <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: "600" }}>+{event.totalAttendees - 10}</Text>
-                </View>
+                {event.totalAttendees > 10 && !isAttendeesExpanded && (
+                  <Pressable 
+                    onPress={() => setIsAttendeesExpanded(true)}
+                    style={{ 
+                      width: 44, 
+                      height: 44, 
+                      borderRadius: 22, 
+                      backgroundColor: colors.muted, 
+                      alignItems: "center", 
+                      justifyContent: "center" 
+                    }}
+                  >
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12, fontWeight: "600" }}>
+                      +{event.totalAttendees - 10}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
+              
+              {/* See less button when expanded */}
+              {isAttendeesExpanded && (
+                <Motion.View
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3 }}
+                  style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}
+                >
+                  <Pressable onPress={() => setIsAttendeesExpanded(false)} style={{ alignSelf: "center" }}>
+                    <Text style={{ fontSize: 14, color: colors.primary, fontWeight: "500" }}>See less</Text>
+                  </Pressable>
+                </Motion.View>
+              )}
             </View>
           </Animated.View>
 
@@ -312,58 +421,50 @@ export default function EventDetailScreen() {
             </View>
           </Animated.View>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {hasTicket && (
-        <Animated.View 
-          entering={FadeInDown.delay(900).springify()}
+        <Motion.View
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", damping: 20, stiffness: 300 }}
           style={{ 
             position: "absolute", 
-            bottom: insets.bottom + 16, 
-            left: 16, 
-            right: 16,
+            bottom: 0, 
+            left: 0, 
+            right: 0,
+            backgroundColor: "#000000",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            paddingBottom: insets.bottom,
           }}
         >
-          <Motion.View whileTap={{ scale: 0.98 }}>
-            <Pressable
-              onPress={openModal}
-              style={{ 
-                backgroundColor: colors.primary, 
-                paddingVertical: 16, 
-                borderRadius: 16, 
-                flexDirection: "row",
-                alignItems: "center", 
-                justifyContent: "center",
-                gap: 10,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 8,
-                elevation: 8,
-              }}
-            >
+          <View style={{  paddingTop: 24 }}>
+            <Motion.View whileTap={{ scale: 0.98 }}>
+              <Pressable
+                onPress={() => router.push(`/ticket/${eventId}`)}
+                style={{ 
+                  backgroundColor: colors.primary, 
+                  paddingVertical: 16, 
+                  borderRadius: 16, 
+                  flexDirection: "row",
+                  alignItems: "center", 
+                  justifyContent: "center",
+                  gap: 10,
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 8,
+                }}
+              >
               <Ticket size={22} color="#fff" />
               <Text style={{ fontWeight: "bold", color: "#fff", fontSize: 16 }}>View Your Ticket</Text>
             </Pressable>
           </Motion.View>
-        </Animated.View>
+          </View>
+        </Motion.View>
       )}
-
-      <TicketModal
-        visible={isVisible}
-        onClose={closeModal}
-        ticket={ticket || {
-          id: `ticket-${eventId}`,
-          eventId: eventId,
-          userId: "current-user",
-          paid: true,
-          status: "valid",
-          qrToken: `mock-token-${eventId}`,
-        }}
-        eventTitle={event.title}
-        eventDate={event.date}
-        eventLocation={event.location}
-      />
     </View>
   )
 }

@@ -1,7 +1,8 @@
 import { View, Text, Image, TouchableOpacity } from 'react-native'
 import { useRef, useState, useEffect } from 'react'
 import { Camera, useCameraDevice } from 'react-native-vision-camera'
-import TextRecognition from '@react-native-ml-kit/text-recognition'
+// TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
+// TODO: Re-add OCR when compatible version is available
 import * as ImagePicker from 'expo-image-picker'
 import { useUIStore } from '@/lib/stores/ui-store'
 import { CreditCard, Camera as CameraIcon, ImageIcon, X, ScanLine } from 'lucide-react-native'
@@ -150,17 +151,8 @@ export default function IdScanTab() {
                 const uri = result.assets[0].uri
                 setImageUri(uri)
                 
-                // Perform OCR on the static image
-                try {
-                  console.log('[IdScanTab] Running OCR on gallery image...')
-                  const ocrResult = await TextRecognition.recognize(uri)
-                  if (ocrResult?.text) {
-                    console.log('[IdScanTab] OCR text length:', ocrResult.text.length)
-                    setOcrText(ocrResult.text)
-                  }
-                } catch (e) {
-                  console.log('[IdScanTab] OCR error:', e)
-                }
+                // OCR temporarily disabled - TextRecognition package removed due to GoogleMLKit conflict
+                console.log('[IdScanTab] OCR disabled - using manual verification')
                 
                 setMode('preview')
               }

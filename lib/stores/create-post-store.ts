@@ -1,10 +1,18 @@
 import { create } from "zustand"
 import type { MediaAsset } from "@/lib/hooks/use-media-picker"
 
+interface LocationData {
+  name: string
+  latitude?: number
+  longitude?: number
+  placeId?: string
+}
+
 interface CreatePostState {
   selectedMedia: MediaAsset[]
   caption: string
   location: string
+  locationData: LocationData | null
   taggedPeople: string[]
   step: "select" | "edit" | "location"
   isUploading: boolean
@@ -15,6 +23,7 @@ interface CreatePostState {
   toggleMedia: (media: MediaAsset) => void
   setCaption: (caption: string) => void
   setLocation: (location: string) => void
+  setLocationData: (data: LocationData | null) => void
   setTaggedPeople: (people: string[]) => void
   setStep: (step: "select" | "edit" | "location") => void
   startUpload: () => void
@@ -24,10 +33,11 @@ interface CreatePostState {
 }
 
 const initialState = {
-  selectedMedia: [],
+  selectedMedia: [] as MediaAsset[],
   caption: "",
   location: "",
-  taggedPeople: [],
+  locationData: null as LocationData | null,
+  taggedPeople: [] as string[],
   step: "select" as const,
   isUploading: false,
   uploadProgress: 0,
@@ -63,6 +73,7 @@ export const useCreatePostStore = create<CreatePostState>((set, get) => ({
 
   setCaption: (caption) => set({ caption }),
   setLocation: (location) => set({ location }),
+  setLocationData: (data) => set({ locationData: data, location: data?.name || "" }),
   setTaggedPeople: (people) => set({ taggedPeople: people }),
   setStep: (step) => set({ step }),
   startUpload: () => set({ isUploading: true, uploadProgress: 0 }),
