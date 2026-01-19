@@ -1,5 +1,7 @@
-import { Stack } from "expo-router"
-import { Platform } from "react-native"
+"use client";
+
+import { Stack } from "expo-router";
+import { Platform } from "react-native";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -16,7 +18,7 @@ const screenTransitionConfig = Platform.select({
     animation: "fade" as const,
     animationDuration: 200,
   },
-})
+});
 
 const modalTransitionConfig = {
   presentation: "modal" as const,
@@ -24,18 +26,18 @@ const modalTransitionConfig = {
   animationDuration: 300,
   gestureEnabled: true,
   gestureDirection: "vertical" as const,
-}
+};
 
 const fullScreenModalConfig = {
   presentation: "fullScreenModal" as const,
   animation: "fade" as const,
   animationDuration: 250,
-}
+};
 
 export default function ProtectedLayout() {
   return (
-    <Stack 
-      screenOptions={{ 
+    <Stack
+      screenOptions={{
         headerShown: false,
         ...screenTransitionConfig,
         contentStyle: { backgroundColor: "#000" },
@@ -45,16 +47,16 @@ export default function ProtectedLayout() {
       <Stack.Screen name="search" />
       <Stack.Screen name="messages" />
       <Stack.Screen name="messages/new" options={modalTransitionConfig} />
-      <Stack.Screen 
-        name="post/[id]" 
+      <Stack.Screen
+        name="post/[id]"
         options={{
           animation: "fade",
           animationDuration: 300,
           animationTypeForReplace: "push",
-        }} 
+        }}
       />
-      <Stack.Screen 
-        name="profile/[username]" 
+      <Stack.Screen
+        name="profile/[username]"
         options={{
           animation: "slide_from_right",
           animationDuration: 250,
@@ -68,5 +70,5 @@ export default function ProtectedLayout() {
       <Stack.Screen name="chat" />
       <Stack.Screen name="comments" options={modalTransitionConfig} />
     </Stack>
-  )
+  );
 }

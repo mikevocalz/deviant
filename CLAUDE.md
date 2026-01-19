@@ -159,6 +159,18 @@ npx expo run:android
 npx expo run:ios
 ```
 
+### Android - Notification Icon Required
+
+**Error:** `ENOENT: no such file or directory, open './assets/images/notification-icon.png'`
+
+**Cause:** `expo-notifications` plugin requires a notification icon for Android.
+
+**Fix:** Ensure `assets/images/notification-icon.png` exists. For Android, this should ideally be a white silhouette on transparent background (96x96px). As a quick fix, copy the app icon:
+
+```bash
+cp assets/images/icon.png assets/images/notification-icon.png
+```
+
 ### ⚠️ Pre-Build Checklist
 
 Before running native builds, verify:
@@ -167,6 +179,7 @@ Before running native builds, verify:
 2. **Read CLAUDE.md** - Always read this file for known fixes before building
 3. **Clear Metro cache** - If builds fail unexpectedly, clear the cache
 4. **Check Podfile/build.gradle** - Ensure native config matches package requirements
+5. **Notification icon exists** - `assets/images/notification-icon.png` must exist for Android builds
 
 ---
 
@@ -552,3 +565,104 @@ setUploadProgress(100);
   );
 }
 ```
+
+---
+
+## 🚀 Production Deployment (API Routes)
+
+### Architecture Overview
+
+```
+Native App (iOS/Android)
+         ↓
+EXPO_PUBLIC_API_URL (standalone Hono server)
+         ↓
+Standalone API Server (server/)
+         ↓
+Payload CMS
+```
+
+**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. Use the standalone `server/` directory for production API deployment.
+
+### Standalone API Server
+
+The `server/` directory contains a Hono-based API server that mirrors the Expo Router API routes but runs in pure Node.js without React Native dependencies.
+
+```bash
+# Install server dependencies
+cd server
+npm install
+
+# Development
+npm run dev
+
+# Production build
+npm run build
+npm start
+```
+
+### Deployment Steps
+
+1. **Deploy the standalone server** to Vercel/Railway/Render:
+
+   ```bash
+   cd server
+   vercel deploy
+   # or
+   railway deploy
+   ```
+
+2. **Set environment variables** on your deployment:
+
+   ```bash
+   PORT=3001
+   PAYLOAD_URL=https://payload-cms-setup-gray.vercel.app
+   PAYLOAD_API_KEY=your_api_key
+   BETTER_AUTH_SECRET=your_secret
+   DATABASE_URI=postgresql://...
+   ```
+
+3. **Configure native app** to use deployed API:
+
+   In `eas.json` for production builds:
+
+   ```json
+   {
+     "build": {
+       "production": {
+         "env": {
+           "EXPO_PUBLIC_API_URL": "https://your-api-server.vercel.app",
+           "EXPO_PUBLIC_AUTH_URL": "https://your-api-server.vercel.app"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Rebuild native apps** with production config:
+
+   ```bash
+   eas build --platform all --profile production
+   ```
+
+### Local Development
+
+For development, the Expo Router API routes work with the dev server:
+
+```bash
+# Start with tunnel for Android emulator/physical devices
+npx expo start --tunnel --clear
+```
+
+Leave `EXPO_PUBLIC_API_URL` empty in development - the app uses relative URLs.
+
+### Why Not Expo Web Export?
+
+The app uses native modules that cannot run in Node.js SSR:
+
+- `expo-secure-store`
+- `expo-notifications`
+- `react-native-vision-camera`
+- `@regulaforensics/react-native-face-api`
+
+These cause `__fbBatchedBridgeConfig is not set` errors during web export.

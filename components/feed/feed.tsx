@@ -1,30 +1,41 @@
-import { FlatList, View, Text, Platform, RefreshControl, StyleSheet, Animated as RNAnimated, Pressable } from "react-native"
-import { FeedPost } from "./feed-post"
-import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts"
-import { FeedSkeleton } from "@/components/skeletons"
-import { useAppStore } from "@/lib/stores/app-store"
-import { useMemo, useEffect, useRef, useCallback } from "react"
-import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
-import { Motion } from "@legendapp/motion"
-import { useRouter } from "expo-router"
-import { StoriesBar } from "@/components/stories/stories-bar"
-import type { Post } from "@/lib/types"
+import {
+  FlatList,
+  View,
+  Text,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  Animated as RNAnimated,
+  Pressable,
+} from "react-native";
+import { FeedPost } from "./feed-post";
+import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts";
+import { FeedSkeleton } from "@/components/skeletons";
+import { useAppStore } from "@/lib/stores/app-store";
+import { useMemo, useEffect, useRef, useCallback } from "react";
+import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
+import { Motion } from "@legendapp/motion";
+import { useRouter } from "expo-router";
+import { StoriesBar } from "@/components/stories/stories-bar";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ImageOff } from "lucide-react-native";
+import type { Post } from "@/lib/types";
 
-const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"]
+const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
 function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
-  const router = useRouter()
-  
+  const router = useRouter();
+
   return (
     <Motion.View
       className="px-1 py-3"
       initial={{ opacity: 0, scale: 0.9, y: 50 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ 
-        type: 'spring',
+      transition={{
+        type: "spring",
         damping: 20,
         stiffness: 100,
-        delay: index * 0.1
+        delay: index * 0.1,
       }}
     >
       <Pressable
@@ -44,138 +55,220 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
         />
       </Pressable>
     </Motion.View>
-  )
+  );
 }
 
 function LoadMoreIndicator() {
   return (
     <View style={styles.loadMoreContainer}>
       <View style={styles.loadMoreDots}>
-        <View style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[0] }]} />
-        <View style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[1] }]} />
-        <View style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[2] }]} />
+        <View
+          style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[0] }]}
+        />
+        <View
+          style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[1] }]}
+        />
+        <View
+          style={[styles.loadMoreDot, { backgroundColor: REFRESH_COLORS[2] }]}
+        />
       </View>
     </View>
-  )
+  );
 }
 
 function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
-  const dot1Anim = useRef(new RNAnimated.Value(0)).current
-  const dot2Anim = useRef(new RNAnimated.Value(0)).current
-  const dot3Anim = useRef(new RNAnimated.Value(0)).current
-  const animationRef = useRef<RNAnimated.CompositeAnimation | null>(null)
+  const dot1Anim = useRef(new RNAnimated.Value(0)).current;
+  const dot2Anim = useRef(new RNAnimated.Value(0)).current;
+  const dot3Anim = useRef(new RNAnimated.Value(0)).current;
+  const animationRef = useRef<RNAnimated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     if (refreshing) {
       animationRef.current = RNAnimated.loop(
         RNAnimated.sequence([
-          RNAnimated.timing(dot1Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
-          RNAnimated.timing(dot2Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
-          RNAnimated.timing(dot3Anim, { toValue: 1, duration: 250, useNativeDriver: true }),
-          RNAnimated.timing(dot1Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
-          RNAnimated.timing(dot2Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
-          RNAnimated.timing(dot3Anim, { toValue: 0, duration: 250, useNativeDriver: true }),
-        ])
-      )
-      animationRef.current.start()
+          RNAnimated.timing(dot1Anim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(dot2Anim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(dot3Anim, {
+            toValue: 1,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(dot1Anim, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(dot2Anim, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(dot3Anim, {
+            toValue: 0,
+            duration: 250,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      animationRef.current.start();
     } else {
-      animationRef.current?.stop()
-      dot1Anim.setValue(0)
-      dot2Anim.setValue(0)
-      dot3Anim.setValue(0)
+      animationRef.current?.stop();
+      dot1Anim.setValue(0);
+      dot2Anim.setValue(0);
+      dot3Anim.setValue(0);
     }
     return () => {
-      animationRef.current?.stop()
-    }
-  }, [refreshing, dot1Anim, dot2Anim, dot3Anim])
+      animationRef.current?.stop();
+    };
+  }, [refreshing, dot1Anim, dot2Anim, dot3Anim]);
 
-  const dot1Scale = dot1Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
-  const dot2Scale = dot2Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
-  const dot3Scale = dot3Anim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.4] })
+  const dot1Scale = dot1Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.4],
+  });
+  const dot2Scale = dot2Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.4],
+  });
+  const dot3Scale = dot3Anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.4],
+  });
 
   return (
     <View style={styles.gradientRefreshContainer}>
-      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[0], transform: [{ scale: dot1Scale }] }]} />
-      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[1], transform: [{ scale: dot2Scale }] }]} />
-      <RNAnimated.View style={[styles.gradientDot, { backgroundColor: REFRESH_COLORS[2], transform: [{ scale: dot3Scale }] }]} />
+      <RNAnimated.View
+        style={[
+          styles.gradientDot,
+          {
+            backgroundColor: REFRESH_COLORS[0],
+            transform: [{ scale: dot1Scale }],
+          },
+        ]}
+      />
+      <RNAnimated.View
+        style={[
+          styles.gradientDot,
+          {
+            backgroundColor: REFRESH_COLORS[1],
+            transform: [{ scale: dot2Scale }],
+          },
+        ]}
+      />
+      <RNAnimated.View
+        style={[
+          styles.gradientDot,
+          {
+            backgroundColor: REFRESH_COLORS[2],
+            transform: [{ scale: dot3Scale }],
+          },
+        ]}
+      />
     </View>
-  )
+  );
 }
 
 export function Feed() {
-  const { 
-    data, 
-    isLoading, 
-    error, 
-    fetchNextPage, 
-    hasNextPage, 
+  const {
+    data,
+    isLoading,
+    error,
+    fetchNextPage,
+    hasNextPage,
     isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useInfiniteFeedPosts()
-  
-  const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore()
-  const { setActivePostId } = useFeedPostUIStore()
-  const prevNsfwEnabled = useRef(nsfwEnabled)
-  
+  } = useInfiniteFeedPosts();
+
+  const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
+  const { setActivePostId } = useFeedPostUIStore();
+  const prevNsfwEnabled = useRef(nsfwEnabled);
 
   useEffect(() => {
-    loadNsfwSetting()
-  }, [loadNsfwSetting])
+    loadNsfwSetting();
+  }, [loadNsfwSetting]);
 
   useEffect(() => {
-    prevNsfwEnabled.current = nsfwEnabled
-  }, [nsfwEnabled])
+    prevNsfwEnabled.current = nsfwEnabled;
+  }, [nsfwEnabled]);
 
   const allPosts = useMemo(() => {
-    if (!data?.pages) return []
-    return data.pages.flatMap(page => page.data)
-  }, [data])
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page) => page.data);
+  }, [data]);
 
   const filteredPosts = useMemo(() => {
-    if (nsfwEnabled) return allPosts
-    return allPosts.filter((post) => !post.isNSFW)
-  }, [allPosts, nsfwEnabled])
+    if (nsfwEnabled) return allPosts;
+    return allPosts.filter((post) => !post.isNSFW);
+  }, [allPosts, nsfwEnabled]);
 
-  const renderItem = useCallback(({ item, index }: { item: Post; index: number }) => (
-    <AnimatedFeedPost item={item} index={index} />
-  ), [])
+  const renderItem = useCallback(
+    ({ item, index }: { item: Post; index: number }) => (
+      <AnimatedFeedPost item={item} index={index} />
+    ),
+    [],
+  );
 
-  const keyExtractor = useCallback((item: Post) => item.id, [])
+  const keyExtractor = useCallback((item: Post) => item.id, []);
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
-      fetchNextPage()
+      fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = useCallback(async () => {
-    await refetch()
-  }, [refetch])
+    await refetch();
+  }, [refetch]);
 
   const renderFooter = useCallback(() => {
-    if (!isFetchingNextPage) return null
-    return <LoadMoreIndicator />
-  }, [isFetchingNextPage])
+    if (!isFetchingNextPage) return null;
+    return <LoadMoreIndicator />;
+  }, [isFetchingNextPage]);
 
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 70,
     minimumViewTime: 50,
-  }).current
+  }).current;
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { item: Post; isViewable: boolean }[] }) => {
-    if (viewableItems.length > 0) {
-      const firstViewable = viewableItems[0]
-      if (firstViewable?.isViewable && firstViewable?.item?.id) {
-        setActivePostId(firstViewable.item.id)
+  const onViewableItemsChanged = useRef(
+    ({
+      viewableItems,
+    }: {
+      viewableItems: { item: Post; isViewable: boolean }[];
+    }) => {
+      if (viewableItems.length > 0) {
+        const firstViewable = viewableItems[0];
+        if (firstViewable?.isViewable && firstViewable?.item?.id) {
+          setActivePostId(firstViewable.item.id);
+        }
+      } else {
+        setActivePostId(null);
       }
-    } else {
-      setActivePostId(null)
-    }
-  }).current
+    },
+  ).current;
+
+  const ListEmpty = useCallback(
+    () => (
+      <EmptyState
+        icon={ImageOff}
+        title="No Posts Yet"
+        description="When you or people you follow share posts, they'll appear here"
+      />
+    ),
+    [],
+  );
 
   if (isLoading || !nsfwLoaded) {
-    return <FeedSkeleton />
+    return <FeedSkeleton />;
   }
 
   if (error) {
@@ -183,7 +276,7 @@ export function Feed() {
       <View className="flex-1 items-center justify-center pb-20">
         <Text className="text-destructive">Failed to load posts</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -192,12 +285,16 @@ export function Feed() {
       keyExtractor={keyExtractor}
       renderItem={renderItem}
       contentContainerClassName="pb-20"
+      contentContainerStyle={
+        filteredPosts.length === 0 ? { flex: 1 } : undefined
+      }
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={false}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
       ListHeaderComponent={StoriesBar}
       ListFooterComponent={renderFooter}
+      ListEmptyComponent={ListEmpty}
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged}
       refreshControl={
@@ -208,11 +305,13 @@ export function Feed() {
           colors={REFRESH_COLORS}
           progressBackgroundColor="#ffffff"
         >
-          {Platform.OS === "ios" && <GradientRefreshIndicator refreshing={isRefetching} />}
+          {Platform.OS === "ios" && (
+            <GradientRefreshIndicator refreshing={isRefetching} />
+          )}
         </RefreshControl>
       }
     />
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -242,4 +341,4 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
   },
-})
+});

@@ -5,8 +5,15 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import * as Updates from "expo-updates";
 import { Alert, AppState, type AppStateStatus } from "react-native";
+
+// Dynamically import expo-updates to handle Expo Go where native module isn't available
+let Updates: typeof import("expo-updates") | null = null;
+try {
+  Updates = require("expo-updates");
+} catch {
+  // expo-updates not available (e.g., in Expo Go)
+}
 
 export interface UpdateStatus {
   isChecking: boolean;
@@ -26,8 +33,8 @@ export function useUpdates() {
   });
 
   const checkForUpdates = useCallback(async (showAlert = false) => {
-    // Skip in development or if updates aren't enabled
-    if (__DEV__ || !Updates.isEnabled) {
+    // Skip in development or if updates aren't available/enabled
+    if (__DEV__ || !Updates || !Updates.isEnabled) {
       return;
     }
 
@@ -77,7 +84,7 @@ export function useUpdates() {
   }, []);
 
   const downloadAndApplyUpdate = useCallback(async () => {
-    if (__DEV__ || !Updates.isEnabled) return;
+    if (__DEV__ || !Updates || !Updates.isEnabled) return;
 
     setStatus((prev) => ({ ...prev, isDownloading: true }));
 
@@ -120,7 +127,7 @@ export function useUpdates() {
 
   // Check for updates on app launch and when app comes to foreground
   useEffect(() => {
-    if (__DEV__ || !Updates.isEnabled) return;
+    if (__DEV__ || !Updates || !Updates.isEnabled) return;
 
     // Initial check
     checkForUpdates();
@@ -146,7 +153,7 @@ export function useUpdates() {
     ...status,
     checkForUpdates,
     downloadAndApplyUpdate,
-    currentlyRunning: Updates.isEnabled
+    currentlyRunning: Updates?.isEnabled
       ? {
           updateId: Updates.updateId,
           channel: Updates.channel,

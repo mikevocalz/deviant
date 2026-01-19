@@ -1,7 +1,11 @@
-import { View, StyleSheet, Dimensions } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet, Dimensions } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
-const { width } = Dimensions.get("window")
+const { width } = Dimensions.get("window");
 
 function CommentSkeleton() {
   return (
@@ -12,7 +16,7 @@ function CommentSkeleton() {
         <SkeletonText width={60} height={12} style={styles.commentTime} />
       </View>
     </View>
-  )
+  );
 }
 
 export function PostDetailSkeleton() {
@@ -26,21 +30,31 @@ export function PostDetailSkeleton() {
         </View>
       </View>
 
-      <Skeleton width={width} height={width} borderRadius={0} />
+      <Skeleton style={{ width: width, height: width, borderRadius: 0 }} />
 
       <View style={styles.actions}>
         <View style={styles.leftActions}>
-          <Skeleton width={28} height={28} borderRadius={14} />
-          <Skeleton width={28} height={28} borderRadius={14} style={styles.actionSpacing} />
-          <Skeleton width={28} height={28} borderRadius={14} style={styles.actionSpacing} />
+          <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
+          <Skeleton
+            style={[
+              { width: 28, height: 28, borderRadius: 14 },
+              styles.actionSpacing,
+            ]}
+          />
+          <Skeleton
+            style={[
+              { width: 28, height: 28, borderRadius: 14 },
+              styles.actionSpacing,
+            ]}
+          />
         </View>
-        <Skeleton width={28} height={28} borderRadius={14} />
+        <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
       </View>
 
       <View style={styles.info}>
         <SkeletonText width={80} height={14} />
-        <SkeletonText width="90%" height={14} style={styles.caption} />
-        <SkeletonText width="60%" height={14} style={styles.caption} />
+        <SkeletonText width={280} height={14} style={styles.caption} />
+        <SkeletonText width={200} height={14} style={styles.caption} />
         <SkeletonText width={60} height={12} style={styles.timeAgo} />
       </View>
 
@@ -50,7 +64,7 @@ export function PostDetailSkeleton() {
         <CommentSkeleton />
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -106,4 +120,4 @@ const styles = StyleSheet.create({
   commentTime: {
     marginTop: 4,
   },
-})
+});

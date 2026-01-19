@@ -1,3 +1,11 @@
+// Use 'single' output for pure SPA - no SSR/SSG means no Node.js execution of native modules
+// Native modules (expo-secure-store, react-native-vision-camera, etc.) can't run in Node.js
+// Use the standalone server/ directory for production API deployment
+const webOutput = "single";
+
+// Dynamic origin - uses EXPO_PUBLIC_API_URL in production, localhost in development
+const routerOrigin = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8081";
+
 export default {
   expo: {
     name: "DVNT",
@@ -67,13 +75,13 @@ export default {
     web: {
       favicon: "./assets/favicon.png",
       bundler: "metro",
-      output: "server",
+      output: webOutput,
     },
     plugins: [
       [
         "expo-router",
         {
-          origin: "http://localhost:8081",
+          origin: routerOrigin,
         },
       ],
       [
@@ -160,7 +168,7 @@ export default {
     },
     extra: {
       router: {
-        origin: "http://localhost:8081",
+        origin: routerOrigin,
       },
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",

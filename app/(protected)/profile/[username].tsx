@@ -1,3 +1,4 @@
+
 import { View, Text, ScrollView, Pressable, Dimensions, StyleSheet } from "react-native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native"

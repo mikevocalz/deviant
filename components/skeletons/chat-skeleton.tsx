@@ -1,20 +1,29 @@
-import { View, StyleSheet } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
 function MessageBubbleSkeleton({ isMe }: { isMe: boolean }) {
   return (
-    <View style={[styles.messageBubble, isMe ? styles.myMessage : styles.theirMessage]}>
+    <View
+      style={[
+        styles.messageBubble,
+        isMe ? styles.myMessage : styles.theirMessage,
+      ]}
+    >
       <SkeletonText width={isMe ? 140 : 180} height={14} />
       <SkeletonText width={40} height={10} style={styles.messageTime} />
     </View>
-  )
+  );
 }
 
 export function ChatSkeleton() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
         <View style={styles.headerProfile}>
           <SkeletonCircle size={40} />
           <View style={styles.headerInfo}>
@@ -33,12 +42,14 @@ export function ChatSkeleton() {
       </View>
 
       <View style={styles.inputContainer}>
-        <Skeleton width={40} height={40} borderRadius={20} />
-        <Skeleton width={1} height={40} borderRadius={20} style={styles.input} />
-        <Skeleton width={40} height={40} borderRadius={20} />
+        <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
+        <Skeleton
+          style={[{ height: 40, borderRadius: 20, flex: 1 }, styles.input]}
+        />
+        <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -101,4 +112,4 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
   },
-})
+});

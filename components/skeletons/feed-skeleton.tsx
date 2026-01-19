@@ -1,7 +1,11 @@
-import { View, StyleSheet, Dimensions } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet, Dimensions } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
-const { width } = Dimensions.get("window")
+const { width } = Dimensions.get("window");
 
 function FeedPostSkeleton() {
   return (
@@ -12,28 +16,43 @@ function FeedPostSkeleton() {
           <SkeletonText width={120} height={14} />
           <SkeletonText width={80} height={12} style={styles.subText} />
         </View>
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
       </View>
 
-      <Skeleton width={width} height={width} borderRadius={0} style={styles.mediaPlaceholder} />
+      <Skeleton
+        style={[
+          { width: width, height: width, borderRadius: 0 },
+          styles.mediaPlaceholder,
+        ]}
+      />
 
       <View style={styles.actions}>
         <View style={styles.leftActions}>
-          <Skeleton width={28} height={28} borderRadius={14} />
-          <Skeleton width={28} height={28} borderRadius={14} style={styles.actionSpacing} />
-          <Skeleton width={28} height={28} borderRadius={14} style={styles.actionSpacing} />
+          <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
+          <Skeleton
+            style={[
+              { width: 28, height: 28, borderRadius: 14 },
+              styles.actionSpacing,
+            ]}
+          />
+          <Skeleton
+            style={[
+              { width: 28, height: 28, borderRadius: 14 },
+              styles.actionSpacing,
+            ]}
+          />
         </View>
-        <Skeleton width={28} height={28} borderRadius={14} />
+        <Skeleton style={{ width: 28, height: 28, borderRadius: 14 }} />
       </View>
 
       <View style={styles.content}>
         <SkeletonText width={80} height={14} />
-        <SkeletonText width="90%" height={14} style={styles.captionLine} />
-        <SkeletonText width="60%" height={14} style={styles.captionLine} />
+        <SkeletonText width={250} height={14} style={styles.captionLine} />
+        <SkeletonText width={180} height={14} style={styles.captionLine} />
         <SkeletonText width={100} height={12} style={styles.comments} />
       </View>
     </View>
-  )
+  );
 }
 
 export function FeedSkeleton() {
@@ -42,7 +61,7 @@ export function FeedSkeleton() {
       <FeedPostSkeleton />
       <FeedPostSkeleton />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -90,4 +109,4 @@ const styles = StyleSheet.create({
   comments: {
     marginTop: 12,
   },
-})
+});

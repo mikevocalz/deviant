@@ -1,3 +1,4 @@
+
 import React from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { X, Calendar, MapPin, Clock, CheckCircle, AlertCircle } from "lucide-react-native";

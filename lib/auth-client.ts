@@ -8,10 +8,36 @@
 
 import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
-import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 const BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || "http://localhost:8081";
+
+// Web-compatible storage fallback for SSR/web builds
+const webStorage = {
+  getItem: (key: string) => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(key);
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(key, value);
+  },
+  deleteItem: (key: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem(key);
+  },
+};
+
+// Dynamically get storage based on platform
+function getStorage() {
+  if (Platform.OS === "web") {
+    return webStorage;
+  }
+  // Lazy require to avoid bundling native module on web
+  const SecureStore = require("expo-secure-store");
+  return SecureStore;
+}
 
 export const authClient = createAuthClient({
   baseURL: BASE_URL,
@@ -19,7 +45,7 @@ export const authClient = createAuthClient({
     expoClient({
       scheme: "dvnt",
       storagePrefix: "dvnt",
-      storage: SecureStore,
+      storage: getStorage(),
     }),
   ],
 });

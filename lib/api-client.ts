@@ -6,7 +6,13 @@
  *
  * Architecture:
  * This Client → Expo API Route (+api.ts) → Payload CMS
+ *
+ * In production, set EXPO_PUBLIC_API_URL to your deployed API server URL.
+ * In development, leave it empty to use relative URLs with the Expo dev server.
  */
+
+// API base URL - empty string for dev (relative URLs), full URL for production
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
 
 // Types matching Payload paginated responses
 export interface PaginatedResponse<T> {
@@ -57,7 +63,8 @@ async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(endpoint, {
+  const url = `${API_BASE_URL}${endpoint}`;
+  const response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",

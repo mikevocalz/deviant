@@ -1,13 +1,23 @@
-import { Tabs, useRouter } from "expo-router"
-import { View, Pressable, Text } from "react-native"
-import { Home, Search, Plus, Heart, User, MessageSquare, CalendarDays } from "lucide-react-native"
-import { useColorScheme } from "@/lib/hooks"
-import Logo from "@/components/logo"
-import { CenterButton } from "@/components/center-button"
+"use client";
+
+import { Tabs, useRouter } from "expo-router";
+import { View, Pressable, Text } from "react-native";
+import {
+  Home,
+  Search,
+  Plus,
+  Heart,
+  User,
+  MessageSquare,
+  CalendarDays,
+} from "lucide-react-native";
+import { useColorScheme } from "@/lib/hooks";
+import Logo from "@/components/logo";
+import { CenterButton } from "@/components/center-button";
 
 export default function TabsLayout() {
-  const router = useRouter()
-  const { colors } = useColorScheme()
+  const router = useRouter();
+  const { colors } = useColorScheme();
 
   return (
     <Tabs
@@ -24,10 +34,15 @@ export default function TabsLayout() {
             <Pressable onPress={() => router.push("/(protected)/search")}>
               <Search size={24} color={colors.foreground} />
             </Pressable>
-            <Pressable onPress={() => router.push("/(protected)/messages")} className="relative">
+            <Pressable
+              onPress={() => router.push("/(protected)/messages")}
+              className="relative"
+            >
               <MessageSquare size={24} color={colors.foreground} />
               <View className="absolute -right-1 -top-1 h-4 w-4 items-center justify-center rounded-full bg-accent">
-                <Text className="text-[10px] font-bold text-accent-foreground">3</Text>
+                <Text className="text-[10px] font-bold text-accent-foreground">
+                  3
+                </Text>
               </View>
             </Pressable>
           </View>
@@ -48,7 +63,11 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) => (
             <View className="items-center mt-5 justify-center">
-              <Home size={24} color={focused ? colors.foreground : colors.mutedForeground} strokeWidth={focused ? 2.5 : 2} />
+              <Home
+                size={24}
+                color={focused ? colors.foreground : colors.mutedForeground}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             </View>
           ),
         }}
@@ -58,7 +77,11 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) => (
             <View className="items-center mt-5 justify-center">
-              <CalendarDays size={24} color={focused ? colors.foreground : colors.mutedForeground} strokeWidth={focused ? 2.5 : 2} />
+              <CalendarDays
+                size={24}
+                color={focused ? colors.foreground : colors.mutedForeground}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             </View>
           ),
         }}
@@ -67,8 +90,8 @@ export default function TabsLayout() {
         name="create"
         listeners={{
           tabPress: (e) => {
-            e.preventDefault()
-            router.push("/(protected)/(tabs)/create")
+            e.preventDefault();
+            router.push("/(protected)/(tabs)/create");
           },
         }}
         options={{
@@ -101,11 +124,15 @@ export default function TabsLayout() {
         options={{
           tabBarIcon: ({ focused }) => (
             <View className="items-center mt-5 justify-center">
-              <User size={24} color={focused ? colors.foreground : colors.mutedForeground} strokeWidth={focused ? 2.5 : 2} />
+              <User
+                size={24}
+                color={focused ? colors.foreground : colors.mutedForeground}
+                strokeWidth={focused ? 2.5 : 2}
+              />
             </View>
           ),
         }}
       />
     </Tabs>
-  )
+  );
 }

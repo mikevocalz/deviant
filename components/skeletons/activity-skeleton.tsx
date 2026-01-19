@@ -1,5 +1,9 @@
-import { View, StyleSheet } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
 function ActivityItemSkeleton() {
   return (
@@ -7,18 +11,18 @@ function ActivityItemSkeleton() {
       <View style={styles.avatarContainer}>
         <SkeletonCircle size={44} />
         <View style={styles.iconBadge}>
-          <Skeleton width={16} height={16} borderRadius={8} />
+          <Skeleton style={{ width: 16, height: 16, borderRadius: 8 }} />
         </View>
       </View>
-      
+
       <View style={styles.content}>
-        <SkeletonText width="70%" height={14} />
+        <SkeletonText width={150} height={14} />
         <SkeletonText width={40} height={10} style={styles.timestamp} />
       </View>
-      
-      <Skeleton width={48} height={48} borderRadius={8} />
+
+      <Skeleton style={{ width: 48, height: 48, borderRadius: 8 }} />
     </View>
-  )
+  );
 }
 
 export function ActivitySkeleton() {
@@ -26,9 +30,9 @@ export function ActivitySkeleton() {
     <View style={styles.container}>
       <View style={styles.header}>
         <SkeletonText width={80} height={18} />
-        <Skeleton width={24} height={18} borderRadius={10} />
+        <Skeleton style={{ width: 24, height: 18, borderRadius: 10 }} />
       </View>
-      
+
       <ActivityItemSkeleton />
       <ActivityItemSkeleton />
       <ActivityItemSkeleton />
@@ -37,7 +41,7 @@ export function ActivitySkeleton() {
       <ActivityItemSkeleton />
       <ActivityItemSkeleton />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -82,4 +86,4 @@ const styles = StyleSheet.create({
   timestamp: {
     marginTop: 4,
   },
-})
+});

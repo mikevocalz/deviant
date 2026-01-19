@@ -1,3 +1,4 @@
+
 import { View, Text, Pressable, Dimensions } from "react-native"
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
 import { Image } from "expo-image"

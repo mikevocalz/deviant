@@ -1,3 +1,4 @@
+
 import { View } from "react-native"
 import { Main } from "@expo/html-elements"
 import { Feed } from "@/components/feed/feed"

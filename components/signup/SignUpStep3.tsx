@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, Pressable } from "react-native";
+import { ScrollView } from "react-native-gesture-handler";
 import { router } from "expo-router";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
@@ -73,10 +74,13 @@ export function SignUpStep3() {
       username: generatedUsername,
       name: `${formData.firstName} ${formData.lastName}`,
       isVerified: true,
+      postsCount: 0,
+      followersCount: 0,
+      followingCount: 0,
     });
     resetSignup();
 
-    router.replace("/(protected)/onboarding");
+    router.replace("/(protected)/(tabs)" as any);
   };
 
   return (

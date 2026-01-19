@@ -1,6 +1,3 @@
-import { withLayoutContext } from "expo-router"
-import { createTrueSheetNavigator } from "@lodev09/react-native-true-sheet/navigation"
+"use client";
 
-const { Navigator } = createTrueSheetNavigator()
-
-export default withLayoutContext(Navigator)
+export { default } from "@/components/navigation/true-sheet-navigator";

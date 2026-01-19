@@ -1,24 +1,30 @@
-import { View, StyleSheet, Dimensions } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet, Dimensions } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
-const { width } = Dimensions.get("window")
-const columnWidth = (width - 8) / 3
+const { width } = Dimensions.get("window");
+const columnWidth = (width - 8) / 3;
 
 function ProfileGridItemSkeleton() {
   return (
-    <View style={[styles.gridItem, { width: columnWidth, height: columnWidth }]}>
-      <Skeleton width="100%" height="100%" borderRadius={8} />
+    <View
+      style={[styles.gridItem, { width: columnWidth, height: columnWidth }]}
+    >
+      <Skeleton style={{ width: "100%", height: "100%", borderRadius: 8 }} />
     </View>
-  )
+  );
 }
 
 export function ProfileSkeleton() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
         <SkeletonText width={120} height={18} />
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
       </View>
 
       <View style={styles.profileInfo}>
@@ -42,23 +48,23 @@ export function ProfileSkeleton() {
 
         <View style={styles.bioSection}>
           <SkeletonText width={140} height={16} />
-          <SkeletonText width="90%" height={14} style={styles.bioLine} />
-          <SkeletonText width="70%" height={14} style={styles.bioLine} />
+          <SkeletonText width={280} height={14} style={styles.bioLine} />
+          <SkeletonText width={220} height={14} style={styles.bioLine} />
           <SkeletonText width={160} height={14} style={styles.bioLine} />
         </View>
 
         <View style={styles.buttonRow}>
-          <Skeleton width="100%" height={36} borderRadius={8} />
+          <Skeleton style={{ width: "100%", height: 36, borderRadius: 8 }} />
         </View>
       </View>
 
       <View style={styles.tabs}>
         <View style={styles.tab}>
-          <Skeleton width={16} height={16} borderRadius={4} />
+          <Skeleton style={{ width: 16, height: 16, borderRadius: 4 }} />
           <SkeletonText width={40} height={10} style={styles.tabLabel} />
         </View>
         <View style={styles.tab}>
-          <Skeleton width={16} height={16} borderRadius={4} />
+          <Skeleton style={{ width: 16, height: 16, borderRadius: 4 }} />
           <SkeletonText width={40} height={10} style={styles.tabLabel} />
         </View>
       </View>
@@ -72,7 +78,7 @@ export function ProfileSkeleton() {
         <ProfileGridItemSkeleton />
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -139,4 +145,4 @@ const styles = StyleSheet.create({
   gridItem: {
     padding: 2,
   },
-})
+});

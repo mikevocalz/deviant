@@ -1,20 +1,38 @@
-import { View, StyleSheet } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
-const CARD_HEIGHT = 500
+const CARD_HEIGHT = 500;
 
 function EventCardSkeleton() {
   return (
     <View style={styles.cardContainer}>
       <View style={styles.card}>
-        <Skeleton width="100%" height="100%" borderRadius={0} />
-        
+        <Skeleton style={{ width: "100%", height: "100%", borderRadius: 0 }} />
+
         <View style={styles.attendeesRow}>
           <SkeletonCircle size={40} style={styles.attendeeAvatar} />
-          <SkeletonCircle size={40} style={[styles.attendeeAvatar, styles.attendeeOverlap]} />
-          <SkeletonCircle size={40} style={[styles.attendeeAvatar, styles.attendeeOverlap]} />
-          <SkeletonCircle size={40} style={[styles.attendeeAvatar, styles.attendeeOverlap]} />
-          <Skeleton width={50} height={24} borderRadius={12} style={styles.attendeeCount} />
+          <SkeletonCircle
+            size={40}
+            style={[styles.attendeeAvatar, styles.attendeeOverlap]}
+          />
+          <SkeletonCircle
+            size={40}
+            style={[styles.attendeeAvatar, styles.attendeeOverlap]}
+          />
+          <SkeletonCircle
+            size={40}
+            style={[styles.attendeeAvatar, styles.attendeeOverlap]}
+          />
+          <Skeleton
+            style={[
+              { width: 50, height: 24, borderRadius: 12 },
+              styles.attendeeCount,
+            ]}
+          />
         </View>
 
         <View style={styles.dateBadge}>
@@ -23,22 +41,37 @@ function EventCardSkeleton() {
         </View>
 
         <View style={styles.detailsContainer}>
-          <Skeleton width={80} height={24} borderRadius={12} style={styles.category} />
-          <SkeletonText width="80%" height={28} style={styles.title} />
+          <Skeleton
+            style={[
+              { width: 80, height: 24, borderRadius: 12 },
+              styles.category,
+            ]}
+          />
+          <SkeletonText width={200} height={28} style={styles.title} />
           <SkeletonText width={160} height={14} style={styles.meta} />
-          
+
           <View style={styles.actionsRow}>
             <View style={styles.leftActions}>
-              <Skeleton width={70} height={32} borderRadius={20} />
-              <Skeleton width={32} height={32} borderRadius={16} style={styles.actionButton} />
-              <Skeleton width={32} height={32} borderRadius={16} style={styles.actionButton} />
+              <Skeleton style={{ width: 70, height: 32, borderRadius: 20 }} />
+              <Skeleton
+                style={[
+                  { width: 32, height: 32, borderRadius: 16 },
+                  styles.actionButton,
+                ]}
+              />
+              <Skeleton
+                style={[
+                  { width: 32, height: 32, borderRadius: 16 },
+                  styles.actionButton,
+                ]}
+              />
             </View>
-            <Skeleton width={60} height={32} borderRadius={20} />
+            <Skeleton style={{ width: 60, height: 32, borderRadius: 20 }} />
           </View>
         </View>
       </View>
     </View>
-  )
+  );
 }
 
 export function EventsSkeleton() {
@@ -57,7 +90,7 @@ export function EventsSkeleton() {
         <EventCardSkeleton />
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -147,4 +180,4 @@ const styles = StyleSheet.create({
   actionButton: {
     marginLeft: 0,
   },
-})
+});

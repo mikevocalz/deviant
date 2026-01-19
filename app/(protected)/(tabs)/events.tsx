@@ -1,3 +1,4 @@
+
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,7 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
-import PagerView from "react-native-pager-view";
+import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
 
 const CARD_HEIGHT = 333;
@@ -192,7 +193,7 @@ export default function EventsScreen() {
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
-  const pagerRef = useRef<PagerView>(null);
+  const pagerRef = useRef<any>(null);
 
   // Fetch real events from API
   const { data: events = [], isLoading, error } = useEvents();
@@ -303,10 +304,10 @@ export default function EventsScreen() {
         </View>
 
         {/* Swipeable Pages */}
-        <PagerView
-          ref={pagerRef}
+        <PagerViewWrapper
+          pagerRef={pagerRef}
           style={{ flex: 1 }}
-          initialPage={0}
+          initialPage={activeTab}
           onPageSelected={handlePageSelected}
         >
           {tabs.map((tab, tabIndex) => {
@@ -340,7 +341,7 @@ export default function EventsScreen() {
               </View>
             );
           })}
-        </PagerView>
+        </PagerViewWrapper>
       </Main>
     </View>
   );

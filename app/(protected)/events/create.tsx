@@ -25,8 +25,18 @@ import {
   Plus,
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { AppleMaps, GoogleMaps } from "expo-maps";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
+
+// Conditionally import expo-maps (requires dev build, not available in Expo Go)
+let AppleMaps: typeof import("expo-maps").AppleMaps | null = null;
+let GoogleMaps: typeof import("expo-maps").GoogleMaps | null = null;
+try {
+  const expoMaps = require("expo-maps");
+  AppleMaps = expoMaps.AppleMaps;
+  GoogleMaps = expoMaps.GoogleMaps;
+} catch {
+  // expo-maps not available (e.g., in Expo Go)
+}
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { Motion } from "@legendapp/motion";
 import { Badge } from "@/components/ui/badge";
@@ -366,45 +376,67 @@ export default function CreateEventScreen() {
                 style={{ height: 180 }}
               >
                 {Platform.OS === "ios" ? (
-                  <AppleMaps.View
-                    style={{ flex: 1 }}
-                    cameraPosition={{
-                      coordinates: {
-                        latitude: locationData.latitude,
-                        longitude: locationData.longitude,
-                      },
-                      zoom: 15,
-                    }}
-                    markers={[
-                      {
-                        id: "event-location",
+                  AppleMaps ? (
+                    <AppleMaps.View
+                      style={{ flex: 1 }}
+                      cameraPosition={{
                         coordinates: {
                           latitude: locationData.latitude,
                           longitude: locationData.longitude,
                         },
-                      },
-                    ]}
-                  />
+                        zoom: 15,
+                      }}
+                      markers={[
+                        {
+                          id: "event-location",
+                          coordinates: {
+                            latitude: locationData.latitude,
+                            longitude: locationData.longitude,
+                          },
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <View className="flex-1 bg-muted items-center justify-center">
+                      <Text className="text-muted-foreground text-sm">
+                        Map preview requires dev build
+                      </Text>
+                    </View>
+                  )
+                ) : Platform.OS === "android" ? (
+                  GoogleMaps ? (
+                    <GoogleMaps.View
+                      style={{ flex: 1 }}
+                      cameraPosition={{
+                        coordinates: {
+                          latitude: locationData.latitude,
+                          longitude: locationData.longitude,
+                        },
+                        zoom: 15,
+                      }}
+                      markers={[
+                        {
+                          id: "event-location",
+                          coordinates: {
+                            latitude: locationData.latitude,
+                            longitude: locationData.longitude,
+                          },
+                        },
+                      ]}
+                    />
+                  ) : (
+                    <View className="flex-1 bg-muted items-center justify-center">
+                      <Text className="text-muted-foreground text-sm">
+                        Map preview requires dev build
+                      </Text>
+                    </View>
+                  )
                 ) : (
-                  <GoogleMaps.View
-                    style={{ flex: 1 }}
-                    cameraPosition={{
-                      coordinates: {
-                        latitude: locationData.latitude,
-                        longitude: locationData.longitude,
-                      },
-                      zoom: 15,
-                    }}
-                    markers={[
-                      {
-                        id: "event-location",
-                        coordinates: {
-                          latitude: locationData.latitude,
-                          longitude: locationData.longitude,
-                        },
-                      },
-                    ]}
-                  />
+                  <View className="flex-1 bg-muted items-center justify-center">
+                    <Text className="text-muted-foreground text-sm">
+                      Maps only available on iOS and Android
+                    </Text>
+                  </View>
                 )}
               </View>
             )}

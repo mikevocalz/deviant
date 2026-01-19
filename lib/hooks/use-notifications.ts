@@ -5,22 +5,31 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,
 } from "@/lib/notifications";
+import { Platform } from "react-native";
+
+// Dynamically import expo-notifications to avoid native module errors
+let Notifications: typeof import("expo-notifications") | null = null;
+if (Platform.OS !== "web") {
+  try {
+    Notifications = require("expo-notifications");
+  } catch (e) {
+    console.log("[useNotifications] Native module not available");
+  }
+}
 
 export function useNotifications() {
+  // Skip on web platform
+  const isWeb = Platform.OS === "web";
   const [expoPushToken, setExpoPushToken] = useState<string | null>(null);
-  const [notification, setNotification] =
-    useState<Notifications.Notification | null>(null);
-  const notificationListener = useRef<Notifications.EventSubscription | null>(
-    null,
-  );
-  const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const [notification, setNotification] = useState<unknown | null>(null);
+  const notificationListener = useRef<{ remove: () => void } | null>(null);
+  const responseListener = useRef<{ remove: () => void } | null>(null);
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
 
@@ -40,8 +49,13 @@ export function useNotifications() {
   }, [isAuthenticated, user?.id]);
 
   useEffect(() => {
+    // Skip on web platform
+    if (isWeb) return;
+
     // Register for push notifications
     registerPushNotifications();
+
+    if (!Notifications) return;
 
     // Listen for incoming notifications (app in foreground)
     notificationListener.current =
@@ -99,7 +113,7 @@ export function useNotifications() {
         responseListener.current.remove();
       }
     };
-  }, [registerPushNotifications, router]);
+  }, [isWeb, registerPushNotifications, router]);
 
   // Re-register when user logs in
   useEffect(() => {

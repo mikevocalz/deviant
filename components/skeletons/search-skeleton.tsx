@@ -1,16 +1,20 @@
-import { View, StyleSheet, Dimensions } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet, Dimensions } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
-const { width } = Dimensions.get("window")
-const columnWidth = (width - 8) / 3
+const { width } = Dimensions.get("window");
+const columnWidth = (width - 8) / 3;
 
 function RecentSearchSkeleton() {
   return (
     <View style={styles.recentItem}>
-      <Skeleton width={18} height={18} borderRadius={4} />
+      <Skeleton style={{ width: 18, height: 18, borderRadius: 4 }} />
       <SkeletonText width={120} height={14} style={styles.recentText} />
     </View>
-  )
+  );
 }
 
 function SuggestedUserSkeleton() {
@@ -22,15 +26,15 @@ function SuggestedUserSkeleton() {
         <SkeletonText width={80} height={12} style={styles.userName} />
       </View>
     </View>
-  )
+  );
 }
 
 function GridItemSkeleton() {
   return (
     <View style={styles.gridItem}>
-      <Skeleton width="100%" height="100%" borderRadius={0} />
+      <Skeleton style={{ width: "100%", height: "100%", borderRadius: 0 }} />
     </View>
-  )
+  );
 }
 
 export function SearchSkeleton() {
@@ -51,7 +55,7 @@ export function SearchSkeleton() {
         <SuggestedUserSkeleton />
       </View>
     </View>
-  )
+  );
 }
 
 export function SearchResultsSkeleton() {
@@ -64,7 +68,7 @@ export function SearchResultsSkeleton() {
         ))}
       </View>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -113,4 +117,4 @@ const styles = StyleSheet.create({
     height: columnWidth,
     margin: 1,
   },
-})
+});

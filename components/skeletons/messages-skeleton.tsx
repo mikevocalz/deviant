@@ -1,5 +1,9 @@
-import { View, StyleSheet } from "react-native"
-import { Skeleton, SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, StyleSheet } from "react-native";
+import {
+  Skeleton,
+  SkeletonCircle,
+  SkeletonText,
+} from "@/components/ui/skeleton";
 
 function MessageItemSkeleton() {
   return (
@@ -10,19 +14,19 @@ function MessageItemSkeleton() {
           <SkeletonText width={100} height={16} />
           <SkeletonText width={24} height={12} />
         </View>
-        <SkeletonText width="80%" height={14} style={styles.preview} />
+        <SkeletonText width={200} height={14} style={styles.preview} />
       </View>
     </View>
-  )
+  );
 }
 
 export function MessagesSkeleton() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
         <SkeletonText width={100} height={18} />
-        <Skeleton width={24} height={24} borderRadius={12} />
+        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
       </View>
 
       <MessageItemSkeleton />
@@ -31,7 +35,7 @@ export function MessagesSkeleton() {
       <MessageItemSkeleton />
       <MessageItemSkeleton />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -67,4 +71,4 @@ const styles = StyleSheet.create({
   preview: {
     marginTop: 4,
   },
-})
+});

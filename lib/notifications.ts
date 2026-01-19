@@ -4,25 +4,38 @@
  * Handles Expo push notification registration and management
  */
 
-import * as Notifications from "expo-notifications";
-import * as Device from "expo-device";
 import { Platform } from "react-native";
-import Constants from "expo-constants";
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Dynamically import expo-notifications to avoid native module errors in dev client
+let Notifications: typeof import("expo-notifications") | null = null;
+let Device: typeof import("expo-device") | null = null;
+let Constants: typeof import("expo-constants").default | null = null;
+
+// Only load native modules on native platforms
+if (Platform.OS !== "web") {
+  try {
+    Notifications = require("expo-notifications");
+    Device = require("expo-device");
+    Constants = require("expo-constants").default;
+
+    // Configure notification handler
+    Notifications?.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch (e) {
+    console.log("[Notifications] Native modules not available");
+  }
+}
 
 export interface PushNotificationState {
   expoPushToken: string | null;
-  notification: Notifications.Notification | null;
+  notification: unknown | null;
 }
 
 /**
@@ -31,13 +44,24 @@ export interface PushNotificationState {
 export async function registerForPushNotificationsAsync(): Promise<
   string | null
 > {
+  // Skip on web platform
+  if (Platform.OS === "web") {
+    console.log("[Notifications] Push notifications not supported on web");
+    return null;
+  }
+
   let token: string | null = null;
 
   // Must be a physical device
-  if (!Device.isDevice) {
+  if (!Device?.isDevice) {
     console.log(
       "[Notifications] Must use physical device for push notifications",
     );
+    return null;
+  }
+
+  if (!Notifications) {
+    console.log("[Notifications] Native module not available");
     return null;
   }
 
@@ -58,7 +82,7 @@ export async function registerForPushNotificationsAsync(): Promise<
 
   try {
     // Get the project ID from app config
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
 
     if (!projectId) {
       console.error("[Notifications] No project ID found in app config");
@@ -130,6 +154,7 @@ export async function scheduleLocalNotification(
   data?: Record<string, unknown>,
   seconds = 1,
 ): Promise<string> {
+  if (Platform.OS === "web" || !Notifications) return "";
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title,
@@ -138,9 +163,9 @@ export async function scheduleLocalNotification(
       sound: true,
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      type: Notifications.SchedulableTriggerInputTypes?.TIME_INTERVAL,
       seconds,
-    },
+    } as any,
   });
   return id;
 }
@@ -149,6 +174,7 @@ export async function scheduleLocalNotification(
  * Cancel all scheduled notifications
  */
 export async function cancelAllNotifications(): Promise<void> {
+  if (Platform.OS === "web" || !Notifications) return;
   await Notifications.cancelAllScheduledNotificationsAsync();
 }
 
@@ -156,6 +182,7 @@ export async function cancelAllNotifications(): Promise<void> {
  * Get the badge count
  */
 export async function getBadgeCount(): Promise<number> {
+  if (Platform.OS === "web" || !Notifications) return 0;
   return await Notifications.getBadgeCountAsync();
 }
 
@@ -163,5 +190,6 @@ export async function getBadgeCount(): Promise<number> {
  * Set the badge count
  */
 export async function setBadgeCount(count: number): Promise<void> {
+  if (Platform.OS === "web" || !Notifications) return;
   await Notifications.setBadgeCountAsync(count);
 }

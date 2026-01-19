@@ -1,10 +1,10 @@
-import { Text } from 'react-native'
-import { COPY } from './copy'
-import { getRandom } from './getRandomCopy'
-import { usePreferencesStore } from '@/stores/usePreferencesStore'
+import { Text } from "react-native";
+import { COPY } from "./copy";
+import { getRandom } from "./getRandomCopy";
+import { usePreferencesStore } from "@/lib/stores/usePreferencesStore";
 
 export function FaceSuccessLine() {
-  const { locale } = usePreferencesStore()
-  const line = getRandom(COPY[locale].success)
-  return <Text className="text-base text-center text-foreground">{line}</Text>
+  const { locale } = usePreferencesStore();
+  const line = getRandom(COPY[locale].success);
+  return <Text className="text-base text-center text-foreground">{line}</Text>;
 }
