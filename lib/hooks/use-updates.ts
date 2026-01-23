@@ -35,6 +35,44 @@ export function useUpdates() {
     error: null,
   });
 
+  const downloadAndApplyUpdate = useCallback(async () => {
+    if (__DEV__ || !Updates || !Updates.isEnabled) return;
+
+    setStatus((prev) => ({ ...prev, isDownloading: true }));
+
+    try {
+      const result = await Updates.fetchUpdateAsync();
+
+      if (result.isNew) {
+        setStatus((prev) => ({
+          ...prev,
+          isDownloading: false,
+          isUpdatePending: true,
+        }));
+
+        // Only show toast once per session
+        if (!hasShownUpdateToast.current) {
+          hasShownUpdateToast.current = true;
+          showToast("info", "Update Ready", "Tap to restart and apply update");
+          // Auto-restart after a short delay
+          setTimeout(async () => {
+            if (Updates) await Updates.reloadAsync();
+          }, 2000);
+        }
+      } else {
+        setStatus((prev) => ({ ...prev, isDownloading: false }));
+      }
+    } catch (error) {
+      console.error("[Updates] Download failed:", error);
+      setStatus((prev) => ({
+        ...prev,
+        isDownloading: false,
+        error:
+          error instanceof Error ? error.message : "Failed to download update",
+      }));
+    }
+  }, [showToast]);
+
   const checkForUpdates = useCallback(async (showAlert = false) => {
     // Skip in development or if updates aren't available/enabled
     if (__DEV__ || !Updates || !Updates.isEnabled) {
@@ -73,45 +111,7 @@ export function useUpdates() {
             : "Failed to check for updates",
       }));
     }
-  }, []);
-
-  const downloadAndApplyUpdate = useCallback(async () => {
-    if (__DEV__ || !Updates || !Updates.isEnabled) return;
-
-    setStatus((prev) => ({ ...prev, isDownloading: true }));
-
-    try {
-      const result = await Updates.fetchUpdateAsync();
-
-      if (result.isNew) {
-        setStatus((prev) => ({
-          ...prev,
-          isDownloading: false,
-          isUpdatePending: true,
-        }));
-
-        // Only show toast once per session
-        if (!hasShownUpdateToast.current) {
-          hasShownUpdateToast.current = true;
-          showToast("info", "Update Ready", "Tap to restart and apply update");
-          // Auto-restart after a short delay
-          setTimeout(async () => {
-            if (Updates) await Updates.reloadAsync();
-          }, 2000);
-        }
-      } else {
-        setStatus((prev) => ({ ...prev, isDownloading: false }));
-      }
-    } catch (error) {
-      console.error("[Updates] Download failed:", error);
-      setStatus((prev) => ({
-        ...prev,
-        isDownloading: false,
-        error:
-          error instanceof Error ? error.message : "Failed to download update",
-      }));
-    }
-  }, []);
+  }, [downloadAndApplyUpdate]);
 
   // Check for updates on app launch and when app comes to foreground
   useEffect(() => {
