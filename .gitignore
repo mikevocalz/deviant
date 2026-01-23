@@ -11,6 +11,8 @@ expo-env.d.ts
 ios/
 android/
 *.orig.*
+*.aab
+*.apks
 
 # Signing keys & certificates
 *.jks
