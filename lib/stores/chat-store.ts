@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import { messagesApiClient } from "@/lib/api/messages";
+import { uploadToBunny } from "@/lib/bunny-storage";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export interface MediaAttachment {
   type: "image" | "video";
@@ -31,18 +34,21 @@ interface ChatState {
   showMentions: boolean;
   cursorPosition: number;
   pendingMedia: MediaAttachment | null;
+  isSending: boolean;
   setCurrentMessage: (message: string) => void;
   setMentionQuery: (query: string) => void;
   setShowMentions: (show: boolean) => void;
   setCursorPosition: (position: number) => void;
   setPendingMedia: (media: MediaAttachment | null) => void;
   sendMessage: (chatId: string) => void;
+  sendMessageToBackend: (conversationId: string) => Promise<void>;
   sendMediaMessage: (
     chatId: string,
     media: MediaAttachment,
     caption?: string,
   ) => void;
   initializeChat: (chatId: string, initialMessages: Message[]) => void;
+  loadMessages: (conversationId: string) => Promise<void>;
   insertMention: (username: string) => void;
 }
 
@@ -78,8 +84,112 @@ export const useChatStore = create<ChatState>((set, get) => ({
   showMentions: false,
   cursorPosition: 0,
   pendingMedia: null,
+  isSending: false,
 
   setPendingMedia: (media) => set({ pendingMedia: media }),
+
+  // Load messages from backend
+  loadMessages: async (conversationId: string) => {
+    try {
+      const user = useAuthStore.getState().user;
+      const backendMessages =
+        await messagesApiClient.getMessages(conversationId);
+
+      // Transform to local message format
+      const localMessages: Message[] = backendMessages.map((msg) => ({
+        id: msg.id,
+        text: msg.content,
+        sender: msg.sender.id === user?.id ? "me" : "them",
+        time: new Date(msg.createdAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        media:
+          msg.media.length > 0
+            ? {
+                type: msg.media[0].type,
+                uri: msg.media[0].url,
+              }
+            : undefined,
+      }));
+
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: localMessages,
+        },
+      }));
+    } catch (error) {
+      console.error("[ChatStore] loadMessages error:", error);
+    }
+  },
+
+  // Send message to backend with Bunny CDN upload
+  sendMessageToBackend: async (conversationId: string) => {
+    const { currentMessage, pendingMedia, messages } = get();
+    if (!currentMessage.trim() && !pendingMedia) return;
+
+    const user = useAuthStore.getState().user;
+    if (!user) {
+      console.error("[ChatStore] User not logged in");
+      return;
+    }
+
+    set({ isSending: true });
+
+    try {
+      // Prepare media for upload
+      let mediaItems: Array<{ uri: string; type: "image" | "video" }> = [];
+      if (pendingMedia) {
+        mediaItems = [{ uri: pendingMedia.uri, type: pendingMedia.type }];
+      }
+
+      // Send via API (handles Bunny upload internally)
+      const result = await messagesApiClient.sendMessage({
+        conversationId,
+        content: currentMessage || "",
+        media: mediaItems.length > 0 ? mediaItems : undefined,
+      });
+
+      if (result) {
+        // Add to local state
+        const existingMessages = messages[conversationId] || [];
+        const newMessage: Message = {
+          id: result.id,
+          text: result.content,
+          sender: "me",
+          time: new Date(result.createdAt).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+          media:
+            result.media.length > 0
+              ? {
+                  type: result.media[0].type,
+                  uri: result.media[0].url,
+                }
+              : undefined,
+        };
+
+        set({
+          messages: {
+            ...messages,
+            [conversationId]: [...existingMessages, newMessage],
+          },
+          currentMessage: "",
+          mentionQuery: "",
+          showMentions: false,
+          pendingMedia: null,
+          isSending: false,
+        });
+      } else {
+        set({ isSending: false });
+      }
+    } catch (error) {
+      console.error("[ChatStore] sendMessageToBackend error:", error);
+      set({ isSending: false });
+    }
+  },
 
   setCurrentMessage: (message) => {
     const { cursorPosition } = get();

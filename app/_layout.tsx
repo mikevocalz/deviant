@@ -12,6 +12,7 @@ import AnimatedSplashScreen from "@/components/animated-splash-screen";
 import Animated, { FadeIn, Easing } from "react-native-reanimated";
 import { PortalHost } from "@rn-primitives/portal";
 import { ThemeProvider } from "@react-navigation/native";
+import { Toaster } from "sonner-native";
 import { NAV_THEME } from "@/theme";
 import { useColorScheme } from "@/lib/hooks";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -93,13 +94,13 @@ export default function RootLayout() {
               }}
               entering={FadeIn.duration(600).easing(Easing.out(Easing.cubic))}
             >
-              <StatusBar backgroundColor="#000" style="dark" animated />
+              <StatusBar backgroundColor="#000" style="light" animated />
               <Stack
                 screenOptions={{
                   headerShown: false,
                   animation: "fade",
                   animationDuration: 200,
-                  contentStyle: { backgroundColor: "#000" },
+                  contentStyle: { backgroundColor: "#8a40cf" },
                 }}
               >
                 <Stack.Protected guard={!isAuthenticated}>
@@ -124,6 +125,20 @@ export default function RootLayout() {
               </Stack>
             </Animated.View>
             <PortalHost />
+            <Toaster
+              position="top-center"
+              offset={60}
+              theme="dark"
+              toastOptions={{
+                style: {
+                  backgroundColor: "#1a1a1a",
+                  borderColor: "#333",
+                  borderWidth: 1,
+                },
+                titleStyle: { color: "#fff" },
+                descriptionStyle: { color: "#a1a1aa" },
+              }}
+            />
           </ThemeProvider>
         </QueryClientProvider>
       </KeyboardProvider>

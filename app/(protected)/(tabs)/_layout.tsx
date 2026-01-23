@@ -14,21 +14,25 @@ import {
 import { useColorScheme } from "@/lib/hooks";
 import Logo from "@/components/logo";
 import { CenterButton } from "@/components/center-button";
+import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
 
 export default function TabsLayout() {
   const router = useRouter();
   const { colors } = useColorScheme();
+  const { data: unreadCount = 0 } = useUnreadMessageCount();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: true,
+        headerTitleAlign: "left",
         headerStyle: {
           backgroundColor: colors.background,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          //paddingBottom: 4,
         },
-        headerTitle: () => <Logo width={100} height={50} />,
+        headerTitle: () => <Logo width={100} height={50} style={{ marginBottom: 4 }} />,
         headerRight: () => (
           <View className="mr-4 flex-row items-center gap-4">
             <Pressable onPress={() => router.push("/(protected)/search")}>
@@ -39,11 +43,13 @@ export default function TabsLayout() {
               className="relative"
             >
               <MessageSquare size={24} color={colors.foreground} />
-              <View className="absolute -right-1 -top-1 h-4 w-4 items-center justify-center rounded-full bg-accent">
-                <Text className="text-[10px] font-bold text-accent-foreground">
-                  3
-                </Text>
-              </View>
+              {unreadCount > 0 && (
+                <View className="absolute -right-1 -top-1 h-4 w-4 items-center justify-center rounded-full bg-accent">
+                  <Text className="text-[10px] font-bold text-accent-foreground">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           </View>
         ),

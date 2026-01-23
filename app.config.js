@@ -18,7 +18,7 @@ export default {
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",
     splash: {
-      image: "./assets/images/splash.png",
+      image: "./assets/images/splash-icon.png",
       resizeMode: "contain",
       backgroundColor: "#000000",
     },
@@ -31,8 +31,9 @@ export default {
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.dvnt.app",
-      buildNumber: "1.0.0",
+      icon: "./assets/images/ios-icon.png",
       infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
           "This app needs access to your camera to take photos and videos for posts and stories.",
         NSPhotoLibraryUsageDescription:

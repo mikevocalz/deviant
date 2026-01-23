@@ -188,6 +188,7 @@ export default function IdScanTab() {
           device={device}
           isActive
           photo
+        
         />
         
         {/* ID frame overlay */}

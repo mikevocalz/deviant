@@ -116,7 +116,6 @@ export async function uploadToBunny(
   userId?: string,
 ): Promise<UploadResult> {
   if (!BUNNY_STORAGE_ZONE || !BUNNY_STORAGE_API_KEY) {
-    console.error("[Bunny] Missing storage configuration");
     return {
       success: false,
       url: "",
@@ -169,7 +168,6 @@ export async function uploadToBunny(
             filename,
           });
         } else {
-          console.error("[Bunny] Upload failed:", xhr.status, xhr.responseText);
           resolve({
             success: false,
             url: "",

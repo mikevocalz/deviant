@@ -4,11 +4,10 @@ import {
   Text,
   TextInput,
   Pressable,
-  ScrollView,
   Keyboard,
   ActivityIndicator,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { X, Send, Heart } from "lucide-react-native";
@@ -102,7 +101,13 @@ export default function CommentsScreen() {
         </Pressable>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <KeyboardAwareScrollView 
+        style={{ flex: 1 }} 
+        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
+        enabled={true}
+      >
         {comments.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ color: "#999" }}>No comments yet</Text>
@@ -388,15 +393,15 @@ export default function CommentsScreen() {
             );
           })
         )}
-      </ScrollView>
-
-      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0}>
+        
+        {/* Input at bottom of scroll view */}
         <View
           style={{
             borderTopWidth: 1,
             borderTopColor: "#1a1a1a",
             paddingHorizontal: 16,
             paddingVertical: 12,
+            paddingBottom: Math.max(insets.bottom, 12),
           }}
         >
           {replyingTo && (
@@ -461,7 +466,7 @@ export default function CommentsScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

@@ -34,8 +34,10 @@
     "@rork-ai/toolkit-sdk": "0.2.54",
     "@shopify/flash-list": "^2.0.2",
     "@shopify/react-native-skia": "2.2.12",
+    "@tanstack/pacer": "^0.17.3",
     "@tanstack/react-form": "^1.27.7",
     "@tanstack/react-query": "^5.90.16",
+    "babel-preset-expo": "^54.0.9",
     "better-auth": "^1.4.12",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -110,6 +112,7 @@
     "@types/react-dom": "~19.1.11",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.10",
+    "sharp": "^0.34.5",
     "typescript": "~5.9.3"
   },
   "private": true,

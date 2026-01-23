@@ -7,18 +7,41 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "channel": "development"
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
+        "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}"
+      }
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
+        "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}"
+      }
     },
     "production": {
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "${API_URL}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
+        "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
+        "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6758054072"
+      }
+    }
   }
 }

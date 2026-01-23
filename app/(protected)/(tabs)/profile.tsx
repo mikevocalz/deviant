@@ -13,28 +13,236 @@ import {
   Camera,
   Link,
   ChevronRight,
+  Grid3x3,
+  X,
+  Check,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { posts } from "@/lib/constants";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { Motion } from "@legendapp/motion";
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
+  usePopover,
 } from "@/components/ui/popover";
+import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { TextInput } from "react-native";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
 
-// TODO: Replace with real user posts from API
-const userPosts: { id: string; thumbnail: string; type: string }[] = [];
+// Edit Profile Content Component
+function EditProfileContent() {
+  const router = useRouter();
+  const { colors } = useColorScheme();
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const [isSaving, setIsSaving] = useState(false);
+  const {
+    editName,
+    editBio,
+    editWebsite,
+    setEditName,
+    setEditBio,
+    setEditWebsite,
+  } = useProfileStore();
+  const { setOpen: setPopoverOpen } = usePopover();
+
+  const handleSave = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      // Update local auth store
+      setUser({
+        ...user,
+        name: editName,
+        bio: editBio,
+        website: editWebsite,
+      });
+      setPopoverOpen(false);
+    } catch (error) {
+      console.error("[EditProfile] Save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name || "");
+      setEditBio(user.bio || "");
+      setEditWebsite(user.website || "");
+    }
+  }, [user, setEditName, setEditBio, setEditWebsite]);
+
+  const hasChanges =
+    editName !== (user?.name || "") ||
+    editBio !== (user?.bio || "") ||
+    editWebsite !== (user?.website || "");
+
+  return (
+    <View className="flex-1">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-6 pb-6 border-b border-border">
+        <Pressable onPress={() => setPopoverOpen(false)} hitSlop={12}>
+          <X size={24} color={colors.foreground} />
+        </Pressable>
+        <Text className="text-xl font-bold text-foreground">Edit Profile</Text>
+        <Pressable
+          onPress={handleSave}
+          disabled={isSaving || !hasChanges}
+          hitSlop={12}
+          className={`px-4 py-2 rounded-full ${
+            hasChanges && !isSaving ? "bg-primary" : "bg-muted"
+          }`}
+        >
+          {isSaving ? (
+            <Text className="text-sm font-semibold text-muted-foreground">
+              Saving...
+            </Text>
+          ) : (
+            <View className="flex-row items-center gap-2">
+              <Check
+                size={18}
+                color={hasChanges ? colors.primaryForeground : colors.mutedForeground}
+              />
+              <Text
+                className={`text-sm font-semibold ${
+                  hasChanges
+                    ? "text-primary-foreground"
+                    : "text-muted-foreground"
+                }`}
+              >
+                Save
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bottomOffset={100}
+        enabled={true}
+      >
+        {/* Avatar Section */}
+        <View className="items-center py-8">
+          <View className="relative">
+            <Image
+              source={{
+                uri:
+                  user?.avatar ||
+                  "https://ui-avatars.com/api/?name=" +
+                    encodeURIComponent(user?.name || "User"),
+              }}
+              className="w-32 h-32 rounded-full"
+              contentFit="cover"
+            />
+            <Pressable
+              className="absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
+              style={{ borderColor: colors.card }}
+            >
+              <Camera size={18} color="#fff" />
+            </Pressable>
+          </View>
+          <Pressable className="mt-4">
+            <Text className="text-base font-semibold text-primary">
+              Change Photo
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Form Fields */}
+        <View className="px-6 gap-6">
+          <View>
+            <Text
+              style={{ color: colors.mutedForeground }}
+              className="mb-3 text-sm font-semibold"
+            >
+              Name
+            </Text>
+            <TextInput
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="Your name"
+              placeholderTextColor={colors.mutedForeground}
+              style={{
+                color: colors.foreground,
+                backgroundColor: colors.muted,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 16,
+              }}
+            />
+          </View>
+
+          <View>
+            <Text
+              style={{ color: colors.mutedForeground }}
+              className="mb-3 text-sm font-semibold"
+            >
+              Bio
+            </Text>
+            <TextInput
+              value={editBio}
+              onChangeText={setEditBio}
+              placeholder="Write a short bio..."
+              placeholderTextColor={colors.mutedForeground}
+              multiline
+              textAlignVertical="top"
+              style={{
+                minHeight: 100,
+                color: colors.foreground,
+                backgroundColor: colors.muted,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 16,
+              }}
+            />
+          </View>
+
+          <View>
+            <Text
+              style={{ color: colors.mutedForeground }}
+              className="mb-3 text-sm font-semibold"
+            >
+              Website
+            </Text>
+            <TextInput
+              value={editWebsite}
+              onChangeText={setEditWebsite}
+              placeholder="https://yourwebsite.com"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              keyboardType="url"
+              style={{
+                color: colors.foreground,
+                backgroundColor: colors.muted,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 16,
+              }}
+            />
+          </View>
+        </View>
+      </KeyboardAwareScrollView>
+    </View>
+  );
+}
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -44,6 +252,9 @@ export default function ProfileScreen() {
   const { loadingScreens, setScreenLoading } = useUIStore();
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
+  
+  // Fetch real user posts
+  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "");
 
   // Format follower count (e.g., 24800 -> "24.8K")
   const formatCount = (count: number) => {
@@ -60,19 +271,35 @@ export default function ProfileScreen() {
     loadProfile();
   }, [setScreenLoading]);
 
+  // Transform user posts data
+  const userPosts = useMemo(() => {
+    if (!userPostsData) return [];
+    return userPostsData.map((post) => ({
+      id: post.id,
+      thumbnail: post.media[0]?.url || "/placeholder.svg",
+      type: post.media[0]?.type === "video" ? "video" : "image",
+      mediaCount: post.media.length,
+      hasMultipleImages: post.media.length > 1 && post.media[0]?.type === "image",
+    }));
+  }, [userPostsData]);
+
+  // Fetch bookmarked posts
+  const { data: bookmarkedPostsData = [] } = usePostsByIds(bookmarkedPosts);
+
   const savedPosts = useMemo(() => {
-    return posts
-      .filter((post) => bookmarkedPosts.includes(post.id))
-      .map((post) => ({
-        id: post.id,
-        thumbnail: post.media[0]?.url || "/placeholder.svg",
-        type: post.media[0]?.type === "video" ? "video" : "image",
-      }));
-  }, [bookmarkedPosts]);
+    if (!bookmarkedPostsData || bookmarkedPostsData.length === 0) return [];
+    return bookmarkedPostsData.map((post) => ({
+      id: post.id,
+      thumbnail: post.media[0]?.url || "/placeholder.svg",
+      type: post.media[0]?.type === "video" ? "video" : "image",
+      mediaCount: post.media.length,
+      hasMultipleImages: post.media.length > 1 && post.media[0]?.type === "image",
+    }));
+  }, [bookmarkedPostsData]);
 
   const videoPosts = useMemo(
     () => userPosts.filter((p) => p.type === "video"),
-    [],
+    [userPosts],
   );
   const taggedPosts: typeof userPosts = []; // Placeholder for tagged posts
 
@@ -89,9 +316,9 @@ export default function ProfileScreen() {
       default:
         return userPosts;
     }
-  }, [activeTab, savedPosts, videoPosts]);
+  }, [activeTab, savedPosts, videoPosts, userPosts]);
 
-  if (isLoading) {
+  if (isLoading || isLoadingPosts) {
     return (
       <View className="flex-1 bg-background">
         <ProfileSkeleton />
@@ -130,7 +357,7 @@ export default function ProfileScreen() {
             <View className="flex-1 flex-row justify-around">
               <Pressable className="items-center px-2">
                 <Text className="text-xl font-bold text-foreground">
-                  {user?.postsCount || 0}
+                  {userPostsData?.length || 0}
                 </Text>
                 <Text className="text-xs text-muted-foreground">Posts</Text>
               </Pressable>
@@ -165,50 +392,17 @@ export default function ProfileScreen() {
             )}
           </View>
 
-          <View className="mt-5 flex-row gap-2">
+          <View className="mt-5 flex-row gap-2 px-4">
             <Popover>
               <PopoverTrigger>
-                <View className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary">
+                <View className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4">
                   <Text className="font-semibold text-secondary-foreground">
                     Edit profile
                   </Text>
                 </View>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="start">
-                <Pressable
-                  onPress={() =>
-                    router.push("/(protected)/profile/edit" as any)
-                  }
-                  className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
-                >
-                  <User size={20} color={colors.foreground} />
-                  <Text className="flex-1 text-base text-foreground">
-                    Edit Profile
-                  </Text>
-                  <ChevronRight size={18} color={colors.mutedForeground} />
-                </Pressable>
-                <View className="mx-4 h-px bg-white/10" />
-                <Pressable
-                  onPress={() => console.log("Change avatar")}
-                  className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
-                >
-                  <Camera size={20} color={colors.foreground} />
-                  <Text className="flex-1 text-base text-foreground">
-                    Change Avatar
-                  </Text>
-                  <ChevronRight size={18} color={colors.mutedForeground} />
-                </Pressable>
-                <View className="mx-4 h-px bg-white/10" />
-                <Pressable
-                  onPress={() => console.log("Edit links")}
-                  className="flex-row items-center gap-3 px-4 py-3 active:bg-white/10"
-                >
-                  <Link size={20} color={colors.foreground} />
-                  <Text className="flex-1 text-base text-foreground">
-                    Edit Links
-                  </Text>
-                  <ChevronRight size={18} color={colors.mutedForeground} />
-                </Pressable>
+              <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
+                <EditProfileContent />
               </PopoverContent>
             </Popover>
           </View>
@@ -320,7 +514,7 @@ export default function ProfileScreen() {
                   }}
                 >
                   <Pressable
-                    onPress={() => router.push(`/post/${item.id}`)}
+                    onPress={() => router.push(`/(protected)/post/${item.id}`)}
                     className="flex-1 rounded-sm overflow-hidden"
                   >
                     <SharedImage
@@ -330,8 +524,13 @@ export default function ProfileScreen() {
                       sharedTag={`post-image-${item.id}`}
                     />
                     {item.type === "video" && (
-                      <View className="absolute top-2 right-2">
-                        <Play size={18} color="#fff" fill="#fff" />
+                      <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
+                        <Play size={16} color="#fff" fill="#fff" />
+                      </View>
+                    )}
+                    {item.hasMultipleImages && (
+                      <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
+                        <Grid3x3 size={16} color="#fff" />
                       </View>
                     )}
                   </Pressable>

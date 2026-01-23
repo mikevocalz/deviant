@@ -1,4 +1,4 @@
-import { Pressable, View, ViewStyle } from "react-native";
+import { Platform, Pressable, View, ViewStyle } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 
 type CenterButtonProps = {
@@ -9,7 +9,7 @@ type CenterButtonProps = {
 export function CenterButton({ Icon, onPress }: CenterButtonProps) {
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: -34,
+    bottom: Platform.OS === "android" ? -34 : -48,
     left: "50%",
     transform: [{ translateX: -30 }],
     width: 60,

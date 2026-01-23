@@ -190,6 +190,19 @@ Before running native builds, verify:
 - Do not add or remove comments unless asked
 - Preserve existing formatting
 - Use Zustand stores instead of useState hooks
+- **ALWAYS use sonner-native toasts instead of Alert** - Use `useUIStore.showToast()` for all user feedback:
+
+  ```tsx
+  import { useUIStore } from "@/lib/stores/ui-store";
+
+  const showToast = useUIStore((s) => s.showToast);
+
+  // Instead of: Alert.alert("Error", "Something went wrong")
+  showToast("error", "Error", "Something went wrong");
+
+  // Types: "success" | "error" | "warning" | "info"
+  showToast("success", "Done", "Post created successfully");
+  ```
 
 ---
 
@@ -570,16 +583,34 @@ setUploadProgress(100);
 
 ## 🚀 Production Deployment (API Routes)
 
+### Live Deployments
+
+| Service               | URL                                         |
+| --------------------- | ------------------------------------------- |
+| **Payload CMS**       | `https://payload-cms-setup-gray.vercel.app` |
+| **API Server (Hono)** | `https://server-zeta-lovat.vercel.app`      |
+| **Bunny CDN**         | `https://dvnt.b-cdn.net`                    |
+
+### EAS Environment Variables
+
+These are configured in EAS project settings and referenced in `eas.json`:
+
+| Variable               | EAS Secret Name | Value                                       |
+| ---------------------- | --------------- | ------------------------------------------- |
+| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://payload-cms-setup-gray.vercel.app` |
+| `EXPO_PUBLIC_AUTH_URL` | -               | `https://server-zeta-lovat.vercel.app`      |
+| `EXPO_PUBLIC_BUNNY_*`  | `BUNNY_*`       | See EAS secrets                             |
+
 ### Architecture Overview
 
 ```
 Native App (iOS/Android)
          ↓
-EXPO_PUBLIC_API_URL (standalone Hono server)
+EXPO_PUBLIC_API_URL (https://payload-cms-setup-gray.vercel.app)
          ↓
-Standalone API Server (server/)
+Payload CMS API
          ↓
-Payload CMS
+Supabase PostgreSQL
 ```
 
 **Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. Use the standalone `server/` directory for production API deployment.
@@ -624,15 +655,15 @@ npm start
 
 3. **Configure native app** to use deployed API:
 
-   In `eas.json` for production builds:
+   Environment variables are set via EAS secrets and referenced in `eas.json`:
 
    ```json
    {
      "build": {
        "production": {
          "env": {
-           "EXPO_PUBLIC_API_URL": "https://your-api-server.vercel.app",
-           "EXPO_PUBLIC_AUTH_URL": "https://your-api-server.vercel.app"
+           "EXPO_PUBLIC_API_URL": "${API_URL}",
+           "EXPO_PUBLIC_AUTH_URL": "${AUTH_URL}"
          }
        }
      }

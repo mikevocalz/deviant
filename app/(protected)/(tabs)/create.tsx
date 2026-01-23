@@ -1,13 +1,12 @@
-
 import {
   View,
   Text,
   Pressable,
-  ScrollView,
   TextInput,
   Alert,
   Dimensions,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import {
   X,
@@ -40,7 +39,7 @@ const ASPECT_RATIO = 5 / 4;
 
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
-const MIN_CAPTION_LENGTH = 100;
+const MIN_CAPTION_LENGTH = 50;
 
 export default function CreateScreen() {
   const router = useRouter();
@@ -212,8 +211,35 @@ export default function CreateScreen() {
   };
 
   const handlePost = async () => {
+    console.log("[Create] handlePost called!");
+    console.log("[Create] isValid:", isValid);
+    console.log("[Create] isUploading:", isUploading);
+    console.log("[Create] selectedMedia:", selectedMedia.length);
+    console.log("[Create] caption length:", caption.trim().length);
+
+    // Check Bunny CDN configuration
+    const bunnyZone = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE;
+    const bunnyKey = process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY;
+    console.log("[Create] Bunny config:", {
+      zone: bunnyZone ? "set" : "MISSING",
+      key: bunnyKey ? "set" : "MISSING",
+    });
+
+    if (!bunnyZone || !bunnyKey) {
+      showToast(
+        "error",
+        "Config Error",
+        "Media storage not configured. Please update the app.",
+      );
+      return;
+    }
+
     if (selectedMedia.length === 0) {
-      Alert.alert("No Media", "Please select at least one photo or video");
+      showToast(
+        "error",
+        "No Media",
+        "Please select at least one photo or video",
+      );
       return;
     }
 
@@ -226,59 +252,80 @@ export default function CreateScreen() {
       return;
     }
 
-    console.log("[Create] Uploading media to CDN...");
+    try {
+      console.log("[Create] Starting post creation...");
+      console.log("[Create] Selected media count:", selectedMedia.length);
 
-    // Upload media to Bunny.net CDN
-    const mediaFiles = selectedMedia.map((m) => ({
-      uri: m.uri,
-      type: m.type as "image" | "video",
-    }));
+      // Upload media to Bunny.net CDN
+      const mediaFiles = selectedMedia.map((m) => ({
+        uri: m.uri,
+        type: m.type as "image" | "video",
+      }));
 
-    const uploadResults = await uploadMultiple(mediaFiles);
+      console.log("[Create] Uploading media to CDN...");
+      let uploadResults;
+      try {
+        uploadResults = await uploadMultiple(mediaFiles);
+        console.log("[Create] Upload results:", JSON.stringify(uploadResults));
+      } catch (uploadError) {
+        console.error("[Create] Upload threw error:", uploadError);
+        showToast(
+          "error",
+          "Upload Failed",
+          "Could not upload media. Please try again.",
+        );
+        return;
+      }
 
-    // Check if all uploads succeeded
-    const failedUploads = uploadResults.filter((r) => !r.success);
-    if (failedUploads.length > 0) {
-      Alert.alert(
-        "Upload Error",
-        `${failedUploads.length} file(s) failed to upload. Please try again.`,
+      // Check if all uploads succeeded
+      const failedUploads = uploadResults.filter((r) => !r.success);
+      if (failedUploads.length > 0) {
+        console.error("[Create] Upload failures:", failedUploads);
+        showToast(
+          "error",
+          "Upload Error",
+          `${failedUploads.length} file(s) failed to upload. Please try again.`,
+        );
+        return;
+      }
+
+      // Create post with CDN URLs
+      const postMedia = uploadResults.map((r) => ({
+        type: r.type,
+        url: r.url,
+      }));
+
+      console.log("[Create] Creating post with CDN URLs:", postMedia);
+      console.log("[Create] Author ID:", user?.id);
+
+      createPost(
+        {
+          caption,
+          location,
+          media: postMedia,
+          author: user?.id,
+        },
+        {
+          onSuccess: (newPost) => {
+            console.log("[Create] Post created successfully:", newPost.id);
+            showToast("success", "Posted!", "Your post is now live");
+            reset();
+            router.back();
+          },
+          onError: (error) => {
+            console.error("[Create] Failed to create post:", error);
+            showToast(
+              "error",
+              "Error",
+              "Failed to create post. Please try again.",
+            );
+          },
+        },
       );
-      return;
+    } catch (error) {
+      console.error("[Create] Unexpected error:", error);
+      showToast("error", "Error", "Something went wrong. Please try again.");
     }
-
-    // Create post with CDN URLs
-    const postMedia = uploadResults.map((r) => ({
-      type: r.type,
-      url: r.url,
-    }));
-
-    console.log("[Create] Creating post with CDN URLs:", postMedia);
-
-    createPost(
-      {
-        caption,
-        location,
-        media: postMedia,
-        author: user
-          ? {
-              username: user.username || "you",
-              avatar: user.avatar || "https://i.pravatar.cc/150?img=12",
-              verified: false,
-            }
-          : undefined,
-      },
-      {
-        onSuccess: (newPost) => {
-          console.log("[Create] Post created successfully:", newPost.id);
-          reset();
-          router.replace("/(protected)/(tabs)");
-        },
-        onError: (error) => {
-          console.error("[Create] Failed to create post:", error);
-          Alert.alert("Error", "Failed to create post. Please try again.");
-        },
-      },
-    );
   };
 
   const handleClose = () => {
@@ -319,26 +366,56 @@ export default function CreateScreen() {
             </Pressable>
           ),
           headerRight: () => (
-            <Motion.View whileTap={{ scale: 0.95 }}>
-              <Pressable
-                onPress={handlePost}
-                disabled={isUploading || !isValid}
-                className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
+            <Pressable
+              onPress={() => {
+                console.log("[Create] Share button pressed!");
+                console.log(
+                  "[Create] isValid:",
+                  isValid,
+                  "isUploading:",
+                  isUploading,
+                );
+                if (isUploading) {
+                  showToast("info", "Please wait", "Upload in progress...");
+                  return;
+                }
+                if (selectedMedia.length === 0) {
+                  showToast(
+                    "error",
+                    "No Media",
+                    "Please select at least one photo or video",
+                  );
+                  return;
+                }
+                if (caption.trim().length < MIN_CAPTION_LENGTH) {
+                  showToast(
+                    "error",
+                    "Caption Too Short",
+                    `Please write at least ${MIN_CAPTION_LENGTH} characters`,
+                  );
+                  return;
+                }
+                handlePost();
+              }}
+              className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
+            >
+              <Text
+                className={`text-sm font-semibold ${isValid ? "text-primary-foreground" : "text-muted-foreground"}`}
               >
-                <Text
-                  className={`text-sm font-semibold ${isValid ? "text-primary-foreground" : "text-muted-foreground"}`}
-                >
-                  {isUploading ? "Posting..." : "Share"}
-                </Text>
-              </Pressable>
-            </Motion.View>
+                {isUploading ? "Posting..." : "Share"}
+              </Text>
+            </Pressable>
           ),
         }}
       />
 
-      <ScrollView
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
+        enabled={true}
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ padding: 16 }}>
@@ -606,7 +683,7 @@ export default function CreateScreen() {
             </Text>
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Progress Overlay */}
       {isUploading && (

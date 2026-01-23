@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { View, Text, Pressable, Alert } from "react-native";
+import { View, Text, Pressable } from "react-native";
+import { toast } from "sonner-native";
 import { useForm } from "@tanstack/react-form";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { router } from "expo-router";
 import { signIn } from "@/lib/auth-client";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import Logo from "@/components/logo";
 
 export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { setUser } = useAuthStore();
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
@@ -23,16 +26,34 @@ export default function LoginScreen() {
         });
 
         if (result.error) {
-          Alert.alert(
-            "Login Failed",
-            result.error.message || "Invalid credentials",
-          );
+          toast.error("Login Failed", {
+            description: result.error.message || "Invalid credentials",
+          });
         } else if (result.data?.user) {
-          router.replace("/(protected)/(tabs)" as any);
+          console.log("[Login] Success, navigating to home...");
+          // Small delay to let auth state sync before navigation
+          setTimeout(() => {
+            router.replace("/(protected)/(tabs)" as any);
+          }, 100);
         }
-      } catch (error) {
-        Alert.alert("Error", "Something went wrong. Please try again.");
+      } catch (error: any) {
         console.error("[Login] Error:", error);
+
+        // Network error - auth server not available
+        if (
+          error?.message?.includes("fetch") ||
+          error?.message?.includes("network")
+        ) {
+          toast.error("Connection Error", {
+            description:
+              "Unable to connect to auth server. Please try again later.",
+          });
+        } else {
+          toast.error("Login Failed", {
+            description:
+              error?.message || "Something went wrong. Please try again.",
+          });
+        }
       }
 
       setIsSubmitting(false);

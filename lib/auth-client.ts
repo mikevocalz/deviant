@@ -8,6 +8,7 @@
 
 import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
+import { usernameClient } from "better-auth/client/plugins";
 import { Platform } from "react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -47,6 +48,7 @@ export const authClient = createAuthClient({
       storagePrefix: "dvnt",
       storage: getStorage(),
     }),
+    usernameClient(),
   ],
 });
 
@@ -97,14 +99,59 @@ function syncUserToStore(
   }
 }
 
-// Wrapped sign in that syncs to store
+// Wrapped sign in using Payload CMS auth
 export const signIn = {
   email: async (params: { email: string; password: string }) => {
-    const result = await rawSignIn.email(params);
-    if (result.data?.user) {
-      syncUserToStore(result.data.user);
+    console.log("[Auth] Starting login for:", params.email);
+    console.log("[Auth] BASE_URL:", BASE_URL);
+    try {
+      // Use Payload CMS login endpoint
+      const response = await fetch(`${BASE_URL}/api/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: params.email,
+          password: params.password,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("[Auth] Login response:", JSON.stringify(data, null, 2));
+
+      if (!response.ok) {
+        const errorMsg =
+          data.errors?.[0]?.message || data.message || "Login failed";
+        console.error("[Auth] Login error:", errorMsg);
+        return { error: { message: errorMsg }, data: null };
+      }
+
+      if (data.user) {
+        console.log("[Auth] User logged in:", data.user.id);
+        syncUserToStore({
+          id: String(data.user.id),
+          email: data.user.email,
+          name: data.user.firstName || data.user.username,
+          username: data.user.username,
+          emailVerified: data.user.verified || false,
+          image: data.user.avatar,
+          bio: data.user.bio,
+          postsCount: data.user.postsCount,
+          followersCount: data.user.followersCount,
+          followingCount: data.user.followingCount,
+        });
+
+        // Store the JWT token
+        const storage = getStorage();
+        if (data.token) {
+          await storage.setItem("dvnt_auth_token", data.token);
+        }
+      }
+
+      return { error: null, data: { user: data.user, token: data.token } };
+    } catch (error: any) {
+      console.error("[Auth] Login exception:", error?.message || error);
+      throw error;
     }
-    return result;
   },
   social: async (params: {
     provider: "google" | "apple" | "facebook";
@@ -120,14 +167,60 @@ export const signIn = {
   },
 };
 
-// Wrapped sign up that syncs to store
+// Wrapped sign up using server registration endpoint
 export const signUp = {
-  email: async (params: { email: string; password: string; name: string }) => {
-    const result = await rawSignUp.email(params);
-    if (result.data?.user) {
-      syncUserToStore(result.data.user);
+  email: async (params: {
+    email: string;
+    password: string;
+    name: string;
+    username?: string;
+  }) => {
+    console.log("[Auth] Starting signup for:", params.email);
+    try {
+      // Use server's public registration endpoint
+      const response = await fetch(`${BASE_URL}/api/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: params.email,
+          password: params.password,
+          username: params.username || params.email.split("@")[0],
+        }),
+      });
+
+      const data = await response.json();
+      console.log("[Auth] Signup response:", JSON.stringify(data, null, 2));
+
+      if (!response.ok) {
+        const errorMsg =
+          data.error || data.errors?.[0]?.message || "Registration failed";
+        console.error("[Auth] Signup error:", errorMsg);
+        return { error: { message: errorMsg }, data: null };
+      }
+
+      if (data.user) {
+        console.log("[Auth] User created:", data.user.id);
+        syncUserToStore({
+          id: String(data.user.id),
+          email: data.user.email,
+          name: params.name || data.user.username,
+          username: data.user.username,
+          emailVerified: data.user.verified || false,
+          image: data.user.avatar,
+        });
+
+        // Store the JWT token
+        const storage = getStorage();
+        if (data.token) {
+          await storage.setItem("dvnt_auth_token", data.token);
+        }
+      }
+
+      return { error: null, data: { user: data.user, token: data.token } };
+    } catch (error: any) {
+      console.error("[Auth] Signup exception:", error?.message || error);
+      throw error;
     }
-    return result;
   },
 };
 

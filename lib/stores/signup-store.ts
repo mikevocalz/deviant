@@ -1,51 +1,53 @@
-import { create } from "zustand"
+import { create } from "zustand";
 
 interface SignupFormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  dateOfBirth: string
-  password: string
-  confirmPassword: string
+  firstName: string;
+  lastName: string;
+  email: string;
+  username: string;
+  phone: string;
+  dateOfBirth: string;
+  password: string;
+  confirmPassword: string;
 }
 
 interface IDVerification {
-  idImage: string | null
-  faceImage: string | null
-  isVerified: boolean
-  extractedDOB: string | null
-  isOver18: boolean | null
+  idImage: string | null;
+  faceImage: string | null;
+  isVerified: boolean;
+  extractedDOB: string | null;
+  isOver18: boolean | null;
 }
 
 interface SignupStore {
-  activeStep: number
-  formData: SignupFormData
-  idVerification: IDVerification
-  hasScrolledToBottom: boolean
-  termsAccepted: boolean
-  isSubmitting: boolean
-  setActiveStep: (step: number) => void
-  updateFormData: (data: Partial<SignupFormData>) => void
-  setIDImage: (image: string) => void
-  setFaceImage: (image: string) => void
-  setVerified: (verified: boolean) => void
-  setExtractedDOB: (dob: string | null, isOver18: boolean | null) => void
-  setHasScrolledToBottom: (scrolled: boolean) => void
-  setTermsAccepted: (accepted: boolean) => void
-  setIsSubmitting: (submitting: boolean) => void
-  resetSignup: () => void
+  activeStep: number;
+  formData: SignupFormData;
+  idVerification: IDVerification;
+  hasScrolledToBottom: boolean;
+  termsAccepted: boolean;
+  isSubmitting: boolean;
+  setActiveStep: (step: number) => void;
+  updateFormData: (data: Partial<SignupFormData>) => void;
+  setIDImage: (image: string) => void;
+  setFaceImage: (image: string) => void;
+  setVerified: (verified: boolean) => void;
+  setExtractedDOB: (dob: string | null, isOver18: boolean | null) => void;
+  setHasScrolledToBottom: (scrolled: boolean) => void;
+  setTermsAccepted: (accepted: boolean) => void;
+  setIsSubmitting: (submitting: boolean) => void;
+  resetSignup: () => void;
 }
 
 const initialFormData: SignupFormData = {
   firstName: "",
   lastName: "",
   email: "",
+  username: "",
   phone: "",
   dateOfBirth: "",
   password: "",
   confirmPassword: "",
-}
+};
 
 const initialIdVerification: IDVerification = {
   idImage: null,
@@ -53,7 +55,7 @@ const initialIdVerification: IDVerification = {
   isVerified: false,
   extractedDOB: null,
   isOver18: null,
-}
+};
 
 export const useSignupStore = create<SignupStore>((set) => ({
   activeStep: 0,
@@ -95,4 +97,4 @@ export const useSignupStore = create<SignupStore>((set) => ({
       termsAccepted: false,
       isSubmitting: false,
     }),
-}))
+}));

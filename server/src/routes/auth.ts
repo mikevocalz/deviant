@@ -1,11 +1,11 @@
 import { Hono } from "hono";
+import { auth } from "../lib/auth";
 
 export const authRoutes = new Hono();
 
-// Auth routes are handled by Better Auth on the main app
-// This is a placeholder for any custom auth endpoints
-
-authRoutes.get("/session", async (c) => {
-  // Forward to Better Auth or return session info
-  return c.json({ message: "Auth routes - configure with Better Auth" });
+// Better Auth handler - handles all auth endpoints
+authRoutes.all("/*", async (c) => {
+  const request = c.req.raw;
+  const response = await auth.handler(request);
+  return response;
 });

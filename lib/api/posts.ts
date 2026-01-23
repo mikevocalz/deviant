@@ -11,6 +11,9 @@ export interface PaginatedResponse<T> {
 
 // Transform API response to match Post type
 function transformPost(doc: Record<string, unknown>): Post {
+  const media =
+    (doc.media as Array<{ type: "image" | "video"; url: string }>) || [];
+
   return {
     id: doc.id as string,
     author: {
@@ -23,7 +26,7 @@ function transformPost(doc: Record<string, unknown>): Post {
         false,
       name: (doc.author as Record<string, unknown>)?.name as string,
     },
-    media: (doc.media as Array<{ type: "image" | "video"; url: string }>) || [],
+    media,
     caption: doc.caption as string,
     likes: (doc.likes as number) || 0,
     comments: [],
@@ -112,14 +115,20 @@ export const postsApi = {
     }
   },
 
-  // Like a post
-  async likePost(postId: string): Promise<{ postId: string; likes: number }> {
+  // Like/unlike a post
+  async likePost(
+    postId: string,
+    isLiked: boolean,
+  ): Promise<{ postId: string; likes: number }> {
     try {
       const post = await posts.findByID(postId);
       const currentLikes =
         ((post as Record<string, unknown>).likes as number) || 0;
-      await posts.update(postId, { likes: currentLikes + 1 });
-      return { postId, likes: currentLikes + 1 };
+      const newLikes = isLiked
+        ? Math.max(0, currentLikes - 1)
+        : currentLikes + 1;
+      await posts.update(postId, { likes: newLikes });
+      return { postId, likes: newLikes };
     } catch (error) {
       console.error("[postsApi] likePost error:", error);
       return { postId, likes: 0 };
@@ -127,19 +136,33 @@ export const postsApi = {
   },
 
   // Create a new post
-  async createPost(data: Partial<Post>): Promise<Post> {
+  async createPost(data: {
+    author?: string;
+    media?: Array<{ type: string; url: string }>;
+    caption?: string;
+    location?: string;
+    isNSFW?: boolean;
+  }): Promise<Post> {
+    console.log("[postsApi] createPost called with:", JSON.stringify(data));
+    console.log(
+      "[postsApi] API_URL:",
+      process.env.EXPO_PUBLIC_API_URL || "(not set)",
+    );
     try {
       const doc = await posts.create({
         author: data.author,
-        media: data.media,
+        content: data.caption,
         caption: data.caption,
         location: data.location,
-        likes: 0,
+        media: data.media || [],
         isNSFW: data.isNSFW || false,
       });
+      console.log("[postsApi] createPost success:", JSON.stringify(doc));
       return transformPost(doc as Record<string, unknown>);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[postsApi] createPost error:", error);
+      console.error("[postsApi] Error message:", error?.message);
+      console.error("[postsApi] Error status:", error?.status);
       throw error;
     }
   },

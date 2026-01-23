@@ -48,16 +48,32 @@ export function usePost(id: string) {
   return useQuery({
     queryKey: postKeys.detail(id),
     queryFn: () => postsApi.getPostById(id),
+    enabled: !!id,
   });
 }
 
-// Like post mutation
+// Fetch multiple posts by IDs
+export function usePostsByIds(ids: string[]) {
+  return useQuery({
+    queryKey: [...postKeys.all, "byIds", ids.sort().join(",")],
+    queryFn: async () => {
+      const posts = await Promise.all(
+        ids.map((id) => postsApi.getPostById(id))
+      );
+      return posts.filter((post): post is Post => post !== null);
+    },
+    enabled: ids.length > 0,
+  });
+}
+
+// Like/unlike post mutation
 export function useLikePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: postsApi.likePost,
-    onMutate: async (postId) => {
+    mutationFn: ({ postId, isLiked }: { postId: string; isLiked: boolean }) =>
+      postsApi.likePost(postId, isLiked),
+    onMutate: async ({ postId, isLiked }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: postKeys.all });
 
@@ -69,9 +85,12 @@ export function useLikePost() {
       queryClient.setQueriesData<Post[] | Post | null>(
         { queryKey: postKeys.all },
         (old) => {
+          const delta = isLiked ? -1 : 1;
           if (Array.isArray(old)) {
             return old.map((post) =>
-              post.id === postId ? { ...post, likes: post.likes + 1 } : post,
+              post.id === postId
+                ? { ...post, likes: Math.max(0, post.likes + delta) }
+                : post,
             );
           }
           if (
@@ -80,7 +99,7 @@ export function useLikePost() {
             "id" in old &&
             old.id === postId
           ) {
-            return { ...old, likes: old.likes + 1 };
+            return { ...old, likes: Math.max(0, old.likes + delta) };
           }
           return old;
         },
@@ -88,7 +107,7 @@ export function useLikePost() {
 
       return { previousData };
     },
-    onError: (_err, _postId, context) => {
+    onError: (_err, _variables, context) => {
       // Rollback on error
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
@@ -96,9 +115,12 @@ export function useLikePost() {
         });
       }
     },
-    onSettled: () => {
+    onSettled: (_data, _error, variables) => {
       // Refetch after mutation
       queryClient.invalidateQueries({ queryKey: postKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: postKeys.detail(variables.postId),
+      });
     },
   });
 }
@@ -110,12 +132,9 @@ export function useCreatePost() {
   return useMutation({
     mutationFn: postsApi.createPost,
     onSuccess: (newPost) => {
-      // Add new post to feed cache
-      queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
-        return old ? [newPost, ...old] : [newPost];
-      });
-      // Invalidate to refetch
-      queryClient.invalidateQueries({ queryKey: postKeys.feed() });
+      console.log("[useCreatePost] Post created successfully:", newPost.id);
+      // Invalidate ALL post queries to refetch fresh data
+      queryClient.invalidateQueries({ queryKey: postKeys.all });
     },
   });
 }

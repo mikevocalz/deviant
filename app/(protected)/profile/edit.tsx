@@ -1,5 +1,11 @@
-
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  Alert,
+} from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -8,12 +14,14 @@ import { X, Camera } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const [isSaving, setIsSaving] = useState(false);
   const {
     editName,
     editBio,
@@ -22,6 +30,26 @@ export default function EditProfileScreen() {
     setEditBio,
     setEditWebsite,
   } = useProfileStore();
+
+  const handleSave = async () => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      // Update local auth store
+      setUser({
+        ...user,
+        name: editName,
+        bio: editBio,
+        website: editWebsite,
+      });
+      router.back();
+    } catch (error) {
+      console.error("[EditProfile] Save error:", error);
+      Alert.alert("Error", "Failed to save profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Initialize form with current user data
   useEffect(() => {
@@ -43,8 +71,10 @@ export default function EditProfileScreen() {
           <Text className="text-lg font-semibold text-foreground">
             Edit Profile
           </Text>
-          <Pressable onPress={() => router.back()}>
-            <Text className="text-base font-semibold text-primary">Done</Text>
+          <Pressable onPress={handleSave} disabled={isSaving}>
+            <Text className="text-base font-semibold text-primary">
+              {isSaving ? "Saving..." : "Done"}
+            </Text>
           </Pressable>
         </View>
 
@@ -81,7 +111,10 @@ export default function EditProfileScreen() {
           {/* Form Fields */}
           <View className="px-4 gap-5">
             <View>
-              <Text className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <Text
+                style={{ color: colors.mutedForeground }}
+                className="mb-2 text-xs font-medium uppercase tracking-wider"
+              >
                 Name
               </Text>
               <TextInput
@@ -89,12 +122,20 @@ export default function EditProfileScreen() {
                 onChangeText={setEditName}
                 placeholder="Your name"
                 placeholderTextColor={colors.mutedForeground}
-                className="border-b border-border pb-3 text-base text-foreground"
+                style={{
+                  color: colors.foreground,
+                  borderBottomColor: colors.border,
+                  borderBottomWidth: 1,
+                }}
+                className="pb-3 text-base"
               />
             </View>
 
             <View>
-              <Text className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <Text
+                style={{ color: colors.mutedForeground }}
+                className="mb-2 text-xs font-medium uppercase tracking-wider"
+              >
                 Bio
               </Text>
               <TextInput
@@ -104,13 +145,21 @@ export default function EditProfileScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 textAlignVertical="top"
-                style={{ minHeight: 80 }}
-                className="border-b border-border pb-3 text-base text-foreground"
+                style={{
+                  minHeight: 80,
+                  color: colors.foreground,
+                  borderBottomColor: colors.border,
+                  borderBottomWidth: 1,
+                }}
+                className="pb-3 text-base"
               />
             </View>
 
             <View>
-              <Text className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              <Text
+                style={{ color: colors.mutedForeground }}
+                className="mb-2 text-xs font-medium uppercase tracking-wider"
+              >
                 Website
               </Text>
               <TextInput
@@ -120,7 +169,12 @@ export default function EditProfileScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="none"
                 keyboardType="url"
-                className="border-b border-border pb-3 text-base text-foreground"
+                style={{
+                  color: colors.foreground,
+                  borderBottomColor: colors.border,
+                  borderBottomWidth: 1,
+                }}
+                className="pb-3 text-base"
               />
             </View>
           </View>

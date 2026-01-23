@@ -1,69 +1,75 @@
-import { useState } from "react"
-import * as ImagePicker from "expo-image-picker"
-import * as MediaLibrary from "expo-media-library"
-import { Alert, Platform } from "react-native"
+import { useState } from "react";
+import * as ImagePicker from "expo-image-picker";
+import * as MediaLibrary from "expo-media-library";
+import { Platform } from "react-native";
+import { toast } from "sonner-native";
 
 export interface MediaAsset {
-  id: string
-  uri: string
-  type: "image" | "video"
-  width?: number
-  height?: number
-  duration?: number
-  fileName?: string
-  fileSize?: number
+  id: string;
+  uri: string;
+  type: "image" | "video";
+  width?: number;
+  height?: number;
+  duration?: number;
+  fileName?: string;
+  fileSize?: number;
 }
 
 export interface StoryMediaOptions {
-  maxDuration?: number
-  maxFileSizeMB?: number
+  maxDuration?: number;
+  maxFileSizeMB?: number;
 }
 
-const STORY_MAX_DURATION = 30
-const STORY_MAX_FILE_SIZE_MB = 50
-const STORY_ASPECT_RATIO = 9 / 16
+const STORY_MAX_DURATION = 30;
+const STORY_MAX_FILE_SIZE_MB = 50;
+const STORY_ASPECT_RATIO = 9 / 16;
 
 export function useMediaPicker() {
-  const [selectedMedia, setSelectedMedia] = useState<MediaAsset[]>([])
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
+  const [selectedMedia, setSelectedMedia] = useState<MediaAsset[]>([]);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
   const requestPermissions = async () => {
     if (Platform.OS === "web") {
-      setHasPermission(true)
-      return true
+      setHasPermission(true);
+      return true;
     }
 
-    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync()
-    const { status: mediaStatus } = await MediaLibrary.requestPermissionsAsync()
+    const { status: cameraStatus } =
+      await ImagePicker.requestCameraPermissionsAsync();
+    const { status: mediaStatus } =
+      await MediaLibrary.requestPermissionsAsync();
 
-    const granted = cameraStatus === "granted" && mediaStatus === "granted"
-    setHasPermission(granted)
+    const granted = cameraStatus === "granted" && mediaStatus === "granted";
+    setHasPermission(granted);
 
     if (!granted) {
-      Alert.alert(
-        "Permissions Required",
-        "Please grant camera and media library permissions to select photos and videos.",
-      )
+      toast.error("Permissions Required", {
+        description:
+          "Please grant camera and media library permissions to select photos and videos.",
+      });
     }
 
-    return granted
-  }
+    return granted;
+  };
 
-  const pickFromLibrary = async (options?: { maxSelection?: number; allowsMultipleSelection?: boolean }) => {
-    const hasPermission = await requestPermissions()
-    if (!hasPermission) return
+  const pickFromLibrary = async (options?: {
+    maxSelection?: number;
+    allowsMultipleSelection?: boolean;
+  }) => {
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
     try {
-      const allowMultiple = options?.allowsMultipleSelection ?? true
+      const allowMultiple = options?.allowsMultipleSelection ?? true;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images", "videos"],
         allowsMultipleSelection: allowMultiple,
         allowsEditing: !allowMultiple,
-        aspect: [5, 4],
+        aspect: [4, 5],
         quality: 1,
         videoMaxDuration: 60,
         selectionLimit: options?.maxSelection ?? 10,
-      })
+      });
 
       if (!result.canceled && result.assets) {
         const newMedia: MediaAsset[] = result.assets.map((asset) => ({
@@ -74,31 +80,31 @@ export function useMediaPicker() {
           height: asset.height,
           duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
-        }))
+        }));
 
-        setSelectedMedia((prev) => [...prev, ...newMedia])
-        return newMedia
+        setSelectedMedia((prev) => [...prev, ...newMedia]);
+        return newMedia;
       }
     } catch (error) {
-      console.error("[v0] Error picking media:", error)
-      Alert.alert("Error", "Failed to pick media. Please try again.")
+      console.error("[v0] Error picking media:", error);
+      toast.error("Failed to pick media. Please try again.");
     }
-  }
+  };
 
   const takePhoto = async () => {
-    const hasPermission = await requestPermissions()
-    if (!hasPermission) return
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 1,
         allowsEditing: true,
-        aspect: [5, 4],
-      })
+        aspect: [4, 5],
+      });
 
       if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0]
+        const asset = result.assets[0];
         const newMedia: MediaAsset = {
           id: asset.assetId || asset.uri,
           uri: asset.uri,
@@ -106,20 +112,20 @@ export function useMediaPicker() {
           width: asset.width,
           height: asset.height,
           fileName: asset.fileName ?? undefined,
-        }
+        };
 
-        setSelectedMedia((prev) => [...prev, newMedia])
-        return newMedia
+        setSelectedMedia((prev) => [...prev, newMedia]);
+        return newMedia;
       }
     } catch (error) {
-      console.error("[v0] Error taking photo:", error)
-      Alert.alert("Error", "Failed to take photo. Please try again.")
+      console.error("[v0] Error taking photo:", error);
+      toast.error("Failed to take photo. Please try again.");
     }
-  }
+  };
 
   const recordVideo = async (maxDuration: number = 60) => {
-    const hasPermission = await requestPermissions()
-    if (!hasPermission) return
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -127,10 +133,10 @@ export function useMediaPicker() {
         videoMaxDuration: maxDuration,
         quality: 0.7,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-      })
+      });
 
       if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0]
+        const asset = result.assets[0];
         const newMedia: MediaAsset = {
           id: asset.assetId || asset.uri,
           uri: asset.uri,
@@ -140,23 +146,23 @@ export function useMediaPicker() {
           duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
           fileSize: asset.fileSize ?? undefined,
-        }
+        };
 
-        setSelectedMedia((prev) => [...prev, newMedia])
-        return newMedia
+        setSelectedMedia((prev) => [...prev, newMedia]);
+        return newMedia;
       }
     } catch (error) {
-      console.error("[MediaPicker] Error recording video:", error)
-      Alert.alert("Error", "Failed to record video. Please try again.")
+      console.error("[MediaPicker] Error recording video:", error);
+      toast.error("Failed to record video. Please try again.");
     }
-  }
+  };
 
   const pickStoryMedia = async (options?: StoryMediaOptions) => {
-    const hasPermission = await requestPermissions()
-    if (!hasPermission) return
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
-    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION
-    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB
+    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION;
+    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB;
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -166,32 +172,36 @@ export function useMediaPicker() {
         videoMaxDuration: maxDuration,
         selectionLimit: 4,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-      })
+      });
 
       if (!result.canceled && result.assets) {
-        const validMedia: MediaAsset[] = []
-        const errors: string[] = []
+        const validMedia: MediaAsset[] = [];
+        const errors: string[] = [];
 
         for (const asset of result.assets) {
           if (asset.type === "video") {
             if (asset.duration && asset.duration / 1000 > maxDuration) {
-              errors.push(`Video exceeds ${maxDuration}s limit`)
-              continue
+              errors.push(`Video exceeds ${maxDuration}s limit`);
+              continue;
             }
 
-            const fileSizeMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0
+            const fileSizeMB = asset.fileSize
+              ? asset.fileSize / (1024 * 1024)
+              : 0;
             if (fileSizeMB > maxFileSizeMB) {
-              errors.push(`Video exceeds ${maxFileSizeMB}MB limit`)
-              continue
+              errors.push(`Video exceeds ${maxFileSizeMB}MB limit`);
+              continue;
             }
 
             if (asset.width && asset.height) {
-              const aspectRatio = asset.width / asset.height
-              const targetRatio = STORY_ASPECT_RATIO
-              const tolerance = 0.15
-              
+              const aspectRatio = asset.width / asset.height;
+              const targetRatio = STORY_ASPECT_RATIO;
+              const tolerance = 0.15;
+
               if (Math.abs(aspectRatio - targetRatio) > tolerance) {
-                console.log(`[MediaPicker] Video aspect ratio ${aspectRatio.toFixed(2)} differs from 9:16 (${targetRatio.toFixed(2)}), will be cropped to fit`)
+                console.log(
+                  `[MediaPicker] Video aspect ratio ${aspectRatio.toFixed(2)} differs from 9:16 (${targetRatio.toFixed(2)}), will be cropped to fit`,
+                );
               }
             }
           }
@@ -205,34 +215,32 @@ export function useMediaPicker() {
             duration: asset.duration ? asset.duration / 1000 : undefined,
             fileName: asset.fileName ?? undefined,
             fileSize: asset.fileSize ?? undefined,
-          })
+          });
         }
 
         if (errors.length > 0) {
-          Alert.alert(
-            "Some media couldn't be added",
-            errors.join("\n"),
-            [{ text: "OK" }]
-          )
+          toast.warning("Some media couldn't be added", {
+            description: errors.join(", "),
+          });
         }
 
         if (validMedia.length > 0) {
-          setSelectedMedia((prev) => [...prev, ...validMedia])
-          return validMedia
+          setSelectedMedia((prev) => [...prev, ...validMedia]);
+          return validMedia;
         }
       }
     } catch (error) {
-      console.error("[MediaPicker] Error picking story media:", error)
-      Alert.alert("Error", "Failed to pick media. Please try again.")
+      console.error("[MediaPicker] Error picking story media:", error);
+      toast.error("Failed to pick media. Please try again.");
     }
-  }
+  };
 
   const recordStoryVideo = async (options?: StoryMediaOptions) => {
-    const hasPermission = await requestPermissions()
-    if (!hasPermission) return
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
 
-    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION
-    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB
+    const maxDuration = options?.maxDuration ?? STORY_MAX_DURATION;
+    const maxFileSizeMB = options?.maxFileSizeMB ?? STORY_MAX_FILE_SIZE_MB;
 
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -240,28 +248,24 @@ export function useMediaPicker() {
         videoMaxDuration: maxDuration,
         quality: 0.7,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
-      })
+      });
 
       if (!result.canceled && result.assets[0]) {
-        const asset = result.assets[0]
+        const asset = result.assets[0];
 
         if (asset.duration && asset.duration / 1000 > maxDuration) {
-          Alert.alert(
-            "Video Too Long",
-            `Story videos must be ${maxDuration} seconds or less.`,
-            [{ text: "OK" }]
-          )
-          return
+          toast.error("Video Too Long", {
+            description: `Story videos must be ${maxDuration} seconds or less.`,
+          });
+          return;
         }
 
-        const fileSizeMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0
+        const fileSizeMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0;
         if (fileSizeMB > maxFileSizeMB) {
-          Alert.alert(
-            "Video Too Large",
-            `Video file size (${fileSizeMB.toFixed(1)}MB) exceeds the ${maxFileSizeMB}MB limit. Try recording a shorter video.`,
-            [{ text: "OK" }]
-          )
-          return
+          toast.error("Video Too Large", {
+            description: `Video file size (${fileSizeMB.toFixed(1)}MB) exceeds the ${maxFileSizeMB}MB limit.`,
+          });
+          return;
         }
 
         const newMedia: MediaAsset = {
@@ -273,25 +277,27 @@ export function useMediaPicker() {
           duration: asset.duration ? asset.duration / 1000 : undefined,
           fileName: asset.fileName ?? undefined,
           fileSize: asset.fileSize ?? undefined,
-        }
+        };
 
-        console.log(`[MediaPicker] Story video recorded: ${asset.duration?.toFixed(1)}s, ${fileSizeMB.toFixed(1)}MB`)
-        setSelectedMedia((prev) => [...prev, newMedia])
-        return newMedia
+        console.log(
+          `[MediaPicker] Story video recorded: ${asset.duration?.toFixed(1)}s, ${fileSizeMB.toFixed(1)}MB`,
+        );
+        setSelectedMedia((prev) => [...prev, newMedia]);
+        return newMedia;
       }
     } catch (error) {
-      console.error("[MediaPicker] Error recording story video:", error)
-      Alert.alert("Error", "Failed to record video. Please try again.")
+      console.error("[MediaPicker] Error recording story video:", error);
+      toast.error("Failed to record video. Please try again.");
     }
-  }
+  };
 
   const removeMedia = (id: string) => {
-    setSelectedMedia((prev) => prev.filter((item) => item.id !== id))
-  }
+    setSelectedMedia((prev) => prev.filter((item) => item.id !== id));
+  };
 
   const clearAll = () => {
-    setSelectedMedia([])
-  }
+    setSelectedMedia([]);
+  };
 
   return {
     selectedMedia,
@@ -306,5 +312,5 @@ export function useMediaPicker() {
     recordStoryVideo,
     STORY_MAX_DURATION,
     STORY_MAX_FILE_SIZE_MB,
-  }
+  };
 }

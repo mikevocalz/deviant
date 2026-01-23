@@ -7,7 +7,7 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react-native"
 import { useEffect, useCallback, useRef, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from "react-native-reanimated"
 import { storiesData } from "@/lib/constants"
-import { SafeAreaView } from "react-native-safe-area-context"
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 
@@ -28,6 +28,7 @@ export default function StoryViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const router = useRouter()
   const { currentStoryId, currentItemIndex, setCurrentStoryId, setCurrentItemIndex } = useStoryViewerStore()
+  const insets = useSafeAreaInsets()
   const progress = useSharedValue(0)
   const [showSeekBar, setShowSeekBar] = useState(false)
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
@@ -210,7 +211,7 @@ export default function StoryViewerScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <SafeAreaView style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: insets.top }}>
         {/* Progress bars */}
         <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
           {story.stories.map((_, index) => (
@@ -287,7 +288,7 @@ export default function StoryViewerScreen() {
             style={{ flex: 1 }} 
           />
         </View>
-      </SafeAreaView>
+      </View>
     </View>
   )
 }

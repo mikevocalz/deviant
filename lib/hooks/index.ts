@@ -11,6 +11,11 @@ export {
   useDeletePost,
 } from "./use-posts";
 export {
+  messageKeys,
+  useUnreadMessageCount,
+  useConversations,
+} from "./use-messages";
+export {
   eventKeys,
   useEvents,
   useUpcomingEvents,

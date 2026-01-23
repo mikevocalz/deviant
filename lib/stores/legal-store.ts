@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { LEGAL_CONTENT } from "@/lib/constants/legal-content";
 
 export type LegalPageSlug =
   | "about"
@@ -85,26 +86,18 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    try {
-      const response = await fetch(`/api/legal/${slug}`);
+    // Use static content directly - more reliable on mobile
+    const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch ${slug}`);
-      }
-
-      const data = await response.json();
-
+    if (staticContent) {
       set((s) => ({
-        pages: { ...s.pages, [slug]: data },
+        pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
         loading: { ...s.loading, [slug]: false },
       }));
-    } catch (error) {
+    } else {
       set((s) => ({
         loading: { ...s.loading, [slug]: false },
-        errors: {
-          ...s.errors,
-          [slug]: error instanceof Error ? error.message : "Failed to load",
-        },
+        errors: { ...s.errors, [slug]: "Page not found" },
       }));
     }
   },

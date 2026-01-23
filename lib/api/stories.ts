@@ -3,6 +3,7 @@
  */
 
 import { stories as storiesApi } from "@/lib/api-client";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export interface Story {
   id: string;
@@ -11,8 +12,11 @@ export interface Story {
   isViewed: boolean;
   items: Array<{
     id: string;
-    type: "image" | "video";
-    url: string;
+    type: "image" | "video" | "text";
+    url?: string;
+    text?: string;
+    textColor?: string;
+    backgroundColor?: string;
     duration?: number;
   }>;
 }
@@ -31,8 +35,11 @@ function transformStory(doc: Record<string, unknown>): Story {
     items: ((doc.items as Array<Record<string, unknown>>) || []).map(
       (item) => ({
         id: (item.id as string) || `item-${Math.random()}`,
-        type: (item.type as "image" | "video") || "image",
-        url: (item.url as string) || "",
+        type: (item.type as "image" | "video" | "text") || "image",
+        url: item.url as string | undefined,
+        text: item.text as string | undefined,
+        textColor: item.textColor as string | undefined,
+        backgroundColor: item.backgroundColor as string | undefined,
         duration: item.duration as number,
       }),
     ),
@@ -53,13 +60,27 @@ export const storiesApiClient = {
 
   // Create a new story
   async createStory(data: {
-    items: Array<{ type: string; url: string }>;
+    items: Array<{
+      type: string;
+      url?: string;
+      text?: string;
+      textColor?: string;
+      backgroundColor?: string;
+    }>;
   }): Promise<Story> {
     try {
+      const user = useAuthStore.getState().user;
+      if (!user) {
+        throw new Error("User must be logged in to create a story");
+      }
+
+      console.log("[storiesApi] Creating story with items:", data.items);
       const doc = await storiesApi.create({
+        caption: `Story by ${user.username}`,
         items: data.items,
-        viewed: false,
+        author: user.id,
       });
+      console.log("[storiesApi] Story created:", doc);
       return transformStory(doc as Record<string, unknown>);
     } catch (error) {
       console.error("[storiesApi] createStory error:", error);

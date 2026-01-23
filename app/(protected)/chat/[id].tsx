@@ -5,7 +5,6 @@ import {
   Pressable,
   FlatList,
   Animated,
-  Alert,
   Platform,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -23,11 +22,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   useChatStore,
-  allUsers,
   Message,
   MediaAttachment,
 } from "@/lib/stores/chat-store";
-import { useRef, useCallback, useMemo, useEffect } from "react";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useRef, useCallback, useMemo, useEffect, useState } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
@@ -35,12 +34,11 @@ import * as ImagePicker from "expo-image-picker";
 import { MediaPreviewModal } from "@/components/media-preview-modal";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
+import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
+import { TypingIndicator } from "@/components/chat/typing-indicator";
 
 // Empty array - messages will come from backend
 const emptyMessages: Message[] = [];
-
-// TODO: Replace with real user data from backend
-const defaultUser = { username: "user", avatar: "", name: "User" };
 
 function renderMessageText(
   text: string,
@@ -142,7 +140,46 @@ export default function ChatScreen() {
   } = useChatStore();
 
   const chatMessages = messages[chatId] || emptyMessages;
-  const user = defaultUser;
+  const currentUser = useAuthStore((s) => s.user);
+
+  // Chat recipient info (passed via params or loaded from conversation)
+  // For now, parse from chatId which might be "username" format or load from conversation
+  const [recipient, setRecipient] = useState<{
+    id: string;
+    username: string;
+    name: string;
+    avatar: string;
+  } | null>(null);
+
+  // Load recipient info from chatId (could be username or conversation id)
+  useEffect(() => {
+    // TODO: Load from conversation API when backend is ready
+    // For now, use chatId as username placeholder
+    setRecipient({
+      id: chatId,
+      username: chatId,
+      name: chatId,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+    });
+  }, [chatId]);
+
+  // Get toast function
+  const showToast = useUIStore((s) => s.showToast);
+
+  // Prevent self-messaging
+  useEffect(() => {
+    if (currentUser && recipient && currentUser.id === recipient.id) {
+      showToast("error", "Error", "You cannot message yourself");
+      router.back();
+    }
+  }, [currentUser, recipient, router, showToast]);
+
+  // Typing indicator
+  const { typingUsers, handleInputChange: handleTypingChange } =
+    useTypingIndicator({ conversationId: chatId });
+
+  const isRecipientTyping = typingUsers.length > 0;
+
   const inputRef = useRef<TextInput>(null);
   const flatListRef = useRef<FlatList>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
@@ -173,16 +210,32 @@ export default function ChatScreen() {
     loadChat();
   }, [setScreenLoading]);
 
+  // Mention suggestions - show the chat recipient when typing @
   const filteredUsers = useMemo(() => {
-    if (!mentionQuery) return allUsers.slice(0, 5);
-    return allUsers
-      .filter(
-        (u) =>
-          u.username.toLowerCase().includes(mentionQuery.toLowerCase()) ||
-          u.name.toLowerCase().includes(mentionQuery.toLowerCase()),
-      )
-      .slice(0, 5);
-  }, [mentionQuery]);
+    if (!recipient) return [];
+
+    // Only show recipient as mentionable user in DM
+    const recipientUser = {
+      id: recipient.id,
+      username: recipient.username,
+      name: recipient.name,
+      avatar: recipient.avatar,
+    };
+
+    if (!mentionQuery) return [recipientUser];
+
+    // Filter by query
+    if (
+      recipientUser.username
+        .toLowerCase()
+        .includes(mentionQuery.toLowerCase()) ||
+      recipientUser.name.toLowerCase().includes(mentionQuery.toLowerCase())
+    ) {
+      return [recipientUser];
+    }
+
+    return [];
+  }, [mentionQuery, recipient]);
 
   const handleSend = useCallback(() => {
     if (!currentMessage.trim() && !pendingMedia) return;
@@ -214,8 +267,9 @@ export default function ChatScreen() {
   const handleTextChange = useCallback(
     (text: string) => {
       setCurrentMessage(text);
+      handleTypingChange(text); // Trigger typing indicator
     },
-    [setCurrentMessage],
+    [setCurrentMessage, handleTypingChange],
   );
 
   const handleSelectionChange = useCallback(
@@ -233,8 +287,10 @@ export default function ChatScreen() {
   );
 
   const handleProfilePress = useCallback(() => {
-    router.push(`/(protected)/profile/${user.username}`);
-  }, [router, user.username]);
+    if (recipient) {
+      router.push(`/(protected)/profile/${recipient.username}`);
+    }
+  }, [router, recipient]);
 
   const handlePickMedia = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -249,7 +305,8 @@ export default function ChatScreen() {
       const isVideo = asset.type === "video";
 
       if (isVideo && asset.duration && asset.duration > 60000) {
-        Alert.alert(
+        showToast(
+          "error",
           "Video too long",
           "Please select a video under 60 seconds.",
         );
@@ -306,12 +363,12 @@ export default function ChatScreen() {
             className="flex-row items-center gap-3 flex-1"
           >
             <Image
-              source={{ uri: user.avatar }}
+              source={{ uri: recipient?.avatar || "" }}
               className="w-10 h-10 rounded-full"
             />
             <View className="flex-1">
               <Text className="text-base font-semibold text-foreground">
-                {user.username}
+                {recipient?.username || "Loading..."}
               </Text>
               <Text className="text-xs text-muted-foreground">Active now</Text>
             </View>
@@ -360,6 +417,12 @@ export default function ChatScreen() {
               </View>
             </View>
           )}
+        />
+
+        {/* Typing Indicator */}
+        <TypingIndicator
+          username={recipient?.username}
+          visible={isRecipientTyping}
         />
 
         {showMentions && filteredUsers.length > 0 && (

@@ -1,4 +1,3 @@
-
 import {
   View,
   Text,
@@ -259,31 +258,58 @@ export default function CreateStoryScreen() {
       }),
     ]).start();
 
-    // Upload media to Bunny.net CDN
-    if (mediaAssets.length > 0) {
-      const mediaFiles = mediaAssets.map((m) => ({
-        uri: m.uri,
-        type: m.type as "image" | "video",
-      }));
+    try {
+      let storyItems: Array<{
+        type: string;
+        url?: string;
+        text?: string;
+        textColor?: string;
+        backgroundColor?: string;
+      }> = [];
 
-      const uploadResults = await uploadMultiple(mediaFiles);
-      const failedUploads = uploadResults.filter((r) => !r.success);
+      // Upload media to Bunny.net CDN if we have media
+      if (mediaAssets.length > 0) {
+        const mediaFiles = mediaAssets.map((m) => ({
+          uri: m.uri,
+          type: m.type as "image" | "video",
+        }));
 
-      if (failedUploads.length > 0) {
-        setIsSharing(false);
-        setUploadProgress(0);
-        progressAnim.setValue(0);
-        Alert.alert(
-          "Upload Error",
-          "Failed to upload media. Please try again.",
-        );
-        return;
+        const uploadResults = await uploadMultiple(mediaFiles);
+        const failedUploads = uploadResults.filter((r) => !r.success);
+
+        if (failedUploads.length > 0) {
+          setIsSharing(false);
+          setUploadProgress(0);
+          progressAnim.setValue(0);
+          Alert.alert(
+            "Upload Error",
+            "Failed to upload media. Please try again.",
+          );
+          return;
+        }
+
+        storyItems = uploadResults.map((r) => ({
+          type: r.type,
+          url: r.url,
+        }));
+      } else if (text) {
+        // Text-only story with background gradient
+        const currentGradientColors = bgGradients[activeGradientIndex].colors;
+        storyItems = [
+          {
+            type: "text",
+            text: text,
+            textColor: textColor,
+            backgroundColor: currentGradientColors.join(","),
+          },
+        ];
       }
 
-      const storyItems = uploadResults.map((r) => ({
-        type: r.type,
-        url: r.url,
-      }));
+      if (storyItems.length === 0) {
+        setIsSharing(false);
+        Alert.alert("Empty Story", "Please add content to your story");
+        return;
+      }
 
       createStory.mutate(
         { items: storyItems },
@@ -309,9 +335,12 @@ export default function CreateStoryScreen() {
           },
         },
       );
-    } else {
+    } catch (error) {
+      console.error("[Story] Unexpected error:", error);
       setIsSharing(false);
-      Alert.alert("No Media", "Please add media to your story");
+      setUploadProgress(0);
+      progressAnim.setValue(0);
+      Alert.alert("Error", "Something went wrong. Please try again.");
     }
   };
 
@@ -422,13 +451,12 @@ export default function CreateStoryScreen() {
             paddingHorizontal: 16,
           }}
         >
-          <Animated.View
+          <View
             style={{
               width: CANVAS_WIDTH,
               height: CANVAS_HEIGHT,
               borderRadius: 20,
               overflow: "hidden",
-              opacity: fadeAnim,
             }}
           >
             {!currentMedia ? (
@@ -486,7 +514,7 @@ export default function CreateStoryScreen() {
                         {text}
                       </Text>
                     ) : (
-                      <View style={{ alignItems: "center" }}>
+                      <View style={{ alignItems: "center", minHeight: 80 }}>
                         <Sparkles size={48} color="rgba(255,255,255,0.3)" />
                         <Text
                           style={{
@@ -644,7 +672,7 @@ export default function CreateStoryScreen() {
                 )}
               </>
             )}
-          </Animated.View>
+          </View>
 
           {mediaAssets.length > 0 && (
             <ScrollView
@@ -739,7 +767,7 @@ export default function CreateStoryScreen() {
                 <ImageIcon size={24} color="#fff" />
               </View>
               <Text style={{ color: "#999", fontSize: 12 }}>
-                Photo{" "}
+                Gallery{" "}
                 {mediaAssets.length > 0
                   ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
                   : ""}

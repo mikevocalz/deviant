@@ -4,8 +4,9 @@
  * Handles checking for and applying expo-updates
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { Alert, AppState, type AppStateStatus } from "react-native";
+import { useCallback, useEffect, useState, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -24,6 +25,8 @@ export interface UpdateStatus {
 }
 
 export function useUpdates() {
+  const showToast = useUIStore((s) => s.showToast);
+  const hasShownUpdateToast = useRef(false);
   const [status, setStatus] = useState<UpdateStatus>({
     isChecking: false,
     isDownloading: false,
@@ -50,19 +53,8 @@ export function useUpdates() {
           isUpdateAvailable: true,
         }));
 
-        if (showAlert) {
-          Alert.alert(
-            "Update Available",
-            "A new version is available. Would you like to update now?",
-            [
-              { text: "Later", style: "cancel" },
-              { text: "Update", onPress: downloadAndApplyUpdate },
-            ],
-          );
-        } else {
-          // Auto-download in background
-          downloadAndApplyUpdate();
-        }
+        // Auto-download in background (no toast for checking)
+        downloadAndApplyUpdate();
       } else {
         setStatus((prev) => ({
           ...prev,
@@ -98,19 +90,15 @@ export function useUpdates() {
           isUpdatePending: true,
         }));
 
-        Alert.alert(
-          "Update Ready",
-          "The app will now restart to apply the update.",
-          [
-            {
-              text: "Restart Now",
-              onPress: async () => {
-                await Updates.reloadAsync();
-              },
-            },
-          ],
-          { cancelable: false },
-        );
+        // Only show toast once per session
+        if (!hasShownUpdateToast.current) {
+          hasShownUpdateToast.current = true;
+          showToast("info", "Update Ready", "Tap to restart and apply update");
+          // Auto-restart after a short delay
+          setTimeout(async () => {
+            if (Updates) await Updates.reloadAsync();
+          }, 2000);
+        }
       } else {
         setStatus((prev) => ({ ...prev, isDownloading: false }));
       }

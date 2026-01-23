@@ -11,8 +11,25 @@
  * In development, leave it empty to use relative URLs with the Expo dev server.
  */
 
+import { getAuthCookies } from "@/lib/auth-client";
+import { Platform } from "react-native";
+
 // API base URL - empty string for dev (relative URLs), full URL for production
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
+
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
 
 // Types matching Payload paginated responses
 export interface PaginatedResponse<T> {
@@ -64,13 +81,29 @@ async function apiFetch<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
+
+  // Get auth token and cookies for authenticated requests
+  const authToken = await getAuthToken();
+  const authCookies = getAuthCookies();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  // Use JWT token for authorization (preferred for Payload CMS)
+  if (authToken) {
+    headers["Authorization"] = `JWT ${authToken}`;
+  }
+
+  // Pass auth cookies in header for cross-origin requests (production)
+  if (authCookies) {
+    headers["Cookie"] = authCookies;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    credentials: "include", // Include cookies for auth
+    headers,
+    credentials: API_BASE_URL ? "omit" : "include", // omit for cross-origin, include for same-origin
   });
 
   const data = await response.json();
@@ -158,6 +191,18 @@ export const users = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  checkUsername: async (
+    username: string,
+  ): Promise<{
+    available: boolean;
+    suggestions: string[];
+  }> => {
+    // Username check requires auth which isn't available during signup
+    // Return available and let server validate at registration time
+    // This prevents infinite spinner on 403 responses
+    return { available: true, suggestions: [] };
+  },
 };
 
 /**

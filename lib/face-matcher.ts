@@ -6,64 +6,86 @@ import FaceSDK, {
   MatchFacesImage,
   MatchFacesResponse,
   ImageType,
-} from '@regulaforensics/react-native-face-api'
-import { File } from 'expo-file-system/next'
+} from "@regulaforensics/react-native-face-api";
+import * as FileSystem from "expo-file-system";
 
 // Convert file URI to base64
 async function fileToBase64(uri: string): Promise<string> {
   try {
-    const file = new File(uri)
-    const base64 = await file.base64()
-    return base64
+    // Normalize the URI
+    const normalizedUri = uri.startsWith("file://") ? uri : `file://${uri}`;
+    const base64 = await FileSystem.readAsStringAsync(normalizedUri, {
+      encoding: "base64",
+    });
+    return base64;
   } catch (error) {
-    console.error("[FaceMatcher] Error converting file to base64:", error)
-    throw new Error("Failed to read image file")
+    console.error("[FaceMatcher] Error converting file to base64:", error);
+    throw new Error("Failed to read image file");
   }
 }
 
 export interface FaceComparisonResult {
-  match: boolean
-  confidence: number
-  distance: number
+  match: boolean;
+  confidence: number;
+  distance: number;
 }
 
-let sdkInitialized = false
+let sdkInitialized = false;
 
 // Promisify callback-based SDK methods
 function promisify<T>(
-  fn: (successCb: (result: T) => void, errorCb: (error: any) => void) => void
+  fn: (successCb: (result: T) => void, errorCb: (error: any) => void) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    fn(resolve, reject)
-  })
+    fn(resolve, reject);
+  });
 }
 
 // Initialize the Face SDK
 async function initializeFaceSDK(): Promise<void> {
-  if (sdkInitialized) return
+  console.log(
+    "[FaceMatcher] initializeFaceSDK called, current state:",
+    sdkInitialized,
+  );
+
+  if (sdkInitialized) {
+    console.log("[FaceMatcher] SDK already initialized, skipping");
+    return;
+  }
 
   try {
+    console.log("[FaceMatcher] Checking if SDK is already initialized...");
     const isInit = await promisify<string>((success, error) =>
-      FaceSDK.isInitialized(success, error)
-    )
-    if (isInit === 'true') {
-      sdkInitialized = true
-      return
+      FaceSDK.isInitialized(success, error),
+    );
+    console.log("[FaceMatcher] isInitialized result:", isInit);
+    if (isInit === "true") {
+      sdkInitialized = true;
+      console.log("[FaceMatcher] SDK was already initialized");
+      return;
     }
-  } catch {
+  } catch (checkError) {
+    console.log(
+      "[FaceMatcher] isInitialized check failed (expected if not init):",
+      checkError,
+    );
     // Not initialized, continue to initialize
   }
 
   try {
-    console.log("[FaceMatcher] Initializing Regula Face SDK...")
-    await promisify<string>((success, error) =>
-      FaceSDK.initialize(null, success, error)
-    )
-    sdkInitialized = true
-    console.log("[FaceMatcher] Face SDK initialized successfully")
+    console.log("[FaceMatcher] Initializing Regula Face SDK...");
+    const initResult = await promisify<string>((success, error) =>
+      FaceSDK.initialize(null, success, error),
+    );
+    console.log("[FaceMatcher] SDK initialize result:", initResult);
+    sdkInitialized = true;
+    console.log("[FaceMatcher] Face SDK initialized successfully");
   } catch (error: any) {
-    console.error("[FaceMatcher] Failed to initialize Face SDK:", error)
-    throw new Error("Failed to initialize face verification. Please try again.")
+    console.error("[FaceMatcher] Failed to initialize Face SDK:", error);
+    console.error("[FaceMatcher] Error details:", JSON.stringify(error));
+    throw new Error(
+      `Failed to initialize face verification: ${error?.message || error}`,
+    );
   }
 }
 
@@ -72,70 +94,79 @@ export async function compareFaces(
   idImageUri: string,
   selfieImageUri: string,
 ): Promise<FaceComparisonResult> {
-  console.log("[FaceMatcher] Starting face comparison...")
-  console.log("[FaceMatcher] ID Image:", idImageUri?.substring(0, 50))
-  console.log("[FaceMatcher] Selfie Image:", selfieImageUri?.substring(0, 50))
+  console.log("[FaceMatcher] Starting face comparison...");
+  console.log("[FaceMatcher] ID Image:", idImageUri?.substring(0, 50));
+  console.log("[FaceMatcher] Selfie Image:", selfieImageUri?.substring(0, 50));
 
   if (!idImageUri) {
-    throw new Error("No face detected in ID document. Please upload a valid ID with a clear photo.")
+    throw new Error(
+      "No face detected in ID document. Please upload a valid ID with a clear photo.",
+    );
   }
 
   if (!selfieImageUri) {
-    throw new Error("No face detected in selfie. Please take a clear photo of your face.")
+    throw new Error(
+      "No face detected in selfie. Please take a clear photo of your face.",
+    );
   }
 
   try {
     // Initialize SDK if needed
-    await initializeFaceSDK()
+    await initializeFaceSDK();
 
     // Convert file URIs to base64
-    console.log("[FaceMatcher] Converting images to base64...")
-    const idBase64 = await fileToBase64(idImageUri)
-    const selfieBase64 = await fileToBase64(selfieImageUri)
-    console.log("[FaceMatcher] Images converted successfully")
+    console.log("[FaceMatcher] Converting images to base64...");
+    const idBase64 = await fileToBase64(idImageUri);
+    const selfieBase64 = await fileToBase64(selfieImageUri);
+    console.log("[FaceMatcher] Images converted successfully");
 
     // Create image objects for comparison
-    const idImage = new MatchFacesImage()
-    idImage.image = idBase64
-    idImage.imageType = ImageType.PRINTED
+    const idImage = new MatchFacesImage();
+    idImage.image = idBase64;
+    idImage.imageType = ImageType.PRINTED;
 
-    const selfieImage = new MatchFacesImage()
-    selfieImage.image = selfieBase64
-    selfieImage.imageType = ImageType.LIVE
+    const selfieImage = new MatchFacesImage();
+    selfieImage.image = selfieBase64;
+    selfieImage.imageType = ImageType.LIVE;
 
     // Create match request with both images
-    const request = new MatchFacesRequest()
-    request.images = [idImage, selfieImage]
+    const request = new MatchFacesRequest();
+    request.images = [idImage, selfieImage];
 
-    console.log("[FaceMatcher] Sending match request to Regula SDK...")
+    console.log("[FaceMatcher] Sending match request to Regula SDK...");
 
     // Perform face matching with timeout
     const matchPromise = promisify<string>((success, error) =>
-      FaceSDK.matchFaces(request as any, null, success, error)
-    )
+      FaceSDK.matchFaces(request as any, null, success, error),
+    );
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Face matching timed out. Please try again.")), 30000)
-    )
+      setTimeout(
+        () => reject(new Error("Face matching timed out. Please try again.")),
+        30000,
+      ),
+    );
 
-    const responseJson = await Promise.race([matchPromise, timeoutPromise])
-    const response = MatchFacesResponse.fromJson(JSON.parse(responseJson))
+    const responseJson = await Promise.race([matchPromise, timeoutPromise]);
+    const response = MatchFacesResponse.fromJson(JSON.parse(responseJson));
 
     if (!response || !response.results || response.results.length === 0) {
-      throw new Error("No face match results returned. Please ensure both images contain clear faces.")
+      throw new Error(
+        "No face match results returned. Please ensure both images contain clear faces.",
+      );
     }
 
-    const matchResult = response.results[0]
-    const similarity = matchResult.similarity ?? 0
+    const matchResult = response.results[0];
+    const similarity = matchResult.similarity ?? 0;
 
     // Convert similarity (0-1) to confidence percentage
-    const confidence = similarity * 100
+    const confidence = similarity * 100;
 
     // Distance is inverse of similarity
-    const distance = 1 - similarity
+    const distance = 1 - similarity;
 
     // Match threshold: 75% similarity
-    const MATCH_THRESHOLD = 0.75
-    const match = similarity >= MATCH_THRESHOLD
+    const MATCH_THRESHOLD = 0.75;
+    const match = similarity >= MATCH_THRESHOLD;
 
     console.log("[FaceMatcher] Face verification result:", {
       similarity: similarity.toFixed(4),
@@ -144,60 +175,61 @@ export async function compareFaces(
       match,
       threshold: MATCH_THRESHOLD,
       verdict: match ? "SAME PERSON" : "DIFFERENT PEOPLE",
-    })
+    });
 
     // Additional check: reject low confidence matches
     if (match && confidence < 50) {
-      console.log("[FaceMatcher] Match rejected due to low confidence")
+      console.log("[FaceMatcher] Match rejected due to low confidence");
       return {
         match: false,
         confidence: Math.round(confidence * 10) / 10,
         distance: Math.round(distance * 1000) / 1000,
-      }
+      };
     }
 
     return {
       match,
       confidence: Math.round(confidence * 10) / 10,
       distance: Math.round(distance * 1000) / 1000,
-    }
+    };
   } catch (error: any) {
-    console.error("[FaceMatcher] Face verification error:", error)
+    console.error("[FaceMatcher] Face verification error:", error);
 
     // Provide helpful error messages
     if (error.message?.includes("No face")) {
-      throw error
+      throw error;
     }
 
     throw new Error(
-      error.message || "Face verification failed. Please ensure both images are clear and well-lit."
-    )
+      error.message ||
+        "Face verification failed. Please ensure both images are clear and well-lit.",
+    );
   }
 }
 
 // Detect if an image contains a human face using Regula SDK
 export async function detectFaceFromImage(imageUri: string): Promise<boolean> {
-  if (!imageUri) return false
+  if (!imageUri) return false;
 
   try {
-    await initializeFaceSDK()
+    await initializeFaceSDK();
 
-    const image = new MatchFacesImage()
-    image.image = imageUri
-    image.imageType = ImageType.LIVE
+    const image = new MatchFacesImage();
+    image.image = imageUri;
+    image.imageType = ImageType.LIVE;
 
-    const request = new MatchFacesRequest()
-    request.images = [image]
+    const request = new MatchFacesRequest();
+    request.images = [image];
 
     const responseJson = await promisify<string>((success, error) =>
-      FaceSDK.matchFaces(request as any, null, success, error)
-    )
-    const response = MatchFacesResponse.fromJson(JSON.parse(responseJson))
+      FaceSDK.matchFaces(request as any, null, success, error),
+    );
+    const response = MatchFacesResponse.fromJson(JSON.parse(responseJson));
 
     // If we get detections, a face was detected
-    return response?.detections !== undefined && response.detections.length > 0
+    return response?.detections !== undefined && response.detections.length > 0;
   } catch (error) {
-    console.error("[FaceMatcher] Face detection error:", error)
-    return false
+    console.error("[FaceMatcher] Face detection error:", error);
+    return false;
   }
 }

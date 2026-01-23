@@ -1,56 +1,76 @@
-import { View, Text, Pressable, Dimensions, ScrollView } from "react-native"
-import { Image } from "expo-image"
-import { SharedImage } from "@/components/shared-image"
-import { Article } from "@expo/html-elements"
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Volume2, VolumeX } from "lucide-react-native"
-import { useRouter } from "expo-router"
-import { useColorScheme } from "@/lib/hooks"
-import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store"
-import { useBookmarkStore } from "@/lib/stores/bookmark-store"
-import { VideoView, useVideoPlayer } from "expo-video"
-import { useRef, useCallback, useEffect, memo } from "react"
-import { useIsFocused } from "@react-navigation/native"
-import { VideoSeekBar } from "@/components/video-seek-bar"
-import { Motion } from "@legendapp/motion"
-import { sharePost } from "@/lib/utils/sharing"
-import { useFeedPostUIStore } from "@/lib/stores/feed-post-store"
+import { View, Text, Pressable, Dimensions, ScrollView } from "react-native";
+import { Image } from "expo-image";
+import { SharedImage } from "@/components/shared-image";
+import { Article } from "@expo/html-elements";
+import {
+  Heart,
+  MessageCircle,
+  Share2,
+  Bookmark,
+  MoreHorizontal,
+  Volume2,
+  VolumeX,
+} from "lucide-react-native";
+import { useRouter } from "expo-router";
+import { useColorScheme } from "@/lib/hooks";
+import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store";
+import { useLikePost } from "@/lib/hooks/use-posts";
+import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { useRef, useCallback, useEffect, memo } from "react";
+import { useIsFocused } from "@react-navigation/native";
+import { VideoSeekBar } from "@/components/video-seek-bar";
+import { Motion } from "@legendapp/motion";
+import { sharePost } from "@/lib/utils/sharing";
+import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 
-const LONG_PRESS_DELAY = 300
+const LONG_PRESS_DELAY = 300;
 
 interface FeedPostProps {
-  id: string
+  id: string;
   author: {
-    username: string
-    avatar: string
-    verified?: boolean
-  }
+    username: string;
+    avatar: string;
+    verified?: boolean;
+  };
   media: {
-    type: "image" | "video"
-    url: string
-  }[]
-  caption?: string
-  likes: number
-  comments: number
-  timeAgo: string
-  location?: string
-  isNSFW?: boolean
+    type: "image" | "video";
+    url: string;
+  }[];
+  caption?: string;
+  likes: number;
+  comments: number;
+  timeAgo: string;
+  location?: string;
+  isNSFW?: boolean;
 }
 
-const { width } = Dimensions.get("window")
-const mediaSize = width - 24
+const { width } = Dimensions.get("window");
+const mediaSize = width - 24;
 
-function FeedPostComponent({ id, author, media, caption, likes, comments, timeAgo, location, isNSFW }: FeedPostProps) {
-  const router = useRouter()
-  const { colors } = useColorScheme()
-  const { isPostLiked, toggleLike, getLikeCount } = usePostStore()
-  const { isBookmarked, toggleBookmark } = useBookmarkStore()
-  const { currentSlides, setCurrentSlide } = useFeedSlideStore()
-  const currentSlide = currentSlides[id] || 0
+function FeedPostComponent({
+  id,
+  author,
+  media,
+  caption,
+  likes,
+  comments,
+  timeAgo,
+  location,
+  isNSFW,
+}: FeedPostProps) {
+  const router = useRouter();
+  const { colors } = useColorScheme();
+  const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
+  const { isBookmarked, toggleBookmark } = useBookmarkStore();
+  const { currentSlides, setCurrentSlide } = useFeedSlideStore();
+  const currentSlide = currentSlides[id] || 0;
 
-  const isVideo = media[0]?.type === "video"
-  const hasMultipleMedia = media.length > 1 && !isVideo
+  const hasMedia = media && media.length > 0;
+  const isVideo = hasMedia && media[0]?.type === "video";
+  const hasMultipleMedia = hasMedia && media.length > 1 && !isVideo;
 
-  const isFocused = useIsFocused()
+  const isFocused = useIsFocused();
   const {
     pressedPosts,
     likeAnimatingPosts,
@@ -61,59 +81,62 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
     activePostId,
     isMuted,
     toggleMute,
-  } = useFeedPostUIStore()
-  
-  const isActivePost = activePostId === id
-  
-  const videoState = getVideoState(id)
-  const showSeekBar = videoState.showSeekBar
-  const videoCurrentTime = videoState.currentTime
-  const videoDuration = videoState.duration
-  const isPressed = pressedPosts[id] || false
-  const likeAnimating = likeAnimatingPosts[id] || false
-  
-  const player = useVideoPlayer(isVideo ? media[0].url : "", (player) => {
-    player.loop = false
-    player.muted = isMuted
-  })
+  } = useFeedPostUIStore();
+
+  const isActivePost = activePostId === id;
+
+  const videoState = getVideoState(id);
+  const showSeekBar = videoState.showSeekBar;
+  const videoCurrentTime = videoState.currentTime;
+  const videoDuration = videoState.duration;
+  const isPressed = pressedPosts[id] || false;
+  const likeAnimating = likeAnimatingPosts[id] || false;
+
+  const player = useVideoPlayer(
+    isVideo && media[0]?.url ? media[0].url : "",
+    (player) => {
+      player.loop = false;
+      player.muted = isMuted;
+    },
+  );
 
   useEffect(() => {
     if (isVideo && player) {
       try {
-        player.muted = isMuted
+        player.muted = isMuted;
       } catch {
         // Player may have been released
       }
     }
-  }, [isVideo, player, isMuted])
+  }, [isVideo, player, isMuted]);
 
   useEffect(() => {
     if (isVideo && player) {
       try {
         if (isFocused && isActivePost && !showSeekBar) {
-          player.play()
+          player.play();
         } else {
-          player.pause()
+          player.pause();
         }
       } catch {
         // Player may have been released
       }
     }
-    
+
     // Cleanup: pause video when component unmounts or dependencies change
     return () => {
       if (isVideo && player) {
         try {
-          player.pause()
+          player.pause();
         } catch {
           // Player may have been released
         }
       }
-    }
-  }, [isFocused, isVideo, player, showSeekBar, isActivePost, id])
+    };
+  }, [isFocused, isVideo, player, showSeekBar, isActivePost, id]);
 
   useEffect(() => {
-    if (!isVideo || !player) return
+    if (!isVideo || !player) return;
 
     const interval = setInterval(() => {
       try {
@@ -122,88 +145,105 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           setVideoState(id, {
             currentTime: player.currentTime,
             duration: player.duration || 0,
-          })
+          });
         }
       } catch {
         // Player may have been released
       }
-    }, 250)
+    }, 250);
 
-    return () => clearInterval(interval)
-  }, [isVideo, player, id, setVideoState, showSeekBar])
+    return () => clearInterval(interval);
+  }, [isVideo, player, id, setVideoState, showSeekBar]);
 
   const handleLongPress = useCallback(() => {
-    if (!isVideo) return
-    setVideoState(id, { showSeekBar: true })
+    if (!isVideo) return;
+    setVideoState(id, { showSeekBar: true });
     try {
-      player?.pause()
+      player?.pause();
     } catch {}
-  }, [isVideo, player, id, setVideoState])
+  }, [isVideo, player, id, setVideoState]);
 
   const handleVideoPress = useCallback(() => {
     if (showSeekBar) {
       // Tap to hide seek bar and resume
-      setVideoState(id, { showSeekBar: false })
+      setVideoState(id, { showSeekBar: false });
       try {
-        player?.play()
+        player?.play();
       } catch {}
     } else {
       // Normal tap - navigate to post
-      router.push(`/(protected)/post/${id}`)
+      router.push(`/(protected)/post/${id}`);
     }
-  }, [showSeekBar, player, id, setVideoState, router])
+  }, [showSeekBar, player, id, setVideoState, router]);
 
-  const handleVideoSeek = useCallback((time: number) => {
-    try {
-      if (player) {
-        player.currentTime = time
+  const handleVideoSeek = useCallback(
+    (time: number) => {
+      try {
+        if (player) {
+          player.currentTime = time;
+        }
+      } catch (e) {
+        console.log("Seek error:", e);
       }
-    } catch (e) {
-      console.log("Seek error:", e)
-    }
-  }, [player])
+    },
+    [player],
+  );
 
   const handleSeekEnd = useCallback(() => {
-    setVideoState(id, { showSeekBar: false })
+    setVideoState(id, { showSeekBar: false });
     try {
-      player?.play()
+      player?.play();
     } catch {}
-  }, [player, id, setVideoState])
+  }, [player, id, setVideoState]);
 
-  const isLiked = isPostLiked(id)
-  const isSaved = isBookmarked(id)
-  const likeCount = getLikeCount(id, likes)
+  const isLiked = isPostLiked(id);
+  const isSaved = isBookmarked(id);
+  const likeCount = getLikeCount(id, likes);
 
   const handleLike = useCallback(() => {
-    setLikeAnimating(id, true)
-    toggleLike(id, likes)
-    setTimeout(() => setLikeAnimating(id, false), 300)
-  }, [id, likes, toggleLike, setLikeAnimating])
+    const wasLiked = isPostLiked(id);
+    setLikeAnimating(id, true);
+    toggleLike(id, likes);
+    likePostMutation.mutate(
+      { postId: id, isLiked: wasLiked },
+      {
+        onError: () => {
+          // Rollback on error
+          toggleLike(id, likes);
+        },
+        onSettled: () => {
+          setTimeout(() => setLikeAnimating(id, false), 300);
+        },
+      },
+    );
+  }, [id, likes, isPostLiked, toggleLike, setLikeAnimating, likePostMutation]);
 
   const handleSave = useCallback(() => {
-    toggleBookmark(id)
-  }, [id, toggleBookmark])
+    toggleBookmark(id);
+  }, [id, toggleBookmark]);
 
   const handleScroll = (event: any) => {
-    const slideIndex = Math.round(event.nativeEvent.contentOffset.x / mediaSize)
-    setCurrentSlide(id, slideIndex)
-  }
+    const slideIndex = Math.round(
+      event.nativeEvent.contentOffset.x / mediaSize,
+    );
+    setCurrentSlide(id, slideIndex);
+  };
 
   const handlePressIn = useCallback(() => {
-    setPressedPost(id, true)
-  }, [id, setPressedPost])
+    setPressedPost(id, true);
+  }, [id, setPressedPost]);
 
   const handlePressOut = useCallback(() => {
-    setPressedPost(id, false)
-  }, [id, setPressedPost])
+    setPressedPost(id, false);
+  }, [id, setPressedPost]);
 
   const handlePostPress = useCallback(() => {
-    router.push(`/(protected)/post/${id}`)
-  }, [router, id])
+    router.push(`/(protected)/post/${id}`);
+  }, [router, id]);
 
   const handleProfilePress = useCallback(() => {
-    router.push(`/(protected)/profile/${author.username}`)
-  }, [router, author.username])
+    router.push(`/(protected)/profile/${author.username}`);
+  }, [router, author.username]);
 
   return (
     <Motion.View
@@ -229,6 +269,8 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
                 <Image
                   source={{ uri: author.avatar }}
                   className="h-8 w-8 rounded-full"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
               </Motion.View>
             </Pressable>
@@ -257,109 +299,121 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
           </Pressable>
         </View>
 
-        <View
-          style={{ width: mediaSize, height: mediaSize }}
-          className="bg-muted"
-        >
-          {isVideo ? (
-            <View style={{ width: '100%', height: '100%' }}>
+        {hasMedia && (
+          <View
+            style={{ width: mediaSize, height: mediaSize }}
+            className="bg-muted"
+          >
+            {isVideo ? (
+              <View style={{ width: "100%", height: "100%" }}>
+                <Pressable
+                  onPress={handleVideoPress}
+                  onLongPress={handleLongPress}
+                  delayLongPress={LONG_PRESS_DELAY}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <View
+                    pointerEvents="none"
+                    style={{ width: "100%", height: "100%" }}
+                  >
+                    <VideoView
+                      player={player}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      nativeControls={false}
+                    />
+                  </View>
+                </Pressable>
+                <Pressable
+                  onPress={toggleMute}
+                  className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
+                >
+                  {isMuted ? (
+                    <VolumeX size={20} color="#fff" />
+                  ) : (
+                    <Volume2 size={20} color="#fff" />
+                  )}
+                </Pressable>
+                <VideoSeekBar
+                  currentTime={videoCurrentTime}
+                  duration={videoDuration}
+                  onSeek={handleVideoSeek}
+                  onSeekEnd={handleSeekEnd}
+                  visible={showSeekBar}
+                  barWidth={mediaSize - 32}
+                />
+              </View>
+            ) : hasMultipleMedia ? (
+              <>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}
+                >
+                  {media.map((medium, index) => (
+                    <Pressable
+                      key={index}
+                      onPress={handlePostPress}
+                      onPressIn={handlePressIn}
+                      onPressOut={handlePressOut}
+                    >
+                      <Image
+                        source={{ uri: medium.url }}
+                        style={{ width: mediaSize, height: mediaSize }}
+                        contentFit="cover"
+                        transition={200}
+                        cachePolicy="memory-disk"
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <View
+                  className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
+                  pointerEvents="none"
+                >
+                  {media.map((_, index) => (
+                    <Motion.View
+                      key={index}
+                      animate={{
+                        width: index === currentSlide ? 12 : 6,
+                        opacity: index === currentSlide ? 1 : 0.5,
+                      }}
+                      transition={{
+                        type: "spring",
+                        damping: 15,
+                        stiffness: 300,
+                      }}
+                      className={`h-1.5 rounded-full ${
+                        index === currentSlide
+                          ? "bg-primary"
+                          : "bg-foreground/50"
+                      }`}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
               <Pressable
-                onPress={handleVideoPress}
-                onLongPress={handleLongPress}
-                delayLongPress={LONG_PRESS_DELAY}
+                onPress={handlePostPress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                style={{ width: '100%', height: '100%' }}
+                style={{ width: mediaSize, height: mediaSize }}
               >
-                <View pointerEvents="none" style={{ width: '100%', height: '100%' }}>
-                  <VideoView
-                    player={player}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                    nativeControls={false}
-                  />
-                </View>
+                <Image
+                  source={{ uri: media[0]?.url }}
+                  style={{ width: mediaSize, height: mediaSize }}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
+                />
               </Pressable>
-              <Pressable
-                onPress={toggleMute}
-                className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
-              >
-                {isMuted ? (
-                  <VolumeX size={20} color="#fff" />
-                ) : (
-                  <Volume2 size={20} color="#fff" />
-                )}
-              </Pressable>
-              <VideoSeekBar
-                currentTime={videoCurrentTime}
-                duration={videoDuration}
-                onSeek={handleVideoSeek}
-                onSeekEnd={handleSeekEnd}
-                visible={showSeekBar}
-                barWidth={mediaSize - 32}
-              />
-            </View>
-          ) : hasMultipleMedia ? (
-            <>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-              >
-                {media.map((medium, index) => (
-                  <Pressable 
-                    key={index} 
-                    onPress={handlePostPress}
-                    onPressIn={handlePressIn}
-                    onPressOut={handlePressOut}
-                  >
-                    <Image
-                      source={{ uri: medium.url }}
-                      style={{ width: mediaSize, height: mediaSize }}
-                      contentFit="cover"
-                    />
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <View className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5" pointerEvents="none">
-                {media.map((_, index) => (
-                  <Motion.View
-                    key={index}
-                    animate={{
-                      width: index === currentSlide ? 12 : 6,
-                      opacity: index === currentSlide ? 1 : 0.5,
-                    }}
-                    transition={{
-                      type: "spring",
-                      damping: 15,
-                      stiffness: 300,
-                    }}
-                    className={`h-1.5 rounded-full ${
-                      index === currentSlide
-                        ? "bg-primary"
-                        : "bg-foreground/50"
-                    }`}
-                  />
-                ))}
-              </View>
-            </>
-          ) : (
-            <Pressable
-              onPress={handlePostPress}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-            >
-              <SharedImage
-                source={{ uri: media[0].url }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                sharedTag={`post-image-${id}`}
-              />
-            </Pressable>
-          )}
-        </View>
+            )}
+          </View>
+        )}
 
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-4">
@@ -449,4 +503,4 @@ function FeedPostComponent({ id, author, media, caption, likes, comments, timeAg
   );
 }
 
-export const FeedPost = memo(FeedPostComponent)
+export const FeedPost = memo(FeedPostComponent);
