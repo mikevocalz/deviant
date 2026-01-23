@@ -251,8 +251,9 @@ function FeedPostComponent({
   }, [router, id]);
 
   const handleProfilePress = useCallback(() => {
+    if (!author?.username) return;
     router.push(`/(protected)/profile/${author.username}`);
-  }, [router, author.username]);
+  }, [router, author?.username]);
 
   return (
     <Motion.View
@@ -276,7 +277,7 @@ function FeedPostComponent({
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
               >
                 <Image
-                  source={{ uri: author.avatar }}
+                  source={{ uri: author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.username || "User")}` }}
                   className="h-8 w-8 rounded-full"
                   transition={200}
                   cachePolicy="memory-disk"
@@ -287,7 +288,7 @@ function FeedPostComponent({
               <View className="flex-row items-center gap-1">
                 <Pressable onPress={handleProfilePress}>
                   <Text className="text-sm font-semibold text-foreground">
-                    {author.username}
+                    {author?.username || "Unknown User"}
                   </Text>
                 </Pressable>
                 {isNSFW && (
@@ -485,9 +486,9 @@ function FeedPostComponent({
           {caption && (
             <Text className="mt-1 text-sm">
               <Text className="font-semibold text-foreground">
-                {author.username}
+                {author?.username || "Unknown User"}
               </Text>{" "}
-              <Text className="text-foreground/90">{caption}</Text>
+              <Text className="text-foreground/90">{caption || ""}</Text>
             </Text>
           )}
           {comments > 0 ? (

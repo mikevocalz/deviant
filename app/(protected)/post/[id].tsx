@@ -35,7 +35,7 @@ export default function PostDetailScreen() {
     ? post.media[0].url 
     : "";
   const player = useVideoPlayer(
-    videoUrl,
+    videoUrl || "",
     (player) => {
       if (player && videoUrl) {
         player.loop = false;
@@ -152,7 +152,7 @@ export default function PostDetailScreen() {
                   contentFit="cover"
                   nativeControls
                 />
-              ) : post.media[0]?.url ? (
+              ) : post.media?.[0]?.url ? (
                 <SharedImage
                   source={{ uri: post.media[0].url }}
                   style={{ width: "100%", height: "100%" }}

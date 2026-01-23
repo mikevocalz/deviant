@@ -274,13 +274,16 @@ export default function ProfileScreen() {
   // Transform user posts data
   const userPosts = useMemo(() => {
     if (!userPostsData) return [];
-    return userPostsData.map((post) => ({
-      id: post.id,
-      thumbnail: post.media[0]?.url || "/placeholder.svg",
-      type: post.media[0]?.type === "video" ? "video" : "image",
-      mediaCount: post.media.length,
-      hasMultipleImages: post.media.length > 1 && post.media[0]?.type === "image",
-    }));
+    return userPostsData.map((post) => {
+      const media = Array.isArray(post.media) ? post.media : [];
+      return {
+        id: post.id,
+        thumbnail: media[0]?.url || "/placeholder.svg",
+        type: media[0]?.type === "video" ? "video" : "image",
+        mediaCount: media.length,
+        hasMultipleImages: media.length > 1 && media[0]?.type === "image",
+      };
+    });
   }, [userPostsData]);
 
   // Fetch bookmarked posts
@@ -288,13 +291,16 @@ export default function ProfileScreen() {
 
   const savedPosts = useMemo(() => {
     if (!bookmarkedPostsData || bookmarkedPostsData.length === 0) return [];
-    return bookmarkedPostsData.map((post) => ({
-      id: post.id,
-      thumbnail: post.media[0]?.url || "/placeholder.svg",
-      type: post.media[0]?.type === "video" ? "video" : "image",
-      mediaCount: post.media.length,
-      hasMultipleImages: post.media.length > 1 && post.media[0]?.type === "image",
-    }));
+    return bookmarkedPostsData.map((post) => {
+      const media = Array.isArray(post.media) ? post.media : [];
+      return {
+        id: post.id,
+        thumbnail: media[0]?.url || "/placeholder.svg",
+        type: media[0]?.type === "video" ? "video" : "image",
+        mediaCount: media.length,
+        hasMultipleImages: media.length > 1 && media[0]?.type === "image",
+      };
+    });
   }, [bookmarkedPostsData]);
 
   const videoPosts = useMemo(
