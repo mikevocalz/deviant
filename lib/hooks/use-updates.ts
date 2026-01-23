@@ -6,7 +6,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { toast } from "sonner-native";
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -25,8 +25,8 @@ export interface UpdateStatus {
 }
 
 export function useUpdates() {
-  const showToast = useUIStore((s) => s.showToast);
   const hasShownUpdateToast = useRef(false);
+  const toastIdRef = useRef<string | number | null>(null);
   const [status, setStatus] = useState<UpdateStatus>({
     isChecking: false,
     isDownloading: false,
@@ -53,11 +53,20 @@ export function useUpdates() {
         // Only show toast once per session
         if (!hasShownUpdateToast.current) {
           hasShownUpdateToast.current = true;
-          showToast("info", "Update Ready", "Tap to restart and apply update");
-          // Auto-restart after a short delay
-          setTimeout(async () => {
-            if (Updates) await Updates.reloadAsync();
-          }, 2000);
+          
+          // Show toast with restart button
+          toastIdRef.current = toast.info("Update Ready", {
+            description: "A new update is available. Restart to apply it.",
+            duration: Infinity, // Don't auto-dismiss
+            action: {
+              label: "Restart App",
+              onPress: async () => {
+                if (Updates) {
+                  await Updates.reloadAsync();
+                }
+              },
+            },
+          });
         }
       } else {
         setStatus((prev) => ({ ...prev, isDownloading: false }));
@@ -71,7 +80,7 @@ export function useUpdates() {
           error instanceof Error ? error.message : "Failed to download update",
       }));
     }
-  }, [showToast]);
+  }, []);
 
   const checkForUpdates = useCallback(async (showAlert = false) => {
     // Skip in development or if updates aren't available/enabled
