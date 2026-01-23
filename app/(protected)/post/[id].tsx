@@ -103,6 +103,14 @@ export default function PostDetailScreen() {
   const isSaved = isBookmarked(postIdString);
   const likeCount = getLikeCount(postIdString, post.likes || 0);
 
+  const handleShare = useCallback(async () => {
+    try {
+      await sharePost(postIdString, post.caption || "");
+    } catch (error) {
+      console.error("[PostDetail] Share error:", error);
+    }
+  }, [postIdString, post.caption]);
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
@@ -192,7 +200,7 @@ export default function PostDetailScreen() {
               >
                 <MessageCircle size={28} color={colors.foreground} />
               </Pressable>
-              <Pressable onPress={() => sharePost(postIdString, post.caption || "")}>
+              <Pressable onPress={handleShare}>
                 <Share2 size={28} color={colors.foreground} />
               </Pressable>
             </View>

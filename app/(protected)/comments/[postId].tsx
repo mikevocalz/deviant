@@ -33,15 +33,26 @@ export default function CommentsScreen() {
   const createComment = useCreateComment();
 
   const handleSend = useCallback(() => {
-    if (!comment.trim() || !postId) return;
-    createComment.mutate({
-      post: postId,
-      text: comment.trim(),
-      parent: replyingTo || undefined,
-    });
-    setComment("");
-    setReplyingTo(null);
-    Keyboard.dismiss();
+    if (!comment.trim() || !postId || createComment.isPending) return;
+    const commentText = comment.trim();
+    const parentId = replyingTo || undefined;
+    createComment.mutate(
+      {
+        post: postId,
+        text: commentText,
+        parent: parentId,
+      },
+      {
+        onSuccess: () => {
+          setComment("");
+          setReplyingTo(null);
+          Keyboard.dismiss();
+        },
+        onError: (error) => {
+          console.error("[Comments] Failed to create comment:", error);
+        },
+      },
+    );
   }, [comment, postId, replyingTo, createComment, setComment, setReplyingTo]);
 
   useEffect(() => {
@@ -103,12 +114,19 @@ export default function CommentsScreen() {
 
       <KeyboardAwareScrollView 
         style={{ flex: 1 }} 
-        contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled"
         bottomOffset={100}
         enabled={true}
       >
-        {comments.length === 0 ? (
+        {isLoading ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <ActivityIndicator size="small" color="#3EA4E5" />
+            <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
+              Loading comments...
+            </Text>
+          </View>
+        ) : comments.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ color: "#999" }}>No comments yet</Text>
             <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
@@ -393,80 +411,85 @@ export default function CommentsScreen() {
             );
           })
         )}
-        
-        {/* Input at bottom of scroll view */}
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: "#1a1a1a",
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-            paddingBottom: Math.max(insets.bottom, 12),
-          }}
-        >
-          {replyingTo && (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginBottom: 8,
-              }}
-            >
-              <Text style={{ color: "#666", fontSize: 12 }}>
-                Replying to comment
-              </Text>
-              <Pressable
-                onPress={() => {
-                  setReplyingTo(null);
-                  setComment("");
-                  Keyboard.dismiss();
-                }}
-                hitSlop={8}
-              >
-                <X size={16} color="#666" />
-              </Pressable>
-            </View>
-          )}
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <TextInput
-              value={comment}
-              onChangeText={setComment}
-              placeholder="Add a comment..."
-              placeholderTextColor="#666"
-              multiline
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-              blurOnSubmit={false}
-              enablesReturnKeyAutomatically={true}
-              style={{
-                flex: 1,
-                minHeight: 40,
-                maxHeight: 100,
-                backgroundColor: "#1a1a1a",
-                borderRadius: 20,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                color: "#fff",
-              }}
-            />
+      </KeyboardAwareScrollView>
+
+      {/* Input at bottom - outside scroll view */}
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: "#1a1a1a",
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          paddingBottom: Math.max(insets.bottom, 12),
+          backgroundColor: "#000",
+        }}
+      >
+        {replyingTo && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 8,
+            }}
+          >
+            <Text style={{ color: "#666", fontSize: 12 }}>
+              Replying to comment
+            </Text>
             <Pressable
-              onPress={handleSend}
-              disabled={!comment.trim()}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: comment.trim() ? "#3EA4E5" : "#1a1a1a",
-                justifyContent: "center",
-                alignItems: "center",
+              onPress={() => {
+                setReplyingTo(null);
+                setComment("");
+                Keyboard.dismiss();
               }}
+              hitSlop={8}
             >
-              <Send size={20} color={comment.trim() ? "#fff" : "#666"} />
+              <X size={16} color="#666" />
             </Pressable>
           </View>
+        )}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <TextInput
+            value={comment}
+            onChangeText={setComment}
+            placeholder="Add a comment..."
+            placeholderTextColor="#666"
+            multiline
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            blurOnSubmit={false}
+            enablesReturnKeyAutomatically={true}
+            style={{
+              flex: 1,
+              minHeight: 40,
+              maxHeight: 100,
+              backgroundColor: "#1a1a1a",
+              borderRadius: 20,
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+              color: "#fff",
+            }}
+          />
+          <Pressable
+            onPress={handleSend}
+            disabled={!comment.trim() || createComment.isPending}
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: comment.trim() && !createComment.isPending ? "#3EA4E5" : "#1a1a1a",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            {createComment.isPending ? (
+              <ActivityIndicator size="small" color="#666" />
+            ) : (
+              <Send size={20} color={comment.trim() ? "#fff" : "#666"} />
+            )}
+          </Pressable>
         </View>
-      </KeyboardAwareScrollView>
+      </View>
     </View>
   );
 }

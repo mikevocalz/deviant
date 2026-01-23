@@ -64,6 +64,7 @@ function FeedPostComponent({
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
+  const likePostMutation = useLikePost();
   const currentSlide = currentSlides[id] || 0;
 
   const hasMedia = media && media.length > 0;
@@ -221,6 +222,14 @@ function FeedPostComponent({
   const handleSave = useCallback(() => {
     toggleBookmark(id);
   }, [id, toggleBookmark]);
+
+  const handleShare = useCallback(async () => {
+    try {
+      await sharePost(id, caption);
+    } catch (error) {
+      console.error("[FeedPost] Share error:", error);
+    }
+  }, [id, caption]);
 
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(
@@ -445,7 +454,7 @@ function FeedPostComponent({
                 <MessageCircle size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
-            <Pressable onPress={() => sharePost(id, caption)}>
+            <Pressable onPress={handleShare}>
               <Motion.View
                 whileTap={{ scale: 0.85 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}

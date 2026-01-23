@@ -27,8 +27,13 @@ export function useCreateComment() {
   return useMutation({
     mutationFn: commentsApiClient.createComment,
     onSuccess: (_, variables) => {
+      // Invalidate and refetch comments for the post
       queryClient.invalidateQueries({
         queryKey: commentKeys.byPost(variables.post),
+      });
+      // Also invalidate all comment queries to ensure consistency
+      queryClient.invalidateQueries({
+        queryKey: commentKeys.all,
       });
     },
   });
