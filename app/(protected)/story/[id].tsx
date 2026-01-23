@@ -6,10 +6,10 @@ import { VideoView, useVideoPlayer } from "expo-video"
 import { X, ChevronLeft, ChevronRight } from "lucide-react-native"
 import { useEffect, useCallback, useRef, useState } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from "react-native-reanimated"
-import { storiesData } from "@/lib/constants"
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
 import { VideoSeekBar } from "@/components/video-seek-bar"
+import { useStories } from "@/lib/hooks/use-stories"
 
 const { width, height } = Dimensions.get("window")
 const LONG_PRESS_DELAY = 300
@@ -36,26 +36,33 @@ export default function StoryViewerScreen() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isPaused = useRef(false)
 
+  // Fetch real stories from API
+  const { data: storiesData = [], isLoading } = useStories()
+
   useEffect(() => {
     if (id && currentStoryId !== id) {
       setCurrentStoryId(id)
     }
   }, [id, currentStoryId, setCurrentStoryId])
 
-  // Filter stories that have content (exclude "your-story" if empty)
-  const availableStories = storiesData.filter((s) => s.stories.length > 0)
+  // Filter stories that have content
+  const availableStories = storiesData.filter((s) => s.items && s.items.length > 0)
   const currentStoryIndex = availableStories.findIndex((s) => s.id === currentStoryId)
   const story = availableStories[currentStoryIndex]
-  const currentItem = story?.stories[currentItemIndex]
+  const currentItem = story?.items?.[currentItemIndex]
 
   const hasNextUser = currentStoryIndex < availableStories.length - 1
   const hasPrevUser = currentStoryIndex > 0
 
   const isVideo = currentItem?.type === "video"
+  const isImage = currentItem?.type === "image"
+  const videoUrl = isVideo && currentItem?.url ? currentItem.url : ""
 
-  const player = useVideoPlayer(isVideo ? currentItem?.url : "", (player) => {
-    player.loop = false
-    player.play()
+  const player = useVideoPlayer(videoUrl, (player) => {
+    if (player && videoUrl) {
+      player.loop = false
+      player.play()
+    }
   })
 
   useEffect(() => {
@@ -159,7 +166,8 @@ export default function StoryViewerScreen() {
   const goToPrevUser = useCallback(() => {
     if (currentStoryIndex > 0) {
       const prevStory = availableStories[currentStoryIndex - 1]
-      setCurrentItemIndex(prevStory.stories.length - 1)
+      const prevStoryItemsCount = prevStory?.items?.length || 0
+      setCurrentItemIndex(Math.max(0, prevStoryItemsCount - 1))
       progress.value = 0
       // Navigate to the previous user's story
       router.replace(`/(protected)/story/${prevStory.id}`)
@@ -167,9 +175,9 @@ export default function StoryViewerScreen() {
   }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
 
   const handleNext = useCallback(() => {
-    if (!story) return
+    if (!story || !story.items) return
 
-    if (currentItemIndex < story.stories.length - 1) {
+    if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
       setCurrentItemIndex(currentItemIndex + 1)
     } else if (currentStoryIndex < availableStories.length - 1) {
@@ -201,10 +209,21 @@ export default function StoryViewerScreen() {
     }
   }, [isVideo, player, videoCurrentTime, videoDuration, handleNext])
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center", paddingTop: insets.top }}>
+        <Text style={{ color: "#fff" }}>Loading story...</Text>
+      </View>
+    )
+  }
+
   if (!story || !currentItem) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center", paddingTop: insets.top }}>
         <Text style={{ color: "#fff" }}>Story not found</Text>
+        <Pressable onPress={() => router.back()} style={{ marginTop: 20, padding: 12, backgroundColor: "#333", borderRadius: 8 }}>
+          <Text style={{ color: "#fff" }}>Go Back</Text>
+        </Pressable>
       </View>
     )
   }
@@ -213,7 +232,7 @@ export default function StoryViewerScreen() {
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
       {/* Progress bars */}
       <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
-          {story.stories.map((_, index) => (
+          {story.items?.map((_, index) => (
             <View
               key={index}
               style={{
@@ -249,7 +268,7 @@ export default function StoryViewerScreen() {
 
         {/* Content */}
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          {isVideo ? (
+          {isVideo && videoUrl && player ? (
             <View style={{ width, height: height * 0.7 }}>
               <VideoView
                 player={player}
@@ -265,12 +284,39 @@ export default function StoryViewerScreen() {
                 barWidth={width - 32}
               />
             </View>
-          ) : (
+          ) : isImage && currentItem?.url ? (
             <Image
               source={{ uri: currentItem.url }}
               style={{ width, height: height * 0.7 }}
               contentFit="contain"
+              transition={200}
+              cachePolicy="memory-disk"
             />
+          ) : currentItem?.type === "text" ? (
+            <View
+              style={{
+                width,
+                height: height * 0.7,
+                justifyContent: "center",
+                alignItems: "center",
+                padding: 20,
+              }}
+            >
+              <Text
+                style={{
+                  color: currentItem.textColor || "#fff",
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  textAlign: "center",
+                }}
+              >
+                {currentItem.text}
+              </Text>
+            </View>
+          ) : (
+            <View style={{ width, height: height * 0.7, justifyContent: "center", alignItems: "center" }}>
+              <Text style={{ color: "#fff" }}>No content available</Text>
+            </View>
           )}
         </View>
 
