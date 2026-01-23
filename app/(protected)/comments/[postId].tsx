@@ -392,7 +392,9 @@ export default function CommentsScreen() {
                                   </Text>
                                 </View>
                               </View>
-                            ))}
+                                );
+                              })
+                              .filter(Boolean)}
 
                             {item.replies.length > 2 && (
                               <Pressable
