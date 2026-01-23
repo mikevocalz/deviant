@@ -70,6 +70,7 @@ export default function CommentsScreen() {
 
   const handleReply = useCallback(
     (username: string, commentIdParam: string) => {
+      if (!username || !commentIdParam) return;
       setReplyingTo(commentIdParam);
       setComment(`@${username} `);
     },
@@ -78,6 +79,7 @@ export default function CommentsScreen() {
 
   const handleViewReplies = useCallback(
     (commentIdParam: string) => {
+      if (!commentIdParam) return;
       router.push(`/(protected)/comments/replies/${commentIdParam}`);
     },
     [router],
@@ -85,6 +87,7 @@ export default function CommentsScreen() {
 
   const handleProfilePress = useCallback(
     (username: string) => {
+      if (!username) return;
       router.push(`/(protected)/profile/${username}`);
     },
     [router],
@@ -182,7 +185,7 @@ export default function CommentsScreen() {
                         </Text>
                       </Pressable>
                       <Text style={{ color: "#666", fontSize: 12 }}>
-                        {item.timeAgo}
+                        {item.timeAgo || ""}
                       </Text>
                     </View>
                     <Text
@@ -246,7 +249,9 @@ export default function CommentsScreen() {
                             </Text>
                             {item.replies
                               .filter((reply) => reply && reply.id && reply.username && reply.text)
-                              .map((reply) => (
+                              .map((reply) => {
+                                if (!reply || !reply.id || !reply.username || !reply.text) return null;
+                                return (
                               <View
                                 key={reply.id}
                                 style={{
@@ -296,7 +301,7 @@ export default function CommentsScreen() {
                                     <Text
                                       style={{ color: "#666", fontSize: 11 }}
                                     >
-                                      {reply.timeAgo}
+                                      {reply.timeAgo || ""}
                                     </Text>
                                   </View>
                                   <Text
@@ -311,14 +316,18 @@ export default function CommentsScreen() {
                                   </Text>
                                 </View>
                               </View>
-                            ))}
+                                );
+                              })
+                              .filter(Boolean)}
                           </>
                         ) : (
                           <>
                             {item.replies
                               .filter((reply) => reply && reply.id && reply.username && reply.text)
                               .slice(0, 2)
-                              .map((reply) => (
+                              .map((reply) => {
+                                if (!reply || !reply.id || !reply.username || !reply.text) return null;
+                                return (
                               <View
                                 key={reply.id}
                                 style={{
@@ -368,7 +377,7 @@ export default function CommentsScreen() {
                                     <Text
                                       style={{ color: "#666", fontSize: 11 }}
                                     >
-                                      {reply.timeAgo}
+                                      {reply.timeAgo || ""}
                                     </Text>
                                   </View>
                                   <Text
