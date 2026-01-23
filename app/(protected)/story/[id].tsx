@@ -210,10 +210,9 @@ export default function StoryViewerScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <View style={{ flex: 1, paddingTop: insets.top }}>
-        {/* Progress bars */}
-        <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
+    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
+      {/* Progress bars */}
+      <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
           {story.stories.map((_, index) => (
             <View
               key={index}
@@ -275,19 +274,18 @@ export default function StoryViewerScreen() {
           )}
         </View>
 
-        {/* Touch areas for navigation - full screen overlay */}
-        <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
-          {/* Left tap area - previous */}
-          <Pressable 
-            onPress={handlePrev} 
-            style={{ flex: 1 }} 
-          />
-          {/* Right tap area - next */}
-          <Pressable 
-            onPress={handleNext} 
-            style={{ flex: 1 }} 
-          />
-        </View>
+      {/* Touch areas for navigation - full screen overlay */}
+      <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
+        {/* Left tap area - previous */}
+        <Pressable 
+          onPress={handlePrev} 
+          style={{ flex: 1 }} 
+        />
+        {/* Right tap area - next */}
+        <Pressable 
+          onPress={handleNext} 
+          style={{ flex: 1 }} 
+        />
       </View>
     </View>
   )

@@ -134,10 +134,12 @@ export default function CommentsScreen() {
             </Text>
           </View>
         ) : (
-          comments.map((item) => {
-            const isHighlightedComment = item.id === commentId;
-            return (
-              <View key={item.id} style={{ marginBottom: 20 }}>
+          comments
+            .filter((item) => item && item.id && item.username && item.text)
+            .map((item) => {
+              const isHighlightedComment = item.id === commentId;
+              return (
+                <View key={item.id} style={{ marginBottom: 20 }}>
                 {isHighlightedComment && (
                   <View
                     style={{
@@ -154,7 +156,7 @@ export default function CommentsScreen() {
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <Pressable onPress={() => handleProfilePress(item.username)}>
                     <Image
-                      source={{ uri: item.avatar }}
+                      source={{ uri: item.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}` }}
                       style={{ width: 36, height: 36, borderRadius: 18 }}
                     />
                   </Pressable>
@@ -228,7 +230,7 @@ export default function CommentsScreen() {
                       </Pressable>
                     </View>
 
-                    {item.replies && item.replies.length > 0 && (
+                    {item.replies && Array.isArray(item.replies) && item.replies.length > 0 && (
                       <View style={{ marginTop: 12 }}>
                         {isHighlightedComment ? (
                           <>
@@ -242,7 +244,9 @@ export default function CommentsScreen() {
                             >
                               All {item.replies.length} replies
                             </Text>
-                            {item.replies.map((reply) => (
+                            {item.replies
+                              .filter((reply) => reply && reply.id && reply.username && reply.text)
+                              .map((reply) => (
                               <View
                                 key={reply.id}
                                 style={{
@@ -258,7 +262,7 @@ export default function CommentsScreen() {
                                   }
                                 >
                                   <Image
-                                    source={{ uri: reply.avatar }}
+                                    source={{ uri: reply.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username)}` }}
                                     style={{
                                       width: 28,
                                       height: 28,
@@ -311,7 +315,10 @@ export default function CommentsScreen() {
                           </>
                         ) : (
                           <>
-                            {item.replies.slice(0, 2).map((reply) => (
+                            {item.replies
+                              .filter((reply) => reply && reply.id && reply.username && reply.text)
+                              .slice(0, 2)
+                              .map((reply) => (
                               <View
                                 key={reply.id}
                                 style={{
@@ -327,7 +334,7 @@ export default function CommentsScreen() {
                                   }
                                 >
                                   <Image
-                                    source={{ uri: reply.avatar }}
+                                    source={{ uri: reply.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username)}` }}
                                     style={{
                                       width: 28,
                                       height: 28,
