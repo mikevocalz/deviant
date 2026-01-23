@@ -2,15 +2,17 @@ import { View, Text, Pressable, FlatList } from "react-native";
 import { Section } from "@expo/html-elements";
 import { Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { StoriesBarSkeleton } from "@/components/skeletons";
 import { StoryRing } from "./story-ring";
 import { Motion } from "@legendapp/motion";
 import { useStories } from "@/lib/hooks/use-stories";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export function StoriesBar() {
   const router = useRouter();
   const { data: stories = [], isLoading } = useStories();
+  const user = useAuthStore((state) => state.user);
 
   const handleCreateStory = useCallback(() => {
     router.push("/(protected)/story/create");
@@ -30,6 +32,14 @@ export function StoriesBar() {
     [router],
   );
 
+  // Find user's own story
+  const myStory = useMemo(() => {
+    if (!user) return null;
+    return stories.find((story) => story.id === user.id || story.username === user.username);
+  }, [stories, user]);
+
+  const hasMyStory = myStory && myStory.stories && myStory.stories.length > 0;
+
   if (isLoading) {
     return <StoriesBarSkeleton />;
   }
@@ -40,19 +50,28 @@ export function StoriesBar() {
         {/* Your Story */}
         <View style={{ paddingVertical: 6, paddingLeft: 4, paddingRight: 10 }}>
           <Pressable
-            onPress={handleCreateStory}
+            onPress={hasMyStory && myStory ? () => handleStoryPress(myStory.id) : handleCreateStory}
             className="items-center gap-1.5"
           >
-            <View className="relative">
-              <View
-                className="items-center justify-center rounded-xl border-2 border-border bg-card"
-                style={{ height: 110, width: 80 }}
-              >
-                <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
-                  <Plus size={24} color="#0c0a09" strokeWidth={3} />
+            {hasMyStory && myStory ? (
+              <StoryRing
+                src={user?.avatar || myStory.avatar}
+                alt={user?.username || "Your story"}
+                hasStory={true}
+                isViewed={myStory.isViewed}
+              />
+            ) : (
+              <View className="relative">
+                <View
+                  className="items-center justify-center rounded-xl border-2 border-border bg-card"
+                  style={{ height: 110, width: 80 }}
+                >
+                  <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
+                    <Plus size={24} color="#0c0a09" strokeWidth={3} />
+                  </View>
                 </View>
               </View>
-            </View>
+            )}
             <Text
               className="max-w-[64px] text-[9px] font-bold text-muted-foreground"
               numberOfLines={1}

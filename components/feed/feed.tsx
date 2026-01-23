@@ -28,7 +28,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
 
   return (
     <Motion.View
-      className="px-1 py-3"
+      className="px-0 py-3"
       initial={{ opacity: 0, scale: 0.9, y: 50 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={{

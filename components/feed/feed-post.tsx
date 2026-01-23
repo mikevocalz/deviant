@@ -267,7 +267,7 @@ function FeedPostComponent({
       }}
       className="w-full"
     >
-      <Article className="mx-3 my-4 overflow-hidden rounded-xl border border-border bg-card">
+      <Article className="mx-1 my-4 overflow-hidden rounded-xl border border-border bg-card">
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-3">
             <Pressable onPress={handleProfilePress}>
