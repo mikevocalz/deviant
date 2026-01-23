@@ -295,11 +295,12 @@ export default function PostDetailScreen() {
 
                       {/* Reply button */}
                       <Pressable
-                        onPress={() =>
+                        onPress={() => {
+                          if (!postIdString || !comment.id) return;
                           router.push(
                             `/(protected)/comments/${postIdString}?commentId=${comment.id}`,
-                          )
-                        }
+                          );
+                        }}
                         className="mt-2"
                       >
                         <Text className="text-xs text-primary">
@@ -337,13 +338,14 @@ export default function PostDetailScreen() {
                           </View>
                         );
                       })}
-                      {comment.replies.length > 2 && (
+                      {Array.isArray(comment.replies) && comment.replies.length > 2 && (
                         <Pressable
-                          onPress={() =>
+                          onPress={() => {
+                            if (!postIdString || !comment.id) return;
                             router.push(
                               `/(protected)/comments/${postIdString}?commentId=${comment.id}`,
-                            )
-                          }
+                            );
+                          }}
                           className="ml-7"
                         >
                           <Text className="text-xs text-muted-foreground">
