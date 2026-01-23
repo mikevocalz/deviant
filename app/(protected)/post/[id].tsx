@@ -24,13 +24,17 @@ const { width } = Dimensions.get("window");
 export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { data: post, isLoading, error: postError } = usePost(id!);
+  
+  // Normalize id and validate early
+  const postId = id ? String(id) : null;
+  
+  // Always call hooks unconditionally - use safe defaults
+  const { data: post, isLoading, error: postError } = usePost(postId || "");
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
   
-  // Always call hooks unconditionally - use safe defaults
   const videoUrl = post?.media?.[0]?.type === "video" && post?.media?.[0]?.url 
     ? post.media[0].url 
     : "";
@@ -57,6 +61,31 @@ export default function PostDetailScreen() {
       };
     }, [player]),
   );
+
+  // Early return if no valid post ID
+  if (!postId) {
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable onPress={() => router.back()} className="mr-4">
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground text-center">
+            Invalid post ID
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mt-4 px-4 py-2 bg-primary rounded-lg"
+          >
+            <Text className="text-primary-foreground font-semibold">Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -96,20 +125,21 @@ export default function PostDetailScreen() {
     );
   }
 
-  const isVideo = post.media?.[0]?.type === "video";
-  const hasMedia = post.media && Array.isArray(post.media) && post.media.length > 0;
-  const postIdString = String(post.id);
-  const isLiked = isPostLiked(postIdString);
-  const isSaved = isBookmarked(postIdString);
-  const likeCount = getLikeCount(postIdString, post.likes || 0);
+  const isVideo = post?.media?.[0]?.type === "video";
+  const hasMedia = post?.media && Array.isArray(post.media) && post.media.length > 0;
+  const postIdString = post?.id ? String(post.id) : postId;
+  const isLiked = postIdString ? isPostLiked(postIdString) : false;
+  const isSaved = postIdString ? isBookmarked(postIdString) : false;
+  const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
 
   const handleShare = useCallback(async () => {
+    if (!postIdString || !post) return;
     try {
       await sharePost(postIdString, post.caption || "");
     } catch (error) {
       console.error("[PostDetail] Share error:", error);
     }
-  }, [postIdString, post.caption]);
+  }, [postIdString, post]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -176,6 +206,7 @@ export default function PostDetailScreen() {
             <View className="flex-row items-center gap-4">
               <Pressable
                 onPress={() => {
+                  if (!postIdString || !post) return;
                   const wasLiked = isLiked;
                   toggleLike(postIdString, post.likes || 0);
                   likePostMutation.mutate(
@@ -196,7 +227,10 @@ export default function PostDetailScreen() {
                 />
               </Pressable>
               <Pressable
-                onPress={() => router.push(`/(protected)/comments/${postIdString}`)}
+                onPress={() => {
+                  if (!postIdString) return;
+                  router.push(`/(protected)/comments/${postIdString}`);
+                }}
               >
                 <MessageCircle size={28} color={colors.foreground} />
               </Pressable>
@@ -204,7 +238,10 @@ export default function PostDetailScreen() {
                 <Share2 size={28} color={colors.foreground} />
               </Pressable>
             </View>
-            <Pressable onPress={() => toggleBookmark(postIdString)}>
+            <Pressable onPress={() => {
+              if (!postIdString) return;
+              toggleBookmark(postIdString);
+            }}>
               <Bookmark
                 size={28}
                 color={colors.foreground}
