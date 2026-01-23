@@ -7,7 +7,6 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
@@ -26,6 +25,7 @@ import {
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 // Conditionally import expo-maps (requires dev build, not available in Expo Go)
 let AppleMaps: typeof import("expo-maps").AppleMaps | null = null;
@@ -67,6 +67,7 @@ export default function CreateEventScreen() {
   const { colors } = useColorScheme();
   const { pickFromLibrary, requestPermissions } = useMediaPicker();
   const createEvent = useCreateEvent();
+  const showToast = useUIStore((s) => s.showToast);
   const {
     uploadMultiple,
     isUploading: isUploadingMedia,
@@ -166,46 +167,50 @@ export default function CreateEventScreen() {
 
   const handleSubmit = async () => {
     if (!title.trim()) {
-      Alert.alert("Error", "Please enter an event title");
+      showToast("error", "Error", "Please enter an event title");
       return;
     }
     if (!description.trim()) {
-      Alert.alert("Error", "Please enter an event description");
+      showToast("error", "Error", "Please enter an event description");
       return;
     }
     if (!location.trim()) {
-      Alert.alert("Error", "Please enter a location");
+      showToast("error", "Error", "Please enter a location");
       return;
     }
 
     setIsSubmitting(true);
     setUploadProgress(0);
 
-    // Upload images to Bunny.net CDN
-    let uploadedImageUrl = "";
-    if (eventImages.length > 0) {
-      const mediaFiles = eventImages.map((uri) => ({
-        uri,
-        type: "image" as const,
-      }));
+    try {
+      // Upload images to Bunny.net CDN
+      let uploadedImageUrl = "";
+      if (eventImages.length > 0) {
+        const mediaFiles = eventImages.map((uri) => ({
+          uri,
+          type: "image" as const,
+        }));
 
-      const uploadResults = await uploadMultiple(mediaFiles);
-      const failedUploads = uploadResults.filter((r) => !r.success);
+        console.log("[CreateEvent] Uploading media files:", mediaFiles.length);
+        const uploadResults = await uploadMultiple(mediaFiles);
+        const failedUploads = uploadResults.filter((r) => !r.success);
 
-      if (failedUploads.length > 0) {
-        setIsSubmitting(false);
-        Alert.alert(
-          "Upload Error",
-          "Failed to upload images. Please try again.",
-        );
-        return;
+        if (failedUploads.length > 0) {
+          setIsSubmitting(false);
+          console.error("[CreateEvent] Upload failures:", failedUploads);
+          showToast(
+            "error",
+            "Upload Error",
+            "Failed to upload images. Please try again.",
+          );
+          return;
+        }
+
+        uploadedImageUrl = uploadResults[0]?.url || "";
+        console.log("[CreateEvent] Upload successful, URL:", uploadedImageUrl);
       }
 
-      uploadedImageUrl = uploadResults[0]?.url || "";
-    }
-
-    createEvent.mutate(
-      {
+      const eventData = {
         title: title.trim(),
         description: description.trim(),
         fullDate: eventDate,
@@ -214,22 +219,33 @@ export default function CreateEventScreen() {
         price: ticketPrice ? parseFloat(ticketPrice) : 0,
         image: uploadedImageUrl,
         category: tags[0] || "Event",
-      },
-      {
-        onSuccess: () => {
+      };
+
+      console.log("[CreateEvent] Creating event with data:", eventData);
+
+      createEvent.mutate(eventData, {
+        onSuccess: (data) => {
+          console.log("[CreateEvent] Event created successfully:", data);
           setUploadProgress(100);
+          showToast("success", "Success", "Event created successfully!");
           setTimeout(() => {
             setIsSubmitting(false);
             router.back();
           }, 300);
         },
-        onError: (error) => {
+        onError: (error: any) => {
           setIsSubmitting(false);
-          console.error("Error creating event:", error);
-          Alert.alert("Error", "Failed to create event. Please try again.");
+          console.error("[CreateEvent] Error creating event:", error);
+          console.error("[CreateEvent] Error details:", JSON.stringify(error, null, 2));
+          const errorMessage = error?.message || error?.error?.message || "Failed to create event. Please try again.";
+          showToast("error", "Error", errorMessage);
         },
-      },
-    );
+      });
+    } catch (error: any) {
+      setIsSubmitting(false);
+      console.error("[CreateEvent] Unexpected error:", error);
+      showToast("error", "Error", "An unexpected error occurred. Please try again.");
+    }
   };
 
   return (

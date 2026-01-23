@@ -33,15 +33,21 @@ function transformStory(doc: Record<string, unknown>): Story {
       `https://ui-avatars.com/api/?name=${encodeURIComponent((author?.name as string) || "User")}`,
     isViewed: (doc.viewed as boolean) || false,
     items: ((doc.items as Array<Record<string, unknown>>) || []).map(
-      (item) => ({
-        id: (item.id as string) || `item-${Math.random()}`,
-        type: (item.type as "image" | "video" | "text") || "image",
-        url: item.url as string | undefined,
-        text: item.text as string | undefined,
-        textColor: item.textColor as string | undefined,
-        backgroundColor: item.backgroundColor as string | undefined,
-        duration: item.duration as number,
-      }),
+      (item) => {
+        // Handle both direct url and media.url structures
+        const media = item.media as Record<string, unknown> | undefined;
+        const url = (item.url as string) || (media?.url as string) || (media as string);
+        
+        return {
+          id: (item.id as string) || `item-${Math.random()}`,
+          type: (item.type as "image" | "video" | "text") || "image",
+          url: url as string | undefined,
+          text: item.text as string | undefined,
+          textColor: item.textColor as string | undefined,
+          backgroundColor: item.backgroundColor as string | undefined,
+          duration: (item.duration as number) || 5000,
+        };
+      },
     ),
   };
 }

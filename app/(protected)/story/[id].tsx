@@ -57,6 +57,19 @@ export default function StoryViewerScreen() {
   const isVideo = currentItem?.type === "video"
   const isImage = currentItem?.type === "image"
   const videoUrl = isVideo && currentItem?.url ? currentItem.url : ""
+  
+  // Debug logging for story items
+  useEffect(() => {
+    if (currentItem) {
+      console.log("[StoryViewer] Current item:", {
+        type: currentItem.type,
+        url: currentItem.url,
+        hasUrl: !!currentItem.url,
+        isImage,
+        isVideo,
+      });
+    }
+  }, [currentItem, isImage, isVideo])
 
   const player = useVideoPlayer(videoUrl, (player) => {
     if (player && videoUrl) {
