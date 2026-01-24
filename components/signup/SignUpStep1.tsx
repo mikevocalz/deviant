@@ -302,18 +302,23 @@ export function SignUpStep1() {
             return fallbackDate;
           };
 
-          const [localDateValue, setLocalDateValue] = useState<Date>(() => 
-            parseDateString(field.state.value)
-          );
-
           const dateValue = useMemo(
-            () => {
-              const parsed = parseDateString(field.state.value);
-              setLocalDateValue(parsed);
-              return parsed;
-            },
+            () => parseDateString(field.state.value),
             [field.state.value],
           );
+
+          // Calculate minimum date (18 years ago)
+          const minimumDate = useMemo(() => {
+            const date = new Date();
+            date.setFullYear(date.getFullYear() - 100); // Allow up to 100 years old
+            return date;
+          }, []);
+
+          const maximumDate = useMemo(() => {
+            const date = new Date();
+            date.setFullYear(date.getFullYear() - 13); // Must be at least 13 years old
+            return date;
+          }, []);
 
           const handleDateChange = useCallback(
             (event: any, selectedDate: Date | undefined) => {
@@ -340,21 +345,8 @@ export function SignUpStep1() {
                 field.handleChange(dateString);
               }
             },
-            [],
+            [field],
           );
-
-          // Calculate minimum date (18 years ago)
-          const minimumDate = useMemo(() => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() - 100); // Allow up to 100 years old
-            return date;
-          }, []);
-
-          const maximumDate = useMemo(() => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() - 13); // Must be at least 13 years old
-            return date;
-          }, []);
 
           return (
             <View className="gap-1">
@@ -387,17 +379,12 @@ export function SignUpStep1() {
                   {Platform.OS === "ios" ? (
                     <View className="bg-card rounded-xl p-4 border border-border">
                       <DateTimePicker
-                        value={localDateValue}
+                        value={dateValue}
                         mode="date"
                         display="spinner"
                         minimumDate={minimumDate}
                         maximumDate={maximumDate}
-                        onChange={(event, selectedDate) => {
-                          // Update local state when user scrolls
-                          if (selectedDate) {
-                            setLocalDateValue(selectedDate);
-                          }
-                        }}
+                        onChange={handleDateChange}
                         textColor="#fff"
                         themeVariant="dark"
                         style={{ height: 200 }}
@@ -414,12 +401,6 @@ export function SignUpStep1() {
                         </Button>
                         <Button
                           onPress={() => {
-                            // Update the date when Done is pressed
-                            const year = localDateValue.getFullYear();
-                            const month = String(localDateValue.getMonth() + 1).padStart(2, "0");
-                            const day = String(localDateValue.getDate()).padStart(2, "0");
-                            const dateString = `${year}-${month}-${day}`;
-                            field.handleChange(dateString);
                             setShowDatePicker(false);
                           }}
                           className="flex-1"
