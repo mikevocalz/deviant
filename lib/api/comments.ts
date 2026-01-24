@@ -72,15 +72,26 @@ export const commentsApiClient = {
     authorUsername?: string;
   }): Promise<Comment> {
     try {
-      console.log("[commentsApi] createComment called with:", { post: data.post, text: data.text?.slice(0, 50), authorUsername: data.authorUsername });
+      // Clean and validate post ID
+      const rawPostId = data.post;
+      // Remove any spaces or invalid characters, convert to number if numeric
+      const cleanedPostId = String(rawPostId).trim().replace(/\s+/g, '');
+      const numericPostId = parseInt(cleanedPostId, 10);
+      const postId = !isNaN(numericPostId) ? numericPostId : cleanedPostId;
       
-      // Validate post ID - should be a valid MongoDB ObjectID (24 hex chars) or numeric string
-      const postId = data.post;
-      const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(postId);
-      const isNumericId = /^\d+$/.test(postId);
+      console.log("[commentsApi] createComment called with:", { 
+        rawPost: rawPostId, 
+        cleanedPost: postId,
+        text: data.text?.slice(0, 50), 
+        authorUsername: data.authorUsername 
+      });
+      
+      // Validate post ID - should be a valid MongoDB ObjectID (24 hex chars) or numeric
+      const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(cleanedPostId);
+      const isNumericId = !isNaN(numericPostId);
       
       if (!isValidObjectId && !isNumericId) {
-        console.error("[commentsApi] Invalid post ID format:", postId);
+        console.error("[commentsApi] Invalid post ID format:", rawPostId);
         throw new Error("Invalid post ID format. Cannot create comment.");
       }
       
@@ -113,12 +124,14 @@ export const commentsApiClient = {
         }
       }
       
-      const doc = await commentsApi.create({
-        post: postId,
+      const commentPayload = {
+        post: postId, // Use cleaned/parsed post ID
         content: data.text, // CMS expects 'content' field
         author: authorId,
         parent: data.parent,
-      } as any);
+      };
+      console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload));
+      const doc = await commentsApi.create(commentPayload as any);
       return transformComment(doc as Record<string, unknown>);
     } catch (error) {
       console.error("[commentsApi] createComment error:", error);

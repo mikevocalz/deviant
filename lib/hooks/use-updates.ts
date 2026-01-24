@@ -188,19 +188,18 @@ export function useUpdates() {
     console.log("[Updates] Initializing update checks");
 
     try {
-      // Check if there's already a pending update on app start
-      // Only check if isEmbeddedLaunch property exists
-      if (typeof Updates.isEmbeddedLaunch !== "undefined" && Updates.isEmbeddedLaunch === false) {
-        console.log("[Updates] Detected pending update from previous session");
-        // There's a pending update that was downloaded but not applied
-        setStatus((prev) => ({
-          ...prev,
-          isUpdatePending: true,
-        }));
-        showUpdateToast();
-      }
+      // Log current update status for debugging
+      console.log("[Updates] Current state:", {
+        updateId: Updates.updateId?.slice(0, 8) || "none",
+        isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+        channel: Updates.channel,
+      });
 
-      // Initial check
+      // Note: We removed the isEmbeddedLaunch check because it's false whenever
+      // the app runs from ANY OTA update, not just when there's a NEW pending update.
+      // Only show toast when we actually download a new update in this session.
+
+      // Initial check for new updates
       checkForUpdates();
 
       // Check when app comes to foreground

@@ -17,9 +17,9 @@ import {
   X,
   Check,
 } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useLayoutEffect } from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -91,29 +91,38 @@ function EditProfileContent() {
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
+    
+    const showToast = useUIStore.getState().showToast;
+    
     try {
       let avatarUrl = user.avatar;
 
       // Upload new avatar if selected
       if (newAvatarUri) {
+        console.log("[EditProfile] Uploading avatar...");
         const uploadResult = await uploadSingle(newAvatarUri);
         if (uploadResult.success && uploadResult.url) {
           avatarUrl = uploadResult.url;
+          console.log("[EditProfile] Avatar uploaded:", avatarUrl);
         } else {
-          Alert.alert("Upload Failed", "Failed to upload avatar. Other changes will be saved.");
+          console.error("[EditProfile] Avatar upload failed");
+          showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
         }
       }
 
-      // Update profile in CMS
+      // Update profile in CMS - use user's ID for direct update
       const updateData = {
         name: editName,
         bio: editBio,
         website: editWebsite,
         avatar: avatarUrl,
-        username: user.username,
       };
 
+      console.log("[EditProfile] Updating profile with:", JSON.stringify(updateData));
+      console.log("[EditProfile] User ID:", user.id);
+      
       await users.updateMe(updateData);
+      console.log("[EditProfile] Profile updated successfully");
 
       // Update local auth store
       setUser({
@@ -125,9 +134,11 @@ function EditProfileContent() {
       });
       setNewAvatarUri(null);
       setPopoverOpen(false);
-    } catch (error) {
+      showToast("success", "Saved", "Profile updated successfully");
+    } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
-      Alert.alert("Error", "Failed to save profile. Please try again.");
+      console.error("[EditProfile] Error details:", JSON.stringify(error, null, 2));
+      showToast("error", "Error", error?.message || "Failed to save profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -313,12 +324,46 @@ function EditProfileContent() {
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { activeTab, setActiveTab } = useProfileStore();
   const bookmarkedPosts = useBookmarkStore((state) => state.bookmarkedPosts);
   const { loadingScreens, setScreenLoading } = useUIStore();
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
+
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: user?.username || "Profile",
+      headerTitleAlign: "center" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <View style={{ marginLeft: 8 }}>
+          <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 16 }}>
+            @{user?.username || ""}
+          </Text>
+        </View>
+      ),
+      headerRight: () => (
+        <Pressable 
+          onPress={() => router.push("/settings")} 
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <Settings size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, user?.username, colors, router]);
   
   // Fetch real user posts
   const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "");
@@ -407,15 +452,6 @@ export default function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-        <View className="w-10" />
-        <Text className="text-lg font-semibold text-foreground">
-          {user?.username || "Profile"}
-        </Text>
-        <Pressable onPress={() => router.push("/settings")} hitSlop={8}>
-          <Settings size={24} color={colors.foreground} />
-        </Pressable>
-      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}

@@ -27,39 +27,74 @@ export interface Story {
 // Transform API response to match Story type
 function transformStory(doc: Record<string, unknown>): Story {
   const author = doc.author as Record<string, unknown> | undefined;
+  const rawItems = (doc.items as Array<Record<string, unknown>>) || [];
 
-  return {
-    id: doc.id as string,
+  const transformedItems = rawItems.map((item) => {
+    // Handle multiple possible URL structures from CMS
+    const media = item.media as Record<string, unknown> | undefined;
+    let url: string | undefined;
+    
+    // Try different URL locations
+    if (typeof item.url === 'string' && item.url) {
+      url = item.url;
+    } else if (media && typeof media.url === 'string' && media.url) {
+      url = media.url;
+    } else if (typeof media === 'string' && media) {
+      url = media;
+    }
+    
+    return {
+      id: (item.id as string) || `item-${Math.random()}`,
+      type: (item.type as "image" | "video" | "text") || "image",
+      url,
+      text: item.text as string | undefined,
+      textColor: item.textColor as string | undefined,
+      backgroundColor: item.backgroundColor as string | undefined,
+      duration: (item.duration as number) || 5000,
+    };
+  });
+
+  const story: Story = {
+    id: String(doc.id),
     username: (author?.username as string) || "user",
     avatar:
       (author?.avatar as string) ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent((author?.name as string) || "User")}`,
     isViewed: (doc.viewed as boolean) || false,
-    items: ((doc.items as Array<Record<string, unknown>>) || []).map(
-      (item) => {
-        // Handle both direct url and media.url structures
-        const media = item.media as Record<string, unknown> | undefined;
-        const url = (item.url as string) || (media?.url as string) || (media as string);
-        
-        return {
-          id: (item.id as string) || `item-${Math.random()}`,
-          type: (item.type as "image" | "video" | "text") || "image",
-          url: url as string | undefined,
-          text: item.text as string | undefined,
-          textColor: item.textColor as string | undefined,
-          backgroundColor: item.backgroundColor as string | undefined,
-          duration: (item.duration as number) || 5000,
-        };
-      },
-    ),
+    items: transformedItems,
   };
+
+  // Debug: Log story with items for troubleshooting
+  if (transformedItems.length > 0) {
+    console.log("[storiesApi] Transformed story:", {
+      id: story.id,
+      username: story.username,
+      itemCount: transformedItems.length,
+      firstItemUrl: transformedItems[0]?.url?.slice(0, 50),
+    });
+  }
+
+  return story;
 }
 
 export const storiesApiClient = {
   // Fetch all active stories
   async getStories(): Promise<Story[]> {
     try {
-      const response = await storiesApi.find({ limit: 30 });
+      const response = await storiesApi.find({ limit: 30, depth: 2 });
+      console.log("[storiesApi] Raw stories response count:", response.docs?.length || 0);
+      
+      // Log first story structure for debugging
+      if (response.docs?.[0]) {
+        const first = response.docs[0] as Record<string, unknown>;
+        console.log("[storiesApi] First story structure:", {
+          id: first.id,
+          hasItems: Array.isArray(first.items),
+          itemCount: Array.isArray(first.items) ? first.items.length : 0,
+          firstItem: Array.isArray(first.items) && first.items[0] ? JSON.stringify(first.items[0]).slice(0, 200) : null,
+        });
+      }
+      
       return response.docs.map(transformStory);
     } catch (error) {
       console.error("[storiesApi] getStories error:", error);

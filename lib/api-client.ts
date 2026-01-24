@@ -14,17 +14,18 @@
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// API base URL - Uses the deployed Payload CMS for all API calls
+// API base URL - Uses the deployed API server for all API calls
 // Note: Expo Router API routes work for web dev, but native apps need a real server
-// In dev on native, we use the production API to avoid networking complexity
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
+// Priority: EXPO_PUBLIC_API_URL > EXPO_PUBLIC_AUTH_URL (Hono server has API endpoints)
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_AUTH_URL || "";
 
 // Log the API URL for debugging
-if (__DEV__) {
-  console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
-  if (Platform.OS !== "web" && !API_BASE_URL) {
-    console.warn("[API] Warning: No API_URL set for native development. API calls will fail.");
-  }
+console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
+console.log("[API] EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL || "(not set)");
+console.log("[API] EXPO_PUBLIC_AUTH_URL:", process.env.EXPO_PUBLIC_AUTH_URL || "(not set)");
+
+if (Platform.OS !== "web" && !API_BASE_URL) {
+  console.warn("[API] Warning: No API_URL set for native. API calls will fail.");
 }
 
 // Get JWT token from storage
@@ -110,23 +111,44 @@ async function apiFetch<T>(
     headers["Cookie"] = authCookies;
   }
 
+  // Debug logging for API calls
+  if (__DEV__ || options.method === "POST" || options.method === "PATCH") {
+    console.log(`[API] ${options.method || "GET"} ${url}`);
+    console.log("[API] Has auth token:", !!authToken);
+  }
+
   const response = await fetch(url, {
     ...options,
     headers,
     credentials: API_BASE_URL ? "omit" : "include", // omit for cross-origin, include for same-origin
   });
 
-  const data = await response.json();
+  let data: any;
+  const contentType = response.headers.get("content-type");
+  
+  if (contentType?.includes("application/json")) {
+    data = await response.json();
+  } else {
+    // Handle non-JSON responses (HTML error pages, etc)
+    const text = await response.text();
+    console.error("[API] Non-JSON response:", text.slice(0, 200));
+    data = { error: `Server returned non-JSON response (${response.status})` };
+  }
 
   if (!response.ok) {
+    console.error(`[API] Error ${response.status}:`, JSON.stringify(data, null, 2));
+    
     const error = new Error(
-      (data as APIError).error || `API error: ${response.status}`,
+      data?.errors?.[0]?.message || 
+      (data as APIError).error || 
+      data?.message ||
+      `API error: ${response.status}`,
     ) as Error & {
       status: number;
       errors?: Array<{ message: string; field?: string }>;
     };
     error.status = response.status;
-    error.errors = (data as APIError).errors;
+    error.errors = (data as APIError).errors || data?.errors;
     throw error;
   }
 
@@ -209,17 +231,27 @@ export const users = {
   me: <T = Record<string, unknown>>() =>
     apiFetch<{ user: T | null }>("/api/users/me"),
 
-  updateMe: <T = Record<string, unknown>>(data: {
+  updateMe: async <T = Record<string, unknown>>(data: {
     name?: string;
     bio?: string;
     website?: string;
     avatar?: string;
     username?: string;
-  }) =>
-    apiFetch<{ user: T }>("/api/users/me", {
+  }): Promise<{ user: T }> => {
+    // First get current user to find their ID
+    const { user: currentUser } = await users.me<{ id: string }>();
+    if (!currentUser?.id) {
+      throw new Error("Not authenticated");
+    }
+    
+    // Use Payload CMS standard endpoint: PATCH /api/users/{id}
+    const updatedUser = await apiFetch<T>(`/api/users/${currentUser.id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
-    }),
+    });
+    
+    return { user: updatedUser };
+  },
 
   register: <T = Record<string, unknown>>(data: {
     email: string;

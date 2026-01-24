@@ -49,29 +49,40 @@ export function StoriesBar() {
       <View style={{ height: 154, flexDirection: "row" }}>
         {/* Your Story */}
         <View style={{ paddingVertical: 6, paddingLeft: 4, paddingRight: 10 }}>
-          <Pressable
-            onPress={hasMyStory && myStory ? () => handleStoryPress(myStory.id) : handleCreateStory}
-            className="items-center gap-1.5"
-          >
+          <View className="items-center gap-1.5">
             {hasMyStory && myStory ? (
-              <StoryRing
-                src={user?.avatar || myStory.avatar}
-                alt={user?.username || "Your story"}
-                hasStory={true}
-                isViewed={myStory.isViewed}
-                storyThumbnail={myStory.items?.[0]?.url}
-              />
-            ) : (
               <View className="relative">
-                <View
-                  className="items-center justify-center rounded-xl border-2 border-border bg-card"
-                  style={{ height: 110, width: 80 }}
+                {/* Tap story ring to view story */}
+                <Pressable onPress={() => handleStoryPress(myStory.id)}>
+                  <StoryRing
+                    src={user?.avatar || myStory.avatar}
+                    alt={user?.username || "Your story"}
+                    hasStory={true}
+                    isViewed={myStory.isViewed}
+                    storyThumbnail={myStory.items?.[0]?.url}
+                  />
+                </Pressable>
+                {/* Add button overlay - tap to add new story */}
+                <Pressable
+                  onPress={handleCreateStory}
+                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full bg-primary border-2 border-background"
                 >
-                  <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
-                    <Plus size={24} color="#0c0a09" strokeWidth={3} />
+                  <Plus size={16} color="#0c0a09" strokeWidth={3} />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={handleCreateStory}>
+                <View className="relative">
+                  <View
+                    className="items-center justify-center rounded-xl border-2 border-border bg-card"
+                    style={{ height: 110, width: 80 }}
+                  >
+                    <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
+                      <Plus size={24} color="#0c0a09" strokeWidth={3} />
+                    </View>
                   </View>
                 </View>
-              </View>
+              </Pressable>
             )}
             <Text
               className="max-w-[64px] text-[9px] font-bold text-muted-foreground"
@@ -79,7 +90,7 @@ export function StoriesBar() {
             >
               Your Story
             </Text>
-          </Pressable>
+          </View>
         </View>
 
         {/* Other Stories */}

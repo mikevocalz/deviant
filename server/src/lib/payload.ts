@@ -68,7 +68,23 @@ async function payloadFetch<T>(
   const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
-    const error = new Error(`Payload API error: ${response.status}`);
+    let errorData: { errors?: Array<{ message: string }>, message?: string } = {};
+    try {
+      errorData = await response.json();
+    } catch {
+      // Response wasn't JSON
+    }
+    
+    const errorMessage = errorData?.errors?.[0]?.message || 
+                        errorData?.message || 
+                        `Payload API error: ${response.status}`;
+    
+    const error = new Error(errorMessage) as Error & { 
+      status: number; 
+      errors?: Array<{ message: string }> 
+    };
+    error.status = response.status;
+    error.errors = errorData?.errors;
     throw error;
   }
 

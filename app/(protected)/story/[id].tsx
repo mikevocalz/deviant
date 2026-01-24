@@ -47,7 +47,8 @@ export default function StoryViewerScreen() {
 
   // Filter stories that have content
   const availableStories = storiesData.filter((s) => s.items && s.items.length > 0)
-  const currentStoryIndex = availableStories.findIndex((s) => s.id === currentStoryId)
+  // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
+  const currentStoryIndex = availableStories.findIndex((s) => String(s.id) === String(currentStoryId))
   const story = availableStories[currentStoryIndex]
   const currentItem = story?.items?.[currentItemIndex]
   
@@ -216,8 +217,12 @@ export default function StoryViewerScreen() {
     }
   }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
 
+  // Track if we're exiting to prevent multiple calls
+  const isExiting = useRef(false)
+  
   const handleNext = useCallback(() => {
     if (!story || !story.items) return
+    if (isExiting.current) return // Prevent multiple exit calls
 
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
@@ -227,6 +232,7 @@ export default function StoryViewerScreen() {
       goToNextUser()
     } else {
       // No more stories, exit
+      isExiting.current = true
       router.back()
     }
   }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router])
@@ -241,12 +247,21 @@ export default function StoryViewerScreen() {
     }
   }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
 
+  // Track if we've already advanced to prevent multiple calls
+  const hasAdvanced = useRef(false)
+  
+  // Reset hasAdvanced when item changes
+  useEffect(() => {
+    hasAdvanced.current = false
+  }, [currentItemIndex, currentStoryId])
+
   // Video end detection - auto-advance when video finishes
   useEffect(() => {
     if (!isVideo || !player || videoDuration === 0) return
     
-    // Check if video has ended (within 0.3s of end)
-    if (videoCurrentTime >= videoDuration - 0.3 && !isPaused.current) {
+    // Check if video has ended (within 0.3s of end) and we haven't already advanced
+    if (videoCurrentTime >= videoDuration - 0.3 && !isPaused.current && !hasAdvanced.current) {
+      hasAdvanced.current = true
       handleNext()
     }
   }, [isVideo, player, videoCurrentTime, videoDuration, handleNext])

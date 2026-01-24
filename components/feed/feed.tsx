@@ -243,6 +243,13 @@ export function Feed() {
     minimumViewTime: 50,
   }).current;
 
+  // Set first post as active when feed loads (for video autoplay)
+  useEffect(() => {
+    if (filteredPosts.length > 0 && !useFeedPostUIStore.getState().activePostId) {
+      setActivePostId(filteredPosts[0].id);
+    }
+  }, [filteredPosts, setActivePostId]);
+
   const onViewableItemsChanged = useRef(
     ({
       viewableItems,

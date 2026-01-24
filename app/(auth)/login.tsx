@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
 import { toast } from "sonner-native";
 import { useForm } from "@tanstack/react-form";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -9,10 +9,24 @@ import { router } from "expo-router";
 import { signIn } from "@/lib/auth-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import Logo from "@/components/logo";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { LinearGradient } from "expo-linear-gradient";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setUser } = useAuthStore();
+
+  // Background video player
+  const backgroundVideo = useVideoPlayer(
+    require("@/assets/dvntappbackground.mp4"),
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+      player.play();
+    }
+  );
 
   const form = useForm({
     defaultValues: { email: "", password: "" },
@@ -61,17 +75,33 @@ export default function LoginScreen() {
   });
 
   return (
-    <KeyboardAwareScrollView
-      style={{ flex: 1, backgroundColor: "#000" }}
-      contentContainerStyle={{
-        flexGrow: 1,
-        justifyContent: "center",
-        paddingHorizontal: 24,
-      }}
-      keyboardShouldPersistTaps="handled"
-      bottomOffset={20}
-    >
-      <View className="gap-6">
+    <View style={styles.container}>
+      {/* Background Video */}
+      <VideoView
+        player={backgroundVideo}
+        style={styles.backgroundVideo}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      
+      {/* Gradient overlay - transparent at top, black at bottom (starts at 47%) */}
+      <LinearGradient
+        colors={["transparent", "transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)", "#000"]}
+        locations={[0, 0.47, 0.6, 0.8, 1]}
+        style={styles.overlay}
+      />
+
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "center",
+          paddingHorizontal: 24,
+        }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={20}
+      >
+        <View className="gap-6">
         <View className="items-center gap-8">
           <Logo width={200} height={80} />
           <View className="items-center my-8">
@@ -143,6 +173,29 @@ export default function LoginScreen() {
           </View>
         </View>
       </View>
-    </KeyboardAwareScrollView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  backgroundVideo: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+});

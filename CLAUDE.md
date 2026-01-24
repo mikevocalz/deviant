@@ -2,6 +2,15 @@
 
 > **⚠️ READ THIS FILE FIRST** - Before making ANY changes to this project, read this entire file.
 
+## 📍 CMS Location
+
+The Payload CMS project lives in a **separate folder**:
+```
+/Users/mikevocalz/Downloads/payload-cms-setup
+```
+
+When making changes to CMS collections, they must be synced to that folder and the CMS must be redeployed separately.
+
 ---
 
 ## 🚫 Protected Files - DO NOT EDIT

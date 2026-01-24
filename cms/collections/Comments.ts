@@ -17,7 +17,13 @@ export const Comments: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req: { user } }) => Boolean(user),
+    // Allow creation via API key (server-side) or logged-in user
+    create: ({ req }) => {
+      // API key requests have req.user as the API key holder or are authenticated
+      // Allow if there's a user OR if the request has authorization header (API key)
+      const hasAuth = req.headers?.get?.("authorization") || req.user;
+      return Boolean(hasAuth);
+    },
     update: ({ req: { user } }) => Boolean(user),
     delete: ({ req: { user } }) => Boolean(user),
   },
