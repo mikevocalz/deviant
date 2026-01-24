@@ -216,8 +216,8 @@ function EditProfileContent() {
               </View>
             ) : (
               <View
-                className="absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
-                style={{ borderColor: colors.card }}
+                className="absolute -bottom-2 left-1/2 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
+                style={{ borderColor: colors.card, transform: [{ translateX: -20 }] }}
               >
                 <Camera size={18} color="#fff" />
               </View>
@@ -437,8 +437,8 @@ export default function ProfileScreen() {
                     contentFit="cover"
                   />
                   <View
-                    className="absolute bottom-0 right-0 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                    style={{ borderColor: colors.background }}
+                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                    style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
                   >
                     <Camera size={14} color="#fff" />
                   </View>

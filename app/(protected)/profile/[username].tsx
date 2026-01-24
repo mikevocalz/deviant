@@ -9,7 +9,7 @@ import { shareProfile } from "@/lib/utils/sharing"
 import { SharedImage } from "@/components/shared-image"
 import { Motion } from "@legendapp/motion"
 
-import { useCallback, memo, useState, useMemo } from "react"
+import { useCallback, memo, useState, useMemo, useEffect } from "react"
 import { useUser, useFollow } from "@/lib/hooks"
 import { useQueryClient } from "@tanstack/react-query"
 
@@ -150,17 +150,43 @@ function UserProfileScreenComponent() {
   const router = useRouter()
   const { colors } = useColorScheme()
   const currentUser = useAuthStore((state) => state.user)
+  const queryClient = useQueryClient()
   
   const isOwnProfile = currentUser?.username === username
 
-  const user = mockUsers[username || ""] || {
+  // Fetch user data from API
+  const { data: userData, isLoading } = useUser(username || "")
+  
+  // Follow mutation
+  const { mutate: followMutate, isPending: isFollowPending } = useFollow()
+  
+  // Local follow state (optimistic)
+  const [isFollowing, setIsFollowing] = useState(false)
+  
+  // Update local follow state when user data loads
+  useMemo(() => {
+    if (userData?.isFollowing !== undefined) {
+      setIsFollowing(userData.isFollowing)
+    }
+  }, [userData?.isFollowing])
+
+  // Use API data or fallback to mock data
+  const user = userData || mockUsers[username || ""] || {
+    id: undefined,
     username: username || "unknown",
     fullName: "Unknown User",
+    name: "Unknown User",
     avatar: "https://i.pravatar.cc/150?img=1",
     bio: "",
     postsCount: 0,
     followersCount: 0,
     followingCount: 0,
+  }
+  
+  // Create a followMutation-like object for compatibility
+  const followMutation = {
+    isPending: isFollowPending,
+    mutate: followMutate,
   }
 
   const handlePostPress = useCallback((postId: string) => {
@@ -170,12 +196,29 @@ function UserProfileScreenComponent() {
   }, [router])
 
   const handleFollowPress = useCallback(() => {
-    // Haptic feedback
-  }, [])
+    if (!user.id || !username) return
+    
+    const action = isFollowing ? "unfollow" : "follow"
+    setIsFollowing(!isFollowing) // Optimistic update
+    
+    followMutate(
+      { userId: user.id, action },
+      {
+        onError: () => {
+          setIsFollowing(isFollowing) // Revert on error
+        },
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ["user", username] })
+        },
+      }
+    )
+  }, [user.id, username, isFollowing, followMutate, queryClient])
 
   const handleMessagePress = useCallback(() => {
-    // Haptic feedback
-  }, [])
+    if (username) {
+      router.push(`/(protected)/chat/${username}`)
+    }
+  }, [router, username])
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
