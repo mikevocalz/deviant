@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useActivityStore } from "@/lib/stores/activity-store";
 import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,
@@ -32,6 +33,7 @@ export function useNotifications() {
   const responseListener = useRef<{ remove: () => void } | null>(null);
   const router = useRouter();
   const { user, isAuthenticated } = useAuthStore();
+  const { addActivity } = useActivityStore();
 
   const registerPushNotifications = useCallback(async () => {
     const token = await registerForPushNotificationsAsync();
@@ -41,12 +43,12 @@ export function useNotifications() {
 
       // Save token to backend if user is authenticated
       if (isAuthenticated && user?.id) {
-        await savePushTokenToBackend(token, user.id);
+        await savePushTokenToBackend(token, user.id, user.username);
       }
     }
 
     return token;
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, user?.username]);
 
   useEffect(() => {
     // Skip on web platform
@@ -63,6 +65,32 @@ export function useNotifications() {
         Notifications.addNotificationReceivedListener((notification) => {
           console.log("[Notifications] Received:", notification);
           setNotification(notification);
+          
+          // Add to activity store for real-time updates
+          try {
+            const data = notification.request.content.data as Record<string, unknown>;
+            if (data?.type && data?.senderId) {
+              const notificationType = data.type as "like" | "comment" | "follow" | "mention";
+              const newActivity = {
+                id: data.notificationId as string || `notif-${Date.now()}`,
+                type: notificationType,
+                user: {
+                  username: data.senderUsername as string || "Someone",
+                  avatar: data.senderAvatar as string || `https://ui-avatars.com/api/?name=User`,
+                },
+                post: data.postId ? {
+                  id: data.postId as string,
+                  thumbnail: data.postThumbnail as string || "",
+                } : undefined,
+                comment: data.content as string || undefined,
+                timeAgo: "Just now",
+                isRead: false,
+              };
+              addActivity(newActivity);
+            }
+          } catch (error) {
+            console.error("[Notifications] Error adding to activity store:", error);
+          }
         });
 
       // Listen for notification responses (user tapped notification)
@@ -84,13 +112,14 @@ export function useNotifications() {
                   break;
                 case "like":
                 case "comment":
+                case "mention":
                   if (data.postId) {
                     router.push(`/(protected)/post/${data.postId}` as any);
                   }
                   break;
                 case "follow":
-                  if (data.userId) {
-                    router.push(`/(protected)/profile/${data.userId}` as any);
+                  if (data.userId || data.senderId) {
+                    router.push(`/(protected)/profile/${data.userId || data.senderId}` as any);
                   }
                   break;
                 case "event":
@@ -131,9 +160,9 @@ export function useNotifications() {
   // Re-register when user logs in
   useEffect(() => {
     if (isAuthenticated && user?.id && expoPushToken) {
-      savePushTokenToBackend(expoPushToken, user.id);
+      savePushTokenToBackend(expoPushToken, user.id, user.username);
     }
-  }, [isAuthenticated, user?.id, expoPushToken]);
+  }, [isAuthenticated, user?.id, user?.username, expoPushToken]);
 
   return {
     expoPushToken,

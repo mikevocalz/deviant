@@ -128,6 +128,15 @@ export const Users: CollectionConfig = {
       },
     },
     {
+      name: "pushToken",
+      type: "text",
+      required: false,
+      admin: {
+        position: "sidebar",
+        description: "Expo push notification token",
+      },
+    },
+    {
       name: "following",
       type: "array",
       required: false,

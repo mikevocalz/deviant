@@ -127,6 +127,7 @@ export async function registerForPushNotificationsAsync(): Promise<
 export async function savePushTokenToBackend(
   token: string,
   userId: string,
+  username?: string,
 ): Promise<boolean> {
   try {
     const response = await fetch("/api/push-token", {
@@ -137,6 +138,7 @@ export async function savePushTokenToBackend(
       body: JSON.stringify({
         token,
         userId,
+        username,
         platform: Platform.OS,
       }),
     });
