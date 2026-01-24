@@ -138,6 +138,7 @@ export const eventsApiClient = {
         price: data.price,
         image: data.image,
         category: data.category,
+        maxAttendees: (data as any).maxAttendees,
         likes: 0,
         totalAttendees: 0,
       });

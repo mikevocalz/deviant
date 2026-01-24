@@ -6,6 +6,9 @@ import {
   Pressable,
   Keyboard,
   ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
+  Alert,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -48,8 +51,12 @@ export default function CommentsScreen() {
           setReplyingTo(null);
           Keyboard.dismiss();
         },
-        onError: (error) => {
+        onError: (error: any) => {
           console.error("[Comments] Failed to create comment:", error);
+          console.error("[Comments] Error details:", JSON.stringify(error, null, 2));
+          // Show error to user
+          const errorMessage = error?.message || error?.error?.message || "Failed to create comment. Please try again.";
+          Alert.alert("Error", errorMessage);
         },
       },
     );
@@ -432,16 +439,20 @@ export default function CommentsScreen() {
       </KeyboardAwareScrollView>
 
       {/* Input at bottom - outside scroll view */}
-      <View
-        style={{
-          borderTopWidth: 1,
-          borderTopColor: "#1a1a1a",
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          paddingBottom: Math.max(insets.bottom, 12),
-          backgroundColor: "#000",
-        }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
+        <View
+          style={{
+            borderTopWidth: 1,
+            borderTopColor: "#1a1a1a",
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            paddingBottom: Math.max(insets.bottom, 12),
+            backgroundColor: "#000",
+          }}
+        >
         {replyingTo && (
           <View
             style={{
@@ -507,7 +518,8 @@ export default function CommentsScreen() {
             )}
           </Pressable>
         </View>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

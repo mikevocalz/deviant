@@ -219,6 +219,7 @@ export default function CreateEventScreen() {
         price: ticketPrice ? parseFloat(ticketPrice) : 0,
         image: uploadedImageUrl,
         category: tags[0] || "Event",
+        maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
       };
 
       console.log("[CreateEvent] Creating event with data:", eventData);

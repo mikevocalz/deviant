@@ -15,10 +15,8 @@ import {
   X,
   Image as ImageIcon,
   Video,
-  Type,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
 } from "lucide-react-native";
 import { Stack, useRouter } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -90,9 +88,6 @@ export default function CreateStoryScreen() {
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const [showTextInput, setShowTextInput] = useState(false);
-  const [activeGradientIndex, setActiveGradientIndex] = useState(0);
-  const [activeTextColorIndex, setActiveTextColorIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -239,8 +234,8 @@ export default function CreateStoryScreen() {
   }, [progressAnim]);
 
   const handleShare = async () => {
-    if (selectedMedia.length === 0 && !text) {
-      Alert.alert("Empty Story", "Please add media or text to your story");
+    if (selectedMedia.length === 0) {
+      Alert.alert("Empty Story", "Please add media to your story");
       return;
     }
 
@@ -267,7 +262,7 @@ export default function CreateStoryScreen() {
         backgroundColor?: string;
       }> = [];
 
-      // Upload media to Bunny.net CDN if we have media
+      // Upload media to Bunny.net CDN
       if (mediaAssets.length > 0) {
         const mediaFiles = mediaAssets.map((m) => ({
           uri: m.uri,
@@ -292,17 +287,6 @@ export default function CreateStoryScreen() {
           type: r.type,
           url: r.url,
         }));
-      } else if (text) {
-        // Text-only story with background gradient
-        const currentGradientColors = bgGradients[activeGradientIndex].colors;
-        storyItems = [
-          {
-            type: "text",
-            text: text,
-            textColor: textColor,
-            backgroundColor: currentGradientColors.join(","),
-          },
-        ];
       }
 
       if (storyItems.length === 0) {
@@ -345,7 +329,7 @@ export default function CreateStoryScreen() {
   };
 
   const handleClose = () => {
-    if (selectedMedia.length > 0 || text.length > 0) {
+    if (selectedMedia.length > 0) {
       Alert.alert(
         "Discard Story?",
         "You have unsaved changes. Are you sure you want to discard?",
@@ -367,22 +351,10 @@ export default function CreateStoryScreen() {
     }
   };
 
-  const handleGradientSelect = (index: number) => {
-    setActiveGradientIndex(index);
-    setBackgroundColor(bgGradients[index].colors.join(","));
-    animateTransition();
-  };
-
-  const handleTextColorSelect = (index: number) => {
-    setActiveTextColorIndex(index);
-    setTextColor(textColors[index]);
-  };
-
   const currentMedia = selectedMedia[currentIndex];
   const currentMediaType = mediaTypes[currentIndex];
-  const currentGradient = bgGradients[activeGradientIndex].colors;
 
-  const isValid = selectedMedia.length > 0 || text;
+  const isValid = selectedMedia.length > 0;
 
   return (
     <View className="flex-1 bg-background">
@@ -459,78 +431,7 @@ export default function CreateStoryScreen() {
               overflow: "hidden",
             }}
           >
-            {!currentMedia ? (
-              <LinearGradient
-                colors={currentGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={{ flex: 1 }}
-              >
-                {showTextInput ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: 24,
-                    }}
-                  >
-                    <TextInput
-                      value={text}
-                      onChangeText={setText}
-                      placeholder="Type something..."
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      multiline
-                      maxLength={300}
-                      autoFocus
-                      style={{
-                        width: "100%",
-                        textAlign: "center",
-                        fontSize: 28,
-                        fontWeight: "700",
-                        color: textColor,
-                      }}
-                    />
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={() => setShowTextInput(true)}
-                    style={{
-                      flex: 1,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {text ? (
-                      <Text
-                        style={{
-                          fontSize: 28,
-                          fontWeight: "700",
-                          color: textColor,
-                          textAlign: "center",
-                          paddingHorizontal: 24,
-                        }}
-                      >
-                        {text}
-                      </Text>
-                    ) : (
-                      <View style={{ alignItems: "center", minHeight: 80 }}>
-                        <Sparkles size={48} color="rgba(255,255,255,0.3)" />
-                        <Text
-                          style={{
-                            color: "rgba(255,255,255,0.5)",
-                            marginTop: 12,
-                            fontSize: 16,
-                          }}
-                        >
-                          Tap to add text
-                        </Text>
-                      </View>
-                    )}
-                  </Pressable>
-                )}
-              </LinearGradient>
-            ) : (
+            {currentMedia ? (
               <View style={{ flex: 1, backgroundColor: "#000" }}>
                 {currentMediaType === "video" ? (
                   <View
@@ -569,31 +470,6 @@ export default function CreateStoryScreen() {
                   />
                 )}
 
-                {text && (
-                  <View
-                    style={{
-                      position: "absolute",
-                      bottom: 40,
-                      left: 0,
-                      right: 0,
-                      paddingHorizontal: 24,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 22,
-                        fontWeight: "700",
-                        color: textColor,
-                        textAlign: "center",
-                        textShadowColor: "rgba(0,0,0,0.5)",
-                        textShadowOffset: { width: 1, height: 1 },
-                        textShadowRadius: 4,
-                      }}
-                    >
-                      {text}
-                    </Text>
-                  </View>
-                )}
               </View>
             )}
 
@@ -798,102 +674,8 @@ export default function CreateStoryScreen() {
               <Text style={{ color: "#999", fontSize: 12 }}>Video (30s)</Text>
             </Pressable>
 
-            <Pressable
-              onPress={() => setShowTextInput(!showTextInput)}
-              style={{ alignItems: "center", gap: 4 }}
-            >
-              <View
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 26,
-                  backgroundColor: showTextInput ? "#3EA4E5" : "#1a1a1a",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Type size={24} color="#fff" />
-              </View>
-              <Text style={{ color: "#999", fontSize: 12 }}>Text</Text>
-            </Pressable>
           </View>
 
-          {selectedMedia.length === 0 && (
-            <>
-              <Text
-                style={{
-                  color: "#666",
-                  fontSize: 12,
-                  marginBottom: 8,
-                  marginLeft: 4,
-                }}
-              >
-                Background
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  {bgGradients.map((gradient, index) => (
-                    <Pressable
-                      key={index}
-                      onPress={() => handleGradientSelect(index)}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        overflow: "hidden",
-                        borderWidth: index === activeGradientIndex ? 2 : 0,
-                        borderColor: "#fff",
-                      }}
-                    >
-                      <LinearGradient
-                        colors={gradient.colors}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{ flex: 1 }}
-                      />
-                    </Pressable>
-                  ))}
-                </View>
-              </ScrollView>
-
-              {(showTextInput || text) && (
-                <>
-                  <Text
-                    style={{
-                      color: "#666",
-                      fontSize: 12,
-                      marginTop: 16,
-                      marginBottom: 8,
-                      marginLeft: 4,
-                    }}
-                  >
-                    Text Color
-                  </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 10 }}>
-                      {textColors.map((color, index) => (
-                        <Pressable
-                          key={index}
-                          onPress={() => handleTextColorSelect(index)}
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: 18,
-                            backgroundColor: color,
-                            borderWidth: index === activeTextColorIndex ? 2 : 1,
-                            borderColor:
-                              index === activeTextColorIndex
-                                ? "#3EA4E5"
-                                : "#333",
-                          }}
-                        />
-                      ))}
-                    </View>
-                  </ScrollView>
-                </>
-              )}
-            </>
-          )}
         </View>
       </SafeAreaView>
     </View>

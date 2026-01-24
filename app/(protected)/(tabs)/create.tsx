@@ -312,13 +312,11 @@ export default function CreateScreen() {
             reset();
             router.back();
           },
-          onError: (error) => {
+          onError: (error: any) => {
             console.error("[Create] Failed to create post:", error);
-            showToast(
-              "error",
-              "Error",
-              "Failed to create post. Please try again.",
-            );
+            console.error("[Create] Error details:", JSON.stringify(error, null, 2));
+            const errorMessage = error?.message || error?.error?.message || "Failed to create post. Please try again.";
+            showToast("error", "Error", errorMessage);
           },
         },
       );
