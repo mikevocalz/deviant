@@ -192,6 +192,29 @@ Before running native builds, verify:
 
 ---
 
+## 🚨 CRITICAL: Update Toast Functionality
+
+**⚠️ NEVER REMOVE OR DISABLE THE UPDATE TOAST**
+
+The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The-Air) updates. This toast **MUST ALWAYS** show when an update is available.
+
+**Rules:**
+1. **NEVER** remove the `showUpdateToast()` function
+2. **NEVER** disable or skip the toast notification
+3. **NEVER** remove the toast import or usage
+4. **ALWAYS** ensure the toast shows with retry logic and Alert fallback
+5. The toast **MUST** have `duration: Infinity` to never auto-dismiss
+6. If toast fails, **MUST** fall back to native Alert
+
+**Why this is critical:**
+- Users need to know when updates are available
+- Without the toast, users won't restart to get new features/fixes
+- OTA updates are essential for the app's update mechanism
+
+**Location:** `lib/hooks/use-updates.ts` - `showUpdateToast()` function
+
+---
+
 ## 📝 Code Style
 
 - Use **TypeScript**

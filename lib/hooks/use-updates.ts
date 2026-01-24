@@ -47,26 +47,24 @@ export function useUpdates() {
   }, []);
 
   const showUpdateToast = useCallback(() => {
-    // Only show toast once per session
-    if (hasShownUpdateToast.current) {
-      console.log("[Updates] Toast already shown this session, skipping");
-      return;
-    }
-
+    // CRITICAL: This toast MUST always show when an update is available
+    // DO NOT remove or disable this functionality - it's essential for OTA updates
+    
     hasShownUpdateToast.current = true;
     toastAttempts.current += 1;
     
     console.log("[Updates] Attempting to show update toast, attempt:", toastAttempts.current);
     
-    // Use multiple fallback strategies
+    // Use multiple fallback strategies to ensure toast always shows
     const showToastWithRetry = (delay: number, attempt: number) => {
       setTimeout(() => {
         try {
           console.log("[Updates] Showing toast attempt", attempt, "after", delay, "ms delay");
           
+          // CRITICAL: Always show this toast - never skip it
           toast.success("Update Ready", {
             description: "A new update is available. Tap to restart.",
-            duration: Infinity,
+            duration: Infinity, // Never auto-dismiss
             action: {
               label: "Restart App",
               onPress: reloadApp,
@@ -77,31 +75,49 @@ export function useUpdates() {
         } catch (toastError) {
           console.error("[Updates] Toast attempt", attempt, "failed:", toastError);
           
-          // If toast fails, show a native Alert as fallback
-          if (attempt >= 3) {
-            console.log("[Updates] Using Alert fallback");
-            Alert.alert(
-              "Update Available",
-              "A new update has been downloaded. Restart the app to apply it.",
-              [
-                { text: "Later", style: "cancel" },
-                { text: "Restart Now", onPress: reloadApp },
-              ]
-            );
+          // If toast fails after retries, show a native Alert as fallback
+          // This ensures the user is ALWAYS notified of available updates
+          if (attempt >= 5) {
+            console.log("[Updates] Using Alert fallback after", attempt, "attempts");
+            try {
+              Alert.alert(
+                "Update Available",
+                "A new update has been downloaded. Restart the app to apply it.",
+                [
+                  { text: "Later", style: "cancel" },
+                  { text: "Restart Now", onPress: reloadApp },
+                ]
+              );
+            } catch (alertError) {
+              console.error("[Updates] Alert fallback also failed:", alertError);
+              // Last resort: log to console (user will see on next app launch)
+              console.warn("[Updates] CRITICAL: Update available but could not notify user");
+            }
           } else {
             // Retry with longer delay
-            showToastWithRetry(delay * 2, attempt + 1);
+            showToastWithRetry(delay * 1.5, attempt + 1);
           }
         }
       }, delay);
     };
 
-    // Start with 500ms delay, will retry with 1s, 2s if needed
+    // Start with 500ms delay, will retry with increasing delays if needed
     showToastWithRetry(500, 1);
   }, [reloadApp]);
 
   const downloadAndApplyUpdate = useCallback(async () => {
-    if (__DEV__ || !Updates || !Updates.isEnabled) return;
+    if (__DEV__ || !Updates) return;
+    
+    // Safely check if updates are enabled
+    let isEnabled = false;
+    try {
+      isEnabled = Updates.isEnabled;
+    } catch (enabledError) {
+      console.log("[Updates] Could not check isEnabled in downloadAndApplyUpdate:", enabledError);
+      return;
+    }
+    
+    if (!isEnabled) return;
 
     setStatus((prev) => ({ ...prev, isDownloading: true }));
 
@@ -115,7 +131,7 @@ export function useUpdates() {
           isUpdatePending: true,
         }));
 
-        // Show toast with restart button
+        // Show toast with restart button - CRITICAL: This must always show
         showUpdateToast();
       } else {
         setStatus((prev) => ({ ...prev, isDownloading: false }));
@@ -132,8 +148,21 @@ export function useUpdates() {
   }, [showUpdateToast]);
 
   const checkForUpdates = useCallback(async (showAlert = false) => {
-    // Skip in development or if updates aren't available/enabled
-    if (__DEV__ || !Updates || !Updates.isEnabled) {
+    // Skip in development
+    if (__DEV__ || !Updates) {
+      return;
+    }
+    
+    // Safely check if updates are enabled
+    let isEnabled = false;
+    try {
+      isEnabled = Updates.isEnabled;
+    } catch (enabledError) {
+      console.log("[Updates] Could not check isEnabled in checkForUpdates:", enabledError);
+      return;
+    }
+    
+    if (!isEnabled) {
       return;
     }
 

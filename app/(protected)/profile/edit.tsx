@@ -18,6 +18,7 @@ import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { users } from "@/lib/api-client";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useEffect, useState } from "react";
 
 export default function EditProfileScreen() {
@@ -44,7 +45,7 @@ export default function EditProfileScreen() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission Required", "Please grant media library access to change your photo.");
+        showToast("error", "Permission Required", "Please grant media library access to change your photo.");
         return;
       }
 
@@ -57,53 +58,89 @@ export default function EditProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         setNewAvatarUri(result.assets[0].uri);
+        console.log("[EditProfile] Avatar selected:", result.assets[0].uri);
       }
     } catch (error) {
       console.error("[EditProfile] Pick avatar error:", error);
-      Alert.alert("Error", "Failed to pick image. Please try again.");
+      showToast("error", "Error", "Failed to pick image. Please try again.");
     }
   };
 
+  const showToast = useUIStore((s) => s.showToast);
+
   const handleSave = async () => {
-    if (!user) return;
+    if (!user) {
+      showToast("error", "Error", "User not found");
+      return;
+    }
+    
     setIsSaving(true);
+    
     try {
       let avatarUrl = user.avatar;
 
       // Upload new avatar if selected
       if (newAvatarUri) {
-        const uploadResult = await uploadSingle(newAvatarUri);
-        if (uploadResult.success && uploadResult.url) {
-          avatarUrl = uploadResult.url;
-        } else {
-          Alert.alert("Upload Failed", "Failed to upload avatar. Other changes will be saved.");
+        console.log("[EditProfile] Uploading avatar from:", newAvatarUri);
+        try {
+          const uploadResult = await uploadSingle(newAvatarUri);
+          console.log("[EditProfile] Upload result:", uploadResult);
+          
+          if (uploadResult.success && uploadResult.url) {
+            avatarUrl = uploadResult.url;
+            console.log("[EditProfile] Avatar uploaded successfully:", avatarUrl);
+          } else {
+            console.error("[EditProfile] Avatar upload failed:", uploadResult.error);
+            showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
+          }
+        } catch (uploadError) {
+          console.error("[EditProfile] Avatar upload exception:", uploadError);
+          showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
         }
       }
 
-      // Update profile in CMS
-      const updateData = {
-        name: editName,
-        bio: editBio,
-        website: editWebsite,
-        avatar: avatarUrl,
-        username: user.username,
+      // Update profile in CMS - don't include username as it's not in allowedFields
+      const updateData: {
+        name?: string;
+        bio?: string;
+        website?: string;
+        avatar?: string;
+      } = {
+        name: editName.trim() || undefined,
+        bio: editBio.trim() || undefined,
+        website: editWebsite.trim() || undefined,
+        avatar: avatarUrl || undefined,
       };
 
-      await users.updateMe(updateData);
+      // Remove undefined values
+      Object.keys(updateData).forEach((key) => {
+        if (updateData[key as keyof typeof updateData] === undefined) {
+          delete updateData[key as keyof typeof updateData];
+        }
+      });
+
+      console.log("[EditProfile] Updating profile with:", JSON.stringify(updateData));
+      console.log("[EditProfile] User ID:", user.id);
+      
+      const updatedUser = await users.updateMe(updateData);
+      console.log("[EditProfile] Profile updated successfully:", updatedUser);
 
       // Update local auth store
       setUser({
         ...user,
-        name: editName,
-        bio: editBio,
-        website: editWebsite,
-        avatar: avatarUrl,
+        name: editName.trim() || user.name,
+        bio: editBio.trim() || user.bio,
+        website: editWebsite.trim() || user.website,
+        avatar: avatarUrl || user.avatar,
       });
       
+      showToast("success", "Saved", "Profile updated successfully");
       router.back();
-    } catch (error) {
+    } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
-      Alert.alert("Error", "Failed to save profile. Please try again.");
+      console.error("[EditProfile] Error details:", JSON.stringify(error, null, 2));
+      const errorMessage = error?.message || error?.error || "Failed to save profile. Please try again.";
+      showToast("error", "Error", errorMessage);
     } finally {
       setIsSaving(false);
     }
