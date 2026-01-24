@@ -1,5 +1,5 @@
 
-import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
+import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import {
@@ -34,7 +34,10 @@ import {
 } from "@/components/ui/popover";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { TextInput } from "react-native";
+import { TextInput, Alert } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useMediaUpload } from "@/lib/hooks/use-media-upload";
+import { users } from "@/lib/api-client";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
@@ -46,6 +49,11 @@ function EditProfileContent() {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [isSaving, setIsSaving] = useState(false);
+  const [newAvatarUri, setNewAvatarUri] = useState<string | null>(null);
+  const { uploadSingle, isUploading, progress } = useMediaUpload({
+    folder: "avatars",
+    userId: user?.id,
+  });
   const {
     editName,
     editBio,
@@ -56,20 +64,70 @@ function EditProfileContent() {
   } = useProfileStore();
   const { setOpen: setPopoverOpen } = usePopover();
 
+  const handlePickAvatar = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please grant media library access to change your photo.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setNewAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("[EditProfile] Pick avatar error:", error);
+      Alert.alert("Error", "Failed to pick image. Please try again.");
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
     try {
+      let avatarUrl = user.avatar;
+
+      // Upload new avatar if selected
+      if (newAvatarUri) {
+        const uploadResult = await uploadSingle(newAvatarUri);
+        if (uploadResult.success && uploadResult.url) {
+          avatarUrl = uploadResult.url;
+        } else {
+          Alert.alert("Upload Failed", "Failed to upload avatar. Other changes will be saved.");
+        }
+      }
+
+      // Update profile in CMS
+      const updateData = {
+        name: editName,
+        bio: editBio,
+        website: editWebsite,
+        avatar: avatarUrl,
+        username: user.username,
+      };
+
+      await users.updateMe(updateData);
+
       // Update local auth store
       setUser({
         ...user,
         name: editName,
         bio: editBio,
         website: editWebsite,
+        avatar: avatarUrl,
       });
+      setNewAvatarUri(null);
       setPopoverOpen(false);
     } catch (error) {
       console.error("[EditProfile] Save error:", error);
+      Alert.alert("Error", "Failed to save profile. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -86,7 +144,8 @@ function EditProfileContent() {
   const hasChanges =
     editName !== (user?.name || "") ||
     editBio !== (user?.bio || "") ||
-    editWebsite !== (user?.website || "");
+    editWebsite !== (user?.website || "") ||
+    newAvatarUri !== null;
 
   return (
     <View className="flex-1">
@@ -138,10 +197,11 @@ function EditProfileContent() {
       >
         {/* Avatar Section */}
         <View className="items-center py-8">
-          <View className="relative">
+          <Pressable onPress={handlePickAvatar} disabled={isUploading} className="relative">
             <Image
               source={{
                 uri:
+                  newAvatarUri ||
                   user?.avatar ||
                   "https://ui-avatars.com/api/?name=" +
                     encodeURIComponent(user?.name || "User"),
@@ -149,14 +209,21 @@ function EditProfileContent() {
               className="w-32 h-32 rounded-full"
               contentFit="cover"
             />
-            <Pressable
-              className="absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
-              style={{ borderColor: colors.card }}
-            >
-              <Camera size={18} color="#fff" />
-            </Pressable>
-          </View>
-          <Pressable className="mt-4">
+            {isUploading ? (
+              <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
+                <ActivityIndicator color="#fff" size="large" />
+                <Text className="text-white text-sm mt-2 font-semibold">{Math.round(progress)}%</Text>
+              </View>
+            ) : (
+              <View
+                className="absolute bottom-0 right-0 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
+                style={{ borderColor: colors.card }}
+              >
+                <Camera size={18} color="#fff" />
+              </View>
+            )}
+          </Pressable>
+          <Pressable onPress={handlePickAvatar} disabled={isUploading} className="mt-4">
             <Text className="text-base font-semibold text-primary">
               Change Photo
             </Text>

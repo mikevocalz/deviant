@@ -47,13 +47,13 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
         className="rounded-2xl"
       >
         <FeedPost
-          id={item.id}
-          author={item.author}
-          media={item.media}
-          caption={item.caption}
-          likes={item.likes}
-          comments={item.comments.length}
-          timeAgo={item.timeAgo}
+          id={item.id || ""}
+          author={item.author || { username: "unknown", avatar: "" }}
+          media={item.media || []}
+          caption={item.caption || ""}
+          likes={item.likes || 0}
+          comments={Array.isArray(item.comments) ? item.comments.length : 0}
+          timeAgo={item.timeAgo || ""}
           location={item.location}
           isNSFW={item.isNSFW}
         />
@@ -221,7 +221,7 @@ export function Feed() {
     [],
   );
 
-  const keyExtractor = useCallback((item: Post) => item.id, []);
+  const keyExtractor = useCallback((item: Post, index: number) => item?.id || `post-${index}`, []);
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {

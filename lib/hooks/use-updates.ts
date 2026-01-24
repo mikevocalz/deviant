@@ -41,23 +41,34 @@ export function useUpdates() {
       if (!hasShownUpdateToast.current) {
         hasShownUpdateToast.current = true;
         
-        // Show toast with restart button
-        toastIdRef.current = toast.info("Update Ready", {
-          description: "A new update is available. Restart to apply it.",
-          duration: Infinity, // Don't auto-dismiss
-          action: {
-            label: "Restart App",
-            onPress: async () => {
-              try {
-                if (Updates) {
-                  await Updates.reloadAsync();
-                }
-              } catch (error) {
-                console.error("[Updates] Error reloading:", error);
-              }
-            },
-          },
-        });
+        console.log("[Updates] Showing update toast");
+        
+        // Delay toast slightly to ensure toast provider is ready
+        setTimeout(() => {
+          try {
+            // Show toast with restart button
+            toastIdRef.current = toast.success("Update Ready", {
+              description: "A new update is available. Tap to restart and apply it.",
+              duration: Infinity, // Don't auto-dismiss
+              action: {
+                label: "Restart App",
+                onPress: async () => {
+                  try {
+                    console.log("[Updates] Restarting app...");
+                    if (Updates) {
+                      await Updates.reloadAsync();
+                    }
+                  } catch (error) {
+                    console.error("[Updates] Error reloading:", error);
+                  }
+                },
+              },
+            });
+            console.log("[Updates] Toast shown with ID:", toastIdRef.current);
+          } catch (toastError) {
+            console.error("[Updates] Error showing delayed toast:", toastError);
+          }
+        }, 1000);
       }
     } catch (error) {
       console.error("[Updates] Error showing toast:", error);
