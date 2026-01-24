@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, type AppStateStatus, Alert } from "react-native";
 import { toast } from "sonner-native";
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
@@ -26,7 +26,7 @@ export interface UpdateStatus {
 
 export function useUpdates() {
   const hasShownUpdateToast = useRef(false);
-  const toastIdRef = useRef<string | number | null>(null);
+  const toastAttempts = useRef(0);
   const [status, setStatus] = useState<UpdateStatus>({
     isChecking: false,
     isDownloading: false,
@@ -35,45 +35,70 @@ export function useUpdates() {
     error: null,
   });
 
-  const showUpdateToast = useCallback(() => {
+  const reloadApp = useCallback(async () => {
     try {
-      // Only show toast once per session
-      if (!hasShownUpdateToast.current) {
-        hasShownUpdateToast.current = true;
-        
-        console.log("[Updates] Showing update toast");
-        
-        // Delay toast slightly to ensure toast provider is ready
-        setTimeout(() => {
-          try {
-            // Show toast with restart button
-            toastIdRef.current = toast.success("Update Ready", {
-              description: "A new update is available. Tap to restart and apply it.",
-              duration: Infinity, // Don't auto-dismiss
-              action: {
-                label: "Restart App",
-                onPress: async () => {
-                  try {
-                    console.log("[Updates] Restarting app...");
-                    if (Updates) {
-                      await Updates.reloadAsync();
-                    }
-                  } catch (error) {
-                    console.error("[Updates] Error reloading:", error);
-                  }
-                },
-              },
-            });
-            console.log("[Updates] Toast shown with ID:", toastIdRef.current);
-          } catch (toastError) {
-            console.error("[Updates] Error showing delayed toast:", toastError);
-          }
-        }, 1000);
+      console.log("[Updates] Restarting app...");
+      if (Updates) {
+        await Updates.reloadAsync();
       }
     } catch (error) {
-      console.error("[Updates] Error showing toast:", error);
+      console.error("[Updates] Error reloading:", error);
     }
   }, []);
+
+  const showUpdateToast = useCallback(() => {
+    // Only show toast once per session
+    if (hasShownUpdateToast.current) {
+      console.log("[Updates] Toast already shown this session, skipping");
+      return;
+    }
+
+    hasShownUpdateToast.current = true;
+    toastAttempts.current += 1;
+    
+    console.log("[Updates] Attempting to show update toast, attempt:", toastAttempts.current);
+    
+    // Use multiple fallback strategies
+    const showToastWithRetry = (delay: number, attempt: number) => {
+      setTimeout(() => {
+        try {
+          console.log("[Updates] Showing toast attempt", attempt, "after", delay, "ms delay");
+          
+          toast.success("Update Ready", {
+            description: "A new update is available. Tap to restart.",
+            duration: Infinity,
+            action: {
+              label: "Restart App",
+              onPress: reloadApp,
+            },
+          });
+          
+          console.log("[Updates] Toast.success called successfully");
+        } catch (toastError) {
+          console.error("[Updates] Toast attempt", attempt, "failed:", toastError);
+          
+          // If toast fails, show a native Alert as fallback
+          if (attempt >= 3) {
+            console.log("[Updates] Using Alert fallback");
+            Alert.alert(
+              "Update Available",
+              "A new update has been downloaded. Restart the app to apply it.",
+              [
+                { text: "Later", style: "cancel" },
+                { text: "Restart Now", onPress: reloadApp },
+              ]
+            );
+          } else {
+            // Retry with longer delay
+            showToastWithRetry(delay * 2, attempt + 1);
+          }
+        }
+      }, delay);
+    };
+
+    // Start with 500ms delay, will retry with 1s, 2s if needed
+    showToastWithRetry(500, 1);
+  }, [reloadApp]);
 
   const downloadAndApplyUpdate = useCallback(async () => {
     if (__DEV__ || !Updates || !Updates.isEnabled) return;
@@ -149,15 +174,24 @@ export function useUpdates() {
   // Check for updates on app launch and when app comes to foreground
   useEffect(() => {
     // Early return if in dev or updates not available
-    if (__DEV__ || !Updates) return;
+    if (__DEV__ || !Updates) {
+      console.log("[Updates] Skipping - dev mode or Updates not available");
+      return;
+    }
     
     // Check if updates are enabled
-    if (!Updates.isEnabled) return;
+    if (!Updates.isEnabled) {
+      console.log("[Updates] Skipping - updates not enabled");
+      return;
+    }
+
+    console.log("[Updates] Initializing update checks");
 
     try {
       // Check if there's already a pending update on app start
       // Only check if isEmbeddedLaunch property exists
       if (typeof Updates.isEmbeddedLaunch !== "undefined" && Updates.isEmbeddedLaunch === false) {
+        console.log("[Updates] Detected pending update from previous session");
         // There's a pending update that was downloaded but not applied
         setStatus((prev) => ({
           ...prev,
@@ -172,23 +206,54 @@ export function useUpdates() {
       // Check when app comes to foreground
       const handleAppStateChange = (nextState: AppStateStatus) => {
         if (nextState === "active") {
+          console.log("[Updates] App came to foreground, checking for updates");
           checkForUpdates();
         }
       };
 
-      const subscription = AppState.addEventListener(
+      const appStateSubscription = AppState.addEventListener(
         "change",
         handleAppStateChange,
       );
 
+      // Listen for update events from expo-updates
+      let updateEventSubscription: { remove: () => void } | null = null;
+      
+      if (Updates.useUpdates) {
+        // For newer expo-updates versions, use event listener
+        try {
+          updateEventSubscription = Updates.addListener((event) => {
+            console.log("[Updates] Received update event:", event.type);
+            
+            if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
+              console.log("[Updates] Update available event received");
+              setStatus((prev) => ({
+                ...prev,
+                isUpdateAvailable: true,
+              }));
+              downloadAndApplyUpdate();
+            } else if (event.type === Updates.UpdateEventType.NO_UPDATE_AVAILABLE) {
+              console.log("[Updates] No update available");
+            } else if (event.type === Updates.UpdateEventType.ERROR) {
+              console.error("[Updates] Update error event:", event.message);
+            }
+          });
+        } catch (listenerError) {
+          console.log("[Updates] Could not add update listener:", listenerError);
+        }
+      }
+
       return () => {
-        subscription.remove();
+        appStateSubscription.remove();
+        if (updateEventSubscription) {
+          updateEventSubscription.remove();
+        }
       };
     } catch (error) {
       console.error("[Updates] Error in useEffect:", error);
       // Don't crash the app if updates fail
     }
-  }, [checkForUpdates, showUpdateToast]);
+  }, [checkForUpdates, showUpdateToast, downloadAndApplyUpdate]);
 
   return {
     ...status,
