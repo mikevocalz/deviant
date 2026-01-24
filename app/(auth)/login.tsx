@@ -103,7 +103,7 @@ export default function LoginScreen() {
       >
         <View className="gap-6">
         <View className="items-center gap-8">
-          <Logo width={200} height={80} />
+          {/* <Logo width={200} height={80} /> */}
           <View className="items-center my-8">
             <Text className="text-3xl font-bold text-foreground">
               Welcome back
@@ -119,6 +119,7 @@ export default function LoginScreen() {
             form={form}
             name="email"
             label="Email"
+            labelClassName="text-white"
             placeholder="you@example.com"
             keyboardType="email-address"
             autoCapitalize="none"
@@ -135,6 +136,7 @@ export default function LoginScreen() {
             form={form}
             name="password"
             label="Password"
+            labelClassName="text-white"
             placeholder="Enter your password"
             secureTextEntry
             validators={{

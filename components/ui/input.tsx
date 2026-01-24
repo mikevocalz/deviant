@@ -5,18 +5,19 @@ import { cn } from '@/lib/cn'
 
 export interface InputProps extends React.ComponentPropsWithoutRef<typeof TextInput> {
   label?: string
+  labelClassName?: string
   error?: string
   leftIcon?: React.ReactNode
   rightIcon?: React.ReactNode
 }
 
 export const Input = React.forwardRef<TextInput, InputProps>(
-  ({ label, error, leftIcon, rightIcon, secureTextEntry, className, ...props }, ref) => {
+  ({ label, labelClassName, error, leftIcon, rightIcon, secureTextEntry, className, ...props }, ref) => {
     const [hidden, setHidden] = React.useState(!!secureTextEntry)
 
     return (
       <View className="gap-1">
-        {label ? <Text className="text-sm font-medium text-muted">{label}</Text> : null}
+        {label ? <Text className={cn("text-sm font-medium", labelClassName || "text-muted")}>{label}</Text> : null}
 
         <View className={cn('flex-row items-center rounded-xl border px-3', error ? 'border-destructive' : 'border-border', 'bg-card')}>
           {leftIcon ? <View className="mr-2">{leftIcon}</View> : null}
