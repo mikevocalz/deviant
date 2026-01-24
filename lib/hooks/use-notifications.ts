@@ -52,67 +52,80 @@ export function useNotifications() {
     // Skip on web platform
     if (isWeb) return;
 
-    // Register for push notifications
-    registerPushNotifications();
+    try {
+      // Register for push notifications
+      registerPushNotifications();
 
-    if (!Notifications) return;
+      if (!Notifications) return;
 
-    // Listen for incoming notifications (app in foreground)
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log("[Notifications] Received:", notification);
-        setNotification(notification);
-      });
+      // Listen for incoming notifications (app in foreground)
+      notificationListener.current =
+        Notifications.addNotificationReceivedListener((notification) => {
+          console.log("[Notifications] Received:", notification);
+          setNotification(notification);
+        });
 
-    // Listen for notification responses (user tapped notification)
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("[Notifications] Response:", response);
-        const data = response.notification.request.content.data;
+      // Listen for notification responses (user tapped notification)
+      responseListener.current =
+        Notifications.addNotificationResponseReceivedListener((response) => {
+          try {
+            console.log("[Notifications] Response:", response);
+            const data = response.notification.request.content.data;
 
-        // Handle navigation based on notification data
-        if (data?.type) {
-          switch (data.type) {
-            case "message":
-              if (data.conversationId) {
-                router.push(
-                  `/(protected)/messages/${data.conversationId}` as any,
-                );
+            // Handle navigation based on notification data
+            if (data?.type) {
+              switch (data.type) {
+                case "message":
+                  if (data.conversationId) {
+                    router.push(
+                      `/(protected)/messages/${data.conversationId}` as any,
+                    );
+                  }
+                  break;
+                case "like":
+                case "comment":
+                  if (data.postId) {
+                    router.push(`/(protected)/post/${data.postId}` as any);
+                  }
+                  break;
+                case "follow":
+                  if (data.userId) {
+                    router.push(`/(protected)/profile/${data.userId}` as any);
+                  }
+                  break;
+                case "event":
+                  if (data.eventId) {
+                    router.push(`/(protected)/events/${data.eventId}` as any);
+                  }
+                  break;
+                default:
+                  console.log(
+                    "[Notifications] Unknown notification type:",
+                    data.type,
+                  );
               }
-              break;
-            case "like":
-            case "comment":
-              if (data.postId) {
-                router.push(`/(protected)/post/${data.postId}` as any);
-              }
-              break;
-            case "follow":
-              if (data.userId) {
-                router.push(`/(protected)/profile/${data.userId}` as any);
-              }
-              break;
-            case "event":
-              if (data.eventId) {
-                router.push(`/(protected)/events/${data.eventId}` as any);
-              }
-              break;
-            default:
-              console.log(
-                "[Notifications] Unknown notification type:",
-                data.type,
-              );
+            }
+          } catch (error) {
+            console.error("[Notifications] Error handling response:", error);
           }
-        }
-      });
+        });
 
-    return () => {
-      if (notificationListener.current) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        responseListener.current.remove();
-      }
-    };
+      return () => {
+        try {
+          if (notificationListener.current) {
+            notificationListener.current.remove();
+          }
+          if (responseListener.current) {
+            responseListener.current.remove();
+          }
+        } catch (error) {
+          console.error("[Notifications] Error cleaning up:", error);
+        }
+      };
+    } catch (error) {
+      console.error("[Notifications] Error in useEffect:", error);
+      // Don't crash the app if notifications fail
+    }
   }, [isWeb, registerPushNotifications, router]);
 
   // Re-register when user logs in

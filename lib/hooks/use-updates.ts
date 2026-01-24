@@ -36,23 +36,31 @@ export function useUpdates() {
   });
 
   const showUpdateToast = useCallback(() => {
-    // Only show toast once per session
-    if (!hasShownUpdateToast.current) {
-      hasShownUpdateToast.current = true;
-      
-      // Show toast with restart button
-      toastIdRef.current = toast.info("Update Ready", {
-        description: "A new update is available. Restart to apply it.",
-        duration: Infinity, // Don't auto-dismiss
-        action: {
-          label: "Restart App",
-          onPress: async () => {
-            if (Updates) {
-              await Updates.reloadAsync();
-            }
+    try {
+      // Only show toast once per session
+      if (!hasShownUpdateToast.current) {
+        hasShownUpdateToast.current = true;
+        
+        // Show toast with restart button
+        toastIdRef.current = toast.info("Update Ready", {
+          description: "A new update is available. Restart to apply it.",
+          duration: Infinity, // Don't auto-dismiss
+          action: {
+            label: "Restart App",
+            onPress: async () => {
+              try {
+                if (Updates) {
+                  await Updates.reloadAsync();
+                }
+              } catch (error) {
+                console.error("[Updates] Error reloading:", error);
+              }
+            },
           },
-        },
-      });
+        });
+      }
+    } catch (error) {
+      console.error("[Updates] Error showing toast:", error);
     }
   }, []);
 
@@ -129,36 +137,46 @@ export function useUpdates() {
 
   // Check for updates on app launch and when app comes to foreground
   useEffect(() => {
-    if (__DEV__ || !Updates || !Updates.isEnabled) return;
+    // Early return if in dev or updates not available
+    if (__DEV__ || !Updates) return;
+    
+    // Check if updates are enabled
+    if (!Updates.isEnabled) return;
 
-    // Check if there's already a pending update on app start
-    if (Updates.isEmbeddedLaunch === false) {
-      // There's a pending update that was downloaded but not applied
-      setStatus((prev) => ({
-        ...prev,
-        isUpdatePending: true,
-      }));
-      showUpdateToast();
-    }
-
-    // Initial check
-    checkForUpdates();
-
-    // Check when app comes to foreground
-    const handleAppStateChange = (nextState: AppStateStatus) => {
-      if (nextState === "active") {
-        checkForUpdates();
+    try {
+      // Check if there's already a pending update on app start
+      // Only check if isEmbeddedLaunch property exists
+      if (typeof Updates.isEmbeddedLaunch !== "undefined" && Updates.isEmbeddedLaunch === false) {
+        // There's a pending update that was downloaded but not applied
+        setStatus((prev) => ({
+          ...prev,
+          isUpdatePending: true,
+        }));
+        showUpdateToast();
       }
-    };
 
-    const subscription = AppState.addEventListener(
-      "change",
-      handleAppStateChange,
-    );
+      // Initial check
+      checkForUpdates();
 
-    return () => {
-      subscription.remove();
-    };
+      // Check when app comes to foreground
+      const handleAppStateChange = (nextState: AppStateStatus) => {
+        if (nextState === "active") {
+          checkForUpdates();
+        }
+      };
+
+      const subscription = AppState.addEventListener(
+        "change",
+        handleAppStateChange,
+      );
+
+      return () => {
+        subscription.remove();
+      };
+    } catch (error) {
+      console.error("[Updates] Error in useEffect:", error);
+      // Don't crash the app if updates fail
+    }
   }, [checkForUpdates, showUpdateToast]);
 
   return {
