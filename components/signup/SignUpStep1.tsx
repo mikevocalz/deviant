@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -39,7 +39,7 @@ export function SignUpStep1() {
     "idle" | "checking" | "available" | "taken"
   >("idle");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
-  const [checkTimeoutId, setCheckTimeoutId] = useState<NodeJS.Timeout | null>(
+  const [checkTimeoutId, setCheckTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
@@ -302,8 +302,16 @@ export function SignUpStep1() {
             return fallbackDate;
           };
 
+          const [localDateValue, setLocalDateValue] = useState<Date>(() => 
+            parseDateString(field.state.value)
+          );
+
           const dateValue = useMemo(
-            () => parseDateString(field.state.value),
+            () => {
+              const parsed = parseDateString(field.state.value);
+              setLocalDateValue(parsed);
+              return parsed;
+            },
             [field.state.value],
           );
 
@@ -332,7 +340,7 @@ export function SignUpStep1() {
                 field.handleChange(dateString);
               }
             },
-            [field],
+            [],
           );
 
           // Calculate minimum date (18 years ago)
@@ -379,12 +387,17 @@ export function SignUpStep1() {
                   {Platform.OS === "ios" ? (
                     <View className="bg-card rounded-xl p-4 border border-border">
                       <DateTimePicker
-                        value={dateValue}
+                        value={localDateValue}
                         mode="date"
-                        display="wheels"
+                        display="spinner"
                         minimumDate={minimumDate}
                         maximumDate={maximumDate}
-                        onChange={handleDateChange}
+                        onChange={(event, selectedDate) => {
+                          // Update local state when user scrolls
+                          if (selectedDate) {
+                            setLocalDateValue(selectedDate);
+                          }
+                        }}
                         textColor="#fff"
                         themeVariant="dark"
                         style={{ height: 200 }}
@@ -401,6 +414,12 @@ export function SignUpStep1() {
                         </Button>
                         <Button
                           onPress={() => {
+                            // Update the date when Done is pressed
+                            const year = localDateValue.getFullYear();
+                            const month = String(localDateValue.getMonth() + 1).padStart(2, "0");
+                            const day = String(localDateValue.getDate()).padStart(2, "0");
+                            const dateString = `${year}-${month}-${day}`;
+                            field.handleChange(dateString);
                             setShowDatePicker(false);
                           }}
                           className="flex-1"

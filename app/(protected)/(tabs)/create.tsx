@@ -353,14 +353,15 @@ export default function CreateScreen() {
     <View className="flex-1 bg-background">
       <Stack.Screen
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           headerShown: true,
           title: "New Post",
           headerStyle: { backgroundColor: colors.card },
           headerTintColor: colors.foreground,
           headerTitleStyle: { fontWeight: "700" },
+          headerBackVisible: false,
           headerLeft: () => (
-            <Pressable onPress={handleClose} hitSlop={8}>
+            <Pressable onPress={handleClose} hitSlop={8} className="p-2 -ml-2">
               <X size={24} color={colors.foreground} />
             </Pressable>
           ),

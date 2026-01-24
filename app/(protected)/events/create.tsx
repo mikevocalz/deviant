@@ -253,12 +253,13 @@ export default function CreateEventScreen() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Stack.Screen
         options={{
-          presentation: "modal",
+          presentation: "fullScreenModal",
           headerShown: true,
           title: "Create Event",
           headerStyle: { backgroundColor: colors.card },
           headerTintColor: colors.foreground,
           headerTitleStyle: { fontWeight: "700" },
+          headerBackVisible: false,
           headerLeft: () => (
             <Pressable 
               onPress={() => router.back()} 
