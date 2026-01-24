@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { View, StyleSheet } from "react-native";
 import Animated, { FadeOut } from "react-native-reanimated";
 import { RiveView, useRiveFile } from "@rive-app/react-native";
@@ -13,19 +13,29 @@ export default function AnimatedSplashScreen({
   const animationFinished = useRef(false);
   const [animationStarted, setAnimationStarted] = useState(false);
   const loopCountRef = useRef(0);
+  const onFinishRef = useRef(onAnimationFinish);
+  
+  // Keep callback ref up to date
+  useEffect(() => {
+    onFinishRef.current = onAnimationFinish;
+  }, [onAnimationFinish]);
+
   const { riveFile, error } = useRiveFile(require("../assets/deviant.riv"));
 
   // Handle animation completion - only call once
-  const handleAnimationComplete = () => {
+  const handleAnimationComplete = useCallback(() => {
     if (!animationFinished.current) {
-      console.log("[SplashScreen] Animation completed");
+      console.log("[SplashScreen] Animation completed, calling onAnimationFinish");
       animationFinished.current = true;
-      // Small delay to ensure animation fully renders before transitioning
-      setTimeout(() => {
-        onAnimationFinish?.(false);
-      }, 200);
+      // Call immediately - no delay needed
+      if (onFinishRef.current) {
+        console.log("[SplashScreen] Calling onAnimationFinish callback");
+        onFinishRef.current(false);
+      } else {
+        console.warn("[SplashScreen] onAnimationFinish callback is not provided!");
+      }
     }
-  };
+  }, []);
 
   // Primary timer - wait for full animation to play
   // Rive animations can be 4-8 seconds, so we'll use a longer timer
@@ -39,10 +49,10 @@ export default function AnimatedSplashScreen({
     // If there's an error, finish after a short delay
     if (error) {
       console.log("[SplashScreen] Error loading Rive file, finishing after delay");
-      setTimeout(() => {
+      const errorTimer = setTimeout(() => {
         handleAnimationComplete();
       }, 1000);
-      return;
+      return () => clearTimeout(errorTimer);
     }
 
     // Only start timer after animation actually starts playing
@@ -62,8 +72,11 @@ export default function AnimatedSplashScreen({
       }
     }, 8000); // 8 seconds to ensure full animation plays
 
-    return () => clearTimeout(completionTimer);
-  }, [riveFile, error, animationStarted, onAnimationFinish]);
+    return () => {
+      console.log("[SplashScreen] Cleaning up completion timer");
+      clearTimeout(completionTimer);
+    };
+  }, [riveFile, error, animationStarted, handleAnimationComplete]);
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
@@ -87,6 +100,16 @@ export default function AnimatedSplashScreen({
                 setTimeout(() => {
                   handleAnimationComplete();
                 }, 500);
+              }
+            }}
+            onStateChanged={(stateMachineName, stateName) => {
+              console.log("[SplashScreen] State changed:", stateMachineName, stateName);
+              // If animation reaches an "end" or "complete" state, finish
+              if (stateName?.toLowerCase().includes("end") || stateName?.toLowerCase().includes("complete")) {
+                console.log("[SplashScreen] Animation reached end state, finishing");
+                setTimeout(() => {
+                  handleAnimationComplete();
+                }, 300);
               }
             }}
             // Don't use onStop - it fires too early when animation pauses
