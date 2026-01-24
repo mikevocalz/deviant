@@ -1,7 +1,10 @@
-import { posts, notifications } from "@/lib/api-client";
+import { posts, notifications, users } from "@/lib/api-client";
 import type { Post } from "@/lib/types";
 
 const PAGE_SIZE = 10;
+
+// Cache for user ID lookups to avoid repeated API calls
+const userIdCache: Record<string, string> = {};
 
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
@@ -162,9 +165,37 @@ export const postsApi = {
       process.env.EXPO_PUBLIC_API_URL || "(not set)",
     );
     try {
+      // Look up the Payload CMS user ID by username
+      let authorId: string | undefined;
+      
+      if (data.authorUsername) {
+        // Check cache first
+        if (userIdCache[data.authorUsername]) {
+          authorId = userIdCache[data.authorUsername];
+          console.log("[postsApi] Using cached author ID:", authorId);
+        } else {
+          // Look up user in Payload CMS
+          try {
+            const userResult = await users.find({
+              where: { username: { equals: data.authorUsername } },
+              limit: 1,
+            });
+            
+            if (userResult.docs && userResult.docs.length > 0) {
+              authorId = (userResult.docs[0] as { id: string }).id;
+              userIdCache[data.authorUsername] = authorId;
+              console.log("[postsApi] Found author ID:", authorId);
+            } else {
+              console.warn("[postsApi] User not found in CMS:", data.authorUsername);
+            }
+          } catch (lookupError) {
+            console.error("[postsApi] User lookup error:", lookupError);
+          }
+        }
+      }
+      
       const doc = await posts.create({
-        author: data.author,
-        authorUsername: data.authorUsername, // Send username for lookup
+        author: authorId, // Use the looked-up Payload CMS user ID
         content: data.caption,
         caption: data.caption,
         location: data.location,

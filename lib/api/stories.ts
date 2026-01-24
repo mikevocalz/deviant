@@ -2,8 +2,11 @@
  * Stories API - fetches real story data from Payload CMS
  */
 
-import { stories as storiesApi } from "@/lib/api-client";
+import { stories as storiesApi, users } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+
+// Cache for user ID lookups to avoid repeated API calls
+const userIdCache: Record<string, string> = {};
 
 export interface Story {
   id: string;
@@ -83,10 +86,39 @@ export const storiesApiClient = {
       console.log("[storiesApi] Creating story with items:", data.items);
       console.log("[storiesApi] User:", { id: user.id, username: user.username });
       
+      // Look up the Payload CMS user ID by username
+      let authorId: string | undefined;
+      
+      if (user.username) {
+        // Check cache first
+        if (userIdCache[user.username]) {
+          authorId = userIdCache[user.username];
+          console.log("[storiesApi] Using cached author ID:", authorId);
+        } else {
+          // Look up user in Payload CMS
+          try {
+            const userResult = await users.find({
+              where: { username: { equals: user.username } },
+              limit: 1,
+            });
+            
+            if (userResult.docs && userResult.docs.length > 0) {
+              authorId = (userResult.docs[0] as { id: string }).id;
+              userIdCache[user.username] = authorId;
+              console.log("[storiesApi] Found author ID:", authorId);
+            } else {
+              console.warn("[storiesApi] User not found in CMS:", user.username);
+            }
+          } catch (lookupError) {
+            console.error("[storiesApi] User lookup error:", lookupError);
+          }
+        }
+      }
+      
       const storyData = {
         caption: `Story by ${user.username}`,
         items: data.items,
-        authorUsername: user.username, // Send username for lookup instead of ID
+        author: authorId, // Use the looked-up Payload CMS user ID
       };
       
       console.log("[storiesApi] Story data being sent:", JSON.stringify(storyData, null, 2));

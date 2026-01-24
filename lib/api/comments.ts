@@ -2,7 +2,10 @@
  * Comments API - fetches real comment data from Payload CMS
  */
 
-import { comments as commentsApi } from "@/lib/api-client";
+import { comments as commentsApi, users } from "@/lib/api-client";
+
+// Cache for user ID lookups to avoid repeated API calls
+const userIdCache: Record<string, string> = {};
 
 export interface Comment {
   id: string;
@@ -69,7 +72,41 @@ export const commentsApiClient = {
     authorUsername?: string;
   }): Promise<Comment> {
     try {
-      const doc = await commentsApi.create(data as any);
+      // Look up the Payload CMS user ID by username
+      let authorId: string | undefined;
+      
+      if (data.authorUsername) {
+        // Check cache first
+        if (userIdCache[data.authorUsername]) {
+          authorId = userIdCache[data.authorUsername];
+          console.log("[commentsApi] Using cached author ID:", authorId);
+        } else {
+          // Look up user in Payload CMS
+          try {
+            const userResult = await users.find({
+              where: { username: { equals: data.authorUsername } },
+              limit: 1,
+            });
+            
+            if (userResult.docs && userResult.docs.length > 0) {
+              authorId = (userResult.docs[0] as { id: string }).id;
+              userIdCache[data.authorUsername] = authorId;
+              console.log("[commentsApi] Found author ID:", authorId);
+            } else {
+              console.warn("[commentsApi] User not found in CMS:", data.authorUsername);
+            }
+          } catch (lookupError) {
+            console.error("[commentsApi] User lookup error:", lookupError);
+          }
+        }
+      }
+      
+      const doc = await commentsApi.create({
+        post: data.post,
+        content: data.text, // CMS expects 'content' field
+        author: authorId,
+        parent: data.parent,
+      } as any);
       return transformComment(doc as Record<string, unknown>);
     } catch (error) {
       console.error("[commentsApi] createComment error:", error);
