@@ -2,7 +2,8 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
+import { useLayoutEffect } from "react";
 import {
   User,
   Bell,
@@ -27,14 +28,46 @@ import {
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
+import { useColorScheme } from "@/lib/hooks";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SettingsListItem } from "@/components/settings/SettingsListItem";
 import { Switch } from "@/components/ui/switch";
 
 export default function SettingsScreenIOS() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const { colors } = useColorScheme();
   const { user, logout } = useAuthStore();
   const { nsfwEnabled, setNsfwEnabled } = useAppStore();
+
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "Settings",
+      headerTitleAlign: "center" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <View style={{ marginLeft: 8, width: 32 }} />
+      ),
+      headerRight: () => (
+        <Pressable 
+          onPress={() => router.back()} 
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <X size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, router]);
 
   const handleLogout = () => {
     logout();
@@ -44,19 +77,6 @@ export default function SettingsScreenIOS() {
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Main className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-          <View style={{ width: 32 }} />
-          <Text className="text-center text-lg font-semibold text-foreground">Settings</Text>
-          <Pressable 
-            onPress={() => router.back()} 
-            hitSlop={12}
-            className="p-1"
-          >
-            <X size={24} color="#a3a3a3" />
-          </Pressable>
-        </View>
-
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {/* User Info Card - iOS Style */}
           {user && (

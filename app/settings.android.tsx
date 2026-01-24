@@ -2,7 +2,8 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
+import { useLayoutEffect } from "react";
 import {
   User,
   Bell,
@@ -34,9 +35,39 @@ import { Switch } from "@/components/ui/switch";
 
 export default function SettingsScreenAndroid() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { user, logout } = useAuthStore();
   const { nsfwEnabled, setNsfwEnabled } = useAppStore();
+
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "Settings",
+      headerTitleAlign: "center" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <Pressable 
+          onPress={() => router.back()} 
+          hitSlop={12}
+          style={{ marginLeft: 8 }}
+        >
+          <ChevronLeft size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <View style={{ marginRight: 8, width: 32 }} />
+      ),
+    });
+  }, [navigation, colors, router]);
 
   const handleLogout = () => {
     logout();
@@ -46,14 +77,6 @@ export default function SettingsScreenAndroid() {
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Main className="flex-1">
-        {/* Header - Material Design Style */}
-        <View className="flex-row items-center border-b border-border px-2 py-3">
-          <Pressable onPress={() => router.back()} className="p-2">
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="ml-2 flex-1 text-xl font-semibold">Settings</Text>
-        </View>
-
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {/* User Info - Material Design Style */}
           {user && (

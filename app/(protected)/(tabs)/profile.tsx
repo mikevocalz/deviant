@@ -336,7 +336,7 @@ export default function ProfileScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: user?.username || "Profile",
+      headerTitle: "Profile",
       headerTitleAlign: "center" as const,
       headerStyle: {
         backgroundColor: colors.background,
