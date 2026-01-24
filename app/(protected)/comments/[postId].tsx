@@ -7,10 +7,9 @@ import {
   Keyboard,
   ActivityIndicator,
   Platform,
-  KeyboardAvoidingView,
   Alert,
 } from "react-native";
-import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView, KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
 import { X, Send, Heart } from "lucide-react-native";
@@ -440,8 +439,9 @@ export default function CommentsScreen() {
 
       {/* Input at bottom - outside scroll view */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
+        style={{ backgroundColor: "#000" }}
       >
         <View
           style={{
