@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const depth = parseInt(url.searchParams.get("depth") || "2", 10);
-    const sort = url.searchParams.get("sort") || "date";
+    const sort = url.searchParams.get("sort") || "-createdAt";
     const category = url.searchParams.get("category");
 
     let where: Record<string, unknown> | undefined;

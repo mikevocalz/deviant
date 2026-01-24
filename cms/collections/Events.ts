@@ -41,7 +41,7 @@ export const Events: CollectionConfig = {
     {
       name: "date",
       type: "date",
-      required: true,
+      required: false,
       admin: {
         description: "Event date and time (ISO string)",
       },
@@ -57,7 +57,7 @@ export const Events: CollectionConfig = {
     {
       name: "location",
       type: "text",
-      required: true,
+      required: false,
       admin: {
         description: 'Event location (e.g., "New York, NY")',
       },
