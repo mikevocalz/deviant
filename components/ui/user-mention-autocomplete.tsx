@@ -5,12 +5,11 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useColorScheme } from "@/lib/hooks";
 import { users } from "@/lib/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { AtSign, X } from "lucide-react-native";
 
 interface User {
   id: string;
@@ -112,8 +111,9 @@ export function UserMentionAutocomplete({
   );
 
   const renderSuggestion = useCallback(
-    ({ item }: { item: User }) => (
+    (item: User) => (
       <Pressable
+        key={item.id}
         onPress={() => insertMention(item.username)}
         style={[
           styles.suggestionItem,
@@ -175,13 +175,13 @@ export function UserMentionAutocomplete({
               <Text style={{ color: colors.mutedForeground }}>Searching...</Text>
             </View>
           ) : searchResults.length > 0 ? (
-            <FlatList
-              data={searchResults}
-              renderItem={renderSuggestion}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
+            <ScrollView
               style={styles.suggestionsList}
-            />
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              {searchResults.map(renderSuggestion)}
+            </ScrollView>
           ) : (
             <View style={styles.loadingContainer}>
               <Text style={{ color: colors.mutedForeground }}>

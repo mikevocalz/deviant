@@ -272,8 +272,22 @@ export default function CreateEventScreen() {
           headerRight: () => (
             <Motion.View whileTap={{ scale: 0.95 }}>
               <Pressable
-                onPress={handleSubmit}
-                disabled={isSubmitting || !isValid}
+                onPress={() => {
+                  console.log("[CreateEvent] Create button pressed, isValid:", isValid, "isSubmitting:", isSubmitting);
+                  if (!isSubmitting && isValid) {
+                    handleSubmit();
+                  } else if (!isValid) {
+                    // Show which fields are missing
+                    if (!title.trim()) {
+                      showToast("warning", "Missing Title", "Please enter an event title");
+                    } else if (!description.trim()) {
+                      showToast("warning", "Missing Description", "Please enter an event description");
+                    } else if (!location.trim()) {
+                      showToast("warning", "Missing Location", "Please enter a location");
+                    }
+                  }
+                }}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
               >
                 <Text
