@@ -111,38 +111,55 @@ export async function POST(request: Request) {
       );
     }
 
-    // CRITICAL: Look up user in Payload CMS to get the correct user ID
-    // The currentUser from me() might be from Better Auth, not Payload CMS
+    // CRITICAL: We MUST find the Payload CMS user ID - the hook might not work with API key auth
+    // The currentUser from me() should be from Payload if cookies are valid
     let authorId: string | null = null;
     
-    // Try to find user by username first (from authorUsername or currentUser)
-    const usernameToLookup = body.authorUsername || currentUser.username;
-    console.log("[API] Looking up user by username:", usernameToLookup);
-    
-    if (usernameToLookup) {
+    // First, try using currentUser.id if it exists (it should be a Payload ID if from /users/me)
+    if (currentUser?.id) {
+      // Verify the ID exists in Payload CMS
       try {
-        const userResult = await payloadClient.find({
+        const userCheck = await payloadClient.findByID({
           collection: "users",
-          where: { username: { equals: usernameToLookup } },
-          limit: 1,
+          id: currentUser.id,
         }, cookies);
         
-        console.log("[API] Username lookup result:", {
-          found: userResult.docs?.length > 0,
-          count: userResult.docs?.length || 0,
-        });
-        
-        if (userResult.docs && userResult.docs.length > 0) {
-          authorId = (userResult.docs[0] as { id: string }).id;
-          console.log("[API] ✓ Found user by username:", usernameToLookup, "->", authorId);
+        if (userCheck) {
+          authorId = currentUser.id;
+          console.log("[API] ✓ Using currentUser.id from Payload /users/me:", authorId);
         }
-      } catch (lookupError) {
-        console.error("[API] User lookup by username error:", lookupError);
+      } catch (idError) {
+        console.warn("[API] currentUser.id verification failed, trying username lookup:", idError);
       }
     }
     
-    // If not found by username, try by email
-    if (!authorId && currentUser.email) {
+    // If not found, try to find user by username (from authorUsername or currentUser)
+    if (!authorId) {
+      const usernameToLookup = body.authorUsername || currentUser?.username;
+      console.log("[API] Looking up user by username:", usernameToLookup);
+      
+      if (usernameToLookup) {
+        try {
+          const userResult = await payloadClient.find({
+            collection: "users",
+            where: { username: { equals: usernameToLookup } },
+            limit: 1,
+          }, cookies);
+          
+          if (userResult.docs && userResult.docs.length > 0) {
+            authorId = (userResult.docs[0] as { id: string }).id;
+            console.log("[API] ✓ Found user by username:", usernameToLookup, "->", authorId);
+          } else {
+            console.warn("[API] User not found by username:", usernameToLookup);
+          }
+        } catch (lookupError) {
+          console.error("[API] User lookup by username error:", lookupError);
+        }
+      }
+    }
+    
+    // If still not found, try by email
+    if (!authorId && currentUser?.email) {
       console.log("[API] Looking up user by email:", currentUser.email);
       try {
         const userResult = await payloadClient.find({
@@ -150,11 +167,6 @@ export async function POST(request: Request) {
           where: { email: { equals: currentUser.email } },
           limit: 1,
         }, cookies);
-        
-        console.log("[API] Email lookup result:", {
-          found: userResult.docs?.length > 0,
-          count: userResult.docs?.length || 0,
-        });
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -165,28 +177,21 @@ export async function POST(request: Request) {
       }
     }
     
-    // If not found by username and we have currentUser, try using its ID
-    if (!authorId && currentUser?.id) {
-      // Try to verify the ID exists in Payload
-      try {
-        const userCheck = await payloadClient.findByID({
-          collection: "users",
-          id: currentUser.id,
-        }, cookies);
-        
-        if (userCheck) {
-          authorId = currentUser.id;
-          console.log("[API] ✓ Using currentUser.id directly:", authorId);
-        }
-      } catch (idError) {
-        console.warn("[API] User ID verification failed, will rely on hook:", idError);
-      }
-    }
-    
-    // If we don't have authorId, don't set it - let the Payload hook handle it
-    // The hook will use req.user from the cookies
+    // CRITICAL: If we still don't have authorId, we MUST fail - the hook won't work with API key auth
     if (!authorId) {
-      console.log("[API] No author ID found, relying on Payload hook to set from req.user");
+      console.error("[API] CRITICAL: Could not find user in Payload CMS", {
+        username: body.authorUsername || currentUser?.username,
+        email: currentUser?.email,
+        currentUserId: currentUser?.id,
+        cookiesPresent: !!cookies,
+      });
+      return Response.json(
+        { 
+          error: "User not found in system. Please try logging in again.",
+          details: "The user account may not exist in Payload CMS. Please ensure you're logged in with a valid account.",
+        },
+        { status: 401 },
+      );
     }
     
     // Validate content is not empty after trimming
@@ -209,18 +214,14 @@ export async function POST(request: Request) {
     }
     
     // Build comment data - ensure all required fields are present
+    // CRITICAL: We MUST set author explicitly - API key auth prevents hooks from setting req.user
     const commentData: Record<string, unknown> = {
       post: postId, // Must be a valid post ID
       content: content, // Must be non-empty string
+      author: authorId, // MUST be set explicitly - hook won't work with API key auth
     };
     
-    // Only set author if we found it - otherwise let the hook set it
-    if (authorId && authorId.length > 0) {
-      commentData.author = authorId;
-      console.log("[API] Setting author in data:", authorId);
-    } else {
-      console.log("[API] Not setting author - hook will set it from req.user");
-    }
+    console.log("[API] Setting author explicitly:", authorId);
     
     // Only add parent if it exists and is not empty
     if (body.parent && String(body.parent).trim()) {
