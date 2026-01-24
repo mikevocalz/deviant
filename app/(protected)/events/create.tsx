@@ -6,7 +6,6 @@ import {
   Pressable,
   TextInput,
   Platform,
-  Modal,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
