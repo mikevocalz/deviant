@@ -35,6 +35,8 @@ export default function StoryViewerScreen() {
   const [videoDuration, setVideoDuration] = useState(0)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isPaused = useRef(false)
+  const hasAdvanced = useRef(false)
+  const isExiting = useRef(false)
 
   // Fetch real stories from API
   const { data: storiesData = [], isLoading } = useStories()
@@ -199,27 +201,26 @@ export default function StoryViewerScreen() {
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
       const nextStory = availableStories[currentStoryIndex + 1]
+      // Update state instead of navigating - this keeps the viewer open
       setCurrentItemIndex(0)
+      setCurrentStoryId(String(nextStory.id))
       progress.value = 0
-      // Navigate to the next user's story
-      router.replace(`/(protected)/story/${nextStory.id}`)
+      hasAdvanced.current = false
     }
-  }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
+  }, [currentStoryIndex, availableStories, setCurrentItemIndex, setCurrentStoryId, progress])
 
   const goToPrevUser = useCallback(() => {
     if (currentStoryIndex > 0) {
       const prevStory = availableStories[currentStoryIndex - 1]
       const prevStoryItemsCount = prevStory?.items?.length || 0
+      // Update state instead of navigating - this keeps the viewer open
       setCurrentItemIndex(Math.max(0, prevStoryItemsCount - 1))
+      setCurrentStoryId(String(prevStory.id))
       progress.value = 0
-      // Navigate to the previous user's story
-      router.replace(`/(protected)/story/${prevStory.id}`)
+      hasAdvanced.current = false
     }
-  }, [currentStoryIndex, availableStories, setCurrentItemIndex, progress, router])
+  }, [currentStoryIndex, availableStories, setCurrentItemIndex, setCurrentStoryId, progress])
 
-  // Track if we're exiting to prevent multiple calls
-  const isExiting = useRef(false)
-  
   const handleNext = useCallback(() => {
     if (!story || !story.items) return
     if (isExiting.current) return // Prevent multiple exit calls
@@ -247,9 +248,6 @@ export default function StoryViewerScreen() {
     }
   }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
 
-  // Track if we've already advanced to prevent multiple calls
-  const hasAdvanced = useRef(false)
-  
   // Reset hasAdvanced when item changes
   useEffect(() => {
     hasAdvanced.current = false
