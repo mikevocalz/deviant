@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user from session
-    const currentUser = await payloadClient.me<{ id: string; username: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
     
     if (!currentUser) {
       return Response.json(
@@ -98,32 +98,92 @@ export async function POST(request: Request) {
       );
     }
 
-    // Look up user by username to get Payload CMS ID (if authorUsername provided, otherwise use current user)
-    let authorId = currentUser.id;
+    // CRITICAL: Look up user in Payload CMS to get the correct user ID
+    // The currentUser from me() might be from Better Auth, not Payload CMS
+    let authorId: string | null = null;
     
-    if (body.authorUsername && body.authorUsername !== currentUser.username) {
+    // Try to find user by username first (from authorUsername or currentUser)
+    const usernameToLookup = body.authorUsername || currentUser.username;
+    
+    if (usernameToLookup) {
       try {
         const userResult = await payloadClient.find({
           collection: "users",
-          where: { username: { equals: body.authorUsername } },
+          where: { username: { equals: usernameToLookup } },
           limit: 1,
         }, cookies);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
+          console.log("[API] Found user by username:", usernameToLookup, "->", authorId);
         }
       } catch (lookupError) {
-        console.error("[API] User lookup error:", lookupError);
-        // Fall back to current user
+        console.error("[API] User lookup by username error:", lookupError);
       }
+    }
+    
+    // If not found by username, try by email
+    if (!authorId && currentUser.email) {
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { email: { equals: currentUser.email } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          authorId = (userResult.docs[0] as { id: string }).id;
+          console.log("[API] Found user by email:", currentUser.email, "->", authorId);
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup by email error:", lookupError);
+      }
+    }
+    
+    // If still not found, try using currentUser.id directly (might work if it's a Payload ID)
+    if (!authorId && currentUser.id) {
+      try {
+        // Try to verify the ID exists in Payload
+        const userCheck = await payloadClient.findByID({
+          collection: "users",
+          id: currentUser.id,
+        }, cookies);
+        
+        if (userCheck) {
+          authorId = currentUser.id;
+          console.log("[API] Using currentUser.id directly:", authorId);
+        }
+      } catch (idError) {
+        console.error("[API] User ID verification failed:", idError);
+      }
+    }
+    
+    // If we still don't have an author ID, this is a critical error
+    if (!authorId) {
+      console.error("[API] CRITICAL: Could not find user in Payload CMS", {
+        username: usernameToLookup,
+        email: currentUser.email,
+        currentUserId: currentUser.id,
+      });
+      return Response.json(
+        { error: "User not found in system. Please try logging in again." },
+        { status: 401 },
+      );
     }
     
     const commentData: Record<string, unknown> = {
       post: postId,
       content: body.text.trim(), // CMS expects 'content' field
-      author: authorId, // Always set author
+      author: authorId, // Always set author with Payload CMS user ID
       parent: body.parent || undefined,
     };
+    
+    console.log("[API] Creating comment with data:", {
+      post: postId,
+      content: body.text.trim().substring(0, 50),
+      author: authorId,
+      hasParent: !!body.parent,
+    });
 
     const result = await payloadClient.create(
       {
