@@ -6,6 +6,7 @@ import {
   Pressable,
   TextInput,
   Platform,
+  Modal,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
@@ -670,26 +671,74 @@ export default function CreateEventScreen() {
           </View>
       </KeyboardAwareScrollView>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={eventDate}
-          mode="date"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={handleDateChange}
-          minimumDate={new Date()}
-          themeVariant="dark"
-        />
-      )}
+      {/* Date Picker Modal */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowDatePicker(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-card rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 24 }}>
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-xl font-bold text-foreground">Select Date</Text>
+              <Pressable onPress={() => setShowDatePicker(false)}>
+                <X size={24} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={eventDate}
+              mode="date"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+              themeVariant="dark"
+            />
+            {Platform.OS === "android" && (
+              <Pressable
+                onPress={() => setShowDatePicker(false)}
+                className="mt-4 bg-primary rounded-2xl py-4 items-center"
+              >
+                <Text className="text-primary-foreground font-semibold text-base">Done</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Modal>
 
-      {showTimePicker && (
-        <DateTimePicker
-          value={eventDate}
-          mode="time"
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={handleTimeChange}
-          themeVariant="dark"
-        />
-      )}
+      {/* Time Picker Modal */}
+      <Modal
+        visible={showTimePicker}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTimePicker(false)}
+      >
+        <View className="flex-1 bg-black/50 justify-end">
+          <View className="bg-card rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 24 }}>
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-xl font-bold text-foreground">Select Time</Text>
+              <Pressable onPress={() => setShowTimePicker(false)}>
+                <X size={24} color={colors.foreground} />
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={eventDate}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={handleTimeChange}
+              themeVariant="dark"
+            />
+            {Platform.OS === "android" && (
+              <Pressable
+                onPress={() => setShowTimePicker(false)}
+                className="mt-4 bg-primary rounded-2xl py-4 items-center"
+              >
+                <Text className="text-primary-foreground font-semibold text-base">Done</Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Progress Overlay */}
       {isSubmitting && (
