@@ -150,10 +150,14 @@ export default function CreateStoryScreen() {
       if (validMedia.length > 0) {
         const updatedAssets = [...mediaAssets, ...validMedia];
         setMediaAssets(updatedAssets);
-        setSelectedMedia(
-          updatedAssets.map((m) => m.uri),
-          updatedAssets.map((m) => m.type),
-        );
+        const updatedUris = updatedAssets.map((m) => m.uri);
+        const updatedTypes = updatedAssets.map((m) => m.type);
+        setSelectedMedia(updatedUris, updatedTypes);
+        // Set current index to the first newly added item
+        // If this is the first media, set to 0, otherwise set to the first new item
+        const newIndex = mediaAssets.length === 0 ? 0 : mediaAssets.length;
+        setCurrentIndex(newIndex);
+        console.log("[Story] Media selected, updated assets:", updatedAssets.length, "currentIndex:", newIndex);
         animateTransition();
       }
     },
