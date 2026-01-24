@@ -17,7 +17,7 @@ import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store";
 import { useLikePost } from "@/lib/hooks/use-posts";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useRef, useCallback, useEffect, memo } from "react";
+import { useRef, useCallback, useEffect, memo, useMemo } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import { Motion } from "@legendapp/motion";
