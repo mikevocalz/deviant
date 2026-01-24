@@ -80,9 +80,18 @@ export default function RootLayout() {
 
   // Show animated splash until BOTH app is ready AND animation is finished
   const showAnimatedSplash = !appReady || !splashAnimationFinished;
+  
+  console.log("[RootLayout] Splash state:", {
+    appReady,
+    splashAnimationFinished,
+    showAnimatedSplash,
+  });
+  
   if (showAnimatedSplash) {
     return <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />;
   }
+  
+  console.log("[RootLayout] Showing main app");
 
   return (
     <GestureHandlerRootView
