@@ -44,7 +44,7 @@ export default function SettingsScreenIOS() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: "Settings",
+      headerTitle: "",
       headerTitleAlign: "center" as const,
       headerStyle: {
         backgroundColor: colors.background,
@@ -55,7 +55,11 @@ export default function SettingsScreenIOS() {
         fontSize: 18,
       },
       headerLeft: () => (
-        <View style={{ marginLeft: 8, width: 32 }} />
+        <View style={{ marginLeft: 8 }}>
+          <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 16 }}>
+            Settings
+          </Text>
+        </View>
       ),
       headerRight: () => (
         <Pressable 

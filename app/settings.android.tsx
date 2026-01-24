@@ -21,6 +21,7 @@ import {
   Eye,
   EyeOff,
   ChevronLeft,
+  X,
   Info,
   CheckCircle,
   ShieldCheck,
@@ -44,7 +45,7 @@ export default function SettingsScreenAndroid() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: "Settings",
+      headerTitle: "",
       headerTitleAlign: "center" as const,
       headerStyle: {
         backgroundColor: colors.background,
@@ -55,16 +56,20 @@ export default function SettingsScreenAndroid() {
         fontSize: 18,
       },
       headerLeft: () => (
+        <View style={{ marginLeft: 8 }}>
+          <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 16 }}>
+            Settings
+          </Text>
+        </View>
+      ),
+      headerRight: () => (
         <Pressable 
           onPress={() => router.back()} 
           hitSlop={12}
-          style={{ marginLeft: 8 }}
+          style={{ marginRight: 8 }}
         >
-          <ChevronLeft size={24} color={colors.foreground} />
+          <X size={24} color={colors.foreground} />
         </Pressable>
-      ),
-      headerRight: () => (
-        <View style={{ marginRight: 8, width: 32 }} />
       ),
     });
   }, [navigation, colors, router]);
