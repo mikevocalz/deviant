@@ -1,8 +1,9 @@
-import { useRef, useEffect, useState } from "react"
-import { View, StyleSheet, Text } from "react-native"
+import { useRef, useEffect, useState, useCallback } from "react"
+import { View, StyleSheet, Text, TextInput } from "react-native"
 import { GooglePlacesAutocomplete, GooglePlaceData, GooglePlaceDetail } from "react-native-google-places-autocomplete"
 import { MapPin, AlertCircle } from "lucide-react-native"
 import { useColorScheme } from "@/lib/hooks"
+import { useDebounce } from "@/lib/hooks/use-debounce"
 
 interface LocationData {
   name: string
@@ -33,6 +34,9 @@ export function LocationAutocomplete({
   const [inputText, setInputText] = useState(value || "")
   const [hasError, setHasError] = useState(false)
   
+  // Debounce the input text for callbacks (300ms delay)
+  const debouncedText = useDebounce(inputText, 300)
+  
   // Check if API key is configured
   useEffect(() => {
     if (!GOOGLE_PLACES_API_KEY) {
@@ -40,6 +44,19 @@ export function LocationAutocomplete({
       setHasError(true)
     }
   }, [])
+  
+  // Call onTextChange with debounced value
+  useEffect(() => {
+    if (debouncedText) {
+      if (onTextChange) {
+        onTextChange(debouncedText)
+      } else {
+        onLocationSelect({ name: debouncedText })
+      }
+    } else if (!debouncedText && onClear) {
+      onClear()
+    }
+  }, [debouncedText])
   
   // Sync external value changes
   useEffect(() => {
@@ -64,31 +81,29 @@ export function LocationAutocomplete({
     onLocationSelect(locationData)
   }
   
-  const handleTextChange = (text: string) => {
+  // Just update local state - debounced effect handles callbacks
+  const handleTextChange = useCallback((text: string) => {
     setInputText(text)
-    
-    if (!text) {
-      if (onClear) onClear()
-    } else {
-      // Allow manual text entry - update parent with the typed text
-      // This enables the form to be valid even without selecting from dropdown
-      if (onTextChange) {
-        onTextChange(text)
-      } else {
-        // Fallback: Update location with just the name (no coordinates)
-        onLocationSelect({ name: text })
-      }
-    }
-  }
+  }, [])
 
-  // Show error state if API key is missing
+  // Show manual input when API key is missing
   if (hasError) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.card, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 8 }]}>
-        <AlertCircle size={18} color={colors.destructive} />
-        <Text style={{ color: colors.mutedForeground, fontSize: 14, flex: 1 }}>
-          Location search unavailable. Enter address manually.
-        </Text>
+      <View style={[styles.container, { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }]}>
+        <MapPin size={18} color={colors.mutedForeground} />
+        <TextInput
+          style={{
+            flex: 1,
+            height: 48,
+            color: colors.foreground,
+            fontSize: 15,
+            marginLeft: 8,
+          }}
+          placeholder={placeholder}
+          placeholderTextColor={colors.mutedForeground}
+          value={inputText}
+          onChangeText={handleTextChange}
+        />
       </View>
     )
   }

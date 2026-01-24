@@ -72,6 +72,18 @@ export const commentsApiClient = {
     authorUsername?: string;
   }): Promise<Comment> {
     try {
+      console.log("[commentsApi] createComment called with:", { post: data.post, text: data.text?.slice(0, 50), authorUsername: data.authorUsername });
+      
+      // Validate post ID - should be a valid MongoDB ObjectID (24 hex chars) or numeric string
+      const postId = data.post;
+      const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(postId);
+      const isNumericId = /^\d+$/.test(postId);
+      
+      if (!isValidObjectId && !isNumericId) {
+        console.error("[commentsApi] Invalid post ID format:", postId);
+        throw new Error("Invalid post ID format. Cannot create comment.");
+      }
+      
       // Look up the Payload CMS user ID by username
       let authorId: string | undefined;
       
@@ -102,7 +114,7 @@ export const commentsApiClient = {
       }
       
       const doc = await commentsApi.create({
-        post: data.post,
+        post: postId,
         content: data.text, // CMS expects 'content' field
         author: authorId,
         parent: data.parent,

@@ -38,7 +38,7 @@ export function StoriesBar() {
     return stories.find((story) => story.id === user.id || story.username === user.username);
   }, [stories, user]);
 
-  const hasMyStory = myStory && myStory.stories && myStory.stories.length > 0;
+  const hasMyStory = myStory && myStory.items && myStory.items.length > 0;
 
   if (isLoading) {
     return <StoriesBarSkeleton />;
@@ -59,6 +59,7 @@ export function StoriesBar() {
                 alt={user?.username || "Your story"}
                 hasStory={true}
                 isViewed={myStory.isViewed}
+                storyThumbnail={myStory.items?.[0]?.url}
               />
             ) : (
               <View className="relative">
@@ -113,6 +114,7 @@ export function StoriesBar() {
                   alt={item.username}
                   hasStory={true}
                   isViewed={item.isViewed}
+                  storyThumbnail={item.items?.[0]?.url}
                 />
                 <Pressable onPress={() => handleProfilePress(item.username)}>
                   <Text

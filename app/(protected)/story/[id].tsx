@@ -50,6 +50,19 @@ export default function StoryViewerScreen() {
   const currentStoryIndex = availableStories.findIndex((s) => s.id === currentStoryId)
   const story = availableStories[currentStoryIndex]
   const currentItem = story?.items?.[currentItemIndex]
+  
+  // Debug story lookup
+  useEffect(() => {
+    console.log("[StoryViewer] Story lookup:", {
+      urlId: id,
+      currentStoryId,
+      availableStoriesCount: availableStories.length,
+      availableStoryIds: availableStories.map(s => s.id),
+      foundIndex: currentStoryIndex,
+      hasStory: !!story,
+      hasItems: story?.items?.length || 0,
+    })
+  }, [id, currentStoryId, availableStories.length, currentStoryIndex, story])
 
   const hasNextUser = currentStoryIndex < availableStories.length - 1
   const hasPrevUser = currentStoryIndex > 0

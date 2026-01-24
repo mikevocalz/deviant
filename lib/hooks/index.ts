@@ -28,3 +28,4 @@ export { commentKeys, useComments, useCreateComment } from "./use-comments";
 export { useUser } from "./use-user";
 export { useFollow } from "./use-follow";
 export { useSearchPosts, useSearchUsers } from "./use-search";
+export { useDebounce, useDebouncedCallback } from "./use-debounce";

@@ -46,8 +46,8 @@ interface FeedPostProps {
   isNSFW?: boolean;
 }
 
-const { width } = Dimensions.get("window");
-const mediaSize = width - 24;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const mediaSize = SCREEN_WIDTH; // Full width for media
 
 function FeedPostComponent({
   id,

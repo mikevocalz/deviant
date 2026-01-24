@@ -8,7 +8,7 @@ interface PopoverContextType {
 
 const PopoverContext = createContext<PopoverContextType | undefined>(undefined)
 
-function usePopover() {
+export function usePopover() {
   const context = useContext(PopoverContext)
   if (!context) {
     throw new Error('Popover components must be used within a Popover')

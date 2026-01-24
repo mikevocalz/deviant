@@ -10,6 +10,8 @@ interface StoryRingProps {
   isViewed?: boolean
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  /** Optional thumbnail from the first story item - shown instead of avatar if provided */
+  storyThumbnail?: string
 }
 
 const sizeStyles = {
@@ -31,10 +33,14 @@ export function StoryRing({
   isViewed = false,
   size = 'md',
   className,
+  storyThumbnail,
 }: StoryRingProps) {
   const showGradient = hasStory && !isViewed
   const dimensions = sizeStyles[size]
   const padding = ringPadding[size]
+  
+  // Use story thumbnail if available, otherwise fall back to avatar
+  const imageSource = storyThumbnail || src
 
   const avatarContent = (
     <View 
@@ -45,13 +51,18 @@ export function StoryRing({
         borderWidth: 2,
         borderColor: '#0c0a09',
         overflow: 'hidden',
+        backgroundColor: '#1a1a1a',
       }}
     >
-      <Image
-        source={{ uri: src }}
-        style={{ width: '100%', height: '100%' }}
-        contentFit="cover"
-      />
+      {imageSource ? (
+        <Image
+          source={{ uri: imageSource }}
+          style={{ width: '100%', height: '100%' }}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={{ width: '100%', height: '100%', backgroundColor: '#2a2a2a' }} />
+      )}
     </View>
   )
 
