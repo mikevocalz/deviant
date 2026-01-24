@@ -17,7 +17,6 @@ import {
   Plus,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
-import { useLayoutEffect } from "react";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import {
