@@ -111,7 +111,9 @@ export function useUpdates() {
     // Safely check if updates are enabled
     let isEnabled = false;
     try {
-      isEnabled = Updates.isEnabled;
+      if (typeof Updates.isEnabled !== "undefined") {
+        isEnabled = Updates.isEnabled;
+      }
     } catch (enabledError) {
       console.log("[Updates] Could not check isEnabled in downloadAndApplyUpdate:", enabledError);
       return;
@@ -122,7 +124,19 @@ export function useUpdates() {
     setStatus((prev) => ({ ...prev, isDownloading: true }));
 
     try {
-      const result = await Updates.fetchUpdateAsync();
+      // Wrap fetchUpdateAsync in try-catch
+      let result;
+      try {
+        result = await Updates.fetchUpdateAsync();
+      } catch (fetchError) {
+        console.error("[Updates] fetchUpdateAsync failed:", fetchError);
+        setStatus((prev) => ({
+          ...prev,
+          isDownloading: false,
+          error: fetchError instanceof Error ? fetchError.message : "Failed to download update",
+        }));
+        return;
+      }
 
       if (result.isNew) {
         setStatus((prev) => ({
@@ -211,7 +225,10 @@ export function useUpdates() {
     // Check if updates are enabled - wrap in try-catch as this can throw
     let isEnabled = false;
     try {
-      isEnabled = Updates.isEnabled;
+      // Safely access isEnabled property
+      if (typeof Updates.isEnabled !== "undefined") {
+        isEnabled = Updates.isEnabled;
+      }
     } catch (enabledError) {
       console.log("[Updates] Could not check isEnabled:", enabledError);
       return;
@@ -236,23 +253,30 @@ export function useUpdates() {
         let channel: string | undefined;
         
         try {
-          updateId = Updates.updateId?.slice(0, 8) || "none";
-          isEmbeddedLaunch = Updates.isEmbeddedLaunch;
-          channel = Updates.channel || undefined;
+          if (Updates.updateId) {
+            updateId = typeof Updates.updateId === "string" ? Updates.updateId.slice(0, 8) : "none";
+          }
+          if (typeof Updates.isEmbeddedLaunch !== "undefined") {
+            isEmbeddedLaunch = Updates.isEmbeddedLaunch;
+          }
+          if (Updates.channel) {
+            channel = Updates.channel;
+          }
         } catch (stateError) {
           console.log("[Updates] Could not read state:", stateError);
         }
         
         console.log("[Updates] Current state:", { updateId, isEmbeddedLaunch, channel });
 
-        // Initial check for new updates - delay to let app fully initialize
+        // Initial check for new updates - delay significantly to let app fully initialize
+        // Wait longer to avoid conflicts with splash screen
         setTimeout(() => {
           try {
             checkForUpdates();
           } catch (checkError) {
             console.log("[Updates] Initial check error:", checkError);
           }
-        }, 2000);
+        }, 5000); // Increased from 2000 to 5000
 
         // Check when app comes to foreground
         const handleAppStateChange = (nextState: AppStateStatus) => {
@@ -272,23 +296,48 @@ export function useUpdates() {
         );
 
         // Listen for update events from expo-updates
-        if (Updates.useUpdates && Updates.addListener) {
+        if (Updates && typeof Updates.addListener === "function") {
           try {
-            updateEventSubscription = Updates.addListener((event) => {
-              console.log("[Updates] Received update event:", event.type);
-              
+            // Safely access UpdateEventType
+            let UpdateEventType: any;
+            try {
+              UpdateEventType = Updates.UpdateEventType;
+            } catch (typeError) {
+              console.log("[Updates] Could not access UpdateEventType:", typeError);
+            }
+            
+            updateEventSubscription = Updates.addListener((event: any) => {
               try {
-                if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
-                  console.log("[Updates] Update available event received");
-                  setStatus((prev) => ({
-                    ...prev,
-                    isUpdateAvailable: true,
-                  }));
-                  downloadAndApplyUpdate();
-                } else if (event.type === Updates.UpdateEventType.NO_UPDATE_AVAILABLE) {
-                  console.log("[Updates] No update available");
-                } else if (event.type === Updates.UpdateEventType.ERROR) {
-                  console.error("[Updates] Update error event:", (event as any).message);
+                console.log("[Updates] Received update event:", event?.type);
+                
+                if (!UpdateEventType) {
+                  // Fallback: check event type as string
+                  if (event?.type === "UPDATE_AVAILABLE" || event?.type === "updateAvailable") {
+                    console.log("[Updates] Update available event received");
+                    setStatus((prev) => ({
+                      ...prev,
+                      isUpdateAvailable: true,
+                    }));
+                    downloadAndApplyUpdate();
+                  } else if (event?.type === "NO_UPDATE_AVAILABLE" || event?.type === "noUpdateAvailable") {
+                    console.log("[Updates] No update available");
+                  } else if (event?.type === "ERROR" || event?.type === "error") {
+                    console.error("[Updates] Update error event:", event?.message);
+                  }
+                } else {
+                  // Use UpdateEventType enum if available
+                  if (event.type === UpdateEventType.UPDATE_AVAILABLE) {
+                    console.log("[Updates] Update available event received");
+                    setStatus((prev) => ({
+                      ...prev,
+                      isUpdateAvailable: true,
+                    }));
+                    downloadAndApplyUpdate();
+                  } else if (event.type === UpdateEventType.NO_UPDATE_AVAILABLE) {
+                    console.log("[Updates] No update available");
+                  } else if (event.type === UpdateEventType.ERROR) {
+                    console.error("[Updates] Update error event:", event?.message);
+                  }
                 }
               } catch (eventHandleError) {
                 console.log("[Updates] Error handling event:", eventHandleError);
@@ -323,13 +372,21 @@ export function useUpdates() {
     ...status,
     checkForUpdates,
     downloadAndApplyUpdate,
-    currentlyRunning: Updates?.isEnabled
-      ? {
+    currentlyRunning: (() => {
+      try {
+        if (!Updates || typeof Updates.isEnabled === "undefined" || !Updates.isEnabled) {
+          return null;
+        }
+        return {
           updateId: Updates.updateId || null,
           channel: Updates.channel || null,
           createdAt: Updates.createdAt || null,
           isEmbeddedLaunch: typeof Updates.isEmbeddedLaunch !== "undefined" ? Updates.isEmbeddedLaunch : null,
-        }
-      : null,
+        };
+      } catch (error) {
+        console.log("[Updates] Error getting currentlyRunning:", error);
+        return null;
+      }
+    })(),
   };
 }
