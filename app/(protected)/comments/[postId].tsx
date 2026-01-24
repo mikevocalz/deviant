@@ -46,6 +46,7 @@ export default function CommentsScreen() {
         text: commentText,
         parent: parentId,
         authorUsername: user?.username,
+        authorId: user?.id, // Payload CMS user ID from Zustand store
       },
       {
         onSuccess: () => {

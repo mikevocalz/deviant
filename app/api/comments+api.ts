@@ -115,8 +115,29 @@ export async function POST(request: Request) {
     // The currentUser from me() should be from Payload if cookies are valid
     let authorId: string | null = null;
     
-    // First, try using currentUser.id if it exists (it should be a Payload ID if from /users/me)
-    if (currentUser?.id) {
+    // FIRST: Try using authorId from client (Zustand store) - this is the fastest path
+    if (body.authorId && String(body.authorId).trim()) {
+      const clientAuthorId = String(body.authorId).trim();
+      try {
+        // Verify the ID exists in Payload CMS
+        const userCheck = await payloadClient.findByID({
+          collection: "users",
+          id: clientAuthorId,
+        }, cookies);
+        
+        if (userCheck) {
+          authorId = clientAuthorId;
+          console.log("[API] ✓ Using authorId from client (Zustand store):", authorId);
+        } else {
+          console.warn("[API] Client authorId not found in Payload, will try other methods");
+        }
+      } catch (idError) {
+        console.warn("[API] Client authorId verification failed, trying other methods:", idError);
+      }
+    }
+    
+    // SECOND: Try using currentUser.id if it exists (it should be a Payload ID if from /users/me)
+    if (!authorId && currentUser?.id) {
       // Verify the ID exists in Payload CMS
       try {
         const userCheck = await payloadClient.findByID({

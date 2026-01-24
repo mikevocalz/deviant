@@ -79,6 +79,7 @@ export const commentsApiClient = {
     text: string;
     parent?: string;
     authorUsername?: string;
+    authorId?: string; // Payload CMS user ID from Zustand store
   }): Promise<Comment> {
     try {
       // Clean and validate post ID
@@ -113,10 +114,12 @@ export const commentsApiClient = {
       }
       
       // Send to API - the API route handles author lookup and transformation
+      // Include both authorId (from Zustand) and authorUsername for fallback
       const commentPayload = {
         post: cleanedPostId,
         text: data.text.trim(), // API route expects 'text', it transforms to 'content'
         authorUsername: data.authorUsername,
+        authorId: data.authorId, // Payload CMS user ID from Zustand store
         parent: data.parent || undefined,
       };
       console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload, null, 2));

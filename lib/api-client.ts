@@ -427,6 +427,7 @@ export const comments = {
     text: string;
     parent?: string;
     authorUsername?: string;
+    authorId?: string; // Payload CMS user ID
   }) =>
     apiFetch<T>("/api/comments", {
       method: "POST",
