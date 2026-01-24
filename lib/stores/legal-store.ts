@@ -76,8 +76,14 @@ export const useLegalStore = create<LegalState>((set, get) => ({
   fetchPage: async (slug: LegalPageSlug) => {
     const state = get();
 
-    // Don't refetch if already loaded
-    if (state.pages[slug] || state.loading[slug]) {
+    // Don't refetch if already loaded with valid content
+    const existingPage = state.pages[slug];
+    if (existingPage && existingPage.content && existingPage.content.trim().length > 0) {
+      return;
+    }
+    
+    // Don't refetch if currently loading
+    if (state.loading[slug]) {
       return;
     }
 
@@ -86,20 +92,31 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
+    let useStaticContent = true;
+
     try {
       // Fetch from CMS API
       const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
-      const response = await fetch(`${apiUrl}/api/legal/${slug}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data && !data.error) {
-          set((s) => ({
-            pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
-            loading: { ...s.loading, [slug]: false },
-          }));
-          return;
+      if (apiUrl) {
+        const response = await fetch(`${apiUrl}/api/legal/${slug}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Validate that data has required fields (content is essential)
+          if (data && !data.error && data.content && typeof data.content === "string" && data.content.trim().length > 0) {
+            set((s) => ({
+              pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
+              loading: { ...s.loading, [slug]: false },
+            }));
+            return; // Successfully loaded from API
+          } else {
+            console.log("[LegalStore] API response missing content field, using static content");
+          }
+        } else {
+          console.log("[LegalStore] API response not ok:", response.status, "using static content");
         }
+      } else {
+        console.log("[LegalStore] No API URL configured, using static content");
       }
     } catch (apiError) {
       console.log("[LegalStore] API fetch failed, using static content:", apiError);

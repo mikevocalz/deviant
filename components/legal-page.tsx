@@ -195,6 +195,14 @@ export function LegalPage({ slug, title }: LegalPageProps) {
               </Text>
             )}
 
+            {sections.length === 0 && !loading && (
+              <View className="mb-4 rounded-xl border border-border bg-card p-4">
+                <Text className="text-center text-muted-foreground">
+                  No content available. Please try again later.
+                </Text>
+              </View>
+            )}
+
             {sections.map((section, index) => {
               switch (section.type) {
                 case "heading":

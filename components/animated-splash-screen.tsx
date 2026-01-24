@@ -25,7 +25,14 @@ export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSpla
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
       <View style={styles.riveContainer}>
-        {riveFile ? <RiveView file={riveFile} style={styles.rive} autoPlay={true} /> : null}
+        {riveFile ? (
+          <RiveView
+            file={riveFile}
+            style={styles.rive}
+            autoPlay={true}
+            stateMachineName="Timeline 1"
+          />
+        ) : null}
       </View>
     </Animated.View>
   )
