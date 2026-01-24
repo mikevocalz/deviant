@@ -185,10 +185,10 @@ export function useUpdates() {
     downloadAndApplyUpdate,
     currentlyRunning: Updates?.isEnabled
       ? {
-          updateId: Updates.updateId,
-          channel: Updates.channel,
-          createdAt: Updates.createdAt,
-          isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+          updateId: Updates.updateId || null,
+          channel: Updates.channel || null,
+          createdAt: Updates.createdAt || null,
+          isEmbeddedLaunch: typeof Updates.isEmbeddedLaunch !== "undefined" ? Updates.isEmbeddedLaunch : null,
         }
       : null,
   };
