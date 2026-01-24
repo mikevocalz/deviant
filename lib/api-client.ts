@@ -214,11 +214,20 @@ export const users = {
   ): Promise<{
     available: boolean;
     suggestions: string[];
+    error?: string;
   }> => {
-    // Username check requires auth which isn't available during signup
-    // Return available and let server validate at registration time
-    // This prevents infinite spinner on 403 responses
-    return { available: true, suggestions: [] };
+    try {
+      const response = await apiFetch<{
+        available: boolean;
+        suggestions: string[];
+        error?: string;
+      }>(`/api/users/check-username?username=${encodeURIComponent(username)}`);
+      return response;
+    } catch (error: any) {
+      console.error("[users] checkUsername error:", error);
+      // On error, assume available and let server validate at registration
+      return { available: true, suggestions: [] };
+    }
   },
 
   follow: async (userId: string, action: "follow" | "unfollow") => {

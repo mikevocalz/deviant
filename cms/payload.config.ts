@@ -13,6 +13,7 @@ import { fileURLToPath } from "url";
 
 import { Posts } from "./collections/Posts";
 import { Users } from "./collections/Users";
+import { Events } from "./collections/Events";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -24,7 +25,7 @@ export default buildConfig({
       titleSuffix: "- Deviant CMS",
     },
   },
-  collections: [Users, Posts],
+  collections: [Users, Posts, Events],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "your-secret-key",
   typescript: {
