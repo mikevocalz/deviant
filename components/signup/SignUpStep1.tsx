@@ -404,7 +404,7 @@ export function SignUpStep1() {
                         }}
                         textColor="#fff"
                         themeVariant="dark"
-                        style={{ height: 200 }}
+                        style={{ height: 220, width: "100%" }}
                       />
                       <View className="flex-row gap-2 mt-4">
                         <Button
