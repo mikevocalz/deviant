@@ -45,8 +45,8 @@ export default function SettingsScreenAndroid() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: "",
-      headerTitleAlign: "center" as const,
+      headerTitle: "Settings",
+      headerTitleAlign: "left" as const,
       headerStyle: {
         backgroundColor: colors.background,
       },
@@ -56,11 +56,7 @@ export default function SettingsScreenAndroid() {
         fontSize: 18,
       },
       headerLeft: () => (
-        <View style={{ marginLeft: 8 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 16 }}>
-            Settings
-          </Text>
-        </View>
+        <View style={{ marginLeft: 8, width: 32 }} />
       ),
       headerRight: () => (
         <Pressable 
