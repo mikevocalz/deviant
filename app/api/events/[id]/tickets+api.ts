@@ -41,14 +41,22 @@ export async function GET(
       );
     }
 
-    const eventOrganizer = typeof event.host === "object" 
+    const eventHost = typeof event.host === "object" 
       ? (event.host as any)?.id 
       : event.host;
+    
+    const eventCoOrganizer = event.coOrganizer
+      ? (typeof event.coOrganizer === "object" 
+          ? (event.coOrganizer as any)?.id 
+          : event.coOrganizer)
+      : null;
 
-    // Only organizer can view tickets
-    if (eventOrganizer !== currentUser.id) {
+    // Check if user is host or co-organizer
+    const isOrganizer = eventHost === currentUser.id || eventCoOrganizer === currentUser.id;
+
+    if (!isOrganizer) {
       return Response.json(
-        { error: "Only the event organizer can view tickets" },
+        { error: "Only event organizers can view tickets" },
         { status: 403 },
       );
     }
