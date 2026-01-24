@@ -5,12 +5,12 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { Stack, useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
 import {
   X,
   Calendar,
@@ -250,7 +250,7 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <View className="flex-1 bg-background">
+    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Stack.Screen
         options={{
           presentation: "modal",
@@ -260,7 +260,11 @@ export default function CreateEventScreen() {
           headerTintColor: colors.foreground,
           headerTitleStyle: { fontWeight: "700" },
           headerLeft: () => (
-            <Pressable onPress={() => router.back()} hitSlop={8}>
+            <Pressable 
+              onPress={() => router.back()} 
+              hitSlop={8}
+              className="p-2 -ml-2"
+            >
               <X size={24} color={colors.foreground} />
             </Pressable>
           ),
@@ -282,19 +286,17 @@ export default function CreateEventScreen() {
         }}
       />
 
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          padding: 20,
+          paddingBottom: insets.bottom + 20,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={100}
+        enabled={true}
       >
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{
-            padding: 20,
-            paddingBottom: insets.bottom + 20,
-          }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
           {/* Title & Description */}
           <View className="mb-6">
             <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
@@ -623,8 +625,7 @@ export default function CreateEventScreen() {
               </Text>
             </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
 
       {showDatePicker && (
         <DateTimePicker
@@ -668,6 +669,6 @@ export default function CreateEventScreen() {
           </Motion.View>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
