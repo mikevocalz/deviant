@@ -32,6 +32,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useCallback, useEffect, useState } from "react";
+import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -417,18 +418,15 @@ export default function CreateScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={{ padding: 16 }}>
-          <TextInput
+          <UserMentionAutocomplete
             value={caption}
             onChangeText={setCaption}
-            placeholder="Write a caption..."
-            placeholderTextColor="#666"
+            placeholder="Write a caption... (use @ to mention users)"
             multiline
             maxLength={2200}
             style={{
               fontSize: 16,
-              color: "#fff",
               minHeight: 80,
-              textAlignVertical: "top",
             }}
           />
           <Text

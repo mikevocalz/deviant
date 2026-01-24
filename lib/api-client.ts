@@ -179,6 +179,23 @@ export const users = {
   findByID: <T = Record<string, unknown>>(id: string, depth?: number) =>
     apiFetch<T>(`/api/users/${id}${depth ? `?depth=${depth}` : ""}`),
 
+  findByUsername: async <T = Record<string, unknown>>(
+    username: string,
+    depth?: number,
+  ): Promise<T | null> => {
+    try {
+      const result = await users.find<T>({
+        where: { username: { equals: username.toLowerCase() } },
+        limit: 1,
+        depth: depth || 1,
+      });
+      return result.docs?.[0] || null;
+    } catch (error) {
+      console.error("[users] findByUsername error:", error);
+      return null;
+    }
+  },
+
   me: <T = Record<string, unknown>>() =>
     apiFetch<{ user: T | null }>("/api/users/me"),
 
@@ -202,6 +219,17 @@ export const users = {
     // Return available and let server validate at registration time
     // This prevents infinite spinner on 403 responses
     return { available: true, suggestions: [] };
+  },
+
+  follow: async (userId: string, action: "follow" | "unfollow") => {
+    return apiFetch<{
+      message: string;
+      following: boolean;
+      followersCount: number;
+    }>("/api/users/follow", {
+      method: "POST",
+      body: JSON.stringify({ userId, action }),
+    });
   },
 };
 

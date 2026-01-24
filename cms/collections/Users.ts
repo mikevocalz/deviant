@@ -127,6 +127,44 @@ export const Users: CollectionConfig = {
         readOnly: true,
       },
     },
+    {
+      name: "following",
+      type: "array",
+      required: false,
+      admin: {
+        position: "sidebar",
+        description: "Array of user IDs that this user follows (managed via API)",
+        hidden: true, // Hide from admin UI, managed via API
+      },
+      fields: [
+        {
+          name: "user",
+          type: "text",
+          required: false,
+        },
+      ],
+      hooks: {
+        beforeChange: [
+          ({ data }) => {
+            // Accept array of user IDs directly (strings)
+            // Payload stores array fields as array of objects with the field name
+            if (Array.isArray(data)) {
+              // If it's already an array of strings, convert to array of objects
+              if (data.length > 0 && typeof data[0] === "string") {
+                return data.map((id) => ({ user: String(id) }));
+              }
+              // If it's array of objects, ensure user field is string
+              return data.map((item: any) => {
+                if (typeof item === "string") return { user: item };
+                if (item?.user) return { user: String(item.user) };
+                return { user: String(item) };
+              });
+            }
+            return [];
+          },
+        ],
+      },
+    },
   ],
   timestamps: true,
 };

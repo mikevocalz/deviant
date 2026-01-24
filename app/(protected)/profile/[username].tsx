@@ -9,7 +9,9 @@ import { shareProfile } from "@/lib/utils/sharing"
 import { SharedImage } from "@/components/shared-image"
 import { Motion } from "@legendapp/motion"
 
-import { useCallback, memo } from "react"
+import { useCallback, memo, useState, useMemo } from "react"
+import { useUser, useFollow } from "@/lib/hooks"
+import { useQueryClient } from "@tanstack/react-query"
 
 const { width } = Dimensions.get("window")
 const columnWidth = (width - 8) / 3
@@ -180,7 +182,9 @@ function UserProfileScreenComponent() {
         <Pressable onPress={() => router.back()}>
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="text-lg font-semibold text-foreground">{user.username}</Text>
+        <Text className="text-lg font-semibold text-foreground">
+          {isLoading ? "Loading..." : user.username}
+        </Text>
         <Pressable>
           <MoreHorizontal size={24} color={colors.foreground} />
         </Pressable>
@@ -191,7 +195,9 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="flex-row items-center gap-6">
             <SharedImage 
-              source={{ uri: user.avatar }} 
+              source={{ 
+                uri: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`
+              }} 
               style={{ ...styles.avatar, backgroundColor: '#2a2a2a' }}
               contentFit="cover"
               sharedTag={`profile-avatar-${user.username}`}
@@ -202,7 +208,11 @@ function UserProfileScreenComponent() {
                 <Text className="text-xs text-muted-foreground">Posts</Text>
               </View>
               <View className="items-center">
-                <Text className="text-lg font-bold text-foreground">{(user.followersCount / 1000).toFixed(1)}K</Text>
+                <Text className="text-lg font-bold text-foreground">
+                  {user.followersCount >= 1000 
+                    ? `${(user.followersCount / 1000).toFixed(1)}K` 
+                    : user.followersCount}
+                </Text>
                 <Text className="text-xs text-muted-foreground">Followers</Text>
               </View>
               <View className="items-center">
@@ -213,8 +223,8 @@ function UserProfileScreenComponent() {
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold text-foreground">{user.fullName}</Text>
-            <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>
+            <Text className="font-semibold text-foreground">{user.name}</Text>
+            {user.bio && <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>}
           </View>
 
           {/* Action Buttons */}
@@ -241,13 +251,26 @@ function UserProfileScreenComponent() {
               </>
             ) : (
               <>
-                <Pressable onPress={handleFollowPress} style={{ flex: 1 }}>
+                <Pressable 
+                  onPress={handleFollowPress} 
+                  disabled={followMutation.isPending || !user.id}
+                  style={{ flex: 1 }}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                    style={styles.primaryButton}
+                    style={[
+                      styles.primaryButton,
+                      isFollowing && styles.secondaryButton,
+                      (followMutation.isPending || !user.id) && { opacity: 0.5 },
+                    ]}
                   >
-                    <Text className="font-semibold text-primary-foreground">Follow</Text>
+                    <Text className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}>
+                      {followMutation.isPending 
+                        ? (isFollowing ? "Unfollowing..." : "Following...")
+                        : (isFollowing ? "Following" : "Follow")
+                      }
+                    </Text>
                   </Motion.View>
                 </Pressable>
                 <Pressable onPress={handleMessagePress} style={{ flex: 1 }}>
@@ -272,22 +295,18 @@ function UserProfileScreenComponent() {
         </View>
 
         {/* Posts Grid */}
-        <View className="flex-row flex-wrap">
-          {mockPosts.map((post) => (
-            <Pressable
-              key={post.id}
-              onPress={() => handlePostPress(post.id)}
-              style={{ width: columnWidth, height: columnWidth, padding: 1 }}
-            >
-              <SharedImage 
-                source={{ uri: post.thumbnail }} 
-                style={{ width: columnWidth - 2, height: columnWidth - 2, borderRadius: 2, backgroundColor: "#1a1a1a" }} 
-                contentFit="cover"
-                sharedTag={`post-image-${post.id}`}
-              />
-            </Pressable>
-          ))}
-        </View>
+        {isLoading ? (
+          <View className="p-4 items-center">
+            <Text className="text-muted-foreground">Loading...</Text>
+          </View>
+        ) : (
+          <View className="flex-row flex-wrap">
+            {/* TODO: Fetch user's posts from API */}
+            <View className="p-4 items-center flex-1">
+              <Text className="text-muted-foreground">No posts yet</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   )
