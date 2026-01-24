@@ -18,7 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import { useColorScheme } from "@/lib/hooks";
@@ -26,7 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 
@@ -58,6 +58,7 @@ const textColors = [
 
 export default function CreateStoryScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const {
     selectedMedia,
@@ -394,43 +395,52 @@ export default function CreateStoryScreen() {
 
   const isValid = selectedMedia.length > 0;
 
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "New Story",
+      headerTitleAlign: "left" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <Pressable 
+          onPress={handleClose} 
+          hitSlop={12}
+          style={{ marginLeft: 8 }}
+        >
+          <X size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={handleShare}
+          disabled={isSharing || !isValid}
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: isValid && !isSharing ? colors.primary : colors.mutedForeground,
+            }}
+          >
+            {isSharing ? "Sharing..." : "Share"}
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
+
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: true,
-          title: "New Story",
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.foreground,
-          headerTitleStyle: { fontWeight: "700" },
-          headerBackVisible: false,
-          headerLeft: () => (
-            <Pressable 
-              onPress={handleClose} 
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{ padding: 8, marginLeft: -8 }}
-            >
-              <X size={24} color={colors.foreground} />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Motion.View whileTap={{ scale: 0.95 }}>
-              <Pressable
-                onPress={handleShare}
-                disabled={isSharing || !isValid}
-                className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
-              >
-                <Text
-                  className={`text-sm font-semibold ${isValid ? "text-primary-foreground" : "text-muted-foreground"}`}
-                >
-                  {isSharing ? "Sharing..." : "Share"}
-                </Text>
-              </Pressable>
-            </Motion.View>
-          ),
-        }}
-      />
       <SafeAreaView
         edges={[]}
         style={{ flex: 1, backgroundColor: colors.background }}

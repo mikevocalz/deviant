@@ -16,7 +16,8 @@ import {
   Trash2,
   Plus,
 } from "lucide-react-native";
-import { Stack, useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
+import { useLayoutEffect } from "react";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -31,7 +32,7 @@ import { useCreatePost } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useLayoutEffect } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -44,6 +45,7 @@ const MIN_CAPTION_LENGTH = 50;
 
 export default function CreateScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { caption, location, setCaption, setLocationData, reset } =
     useCreatePostStore();
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
@@ -350,65 +352,81 @@ export default function CreateScreen() {
     }
   };
 
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "New Post",
+      headerTitleAlign: "left" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <Pressable 
+          onPress={handleClose} 
+          hitSlop={12}
+          style={{ marginLeft: 8 }}
+        >
+          <X size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => {
+            console.log("[Create] Share button pressed!");
+            console.log(
+              "[Create] isValid:",
+              isValid,
+              "isUploading:",
+              isUploading,
+            );
+            if (isUploading) {
+              showToast("info", "Please wait", "Upload in progress...");
+              return;
+            }
+            if (selectedMedia.length === 0) {
+              showToast(
+                "error",
+                "No Media",
+                "Please select at least one photo or video",
+              );
+              return;
+            }
+            if (caption.trim().length < MIN_CAPTION_LENGTH) {
+              showToast(
+                "error",
+                "Caption Too Short",
+                `Please write at least ${MIN_CAPTION_LENGTH} characters`,
+              );
+              return;
+            }
+            handlePost();
+          }}
+          disabled={isUploading || !isValid}
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: isValid && !isUploading ? colors.primary : colors.mutedForeground,
+            }}
+          >
+            {isUploading ? "Posting..." : "Share"}
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, isValid, isUploading, selectedMedia.length, caption, handlePost, showToast, handleClose]);
+
   return (
     <View className="flex-1 bg-background">
-      <Stack.Screen
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: true,
-          title: "New Post",
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.foreground,
-          headerTitleStyle: { fontWeight: "700" },
-          headerBackVisible: false,
-          headerLeft: () => (
-            <Pressable onPress={handleClose} hitSlop={8} className="p-2 -ml-2">
-              <X size={24} color={colors.foreground} />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Pressable
-              onPress={() => {
-                console.log("[Create] Share button pressed!");
-                console.log(
-                  "[Create] isValid:",
-                  isValid,
-                  "isUploading:",
-                  isUploading,
-                );
-                if (isUploading) {
-                  showToast("info", "Please wait", "Upload in progress...");
-                  return;
-                }
-                if (selectedMedia.length === 0) {
-                  showToast(
-                    "error",
-                    "No Media",
-                    "Please select at least one photo or video",
-                  );
-                  return;
-                }
-                if (caption.trim().length < MIN_CAPTION_LENGTH) {
-                  showToast(
-                    "error",
-                    "Caption Too Short",
-                    `Please write at least ${MIN_CAPTION_LENGTH} characters`,
-                  );
-                  return;
-                }
-                handlePost();
-              }}
-              className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
-            >
-              <Text
-                className={`text-sm font-semibold ${isValid ? "text-primary-foreground" : "text-muted-foreground"}`}
-              >
-                {isUploading ? "Posting..." : "Share"}
-              </Text>
-            </Pressable>
-          ),
-        }}
-      />
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}

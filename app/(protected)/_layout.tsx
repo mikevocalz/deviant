@@ -63,10 +63,10 @@ export default function ProtectedLayout() {
         }}
       />
       <Stack.Screen name="profile/edit" options={modalTransitionConfig} />
-      <Stack.Screen name="events/create" options={fullScreenModalConfig} />
+      <Stack.Screen name="events/create" options={{ ...fullScreenModalConfig, headerShown: true }} />
       <Stack.Screen name="events/[id]" />
       <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
-      <Stack.Screen name="story/create" options={fullScreenModalConfig} />
+      <Stack.Screen name="story/create" options={{ ...fullScreenModalConfig, headerShown: true }} />
       <Stack.Screen name="chat" />
       <Stack.Screen name="comments" options={modalTransitionConfig} />
     </Stack>

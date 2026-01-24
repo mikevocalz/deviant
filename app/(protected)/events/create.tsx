@@ -9,8 +9,9 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
-import { Stack, useRouter } from "expo-router";
+import { useRouter, useNavigation } from "expo-router";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import { useLayoutEffect } from "react";
 import {
   X,
   Calendar,
@@ -63,6 +64,7 @@ const SUGGESTED_TAGS = [
 
 export default function CreateEventScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
   const { pickFromLibrary, requestPermissions } = useMediaPicker();
@@ -249,57 +251,66 @@ export default function CreateEventScreen() {
     }
   };
 
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "Create Event",
+      headerTitleAlign: "left" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <Pressable 
+          onPress={() => router.back()} 
+          hitSlop={12}
+          style={{ marginLeft: 8 }}
+        >
+          <X size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => {
+            console.log("[CreateEvent] Create button pressed, isValid:", isValid, "isSubmitting:", isSubmitting);
+            if (!isSubmitting && isValid) {
+              handleSubmit();
+            } else if (!isValid) {
+              // Show which fields are missing
+              if (!title.trim()) {
+                showToast("warning", "Missing Title", "Please enter an event title");
+              } else if (!description.trim()) {
+                showToast("warning", "Missing Description", "Please enter an event description");
+              } else if (!location.trim()) {
+                showToast("warning", "Missing Location", "Please enter a location");
+              }
+            }
+          }}
+          disabled={isSubmitting || !isValid}
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color: isValid && !isSubmitting ? colors.primary : colors.mutedForeground,
+            }}
+          >
+            {isSubmitting ? "Creating..." : "Create"}
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, isValid, isSubmitting, title, description, location, handleSubmit, showToast, router]);
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Stack.Screen
-        options={{
-          presentation: "fullScreenModal",
-          headerShown: true,
-          title: "Create Event",
-          headerStyle: { backgroundColor: colors.card },
-          headerTintColor: colors.foreground,
-          headerTitleStyle: { fontWeight: "700" },
-          headerBackVisible: false,
-          headerLeft: () => (
-            <Pressable 
-              onPress={() => router.back()} 
-              hitSlop={8}
-              className="p-2 -ml-2"
-            >
-              <X size={24} color={colors.foreground} />
-            </Pressable>
-          ),
-          headerRight: () => (
-            <Motion.View whileTap={{ scale: 0.95 }}>
-              <Pressable
-                onPress={() => {
-                  console.log("[CreateEvent] Create button pressed, isValid:", isValid, "isSubmitting:", isSubmitting);
-                  if (!isSubmitting && isValid) {
-                    handleSubmit();
-                  } else if (!isValid) {
-                    // Show which fields are missing
-                    if (!title.trim()) {
-                      showToast("warning", "Missing Title", "Please enter an event title");
-                    } else if (!description.trim()) {
-                      showToast("warning", "Missing Description", "Please enter an event description");
-                    } else if (!location.trim()) {
-                      showToast("warning", "Missing Location", "Please enter a location");
-                    }
-                  }
-                }}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                className={`px-4 py-2 rounded-2xl ${isValid ? "bg-primary" : "bg-muted"}`}
-              >
-                <Text
-                  className={`text-sm font-semibold ${isValid ? "text-primary-foreground" : "text-muted-foreground"}`}
-                >
-                  {isSubmitting ? "Creating..." : "Create"}
-                </Text>
-              </Pressable>
-            </Motion.View>
-          ),
-        }}
-      />
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
