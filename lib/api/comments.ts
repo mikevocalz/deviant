@@ -2,10 +2,7 @@
  * Comments API - fetches real comment data from Payload CMS
  */
 
-import { comments as commentsApi, users, notifications, posts } from "@/lib/api-client";
-
-// Cache for user ID lookups to avoid repeated API calls
-const userIdCache: Record<string, string> = {};
+import { comments as commentsApi, notifications, posts } from "@/lib/api-client";
 
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
@@ -86,14 +83,13 @@ export const commentsApiClient = {
     try {
       // Clean and validate post ID
       const rawPostId = data.post;
-      // Remove any spaces or invalid characters, convert to number if numeric
+      // Remove any spaces or invalid characters
       const cleanedPostId = String(rawPostId).trim().replace(/\s+/g, '');
       const numericPostId = parseInt(cleanedPostId, 10);
-      const postId = !isNaN(numericPostId) ? numericPostId : cleanedPostId;
       
       console.log("[commentsApi] createComment called with:", { 
         rawPost: rawPostId, 
-        cleanedPost: postId,
+        cleanedPost: cleanedPostId,
         text: data.text?.slice(0, 50), 
         authorUsername: data.authorUsername 
       });
@@ -116,76 +112,43 @@ export const commentsApiClient = {
         throw new Error("You must be logged in to comment");
       }
       
-      // Look up the Payload CMS user ID by username
-      let authorId: string | undefined;
-      
-      // Check cache first
-      if (userIdCache[data.authorUsername]) {
-        authorId = userIdCache[data.authorUsername];
-        console.log("[commentsApi] Using cached author ID:", authorId);
-      } else {
-        // Look up user in Payload CMS
-        try {
-          const userResult = await users.find({
-            where: { username: { equals: data.authorUsername } },
-            limit: 1,
-          });
-          
-          if (userResult.docs && userResult.docs.length > 0) {
-            authorId = (userResult.docs[0] as { id: string }).id;
-            userIdCache[data.authorUsername] = authorId;
-            console.log("[commentsApi] Found author ID:", authorId);
-          } else {
-            console.error("[commentsApi] User not found in CMS:", data.authorUsername);
-            throw new Error("User not found. Please log out and log back in.");
-          }
-        } catch (lookupError) {
-          console.error("[commentsApi] User lookup error:", lookupError);
-          throw new Error("Failed to verify user. Please try again.");
-        }
-      }
-      
-      if (!authorId) {
-        throw new Error("Could not identify user. Please log out and log back in.");
-      }
-      
+      // Send to API - the API route handles author lookup and transformation
       const commentPayload = {
-        post: postId, // Use cleaned/parsed post ID
-        content: data.text.trim(), // CMS expects 'content' field
-        author: authorId,
+        post: cleanedPostId,
+        text: data.text.trim(), // API route expects 'text', it transforms to 'content'
+        authorUsername: data.authorUsername,
         parent: data.parent || undefined,
       };
       console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload));
-      const doc = await commentsApi.create(commentPayload as any);
+      const doc = await commentsApi.create(commentPayload);
       const createdComment = transformComment(doc as Record<string, unknown>);
       
       // Create notifications for mentions and post author (don't fail if notification creation fails)
       try {
         const commentText = data.text.trim();
         const mentions = extractMentions(commentText);
+        const senderUsername = data.authorUsername || "";
         
         // Get post details to notify the author
-        let postAuthorId: string | undefined;
+        let postAuthorUsername: string | undefined;
         try {
-          const postDoc = await posts.findByID(String(postId));
+          const postDoc = await posts.findByID(cleanedPostId);
           const postAuthor = (postDoc as Record<string, unknown>)?.author;
           if (typeof postAuthor === 'object' && postAuthor !== null) {
-            postAuthorId = String((postAuthor as Record<string, unknown>).id);
-          } else if (typeof postAuthor === 'string') {
-            postAuthorId = postAuthor;
+            postAuthorUsername = (postAuthor as Record<string, unknown>).username as string;
           }
         } catch (postError) {
           console.log("[commentsApi] Could not fetch post for notification:", postError);
         }
         
         // Notify post author if it's not the commenter
-        if (postAuthorId && postAuthorId !== authorId) {
+        if (postAuthorUsername && postAuthorUsername.toLowerCase() !== senderUsername.toLowerCase()) {
           try {
             await notifications.create({
               type: "comment",
-              recipient: postAuthorId,
-              sender: authorId,
-              post: postId,
+              recipientUsername: postAuthorUsername,
+              senderUsername: senderUsername,
+              postId: cleanedPostId,
               content: commentText.slice(0, 100),
             });
             console.log("[commentsApi] Created comment notification for post author");
@@ -197,32 +160,24 @@ export const commentsApiClient = {
         // Create notifications for mentioned users
         for (const mentionedUsername of mentions) {
           // Skip self-mentions
-          if (mentionedUsername.toLowerCase() === data.authorUsername?.toLowerCase()) {
+          if (mentionedUsername.toLowerCase() === senderUsername.toLowerCase()) {
+            continue;
+          }
+          
+          // Don't notify if they're already the post author (already notified above)
+          if (mentionedUsername.toLowerCase() === postAuthorUsername?.toLowerCase()) {
             continue;
           }
           
           try {
-            // Look up the mentioned user
-            const mentionedUserResult = await users.find({
-              where: { username: { equals: mentionedUsername } },
-              limit: 1,
+            await notifications.create({
+              type: "mention",
+              recipientUsername: mentionedUsername,
+              senderUsername: senderUsername,
+              postId: cleanedPostId,
+              content: commentText.slice(0, 100),
             });
-            
-            if (mentionedUserResult.docs && mentionedUserResult.docs.length > 0) {
-              const mentionedUserId = (mentionedUserResult.docs[0] as { id: string }).id;
-              
-              // Don't notify if they're already the post author (already notified above)
-              if (mentionedUserId === postAuthorId) continue;
-              
-              await notifications.create({
-                type: "mention",
-                recipient: mentionedUserId,
-                sender: authorId,
-                post: postId,
-                content: commentText.slice(0, 100),
-              });
-              console.log("[commentsApi] Created mention notification for:", mentionedUsername);
-            }
+            console.log("[commentsApi] Created mention notification for:", mentionedUsername);
           } catch (mentionError) {
             console.log("[commentsApi] Failed to create mention notification for", mentionedUsername, ":", mentionError);
           }

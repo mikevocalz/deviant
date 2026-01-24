@@ -86,7 +86,26 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // Use static content directly - more reliable on mobile
+    try {
+      // Fetch from CMS API
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
+      const response = await fetch(`${apiUrl}/api/legal/${slug}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data && !data.error) {
+          set((s) => ({
+            pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
+            loading: { ...s.loading, [slug]: false },
+          }));
+          return;
+        }
+      }
+    } catch (apiError) {
+      console.log("[LegalStore] API fetch failed, using static content:", apiError);
+    }
+
+    // Fall back to static content
     const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
 
     if (staticContent) {

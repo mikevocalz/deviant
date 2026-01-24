@@ -44,6 +44,7 @@ export default function StoryViewerScreen() {
   const hasAdvanced = useRef(false)
   const isExiting = useRef(false)
   const hasNavigatedAway = useRef(false)
+  const handleNextRef = useRef<() => void>(() => {})
   
   // Auth and utilities
   const { user: currentUser } = useAuthStore()
@@ -184,6 +185,11 @@ export default function StoryViewerScreen() {
     }, [player])
   )
 
+  // Wrapper function that calls the ref - this ensures we always use the latest handleNext
+  const callHandleNext = useCallback(() => {
+    handleNextRef.current()
+  }, [])
+
   useEffect(() => {
     if (!currentItem || !currentStoryId) return
     
@@ -194,6 +200,8 @@ export default function StoryViewerScreen() {
     progress.value = 0
     hasAdvanced.current = false
     
+    console.log("[StoryViewer] Starting animation for item:", currentItemIndex, "story:", currentStoryId)
+    
     // For images, use the item duration or default 5 seconds
     // For videos, the video end detection will handle advancement
     const duration = isVideo ? 30000 : (currentItem.duration || 5000) // Longer timeout for video as backup
@@ -203,11 +211,11 @@ export default function StoryViewerScreen() {
       // Don't start if already exiting
       if (isExiting.current || hasNavigatedAway.current) return
       
-      // Animate progress bar
+      // Animate progress bar - use callHandleNext which reads from ref to avoid stale closures
       progress.value = withTiming(1, { duration }, (finished) => {
         if (finished && !hasAdvanced.current && !isExiting.current && !hasNavigatedAway.current) {
           hasAdvanced.current = true
-          runOnJS(handleNext)()
+          runOnJS(callHandleNext)()
         }
       })
     }, 50)
@@ -218,7 +226,7 @@ export default function StoryViewerScreen() {
       progress.value = 0
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex, currentStoryId, isVideo])
+  }, [currentItemIndex, currentStoryId, isVideo, callHandleNext])
 
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
@@ -247,21 +255,36 @@ export default function StoryViewerScreen() {
     if (!story || !story.items) return
     if (isExiting.current || hasNavigatedAway.current) return // Prevent multiple calls
 
+    console.log("[StoryViewer] handleNext called:", {
+      currentItemIndex,
+      storyItemsLength: story.items.length,
+      currentStoryIndex,
+      availableStoriesLength: availableStories.length,
+    })
+
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
+      console.log("[StoryViewer] Moving to next item")
       hasAdvanced.current = false // Reset for next item
       setCurrentItemIndex(currentItemIndex + 1)
     } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
+      console.log("[StoryViewer] Moving to next user")
       goToNextUser()
     } else {
       // No more stories, exit
+      console.log("[StoryViewer] No more stories, exiting")
       isExiting.current = true
       hasNavigatedAway.current = true
       cancelAnimation(progress)
       router.back()
     }
   }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router, progress])
+
+  // Keep ref updated with latest handleNext
+  useEffect(() => {
+    handleNextRef.current = handleNext
+  }, [handleNext])
 
   const handlePrev = useCallback(() => {
     if (currentItemIndex > 0) {
@@ -349,9 +372,9 @@ export default function StoryViewerScreen() {
     // Check if video has ended (within 0.3s of end) and we haven't already advanced
     if (videoCurrentTime >= videoDuration - 0.3 && !isPaused.current && !hasAdvanced.current) {
       hasAdvanced.current = true
-      handleNext()
+      callHandleNext()
     }
-  }, [isVideo, player, videoCurrentTime, videoDuration, handleNext])
+  }, [isVideo, player, videoCurrentTime, videoDuration, callHandleNext])
 
   if (isLoading) {
     return (
