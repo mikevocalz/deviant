@@ -423,16 +423,31 @@ export default function ProfileScreen() {
       >
         <View className="px-5 pt-5 pb-4">
           <View className="flex-row items-center gap-6">
-            <Image
-              source={{
-                uri:
-                  user?.avatar ||
-                  "https://ui-avatars.com/api/?name=" +
-                    encodeURIComponent(user?.name || "User"),
-              }}
-              className="w-[88px] h-[88px] rounded-full"
-              contentFit="cover"
-            />
+            <Popover>
+              <PopoverTrigger>
+                <View className="relative">
+                  <Image
+                    source={{
+                      uri:
+                        user?.avatar ||
+                        "https://ui-avatars.com/api/?name=" +
+                          encodeURIComponent(user?.name || "User"),
+                    }}
+                    className="w-[88px] h-[88px] rounded-full"
+                    contentFit="cover"
+                  />
+                  <View
+                    className="absolute bottom-0 right-0 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                    style={{ borderColor: colors.background }}
+                  >
+                    <Camera size={14} color="#fff" />
+                  </View>
+                </View>
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
+                <EditProfileContent />
+              </PopoverContent>
+            </Popover>
             <View className="flex-1 flex-row justify-around">
               <Pressable className="items-center px-2">
                 <Text className="text-xl font-bold text-foreground">

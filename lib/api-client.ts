@@ -14,8 +14,18 @@
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// API base URL - empty string for dev (relative URLs), full URL for production
+// API base URL - Uses the deployed Payload CMS for all API calls
+// Note: Expo Router API routes work for web dev, but native apps need a real server
+// In dev on native, we use the production API to avoid networking complexity
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
+
+// Log the API URL for debugging
+if (__DEV__) {
+  console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
+  if (Platform.OS !== "web" && !API_BASE_URL) {
+    console.warn("[API] Warning: No API_URL set for native development. API calls will fail.");
+  }
+}
 
 // Get JWT token from storage
 async function getAuthToken(): Promise<string | null> {
