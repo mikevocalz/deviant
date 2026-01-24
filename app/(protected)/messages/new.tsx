@@ -1,5 +1,5 @@
 
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native"
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native"
 import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { useRouter } from "expo-router"
@@ -7,29 +7,58 @@ import { ArrowLeft, Search, X } from "lucide-react-native"
 import { Image } from "expo-image"
 import { useNewMessageStore } from "@/lib/stores/comments-store"
 import { useCallback } from "react"
-
-const allUsers = [
-  { id: "1", username: "emma_wilson", name: "Emma Wilson", avatar: "https://i.pravatar.cc/150?img=5" },
-  { id: "2", username: "john_fitness", name: "John Fitness", avatar: "https://i.pravatar.cc/150?img=17" },
-  { id: "3", username: "sarah_artist", name: "Sarah Artist", avatar: "https://i.pravatar.cc/150?img=14" },
-  { id: "4", username: "mike_photo", name: "Mike Photo", avatar: "https://i.pravatar.cc/150?img=15" },
-  { id: "5", username: "alex_travel", name: "Alex Travel", avatar: "https://i.pravatar.cc/150?img=12" },
-  { id: "6", username: "lisa_foodie", name: "Lisa Foodie", avatar: "https://i.pravatar.cc/150?img=9" },
-  { id: "7", username: "david_tech", name: "David Tech", avatar: "https://i.pravatar.cc/150?img=11" },
-  { id: "8", username: "nina_style", name: "Nina Style", avatar: "https://i.pravatar.cc/150?img=16" },
-]
+import { useSearchUsers } from "@/lib/hooks/use-search"
+import { users } from "@/lib/api-client"
+import { useQuery } from "@tanstack/react-query"
+import { useAuthStore } from "@/lib/stores/auth-store"
 
 export default function NewMessageScreen() {
   const router = useRouter()
   const { searchQuery, setSearchQuery } = useNewMessageStore()
+  const currentUser = useAuthStore((state) => state.user)
 
-  const filteredUsers = searchQuery
-    ? allUsers.filter(
-        (user) =>
-          user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          user.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : allUsers
+  // Fetch all users when no search query
+  const { data: allUsersData, isLoading: isLoadingAll } = useQuery({
+    queryKey: ["users", "all"],
+    queryFn: async () => {
+      try {
+        const result = await users.find({
+          limit: 50,
+          sort: "-createdAt",
+        });
+        // Filter out current user
+        return result.docs.filter((user: any) => user.id !== currentUser?.id);
+      } catch (error) {
+        console.error("[NewMessage] Error fetching users:", error);
+        return [];
+      }
+    },
+    enabled: !searchQuery || searchQuery.length === 0,
+  });
+
+  // Search users when there's a query
+  const { data: searchUsersData, isLoading: isLoadingSearch } = useSearchUsers(
+    searchQuery || ""
+  );
+
+  const isLoading = searchQuery ? isLoadingSearch : isLoadingAll;
+  const allUsers = searchQuery
+    ? (searchUsersData?.docs || [])
+    : (allUsersData || []);
+
+  // Filter out current user and transform to component format
+  const filteredUsers = allUsers
+    .filter((user: any) => user.id !== currentUser?.id)
+    .map((user: any) => ({
+      id: String(user.id || ""),
+      username: (user.username as string) || "unknown",
+      name: (user.name as string) || (user.username as string) || "User",
+      avatar:
+        (user.avatar as string) ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(
+          (user.username as string) || "User"
+        )}`,
+    }));
 
   const handleSelectUser = useCallback((userId: string) => {
     router.replace(`/(protected)/chat/${userId}`)
@@ -70,9 +99,15 @@ export default function NewMessageScreen() {
 
       <ScrollView className="flex-1">
         <Text className="px-4 pt-4 pb-2 text-muted-foreground text-sm font-semibold">
-          {searchQuery ? "Search Results" : "Suggested"}
+          {searchQuery ? "Search Results" : "All Users"}
         </Text>
-        {filteredUsers.map((user) => (
+        {isLoading ? (
+          <View className="p-8 items-center">
+            <ActivityIndicator size="large" color="#fff" />
+          </View>
+        ) : (
+          <>
+            {filteredUsers.map((user) => (
           <View
             key={user.id}
             className="flex-row items-center gap-3 px-4 py-3"
@@ -96,11 +131,15 @@ export default function NewMessageScreen() {
               <Text className="text-white font-semibold text-sm">Message</Text>
             </Pressable>
           </View>
-        ))}
-        {filteredUsers.length === 0 && (
-          <View className="p-8 items-center">
-            <Text className="text-muted-foreground">No users found</Text>
-          </View>
+            ))}
+            {filteredUsers.length === 0 && !isLoading && (
+              <View className="p-8 items-center">
+                <Text className="text-muted-foreground">
+                  {searchQuery ? "No users found" : "No users available"}
+                </Text>
+              </View>
+            )}
+          </>
         )}
       </ScrollView>
       </SafeAreaView>

@@ -23,6 +23,7 @@ import { VideoSeekBar } from "@/components/video-seek-bar";
 import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
+import { HashtagText } from "@/components/ui/hashtag-text";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -520,12 +521,12 @@ function FeedPostComponent({
             {likeCount.toLocaleString()} likes
           </Text>
           {caption && (
-            <Text className="mt-1 text-sm">
-              <Text className="font-semibold text-foreground">
-                {author?.username || "Unknown User"}
-              </Text>{" "}
-              <Text className="text-foreground/90">{caption || ""}</Text>
-            </Text>
+            <View className="mt-1">
+              <HashtagText
+                text={`${author?.username || "Unknown User"} ${caption}`}
+                textStyle={{ fontSize: 14 }}
+              />
+            </View>
           )}
           {comments > 0 ? (
             <Pressable

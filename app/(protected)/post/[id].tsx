@@ -18,6 +18,8 @@ import { sharePost } from "@/lib/utils/sharing";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
+import { HashtagText } from "@/components/ui/hashtag-text";
+import { useMemo } from "react";
 
 const { width } = Dimensions.get("window");
 
@@ -274,12 +276,12 @@ export default function PostDetailScreen() {
               {likeCount.toLocaleString()} likes
             </Text>
             {post.caption && (
-                <Text className="mt-2 text-base">
-                <Text className="font-semibold text-foreground">
-                  {post.author?.username || "Unknown User"}
-                </Text>{" "}
-                <Text className="text-foreground">{post.caption || ""}</Text>
-              </Text>
+              <View className="mt-2">
+                <HashtagText
+                  text={`${post.author?.username || "Unknown User"} ${post.caption}`}
+                  textStyle={{ fontSize: 16 }}
+                />
+              </View>
             )}
             <Text className="mt-2 text-xs uppercase text-muted-foreground">
               {post.timeAgo}
