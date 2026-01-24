@@ -208,10 +208,39 @@ export async function POST(request: Request) {
       );
     }
     
+    // Validate content is not empty after trimming
+    const content = String(body.text || "").trim();
+    if (!content || content.length === 0) {
+      console.error("[API] Content is empty after trimming");
+      return Response.json(
+        { error: "Comment text cannot be empty" },
+        { status: 400 },
+      );
+    }
+    
+    // Validate post ID format (should be MongoDB ObjectID or valid string)
+    if (!postId || postId.length === 0) {
+      console.error("[API] Post ID is empty");
+      return Response.json(
+        { error: "Post ID is required" },
+        { status: 400 },
+      );
+    }
+    
+    // Validate author ID format
+    if (!authorId || authorId.length === 0) {
+      console.error("[API] Author ID is empty");
+      return Response.json(
+        { error: "Author ID is required" },
+        { status: 400 },
+      );
+    }
+    
+    // Build comment data - ensure all required fields are present
     const commentData: Record<string, unknown> = {
-      post: postId,
-      content: String(body.text).trim(), // CMS expects 'content' field, ensure it's a string
-      author: authorId, // Always set author with Payload CMS user ID
+      post: postId, // Must be a valid post ID
+      content: content, // Must be non-empty string
+      author: authorId, // Must be a valid user ID
     };
     
     // Only add parent if it exists and is not empty
@@ -219,15 +248,22 @@ export async function POST(request: Request) {
       commentData.parent = String(body.parent).trim();
     }
     
-    console.log("[API] Creating comment with data:", {
+    console.log("[API] Creating comment with validated data:", {
       post: postId,
-      content: String(body.text).trim().substring(0, 50),
+      postIdType: typeof postId,
+      postIdLength: postId.length,
+      content: content.substring(0, 50),
+      contentLength: content.length,
       author: authorId,
+      authorIdType: typeof authorId,
+      authorIdLength: authorId.length,
       hasParent: !!commentData.parent,
       parent: commentData.parent,
     });
 
     try {
+      // CRITICAL: Ensure we're sending the data correctly to Payload
+      // Payload expects relationships as IDs (strings), not objects
       const result = await payloadClient.create(
         {
           collection: "comments",
@@ -237,25 +273,51 @@ export async function POST(request: Request) {
         cookies,
       );
 
-      console.log("[API] ✓ Comment created successfully:", result?.id || "unknown");
+      console.log("[API] ✓ Comment created successfully:", {
+        id: result?.id || "unknown",
+        author: (result as any)?.author,
+        post: (result as any)?.post,
+        content: ((result as any)?.content || "").substring(0, 50),
+      });
       return Response.json(result, { status: 201 });
     } catch (createError: any) {
-      console.error("[API] Payload create error:", {
+      console.error("[API] Payload create error - FULL DETAILS:", {
         message: createError?.message,
         status: createError?.status,
         errors: createError?.errors,
-        data: commentData,
+        stack: createError?.stack,
+        dataSent: commentData,
+        dataTypes: {
+          post: typeof commentData.post,
+          content: typeof commentData.content,
+          author: typeof commentData.author,
+        },
       });
       
-      // Return more detailed error message
+      // Extract detailed error information
       const errorMessage = createError?.message || "Failed to create comment";
       const errors = createError?.errors || [];
+      
+      // Check if it's a validation error
+      if (errors.length > 0) {
+        const validationErrors = errors.map((e: any) => ({
+          field: e.field || e.path || "unknown",
+          message: e.message || e.msg || "Validation error",
+        }));
+        console.error("[API] Validation errors:", validationErrors);
+      }
       
       return Response.json(
         {
           error: errorMessage,
           errors: errors,
           details: "content, post, and author are required",
+          debug: {
+            postId,
+            contentLength: content.length,
+            authorId,
+            dataSent: commentData,
+          },
         },
         { status: createError?.status || 500 },
       );
