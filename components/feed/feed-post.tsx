@@ -195,7 +195,9 @@ function FeedPostComponent({
       } catch {}
     } else {
       // Normal tap - navigate to post
-      router.push(`/(protected)/post/${id}`);
+      if (id) {
+        router.push(`/(protected)/post/${id}`);
+      }
     }
   }, [showSeekBar, player, id, setVideoState, router]);
 
