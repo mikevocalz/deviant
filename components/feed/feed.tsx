@@ -243,12 +243,31 @@ export function Feed() {
     minimumViewTime: 50,
   }).current;
 
+  // Track if we've set the initial active post for this feed load
+  const hasSetInitialPost = useRef(false);
+
   // Set first post as active when feed loads (for video autoplay)
   useEffect(() => {
-    if (filteredPosts.length > 0 && !useFeedPostUIStore.getState().activePostId) {
+    // Reset the flag when posts change (e.g., after refresh)
+    if (filteredPosts.length === 0) {
+      hasSetInitialPost.current = false;
+      return;
+    }
+
+    // Only set initial post once per feed load
+    if (!hasSetInitialPost.current && filteredPosts.length > 0) {
+      hasSetInitialPost.current = true;
+      // Always set the first post as active for autoplay
       setActivePostId(filteredPosts[0].id);
     }
   }, [filteredPosts, setActivePostId]);
+
+  // Reset the flag when component unmounts or data is refetched
+  useEffect(() => {
+    if (isRefetching) {
+      hasSetInitialPost.current = false;
+    }
+  }, [isRefetching]);
 
   const onViewableItemsChanged = useRef(
     ({
