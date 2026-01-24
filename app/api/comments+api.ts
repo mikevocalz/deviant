@@ -76,25 +76,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get current user from session
+    // Get current user from session - this is critical for Payload hooks to work
     let currentUser: { id: string; username: string; email?: string } | null = null;
     try {
       currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
       console.log("[API] Current user from me():", currentUser ? { id: currentUser.id, username: currentUser.username, email: currentUser.email } : "null");
     } catch (meError) {
       console.error("[API] Error getting current user:", meError);
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 },
-      );
-    }
-    
-    if (!currentUser) {
-      console.error("[API] No current user found");
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 },
-      );
+      // Don't fail immediately - let the hook try to set author
+      console.warn("[API] Could not get current user, but proceeding - hook may set author");
     }
 
     // Verify post exists
@@ -227,21 +217,19 @@ export async function POST(request: Request) {
       );
     }
     
-    // Validate author ID format
-    if (!authorId || authorId.length === 0) {
-      console.error("[API] Author ID is empty");
-      return Response.json(
-        { error: "Author ID is required" },
-        { status: 400 },
-      );
-    }
-    
     // Build comment data - ensure all required fields are present
     const commentData: Record<string, unknown> = {
       post: postId, // Must be a valid post ID
       content: content, // Must be non-empty string
-      author: authorId, // Must be a valid user ID
     };
+    
+    // Only set author if we found it - otherwise let the hook set it
+    if (authorId && authorId.length > 0) {
+      commentData.author = authorId;
+      console.log("[API] Setting author in data:", authorId);
+    } else {
+      console.log("[API] Not setting author - hook will set it from req.user");
+    }
     
     // Only add parent if it exists and is not empty
     if (body.parent && String(body.parent).trim()) {

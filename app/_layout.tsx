@@ -39,9 +39,15 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
   const { loadAuthState, isAuthenticated, hasSeenOnboarding } = useAuthStore();
-  const { appReady, splashAnimationFinished, setAppReady, onAnimationFinish } =
+  const { appReady, splashAnimationFinished, setAppReady, onAnimationFinish, setSplashAnimationFinished } =
     useAppStore();
   const insets = useSafeAreaInsets();
+
+  // Reset splash animation state on mount to ensure it shows
+  useEffect(() => {
+    setSplashAnimationFinished(false);
+    console.log("[RootLayout] Reset splash animation state");
+  }, []);
 
   // Check for OTA updates on app launch and foreground
   useUpdates();
