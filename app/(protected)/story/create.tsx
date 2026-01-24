@@ -161,33 +161,55 @@ export default function CreateStoryScreen() {
   );
 
   const handlePickLibrary = async () => {
-    if (mediaAssets.length >= MAX_STORY_ITEMS) {
-      Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
-      return;
-    }
+    try {
+      if (mediaAssets.length >= MAX_STORY_ITEMS) {
+        Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+        return;
+      }
 
-    const media = await pickStoryMedia({
-      maxDuration: MAX_VIDEO_DURATION,
-      maxFileSizeMB: MAX_FILE_SIZE_MB,
-    });
+      if (!pickStoryMedia) {
+        console.error("[Story] pickStoryMedia is not available");
+        Alert.alert("Error", "Media picker is not available. Please try again.");
+        return;
+      }
 
-    if (media && media.length > 0) {
-      handleMediaSelected(media);
+      const media = await pickStoryMedia({
+        maxDuration: MAX_VIDEO_DURATION,
+        maxFileSizeMB: MAX_FILE_SIZE_MB,
+      });
+
+      if (media && media.length > 0) {
+        handleMediaSelected(media);
+      }
+    } catch (error) {
+      console.error("[Story] Error picking media:", error);
+      Alert.alert("Error", "Failed to pick media. Please try again.");
     }
   };
 
   const handleRecordVideo = async () => {
-    if (mediaAssets.length >= MAX_STORY_ITEMS) {
-      Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
-      return;
-    }
+    try {
+      if (mediaAssets.length >= MAX_STORY_ITEMS) {
+        Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+        return;
+      }
 
-    const media = await recordStoryVideo({
-      maxDuration: MAX_VIDEO_DURATION,
-      maxFileSizeMB: MAX_FILE_SIZE_MB,
-    });
-    if (media) {
-      handleMediaSelected([media]);
+      if (!recordStoryVideo) {
+        console.error("[Story] recordStoryVideo is not available");
+        Alert.alert("Error", "Video recorder is not available. Please try again.");
+        return;
+      }
+
+      const media = await recordStoryVideo({
+        maxDuration: MAX_VIDEO_DURATION,
+        maxFileSizeMB: MAX_FILE_SIZE_MB,
+      });
+      if (media) {
+        handleMediaSelected([media]);
+      }
+    } catch (error) {
+      console.error("[Story] Error recording video:", error);
+      Alert.alert("Error", "Failed to record video. Please try again.");
     }
   };
 

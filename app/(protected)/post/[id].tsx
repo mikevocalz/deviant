@@ -30,7 +30,14 @@ export default function PostDetailScreen() {
   // Normalize id and validate early
   const postId = id ? String(id) : null;
   
-  // Validate postId before making API call
+  // Always call hooks unconditionally - use safe defaults
+  const { data: post, isLoading, error: postError } = usePost(postId || "");
+  const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
+  const { isBookmarked, toggleBookmark } = useBookmarkStore();
+  const { colors } = useColorScheme();
+  const likePostMutation = useLikePost();
+  
+  // Validate postId after hooks
   if (!postId) {
     return (
       <SafeAreaView className="flex-1 bg-background items-center justify-center">
@@ -38,13 +45,6 @@ export default function PostDetailScreen() {
       </SafeAreaView>
     );
   }
-  
-  // Always call hooks unconditionally - use safe defaults
-  const { data: post, isLoading, error: postError } = usePost(postId);
-  const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
-  const { isBookmarked, toggleBookmark } = useBookmarkStore();
-  const { colors } = useColorScheme();
-  const likePostMutation = useLikePost();
   
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
