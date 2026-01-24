@@ -363,13 +363,14 @@ export function SignUpStep1() {
                   }
                 >
                   {field.state.value
-                    ? new Date(
-                        parseDateString(field.state.value),
-                      ).toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })
+                    ? parseDateString(field.state.value).toLocaleDateString(
+                        "en-US",
+                        {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        },
+                      )
                     : "Select date"}
                 </Text>
               </Pressable>
