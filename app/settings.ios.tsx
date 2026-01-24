@@ -23,6 +23,7 @@ import {
   CheckCircle,
   ShieldCheck,
   Megaphone,
+  X,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -44,8 +45,16 @@ export default function SettingsScreenIOS() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Main className="flex-1">
         {/* Header */}
-        <View className="border-b border-border px-4 py-3">
-          <Text className="text-center text-lg font-semibold">Settings</Text>
+        <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+          <View style={{ width: 32 }} />
+          <Text className="text-center text-lg font-semibold text-foreground">Settings</Text>
+          <Pressable 
+            onPress={() => router.back()} 
+            hitSlop={12}
+            className="p-1"
+          >
+            <X size={24} color="#a3a3a3" />
+          </Pressable>
         </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>

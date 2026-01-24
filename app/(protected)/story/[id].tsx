@@ -280,7 +280,8 @@ export default function StoryViewerScreen() {
   }, [currentItemIndex, currentStoryId])
   
   // Check if viewing own story (don't show reply input for own story)
-  const isOwnStory = story?.userId === currentUser?.id || story?.username === currentUser?.username
+  // Compare by username (case-insensitive) since IDs may not match between auth systems
+  const isOwnStory = story?.username?.toLowerCase() === currentUser?.username?.toLowerCase()
   
   // Pause animation when input is focused
   useEffect(() => {
