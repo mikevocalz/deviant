@@ -55,22 +55,26 @@ export async function POST(request: Request) {
       }
     }
 
-    // Create comment - we'll use a custom field to link to events
-    // For now, we'll store eventId in a text field and handle it in the frontend
-    // Or we could create a separate EventComments collection
-    // Let's use the existing Comments collection but add an eventId field
-    
-    // Actually, let's create it as a comment with a special structure
-    // We'll store eventId in the post field as a special identifier
-    // Or better: create a new EventComments collection
-    
-    // For simplicity, let's use a text field to store eventId
+    // Verify event exists
+    const event = await payloadClient.findByID({
+      collection: "events",
+      id: body.eventId,
+    }, cookies);
+
+    if (!event) {
+      return Response.json(
+        { error: "Event not found" },
+        { status: 404 },
+      );
+    }
+
+    // Create comment using EventComments collection
     const comment = await payloadClient.create(
       {
-        collection: "comments",
+        collection: "event-comments",
         data: {
           author: authorId,
-          post: body.eventId, // Store eventId in post field temporarily
+          event: body.eventId,
           content: body.text.trim(),
           parent: body.parent || undefined,
         },
@@ -102,12 +106,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // For now, we'll use the post field to store eventId
-    // In the future, we should create a proper EventComments collection
+    // Fetch comments from EventComments collection
     const comments = await payloadClient.find({
-      collection: "comments",
+      collection: "event-comments",
       where: {
-        post: { equals: eventId },
+        event: { equals: eventId },
         parent: { exists: false }, // Only top-level comments
       },
       limit,

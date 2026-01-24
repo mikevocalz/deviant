@@ -9,9 +9,20 @@ type AnimatedSplashScreenProps = {
 
 export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSplashScreenProps) {
   const animationFinished = useRef(false)
-  const { riveFile } = useRiveFile(require("../assets/deviant.riv"))
+  const { riveFile, error } = useRiveFile(require("../assets/deviant.riv"))
 
   useEffect(() => {
+    if (error) {
+      console.error("[SplashScreen] Rive error:", error)
+      // If there's an error, finish immediately
+      if (!animationFinished.current) {
+        animationFinished.current = true
+        onAnimationFinish?.(false)
+      }
+      return
+    }
+
+    // Timer to finish animation after it plays (approximately 3.7 seconds)
     const timer = setTimeout(() => {
       if (!animationFinished.current) {
         animationFinished.current = true
@@ -20,12 +31,12 @@ export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSpla
     }, 3700)
 
     return () => clearTimeout(timer)
-  }, [onAnimationFinish])
+  }, [onAnimationFinish, error])
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
       <View style={styles.riveContainer}>
-        {riveFile ? (
+        {riveFile && !error ? (
           <RiveView
             file={riveFile}
             style={styles.rive}

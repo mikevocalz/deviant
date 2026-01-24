@@ -12,3 +12,4 @@ export { default as Stories } from "./Stories";
 export { default as Comments } from "./Comments";
 export { default as Tickets } from "./Tickets";
 export { default as EventReviews } from "./EventReviews";
+export { default as EventComments } from "./EventComments";
