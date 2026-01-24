@@ -64,6 +64,14 @@ export async function POST(request: Request) {
     const cookies = getCookiesFromRequest(request);
     const body = await request.json();
 
+    console.log("[API] POST /api/events - Request received", {
+      hasCookies: !!cookies,
+      bodyKeys: Object.keys(body || {}),
+      hasDate: !!body.date,
+      hasImage: !!body.image,
+      imagesCount: Array.isArray(body.images) ? body.images.length : 0,
+    });
+
     if (!body || typeof body !== "object") {
       return Response.json(
         { error: "Request body is required" },
@@ -72,7 +80,17 @@ export async function POST(request: Request) {
     }
 
     // Get current user to auto-set as organizer
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    let currentUser: { id: string } | null = null;
+    try {
+      currentUser = await payloadClient.me<{ id: string }>(cookies);
+      console.log("[API] Current user:", currentUser ? { id: currentUser.id } : "null");
+    } catch (meError) {
+      console.error("[API] Error getting current user:", meError);
+      return Response.json(
+        { error: "Not authenticated" },
+        { status: 401 },
+      );
+    }
     
     if (!currentUser) {
       return Response.json(
@@ -88,6 +106,11 @@ export async function POST(request: Request) {
       coOrganizer: body.coOrganizer || undefined, // Optional co-organizer
     };
 
+    console.log("[API] Creating event with data:", {
+      ...eventData,
+      images: Array.isArray(eventData.images) ? `${eventData.images.length} items` : "none",
+    });
+
     const result = await payloadClient.create(
       {
         collection: "events",
@@ -97,9 +120,13 @@ export async function POST(request: Request) {
       cookies,
     );
 
+    console.log("[API] ✓ Event created successfully:", result?.id || "unknown");
     return Response.json(result, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("[API] POST /api/events error:", error);
+    console.error("[API] Error message:", error?.message);
+    console.error("[API] Error status:", error?.status);
+    console.error("[API] Error details:", JSON.stringify(error, null, 2));
     return createErrorResponse(error);
   }
 }

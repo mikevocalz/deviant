@@ -243,13 +243,22 @@ export async function POST(request: Request) {
     try {
       // CRITICAL: Ensure we're sending the data correctly to Payload
       // Payload expects relationships as IDs (strings), not objects
+      // If we don't have authorId, we MUST ensure cookies are passed so the hook can set it
+      console.log("[API] Creating comment - cookies present:", !!cookies);
+      console.log("[API] Comment data being sent:", {
+        post: commentData.post,
+        content: commentData.content?.substring(0, 30),
+        hasAuthor: !!commentData.author,
+        author: commentData.author,
+      });
+      
       const result = await payloadClient.create(
         {
           collection: "comments",
           data: commentData,
           depth: 2,
         },
-        cookies,
+        cookies, // CRITICAL: Pass cookies so Payload can authenticate and set req.user
       );
 
       console.log("[API] ✓ Comment created successfully:", {

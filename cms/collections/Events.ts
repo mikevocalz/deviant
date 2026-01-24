@@ -96,8 +96,37 @@ export const Events: CollectionConfig = {
       type: "text",
       required: false,
       admin: {
-        description: "Event image URL (Bunny CDN)",
+        description: "Main event image URL (Bunny CDN) - displayed as primary image",
       },
+    },
+    {
+      name: "images",
+      type: "array",
+      required: false,
+      minRows: 0,
+      maxRows: 10,
+      admin: {
+        description: "Additional event images (gallery)",
+      },
+      fields: [
+        {
+          name: "type",
+          type: "select",
+          required: true,
+          defaultValue: "image",
+          options: [
+            { label: "Image", value: "image" },
+          ],
+        },
+        {
+          name: "url",
+          type: "text",
+          required: true,
+          admin: {
+            description: "CDN URL for the image (Bunny.net)",
+          },
+        },
+      ],
     },
     {
       name: "category",

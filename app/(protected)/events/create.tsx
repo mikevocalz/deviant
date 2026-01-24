@@ -185,8 +185,10 @@ export default function CreateEventScreen() {
     setUploadProgress(0);
 
     try {
-      // Upload images to Bunny.net CDN
-      let uploadedImageUrl = "";
+      // Upload main event image (first image) and additional images to Bunny.net CDN
+      let mainEventImageUrl = "";
+      let additionalImageUrls: string[] = [];
+      
       if (eventImages.length > 0) {
         const mediaFiles = eventImages.map((uri) => ({
           uri,
@@ -208,18 +210,25 @@ export default function CreateEventScreen() {
           return;
         }
 
-        uploadedImageUrl = uploadResults[0]?.url || "";
-        console.log("[CreateEvent] Upload successful, URL:", uploadedImageUrl);
+        // First image is the main event image
+        mainEventImageUrl = uploadResults[0]?.url || "";
+        // Remaining images are additional images
+        additionalImageUrls = uploadResults.slice(1).map((r) => r.url).filter(Boolean);
+        console.log("[CreateEvent] Upload successful - Main:", mainEventImageUrl, "Additional:", additionalImageUrls.length);
       }
 
+      // Format date as ISO string for Payload
+      const eventDateISO = eventDate.toISOString();
+      
       const eventData = {
         title: title.trim(),
         description: description.trim(),
-        fullDate: eventDate,
+        date: eventDateISO, // Use 'date' field (not 'fullDate')
         time: formatTime(eventDate),
         location: location.trim(),
         price: ticketPrice ? parseFloat(ticketPrice) : 0,
-        image: uploadedImageUrl,
+        image: mainEventImageUrl, // Main event image
+        images: additionalImageUrls.map((url) => ({ type: "image", url })), // Additional images array
         category: tags[0] || "Event",
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
       };
