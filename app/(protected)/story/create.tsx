@@ -346,12 +346,14 @@ export default function CreateStoryScreen() {
               router.back();
             }, 300);
           },
-          onError: (error) => {
+          onError: (error: any) => {
             setIsSharing(false);
             setUploadProgress(0);
             progressAnim.setValue(0);
             console.error("[Story] Error creating story:", error);
-            Alert.alert("Error", "Failed to share story. Please try again.");
+            console.error("[Story] Error details:", JSON.stringify(error, null, 2));
+            const errorMessage = error?.message || error?.error?.message || error?.error || "Failed to share story. Please try again.";
+            Alert.alert("Error", errorMessage);
           },
         },
       );

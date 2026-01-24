@@ -81,16 +81,24 @@ export const storiesApiClient = {
       }
 
       console.log("[storiesApi] Creating story with items:", data.items);
-      const doc = await storiesApi.create({
+      console.log("[storiesApi] User:", { id: user.id, username: user.username });
+      
+      const storyData = {
         caption: `Story by ${user.username}`,
         items: data.items,
         author: user.id,
-      });
-      console.log("[storiesApi] Story created:", doc);
+      };
+      
+      console.log("[storiesApi] Story data being sent:", JSON.stringify(storyData, null, 2));
+      
+      const doc = await storiesApi.create(storyData);
+      console.log("[storiesApi] Story created successfully:", doc);
       return transformStory(doc as Record<string, unknown>);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[storiesApi] createStory error:", error);
-      throw error;
+      console.error("[storiesApi] Error details:", JSON.stringify(error, null, 2));
+      const errorMessage = error?.message || error?.error?.message || error?.error || "Failed to create story";
+      throw new Error(errorMessage);
     }
   },
 };
