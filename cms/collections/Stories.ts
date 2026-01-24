@@ -32,6 +32,8 @@ export const Stories: CollectionConfig = {
         return data;
       },
     ],
+    // Note: Automatic deletion after 24 hours is handled by the cleanup API route
+    // Call DELETE /api/stories/cleanup periodically (e.g., via cron job)
   },
   fields: [
     // Author relationship
