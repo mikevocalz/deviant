@@ -433,3 +433,77 @@ export const comments = {
       body: JSON.stringify(data),
     }),
 };
+
+/**
+ * Tickets API
+ */
+export const tickets = {
+  create: <T = Record<string, unknown>>(data: {
+    eventId: string;
+    paid?: boolean;
+    status?: "valid" | "checked_in" | "revoked";
+  }) =>
+    apiFetch<T>("/api/tickets", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  checkIn: <T = Record<string, unknown>>(data: { qrToken: string }) =>
+    apiFetch<T>("/api/tickets/check-in", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getEventTickets: <T = Record<string, unknown>>(eventId: string) =>
+    apiFetch<{ tickets: T[]; total: number }>(`/api/events/${eventId}/tickets`),
+};
+
+/**
+ * Event Reviews API
+ */
+export const eventReviews = {
+  create: <T = Record<string, unknown>>(data: {
+    eventId: string;
+    rating: number;
+    comment?: string;
+  }) =>
+    apiFetch<T>("/api/event-reviews", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getEventReviews: <T = Record<string, unknown>>(
+    eventId: string,
+    params: { limit?: number; page?: number } = {},
+  ) => {
+    const queryString = buildQueryString(params);
+    return apiFetch<PaginatedResponse<T>>(
+      `/api/event-reviews?eventId=${eventId}${queryString}`,
+    );
+  },
+};
+
+/**
+ * Event Comments API
+ */
+export const eventComments = {
+  create: <T = Record<string, unknown>>(data: {
+    eventId: string;
+    text: string;
+    parent?: string;
+  }) =>
+    apiFetch<T>("/api/event-comments", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  getEventComments: <T = Record<string, unknown>>(
+    eventId: string,
+    params: { limit?: number; page?: number } = {},
+  ) => {
+    const queryString = buildQueryString(params);
+    return apiFetch<PaginatedResponse<T>>(
+      `/api/event-comments?eventId=${eventId}${queryString}`,
+    );
+  },
+};

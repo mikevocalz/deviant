@@ -179,6 +179,36 @@ export const Events: CollectionConfig = {
         description: "Number of likes",
       },
     },
+    {
+      name: "organizer",
+      type: "relationship",
+      relationTo: "users",
+      required: false,
+      admin: {
+        position: "sidebar",
+        description: "Event organizer (can scan/check-in tickets)",
+      },
+    },
+    {
+      name: "averageRating",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description: "Average rating (1-5 stars)",
+      },
+    },
+    {
+      name: "totalReviews",
+      type: "number",
+      defaultValue: 0,
+      admin: {
+        position: "sidebar",
+        readOnly: true,
+        description: "Total number of reviews",
+      },
+    },
   ],
   timestamps: true,
 };
