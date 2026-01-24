@@ -162,6 +162,7 @@ export default function CreateStoryScreen() {
 
   const handlePickLibrary = async () => {
     try {
+      console.log("[Story] handlePickLibrary called");
       if (mediaAssets.length >= MAX_STORY_ITEMS) {
         Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
         return;
@@ -173,13 +174,17 @@ export default function CreateStoryScreen() {
         return;
       }
 
+      console.log("[Story] Calling pickStoryMedia...");
       const media = await pickStoryMedia({
         maxDuration: MAX_VIDEO_DURATION,
         maxFileSizeMB: MAX_FILE_SIZE_MB,
       });
 
+      console.log("[Story] pickStoryMedia returned:", media);
       if (media && media.length > 0) {
         handleMediaSelected(media);
+      } else if (media === undefined) {
+        console.log("[Story] User cancelled or no permission");
       }
     } catch (error) {
       console.error("[Story] Error picking media:", error);
@@ -189,6 +194,7 @@ export default function CreateStoryScreen() {
 
   const handleRecordVideo = async () => {
     try {
+      console.log("[Story] handleRecordVideo called");
       if (mediaAssets.length >= MAX_STORY_ITEMS) {
         Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
         return;
@@ -200,12 +206,16 @@ export default function CreateStoryScreen() {
         return;
       }
 
+      console.log("[Story] Calling recordStoryVideo...");
       const media = await recordStoryVideo({
         maxDuration: MAX_VIDEO_DURATION,
         maxFileSizeMB: MAX_FILE_SIZE_MB,
       });
+      console.log("[Story] recordStoryVideo returned:", media);
       if (media) {
         handleMediaSelected([media]);
+      } else if (media === undefined) {
+        console.log("[Story] User cancelled or no permission");
       }
     } catch (error) {
       console.error("[Story] Error recording video:", error);
@@ -655,12 +665,16 @@ export default function CreateStoryScreen() {
             }}
           >
             <Pressable
-              onPress={handlePickLibrary}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS}
+              onPress={() => {
+                console.log("[Story] Gallery button pressed");
+                handlePickLibrary();
+              }}
+              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={{
                 alignItems: "center",
                 gap: 4,
-                opacity: mediaAssets.length >= MAX_STORY_ITEMS ? 0.4 : 1,
+                opacity: mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
               }}
             >
               <View
@@ -684,12 +698,16 @@ export default function CreateStoryScreen() {
             </Pressable>
 
             <Pressable
-              onPress={handleRecordVideo}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS}
+              onPress={() => {
+                console.log("[Story] Video button pressed");
+                handleRecordVideo();
+              }}
+              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={{
                 alignItems: "center",
                 gap: 4,
-                opacity: mediaAssets.length >= MAX_STORY_ITEMS ? 0.4 : 1,
+                opacity: mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
               }}
             >
               <View
