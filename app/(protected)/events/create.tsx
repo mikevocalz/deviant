@@ -398,6 +398,14 @@ export default function CreateEventScreen() {
                 setLocation(data.name);
                 setLocationData(data);
               }}
+              onTextChange={(text: string) => {
+                // Update location as user types (enables form validation)
+                setLocation(text);
+                // Clear coordinates since we only have text, not a selected place
+                if (!text) {
+                  setLocationData(null);
+                }
+              }}
               onClear={() => {
                 setLocation("");
                 setLocationData(null);
