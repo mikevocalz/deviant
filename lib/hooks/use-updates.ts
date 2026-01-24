@@ -35,6 +35,27 @@ export function useUpdates() {
     error: null,
   });
 
+  const showUpdateToast = useCallback(() => {
+    // Only show toast once per session
+    if (!hasShownUpdateToast.current) {
+      hasShownUpdateToast.current = true;
+      
+      // Show toast with restart button
+      toastIdRef.current = toast.info("Update Ready", {
+        description: "A new update is available. Restart to apply it.",
+        duration: Infinity, // Don't auto-dismiss
+        action: {
+          label: "Restart App",
+          onPress: async () => {
+            if (Updates) {
+              await Updates.reloadAsync();
+            }
+          },
+        },
+      });
+    }
+  }, []);
+
   const downloadAndApplyUpdate = useCallback(async () => {
     if (__DEV__ || !Updates || !Updates.isEnabled) return;
 
@@ -50,24 +71,8 @@ export function useUpdates() {
           isUpdatePending: true,
         }));
 
-        // Only show toast once per session
-        if (!hasShownUpdateToast.current) {
-          hasShownUpdateToast.current = true;
-          
-          // Show toast with restart button
-          toastIdRef.current = toast.info("Update Ready", {
-            description: "A new update is available. Restart to apply it.",
-            duration: Infinity, // Don't auto-dismiss
-            action: {
-              label: "Restart App",
-              onPress: async () => {
-                if (Updates) {
-                  await Updates.reloadAsync();
-                }
-              },
-            },
-          });
-        }
+        // Show toast with restart button
+        showUpdateToast();
       } else {
         setStatus((prev) => ({ ...prev, isDownloading: false }));
       }
@@ -80,7 +85,7 @@ export function useUpdates() {
           error instanceof Error ? error.message : "Failed to download update",
       }));
     }
-  }, []);
+  }, [showUpdateToast]);
 
   const checkForUpdates = useCallback(async (showAlert = false) => {
     // Skip in development or if updates aren't available/enabled
@@ -126,6 +131,16 @@ export function useUpdates() {
   useEffect(() => {
     if (__DEV__ || !Updates || !Updates.isEnabled) return;
 
+    // Check if there's already a pending update on app start
+    if (Updates.isEmbeddedLaunch === false) {
+      // There's a pending update that was downloaded but not applied
+      setStatus((prev) => ({
+        ...prev,
+        isUpdatePending: true,
+      }));
+      showUpdateToast();
+    }
+
     // Initial check
     checkForUpdates();
 
@@ -144,7 +159,7 @@ export function useUpdates() {
     return () => {
       subscription.remove();
     };
-  }, [checkForUpdates]);
+  }, [checkForUpdates, showUpdateToast]);
 
   return {
     ...status,
