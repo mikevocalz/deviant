@@ -52,7 +52,16 @@ export async function POST(request: Request) {
     const cookies = getCookiesFromRequest(request);
     const body = await request.json();
 
+    console.log("[API] POST /api/comments - Request received", {
+      hasCookies: !!cookies,
+      bodyKeys: Object.keys(body || {}),
+      post: body?.post,
+      textLength: body?.text?.length,
+      authorUsername: body?.authorUsername,
+    });
+
     if (!body || typeof body !== "object") {
+      console.error("[API] Invalid request body");
       return Response.json(
         { error: "Request body is required" },
         { status: 400 },
@@ -60,6 +69,7 @@ export async function POST(request: Request) {
     }
 
     if (!body.post || !body.text) {
+      console.error("[API] Missing required fields", { hasPost: !!body.post, hasText: !!body.text });
       return Response.json(
         { error: "post and text are required" },
         { status: 400 },
@@ -67,9 +77,20 @@ export async function POST(request: Request) {
     }
 
     // Get current user from session
-    const currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
+    let currentUser: { id: string; username: string; email?: string } | null = null;
+    try {
+      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
+      console.log("[API] Current user from me():", currentUser ? { id: currentUser.id, username: currentUser.username, email: currentUser.email } : "null");
+    } catch (meError) {
+      console.error("[API] Error getting current user:", meError);
+      return Response.json(
+        { error: "Not authenticated" },
+        { status: 401 },
+      );
+    }
     
     if (!currentUser) {
+      console.error("[API] No current user found");
       return Response.json(
         { error: "Not authenticated" },
         { status: 401 },
@@ -77,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     // Verify post exists
-    let postId = body.post;
+    let postId = String(body.post).trim();
     try {
       const post = await payloadClient.findByID({
         collection: "posts",
@@ -85,11 +106,13 @@ export async function POST(request: Request) {
       }, cookies);
       
       if (!post) {
+        console.error("[API] Post not found:", postId);
         return Response.json(
           { error: "Post not found" },
           { status: 404 },
         );
       }
+      console.log("[API] Post verified:", postId);
     } catch (postError) {
       console.error("[API] Post lookup error:", postError);
       return Response.json(
@@ -104,6 +127,7 @@ export async function POST(request: Request) {
     
     // Try to find user by username first (from authorUsername or currentUser)
     const usernameToLookup = body.authorUsername || currentUser.username;
+    console.log("[API] Looking up user by username:", usernameToLookup);
     
     if (usernameToLookup) {
       try {
@@ -113,9 +137,14 @@ export async function POST(request: Request) {
           limit: 1,
         }, cookies);
         
+        console.log("[API] Username lookup result:", {
+          found: userResult.docs?.length > 0,
+          count: userResult.docs?.length || 0,
+        });
+        
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
-          console.log("[API] Found user by username:", usernameToLookup, "->", authorId);
+          console.log("[API] ✓ Found user by username:", usernameToLookup, "->", authorId);
         }
       } catch (lookupError) {
         console.error("[API] User lookup by username error:", lookupError);
@@ -124,6 +153,7 @@ export async function POST(request: Request) {
     
     // If not found by username, try by email
     if (!authorId && currentUser.email) {
+      console.log("[API] Looking up user by email:", currentUser.email);
       try {
         const userResult = await payloadClient.find({
           collection: "users",
@@ -131,9 +161,14 @@ export async function POST(request: Request) {
           limit: 1,
         }, cookies);
         
+        console.log("[API] Email lookup result:", {
+          found: userResult.docs?.length > 0,
+          count: userResult.docs?.length || 0,
+        });
+        
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
-          console.log("[API] Found user by email:", currentUser.email, "->", authorId);
+          console.log("[API] ✓ Found user by email:", currentUser.email, "->", authorId);
         }
       } catch (lookupError) {
         console.error("[API] User lookup by email error:", lookupError);
@@ -142,6 +177,7 @@ export async function POST(request: Request) {
     
     // If still not found, try using currentUser.id directly (might work if it's a Payload ID)
     if (!authorId && currentUser.id) {
+      console.log("[API] Verifying currentUser.id:", currentUser.id);
       try {
         // Try to verify the ID exists in Payload
         const userCheck = await payloadClient.findByID({
@@ -151,7 +187,7 @@ export async function POST(request: Request) {
         
         if (userCheck) {
           authorId = currentUser.id;
-          console.log("[API] Using currentUser.id directly:", authorId);
+          console.log("[API] ✓ Using currentUser.id directly:", authorId);
         }
       } catch (idError) {
         console.error("[API] User ID verification failed:", idError);
@@ -164,6 +200,7 @@ export async function POST(request: Request) {
         username: usernameToLookup,
         email: currentUser.email,
         currentUserId: currentUser.id,
+        cookiesPresent: !!cookies,
       });
       return Response.json(
         { error: "User not found in system. Please try logging in again." },
@@ -173,28 +210,56 @@ export async function POST(request: Request) {
     
     const commentData: Record<string, unknown> = {
       post: postId,
-      content: body.text.trim(), // CMS expects 'content' field
+      content: String(body.text).trim(), // CMS expects 'content' field, ensure it's a string
       author: authorId, // Always set author with Payload CMS user ID
-      parent: body.parent || undefined,
     };
+    
+    // Only add parent if it exists and is not empty
+    if (body.parent && String(body.parent).trim()) {
+      commentData.parent = String(body.parent).trim();
+    }
     
     console.log("[API] Creating comment with data:", {
       post: postId,
-      content: body.text.trim().substring(0, 50),
+      content: String(body.text).trim().substring(0, 50),
       author: authorId,
-      hasParent: !!body.parent,
+      hasParent: !!commentData.parent,
+      parent: commentData.parent,
     });
 
-    const result = await payloadClient.create(
-      {
-        collection: "comments",
-        data: commentData,
-        depth: 2,
-      },
-      cookies,
-    );
+    try {
+      const result = await payloadClient.create(
+        {
+          collection: "comments",
+          data: commentData,
+          depth: 2,
+        },
+        cookies,
+      );
 
-    return Response.json(result, { status: 201 });
+      console.log("[API] ✓ Comment created successfully:", result?.id || "unknown");
+      return Response.json(result, { status: 201 });
+    } catch (createError: any) {
+      console.error("[API] Payload create error:", {
+        message: createError?.message,
+        status: createError?.status,
+        errors: createError?.errors,
+        data: commentData,
+      });
+      
+      // Return more detailed error message
+      const errorMessage = createError?.message || "Failed to create comment";
+      const errors = createError?.errors || [];
+      
+      return Response.json(
+        {
+          error: errorMessage,
+          errors: errors,
+          details: "content, post, and author are required",
+        },
+        { status: createError?.status || 500 },
+      );
+    }
   } catch (error) {
     console.error("[API] POST /api/comments error:", error);
     return createErrorResponse(error);
