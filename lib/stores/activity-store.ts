@@ -25,6 +25,7 @@ interface ActivityState {
   followedUsers: Set<string>;
 
   setActivities: (activities: Activity[]) => void;
+  addActivity: (activity: Activity) => void;
   setRefreshing: (refreshing: boolean) => void;
   toggleFollowUser: (username: string) => void;
   isUserFollowed: (username: string) => boolean;
@@ -40,6 +41,11 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   followedUsers: new Set<string>(),
 
   setActivities: (activities) => set({ activities }),
+
+  addActivity: (activity) =>
+    set((state) => ({
+      activities: [activity, ...state.activities],
+    })),
 
   setRefreshing: (refreshing) => set({ refreshing }),
 

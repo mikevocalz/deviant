@@ -5,15 +5,19 @@ import {
   Pressable,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { X, Camera } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import { useColorScheme } from "@/lib/hooks";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useMediaUpload } from "@/lib/hooks/use-media-upload";
+import { users } from "@/lib/api-client";
 import { useEffect, useState } from "react";
 
 export default function EditProfileScreen() {
@@ -22,6 +26,11 @@ export default function EditProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [isSaving, setIsSaving] = useState(false);
+  const [newAvatarUri, setNewAvatarUri] = useState<string | null>(null);
+  const { uploadSingle, isUploading, progress } = useMediaUpload({
+    folder: "avatars",
+    userId: user?.id,
+  });
   const {
     editName,
     editBio,
@@ -31,17 +40,66 @@ export default function EditProfileScreen() {
     setEditWebsite,
   } = useProfileStore();
 
+  const handlePickAvatar = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission Required", "Please grant media library access to change your photo.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setNewAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("[EditProfile] Pick avatar error:", error);
+      Alert.alert("Error", "Failed to pick image. Please try again.");
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
     try {
+      let avatarUrl = user.avatar;
+
+      // Upload new avatar if selected
+      if (newAvatarUri) {
+        const uploadResult = await uploadSingle(newAvatarUri);
+        if (uploadResult.success && uploadResult.url) {
+          avatarUrl = uploadResult.url;
+        } else {
+          Alert.alert("Upload Failed", "Failed to upload avatar. Other changes will be saved.");
+        }
+      }
+
+      // Update profile in CMS
+      const updateData = {
+        name: editName,
+        bio: editBio,
+        website: editWebsite,
+        avatar: avatarUrl,
+        username: user.username,
+      };
+
+      await users.updateMe(updateData);
+
       // Update local auth store
       setUser({
         ...user,
         name: editName,
         bio: editBio,
         website: editWebsite,
+        avatar: avatarUrl,
       });
+      
       router.back();
     } catch (error) {
       console.error("[EditProfile] Save error:", error);
@@ -86,10 +144,11 @@ export default function EditProfileScreen() {
         >
           {/* Avatar Section */}
           <View className="items-center py-6">
-            <View className="relative">
+            <Pressable onPress={handlePickAvatar} className="relative">
               <Image
                 source={{
                   uri:
+                    newAvatarUri ||
                     user?.avatar ||
                     "https://ui-avatars.com/api/?name=" +
                       encodeURIComponent(user?.name || "User"),
@@ -97,11 +156,18 @@ export default function EditProfileScreen() {
                 className="w-24 h-24 rounded-full"
                 contentFit="cover"
               />
-              <Pressable className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">
-                <Camera size={16} color="#fff" />
-              </Pressable>
-            </View>
-            <Pressable className="mt-3">
+              {isUploading ? (
+                <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
+                  <ActivityIndicator color="#fff" />
+                  <Text className="text-white text-xs mt-1">{Math.round(progress)}%</Text>
+                </View>
+              ) : (
+                <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">
+                  <Camera size={16} color="#fff" />
+                </View>
+              )}
+            </Pressable>
+            <Pressable onPress={handlePickAvatar} className="mt-3" disabled={isUploading}>
               <Text className="text-sm font-semibold text-primary">
                 Change Photo
               </Text>

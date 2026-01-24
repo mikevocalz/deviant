@@ -199,6 +199,18 @@ export const users = {
   me: <T = Record<string, unknown>>() =>
     apiFetch<{ user: T | null }>("/api/users/me"),
 
+  updateMe: <T = Record<string, unknown>>(data: {
+    name?: string;
+    bio?: string;
+    website?: string;
+    avatar?: string;
+    username?: string;
+  }) =>
+    apiFetch<{ user: T }>("/api/users/me", {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
+
   register: <T = Record<string, unknown>>(data: {
     email: string;
     password: string;
@@ -326,6 +338,28 @@ export const stories = {
 
   create: <T = Record<string, unknown>>(data: Record<string, unknown>) =>
     apiFetch<T>("/api/stories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};
+
+/**
+ * Notifications API
+ */
+export const notifications = {
+  find: <T = Record<string, unknown>>(params: FindParams = {}) =>
+    apiFetch<PaginatedResponse<T>>(
+      `/api/notifications${buildQueryString(params)}`,
+    ),
+
+  create: <T = Record<string, unknown>>(data: {
+    type: "like" | "comment" | "follow" | "mention";
+    recipientUsername: string;
+    senderUsername?: string;
+    postId?: string;
+    content?: string;
+  }) =>
+    apiFetch<T>("/api/notifications", {
       method: "POST",
       body: JSON.stringify(data),
     }),

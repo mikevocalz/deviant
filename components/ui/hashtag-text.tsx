@@ -4,10 +4,13 @@
  * Renders text with clickable hashtag badges (like Instagram)
  */
 
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Text, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useColorScheme } from "@/lib/hooks";
 import { useMemo } from "react";
+
+// Brand colors for hashtags and mentions
+const HASHTAG_COLOR = "#8A40CF";
+const MENTION_COLOR = "#8A40CF";
 
 interface HashtagTextProps {
   text: string;
@@ -29,7 +32,6 @@ export function HashtagText({
   textStyle,
 }: HashtagTextProps) {
   const router = useRouter();
-  const { colors } = useColorScheme();
 
   // Parse text into parts (regular text, hashtags, mentions)
   const parts = useMemo(() => {
@@ -113,7 +115,7 @@ export function HashtagText({
               <Text
                 style={[
                   styles.hashtag,
-                  { color: colors.primary },
+                  { color: HASHTAG_COLOR },
                   textStyle,
                 ]}
               >
@@ -131,7 +133,7 @@ export function HashtagText({
               <Text
                 style={[
                   styles.mention,
-                  { color: colors.primary },
+                  { color: MENTION_COLOR },
                   textStyle,
                 ]}
               >

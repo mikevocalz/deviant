@@ -1,7 +1,19 @@
-import { posts } from "@/lib/api-client";
+import { posts, notifications } from "@/lib/api-client";
 import type { Post } from "@/lib/types";
 
 const PAGE_SIZE = 10;
+
+// Extract @mentions from text
+function extractMentions(text: string): string[] {
+  if (!text) return [];
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+  const mentions: string[] = [];
+  let match;
+  while ((match = mentionRegex.exec(text)) !== null) {
+    mentions.push(match[1]); // Get username without @
+  }
+  return [...new Set(mentions)]; // Remove duplicates
+}
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -160,7 +172,35 @@ export const postsApi = {
         isNSFW: data.isNSFW || false,
       });
       console.log("[postsApi] createPost success:", JSON.stringify(doc));
-      return transformPost(doc as Record<string, unknown>);
+      
+      const newPost = transformPost(doc as Record<string, unknown>);
+      
+      // Extract mentions and send notifications
+      if (data.caption && data.authorUsername) {
+        const mentions = extractMentions(data.caption);
+        console.log("[postsApi] Extracted mentions:", mentions);
+        
+        // Send notification to each mentioned user (except self)
+        for (const mentionedUsername of mentions) {
+          if (mentionedUsername.toLowerCase() !== data.authorUsername.toLowerCase()) {
+            try {
+              await notifications.create({
+                type: "mention",
+                recipientUsername: mentionedUsername,
+                senderUsername: data.authorUsername,
+                postId: newPost.id,
+                content: data.caption.slice(0, 100), // First 100 chars
+              });
+              console.log("[postsApi] Sent mention notification to:", mentionedUsername);
+            } catch (notifError) {
+              // Don't fail post creation if notification fails
+              console.error("[postsApi] Failed to send mention notification:", notifError);
+            }
+          }
+        }
+      }
+      
+      return newPost;
     } catch (error: any) {
       console.error("[postsApi] createPost error:", error);
       console.error("[postsApi] Error message:", error?.message);
