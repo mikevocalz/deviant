@@ -165,11 +165,10 @@ export async function POST(request: Request) {
       }
     }
     
-    // If still not found, try using currentUser.id directly (might work if it's a Payload ID)
-    if (!authorId && currentUser.id) {
-      console.log("[API] Verifying currentUser.id:", currentUser.id);
+    // If not found by username and we have currentUser, try using its ID
+    if (!authorId && currentUser?.id) {
+      // Try to verify the ID exists in Payload
       try {
-        // Try to verify the ID exists in Payload
         const userCheck = await payloadClient.findByID({
           collection: "users",
           id: currentUser.id,
@@ -180,22 +179,14 @@ export async function POST(request: Request) {
           console.log("[API] ✓ Using currentUser.id directly:", authorId);
         }
       } catch (idError) {
-        console.error("[API] User ID verification failed:", idError);
+        console.warn("[API] User ID verification failed, will rely on hook:", idError);
       }
     }
     
-    // If we still don't have an author ID, this is a critical error
+    // If we don't have authorId, don't set it - let the Payload hook handle it
+    // The hook will use req.user from the cookies
     if (!authorId) {
-      console.error("[API] CRITICAL: Could not find user in Payload CMS", {
-        username: usernameToLookup,
-        email: currentUser.email,
-        currentUserId: currentUser.id,
-        cookiesPresent: !!cookies,
-      });
-      return Response.json(
-        { error: "User not found in system. Please try logging in again." },
-        { status: 401 },
-      );
+      console.log("[API] No author ID found, relying on Payload hook to set from req.user");
     }
     
     // Validate content is not empty after trimming
