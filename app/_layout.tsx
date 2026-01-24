@@ -114,6 +114,7 @@ export default function RootLayout() {
                   <Stack.Screen
                     name="settings"
                     options={{
+                      headerShown: true,
                       presentation: "fullScreenModal",
                       animation: "slide_from_bottom",
                       animationDuration: 300,
