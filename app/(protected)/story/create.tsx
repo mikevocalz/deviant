@@ -469,7 +469,13 @@ export default function CreateStoryScreen() {
                     contentFit="cover"
                   />
                 )}
-
+              </View>
+            ) : (
+              <View style={{ flex: 1, backgroundColor: "#1a1a1a", alignItems: "center", justifyContent: "center" }}>
+                <ImageIcon size={48} color="#666" />
+                <Text style={{ color: "#666", marginTop: 12, fontSize: 16 }}>
+                  Add media to get started
+                </Text>
               </View>
             )}
 
