@@ -179,79 +179,115 @@ export function useUpdates() {
       return;
     }
     
-    // Check if updates are enabled
-    if (!Updates.isEnabled) {
+    // Check if updates are enabled - wrap in try-catch as this can throw
+    let isEnabled = false;
+    try {
+      isEnabled = Updates.isEnabled;
+    } catch (enabledError) {
+      console.log("[Updates] Could not check isEnabled:", enabledError);
+      return;
+    }
+    
+    if (!isEnabled) {
       console.log("[Updates] Skipping - updates not enabled");
       return;
     }
 
     console.log("[Updates] Initializing update checks");
 
-    try {
-      // Log current update status for debugging
-      console.log("[Updates] Current state:", {
-        updateId: Updates.updateId?.slice(0, 8) || "none",
-        isEmbeddedLaunch: Updates.isEmbeddedLaunch,
-        channel: Updates.channel,
-      });
+    let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+    let updateEventSubscription: { remove: () => void } | null = null;
 
-      // Note: We removed the isEmbeddedLaunch check because it's false whenever
-      // the app runs from ANY OTA update, not just when there's a NEW pending update.
-      // Only show toast when we actually download a new update in this session.
-
-      // Initial check for new updates
-      checkForUpdates();
-
-      // Check when app comes to foreground
-      const handleAppStateChange = (nextState: AppStateStatus) => {
-        if (nextState === "active") {
-          console.log("[Updates] App came to foreground, checking for updates");
-          checkForUpdates();
-        }
-      };
-
-      const appStateSubscription = AppState.addEventListener(
-        "change",
-        handleAppStateChange,
-      );
-
-      // Listen for update events from expo-updates
-      let updateEventSubscription: { remove: () => void } | null = null;
-      
-      if (Updates.useUpdates) {
-        // For newer expo-updates versions, use event listener
+    // Wrap entire setup in async IIFE with try-catch
+    const setupUpdates = async () => {
+      try {
+        // Log current update status for debugging - wrap each property access
+        let updateId = "none";
+        let isEmbeddedLaunch: boolean | undefined;
+        let channel: string | undefined;
+        
         try {
-          updateEventSubscription = Updates.addListener((event) => {
-            console.log("[Updates] Received update event:", event.type);
-            
-            if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
-              console.log("[Updates] Update available event received");
-              setStatus((prev) => ({
-                ...prev,
-                isUpdateAvailable: true,
-              }));
-              downloadAndApplyUpdate();
-            } else if (event.type === Updates.UpdateEventType.NO_UPDATE_AVAILABLE) {
-              console.log("[Updates] No update available");
-            } else if (event.type === Updates.UpdateEventType.ERROR) {
-              console.error("[Updates] Update error event:", event.message);
-            }
-          });
-        } catch (listenerError) {
-          console.log("[Updates] Could not add update listener:", listenerError);
+          updateId = Updates.updateId?.slice(0, 8) || "none";
+          isEmbeddedLaunch = Updates.isEmbeddedLaunch;
+          channel = Updates.channel || undefined;
+        } catch (stateError) {
+          console.log("[Updates] Could not read state:", stateError);
         }
-      }
+        
+        console.log("[Updates] Current state:", { updateId, isEmbeddedLaunch, channel });
 
-      return () => {
-        appStateSubscription.remove();
+        // Initial check for new updates - delay to let app fully initialize
+        setTimeout(() => {
+          try {
+            checkForUpdates();
+          } catch (checkError) {
+            console.log("[Updates] Initial check error:", checkError);
+          }
+        }, 2000);
+
+        // Check when app comes to foreground
+        const handleAppStateChange = (nextState: AppStateStatus) => {
+          if (nextState === "active") {
+            console.log("[Updates] App came to foreground, checking for updates");
+            try {
+              checkForUpdates();
+            } catch (checkError) {
+              console.log("[Updates] Foreground check error:", checkError);
+            }
+          }
+        };
+
+        appStateSubscription = AppState.addEventListener(
+          "change",
+          handleAppStateChange,
+        );
+
+        // Listen for update events from expo-updates
+        if (Updates.useUpdates && Updates.addListener) {
+          try {
+            updateEventSubscription = Updates.addListener((event) => {
+              console.log("[Updates] Received update event:", event.type);
+              
+              try {
+                if (event.type === Updates.UpdateEventType.UPDATE_AVAILABLE) {
+                  console.log("[Updates] Update available event received");
+                  setStatus((prev) => ({
+                    ...prev,
+                    isUpdateAvailable: true,
+                  }));
+                  downloadAndApplyUpdate();
+                } else if (event.type === Updates.UpdateEventType.NO_UPDATE_AVAILABLE) {
+                  console.log("[Updates] No update available");
+                } else if (event.type === Updates.UpdateEventType.ERROR) {
+                  console.error("[Updates] Update error event:", (event as any).message);
+                }
+              } catch (eventHandleError) {
+                console.log("[Updates] Error handling event:", eventHandleError);
+              }
+            });
+          } catch (listenerError) {
+            console.log("[Updates] Could not add update listener:", listenerError);
+          }
+        }
+      } catch (error) {
+        console.error("[Updates] Error in setup:", error);
+      }
+    };
+
+    setupUpdates();
+
+    return () => {
+      try {
+        if (appStateSubscription) {
+          appStateSubscription.remove();
+        }
         if (updateEventSubscription) {
           updateEventSubscription.remove();
         }
-      };
-    } catch (error) {
-      console.error("[Updates] Error in useEffect:", error);
-      // Don't crash the app if updates fail
-    }
+      } catch (cleanupError) {
+        console.log("[Updates] Cleanup error:", cleanupError);
+      }
+    };
   }, [checkForUpdates, showUpdateToast, downloadAndApplyUpdate]);
 
   return {

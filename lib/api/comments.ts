@@ -2,10 +2,22 @@
  * Comments API - fetches real comment data from Payload CMS
  */
 
-import { comments as commentsApi, users } from "@/lib/api-client";
+import { comments as commentsApi, users, notifications, posts } from "@/lib/api-client";
 
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
+
+// Extract @mentions from text
+function extractMentions(text: string): string[] {
+  if (!text) return [];
+  const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+  const mentions: string[] = [];
+  let match;
+  while ((match = mentionRegex.exec(text)) !== null) {
+    mentions.push(match[1]); // Get username without @
+  }
+  return [...new Set(mentions)]; // Remove duplicates
+}
 
 export interface Comment {
   id: string;
@@ -145,7 +157,81 @@ export const commentsApiClient = {
       };
       console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload));
       const doc = await commentsApi.create(commentPayload as any);
-      return transformComment(doc as Record<string, unknown>);
+      const createdComment = transformComment(doc as Record<string, unknown>);
+      
+      // Create notifications for mentions and post author (don't fail if notification creation fails)
+      try {
+        const commentText = data.text.trim();
+        const mentions = extractMentions(commentText);
+        
+        // Get post details to notify the author
+        let postAuthorId: string | undefined;
+        try {
+          const postDoc = await posts.findByID(String(postId));
+          const postAuthor = (postDoc as Record<string, unknown>)?.author;
+          if (typeof postAuthor === 'object' && postAuthor !== null) {
+            postAuthorId = String((postAuthor as Record<string, unknown>).id);
+          } else if (typeof postAuthor === 'string') {
+            postAuthorId = postAuthor;
+          }
+        } catch (postError) {
+          console.log("[commentsApi] Could not fetch post for notification:", postError);
+        }
+        
+        // Notify post author if it's not the commenter
+        if (postAuthorId && postAuthorId !== authorId) {
+          try {
+            await notifications.create({
+              type: "comment",
+              recipient: postAuthorId,
+              sender: authorId,
+              post: postId,
+              content: commentText.slice(0, 100),
+            });
+            console.log("[commentsApi] Created comment notification for post author");
+          } catch (notifError) {
+            console.log("[commentsApi] Failed to create post author notification:", notifError);
+          }
+        }
+        
+        // Create notifications for mentioned users
+        for (const mentionedUsername of mentions) {
+          // Skip self-mentions
+          if (mentionedUsername.toLowerCase() === data.authorUsername?.toLowerCase()) {
+            continue;
+          }
+          
+          try {
+            // Look up the mentioned user
+            const mentionedUserResult = await users.find({
+              where: { username: { equals: mentionedUsername } },
+              limit: 1,
+            });
+            
+            if (mentionedUserResult.docs && mentionedUserResult.docs.length > 0) {
+              const mentionedUserId = (mentionedUserResult.docs[0] as { id: string }).id;
+              
+              // Don't notify if they're already the post author (already notified above)
+              if (mentionedUserId === postAuthorId) continue;
+              
+              await notifications.create({
+                type: "mention",
+                recipient: mentionedUserId,
+                sender: authorId,
+                post: postId,
+                content: commentText.slice(0, 100),
+              });
+              console.log("[commentsApi] Created mention notification for:", mentionedUsername);
+            }
+          } catch (mentionError) {
+            console.log("[commentsApi] Failed to create mention notification for", mentionedUsername, ":", mentionError);
+          }
+        }
+      } catch (notificationError) {
+        console.error("[commentsApi] Notification creation error (comment still created):", notificationError);
+      }
+      
+      return createdComment;
     } catch (error) {
       console.error("[commentsApi] createComment error:", error);
       throw error;

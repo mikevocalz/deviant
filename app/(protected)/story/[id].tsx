@@ -1,15 +1,18 @@
 
-import { View, Text, Pressable, Dimensions } from "react-native"
+import { View, Text, Pressable, Dimensions, TextInput, Keyboard } from "react-native"
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
 import { Image } from "expo-image"
 import { VideoView, useVideoPlayer } from "expo-video"
-import { X, ChevronLeft, ChevronRight } from "lucide-react-native"
+import { X, Send } from "lucide-react-native"
 import { useEffect, useCallback, useRef, useState, useMemo } from "react"
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from "react-native-reanimated"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue, cancelAnimation } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 import { useStories } from "@/lib/hooks/use-stories"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { messagesApiClient } from "@/lib/api/messages"
+import { useUIStore } from "@/lib/stores/ui-store"
 
 const { width, height } = Dimensions.get("window")
 const LONG_PRESS_DELAY = 300
@@ -33,10 +36,18 @@ export default function StoryViewerScreen() {
   const [showSeekBar, setShowSeekBar] = useState(false)
   const [videoCurrentTime, setVideoCurrentTime] = useState(0)
   const [videoDuration, setVideoDuration] = useState(0)
+  const [replyText, setReplyText] = useState("")
+  const [isSendingReply, setIsSendingReply] = useState(false)
+  const [isInputFocused, setIsInputFocused] = useState(false)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isPaused = useRef(false)
   const hasAdvanced = useRef(false)
   const isExiting = useRef(false)
+  const hasNavigatedAway = useRef(false)
+  
+  // Auth and utilities
+  const { user: currentUser } = useAuthStore()
+  const showToast = useUIStore((s) => s.showToast)
 
   // Fetch real stories from API
   const { data: storiesData = [], isLoading } = useStories()
@@ -175,17 +186,27 @@ export default function StoryViewerScreen() {
 
   useEffect(() => {
     if (!currentItem || !currentStoryId) return
+    
+    // Don't start animation if already navigating away
+    if (isExiting.current || hasNavigatedAway.current) return
 
     // Reset progress for new item
     progress.value = 0
+    hasAdvanced.current = false
     
-    const duration = currentItem.duration || 5000
+    // For images, use the item duration or default 5 seconds
+    // For videos, the video end detection will handle advancement
+    const duration = isVideo ? 30000 : (currentItem.duration || 5000) // Longer timeout for video as backup
     
     // Small delay to ensure component is mounted
     const timer = setTimeout(() => {
+      // Don't start if already exiting
+      if (isExiting.current || hasNavigatedAway.current) return
+      
       // Animate progress bar
       progress.value = withTiming(1, { duration }, (finished) => {
-        if (finished) {
+        if (finished && !hasAdvanced.current && !isExiting.current && !hasNavigatedAway.current) {
+          hasAdvanced.current = true
           runOnJS(handleNext)()
         }
       })
@@ -193,10 +214,11 @@ export default function StoryViewerScreen() {
 
     return () => {
       clearTimeout(timer)
+      cancelAnimation(progress)
       progress.value = 0
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex, currentStoryId])
+  }, [currentItemIndex, currentStoryId, isVideo])
 
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
@@ -223,10 +245,11 @@ export default function StoryViewerScreen() {
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return
-    if (isExiting.current) return // Prevent multiple exit calls
+    if (isExiting.current || hasNavigatedAway.current) return // Prevent multiple calls
 
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
+      hasAdvanced.current = false // Reset for next item
       setCurrentItemIndex(currentItemIndex + 1)
     } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
@@ -234,9 +257,11 @@ export default function StoryViewerScreen() {
     } else {
       // No more stories, exit
       isExiting.current = true
+      hasNavigatedAway.current = true
+      cancelAnimation(progress)
       router.back()
     }
-  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router])
+  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router, progress])
 
   const handlePrev = useCallback(() => {
     if (currentItemIndex > 0) {
@@ -248,10 +273,73 @@ export default function StoryViewerScreen() {
     }
   }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
 
-  // Reset hasAdvanced when item changes
+  // Reset flags when item changes
   useEffect(() => {
     hasAdvanced.current = false
+    // Don't reset isExiting or hasNavigatedAway here - those are permanent for the session
   }, [currentItemIndex, currentStoryId])
+  
+  // Check if viewing own story (don't show reply input for own story)
+  const isOwnStory = story?.userId === currentUser?.id || story?.username === currentUser?.username
+  
+  // Pause animation when input is focused
+  useEffect(() => {
+    if (isInputFocused) {
+      isPaused.current = true
+      cancelAnimation(progress)
+      try {
+        player?.pause()
+      } catch {}
+    } else {
+      isPaused.current = false
+      try {
+        player?.play()
+      } catch {}
+    }
+  }, [isInputFocused, player, progress])
+  
+  // Send story reply as DM
+  const handleSendReply = useCallback(async () => {
+    if (!replyText.trim() || !story || isSendingReply) return
+    if (isOwnStory) {
+      showToast("info", "Info", "You can't reply to your own story")
+      return
+    }
+    
+    setIsSendingReply(true)
+    Keyboard.dismiss()
+    
+    try {
+      // Get or create conversation with story owner
+      const conversation = await messagesApiClient.getOrCreateConversation(story.userId)
+      
+      if (!conversation) {
+        showToast("error", "Error", "Could not start conversation")
+        setIsSendingReply(false)
+        return
+      }
+      
+      // Send the reply as a message
+      const storyReplyPrefix = `📷 Replied to your story: `
+      const message = await messagesApiClient.sendMessage({
+        conversationId: conversation.id,
+        content: `${storyReplyPrefix}${replyText.trim()}`,
+      })
+      
+      if (message) {
+        showToast("success", "Sent", "Reply sent to their messages")
+        setReplyText("")
+      } else {
+        showToast("error", "Error", "Failed to send reply")
+      }
+    } catch (error) {
+      console.error("[StoryViewer] Reply error:", error)
+      showToast("error", "Error", "Failed to send reply")
+    } finally {
+      setIsSendingReply(false)
+      setIsInputFocused(false)
+    }
+  }, [replyText, story, isSendingReply, isOwnStory, showToast])
 
   // Video end detection - auto-advance when video finishes
   useEffect(() => {
@@ -376,7 +464,7 @@ export default function StoryViewerScreen() {
         </View>
 
       {/* Touch areas for navigation - full screen overlay */}
-      <View style={{ position: "absolute", top: 100, bottom: 0, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
+      <View style={{ position: "absolute", top: 100, bottom: isOwnStory ? 0 : 60, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
         {/* Left tap area - previous */}
         <Pressable 
           onPress={handlePrev} 
@@ -388,6 +476,71 @@ export default function StoryViewerScreen() {
           style={{ flex: 1 }} 
         />
       </View>
+      
+      {/* Reply input - only show for other users' stories */}
+      {!isOwnStory && story && (
+        <View 
+          style={{ 
+            position: "absolute", 
+            bottom: insets.bottom + 8, 
+            left: 16, 
+            right: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
+          <View 
+            style={{ 
+              flex: 1, 
+              flexDirection: "row", 
+              alignItems: "center",
+              backgroundColor: "rgba(255,255,255,0.15)", 
+              borderRadius: 24,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.3)",
+              paddingHorizontal: 16,
+              paddingVertical: 8,
+            }}
+          >
+            <TextInput
+              style={{ 
+                flex: 1, 
+                color: "#fff", 
+                fontSize: 14,
+                paddingVertical: 4,
+              }}
+              placeholder={`Reply to ${story.username}...`}
+              placeholderTextColor="rgba(255,255,255,0.6)"
+              value={replyText}
+              onChangeText={setReplyText}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              returnKeyType="send"
+              onSubmitEditing={handleSendReply}
+              editable={!isSendingReply}
+            />
+          </View>
+          
+          {replyText.trim().length > 0 && (
+            <Pressable
+              onPress={handleSendReply}
+              disabled={isSendingReply}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: "#8A40CF",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSendingReply ? 0.5 : 1,
+              }}
+            >
+              <Send size={18} color="#fff" />
+            </Pressable>
+          )}
+        </View>
+      )}
     </View>
   )
 }

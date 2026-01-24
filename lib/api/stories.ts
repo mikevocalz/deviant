@@ -10,6 +10,7 @@ const userIdCache: Record<string, string> = {};
 
 export interface Story {
   id: string;
+  userId: string;
   username: string;
   avatar: string;
   isViewed: boolean;
@@ -56,6 +57,7 @@ function transformStory(doc: Record<string, unknown>): Story {
 
   const story: Story = {
     id: String(doc.id),
+    userId: String(author?.id || ""),
     username: (author?.username as string) || "user",
     avatar:
       (author?.avatar as string) ||
