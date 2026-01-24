@@ -164,7 +164,9 @@ function UserProfileScreenComponent() {
   }
 
   const handlePostPress = useCallback((postId: string) => {
-    router.push(`/(protected)/post/${postId}`)
+    if (postId) {
+      router.push(`/(protected)/post/${postId}`);
+    }
   }, [router])
 
   const handleFollowPress = useCallback(() => {

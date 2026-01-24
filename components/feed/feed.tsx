@@ -39,7 +39,11 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
       }}
     >
       <Pressable
-        onPress={() => router.push(`/(protected)/post/${item.id}`)}
+        onPress={() => {
+          if (item?.id) {
+            router.push(`/(protected)/post/${item.id}`);
+          }
+        }}
         className="rounded-2xl"
       >
         <FeedPost

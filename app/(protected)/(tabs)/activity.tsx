@@ -199,7 +199,9 @@ export default function ActivityScreen() {
   const handlePostPress = useCallback(
     (postId: string) => {
       console.log("[Activity] Navigating to post:", postId);
-      router.push(`/(protected)/post/${postId}`);
+      if (postId) {
+        router.push(`/(protected)/post/${postId}`);
+      }
     },
     [router],
   );

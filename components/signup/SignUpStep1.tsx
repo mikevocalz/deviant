@@ -322,27 +322,31 @@ export function SignUpStep1() {
 
           const handleDateChange = useCallback(
             (event: any, selectedDate: Date | undefined) => {
-              // Handle Android dismissal
-              if (Platform.OS === "android") {
-                if (event.type === "dismissed") {
+              try {
+                // Handle Android dismissal
+                if (Platform.OS === "android") {
+                  if (event.type === "dismissed") {
+                    setShowDatePicker(false);
+                    return;
+                  }
+                  // Android closes automatically after selection
                   setShowDatePicker(false);
-                  return;
                 }
-                // Android closes automatically after selection
-                setShowDatePicker(false);
-              }
 
-              // Only update if a date was actually selected
-              if (selectedDate && event.type !== "dismissed") {
-                // Use local date components to avoid timezone issues
-                const year = selectedDate.getFullYear();
-                const month = String(selectedDate.getMonth() + 1).padStart(
-                  2,
-                  "0",
-                );
-                const day = String(selectedDate.getDate()).padStart(2, "0");
-                const dateString = `${year}-${month}-${day}`;
-                field.handleChange(dateString);
+                // Only update if a date was actually selected
+                if (selectedDate && event.type !== "dismissed") {
+                  // Use local date components to avoid timezone issues
+                  const year = selectedDate.getFullYear();
+                  const month = String(selectedDate.getMonth() + 1).padStart(
+                    2,
+                    "0",
+                  );
+                  const day = String(selectedDate.getDate()).padStart(2, "0");
+                  const dateString = `${year}-${month}-${day}`;
+                  field.handleChange(dateString);
+                }
+              } catch (error) {
+                console.error("[SignUpStep1] Date change error:", error);
               }
             },
             [field],
@@ -384,7 +388,20 @@ export function SignUpStep1() {
                         display="spinner"
                         minimumDate={minimumDate}
                         maximumDate={maximumDate}
-                        onChange={handleDateChange}
+                        onChange={(event, selectedDate) => {
+                          // On iOS, onChange fires as user scrolls - update immediately
+                          if (selectedDate && event.type !== "dismissed") {
+                            try {
+                              const year = selectedDate.getFullYear();
+                              const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+                              const day = String(selectedDate.getDate()).padStart(2, "0");
+                              const dateString = `${year}-${month}-${day}`;
+                              field.handleChange(dateString);
+                            } catch (error) {
+                              console.error("[SignUpStep1] iOS date change error:", error);
+                            }
+                          }
+                        }}
                         textColor="#fff"
                         themeVariant="dark"
                         style={{ height: 200 }}

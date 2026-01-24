@@ -30,8 +30,17 @@ export default function PostDetailScreen() {
   // Normalize id and validate early
   const postId = id ? String(id) : null;
   
+  // Validate postId before making API call
+  if (!postId) {
+    return (
+      <SafeAreaView className="flex-1 bg-background items-center justify-center">
+        <Text className="text-destructive">Invalid post ID</Text>
+      </SafeAreaView>
+    );
+  }
+  
   // Always call hooks unconditionally - use safe defaults
-  const { data: post, isLoading, error: postError } = usePost(postId || "");
+  const { data: post, isLoading, error: postError } = usePost(postId);
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { colors } = useColorScheme();

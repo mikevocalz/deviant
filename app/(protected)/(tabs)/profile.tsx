@@ -526,7 +526,11 @@ export default function ProfileScreen() {
                   }}
                 >
                   <Pressable
-                    onPress={() => router.push(`/(protected)/post/${item.id}`)}
+                    onPress={() => {
+                      if (item?.id) {
+                        router.push(`/(protected)/post/${item.id}`);
+                      }
+                    }}
                     className="flex-1 rounded-sm overflow-hidden"
                   >
                     <SharedImage

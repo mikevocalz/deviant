@@ -122,7 +122,11 @@ export default function SearchScreen() {
                       return (
                         <Pressable
                           key={post.id}
-                          onPress={() => router.push(`/(protected)/post/${post.id}`)}
+                          onPress={() => {
+                            if (post?.id) {
+                              router.push(`/(protected)/post/${post.id}`);
+                            }
+                          }}
                           style={{ width: columnWidth, height: columnWidth }}
                         >
                           <View className="flex-1 m-px overflow-hidden bg-secondary">
@@ -197,7 +201,11 @@ export default function SearchScreen() {
                         return (
                           <Pressable
                             key={post.id}
-                            onPress={() => router.push(`/(protected)/post/${post.id}`)}
+                            onPress={() => {
+                            if (post?.id) {
+                              router.push(`/(protected)/post/${post.id}`);
+                            }
+                          }}
                             style={{ width: columnWidth, height: columnWidth }}
                           >
                             <View className="flex-1 m-px overflow-hidden bg-secondary">
