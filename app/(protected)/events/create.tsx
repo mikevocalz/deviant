@@ -28,6 +28,11 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
 // Conditionally import expo-maps (requires dev build, not available in Expo Go)
 let AppleMaps: typeof import("expo-maps").AppleMaps | null = null;
