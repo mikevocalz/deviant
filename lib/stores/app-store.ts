@@ -23,8 +23,13 @@ export const useAppStore = create<AppState>((set) => ({
   setAppReady: (ready) => set({ appReady: ready }),
   setSplashAnimationFinished: (finished) => set({ splashAnimationFinished: finished }),
   onAnimationFinish: (isCancelled) => {
+    console.log("[AppStore] onAnimationFinish called, isCancelled:", isCancelled);
     if (!isCancelled) {
-      set({ splashAnimationFinished: true })
+      console.log("[AppStore] Setting splashAnimationFinished to true");
+      set({ splashAnimationFinished: true });
+      console.log("[AppStore] splashAnimationFinished set to true");
+    } else {
+      console.log("[AppStore] Animation was cancelled, not finishing");
     }
   },
   setNsfwEnabled: async (enabled) => {
