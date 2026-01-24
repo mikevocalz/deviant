@@ -15,6 +15,8 @@ import { Posts } from "./collections/Posts";
 import { Users } from "./collections/Users";
 import { Events } from "./collections/Events";
 import { Notifications } from "./collections/Notifications";
+import { Stories } from "./collections/Stories";
+import { Comments } from "./collections/Comments";
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -26,7 +28,7 @@ export default buildConfig({
       titleSuffix: "- Deviant CMS",
     },
   },
-  collections: [Users, Posts, Events, Notifications],
+  collections: [Users, Posts, Events, Notifications, Stories, Comments],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || "your-secret-key",
   typescript: {
