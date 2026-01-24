@@ -66,10 +66,19 @@ export default function RootLayout() {
   useEffect(() => {
     if (fontsLoaded || fontError) {
       setAppReady(true);
-      SplashScreen.hideAsync();
+      // Don't hide native splash until animation finishes
+      // The animated splash will handle the transition
     }
   }, [fontsLoaded, fontError, setAppReady]);
 
+  // Hide native splash only when animation is finished
+  useEffect(() => {
+    if (splashAnimationFinished && appReady) {
+      SplashScreen.hideAsync();
+    }
+  }, [splashAnimationFinished, appReady]);
+
+  // Show animated splash until BOTH app is ready AND animation is finished
   const showAnimatedSplash = !appReady || !splashAnimationFinished;
   if (showAnimatedSplash) {
     return <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />;
