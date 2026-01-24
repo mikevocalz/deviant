@@ -390,7 +390,11 @@ export default function CreateStoryScreen() {
           headerTitleStyle: { fontWeight: "700" },
           headerBackVisible: false,
           headerLeft: () => (
-            <Pressable onPress={handleClose} hitSlop={8} className="p-2 -ml-2">
+            <Pressable 
+              onPress={handleClose} 
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{ padding: 8, marginLeft: -8 }}
+            >
               <X size={24} color={colors.foreground} />
             </Pressable>
           ),
