@@ -39,6 +39,8 @@ import { useEventReviews, useCreateEventReview } from "@/lib/hooks/use-event-rev
 import { useEventComments } from "@/lib/hooks/use-event-comments";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
+import { shareEvent } from "@/lib/utils/sharing";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 const eventsData: Record<string, any> = {
   "lower-east-side-winter-bar-fest": {
@@ -555,6 +557,15 @@ export default function EventDetailScreen() {
               </Text>
             </View>
             <Pressable
+              onPress={async () => {
+                try {
+                  await shareEvent(eventId, event?.title || eventData?.title);
+                  showToast("success", "Link Shared", "Event link has been shared!");
+                } catch (error) {
+                  console.error("[EventDetail] Share error:", error);
+                  showToast("error", "Share Failed", "Unable to share event link. Please try again.");
+                }
+              }}
               style={{
                 backgroundColor: colors.primary,
                 paddingHorizontal: 16,
