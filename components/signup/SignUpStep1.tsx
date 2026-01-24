@@ -267,9 +267,86 @@ export function SignUpStep1() {
 
       <form.Field name="dateOfBirth">
         {(field) => {
-          const dateValue = field.state.value
-            ? new Date(field.state.value)
-            : new Date(2000, 0, 1);
+          // Parse date string (YYYY-MM-DD) to Date object, avoiding timezone issues
+          const parseDateString = (dateStr: string | undefined): Date => {
+            if (!dateStr) {
+              // Default to 18 years ago
+              const defaultDate = new Date();
+              defaultDate.setFullYear(defaultDate.getFullYear() - 18);
+              return defaultDate;
+            }
+            
+            // Parse YYYY-MM-DD format and create date in local timezone
+            const parts = dateStr.split("-");
+            if (parts.length === 3) {
+              const year = parseInt(parts[0], 10);
+              const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+              const day = parseInt(parts[2], 10);
+              
+              // Create date in local timezone
+              const date = new Date(year, month, day);
+              
+              // Validate the date
+              if (
+                date.getFullYear() === year &&
+                date.getMonth() === month &&
+                date.getDate() === day
+              ) {
+                return date;
+              }
+            }
+            
+            // Fallback to default date if parsing fails
+            const fallbackDate = new Date();
+            fallbackDate.setFullYear(fallbackDate.getFullYear() - 18);
+            return fallbackDate;
+          };
+
+          const dateValue = useMemo(
+            () => parseDateString(field.state.value),
+            [field.state.value],
+          );
+
+          const handleDateChange = useCallback(
+            (event: any, selectedDate: Date | undefined) => {
+              // Handle Android dismissal
+              if (Platform.OS === "android") {
+                if (event.type === "dismissed") {
+                  setShowDatePicker(false);
+                  return;
+                }
+                // Android closes automatically after selection
+                setShowDatePicker(false);
+              }
+
+              // Only update if a date was actually selected
+              if (selectedDate && event.type !== "dismissed") {
+                // Use local date components to avoid timezone issues
+                const year = selectedDate.getFullYear();
+                const month = String(selectedDate.getMonth() + 1).padStart(
+                  2,
+                  "0",
+                );
+                const day = String(selectedDate.getDate()).padStart(2, "0");
+                const dateString = `${year}-${month}-${day}`;
+                field.handleChange(dateString);
+              }
+            },
+            [field],
+          );
+
+          // Calculate minimum date (18 years ago)
+          const minimumDate = useMemo(() => {
+            const date = new Date();
+            date.setFullYear(date.getFullYear() - 100); // Allow up to 100 years old
+            return date;
+          }, []);
+
+          const maximumDate = useMemo(() => {
+            const date = new Date();
+            date.setFullYear(date.getFullYear() - 13); // Must be at least 13 years old
+            return date;
+          }, []);
 
           return (
             <View className="gap-1">
@@ -282,45 +359,64 @@ export function SignUpStep1() {
               >
                 <Text
                   className={
-                    field.state.value ? "text-foreground" : "text-muted"
+                    field.state.value ? "text-foreground" : "text-muted-foreground"
                   }
                 >
-                  {field.state.value || "Select date"}
+                  {field.state.value
+                    ? new Date(
+                        parseDateString(field.state.value),
+                      ).toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })
+                    : "Select date"}
                 </Text>
               </Pressable>
               {showDatePicker && (
-                <View>
-                  <DateTimePicker
-                    value={dateValue}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    maximumDate={new Date()}
-                    onChange={(event: any, selectedDate: Date | undefined) => {
-                      // On Android, close immediately. On iOS, keep open until user dismisses
-                      if (Platform.OS === "android") {
-                        setShowDatePicker(false);
-                      }
-                      if (selectedDate) {
-                        // Use local date to avoid timezone issues
-                        const year = selectedDate.getFullYear();
-                        const month = String(
-                          selectedDate.getMonth() + 1,
-                        ).padStart(2, "0");
-                        const day = String(selectedDate.getDate()).padStart(
-                          2,
-                          "0",
-                        );
-                        field.handleChange(`${year}-${month}-${day}`);
-                      }
-                    }}
-                  />
-                  {Platform.OS === "ios" && (
-                    <Button
-                      onPress={() => setShowDatePicker(false)}
-                      className="mt-2"
-                    >
-                      Done
-                    </Button>
+                <View className="mt-2">
+                  {Platform.OS === "ios" ? (
+                    <View className="bg-card rounded-xl p-4 border border-border">
+                      <DateTimePicker
+                        value={dateValue}
+                        mode="date"
+                        display="wheels"
+                        minimumDate={minimumDate}
+                        maximumDate={maximumDate}
+                        onChange={handleDateChange}
+                        textColor="#fff"
+                        themeVariant="dark"
+                        style={{ height: 200 }}
+                      />
+                      <View className="flex-row gap-2 mt-4">
+                        <Button
+                          onPress={() => {
+                            setShowDatePicker(false);
+                          }}
+                          variant="outline"
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onPress={() => {
+                            setShowDatePicker(false);
+                          }}
+                          className="flex-1"
+                        >
+                          Done
+                        </Button>
+                      </View>
+                    </View>
+                  ) : (
+                    <DateTimePicker
+                      value={dateValue}
+                      mode="date"
+                      display="default"
+                      minimumDate={minimumDate}
+                      maximumDate={maximumDate}
+                      onChange={handleDateChange}
+                    />
                   )}
                 </View>
               )}
