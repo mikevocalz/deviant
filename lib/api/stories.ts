@@ -86,7 +86,7 @@ export const storiesApiClient = {
       const storyData = {
         caption: `Story by ${user.username}`,
         items: data.items,
-        author: user.id,
+        authorUsername: user.username, // Send username for lookup instead of ID
       };
       
       console.log("[storiesApi] Story data being sent:", JSON.stringify(storyData, null, 2));

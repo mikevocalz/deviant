@@ -59,10 +59,37 @@ export async function POST(request: Request) {
       );
     }
 
+    // Handle author ID mapping - client sends Better Auth ID, we need Payload CMS ObjectID
+    let storyData = { ...body };
+    
+    if (body.author && body.authorUsername) {
+      // Look up user by username to get the real Payload CMS ID
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { username: { equals: body.authorUsername } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          storyData.author = (userResult.docs[0] as { id: string }).id;
+        } else {
+          delete storyData.author;
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup error:", lookupError);
+        delete storyData.author;
+      }
+    } else if (body.author) {
+      delete storyData.author;
+    }
+    
+    delete storyData.authorUsername;
+
     const result = await payloadClient.create(
       {
         collection: "stories",
-        data: body,
+        data: storyData,
         depth: 2,
       },
       cookies,

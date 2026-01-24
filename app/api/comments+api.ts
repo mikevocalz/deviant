@@ -66,10 +66,40 @@ export async function POST(request: Request) {
       );
     }
 
+    // Map 'text' to 'content' for Payload CMS
+    // Handle author ID mapping if authorUsername is provided
+    let authorId: string | undefined;
+    
+    if (body.authorUsername) {
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { username: { equals: body.authorUsername } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          authorId = (userResult.docs[0] as { id: string }).id;
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup error:", lookupError);
+      }
+    }
+    
+    const commentData: Record<string, unknown> = {
+      post: body.post,
+      content: body.text, // CMS expects 'content' field
+      parent: body.parent || undefined,
+    };
+    
+    if (authorId) {
+      commentData.author = authorId;
+    }
+
     const result = await payloadClient.create(
       {
         collection: "comments",
-        data: body,
+        data: commentData,
         depth: 2,
       },
       cookies,

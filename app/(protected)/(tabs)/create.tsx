@@ -297,7 +297,7 @@ export default function CreateScreen() {
       }));
 
       console.log("[Create] Creating post with CDN URLs:", postMedia);
-      console.log("[Create] Author ID:", user?.id);
+      console.log("[Create] Author ID:", user?.id, "Username:", user?.username);
 
       createPost(
         {
@@ -305,6 +305,7 @@ export default function CreateScreen() {
           location,
           media: postMedia,
           author: user?.id,
+          authorUsername: user?.username,
         },
         {
           onSuccess: (newPost) => {

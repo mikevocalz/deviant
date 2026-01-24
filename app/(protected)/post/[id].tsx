@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -19,7 +19,6 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
-import { useMemo } from "react";
 
 const { width } = Dimensions.get("window");
 
@@ -27,24 +26,15 @@ export default function PostDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   
-  // Normalize id and validate early
-  const postId = id ? String(id) : null;
+  // Normalize id - use empty string as fallback for hooks
+  const postId = id ? String(id) : "";
   
-  // Always call hooks unconditionally - use safe defaults
-  const { data: post, isLoading, error: postError } = usePost(postId || "");
+  // ALL HOOKS MUST BE CALLED UNCONDITIONALLY - before any early returns
+  const { data: post, isLoading, error: postError } = usePost(postId);
   const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
   const { isBookmarked, toggleBookmark } = useBookmarkStore();
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
-  
-  // Validate postId after hooks
-  if (!postId) {
-    return (
-      <SafeAreaView className="flex-1 bg-background items-center justify-center">
-        <Text className="text-destructive">Invalid post ID</Text>
-      </SafeAreaView>
-    );
-  }
   
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
@@ -76,13 +66,10 @@ export default function PostDetailScreen() {
       return () => {
         if (!player || !videoUrl) return;
         try {
-          // Check if player is still valid before pausing
           if (typeof player.pause === "function") {
             player.pause();
           }
         } catch (error) {
-          // Player may have been released - this is expected when navigating away
-          // Only log if it's not the expected release error
           if (error && typeof error === "object" && "code" in error && error.code !== "ERR_USING_RELEASED_SHARED_OBJECT") {
             console.log("[PostDetail] Error pausing player:", error);
           }
@@ -91,7 +78,16 @@ export default function PostDetailScreen() {
     }, [player, videoUrl]),
   );
 
-  // Early return if no valid post ID
+  const handleShare = useCallback(async () => {
+    if (!postId || !post) return;
+    try {
+      await sharePost(postId, post.caption || "");
+    } catch (error) {
+      console.error("[PostDetail] Share error:", error);
+    }
+  }, [postId, post]);
+
+  // NOW we can have early returns - after all hooks
   if (!postId) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -160,15 +156,6 @@ export default function PostDetailScreen() {
   const isLiked = postIdString ? isPostLiked(postIdString) : false;
   const isSaved = postIdString ? isBookmarked(postIdString) : false;
   const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
-
-  const handleShare = useCallback(async () => {
-    if (!postIdString || !post) return;
-    try {
-      await sharePost(postIdString, post.caption || "");
-    } catch (error) {
-      console.error("[PostDetail] Share error:", error);
-    }
-  }, [postIdString, post]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">

@@ -496,7 +496,7 @@ export function SignUpStep2() {
               Verification Successful
             </Text>
             <Text className="text-sm text-white/80">
-              Your identity has been verified successfully
+              Your identity has been verified successfully - 
               {matchConfidence &&
                 ` with ${matchConfidence.toFixed(1)}% confidence.`}
             </Text>

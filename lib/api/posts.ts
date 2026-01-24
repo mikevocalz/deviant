@@ -138,6 +138,7 @@ export const postsApi = {
   // Create a new post
   async createPost(data: {
     author?: string;
+    authorUsername?: string;
     media?: Array<{ type: string; url: string }>;
     caption?: string;
     location?: string;
@@ -151,6 +152,7 @@ export const postsApi = {
     try {
       const doc = await posts.create({
         author: data.author,
+        authorUsername: data.authorUsername, // Send username for lookup
         content: data.caption,
         caption: data.caption,
         location: data.location,

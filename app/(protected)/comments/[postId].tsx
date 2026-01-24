@@ -16,12 +16,14 @@ import { X, Send, Heart } from "lucide-react-native";
 import { useEffect, useCallback } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
 
 export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const { commentId } = useLocalSearchParams<{ commentId?: string }>();
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
   const {
     newComment: comment,
     replyingTo,
@@ -43,6 +45,7 @@ export default function CommentsScreen() {
         post: postId,
         text: commentText,
         parent: parentId,
+        authorUsername: user?.username,
       },
       {
         onSuccess: () => {
@@ -59,7 +62,7 @@ export default function CommentsScreen() {
         },
       },
     );
-  }, [comment, postId, replyingTo, createComment, setComment, setReplyingTo]);
+  }, [comment, postId, replyingTo, createComment, setComment, setReplyingTo, user?.username]);
 
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener(

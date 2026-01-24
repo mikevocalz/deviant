@@ -75,10 +75,42 @@ export async function POST(request: Request) {
     const url = new URL(request.url);
     const depth = parseInt(url.searchParams.get("depth") || "1", 10);
 
+    // If author is provided, we need to look up the Payload CMS user by username or ID
+    // The client sends the Better Auth user ID, but we need the Payload CMS ObjectID
+    let postData = { ...body };
+    
+    if (body.author && body.authorUsername) {
+      // Look up user by username to get the real Payload CMS ID
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { username: { equals: body.authorUsername } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          postData.author = (userResult.docs[0] as { id: string }).id;
+        } else {
+          // User not found - remove author and let hooks handle it
+          delete postData.author;
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup error:", lookupError);
+        delete postData.author;
+      }
+    } else if (body.author) {
+      // If only author ID provided (might be from client), remove it
+      // Let Payload CMS hooks set the author from the authenticated user
+      delete postData.author;
+    }
+    
+    // Remove helper field
+    delete postData.authorUsername;
+
     const result = await payloadClient.create(
       {
         collection: "posts",
-        data: body,
+        data: postData,
         depth,
       },
       cookies,

@@ -24,7 +24,7 @@ function transformComment(doc: Record<string, unknown>): Comment {
     avatar:
       (author?.avatar as string) ||
       `https://ui-avatars.com/api/?name=${encodeURIComponent((author?.name as string) || "User")}`,
-    text: (doc.text as string) || "",
+    text: (doc.content as string) || (doc.text as string) || "", // CMS uses 'content', transform uses 'text'
     timeAgo: formatTimeAgo(doc.createdAt as string),
     likes: (doc.likes as number) || 0,
     replies: ((doc.replies as Array<Record<string, unknown>>) || []).map(
@@ -66,9 +66,10 @@ export const commentsApiClient = {
     post: string;
     text: string;
     parent?: string;
+    authorUsername?: string;
   }): Promise<Comment> {
     try {
-      const doc = await commentsApi.create(data);
+      const doc = await commentsApi.create(data as any);
       return transformComment(doc as Record<string, unknown>);
     } catch (error) {
       console.error("[commentsApi] createComment error:", error);

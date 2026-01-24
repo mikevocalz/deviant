@@ -350,6 +350,7 @@ export const comments = {
     post: string;
     text: string;
     parent?: string;
+    authorUsername?: string;
   }) =>
     apiFetch<T>("/api/comments", {
       method: "POST",
