@@ -35,14 +35,27 @@ export default function PostDetailScreen() {
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
   
-  const videoUrl = post?.media?.[0]?.type === "video" && post?.media?.[0]?.url 
-    ? post.media[0].url 
-    : "";
+  // Validate video URL - must be valid HTTP/HTTPS URL
+  const videoUrl = useMemo(() => {
+    if (post?.media?.[0]?.type === "video" && post?.media?.[0]?.url) {
+      const url = post.media[0].url;
+      // Only use valid HTTP/HTTPS URLs
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        return url;
+      }
+    }
+    return "";
+  }, [post?.media]);
+
   const player = useVideoPlayer(
-    videoUrl || "",
+    videoUrl,
     (player) => {
       if (player && videoUrl) {
-        player.loop = false;
+        try {
+          player.loop = false;
+        } catch (error) {
+          console.log("[PostDetail] Error configuring player:", error);
+        }
       }
     },
   );
@@ -50,16 +63,21 @@ export default function PostDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       return () => {
+        if (!player || !videoUrl) return;
         try {
-          if (player && typeof player.pause === "function") {
+          // Check if player is still valid before pausing
+          if (typeof player.pause === "function") {
             player.pause();
           }
         } catch (error) {
-          // Player may have been released
-          console.log("[PostDetail] Error pausing player:", error);
+          // Player may have been released - this is expected when navigating away
+          // Only log if it's not the expected release error
+          if (error && typeof error === "object" && "code" in error && error.code !== "ERR_USING_RELEASED_SHARED_OBJECT") {
+            console.log("[PostDetail] Error pausing player:", error);
+          }
         }
       };
-    }, [player]),
+    }, [player, videoUrl]),
   );
 
   // Early return if no valid post ID
@@ -182,7 +200,7 @@ export default function PostDetailScreen() {
                   contentFit="cover"
                   nativeControls
                 />
-              ) : post.media?.[0]?.url ? (
+              ) : post.media?.[0]?.url && (post.media[0].url.startsWith("http://") || post.media[0].url.startsWith("https://")) ? (
                 <SharedImage
                   source={{ uri: post.media[0].url }}
                   style={{ width: "100%", height: "100%" }}

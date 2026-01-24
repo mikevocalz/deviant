@@ -276,9 +276,12 @@ export default function ProfileScreen() {
     if (!userPostsData) return [];
     return userPostsData.map((post) => {
       const media = Array.isArray(post.media) ? post.media : [];
+      const thumbnailUrl = media[0]?.url;
+      // Only use valid HTTP/HTTPS URLs, skip relative paths
+      const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith("http://") || thumbnailUrl.startsWith("https://"));
       return {
         id: post.id,
-        thumbnail: media[0]?.url || "/placeholder.svg",
+        thumbnail: isValidUrl ? thumbnailUrl : undefined,
         type: media[0]?.type === "video" ? "video" : "image",
         mediaCount: media.length,
         hasMultipleImages: media.length > 1 && media[0]?.type === "image",
@@ -293,9 +296,12 @@ export default function ProfileScreen() {
     if (!bookmarkedPostsData || bookmarkedPostsData.length === 0) return [];
     return bookmarkedPostsData.map((post) => {
       const media = Array.isArray(post.media) ? post.media : [];
+      const thumbnailUrl = media[0]?.url;
+      // Only use valid HTTP/HTTPS URLs, skip relative paths
+      const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith("http://") || thumbnailUrl.startsWith("https://"));
       return {
         id: post.id,
-        thumbnail: media[0]?.url || "/placeholder.svg",
+        thumbnail: isValidUrl ? thumbnailUrl : undefined,
         type: media[0]?.type === "video" ? "video" : "image",
         mediaCount: media.length,
         hasMultipleImages: media.length > 1 && media[0]?.type === "image",

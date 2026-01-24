@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
 import { Image } from "expo-image"
 import { VideoView, useVideoPlayer } from "expo-video"
 import { X, ChevronLeft, ChevronRight } from "lucide-react-native"
-import { useEffect, useCallback, useRef, useState } from "react"
+import { useEffect, useCallback, useRef, useState, useMemo } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
@@ -56,7 +56,18 @@ export default function StoryViewerScreen() {
 
   const isVideo = currentItem?.type === "video"
   const isImage = currentItem?.type === "image"
-  const videoUrl = isVideo && currentItem?.url ? currentItem.url : ""
+  
+  // Validate video URL - must be valid HTTP/HTTPS URL
+  const videoUrl = useMemo(() => {
+    if (isVideo && currentItem?.url) {
+      const url = currentItem.url;
+      // Only use valid HTTP/HTTPS URLs
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        return url;
+      }
+    }
+    return "";
+  }, [isVideo, currentItem?.url]);
   
   // Debug logging for story items
   useEffect(() => {
@@ -65,6 +76,7 @@ export default function StoryViewerScreen() {
         type: currentItem.type,
         url: currentItem.url,
         hasUrl: !!currentItem.url,
+        isValidUrl: currentItem.url ? (currentItem.url.startsWith("http://") || currentItem.url.startsWith("https://")) : false,
         isImage,
         isVideo,
       });
@@ -73,8 +85,12 @@ export default function StoryViewerScreen() {
 
   const player = useVideoPlayer(videoUrl, (player) => {
     if (player && videoUrl) {
-      player.loop = false
-      player.play()
+      try {
+        player.loop = false
+        player.play()
+      } catch (error) {
+        console.log("[StoryViewer] Error configuring player:", error);
+      }
     }
   })
 
@@ -297,7 +313,7 @@ export default function StoryViewerScreen() {
                 barWidth={width - 32}
               />
             </View>
-          ) : isImage && currentItem?.url ? (
+          ) : isImage && currentItem?.url && (currentItem.url.startsWith("http://") || currentItem.url.startsWith("https://")) ? (
             <Image
               source={{ uri: currentItem.url }}
               style={{ width, height: height * 0.7 }}

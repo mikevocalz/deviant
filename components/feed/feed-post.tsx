@@ -93,23 +93,44 @@ function FeedPostComponent({
   const isPressed = pressedPosts[id] || false;
   const likeAnimating = likeAnimatingPosts[id] || false;
 
+  // Validate video URL - must be valid HTTP/HTTPS URL
+  const videoUrl = useMemo(() => {
+    if (isVideo && media[0]?.url) {
+      const url = media[0].url;
+      // Only use valid HTTP/HTTPS URLs
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        return url;
+      }
+    }
+    return "";
+  }, [isVideo, media]);
+
   const player = useVideoPlayer(
-    isVideo && media[0]?.url ? media[0].url : "",
+    videoUrl,
     (player) => {
-      player.loop = false;
-      player.muted = isMuted;
+      if (player && videoUrl) {
+        try {
+          player.loop = false;
+          player.muted = isMuted;
+        } catch (error) {
+          console.log("[FeedPost] Error configuring player:", error);
+        }
+      }
     },
   );
 
   useEffect(() => {
-    if (isVideo && player) {
+    if (isVideo && player && videoUrl) {
       try {
         player.muted = isMuted;
-      } catch {
-        // Player may have been released
+      } catch (error) {
+        // Player may have been released - this is expected
+        if (error && typeof error === "object" && "code" in error && error.code !== "ERR_USING_RELEASED_SHARED_OBJECT") {
+          console.log("[FeedPost] Error setting mute:", error);
+        }
       }
     }
-  }, [isVideo, player, isMuted]);
+  }, [isVideo, player, isMuted, videoUrl]);
 
   useEffect(() => {
     if (isVideo && player) {
@@ -364,22 +385,31 @@ function FeedPostComponent({
                   onScroll={handleScroll}
                   scrollEventThrottle={16}
                 >
-                  {media.map((medium, index) => (
-                    <Pressable
-                      key={index}
-                      onPress={handlePostPress}
-                      onPressIn={handlePressIn}
-                      onPressOut={handlePressOut}
-                    >
-                      <Image
-                        source={{ uri: medium.url }}
-                        style={{ width: mediaSize, height: mediaSize }}
-                        contentFit="cover"
-                        transition={200}
-                        cachePolicy="memory-disk"
-                      />
-                    </Pressable>
-                  ))}
+                  {media.map((medium, index) => {
+                    const isValidUrl = medium.url && (medium.url.startsWith("http://") || medium.url.startsWith("https://"));
+                    return (
+                      <Pressable
+                        key={index}
+                        onPress={handlePostPress}
+                        onPressIn={handlePressIn}
+                        onPressOut={handlePressOut}
+                      >
+                        {isValidUrl ? (
+                          <Image
+                            source={{ uri: medium.url }}
+                            style={{ width: mediaSize, height: mediaSize }}
+                            contentFit="cover"
+                            transition={200}
+                            cachePolicy="memory-disk"
+                          />
+                        ) : (
+                          <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted items-center justify-center">
+                            <Text className="text-muted-foreground text-xs">No image</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
                 </ScrollView>
                 <View
                   className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
@@ -413,13 +443,19 @@ function FeedPostComponent({
                 onPressOut={handlePressOut}
                 style={{ width: mediaSize, height: mediaSize }}
               >
-                <Image
-                  source={{ uri: media[0]?.url }}
-                  style={{ width: mediaSize, height: mediaSize }}
-                  contentFit="cover"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                />
+                {media[0]?.url && (media[0].url.startsWith("http://") || media[0].url.startsWith("https://")) ? (
+                  <Image
+                    source={{ uri: media[0].url }}
+                    style={{ width: mediaSize, height: mediaSize }}
+                    contentFit="cover"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted items-center justify-center">
+                    <Text className="text-muted-foreground text-xs">No image</Text>
+                  </View>
+                )}
               </Pressable>
             )}
           </View>

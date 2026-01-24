@@ -95,7 +95,15 @@ export async function registerForPushNotificationsAsync(): Promise<
     });
     token = pushTokenData.data;
     console.log("[Notifications] Push token:", token);
-  } catch (error) {
+  } catch (error: any) {
+    // Handle Firebase initialization errors gracefully
+    // This can happen on Android if Firebase isn't configured, but Expo push notifications
+    // will still work via Expo's service
+    if (error?.message?.includes("FirebaseApp") || error?.code === "E_REGISTRATION_FAILED") {
+      console.log("[Notifications] Firebase not initialized - using Expo push service only");
+      // Try to continue without FCM - Expo push notifications will still work
+      return null;
+    }
     console.error("[Notifications] Error getting push token:", error);
     return null;
   }
