@@ -71,10 +71,27 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get current user to auto-set as organizer
+    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    
+    if (!currentUser) {
+      return Response.json(
+        { error: "Not authenticated" },
+        { status: 401 },
+      );
+    }
+
+    // Auto-set organizer to current user if not provided
+    const eventData = {
+      ...body,
+      host: body.host || currentUser.id, // Use 'host' field (existing field name)
+      coOrganizer: body.coOrganizer || undefined, // Optional co-organizer
+    };
+
     const result = await payloadClient.create(
       {
         collection: "events",
-        data: body,
+        data: eventData,
         depth: 2,
       },
       cookies,

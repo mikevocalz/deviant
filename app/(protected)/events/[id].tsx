@@ -210,6 +210,7 @@ export default function EventDetailScreen() {
   const [eventData, setEventData] = useState<any>(null);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
+  const [organizers, setOrganizers] = useState<Array<{ id: string; name?: string; username?: string; avatar?: string }>>([]);
 
   // Fetch reviews and comments
   const { data: reviews = [], isLoading: isLoadingReviews } = useEventReviews(eventId, 5);
@@ -223,12 +224,37 @@ export default function EventDetailScreen() {
         const fetchedEvent = await events.findByID(eventId, 2);
         if (fetchedEvent) {
           setEventData(fetchedEvent);
-          // Check if current user is organizer (host)
-          const organizer =
-            typeof fetchedEvent.host === "object"
-              ? (fetchedEvent.host as any)?.id
-              : fetchedEvent.host;
-          setIsOrganizer(organizer === user?.id);
+          
+          // Collect all organizers (host + coOrganizer)
+          const orgs: Array<{ id: string; name?: string; username?: string; avatar?: string }> = [];
+          
+          // Add host/organizer
+          if (fetchedEvent.host) {
+            const host = typeof fetchedEvent.host === "object" ? fetchedEvent.host : { id: fetchedEvent.host };
+            orgs.push({
+              id: (host as any)?.id || host,
+              name: (host as any)?.name,
+              username: (host as any)?.username,
+              avatar: (host as any)?.avatar,
+            });
+          }
+          
+          // Add co-organizer
+          if (fetchedEvent.coOrganizer) {
+            const coOrg = typeof fetchedEvent.coOrganizer === "object" ? fetchedEvent.coOrganizer : { id: fetchedEvent.coOrganizer };
+            orgs.push({
+              id: (coOrg as any)?.id || coOrg,
+              name: (coOrg as any)?.name,
+              username: (coOrg as any)?.username,
+              avatar: (coOrg as any)?.avatar,
+            });
+          }
+          
+          setOrganizers(orgs);
+          
+          // Check if current user is organizer (host or co-organizer)
+          const isHost = orgs.some(org => org.id === user?.id);
+          setIsOrganizer(isHost);
         }
       } catch (error) {
         console.error("[EventDetail] Error fetching event:", error);
@@ -445,6 +471,67 @@ export default function EventDetailScreen() {
               </Text>
             </View>
           </Animated.View>
+
+          {/* Organizers Section */}
+          {organizers.length > 0 && (
+            <Animated.View
+              entering={FadeInDown.delay(350)}
+              style={{ marginBottom: 24 }}
+            >
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: "600",
+                  color: colors.mutedForeground,
+                  marginBottom: 8,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.5,
+                }}
+              >
+                {organizers.length === 1 ? "Organizer" : "Organizers"}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap" }}>
+                {organizers.map((org) => (
+                  <View
+                    key={org.id}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      backgroundColor: colors.card,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                    }}
+                  >
+                    <Image
+                      source={{
+                        uri:
+                          org.avatar ||
+                          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                            org.name || org.username || "Organizer",
+                          )}`,
+                      }}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                      }}
+                    />
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        fontWeight: "500",
+                        color: colors.foreground,
+                      }}
+                    >
+                      {org.name || org.username || "Organizer"}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </Animated.View>
+          )}
 
           {/* Referral Banner */}
           <Animated.View

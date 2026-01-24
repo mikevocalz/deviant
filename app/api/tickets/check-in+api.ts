@@ -92,13 +92,22 @@ export async function POST(request: Request) {
       );
     }
 
-    const eventOrganizer = typeof event.host === "object" 
+    const eventHost = typeof event.host === "object" 
       ? (event.host as any)?.id 
       : event.host;
+    
+    const eventCoOrganizer = event.coOrganizer
+      ? (typeof event.coOrganizer === "object" 
+          ? (event.coOrganizer as any)?.id 
+          : event.coOrganizer)
+      : null;
 
-    if (eventOrganizer !== currentUser.id) {
+    // Check if user is host or co-organizer
+    const isOrganizer = eventHost === currentUser.id || eventCoOrganizer === currentUser.id;
+
+    if (!isOrganizer) {
       return Response.json(
-        { error: "Only the event organizer can check in tickets" },
+        { error: "Only event organizers can check in tickets" },
         { status: 403 },
       );
     }

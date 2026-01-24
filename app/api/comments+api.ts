@@ -66,11 +66,42 @@ export async function POST(request: Request) {
       );
     }
 
-    // Map 'text' to 'content' for Payload CMS
-    // Handle author ID mapping if authorUsername is provided
-    let authorId: string | undefined;
+    // Get current user from session
+    const currentUser = await payloadClient.me<{ id: string; username: string }>(cookies);
     
-    if (body.authorUsername) {
+    if (!currentUser) {
+      return Response.json(
+        { error: "Not authenticated" },
+        { status: 401 },
+      );
+    }
+
+    // Verify post exists
+    let postId = body.post;
+    try {
+      const post = await payloadClient.findByID({
+        collection: "posts",
+        id: postId,
+      }, cookies);
+      
+      if (!post) {
+        return Response.json(
+          { error: "Post not found" },
+          { status: 404 },
+        );
+      }
+    } catch (postError) {
+      console.error("[API] Post lookup error:", postError);
+      return Response.json(
+        { error: "Post not found" },
+        { status: 404 },
+      );
+    }
+
+    // Look up user by username to get Payload CMS ID (if authorUsername provided, otherwise use current user)
+    let authorId = currentUser.id;
+    
+    if (body.authorUsername && body.authorUsername !== currentUser.username) {
       try {
         const userResult = await payloadClient.find({
           collection: "users",
@@ -83,18 +114,16 @@ export async function POST(request: Request) {
         }
       } catch (lookupError) {
         console.error("[API] User lookup error:", lookupError);
+        // Fall back to current user
       }
     }
     
     const commentData: Record<string, unknown> = {
-      post: body.post,
-      content: body.text, // CMS expects 'content' field
+      post: postId,
+      content: body.text.trim(), // CMS expects 'content' field
+      author: authorId, // Always set author
       parent: body.parent || undefined,
     };
-    
-    if (authorId) {
-      commentData.author = authorId;
-    }
 
     const result = await payloadClient.create(
       {

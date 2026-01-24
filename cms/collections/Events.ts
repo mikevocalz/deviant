@@ -180,13 +180,23 @@ export const Events: CollectionConfig = {
       },
     },
     {
-      name: "organizer",
+      name: "host",
       type: "relationship",
       relationTo: "users",
       required: false,
       admin: {
         position: "sidebar",
-        description: "Event organizer (can scan/check-in tickets)",
+        description: "Event organizer/host (can scan/check-in tickets)",
+      },
+    },
+    {
+      name: "coOrganizer",
+      type: "relationship",
+      relationTo: "users",
+      required: false,
+      admin: {
+        position: "sidebar",
+        description: "Co-organizer (can also scan/check-in tickets)",
       },
     },
     {
