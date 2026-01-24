@@ -95,40 +95,53 @@ export const commentsApiClient = {
         throw new Error("Invalid post ID format. Cannot create comment.");
       }
       
+      // Validate required fields
+      if (!data.text || !data.text.trim()) {
+        throw new Error("Comment text is required");
+      }
+      
+      if (!data.authorUsername) {
+        throw new Error("You must be logged in to comment");
+      }
+      
       // Look up the Payload CMS user ID by username
       let authorId: string | undefined;
       
-      if (data.authorUsername) {
-        // Check cache first
-        if (userIdCache[data.authorUsername]) {
-          authorId = userIdCache[data.authorUsername];
-          console.log("[commentsApi] Using cached author ID:", authorId);
-        } else {
-          // Look up user in Payload CMS
-          try {
-            const userResult = await users.find({
-              where: { username: { equals: data.authorUsername } },
-              limit: 1,
-            });
-            
-            if (userResult.docs && userResult.docs.length > 0) {
-              authorId = (userResult.docs[0] as { id: string }).id;
-              userIdCache[data.authorUsername] = authorId;
-              console.log("[commentsApi] Found author ID:", authorId);
-            } else {
-              console.warn("[commentsApi] User not found in CMS:", data.authorUsername);
-            }
-          } catch (lookupError) {
-            console.error("[commentsApi] User lookup error:", lookupError);
+      // Check cache first
+      if (userIdCache[data.authorUsername]) {
+        authorId = userIdCache[data.authorUsername];
+        console.log("[commentsApi] Using cached author ID:", authorId);
+      } else {
+        // Look up user in Payload CMS
+        try {
+          const userResult = await users.find({
+            where: { username: { equals: data.authorUsername } },
+            limit: 1,
+          });
+          
+          if (userResult.docs && userResult.docs.length > 0) {
+            authorId = (userResult.docs[0] as { id: string }).id;
+            userIdCache[data.authorUsername] = authorId;
+            console.log("[commentsApi] Found author ID:", authorId);
+          } else {
+            console.error("[commentsApi] User not found in CMS:", data.authorUsername);
+            throw new Error("User not found. Please log out and log back in.");
           }
+        } catch (lookupError) {
+          console.error("[commentsApi] User lookup error:", lookupError);
+          throw new Error("Failed to verify user. Please try again.");
         }
+      }
+      
+      if (!authorId) {
+        throw new Error("Could not identify user. Please log out and log back in.");
       }
       
       const commentPayload = {
         post: postId, // Use cleaned/parsed post ID
-        content: data.text, // CMS expects 'content' field
+        content: data.text.trim(), // CMS expects 'content' field
         author: authorId,
-        parent: data.parent,
+        parent: data.parent || undefined,
       };
       console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload));
       const doc = await commentsApi.create(commentPayload as any);

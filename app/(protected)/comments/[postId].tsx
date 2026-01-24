@@ -442,8 +442,8 @@ export default function CommentsScreen() {
 
       {/* Input at bottom - outside scroll view */}
       <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 10 : 0}
         style={{ backgroundColor: "#000" }}
       >
         <View
