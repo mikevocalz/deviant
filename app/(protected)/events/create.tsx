@@ -371,39 +371,88 @@ export default function CreateEventScreen() {
               Date & Time
             </Text>
             <View className="flex-row gap-3">
-              <Pressable
-                onPress={() => setShowDatePicker(true)}
-                className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3"
-              >
-                <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                  <Calendar size={18} color={colors.primary} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs text-muted-foreground mb-0.5">
-                    Date
-                  </Text>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {formatDate(eventDate)}
-                  </Text>
-                </View>
-              </Pressable>
+              <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                <PopoverTrigger>
+                  <View className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3">
+                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                      <Calendar size={18} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-xs text-muted-foreground mb-0.5">
+                        Date
+                      </Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {formatDate(eventDate)}
+                      </Text>
+                    </View>
+                  </View>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-xl font-bold text-foreground">Select Date</Text>
+                    <Pressable onPress={() => setShowDatePicker(false)}>
+                      <X size={24} color={colors.foreground} />
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={eventDate}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={handleDateChange}
+                    minimumDate={new Date()}
+                    themeVariant="dark"
+                  />
+                  {Platform.OS === "android" && (
+                    <Pressable
+                      onPress={() => setShowDatePicker(false)}
+                      className="mt-4 bg-primary rounded-2xl py-4 items-center"
+                    >
+                      <Text className="text-primary-foreground font-semibold text-base">Done</Text>
+                    </Pressable>
+                  )}
+                </PopoverContent>
+              </Popover>
 
-              <Pressable
-                onPress={() => setShowTimePicker(true)}
-                className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3"
-              >
-                <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                  <Clock size={18} color={colors.primary} />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs text-muted-foreground mb-0.5">
-                    Time
-                  </Text>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {formatTime(eventDate)}
-                  </Text>
-                </View>
-              </Pressable>
+              <Popover open={showTimePicker} onOpenChange={setShowTimePicker}>
+                <PopoverTrigger>
+                  <View className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3">
+                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                      <Clock size={18} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-xs text-muted-foreground mb-0.5">
+                        Time
+                      </Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {formatTime(eventDate)}
+                      </Text>
+                    </View>
+                  </View>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <Text className="text-xl font-bold text-foreground">Select Time</Text>
+                    <Pressable onPress={() => setShowTimePicker(false)}>
+                      <X size={24} color={colors.foreground} />
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={eventDate}
+                    mode="time"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    onChange={handleTimeChange}
+                    themeVariant="dark"
+                  />
+                  {Platform.OS === "android" && (
+                    <Pressable
+                      onPress={() => setShowTimePicker(false)}
+                      className="mt-4 bg-primary rounded-2xl py-4 items-center"
+                    >
+                      <Text className="text-primary-foreground font-semibold text-base">Done</Text>
+                    </Pressable>
+                  )}
+                </PopoverContent>
+              </Popover>
             </View>
           </View>
 
@@ -671,74 +720,6 @@ export default function CreateEventScreen() {
           </View>
       </KeyboardAwareScrollView>
 
-      {/* Date Picker Modal */}
-      <Modal
-        visible={showDatePicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowDatePicker(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-card rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 24 }}>
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-xl font-bold text-foreground">Select Date</Text>
-              <Pressable onPress={() => setShowDatePicker(false)}>
-                <X size={24} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <DateTimePicker
-              value={eventDate}
-              mode="date"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-              themeVariant="dark"
-            />
-            {Platform.OS === "android" && (
-              <Pressable
-                onPress={() => setShowDatePicker(false)}
-                className="mt-4 bg-primary rounded-2xl py-4 items-center"
-              >
-                <Text className="text-primary-foreground font-semibold text-base">Done</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* Time Picker Modal */}
-      <Modal
-        visible={showTimePicker}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowTimePicker(false)}
-      >
-        <View className="flex-1 bg-black/50 justify-end">
-          <View className="bg-card rounded-t-3xl p-6" style={{ paddingBottom: insets.bottom + 24 }}>
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-xl font-bold text-foreground">Select Time</Text>
-              <Pressable onPress={() => setShowTimePicker(false)}>
-                <X size={24} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <DateTimePicker
-              value={eventDate}
-              mode="time"
-              display={Platform.OS === "ios" ? "spinner" : "default"}
-              onChange={handleTimeChange}
-              themeVariant="dark"
-            />
-            {Platform.OS === "android" && (
-              <Pressable
-                onPress={() => setShowTimePicker(false)}
-                className="mt-4 bg-primary rounded-2xl py-4 items-center"
-              >
-                <Text className="text-primary-foreground font-semibold text-base">Done</Text>
-              </Pressable>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Progress Overlay */}
       {isSubmitting && (
