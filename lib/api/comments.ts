@@ -119,9 +119,31 @@ export const commentsApiClient = {
         authorUsername: data.authorUsername,
         parent: data.parent || undefined,
       };
-      console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload));
-      const doc = await commentsApi.create(commentPayload);
+      console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload, null, 2));
+      console.log("[commentsApi] Payload details:", {
+        post: cleanedPostId,
+        textLength: data.text.trim().length,
+        authorUsername: data.authorUsername,
+        hasParent: !!data.parent,
+      });
+      
+      let doc;
+      try {
+        doc = await commentsApi.create(commentPayload);
+        console.log("[commentsApi] ✓ Comment created successfully:", doc?.id || "unknown");
+      } catch (apiError: any) {
+        console.error("[commentsApi] API call failed:", {
+          message: apiError?.message,
+          error: apiError?.error,
+          errors: apiError?.errors,
+          status: apiError?.status,
+          response: apiError?.response,
+        });
+        throw apiError;
+      }
+      
       const createdComment = transformComment(doc as Record<string, unknown>);
+      console.log("[commentsApi] Transformed comment:", createdComment.id);
       
       // Create notifications for mentions and post author (don't fail if notification creation fails)
       try {
