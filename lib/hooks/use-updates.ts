@@ -61,6 +61,14 @@ export function useUpdates() {
     error: null,
   });
 
+  // DIAGNOSTIC: Log on hook mount to verify it's being called
+  useEffect(() => {
+    console.log("[Updates] Hook mounted - __DEV__:", __DEV__, "FORCE_OTA:", FORCE_OTA_IN_DEV, "UpdatesAvailable:", UpdatesAvailable);
+    if (Updates) {
+      console.log("[Updates] expo-updates module loaded, isEnabled:", safeGet(() => Updates?.isEnabled, "unknown"));
+    }
+  }, []);
+
   // Safe reload - never throws
   // CRITICAL: Wait for Zustand persist rehydration to complete before reloading
   const reloadApp = useCallback(async () => {
@@ -162,20 +170,18 @@ export function useUpdates() {
       }
     };
 
-    // Try toast first
-    if (!tryToast()) {
-      // If toast fails, try alert after a short delay
-      setTimeout(() => {
-        if (!tryAlert()) {
-          console.warn("[Updates] Both toast and alert failed - retrying...");
-          // Retry after delay
-          setTimeout(() => {
-            hasShownUpdateToast.current = false;
-            showUpdateToast();
-          }, 2000);
-        }
-      }, 1000);
-    }
+    // Try BOTH toast and alert to ensure user sees the update notification
+    // This is critical for production - we must notify the user
+    const toastWorked = tryToast();
+    
+    // Always also try alert after a delay as backup (even if toast worked)
+    // This ensures maximum visibility for the update notification
+    setTimeout(() => {
+      if (!toastWorked) {
+        console.log("[Updates] Toast didn't work, trying Alert...");
+        tryAlert();
+      }
+    }, 500);
   }, [reloadApp]);
 
   // Download and apply update - never throws
