@@ -39,25 +39,19 @@ export default function CommentsScreen() {
     navigation.setOptions({
       headerShown: true,
       headerTitle: "Comments",
-      headerTitleAlign: "left" as const,
+      headerTitleAlign: "center" as const,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
         color: colors.foreground,
         fontWeight: "600" as const,
         fontSize: 18,
       },
-      headerLeft: () => null,
-      headerRight: () => (
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
-        >
-          <X size={24} color={colors.foreground} strokeWidth={2.5} />
-        </Pressable>
-      ),
+      headerBackVisible: true,
+      headerBackTitle: "",
+      headerTintColor: colors.foreground,
+      headerRight: () => null,
     });
-  }, [navigation, colors, router]);
+  }, [navigation, colors]);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");

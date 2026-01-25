@@ -148,68 +148,57 @@ export const commentsApiClient = {
       const createdComment = transformComment(doc as Record<string, unknown>);
       console.log("[commentsApi] Transformed comment:", createdComment.id);
       
-      // Create notifications for mentions and post author (don't fail if notification creation fails)
-      try {
-        const commentText = data.text.trim();
-        const mentions = extractMentions(commentText);
-        const senderUsername = data.authorUsername || "";
-        
-        // Get post details to notify the author
-        let postAuthorUsername: string | undefined;
+      // Fire-and-forget: Create notifications asynchronously without blocking the response
+      // This makes comments post instantly while notifications happen in the background
+      const createNotificationsAsync = async () => {
         try {
-          const postDoc = await posts.findByID(cleanedPostId);
-          const postAuthor = (postDoc as Record<string, unknown>)?.author;
-          if (typeof postAuthor === 'object' && postAuthor !== null) {
-            postAuthorUsername = (postAuthor as Record<string, unknown>).username as string;
-          }
-        } catch (postError) {
-          console.log("[commentsApi] Could not fetch post for notification:", postError);
-        }
-        
-        // Notify post author if it's not the commenter
-        if (postAuthorUsername && postAuthorUsername.toLowerCase() !== senderUsername.toLowerCase()) {
+          const commentText = data.text.trim();
+          const mentions = extractMentions(commentText);
+          const senderUsername = data.authorUsername || "";
+          
+          // Get post details to notify the author
+          let postAuthorUsername: string | undefined;
           try {
-            await notifications.create({
+            const postDoc = await posts.findByID(cleanedPostId);
+            const postAuthor = (postDoc as Record<string, unknown>)?.author;
+            if (typeof postAuthor === 'object' && postAuthor !== null) {
+              postAuthorUsername = (postAuthor as Record<string, unknown>).username as string;
+            }
+          } catch (postError) {
+            console.log("[commentsApi] Could not fetch post for notification:", postError);
+          }
+          
+          // Notify post author if it's not the commenter
+          if (postAuthorUsername && postAuthorUsername.toLowerCase() !== senderUsername.toLowerCase()) {
+            notifications.create({
               type: "comment",
               recipientUsername: postAuthorUsername,
               senderUsername: senderUsername,
               postId: cleanedPostId,
               content: commentText.slice(0, 100),
-            });
-            console.log("[commentsApi] Created comment notification for post author");
-          } catch (notifError) {
-            console.log("[commentsApi] Failed to create post author notification:", notifError);
-          }
-        }
-        
-        // Create notifications for mentioned users
-        for (const mentionedUsername of mentions) {
-          // Skip self-mentions
-          if (mentionedUsername.toLowerCase() === senderUsername.toLowerCase()) {
-            continue;
+            }).catch(e => console.log("[commentsApi] Post author notification failed:", e));
           }
           
-          // Don't notify if they're already the post author (already notified above)
-          if (mentionedUsername.toLowerCase() === postAuthorUsername?.toLowerCase()) {
-            continue;
-          }
-          
-          try {
-            await notifications.create({
+          // Create notifications for mentioned users
+          for (const mentionedUsername of mentions) {
+            if (mentionedUsername.toLowerCase() === senderUsername.toLowerCase()) continue;
+            if (mentionedUsername.toLowerCase() === postAuthorUsername?.toLowerCase()) continue;
+            
+            notifications.create({
               type: "mention",
               recipientUsername: mentionedUsername,
               senderUsername: senderUsername,
               postId: cleanedPostId,
               content: commentText.slice(0, 100),
-            });
-            console.log("[commentsApi] Created mention notification for:", mentionedUsername);
-          } catch (mentionError) {
-            console.log("[commentsApi] Failed to create mention notification for", mentionedUsername, ":", mentionError);
+            }).catch(e => console.log("[commentsApi] Mention notification failed:", e));
           }
+        } catch (notificationError) {
+          console.error("[commentsApi] Notification setup error:", notificationError);
         }
-      } catch (notificationError) {
-        console.error("[commentsApi] Notification creation error (comment still created):", notificationError);
-      }
+      };
+      
+      // Start notification creation without awaiting
+      createNotificationsAsync();
       
       return createdComment;
     } catch (error) {

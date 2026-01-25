@@ -9,10 +9,10 @@ type CenterButtonProps = {
 export function CenterButton({ Icon, onPress }: CenterButtonProps) {
   // The button is rendered inside the tab bar item slot (height ~60)
   // Use top positioning to push the button above the tab bar
-  // Negative top = above the slot, positive top = inside/below
+  // Negative top = above the slot, larger negative = higher above
   const containerStyle: ViewStyle = {
     position: "absolute",
-    top: Platform.OS === "android" ? -20 : -24, // Push up above tab bar
+    top: Platform.OS === "android" ? -50 : -54, // Much higher above tab bar
     left: "50%",
     transform: [{ translateX: -30 }],
     width: 60,
