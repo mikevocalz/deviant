@@ -73,6 +73,8 @@ function syncUserToStore(
     username?: string;
     bio?: string;
     website?: string;
+    location?: string;
+    hashtags?: string[];
     postsCount?: number;
     followersCount?: number;
     followingCount?: number;
@@ -89,6 +91,8 @@ function syncUserToStore(
       avatar: user.image || undefined,
       bio: user.bio || "",
       website: user.website || "",
+      location: user.location || "",
+      hashtags: Array.isArray(user.hashtags) ? user.hashtags : [],
       isVerified: user.emailVerified || false,
       postsCount: user.postsCount || 0,
       followersCount: user.followersCount || 0,

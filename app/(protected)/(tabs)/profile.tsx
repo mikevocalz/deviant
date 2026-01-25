@@ -16,6 +16,7 @@ import {
   Grid3x3,
   X,
   Check,
+  Plus,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -38,6 +39,7 @@ import { TextInput, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { users } from "@/lib/api-client";
+import { Badge } from "@/components/ui/badge";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
@@ -58,11 +60,18 @@ function EditProfileContent() {
     editName,
     editBio,
     editWebsite,
+    editLocation,
+    editHashtags,
     setEditName,
     setEditBio,
     setEditWebsite,
+    setEditLocation,
+    setEditHashtags,
+    addEditHashtag,
+    removeEditHashtag,
   } = useProfileStore();
   const { setOpen: setPopoverOpen } = usePopover();
+  const [hashtagInput, setHashtagInput] = useState("");
 
   const handlePickAvatar = async () => {
     try {
@@ -110,27 +119,29 @@ function EditProfileContent() {
         }
       }
 
-      // Update profile in CMS - use user's ID for direct update
       const updateData = {
         name: editName,
         bio: editBio,
         website: editWebsite,
         avatar: avatarUrl,
+        location: editLocation,
+        hashtags: editHashtags,
       };
 
       console.log("[EditProfile] Updating profile with:", JSON.stringify(updateData));
       console.log("[EditProfile] User ID:", user.id);
-      
+
       await users.updateMe(updateData);
       console.log("[EditProfile] Profile updated successfully");
 
-      // Update local auth store
       setUser({
         ...user,
         name: editName,
         bio: editBio,
         website: editWebsite,
         avatar: avatarUrl,
+        location: editLocation,
+        hashtags: editHashtags,
       });
       setNewAvatarUri(null);
       setPopoverOpen(false);
@@ -149,13 +160,20 @@ function EditProfileContent() {
       setEditName(user.name || "");
       setEditBio(user.bio || "");
       setEditWebsite(user.website || "");
+      setEditLocation(user.location || "");
+      setEditHashtags(Array.isArray(user.hashtags) ? user.hashtags : []);
     }
-  }, [user, setEditName, setEditBio, setEditWebsite]);
+  }, [user, setEditName, setEditBio, setEditWebsite, setEditLocation, setEditHashtags]);
 
+  const hashtagsEqual =
+    editHashtags.length === (user?.hashtags?.length ?? 0) &&
+    editHashtags.every((t, i) => (user?.hashtags ?? [])[i] === t);
   const hasChanges =
     editName !== (user?.name || "") ||
     editBio !== (user?.bio || "") ||
     editWebsite !== (user?.website || "") ||
+    editLocation !== (user?.location || "") ||
+    !hashtagsEqual ||
     newAvatarUri !== null;
 
   return (
@@ -324,6 +342,91 @@ function EditProfileContent() {
                 fontSize: 16,
               }}
             />
+          </View>
+
+          <View>
+            <Text
+              style={{ color: colors.mutedForeground }}
+              className="mb-3 text-sm font-semibold"
+            >
+              Location
+            </Text>
+            <TextInput
+              value={editLocation}
+              onChangeText={setEditLocation}
+              placeholder="City, region, or country"
+              placeholderTextColor={colors.mutedForeground}
+              style={{
+                color: colors.foreground,
+                backgroundColor: colors.muted,
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 14,
+                fontSize: 16,
+              }}
+            />
+          </View>
+
+          <View>
+            <Text
+              style={{ color: colors.mutedForeground }}
+              className="mb-3 text-sm font-semibold"
+            >
+              Hashtags (max 10)
+            </Text>
+            <View className="flex-row gap-2 flex-wrap mb-2">
+              {editHashtags.map((tag, index) => (
+                <Badge key={tag + index} variant="secondary" className="flex-row items-center gap-1">
+                  <Text className="text-xs font-medium text-secondary-foreground">#{tag}</Text>
+                  <Pressable
+                    hitSlop={8}
+                    onPress={() => removeEditHashtag(index)}
+                    className="ml-0.5"
+                  >
+                    <X size={12} color={colors.mutedForeground} />
+                  </Pressable>
+                </Badge>
+              ))}
+            </View>
+            {editHashtags.length < 10 && (
+              <View className="flex-row gap-2 items-center">
+                <TextInput
+                  value={hashtagInput}
+                  onChangeText={setHashtagInput}
+                  placeholder="Add tag (e.g. music)"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="none"
+                  onSubmitEditing={() => {
+                    const t = hashtagInput.replace(/^#+/, "").trim().toLowerCase();
+                    if (t) {
+                      addEditHashtag(t);
+                      setHashtagInput("");
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    color: colors.foreground,
+                    backgroundColor: colors.muted,
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    fontSize: 16,
+                  }}
+                />
+                <Pressable
+                  onPress={() => {
+                    const t = hashtagInput.replace(/^#+/, "").trim().toLowerCase();
+                    if (t) {
+                      addEditHashtag(t);
+                      setHashtagInput("");
+                    }
+                  }}
+                  className="h-11 w-11 items-center justify-center rounded-full bg-primary"
+                >
+                  <Plus size={20} color="#fff" />
+                </Pressable>
+              </View>
+            )}
           </View>
         </View>
       </KeyboardAwareScrollView>
@@ -524,10 +627,24 @@ export default function ProfileScreen() {
                 {user.bio}
               </Text>
             )}
+            {user?.location && (
+              <Text className="mt-1.5 text-sm text-muted-foreground">
+                {user.location}
+              </Text>
+            )}
             {user?.website && (
               <Text className="mt-1.5 text-sm font-medium text-primary">
                 {user.website}
               </Text>
+            )}
+            {Array.isArray(user?.hashtags) && user.hashtags.length > 0 && (
+              <View className="mt-2 flex-row flex-wrap gap-2">
+                {user.hashtags.map((tag, index) => (
+                  <Badge key={tag + index} variant="secondary">
+                    <Text className="text-xs font-medium text-secondary-foreground">#{tag}</Text>
+                  </Badge>
+                ))}
+              </View>
             )}
           </View>
 

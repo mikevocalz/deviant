@@ -81,7 +81,7 @@ export async function PATCH(request: Request) {
     }
 
     // Only allow updating specific fields
-    const allowedFields = ["name", "bio", "website", "avatar"];
+    const allowedFields = ["name", "bio", "avatar", "website", "location", "hashtags"];
     const updateData: Record<string, unknown> = {};
     
     for (const field of allowedFields) {

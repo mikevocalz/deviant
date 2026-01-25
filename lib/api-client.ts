@@ -237,20 +237,14 @@ export const users = {
     website?: string;
     avatar?: string;
     username?: string;
+    location?: string;
+    hashtags?: string[];
   }): Promise<{ user: T }> => {
-    // First get current user to find their ID
-    const { user: currentUser } = await users.me<{ id: string }>();
-    if (!currentUser?.id) {
-      throw new Error("Not authenticated");
-    }
-    
-    // Use Payload CMS standard endpoint: PATCH /api/users/{id}
-    const updatedUser = await apiFetch<T>(`/api/users/${currentUser.id}`, {
+    const res = await apiFetch<{ user: T }>("/api/users/me", {
       method: "PATCH",
       body: JSON.stringify(data),
     });
-    
-    return { user: updatedUser };
+    return res;
   },
 
   register: <T = Record<string, unknown>>(data: {

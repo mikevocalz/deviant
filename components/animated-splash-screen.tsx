@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { View, StyleSheet } from "react-native"
 import Animated, { FadeOut } from "react-native-reanimated"
-import { RiveView, useRiveFile, useRive, Fit } from "@rive-app/react-native"
+import { RiveView, useRiveFile, Fit, type RiveError } from "@rive-app/react-native"
 
 type AnimatedSplashScreenProps = {
   onAnimationFinish?: (isCancelled: boolean) => void
@@ -9,51 +9,44 @@ type AnimatedSplashScreenProps = {
 
 export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSplashScreenProps) {
   const animationFinished = useRef(false)
-  const { riveFile } = useRiveFile(require("../assets/deviant.riv"))
-  const { riveViewRef, setHybridRef } = useRive()
+
+  const { riveFile, error: riveError } = useRiveFile(require("../assets/deviant.riv"))
 
   useEffect(() => {
-    // Ensure animation plays when file loads
-    if (riveFile && riveViewRef) {
-      console.log("[Splash] Rive file loaded, starting animation");
-      // Force play the animation
-      riveViewRef.playIfNeeded?.();
+    if (riveError) {
+      console.error("[Splash] Rive file load error:", riveError)
     }
-  }, [riveFile, riveViewRef])
+  }, [riveError])
 
   useEffect(() => {
-    // Timer to finish animation after 6 seconds
     const timer = setTimeout(() => {
       if (!animationFinished.current) {
         animationFinished.current = true
-        console.log("[Splash] Animation timer completed");
         onAnimationFinish?.(false)
       }
-    }, 6000) // Animation needs 6000ms (6 seconds) to complete
+    }, 6000)
 
     return () => clearTimeout(timer)
   }, [onAnimationFinish])
 
-  if (!riveFile) {
-    console.log("[Splash] Rive file not loaded yet");
-    return (
-      <View style={styles.container}>
-        <View style={styles.riveContainer} />
-      </View>
-    )
+  const handleRiveError = (err: RiveError) => {
+    console.error("[Splash] Rive error:", err.message, "type:", err.type)
   }
-
-  console.log("[Splash] Rendering RiveView");
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
       <View style={styles.riveContainer}>
-        <RiveView
-          hybridRef={setHybridRef}
-          file={riveFile}
-          style={styles.rive}
-          fit={Fit.Contain}
-        />
+        {riveFile ? (
+          <RiveView
+            file={riveFile}
+            style={styles.rive}
+            fit={Fit.Contain}
+            autoPlay={true}
+            onError={handleRiveError}
+          />
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
     </Animated.View>
   )
@@ -72,8 +65,12 @@ const styles = StyleSheet.create({
     height: 300,
   },
   rive: {
-    backgroundColor: "#000",
     width: "100%",
     height: "100%",
   },
-});
+  placeholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#000",
+  },
+})

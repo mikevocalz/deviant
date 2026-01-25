@@ -10,6 +10,8 @@ interface User {
   avatar?: string;
   bio?: string;
   website?: string;
+  location?: string;
+  hashtags?: string[];
   isVerified: boolean;
   postsCount: number;
   followersCount: number;

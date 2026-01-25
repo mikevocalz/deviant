@@ -69,6 +69,52 @@ export const Users: CollectionConfig = {
       required: false,
     },
     {
+      name: "website",
+      type: "text",
+      required: false,
+      admin: {
+        description: "Profile website URL",
+      },
+      validate: (value) => {
+        if (!value) return true;
+        try {
+          new URL(value);
+          return true;
+        } catch {
+          return "Enter a valid URL";
+        }
+      },
+    },
+    {
+      name: "location",
+      type: "text",
+      required: false,
+      maxLength: 120,
+      admin: {
+        description: "User location (city, region, etc.)",
+      },
+    },
+    {
+      name: "hashtags",
+      type: "json",
+      required: false,
+      admin: {
+        description: "Profile hashtags (max 10), stored as string[]",
+      },
+      validate: (value) => {
+        if (value == null) return true;
+        if (!Array.isArray(value)) return "Hashtags must be an array";
+        if (value.length > 10) return "Maximum 10 hashtags";
+        for (const v of value) {
+          if (typeof v !== "string") return "Each hashtag must be a string";
+          const t = v.replace(/^#+/, "").trim();
+          if (!t) return "Hashtag cannot be empty";
+          if (t.length > 30) return "Hashtag max 30 characters";
+        }
+        return true;
+      },
+    },
+    {
       name: "isVerified",
       type: "checkbox",
       defaultValue: false,
