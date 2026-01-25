@@ -162,8 +162,17 @@ function EditProfileContent() {
     <View className="flex-1">
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 pb-6 border-b border-border">
-        <Pressable onPress={() => setPopoverOpen(false)} hitSlop={12}>
-          <X size={24} color={colors.foreground} />
+        <Pressable 
+          onPress={() => setPopoverOpen(false)} 
+          hitSlop={12}
+          style={{
+            width: 40,
+            height: 40,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
         <Text className="text-xl font-bold text-foreground">Edit Profile</Text>
         <Pressable

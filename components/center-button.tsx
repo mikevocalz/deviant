@@ -9,9 +9,9 @@ type CenterButtonProps = {
 export function CenterButton({ Icon, onPress }: CenterButtonProps) {
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: Platform.OS === "android" ? -34 : -48,
+    bottom: Platform.OS === "android" ? -34 : -54, // Moved up more on iOS (was -48, now -54)
     left: "50%",
-    transform: [{ translateX: -30 }],
+    transform: [{ translateX: -36 }], // Moved 6px left (was -30, now -36)
     width: 60,
     height: 60,
   };

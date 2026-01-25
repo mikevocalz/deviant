@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Pressable, View, ViewStyle } from "react-native";
+import { Platform, Pressable, View, ViewStyle } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 import AnimatedGlow, {
   type GlowEvent,
@@ -100,9 +100,9 @@ export function CenterButton({ Icon, onPress }: CenterButtonProps) {
 
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: -34,
+    bottom: Platform.OS === "android" ? -34 : -54, // Moved up more on iOS (was -34, now -54)
     left: "50%",
-    transform: [{ translateX: -30 }],
+    transform: [{ translateX: -36 }], // Moved 6px left (was -30, now -36)
     width: 60,
     height: 60,
   };

@@ -283,9 +283,15 @@ export default function CreateEventScreen() {
         <Pressable 
           onPress={() => router.back()} 
           hitSlop={12}
-          style={{ marginLeft: 8 }}
+          style={{ 
+            marginLeft: 8,
+            width: 40,
+            height: 40,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
-          <X size={24} color={colors.foreground} />
+          <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
       ),
       headerRight: () => (
