@@ -20,20 +20,55 @@ export function useComments(postId: string) {
   });
 }
 
-// Create comment mutation
+// Create comment mutation with optimistic updates
 export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: commentsApiClient.createComment,
-    onSuccess: (_, variables) => {
-      // Invalidate and refetch comments for the post
+    // Optimistic update: show comment immediately
+    onMutate: async (newComment) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: commentKeys.byPost(newComment.post),
+      });
+
+      // Snapshot the previous value
+      const previousComments = queryClient.getQueryData<Comment[]>(
+        commentKeys.byPost(newComment.post)
+      );
+
+      // Optimistically add the new comment
+      const optimisticComment: Comment = {
+        id: `temp-${Date.now()}`,
+        username: newComment.authorUsername || "You",
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newComment.authorUsername || "You")}`,
+        text: newComment.text,
+        timeAgo: "Just now",
+        likes: 0,
+        replies: [],
+      };
+
+      queryClient.setQueryData<Comment[]>(
+        commentKeys.byPost(newComment.post),
+        (old) => [...(old || []), optimisticComment]
+      );
+
+      return { previousComments };
+    },
+    onError: (err, newComment, context) => {
+      // Roll back on error
+      if (context?.previousComments) {
+        queryClient.setQueryData(
+          commentKeys.byPost(newComment.post),
+          context.previousComments
+        );
+      }
+    },
+    onSettled: (_, __, variables) => {
+      // Always refetch after mutation settles to get real data
       queryClient.invalidateQueries({
         queryKey: commentKeys.byPost(variables.post),
-      });
-      // Also invalidate all comment queries to ensure consistency
-      queryClient.invalidateQueries({
-        queryKey: commentKeys.all,
       });
     },
   });
