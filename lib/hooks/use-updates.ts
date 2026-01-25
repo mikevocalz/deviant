@@ -68,30 +68,39 @@ export function useUpdates() {
     }
   }, []);
 
-  // Show update toast with multiple fallback strategies
+  // CRITICAL: Show update toast - MUST ALWAYS SHOW when update is available
+  // This toast MUST NEVER be removed or disabled
+  // It has two buttons: "Update Later" (left, dismisses) and "Restart App Now" (right, restarts)
   const showUpdateToast = useCallback(() => {
-    // Prevent duplicate toasts
-    if (hasShownUpdateToast.current) {
-      return;
-    }
-    
+    // Reset flag to allow showing again if needed (e.g., after dismissing)
+    // This ensures the toast can be shown again if user dismisses and update is still pending
     hasShownUpdateToast.current = true;
     toastAttempts.current += 1;
     
     console.log("[Updates] Showing update toast, attempt:", toastAttempts.current);
     
-    // Strategy 1: Try sonner-native toast
+    // Strategy 1: Try sonner-native toast with TWO actions
     const tryToast = () => {
       try {
+        // CRITICAL: duration: Infinity ensures toast never auto-dismisses
+        // User must explicitly choose "Update Later" or "Restart App Now"
         toast.success("Update Ready", {
-          description: "A new update is available. Tap to restart.",
-          duration: Infinity,
+          description: "A new update is available. Restart to apply it.",
+          duration: Infinity, // NEVER auto-dismiss - user must choose
           action: {
-            label: "Restart App",
+            label: "Restart App Now",
             onPress: reloadApp,
           },
+          cancel: {
+            label: "Update Later",
+            onPress: () => {
+              console.log("[Updates] User chose to update later");
+              // Reset flag so toast can be shown again if update is still pending
+              hasShownUpdateToast.current = false;
+            },
+          },
         });
-        console.log("[Updates] Toast shown successfully");
+        console.log("[Updates] Toast shown successfully with both buttons");
         return true;
       } catch (toastError) {
         console.log("[Updates] Toast failed:", toastError);
@@ -99,18 +108,29 @@ export function useUpdates() {
       }
     };
 
-    // Strategy 2: Fallback to native Alert after delay
+    // Strategy 2: Fallback to native Alert with two buttons
     const tryAlert = () => {
       try {
         Alert.alert(
           "Update Available",
           "A new update has been downloaded. Restart the app to apply it.",
           [
-            { text: "Later", style: "cancel" },
-            { text: "Restart Now", onPress: reloadApp },
+            { 
+              text: "Update Later", 
+              style: "cancel",
+              onPress: () => {
+                console.log("[Updates] User chose to update later");
+                // Reset flag so alert can be shown again if update is still pending
+                hasShownUpdateToast.current = false;
+              },
+            },
+            { 
+              text: "Restart App Now", 
+              onPress: reloadApp,
+            },
           ]
         );
-        console.log("[Updates] Alert shown successfully");
+        console.log("[Updates] Alert shown successfully with both buttons");
         return true;
       } catch (alertError) {
         console.error("[Updates] Alert failed:", alertError);
@@ -123,7 +143,12 @@ export function useUpdates() {
       // If toast fails, try alert after a short delay
       setTimeout(() => {
         if (!tryAlert()) {
-          console.warn("[Updates] Both toast and alert failed - user will see update on next launch");
+          console.warn("[Updates] Both toast and alert failed - retrying...");
+          // Retry after delay
+          setTimeout(() => {
+            hasShownUpdateToast.current = false;
+            showUpdateToast();
+          }, 2000);
         }
       }, 1000);
     }

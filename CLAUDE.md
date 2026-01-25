@@ -204,14 +204,22 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 3. **NEVER** remove the toast import or usage
 4. **ALWAYS** ensure the toast shows with retry logic and Alert fallback
 5. The toast **MUST** have `duration: Infinity` to never auto-dismiss
-6. If toast fails, **MUST** fall back to native Alert
+6. The toast **MUST** have TWO buttons:
+   - **"Update Later"** (left/cancel button) - dismisses the toast
+   - **"Restart App Now"** (right/action button) - restarts the app
+7. If toast fails, **MUST** fall back to native Alert with same two buttons
+8. **NEVER remove or disable this toast** - it is critical for OTA updates
+9. The toast can be dismissed with "Update Later" but will show again if update is still pending
 
 **Why this is critical:**
 - Users need to know when updates are available
 - Without the toast, users won't restart to get new features/fixes
 - OTA updates are essential for the app's update mechanism
+- The toast MUST always be visible when an update is available
 
 **Location:** `lib/hooks/use-updates.ts` - `showUpdateToast()` function
+
+**⚠️ CRITICAL: This toast must NEVER be removed, disabled, or modified to prevent showing. It is essential for the app's update mechanism.**
 
 ---
 
