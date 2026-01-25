@@ -9,7 +9,9 @@
     "web": "expo start --web",
     "prebuild": "expo prebuild",
     "build:android": "eas build --platform android",
-    "build:ios": "eas build --platform ios"
+    "build:ios": "eas build --platform ios",
+    "update:production": "eas update --channel production",
+    "update:preview": "eas update --channel preview"
   },
   "dependencies": {
     "@better-auth/expo": "^1.4.12",

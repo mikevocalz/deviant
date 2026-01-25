@@ -20,7 +20,6 @@ import {
   MessageCircle,
   Eye,
   EyeOff,
-  ChevronLeft,
   X,
   Info,
   CheckCircle,
@@ -55,14 +54,12 @@ export default function SettingsScreenAndroid() {
         fontWeight: "600" as const,
         fontSize: 18,
       },
-      headerLeft: () => (
-        <View style={{ marginLeft: 8, width: 32 }} />
-      ),
+      headerLeft: () => null,
       headerRight: () => (
-        <Pressable 
-          onPress={() => router.back()} 
+        <Pressable
+          onPress={() => router.back()}
           hitSlop={12}
-          style={{ marginRight: 8 }}
+          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <X size={24} color={colors.foreground} />
         </Pressable>

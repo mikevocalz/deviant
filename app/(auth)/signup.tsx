@@ -42,12 +42,12 @@ export default function SignupScreen() {
           <SignUpStep1 />
         </ProgressStep>
 
-        <ProgressStep label="Verification" removeBtnRow>
-          <SignUpStep2 />
-        </ProgressStep>
-
         <ProgressStep label="Terms" removeBtnRow>
           <SignUpStep3 />
+        </ProgressStep>
+
+        <ProgressStep label="Verification" removeBtnRow>
+          <SignUpStep2 />
         </ProgressStep>
       </ProgressSteps>
     </KeyboardAwareScrollView>

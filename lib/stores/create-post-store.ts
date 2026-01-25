@@ -14,6 +14,7 @@ interface CreatePostState {
   location: string
   locationData: LocationData | null
   taggedPeople: string[]
+  isNSFW: boolean
   step: "select" | "edit" | "location"
   isUploading: boolean
   uploadProgress: number
@@ -25,6 +26,7 @@ interface CreatePostState {
   setLocation: (location: string) => void
   setLocationData: (data: LocationData | null) => void
   setTaggedPeople: (people: string[]) => void
+  setIsNSFW: (isNSFW: boolean) => void
   setStep: (step: "select" | "edit" | "location") => void
   startUpload: () => void
   setUploadProgress: (progress: number) => void
@@ -38,6 +40,7 @@ const initialState = {
   location: "",
   locationData: null as LocationData | null,
   taggedPeople: [] as string[],
+  isNSFW: false,
   step: "select" as const,
   isUploading: false,
   uploadProgress: 0,
@@ -75,6 +78,7 @@ export const useCreatePostStore = create<CreatePostState>((set, get) => ({
   setLocation: (location) => set({ location }),
   setLocationData: (data) => set({ locationData: data, location: data?.name || "" }),
   setTaggedPeople: (people) => set({ taggedPeople: people }),
+  setIsNSFW: (isNSFW) => set({ isNSFW }),
   setStep: (step) => set({ step }),
   startUpload: () => set({ isUploading: true, uploadProgress: 0 }),
   setUploadProgress: (progress) => set({ uploadProgress: progress }),

@@ -1,7 +1,7 @@
 "use client";
 
 import { Tabs, useRouter } from "expo-router";
-import { View, Pressable, Text } from "react-native";
+import { View, Pressable, Text, Platform } from "react-native";
 import {
   Home,
   Search,
@@ -32,7 +32,13 @@ export default function TabsLayout() {
           borderBottomColor: colors.border,
           //paddingBottom: 4,
         },
-        headerTitle: () => <Logo width={100} height={50} style={{ marginBottom: 4 }} />,
+        headerTitle: () => (
+          <Logo
+            width={100}
+            height={50}
+            style={{ marginBottom: Platform.OS === "android" ? 4 : 12 }}
+          />
+        ),
         headerRight: () => (
           <View className="mr-4 flex-row items-center gap-4">
             <Pressable onPress={() => router.push("/(protected)/search")}>

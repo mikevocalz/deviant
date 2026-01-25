@@ -112,74 +112,34 @@ export async function POST(request: Request) {
     }
 
     // CRITICAL: We MUST find the Payload CMS user ID - the hook might not work with API key auth
-    // The currentUser from me() should be from Payload if cookies are valid
+    // The client sends Better Auth ID (user.id from Zustand), but we need Payload CMS ID
     let authorId: string | null = null;
     
-    // FIRST: Try using authorId from client (Zustand store) - this is the fastest path
-    if (body.authorId && String(body.authorId).trim()) {
-      const clientAuthorId = String(body.authorId).trim();
+    // PRIORITY 1: Look up user by username - this is the MOST RELIABLE method
+    // The username is the same across Better Auth and Payload CMS
+    const usernameToLookup = body.authorUsername || currentUser?.username;
+    console.log("[API] Looking up user by username (primary method):", usernameToLookup);
+    
+    if (usernameToLookup) {
       try {
-        // Verify the ID exists in Payload CMS
-        const userCheck = await payloadClient.findByID({
+        const userResult = await payloadClient.find({
           collection: "users",
-          id: clientAuthorId,
+          where: { username: { equals: usernameToLookup } },
+          limit: 1,
         }, cookies);
         
-        if (userCheck) {
-          authorId = clientAuthorId;
-          console.log("[API] ✓ Using authorId from client (Zustand store):", authorId);
+        if (userResult.docs && userResult.docs.length > 0) {
+          authorId = (userResult.docs[0] as { id: string }).id;
+          console.log("[API] ✓ Found user by username:", usernameToLookup, "-> Payload ID:", authorId);
         } else {
-          console.warn("[API] Client authorId not found in Payload, will try other methods");
+          console.warn("[API] User not found by username:", usernameToLookup);
         }
-      } catch (idError) {
-        console.warn("[API] Client authorId verification failed, trying other methods:", idError);
+      } catch (lookupError) {
+        console.error("[API] User lookup by username error:", lookupError);
       }
     }
     
-    // SECOND: Try using currentUser.id if it exists (it should be a Payload ID if from /users/me)
-    if (!authorId && currentUser?.id) {
-      // Verify the ID exists in Payload CMS
-      try {
-        const userCheck = await payloadClient.findByID({
-          collection: "users",
-          id: currentUser.id,
-        }, cookies);
-        
-        if (userCheck) {
-          authorId = currentUser.id;
-          console.log("[API] ✓ Using currentUser.id from Payload /users/me:", authorId);
-        }
-      } catch (idError) {
-        console.warn("[API] currentUser.id verification failed, trying username lookup:", idError);
-      }
-    }
-    
-    // If not found, try to find user by username (from authorUsername or currentUser)
-    if (!authorId) {
-      const usernameToLookup = body.authorUsername || currentUser?.username;
-      console.log("[API] Looking up user by username:", usernameToLookup);
-      
-      if (usernameToLookup) {
-        try {
-          const userResult = await payloadClient.find({
-            collection: "users",
-            where: { username: { equals: usernameToLookup } },
-            limit: 1,
-          }, cookies);
-          
-          if (userResult.docs && userResult.docs.length > 0) {
-            authorId = (userResult.docs[0] as { id: string }).id;
-            console.log("[API] ✓ Found user by username:", usernameToLookup, "->", authorId);
-          } else {
-            console.warn("[API] User not found by username:", usernameToLookup);
-          }
-        } catch (lookupError) {
-          console.error("[API] User lookup by username error:", lookupError);
-        }
-      }
-    }
-    
-    // If still not found, try by email
+    // PRIORITY 2: Try by email if username lookup failed
     if (!authorId && currentUser?.email) {
       console.log("[API] Looking up user by email:", currentUser.email);
       try {
@@ -191,25 +151,61 @@ export async function POST(request: Request) {
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
-          console.log("[API] ✓ Found user by email:", currentUser.email, "->", authorId);
+          console.log("[API] ✓ Found user by email:", currentUser.email, "-> Payload ID:", authorId);
         }
       } catch (lookupError) {
         console.error("[API] User lookup by email error:", lookupError);
       }
     }
     
-    // CRITICAL: If we still don't have authorId, we MUST fail - the hook won't work with API key auth
+    // PRIORITY 3: Try authorId from client directly (might be Payload ID in some cases)
+    if (!authorId && body.authorId && String(body.authorId).trim()) {
+      const clientAuthorId = String(body.authorId).trim();
+      try {
+        const userCheck = await payloadClient.findByID({
+          collection: "users",
+          id: clientAuthorId,
+        }, cookies);
+        
+        if (userCheck) {
+          authorId = clientAuthorId;
+          console.log("[API] ✓ Using authorId from client:", authorId);
+        }
+      } catch (idError) {
+        console.warn("[API] Client authorId not found in Payload:", clientAuthorId);
+      }
+    }
+    
+    // PRIORITY 4: Try currentUser.id if it exists
+    if (!authorId && currentUser?.id) {
+      try {
+        const userCheck = await payloadClient.findByID({
+          collection: "users",
+          id: currentUser.id,
+        }, cookies);
+        
+        if (userCheck) {
+          authorId = currentUser.id;
+          console.log("[API] ✓ Using currentUser.id:", authorId);
+        }
+      } catch (idError) {
+        console.warn("[API] currentUser.id not valid Payload ID:", currentUser.id);
+      }
+    }
+    
+    // CRITICAL: If we still don't have authorId, we MUST fail
     if (!authorId) {
       console.error("[API] CRITICAL: Could not find user in Payload CMS", {
-        username: body.authorUsername || currentUser?.username,
+        username: usernameToLookup,
         email: currentUser?.email,
         currentUserId: currentUser?.id,
+        bodyAuthorId: body.authorId,
         cookiesPresent: !!cookies,
       });
       return Response.json(
         { 
           error: "User not found in system. Please try logging in again.",
-          details: "The user account may not exist in Payload CMS. Please ensure you're logged in with a valid account.",
+          details: `Username '${usernameToLookup}' not found in Payload CMS. The user may need to be synced.`,
         },
         { status: 401 },
       );

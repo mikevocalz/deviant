@@ -11,9 +11,7 @@ export default {
     name: "DVNT",
     slug: "dvnt",
     version: "1.0.0",
-    runtimeVersion: {
-      policy: "appVersion",
-    },
+    runtimeVersion: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     userInterfaceStyle: "automatic",

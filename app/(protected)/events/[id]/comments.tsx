@@ -67,24 +67,41 @@ export default function EventCommentsScreen() {
   }, [navigation, colors, router]);
 
   const handleSend = useCallback(async () => {
-    if (!commentText.trim() || isSubmitting) return;
+    if (!commentText.trim()) {
+      showToast("warning", "Empty", "Please enter a comment");
+      return;
+    }
+    if (isSubmitting) {
+      showToast("info", "Wait", "Already sending...");
+      return;
+    }
+    
+    if (!user) {
+      showToast("error", "Error", "You must be logged in to comment");
+      return;
+    }
 
+    // Show sending feedback
+    showToast("info", "Sending", `Posting as @${user.username}...`);
     setIsSubmitting(true);
+    
     try {
       await createComment.mutateAsync({
         eventId,
         text: commentText.trim(),
+        authorUsername: user.username,
       });
       setCommentText("");
-      showToast("success", "Comment Posted", "Your comment has been added");
+      showToast("success", "Posted!", "Your comment was added");
       refetch();
     } catch (error: any) {
+      console.error("[EventComments] Error:", error);
       const errorMessage = error?.error || error?.message || "Failed to post comment";
-      showToast("error", "Error", errorMessage);
+      showToast("error", "Failed", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
-  }, [commentText, isSubmitting, eventId, createComment, refetch, showToast]);
+  }, [commentText, isSubmitting, eventId, createComment, refetch, showToast, user]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

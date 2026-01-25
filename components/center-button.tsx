@@ -7,11 +7,13 @@ type CenterButtonProps = {
 };
 
 export function CenterButton({ Icon, onPress }: CenterButtonProps) {
+  // IMPORTANT: The button MUST be positioned ABOVE the tabbar, never below it
+  // Use positive bottom values to push it up, negative values push it down
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: Platform.OS === "android" ? -34 : -54, // Moved up more on iOS (was -48, now -54)
+    bottom: Platform.OS === "android" ? 8 : 12, // Above tabbar (positive = above)
     left: "50%",
-    transform: [{ translateX: -36 }], // Moved 6px left (was -30, now -36)
+    transform: [{ translateX: -30 }],
     width: 60,
     height: 60,
   };

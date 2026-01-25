@@ -1,26 +1,23 @@
 import { View, Text, Pressable } from "react-native";
 import { ScrollView } from "react-native-gesture-handler";
-import { router } from "expo-router";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import { FileText } from "lucide-react-native";
-import { toast } from "sonner-native";
-import { signUp } from "@/lib/auth-client";
 
+/**
+ * SignUpStep3 - Terms Agreement (Step 2 in the flow)
+ * 
+ * User reads and accepts terms before proceeding to verification.
+ * Account creation happens AFTER verification in SignUpStep2.
+ */
 export function SignUpStep3() {
   const {
-    formData,
     hasScrolledToBottom,
     termsAccepted,
-    isSubmitting,
     setActiveStep,
     setHasScrolledToBottom,
     setTermsAccepted,
-    setIsSubmitting,
-    resetSignup,
   } = useSignupStore();
-  const { setUser } = useAuthStore();
 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -31,108 +28,10 @@ export function SignUpStep3() {
     }
   };
 
-  const recordTermsAcceptance = async (userId: string, email: string) => {
-    try {
-      await fetch("/api/terms-acceptance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId,
-          email,
-          acceptedAt: new Date().toISOString(),
-          termsVersion: "1.0",
-          acceptedPolicies: [
-            "terms-of-service",
-            "privacy-policy",
-            "community-standards",
-            "verification-requirements",
-          ],
-        }),
-      });
-    } catch (error) {
-      console.error("[Signup] Failed to record terms acceptance:", error);
-    }
-  };
-
-  const handleSubmit = async () => {
+  const handleContinue = () => {
     if (!termsAccepted || !hasScrolledToBottom) return;
-
-    setIsSubmitting(true);
-
-    console.log("[SignUp] Form data:", {
-      email: formData.email,
-      password: formData.password ? "***" : "MISSING",
-      name: `${formData.firstName} ${formData.lastName}`,
-      username: formData.username,
-    });
-
-    try {
-      // Register with Better Auth
-      const result = await signUp.email({
-        email: formData.email,
-        password: formData.password,
-        name: `${formData.firstName} ${formData.lastName}`,
-        username: formData.username || formData.email.split("@")[0],
-      });
-
-      console.log("[SignUp] Result received:", JSON.stringify(result, null, 2));
-
-      if (result.error) {
-        toast.error("Registration Failed", {
-          description: result.error.message || "Could not create account",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Handle both result.data.user and result.user structures
-      const user = result.data?.user || (result as any).user;
-
-      if (user) {
-        // Record terms acceptance
-        recordTermsAcceptance(user.id, formData.email).catch(() => {});
-
-        toast.success("Account Created!", {
-          description: "Welcome to DVNT",
-        });
-
-        resetSignup();
-        router.replace("/(protected)/(tabs)" as any);
-      } else {
-        console.error("[SignUp] No user in result:", result);
-        toast.error("Registration issue", {
-          description: "Account may have been created. Try signing in.",
-        });
-        setIsSubmitting(false);
-      }
-    } catch (error: any) {
-      console.error("[Signup] Error creating account:", error);
-      console.error("[Signup] Error type:", typeof error);
-      console.error("[Signup] Error JSON:", JSON.stringify(error, null, 2));
-      console.error(
-        "[Signup] Error keys:",
-        error ? Object.keys(error) : "null",
-      );
-
-      // Try to extract a meaningful error message
-      let errorMsg = "Please try again";
-      if (error?.message) {
-        errorMsg = error.message;
-      } else if (error?.error?.message) {
-        errorMsg = error.error.message;
-      } else if (error?.statusText) {
-        errorMsg = error.statusText;
-      } else if (typeof error === "string") {
-        errorMsg = error;
-      }
-
-      console.error("[Signup] Final error message:", errorMsg);
-
-      toast.error("Failed to create account", {
-        description: errorMsg,
-      });
-      setIsSubmitting(false);
-    }
+    // Go to step 2 (Verification)
+    setActiveStep(2);
   };
 
   return (
@@ -145,7 +44,7 @@ export function SignUpStep3() {
           DVNT Membership Agreement
         </Text>
         <Text className="text-sm text-muted text-center">
-          Please read and accept our policies to join the DVNT community
+          Please read and accept our policies to continue
         </Text>
       </View>
 
@@ -280,17 +179,17 @@ export function SignUpStep3() {
       <View className="flex-row gap-3">
         <Button
           variant="secondary"
-          onPress={() => setActiveStep(1)}
+          onPress={() => setActiveStep(0)}
           className="flex-1"
         >
           Back
         </Button>
         <Button
-          onPress={handleSubmit}
-          disabled={!termsAccepted || !hasScrolledToBottom || isSubmitting}
+          onPress={handleContinue}
+          disabled={!termsAccepted || !hasScrolledToBottom}
           className="flex-1"
         >
-          {isSubmitting ? "Creating Account..." : "Complete Sign Up"}
+          Continue to Verification
         </Button>
       </View>
     </View>

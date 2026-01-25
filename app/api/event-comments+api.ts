@@ -31,28 +31,63 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get current user
-    const currentUser = await payloadClient.me<{ id: string; username: string }>(cookies);
-    
-    if (!currentUser) {
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 },
-      );
+    // Get current user from session
+    let currentUser: { id: string; username: string; email?: string } | null = null;
+    try {
+      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
+      console.log("[API] Current user:", currentUser ? { id: currentUser.id, username: currentUser.username } : "null");
+    } catch (meError) {
+      console.error("[API] Error getting current user:", meError);
     }
 
-    // Look up user by username to get Payload CMS ID
-    let authorId = currentUser.id;
-    if (currentUser.username) {
-      const userResult = await payloadClient.find({
-        collection: "users",
-        where: { username: { equals: currentUser.username } },
-        limit: 1,
-      }, cookies);
-      
-      if (userResult.docs && userResult.docs.length > 0) {
-        authorId = (userResult.docs[0] as { id: string }).id;
+    // CRITICAL: Find Payload CMS user ID by username (most reliable method)
+    let authorId: string | null = null;
+    const usernameToLookup = body.authorUsername || currentUser?.username;
+    
+    console.log("[API] Looking up user by username:", usernameToLookup);
+    
+    if (usernameToLookup) {
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { username: { equals: usernameToLookup } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          authorId = (userResult.docs[0] as { id: string }).id;
+          console.log("[API] ✓ Found user by username:", usernameToLookup, "-> Payload ID:", authorId);
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup by username error:", lookupError);
       }
+    }
+    
+    // Fallback: try by email
+    if (!authorId && currentUser?.email) {
+      console.log("[API] Looking up user by email:", currentUser.email);
+      try {
+        const userResult = await payloadClient.find({
+          collection: "users",
+          where: { email: { equals: currentUser.email } },
+          limit: 1,
+        }, cookies);
+        
+        if (userResult.docs && userResult.docs.length > 0) {
+          authorId = (userResult.docs[0] as { id: string }).id;
+          console.log("[API] ✓ Found user by email -> Payload ID:", authorId);
+        }
+      } catch (lookupError) {
+        console.error("[API] User lookup by email error:", lookupError);
+      }
+    }
+    
+    if (!authorId) {
+      console.error("[API] Could not find user in Payload CMS:", usernameToLookup);
+      return Response.json(
+        { error: "User not found. Please try logging in again." },
+        { status: 401 },
+      );
     }
 
     // Verify event exists

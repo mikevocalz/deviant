@@ -7,6 +7,7 @@ import {
   PermissionsAndroid,
   ScrollView,
 } from "react-native";
+import { router } from "expo-router";
 import { Camera as VisionCamera } from "react-native-vision-camera";
 import {
   Button,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { useVerificationStore } from "@/lib/stores/useVerificationStore";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   CheckCircle2,
   CreditCard,
@@ -29,6 +31,8 @@ import { IdScanTab, FaceScanTab } from "@/components/verification/tabs";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
+import { signUp } from "@/lib/auth-client";
+import { toast } from "sonner-native";
 
 export function SignUpStep2() {
   const {
@@ -39,6 +43,9 @@ export function SignUpStep2() {
     setVerified,
     setExtractedDOB,
     setActiveStep,
+    isSubmitting,
+    setIsSubmitting,
+    resetSignup,
   } = useSignupStore();
   const {
     idComplete,
@@ -48,12 +55,122 @@ export function SignUpStep2() {
     parsedId,
     reset: resetVerification,
   } = useVerificationStore();
+  const { setUser } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
   const [activeTab, setActiveTab] = useState<"id" | "selfie">("id");
   const [isVerifying, setIsVerifying] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
+
+  // Record terms acceptance
+  const recordTermsAcceptance = async (userId: string, email: string) => {
+    try {
+      await fetch("/api/terms-acceptance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          email,
+          acceptedAt: new Date().toISOString(),
+          termsVersion: "1.0",
+          acceptedPolicies: [
+            "terms-of-service",
+            "privacy-policy",
+            "community-standards",
+            "verification-requirements",
+          ],
+        }),
+      });
+    } catch (error) {
+      console.error("[Signup] Failed to record terms acceptance:", error);
+    }
+  };
+
+  // Create account after verification succeeds
+  const createAccount = async () => {
+    setIsSubmitting(true);
+
+    console.log("[SignUp] Creating account after verification...");
+    console.log("[SignUp] Email:", formData.email);
+    console.log("[SignUp] Username:", formData.username);
+
+    try {
+      const result = await signUp.email({
+        email: formData.email,
+        password: formData.password,
+        name: `${formData.firstName} ${formData.lastName}`,
+        username: formData.username || formData.email.split("@")[0],
+      });
+
+      console.log("[SignUp] Result:", JSON.stringify(result, null, 2));
+
+      if (result.error) {
+        console.error("[SignUp] Registration error:", result.error);
+        toast.error("Registration Failed", {
+          description: result.error.message || "Could not create account",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const user = result.data?.user || (result as any).user;
+
+      if (user) {
+        console.log("[SignUp] User created:", user.id);
+
+        setUser({
+          id: String(user.id),
+          email: user.email || formData.email,
+          username: user.username || formData.username,
+          name: `${formData.firstName} ${formData.lastName}`,
+          avatar: user.avatar,
+          bio: "",
+          website: "",
+          location: "",
+          hashtags: [],
+          isVerified: true, // They just verified
+          postsCount: 0,
+          followersCount: 0,
+          followingCount: 0,
+        });
+
+        recordTermsAcceptance(user.id, formData.email).catch(() => {});
+
+        toast.success("Welcome to DVNT!", {
+          description: "Your account has been created and verified.",
+        });
+
+        resetSignup();
+        resetVerification();
+        router.replace("/(protected)/(tabs)" as any);
+      } else {
+        console.error("[SignUp] No user in result:", result);
+        toast.error("Registration issue", {
+          description: "Account may have been created. Try signing in.",
+        });
+        setIsSubmitting(false);
+      }
+    } catch (error: any) {
+      console.error("[Signup] Error:", error);
+
+      let errorMsg = "Please try again";
+      if (error?.message) {
+        errorMsg = error.message;
+      } else if (error?.error?.message) {
+        errorMsg = error.error.message;
+      }
+
+      if (errorMsg.includes("already exists") || errorMsg.includes("duplicate")) {
+        errorMsg = "This email or username is already registered";
+      }
+
+      toast.error("Failed to create account", {
+        description: errorMsg,
+      });
+      setIsSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     checkAndRequestPermissions();
@@ -373,7 +490,7 @@ export function SignUpStep2() {
             Open Settings
           </Button>
         </View>
-        <Button variant="secondary" onPress={() => setActiveStep(0)}>
+        <Button variant="secondary" onPress={() => setActiveStep(1)}>
           Go Back
         </Button>
       </ScrollView>
@@ -507,19 +624,21 @@ export function SignUpStep2() {
       <View className="flex-row gap-3 pt-4">
         <Button
           variant="outline"
-          onPress={() => setActiveStep(0)}
+          onPress={() => setActiveStep(1)}
           className="flex-1 flex-row items-center justify-center"
         >
           <ArrowLeft size={16} className="text-foreground mr-2" />
           <Text className="ml-3 text-foreground">Back</Text>
         </Button>
         <Button
-          onPress={() => setActiveStep(2)}
-          disabled={!canProceed}
+          onPress={createAccount}
+          disabled={!canProceed || isSubmitting}
           className="flex-1 flex-row items-center justify-center"
         >
-          <Text className="mr-3 text-primary-foreground">Continue</Text>
-          <ArrowRight size={16} className="text-primary-foreground ml-2" />
+          <Text className="mr-3 text-primary-foreground">
+            {isSubmitting ? "Creating..." : "Complete Signup"}
+          </Text>
+          {!isSubmitting && <ArrowRight size={16} className="text-primary-foreground ml-2" />}
         </Button>
       </View>
     </ScrollView>

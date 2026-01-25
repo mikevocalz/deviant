@@ -92,37 +92,9 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    let useStaticContent = true;
-
-    try {
-      // Fetch from CMS API
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
-      if (apiUrl) {
-        const response = await fetch(`${apiUrl}/api/legal/${slug}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          // Validate that data has required fields (content is essential)
-          if (data && !data.error && data.content && typeof data.content === "string" && data.content.trim().length > 0) {
-            set((s) => ({
-              pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
-              loading: { ...s.loading, [slug]: false },
-            }));
-            return; // Successfully loaded from API
-          } else {
-            console.log("[LegalStore] API response missing content field, using static content");
-          }
-        } else {
-          console.log("[LegalStore] API response not ok:", response.status, "using static content");
-        }
-      } else {
-        console.log("[LegalStore] No API URL configured, using static content");
-      }
-    } catch (apiError) {
-      console.log("[LegalStore] API fetch failed, using static content:", apiError);
-    }
-
-    // Fall back to static content
+    // PRODUCTION: For native apps, use static content directly
+    // API routes are only available during development with Expo dev server
+    // In production builds, always use static content as the primary source
     const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
 
     if (staticContent) {
@@ -130,12 +102,14 @@ export const useLegalStore = create<LegalState>((set, get) => ({
         pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
         loading: { ...s.loading, [slug]: false },
       }));
-    } else {
-      set((s) => ({
-        loading: { ...s.loading, [slug]: false },
-        errors: { ...s.errors, [slug]: "Page not found" },
-      }));
+      return;
     }
+
+    // If no static content found, show error
+    set((s) => ({
+      loading: { ...s.loading, [slug]: false },
+      errors: { ...s.errors, [slug]: "Page not found" },
+    }));
   },
 
   getPage: (slug: LegalPageSlug) => get().pages[slug],

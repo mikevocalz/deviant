@@ -1,5 +1,5 @@
 
-import { View, Text, Pressable, Dimensions, TextInput, Keyboard } from "react-native"
+import { View, Text, Pressable, Dimensions, TextInput, Keyboard, Platform } from "react-native"
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
 import { Image } from "expo-image"
 import { VideoView, useVideoPlayer } from "expo-video"
@@ -7,6 +7,7 @@ import { X, Send } from "lucide-react-native"
 import { useEffect, useCallback, useRef, useState, useMemo } from "react"
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue, cancelAnimation } from "react-native-reanimated"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { useStoryViewerStore } from "@/lib/stores/comments-store"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 import { useStories } from "@/lib/hooks/use-stories"
@@ -115,27 +116,68 @@ export default function StoryViewerScreen() {
     if (player && videoUrl) {
       try {
         player.loop = false
-        player.play()
+        player.muted = false
+        // Don't play immediately in callback - wait for VideoView to mount
       } catch (error) {
-        console.log("[StoryViewer] Error configuring player:", error);
+        console.error("[StoryViewer] Error configuring player:", error);
       }
     }
   })
+  
+  // Play video when it's ready and VideoView is mounted
+  useEffect(() => {
+    if (!isVideo || !player || !videoUrl) return
+    if (isExiting.current || hasNavigatedAway.current) return
+    if (isPaused.current) return
+    
+    // Small delay to ensure VideoView is mounted
+    const playTimer = setTimeout(() => {
+      try {
+        if (player && !isExiting.current && !hasNavigatedAway.current && !isPaused.current) {
+          console.log("[StoryViewer] Playing video:", videoUrl.slice(0, 50))
+          player.currentTime = 0
+          player.play()
+        }
+      } catch (error) {
+        console.error("[StoryViewer] Error playing video:", error);
+        // If player fails, try to advance to next item
+        if (!hasAdvanced.current) {
+          hasAdvanced.current = true
+          setTimeout(() => {
+            callHandleNext()
+          }, 500)
+        }
+      }
+    }, 100)
+    
+    return () => clearTimeout(playTimer)
+  }, [videoUrl, isVideo, player, callHandleNext])
 
   useEffect(() => {
-    if (!isVideo || !player) return
+    if (!isVideo || !player || !videoUrl) return
 
     const interval = setInterval(() => {
       try {
-        setVideoCurrentTime(player.currentTime)
-        setVideoDuration(player.duration || 0)
-      } catch {
-        // Player may have been released
+        if (player && !isExiting.current && !hasNavigatedAway.current) {
+          const currentTime = player.currentTime || 0
+          const duration = player.duration || 0
+          setVideoCurrentTime(currentTime)
+          setVideoDuration(duration)
+          
+          // Update progress bar based on video playback
+          if (duration > 0) {
+            const progressValue = Math.min(currentTime / duration, 1)
+            progress.value = progressValue
+          }
+        }
+      } catch (error) {
+        // Player may have been released or is invalid
+        console.warn("[StoryViewer] Error reading video player state:", error)
       }
     }, 100)
 
     return () => clearInterval(interval)
-  }, [isVideo, player])
+  }, [isVideo, player, videoUrl, progress])
 
   const handleLongPressStart = useCallback(() => {
     if (!isVideo) return
@@ -173,16 +215,50 @@ export default function StoryViewerScreen() {
     }
   }, [player])
 
+  // Cleanup on unmount or navigation away
+  useEffect(() => {
+    return () => {
+      isExiting.current = true
+      hasNavigatedAway.current = true
+      cancelAnimation(progress)
+      try {
+        if (player) {
+          player.pause()
+          player.currentTime = 0
+        }
+      } catch (error) {
+        // Player may have been released
+        console.warn("[StoryViewer] Error cleaning up player:", error)
+      }
+    }
+  }, [player, progress])
+  
   useFocusEffect(
     useCallback(() => {
+      // Play video when screen is focused
+      if (isVideo && player && videoUrl && !isExiting.current && !hasNavigatedAway.current && !isPaused.current) {
+        const focusTimer = setTimeout(() => {
+          try {
+            if (player && !isExiting.current && !hasNavigatedAway.current) {
+              player.play()
+            }
+          } catch (error) {
+            console.warn("[StoryViewer] Error playing on focus:", error)
+          }
+        }, 150)
+        return () => clearTimeout(focusTimer)
+      }
+      
       return () => {
         try {
-          player?.pause()
+          if (player && isVideo && !isExiting.current) {
+            player.pause()
+          }
         } catch {
           // Player may have been released
         }
       }
-    }, [player])
+    }, [player, isVideo, videoUrl])
   )
 
   // Wrapper function that calls the ref - this ensures we always use the latest handleNext
@@ -212,12 +288,19 @@ export default function StoryViewerScreen() {
       if (isExiting.current || hasNavigatedAway.current) return
       
       // Animate progress bar - use callHandleNext which reads from ref to avoid stale closures
-      progress.value = withTiming(1, { duration }, (finished) => {
-        if (finished && !hasAdvanced.current && !isExiting.current && !hasNavigatedAway.current) {
-          hasAdvanced.current = true
-          runOnJS(callHandleNext)()
-        }
-      })
+      if (!isVideo) {
+        // For images, animate progress bar
+        progress.value = withTiming(1, { duration }, (finished) => {
+          if (finished && !hasAdvanced.current && !isExiting.current && !hasNavigatedAway.current) {
+            hasAdvanced.current = true
+            runOnJS(callHandleNext)()
+          }
+        })
+      } else {
+        // For videos, progress bar will be synced with video playback time in the video tracking effect
+        // Start at 0, it will update as video plays
+        progress.value = 0
+      }
     }, 50)
 
     return () => {
@@ -254,23 +337,35 @@ export default function StoryViewerScreen() {
   const handleNext = useCallback(() => {
     if (!story || !story.items) return
     if (isExiting.current || hasNavigatedAway.current) return // Prevent multiple calls
+    
+    // Prevent double calls - set flag immediately
+    if (hasAdvanced.current) {
+      console.log("[StoryViewer] Already advanced, ignoring duplicate call")
+      return
+    }
+    hasAdvanced.current = true
 
     console.log("[StoryViewer] handleNext called:", {
       currentItemIndex,
       storyItemsLength: story.items.length,
       currentStoryIndex,
       availableStoriesLength: availableStories.length,
+      isOwnStory,
     })
+
+    // Cancel any ongoing animations
+    cancelAnimation(progress)
 
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
       console.log("[StoryViewer] Moving to next item")
-      hasAdvanced.current = false // Reset for next item
       setCurrentItemIndex(currentItemIndex + 1)
+      // Flag will be reset in useEffect when item changes
     } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
       console.log("[StoryViewer] Moving to next user")
       goToNextUser()
+      // Flag will be reset in goToNextUser
     } else {
       // No more stories, exit
       console.log("[StoryViewer] No more stories, exiting")
@@ -279,7 +374,7 @@ export default function StoryViewerScreen() {
       cancelAnimation(progress)
       router.back()
     }
-  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router, progress])
+  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router, progress, isOwnStory])
 
   // Keep ref updated with latest handleNext
   useEffect(() => {
@@ -298,8 +393,12 @@ export default function StoryViewerScreen() {
 
   // Reset flags when item changes
   useEffect(() => {
-    hasAdvanced.current = false
+    // Small delay to prevent race conditions
+    const timer = setTimeout(() => {
+      hasAdvanced.current = false
+    }, 100)
     // Don't reset isExiting or hasNavigatedAway here - those are permanent for the session
+    return () => clearTimeout(timer)
   }, [currentItemIndex, currentStoryId])
   
   // Check if viewing own story (don't show reply input for own story)
@@ -330,14 +429,22 @@ export default function StoryViewerScreen() {
       return
     }
     
+    if (!story.userId) {
+      console.error("[StoryViewer] Story missing userId:", story)
+      showToast("error", "Error", "Story data incomplete. Cannot send reply.")
+      return
+    }
+    
     setIsSendingReply(true)
     Keyboard.dismiss()
     
     try {
+      console.log("[StoryViewer] Sending reply to userId:", story.userId)
       // Get or create conversation with story owner
       const conversation = await messagesApiClient.getOrCreateConversation(story.userId)
       
       if (!conversation) {
+        console.error("[StoryViewer] Failed to get/create conversation")
         showToast("error", "Error", "Could not start conversation")
         setIsSendingReply(false)
         return
@@ -351,14 +458,17 @@ export default function StoryViewerScreen() {
       })
       
       if (message) {
+        console.log("[StoryViewer] Reply sent successfully")
         showToast("success", "Sent", "Reply sent to their messages")
         setReplyText("")
       } else {
+        console.error("[StoryViewer] Message send returned null")
         showToast("error", "Error", "Failed to send reply")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("[StoryViewer] Reply error:", error)
-      showToast("error", "Error", "Failed to send reply")
+      const errorMsg = error?.message || error?.error?.message || "Failed to send reply"
+      showToast("error", "Error", errorMsg)
     } finally {
       setIsSendingReply(false)
       setIsInputFocused(false)
@@ -366,15 +476,29 @@ export default function StoryViewerScreen() {
   }, [replyText, story, isSendingReply, isOwnStory, showToast])
 
   // Video end detection - auto-advance when video finishes
+  // Video end detection - auto-advance when video finishes
   useEffect(() => {
     if (!isVideo || !player || videoDuration === 0) return
+    if (isExiting.current || hasNavigatedAway.current) return
+    if (isPaused.current) return
+    if (hasAdvanced.current) return // Already advanced
     
-    // Check if video has ended (within 0.3s of end) and we haven't already advanced
-    if (videoCurrentTime >= videoDuration - 0.3 && !isPaused.current && !hasAdvanced.current) {
+    // Check if video has ended (within 0.2s of end) and we haven't already advanced
+    if (videoCurrentTime >= videoDuration - 0.2 && videoDuration > 0) {
+      console.log("[StoryViewer] Video ended, advancing...", {
+        videoCurrentTime,
+        videoDuration,
+        hasAdvanced: hasAdvanced.current,
+      })
       hasAdvanced.current = true
-      callHandleNext()
+      // Cancel the progress animation since video ended naturally
+      cancelAnimation(progress)
+      // Small delay to ensure state is consistent
+      setTimeout(() => {
+        callHandleNext()
+      }, 50)
     }
-  }, [isVideo, player, videoCurrentTime, videoDuration, callHandleNext])
+  }, [isVideo, player, videoCurrentTime, videoDuration, callHandleNext, progress])
 
   if (isLoading) {
     return (
@@ -437,19 +561,29 @@ export default function StoryViewerScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           {isVideo && videoUrl && player ? (
             <View style={{ width, height: height * 0.7 }}>
-              <VideoView
-                player={player}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="contain"
-                nativeControls={false}
-              />
-              <VideoSeekBar
-                currentTime={videoCurrentTime}
-                duration={videoDuration}
-                onSeek={handleSeek}
-                visible={showSeekBar}
-                barWidth={width - 32}
-              />
+              {videoUrl ? (
+                <>
+                  <VideoView
+                    player={player}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="contain"
+                    nativeControls={false}
+                    allowsFullscreen={false}
+                    allowsPictureInPicture={false}
+                  />
+                  <VideoSeekBar
+                    currentTime={videoCurrentTime}
+                    duration={videoDuration}
+                    onSeek={handleSeek}
+                    visible={showSeekBar}
+                    barWidth={width - 32}
+                  />
+                </>
+              ) : (
+                <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                  <Text style={{ color: "#fff" }}>Invalid video URL</Text>
+                </View>
+              )}
             </View>
           ) : isImage && currentItem?.url && (currentItem.url.startsWith("http://") || currentItem.url.startsWith("https://")) ? (
             <Image
@@ -488,7 +622,7 @@ export default function StoryViewerScreen() {
         </View>
 
       {/* Touch areas for navigation - full screen overlay */}
-      <View style={{ position: "absolute", top: 100, bottom: isOwnStory ? 0 : 60, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
+      <View style={{ position: "absolute", top: 100, bottom: isOwnStory ? 0 : 80, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
         {/* Left tap area - previous */}
         <Pressable 
           onPress={handlePrev} 
@@ -502,68 +636,78 @@ export default function StoryViewerScreen() {
       </View>
       
       {/* Reply input - only show for other users' stories */}
-      {!isOwnStory && story && (
-        <View 
+      {!isOwnStory && story && story.userId && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
           style={{ 
             position: "absolute", 
-            bottom: insets.bottom + 8, 
-            left: 16, 
-            right: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 8,
+            bottom: 0,
+            left: 0,
+            right: 0,
           }}
         >
           <View 
             style={{ 
-              flex: 1, 
-              flexDirection: "row", 
-              alignItems: "center",
-              backgroundColor: "rgba(255,255,255,0.15)", 
-              borderRadius: 24,
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.3)",
+              paddingBottom: insets.bottom + 8,
+              paddingTop: 8,
               paddingHorizontal: 16,
-              paddingVertical: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            <TextInput
+            <View 
               style={{ 
                 flex: 1, 
-                color: "#fff", 
-                fontSize: 14,
-                paddingVertical: 4,
-              }}
-              placeholder={`Reply to ${story.username}...`}
-              placeholderTextColor="rgba(255,255,255,0.6)"
-              value={replyText}
-              onChangeText={setReplyText}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
-              returnKeyType="send"
-              onSubmitEditing={handleSendReply}
-              editable={!isSendingReply}
-            />
-          </View>
-          
-          {replyText.trim().length > 0 && (
-            <Pressable
-              onPress={handleSendReply}
-              disabled={isSendingReply}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: "#8A40CF",
+                flexDirection: "row", 
                 alignItems: "center",
-                justifyContent: "center",
-                opacity: isSendingReply ? 0.5 : 1,
+                backgroundColor: "rgba(255,255,255,0.15)", 
+                borderRadius: 24,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.3)",
+                paddingHorizontal: 16,
+                paddingVertical: 8,
               }}
             >
-              <Send size={18} color="#fff" />
-            </Pressable>
-          )}
-        </View>
+              <TextInput
+                style={{ 
+                  flex: 1, 
+                  color: "#fff", 
+                  fontSize: 14,
+                  paddingVertical: 4,
+                }}
+                placeholder={`Reply to ${story.username}...`}
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                value={replyText}
+                onChangeText={setReplyText}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
+                returnKeyType="send"
+                onSubmitEditing={handleSendReply}
+                editable={!isSendingReply}
+              />
+            </View>
+            
+            {replyText.trim().length > 0 && (
+              <Pressable
+                onPress={handleSendReply}
+                disabled={isSendingReply}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "#8A40CF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isSendingReply ? 0.5 : 1,
+                }}
+              >
+                <Send size={18} color="#fff" />
+              </Pressable>
+            )}
+          </View>
+        </KeyboardAvoidingView>
       )}
     </View>
   )

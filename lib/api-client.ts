@@ -14,10 +14,11 @@
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// API base URL - Uses the deployed API server for all API calls
-// Note: Expo Router API routes work for web dev, but native apps need a real server
-// Priority: EXPO_PUBLIC_API_URL > EXPO_PUBLIC_AUTH_URL (Hono server has API endpoints)
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_AUTH_URL || "";
+// API base URL - Uses the Hono server for all API calls
+// The Hono server (EXPO_PUBLIC_AUTH_URL) has all API routes with proper user lookup
+// EXPO_PUBLIC_API_URL points to Payload CMS directly, which doesn't have the user lookup logic
+// Priority: EXPO_PUBLIC_AUTH_URL (Hono server with API routes) > EXPO_PUBLIC_API_URL (Payload CMS)
+const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
 
 // Log the API URL for debugging
 console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
@@ -486,6 +487,7 @@ export const eventComments = {
     eventId: string;
     text: string;
     parent?: string;
+    authorUsername?: string;
   }) =>
     apiFetch<T>("/api/event-comments", {
       method: "POST",

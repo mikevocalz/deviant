@@ -466,10 +466,10 @@ export default function ProfileScreen() {
         </View>
       ),
       headerRight: () => (
-        <Pressable 
-          onPress={() => router.push("/settings")} 
+        <Pressable
+          onPress={() => router.push("/settings")}
           hitSlop={12}
-          style={{ marginRight: 8 }}
+          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <Settings size={24} color={colors.foreground} />
         </Pressable>

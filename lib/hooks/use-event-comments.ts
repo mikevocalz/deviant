@@ -33,6 +33,7 @@ export function useCreateEventComment() {
       eventId: string;
       text: string;
       parent?: string;
+      authorUsername?: string;
     }) => {
       return await eventComments.create(data);
     },

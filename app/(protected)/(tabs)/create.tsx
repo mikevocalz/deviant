@@ -33,6 +33,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useCallback, useEffect, useState, useLayoutEffect } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
+import { Switch } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -45,7 +46,7 @@ const MIN_CAPTION_LENGTH = 50;
 export default function CreateScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { caption, location, setCaption, setLocationData, reset } =
+  const { caption, location, isNSFW, setCaption, setLocationData, setIsNSFW, reset } =
     useCreatePostStore();
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
@@ -307,6 +308,7 @@ export default function CreateScreen() {
           media: postMedia,
           author: user?.id,
           authorUsername: user?.username,
+          isNSFW,
         },
         {
           onSuccess: (newPost) => {
@@ -366,16 +368,10 @@ export default function CreateScreen() {
         fontSize: 18,
       },
       headerLeft: () => (
-        <Pressable 
-          onPress={handleClose} 
+        <Pressable
+          onPress={handleClose}
           hitSlop={12}
-          style={{ 
-            marginLeft: 8,
-            width: 40,
-            height: 40,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={{ marginLeft: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
@@ -474,6 +470,40 @@ export default function CreateScreen() {
             onClear={() => setLocationData(null)}
           />
         </View>
+
+        {/* NSFW Toggle - only show when media is selected */}
+        {selectedMedia.length > 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              marginBottom: 16,
+              backgroundColor: isNSFW ? "rgba(239, 68, 68, 0.1)" : "transparent",
+              borderRadius: 12,
+              marginHorizontal: 16,
+              borderWidth: 1,
+              borderColor: isNSFW ? "rgba(239, 68, 68, 0.3)" : "#333",
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: isNSFW ? "#ef4444" : "#fff", fontWeight: "600", fontSize: 15 }}>
+                NSFW Content
+              </Text>
+              <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>
+                Mark as adult/sensitive content
+              </Text>
+            </View>
+            <Switch
+              value={isNSFW}
+              onValueChange={setIsNSFW}
+              trackColor={{ false: "#333", true: "#ef4444" }}
+              thumbColor={isNSFW ? "#fff" : "#888"}
+            />
+          </View>
+        )}
 
         <View
           style={{

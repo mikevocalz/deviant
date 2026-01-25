@@ -1,4 +1,3 @@
-
 import {
   View,
   Text,
@@ -7,23 +6,27 @@ import {
   Keyboard,
   ActivityIndicator,
   Platform,
-  Alert,
 } from "react-native";
 import { KeyboardAwareScrollView, KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { Image } from "expo-image";
 import { X, Send, Heart } from "lucide-react-native";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
+import { useColorScheme } from "@/lib/hooks";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const { commentId } = useLocalSearchParams<{ commentId?: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
+  const { colors } = useColorScheme();
   const user = useAuthStore((s) => s.user);
+  const showToast = useUIStore((s) => s.showToast);
   const {
     newComment: comment,
     replyingTo,
@@ -32,38 +35,91 @@ export default function CommentsScreen() {
   } = useCommentsStore();
   const insets = useSafeAreaInsets();
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "Comments",
+      headerTitleAlign: "left" as const,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => null,
+      headerRight: () => (
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+        >
+          <X size={24} color={colors.foreground} strokeWidth={2.5} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, router]);
+
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
   const createComment = useCreateComment();
 
   const handleSend = useCallback(() => {
-    if (!comment.trim() || !postId || createComment.isPending) return;
+    // Show immediate feedback that button was pressed
+    console.log("[Comments] handleSend called");
+    
+    if (!comment.trim()) {
+      showToast("warning", "Empty", "Please enter a comment");
+      return;
+    }
+    if (!postId) {
+      showToast("error", "Error", "No post ID found");
+      return;
+    }
+    if (createComment.isPending) {
+      showToast("info", "Wait", "Already sending...");
+      return;
+    }
+    
+    // Validate user is logged in
+    if (!user) {
+      showToast("error", "Error", "You must be logged in to comment");
+      return;
+    }
+    
+    if (!user.username) {
+      showToast("error", "Error", "User profile incomplete. Please log out and log back in.");
+      return;
+    }
+    
+    // Show sending feedback
+    showToast("info", "Sending", `Posting as @${user.username}...`);
+    
     const commentText = comment.trim();
     const parentId = replyingTo || undefined;
+    
     createComment.mutate(
       {
         post: postId,
         text: commentText,
         parent: parentId,
-        authorUsername: user?.username,
-        authorId: user?.id, // Payload CMS user ID from Zustand store
+        authorUsername: user.username,
+        authorId: user.id,
       },
       {
         onSuccess: () => {
           setComment("");
           setReplyingTo(null);
           Keyboard.dismiss();
+          showToast("success", "Posted!", "Your comment was added");
         },
         onError: (error: any) => {
-          console.error("[Comments] Failed to create comment:", error);
-          console.error("[Comments] Error details:", JSON.stringify(error, null, 2));
-          // Show error to user
-          const errorMessage = error?.message || error?.error?.message || "Failed to create comment. Please try again.";
-          Alert.alert("Error", errorMessage);
+          console.error("[Comments] Error:", error);
+          const errorMessage = error?.message || error?.error?.message || error?.error || "Failed to create comment";
+          showToast("error", "Failed", errorMessage);
         },
       },
     );
-  }, [comment, postId, replyingTo, createComment, setComment, setReplyingTo, user?.username]);
+  }, [comment, postId, replyingTo, createComment, setComment, setReplyingTo, user, showToast]);
 
   useEffect(() => {
     const keyboardDidHideListener = Keyboard.addListener(
@@ -104,27 +160,7 @@ export default function CommentsScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottomWidth: 1,
-          borderBottomColor: "#1a1a1a",
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-        }}
-      >
-        <View style={{ width: 24 }} />
-        <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
-          Comments
-        </Text>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <X size={24} color="#fff" />
-        </Pressable>
-      </View>
-
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAwareScrollView 
         style={{ flex: 1 }} 
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
@@ -505,12 +541,12 @@ export default function CommentsScreen() {
           />
           <Pressable
             onPress={handleSend}
-            disabled={!comment.trim() || createComment.isPending}
+            disabled={!comment.trim() || createComment.isPending || !user}
             style={{
               width: 40,
               height: 40,
               borderRadius: 20,
-              backgroundColor: comment.trim() && !createComment.isPending ? "#3EA4E5" : "#1a1a1a",
+              backgroundColor: comment.trim() && !createComment.isPending && user ? "#3EA4E5" : "#1a1a1a",
               justifyContent: "center",
               alignItems: "center",
             }}
@@ -518,7 +554,7 @@ export default function CommentsScreen() {
             {createComment.isPending ? (
               <ActivityIndicator size="small" color="#666" />
             ) : (
-              <Send size={20} color={comment.trim() ? "#fff" : "#666"} />
+              <Send size={20} color={comment.trim() && user ? "#fff" : "#666"} />
             )}
           </Pressable>
         </View>

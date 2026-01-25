@@ -1,37 +1,68 @@
-import { useEffect, useRef } from "react"
-import { View, StyleSheet } from "react-native"
-import Animated, { FadeOut } from "react-native-reanimated"
-import { RiveView, useRiveFile, Fit, type RiveError } from "@rive-app/react-native"
+import { useEffect, useRef } from "react";
+import { View, StyleSheet } from "react-native";
+import Animated, { FadeOut } from "react-native-reanimated";
+import {
+  RiveView,
+  useRiveFile,
+  Fit,
+  type RiveError,
+} from "@rive-app/react-native";
+
+// Module-level flag - persists across component remounts
+let hasCalledFinish = false;
 
 type AnimatedSplashScreenProps = {
-  onAnimationFinish?: (isCancelled: boolean) => void
-}
+  onAnimationFinish?: (isCancelled: boolean) => void;
+};
 
-export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSplashScreenProps) {
-  const animationFinished = useRef(false)
+export default function AnimatedSplashScreen({
+  onAnimationFinish,
+}: AnimatedSplashScreenProps) {
+  const animationFinished = useRef(hasCalledFinish);
 
-  const { riveFile, error: riveError } = useRiveFile(require("../assets/deviant.riv"))
+  const { riveFile, error: riveError } = useRiveFile(
+    require("../assets/deviant.riv"),
+  );
 
   useEffect(() => {
     if (riveError) {
-      console.error("[Splash] Rive file load error:", riveError)
+      console.error("[Splash] Rive file load error:", riveError);
     }
-  }, [riveError])
+  }, [riveError]);
 
+  // Start timer only after Rive file is loaded
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (!animationFinished.current) {
-        animationFinished.current = true
-        onAnimationFinish?.(false)
-      }
-    }, 6000)
+    // Guard: If already finished (from previous mount), don't start timer
+    if (hasCalledFinish) {
+      console.log("[Splash] Already finished in previous mount, calling finish immediately");
+      onAnimationFinish?.(false);
+      return;
+    }
 
-    return () => clearTimeout(timer)
-  }, [onAnimationFinish])
+    if (!riveFile) {
+      console.log("[Splash] Waiting for Rive file to load...");
+      return;
+    }
+
+    console.log("[Splash] Rive file loaded, starting 10.5 second timer");
+    // Give the animation plenty of time to complete - 10.5 seconds
+    const timer = setTimeout(() => {
+      if (!animationFinished.current && !hasCalledFinish) {
+        animationFinished.current = true;
+        hasCalledFinish = true;
+        console.log("[Splash] Animation timer completed, calling onAnimationFinish");
+        onAnimationFinish?.(false);
+      } else {
+        console.log("[Splash] Timer completed but already finished, skipping");
+      }
+    }, 10500);
+
+    return () => clearTimeout(timer);
+  }, [riveFile, onAnimationFinish]);
 
   const handleRiveError = (err: RiveError) => {
-    console.error("[Splash] Rive error:", err.message, "type:", err.type)
-  }
+    console.error("[Splash] Rive error:", err.message, "type:", err.type);
+  };
 
   return (
     <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
@@ -49,7 +80,7 @@ export default function AnimatedSplashScreen({ onAnimationFinish }: AnimatedSpla
         )}
       </View>
     </Animated.View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -73,4 +104,4 @@ const styles = StyleSheet.create({
     height: "100%",
     backgroundColor: "#000",
   },
-})
+});

@@ -410,16 +410,10 @@ export default function CreateStoryScreen() {
         fontSize: 18,
       },
       headerLeft: () => (
-        <Pressable 
-          onPress={handleClose} 
+        <Pressable
+          onPress={handleClose}
           hitSlop={12}
-          style={{ 
-            marginLeft: 8,
-            width: 40,
-            height: 40,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={{ marginLeft: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
         >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>

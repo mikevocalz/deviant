@@ -123,12 +123,23 @@ export const payloadClient = {
     collection: string,
     data: Record<string, unknown>,
     cookies?: string,
+    depth?: number,
   ): Promise<T> {
+    const query = depth != null ? `?depth=${depth}` : "";
     return payloadFetch<T>(
-      `/${collection}`,
+      `/${collection}${query}`,
       { method: "POST", body: JSON.stringify(data) },
       cookies,
     );
+  },
+
+  async me<T = Record<string, unknown>>(cookies?: string): Promise<T | null> {
+    try {
+      return payloadFetch<T>("/users/me", { method: "GET" }, cookies);
+    } catch (e: unknown) {
+      if ((e as { status?: number }).status === 401) return null;
+      throw e;
+    }
   },
 
   async update<T = Record<string, unknown>>(

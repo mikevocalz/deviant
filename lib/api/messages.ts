@@ -2,9 +2,12 @@
  * Messages API - handles chat messages with Bunny CDN media uploads
  */
 
-import { createCollectionAPI } from "@/lib/api-client";
+import { createCollectionAPI, users } from "@/lib/api-client";
 import { uploadToBunny } from "@/lib/bunny-storage";
 import { useAuthStore } from "@/lib/stores/auth-store";
+
+// Cache for Payload CMS user ID lookups
+const payloadUserIdCache: Record<string, string> = {};
 
 export interface MessageMedia {
   type: "image" | "video";
@@ -84,6 +87,34 @@ function transformConversation(doc: Record<string, unknown>): Conversation {
   };
 }
 
+// Helper to get Payload CMS user ID by username
+async function getPayloadUserId(username: string): Promise<string | null> {
+  if (!username) return null;
+  
+  // Check cache first
+  if (payloadUserIdCache[username]) {
+    return payloadUserIdCache[username];
+  }
+  
+  try {
+    const result = await users.find({
+      where: { username: { equals: username } },
+      limit: 1,
+    });
+    
+    if (result.docs && result.docs.length > 0) {
+      const payloadId = (result.docs[0] as { id: string }).id;
+      payloadUserIdCache[username] = payloadId;
+      console.log("[messagesApi] Found Payload user ID for", username, "->", payloadId);
+      return payloadId;
+    }
+  } catch (error) {
+    console.error("[messagesApi] Error looking up Payload user ID:", error);
+  }
+  
+  return null;
+}
+
 export const messagesApiClient = {
   // Get messages for a conversation
   async getMessages(conversationId: string, limit = 50): Promise<Message[]> {
@@ -113,6 +144,13 @@ export const messagesApiClient = {
         throw new Error("User must be logged in to send messages");
       }
 
+      // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) {
+        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        throw new Error("User not found in system");
+      }
+
       // Upload media to Bunny CDN if present
       let mediaItems: MessageMedia[] = [];
       if (data.media && data.media.length > 0) {
@@ -135,11 +173,11 @@ export const messagesApiClient = {
         }
       }
 
-      console.log("[messagesApi] Sending message with media:", mediaItems);
+      console.log("[messagesApi] Sending message with Payload user ID:", payloadUserId);
 
       const doc = await messagesApi.create({
         conversation: data.conversationId,
-        sender: user.id,
+        sender: payloadUserId, // Use Payload CMS user ID, not Better Auth ID
         content: data.content || "",
         media: mediaItems,
       });
@@ -161,11 +199,20 @@ export const messagesApiClient = {
         throw new Error("User must be logged in");
       }
 
-      // Try to find existing conversation
+      // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) {
+        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        throw new Error("User not found in system");
+      }
+
+      console.log("[messagesApi] Looking for conversation between", payloadUserId, "and", otherUserId);
+
+      // Try to find existing conversation using Payload CMS user IDs
       const existing = await conversationsApi.find({
         where: {
           and: [
-            { participants: { contains: user.id } },
+            { participants: { contains: payloadUserId } },
             { participants: { contains: otherUserId } },
             { isGroup: { equals: false } },
           ],
@@ -174,12 +221,14 @@ export const messagesApiClient = {
       });
 
       if (existing.docs.length > 0) {
+        console.log("[messagesApi] Found existing conversation:", existing.docs[0].id);
         return transformConversation(existing.docs[0]);
       }
 
-      // Create new conversation
+      // Create new conversation with Payload CMS user IDs
+      console.log("[messagesApi] Creating new conversation");
       const doc = await conversationsApi.create({
-        participants: [user.id, otherUserId],
+        participants: [payloadUserId, otherUserId],
         isGroup: false,
       });
 
@@ -196,10 +245,17 @@ export const messagesApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) return [];
 
+      // Get Payload CMS user ID
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) {
+        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        return [];
+      }
+
       const response = await conversationsApi.find({
         limit: 50,
         sort: "-lastMessageAt",
-        where: { participants: { contains: user.id } },
+        where: { participants: { contains: payloadUserId } },
         depth: 2,
       });
 
@@ -216,12 +272,16 @@ export const messagesApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) return;
 
+      // Get Payload CMS user ID
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) return;
+
       // Find unread messages in this conversation not sent by current user
       const unread = await messagesApi.find({
         where: {
           and: [
             { conversation: { equals: conversationId } },
-            { sender: { not_equals: user.id } },
+            { sender: { not_equals: payloadUserId } },
             { readAt: { exists: false } },
           ],
         },
@@ -244,11 +304,15 @@ export const messagesApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) return 0;
 
+      // Get Payload CMS user ID
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) return 0;
+
       // Find all unread messages not sent by current user
       const unread = await messagesApi.find({
         where: {
           and: [
-            { sender: { not_equals: user.id } },
+            { sender: { not_equals: payloadUserId } },
             { readAt: { exists: false } },
           ],
         },

@@ -4,12 +4,52 @@
 
 ## 📍 CMS Location
 
-The Payload CMS project lives in a **separate folder**:
+**All Payload CMS collections live only in:**
 ```
 /Users/mikevocalz/Downloads/payload-cms-setup
 ```
 
-When making changes to CMS collections, they must be synced to that folder and the CMS must be redeployed separately.
+- There are **no** collections or `payload.config` in the deviant repo. Do not add any.
+- When changing CMS collections, edit them in **payload-cms-setup** only, then redeploy the CMS from that folder.
+
+---
+
+## 🔄 Database Schema Sync - CRITICAL
+
+**⚠️ The Payload CMS collection definitions MUST stay in sync with the PostgreSQL database schema.**
+
+### Why This Matters
+
+If you add a new field to a collection (e.g., `isNSFW` to Posts), but the database table doesn't have that column, you'll get errors like:
+```
+column "is_nsfw" of relation "posts" does not exist
+```
+
+### How to Keep in Sync
+
+1. **Adding new fields to collections:**
+   - Add the field to the collection in `/Users/mikevocalz/Downloads/payload-cms-setup/collections/`
+   - Payload CMS should auto-migrate on deploy, but if not:
+     - Run `npx payload migrate:create` to generate a migration
+     - Or manually add the column via Supabase SQL Editor
+
+2. **Before deploying collection changes:**
+   - Check if the field requires a DB migration
+   - Test locally first if possible
+
+3. **If you get "column does not exist" errors:**
+   - The collection has a field the DB doesn't have
+   - Either remove the field from the collection temporarily
+   - Or add the column to the database manually
+
+### Manual Column Addition (Supabase)
+
+```sql
+-- Example: Add isNSFW column to posts table
+ALTER TABLE posts ADD COLUMN is_nsfw BOOLEAN DEFAULT false;
+```
+
+**Remember:** Collection schema changes = potential database migration needed!
 
 ---
 
@@ -192,6 +232,68 @@ Before running native builds, verify:
 
 ---
 
+## 🚫 Tab Bar Center Button - NEVER BELOW
+
+**⚠️ The center button on the tab bar MUST ALWAYS be positioned ABOVE the tabbar, NEVER below it.**
+
+**Location:** `components/center-button.tsx`
+
+**Rules:**
+- Use **positive** `bottom` values to push the button UP (above the tabbar)
+- **NEVER** use negative `bottom` values that push the button down into or below the tabbar
+- Current correct values: `bottom: 8` (Android), `bottom: 12` (iOS)
+
+**Example of CORRECT positioning:**
+```tsx
+const containerStyle: ViewStyle = {
+  position: "absolute",
+  bottom: Platform.OS === "android" ? 8 : 12, // POSITIVE = above tabbar
+  // ...
+};
+```
+
+**Example of WRONG positioning (NEVER do this):**
+```tsx
+bottom: -34  // WRONG - pushes button below tabbar
+bottom: -4   // WRONG - pushes button into tabbar
+```
+
+---
+
+## 🏭 Production-First Development
+
+**⚠️ ALWAYS write code for production, not just development.**
+
+**Rules:**
+1. **API Routes don't work in production native apps** - Expo Router API routes (`+api.ts`) only work with the dev server. In production builds, use:
+   - Direct API calls to deployed services (Payload CMS, Hono server)
+   - Static content fallbacks where appropriate
+   - The `EXPO_PUBLIC_API_URL` environment variable for API endpoints
+
+2. **Static content fallbacks** - For legal pages, FAQs, etc., always include static fallback content that works without network requests
+
+3. **Never rely on dev-only features** - Features that only work in `__DEV__` mode must have production equivalents
+
+4. **Test with production builds** - Before pushing EAS updates, test with:
+   ```bash
+   npx expo start --no-dev --minify
+   ```
+
+5. **Environment-aware code:**
+   ```tsx
+   // Good - works in production
+   const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
+   
+   // Better - explicit production handling
+   if (__DEV__) {
+     // Dev-only behavior
+   } else {
+     // Production behavior
+   }
+   ```
+
+---
+
 ## 🚨 CRITICAL: Update Toast Functionality
 
 **⚠️ NEVER REMOVE OR DISABLE THE UPDATE TOAST**
@@ -220,6 +322,16 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 **Location:** `lib/hooks/use-updates.ts` - `showUpdateToast()` function
 
 **⚠️ CRITICAL: This toast must NEVER be removed, disabled, or modified to prevent showing. It is essential for the app's update mechanism.**
+
+### EAS Updates – Getting the app to receive OTA updates
+
+- **Runtime version:** The project uses a **fixed** `runtimeVersion: "1.0.0"` in `app.config.js`. Updates are published for `1.0.0`. **After changing `runtimeVersion`, you must create a new EAS build** (and submit it) for the change to apply. Existing store builds keep their old runtime until users install the new binary.
+- **Publish updates:** `pnpm update:production` or `eas update --channel production`. Use `eas update --channel preview` (or `pnpm update:preview`) for preview builds.
+- **Existing live builds (built before fixed runtime):** If the app was built with `policy: "appVersion"` + `autoIncrement`, its runtime is e.g. `1.0.1`, `1.0.2`. To push updates to **those** builds, run `eas update --channel production --runtime-version X.Y.Z` where `X.Y.Z` is the **live build's** runtime. Get it from [EAS → Builds](https://expo.dev) → select the production build that's in the store → Runtime version. After you ship a **new** build (with fixed `1.0.0`), use `eas update --channel production` only.
+- **Receive updates:** Use a **production** or **preview** EAS build. OTA checks are **skipped in `__DEV__`** (e.g. `expo start --dev-client`). Production builds have `__DEV__ === false` and will check.
+- **Test OTA in dev:** Set `EXPO_PUBLIC_FORCE_OTA_CHECK=true` so the hook runs checks even in `__DEV__`.
+- **Channel / runtime:** Build and update must share the same **channel** and **runtime version**. Check [EAS Deployments](https://expo.dev) (channel, runtime version, branch) if updates are not received.
+- **Logs:** The hook logs `[Updates]` messages (init, check, fetch, skip reasons). When no update is found, it also logs recent native `expo-updates` entries. Use device logs to debug.
 
 ---
 

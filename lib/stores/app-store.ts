@@ -3,6 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 
 const NSFW_STORAGE_KEY = "app_nsfw_enabled"
 
+// Module-level flag to ensure splash NEVER replays within app process lifetime
+let splashHasFinishedEver = false;
+
 interface AppState {
   appReady: boolean
   splashAnimationFinished: boolean
@@ -15,19 +18,32 @@ interface AppState {
   loadNsfwSetting: () => Promise<void>
 }
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>((set, get) => ({
   appReady: false,
-  splashAnimationFinished: false,
+  // Initialize from module-level flag to handle any store resets
+  splashAnimationFinished: splashHasFinishedEver,
   nsfwEnabled: false,
   nsfwLoaded: false,
   setAppReady: (ready) => set({ appReady: ready }),
-  setSplashAnimationFinished: (finished) => set({ splashAnimationFinished: finished }),
+  setSplashAnimationFinished: (finished) => {
+    if (finished) {
+      splashHasFinishedEver = true;
+    }
+    set({ splashAnimationFinished: finished });
+  },
   onAnimationFinish: (isCancelled) => {
+    // Guard: Never call this more than once
+    if (splashHasFinishedEver || get().splashAnimationFinished) {
+      console.log("[AppStore] onAnimationFinish called but splash already finished, ignoring");
+      return;
+    }
+    
     console.log("[AppStore] onAnimationFinish called, isCancelled:", isCancelled);
     if (!isCancelled) {
       console.log("[AppStore] Setting splashAnimationFinished to true");
+      splashHasFinishedEver = true;
       set({ splashAnimationFinished: true });
-      console.log("[AppStore] splashAnimationFinished set to true");
+      console.log("[AppStore] splashAnimationFinished set to true (permanent)");
     } else {
       console.log("[AppStore] Animation was cancelled, not finishing");
     }

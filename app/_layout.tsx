@@ -39,15 +39,19 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
   const { loadAuthState, isAuthenticated, hasSeenOnboarding } = useAuthStore();
-  const { appReady, splashAnimationFinished, setAppReady, onAnimationFinish, setSplashAnimationFinished } =
-    useAppStore();
+  const {
+    appReady,
+    splashAnimationFinished,
+    setAppReady,
+    onAnimationFinish,
+    setSplashAnimationFinished,
+  } = useAppStore();
   const insets = useSafeAreaInsets();
 
-  // Reset splash animation state on mount to ensure it shows
-  useEffect(() => {
-    setSplashAnimationFinished(false);
-    console.log("[RootLayout] Reset splash animation state");
-  }, []);
+  // NOTE: We do NOT reset splashAnimationFinished here.
+  // Once the splash animation is finished, it should never replay during the app session.
+  // The splashAnimationFinished state is initialized to false in the store,
+  // and is set to true when the animation completes via onAnimationFinish.
 
   // Check for OTA updates on app launch and foreground
   useUpdates();
@@ -66,37 +70,50 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    loadAuthState();
+    // Load auth state and attempt recovery if needed
+    const initAuth = async () => {
+      await loadAuthState();
+      // Small delay to let persist rehydrate, then check if we need recovery
+      setTimeout(async () => {
+        const { user, isAuthenticated } = useAuthStore.getState();
+        if (!user && !isAuthenticated) {
+          console.log("[RootLayout] No user in store, attempting recovery...");
+          await loadAuthState(); // Try recovery
+        }
+      }, 500);
+    };
+    initAuth();
   }, [loadAuthState]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
       setAppReady(true);
-      // Don't hide native splash until animation finishes
-      // The animated splash will handle the transition
     }
   }, [fontsLoaded, fontError, setAppReady]);
 
-  // Hide native splash only when animation is finished
+  // Hide native splash as soon as app is ready so the Rive animated splash is visible.
+  // If we waited until splashAnimationFinished, the native splash would stay on top
+  // and cover the Rive animation the entire time.
   useEffect(() => {
-    if (splashAnimationFinished && appReady) {
+    if (appReady) {
       SplashScreen.hideAsync();
     }
-  }, [splashAnimationFinished, appReady]);
+  }, [appReady]);
 
   // Show animated splash until BOTH app is ready AND animation is finished
-  const showAnimatedSplash = !appReady || !splashAnimationFinished;
-  
+  // IMPORTANT: Always wait for splashAnimationFinished, even if appReady is true
+  const showAnimatedSplash = !splashAnimationFinished;
+
   console.log("[RootLayout] Splash state:", {
     appReady,
     splashAnimationFinished,
     showAnimatedSplash,
   });
-  
+
   if (showAnimatedSplash) {
     return <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />;
   }
-  
+
   console.log("[RootLayout] Showing main app");
 
   return (
@@ -116,7 +133,7 @@ export default function RootLayout() {
                 flex: 1,
                 paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
               }}
-              entering={FadeIn.duration(600).easing(Easing.out(Easing.cubic))}
+              entering={FadeIn.duration(800).easing(Easing.out(Easing.cubic))}
             >
               <StatusBar backgroundColor="#000" style="light" animated />
               <Stack

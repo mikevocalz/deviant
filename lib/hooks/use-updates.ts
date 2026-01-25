@@ -1,15 +1,22 @@
 /**
  * OTA Updates Hook
  *
- * Handles checking for and applying expo-updates
- * 
+ * Handles checking for and applying expo-updates.
  * CRITICAL: This hook must NEVER crash the app. All operations are wrapped
- * in try-catch blocks and failures are silently logged.
+ * in try-catch blocks and failures are logged.
+ *
+ * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
+ * Publish updates with: eas update --channel production
+ * (Use the same channel as your EAS build profile, e.g. production/preview/development.)
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { AppState, type AppStateStatus, Alert, Platform } from "react-native";
 import { toast } from "sonner-native";
+
+const FORCE_OTA_IN_DEV =
+  typeof process !== "undefined" &&
+  process.env?.EXPO_PUBLIC_FORCE_OTA_CHECK === "true";
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -21,8 +28,7 @@ try {
     UpdatesAvailable = true;
   }
 } catch (error) {
-  // expo-updates not available (e.g., in Expo Go or web)
-  console.log("[Updates] expo-updates not available");
+  console.log("[Updates] expo-updates not available (Expo Go / web)");
 }
 
 // Safe property access helper
@@ -56,8 +62,26 @@ export function useUpdates() {
   });
 
   // Safe reload - never throws
+  // CRITICAL: Wait for Zustand persist rehydration to complete before reloading
   const reloadApp = useCallback(async () => {
     try {
+      console.log("[Updates] Preparing to restart app...");
+      
+      // Wait for auth store rehydration to complete
+      try {
+        const { waitForRehydration, flushAuthStorage } = await import("@/lib/stores/auth-store");
+        await waitForRehydration();
+        console.log("[Updates] Rehydration complete, flushing storage...");
+        await flushAuthStorage();
+        console.log("[Updates] Storage flushed");
+      } catch (rehydrateError) {
+        console.warn("[Updates] Rehydration wait failed (non-fatal):", rehydrateError);
+        // Continue anyway - better to reload than hang
+      }
+      
+      // Small additional delay to ensure all writes are persisted
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      
       console.log("[Updates] Restarting app...");
       if (Updates && typeof Updates.reloadAsync === "function") {
         await Updates.reloadAsync();
@@ -89,11 +113,11 @@ export function useUpdates() {
           duration: Infinity, // NEVER auto-dismiss - user must choose
           action: {
             label: "Restart App Now",
-            onPress: reloadApp,
+            onClick: reloadApp,
           },
           cancel: {
             label: "Update Later",
-            onPress: () => {
+            onClick: () => {
               console.log("[Updates] User chose to update later");
               // Reset flag so toast can be shown again if update is still pending
               hasShownUpdateToast.current = false;
@@ -156,8 +180,9 @@ export function useUpdates() {
 
   // Download and apply update - never throws
   const downloadAndApplyUpdate = useCallback(async () => {
-    // Early returns - don't throw
-    if (__DEV__ || !Updates || !UpdatesAvailable) {
+    const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
+    if (skipDev || !Updates || !UpdatesAvailable) {
+      if (skipDev) console.log("[Updates] Skip download: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)");
       return;
     }
 
@@ -175,6 +200,7 @@ export function useUpdates() {
     }, false);
 
     if (!isEnabled) {
+      console.log("[Updates] Skip download: expo-updates not enabled");
       isCheckingRef.current = false;
       return;
     }
@@ -182,7 +208,6 @@ export function useUpdates() {
     setStatus((prev) => ({ ...prev, isDownloading: true }));
 
     try {
-      // Fetch update
       const result = await safeGet(
         () => Updates!.fetchUpdateAsync(),
         Promise.resolve({ isNew: false } as Awaited<ReturnType<typeof Updates.fetchUpdateAsync>>)
@@ -194,10 +219,10 @@ export function useUpdates() {
           isDownloading: false,
           isUpdatePending: true,
         }));
-
-        // Show toast - CRITICAL: This must always show
+        console.log("[Updates] Update fetched, isNew: true — showing toast");
         showUpdateToast();
       } else {
+        console.log("[Updates] Fetch complete, isNew:", !!(result && result.isNew));
         setStatus((prev) => ({ ...prev, isDownloading: false }));
       }
     } catch (error) {
@@ -214,28 +239,32 @@ export function useUpdates() {
 
   // Check for updates - never throws
   const checkForUpdates = useCallback(async () => {
-    // Early returns - don't throw
-    if (__DEV__ || !Updates || !UpdatesAvailable) {
+    const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
+    if (skipDev || !Updates || !UpdatesAvailable) {
+      if (skipDev) console.log("[Updates] Skip check: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)");
       return;
     }
 
-    // Prevent concurrent checks
     if (isCheckingRef.current) {
       return;
     }
 
     isCheckingRef.current = true;
 
-    // Safely check if updates are enabled
     const isEnabled = safeGet(() => {
       if (typeof Updates?.isEnabled === "undefined") return false;
       return Updates.isEnabled;
     }, false);
 
     if (!isEnabled) {
+      console.log("[Updates] Skip check: expo-updates not enabled");
       isCheckingRef.current = false;
       return;
     }
+
+    const channel = safeGet(() => Updates?.channel ?? null, null);
+    const runtimeVersion = safeGet(() => Updates?.runtimeVersion ?? null, null);
+    console.log("[Updates] Checking — channel:", channel, "runtimeVersion:", runtimeVersion);
 
     setStatus((prev) => ({ ...prev, isChecking: true, error: null }));
 
@@ -245,14 +274,24 @@ export function useUpdates() {
         Promise.resolve({ isAvailable: false } as Awaited<ReturnType<typeof Updates.checkForUpdateAsync>>)
       );
 
+      console.log("[Updates] Check result — isAvailable:", !!update?.isAvailable);
+
+      if (!update?.isAvailable && Updates && typeof Updates.readLogEntriesAsync === "function") {
+        try {
+          const entries = await Updates.readLogEntriesAsync(60_000);
+          const last = entries.slice(-5);
+          if (last.length) console.log("[Updates] Native log entries (last 5):", JSON.stringify(last, null, 0));
+        } catch (e) {
+          /* no-op */
+        }
+      }
+
       if (update && update.isAvailable) {
         setStatus((prev) => ({
           ...prev,
           isChecking: false,
           isUpdateAvailable: true,
         }));
-
-        // Auto-download in background
         downloadAndApplyUpdate();
       } else {
         setStatus((prev) => ({
@@ -275,38 +314,44 @@ export function useUpdates() {
 
   // Initialize update checks - wrapped in error boundary pattern
   useEffect(() => {
-    // Early return if not available
-    if (__DEV__ || !Updates || !UpdatesAvailable || isInitialized.current) {
+    const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
+    if (skipDev) {
+      console.log("[Updates] Skipping OTA init in __DEV__ (use production build or EXPO_PUBLIC_FORCE_OTA_CHECK=true)");
+      return;
+    }
+    if (!Updates || !UpdatesAvailable || isInitialized.current) {
       return;
     }
 
-    // Wrap entire initialization in try-catch
     try {
-      // Safely check if updates are enabled
       const isEnabled = safeGet(() => {
         if (typeof Updates?.isEnabled === "undefined") return false;
         return Updates.isEnabled;
       }, false);
 
       if (!isEnabled) {
-        console.log("[Updates] Updates not enabled, skipping");
+        console.log("[Updates] OTA init skipped: expo-updates not enabled");
         return;
       }
 
       isInitialized.current = true;
-      console.log("[Updates] Initializing update checks");
+      const ch = safeGet(() => Updates?.channel ?? null, null);
+      const rv = safeGet(() => Updates?.runtimeVersion ?? null, null);
+      console.log("[Updates] OTA init — channel:", ch, "runtimeVersion:", rv, "| Publish: eas update --channel", ch ?? "production");
 
       let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
       let updateEventSubscription: { remove: () => void } | null = null;
 
-      // Initial check - delay significantly to let app fully initialize
+      // First check - short delay so OTA toast can show
       const initialCheckTimer = setTimeout(() => {
-        try {
-          checkForUpdates();
-        } catch (error) {
-          console.error("[Updates] Initial check error (non-fatal):", error);
-        }
-      }, 8000); // Increased delay to ensure app is fully loaded
+        checkForUpdates().catch((e) => console.error("[Updates] Initial check error:", e));
+      }, 1500);
+
+      // Second check - retry in case first failed (e.g. network) or app opened before update published
+      const retryTimer = setTimeout(() => {
+        console.log("[Updates] Second OTA check (retry)");
+        checkForUpdates().catch((e) => console.error("[Updates] Retry check error:", e));
+      }, 15000);
 
       // Check when app comes to foreground
       const handleAppStateChange = (nextState: AppStateStatus) => {
@@ -359,12 +404,9 @@ export function useUpdates() {
       return () => {
         try {
           clearTimeout(initialCheckTimer);
-          if (appStateSubscription) {
-            appStateSubscription.remove();
-          }
-          if (updateEventSubscription) {
-            updateEventSubscription.remove();
-          }
+          if (retryTimer) clearTimeout(retryTimer);
+          if (appStateSubscription) appStateSubscription.remove();
+          if (updateEventSubscription) updateEventSubscription.remove();
         } catch (cleanupError) {
           console.error("[Updates] Cleanup error (non-fatal):", cleanupError);
         }

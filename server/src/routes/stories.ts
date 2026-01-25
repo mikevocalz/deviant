@@ -170,7 +170,7 @@ storiesRoutes.delete("/cleanup", async (c) => {
     let failedCount = 0;
     for (const story of allExpiredStories) {
       try {
-        await payloadClient.delete("stories", story.id, undefined, undefined);
+        await payloadClient.delete("stories", story.id);
         deletedCount++;
       } catch {
         failedCount++;
