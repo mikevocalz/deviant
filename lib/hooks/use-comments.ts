@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { commentsApiClient, type Comment } from "@/lib/api/comments";
+import { postKeys } from "@/lib/hooks/use-posts";
 
 // Query keys
 export const commentKeys = {
@@ -69,6 +70,13 @@ export function useCreateComment() {
       // Always refetch after mutation settles to get real data
       queryClient.invalidateQueries({
         queryKey: commentKeys.byPost(variables.post),
+      });
+      // Also invalidate the post data so comment count updates in feed/post details
+      queryClient.invalidateQueries({
+        queryKey: postKeys.detail(variables.post),
+      });
+      queryClient.invalidateQueries({
+        queryKey: postKeys.all,
       });
     },
   });

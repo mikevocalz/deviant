@@ -1,4 +1,4 @@
-import { Platform, Pressable, View, ViewStyle } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
 
 type CenterButtonProps = {
@@ -7,26 +7,26 @@ type CenterButtonProps = {
 };
 
 export function CenterButton({ Icon, onPress }: CenterButtonProps) {
-  // The button is rendered inside the tab bar item slot (height ~60)
-  // Use top positioning to push the button above the tab bar
-  // Negative top = above the slot, larger negative = higher above
-  const containerStyle: ViewStyle = {
-    position: "absolute",
-    top: Platform.OS === "android" ? -50 : -54, // Much higher above tab bar
-    left: "50%",
-    transform: [{ translateX: -30 }],
-    width: 60,
-    height: 60,
-    zIndex: 999,
-  };
-
+  // Position the button to sit visually above the tab bar
+  // Use marginTop with negative value to pull it up from the tab slot
   return (
-    <View style={containerStyle}>
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "flex-start",
+        marginTop: Platform.OS === "android" ? -30 : -28,
+      }}
+    >
       <Pressable
         onPress={onPress}
-        className="h-full w-full items-center justify-center bg-zinc-50"
         style={{
+          width: 60,
+          height: 60,
           borderRadius: 12,
+          backgroundColor: "#fafafa",
+          alignItems: "center",
+          justifyContent: "center",
           elevation: 12,
           shadowColor: "#000",
           shadowOpacity: 0.3,
