@@ -68,8 +68,6 @@ function EventCard({
         >
           <View style={{ height: CARD_HEIGHT }} className="w-full">
             <Animated.View
-              // @ts-ignore - sharedTransitionTag is valid but not in types
-              sharedTransitionTag={`event-image-${event.id}`}
               style={[
                 {
                   width: "100%",
