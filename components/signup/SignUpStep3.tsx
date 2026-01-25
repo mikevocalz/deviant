@@ -5,7 +5,12 @@ import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
 
 /**
- * SignUpStep3 - Terms Agreement (Step 2 in the flow)
+ * SignUpStep3 - Terms Agreement
+ * 
+ * This is STEP 3 in the signup flow (displayed at activeStep index 1):
+ * - Step 1 (index 0): User Info (SignUpStep1)
+ * - Step 2 (index 1): Terms (SignUpStep3) ← WE ARE HERE
+ * - Step 3 (index 2): Verification (SignUpStep2)
  * 
  * User reads and accepts terms before proceeding to verification.
  * Account creation happens AFTER verification in SignUpStep2.
@@ -30,7 +35,7 @@ export function SignUpStep3() {
 
   const handleContinue = () => {
     if (!termsAccepted || !hasScrolledToBottom) return;
-    // Go to step 2 (Verification)
+    // Go to Step 3: Verification (activeStep index 2)
     setActiveStep(2);
   };
 
@@ -179,7 +184,7 @@ export function SignUpStep3() {
       <View className="flex-row gap-3">
         <Button
           variant="secondary"
-          onPress={() => setActiveStep(0)}
+          onPress={() => setActiveStep(0)} // Back to Step 1: User Info
           className="flex-1"
         >
           Back
