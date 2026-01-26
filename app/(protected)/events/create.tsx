@@ -173,6 +173,12 @@ export default function CreateEventScreen() {
   const isValid = title.trim() && description.trim() && location.trim();
 
   const handleSubmit = async () => {
+    // Prevent double submission
+    if (isSubmitting || createEvent.isPending) {
+      console.log("[CreateEvent] Already submitting, ignoring");
+      return;
+    }
+
     if (!title.trim()) {
       showToast("error", "Error", "Please enter an event title");
       return;
