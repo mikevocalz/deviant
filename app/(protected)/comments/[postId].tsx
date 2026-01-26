@@ -15,9 +15,10 @@ import { useEffect, useCallback, useLayoutEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
+import { useComments, useCreateComment, useLikeComment } from "@/lib/hooks/use-comments";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { usePostStore } from "@/lib/stores/post-store";
 
 export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>();

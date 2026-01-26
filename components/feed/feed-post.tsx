@@ -103,14 +103,6 @@ function FeedPostComponent({
   
   // Comments are already limited to 3 from API, sorted newest first
   const recentComments = recentCommentsData || [];
-  
-  // Refetch comments when comment count changes to ensure we have the latest
-  useEffect(() => {
-    if (commentCount > 0 && recentComments.length === 0) {
-      // If comment count says there are comments but we don't have any, refetch
-      refetchComments();
-    }
-  }, [commentCount, recentComments.length, refetchComments]);
 
   const hasMedia = media && media.length > 0;
   const isVideo = hasMedia && media[0]?.type === "video";
@@ -273,6 +265,14 @@ function FeedPostComponent({
   // Subscribe to comment counts to trigger re-renders when they change
   const storedCommentCount = postCommentCounts[id];
   const commentCount = storedCommentCount !== undefined ? storedCommentCount : comments;
+  
+  // Refetch comments when comment count changes to ensure we have the latest
+  useEffect(() => {
+    if (commentCount > 0 && recentComments.length === 0) {
+      // If comment count says there are comments but we don't have any, refetch
+      refetchComments();
+    }
+  }, [commentCount, recentComments.length, refetchComments, id]);
 
   const handleLike = useCallback(() => {
     const wasLiked = isPostLiked(id);
@@ -546,7 +546,11 @@ function FeedPostComponent({
               </Motion.View>
             </Pressable>
             <Pressable
-              onPress={() => router.push(`/(protected)/comments/${id}`)}
+              onPress={() => {
+                if (id) {
+                  router.push(`/(protected)/comments/${id}`);
+                }
+              }}
             >
               <Motion.View
                 whileTap={{ scale: 0.85 }}
@@ -599,7 +603,11 @@ function FeedPostComponent({
                   {recentComments.map((comment) => (
                     <Pressable
                       key={comment.id}
-                      onPress={() => router.push(`/(protected)/comments/${id}`)}
+                      onPress={() => {
+                        if (id) {
+                          router.push(`/(protected)/comments/${id}`);
+                        }
+                      }}
                     >
                       <Text className="text-sm text-foreground">
                         <Text className="font-semibold text-foreground">
@@ -613,7 +621,11 @@ function FeedPostComponent({
               )}
               {commentCount > 3 && (
                 <Pressable
-                  onPress={() => router.push(`/(protected)/comments/${id}`)}
+                  onPress={() => {
+                    if (id) {
+                      router.push(`/(protected)/comments/${id}`);
+                    }
+                  }}
                   className="mt-1"
                 >
                   <Text className="text-sm text-muted-foreground">
