@@ -65,7 +65,7 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { isPostLiked, toggleLike, getLikeCount, getCommentCount, postCommentCounts } = usePostStore();
+  const { isPostLiked, toggleLike, getLikeCount, getCommentCount, postLikeCounts, postCommentCounts } = usePostStore();
   const bookmarkStore = useBookmarkStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
