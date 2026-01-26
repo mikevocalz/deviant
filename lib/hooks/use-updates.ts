@@ -104,84 +104,58 @@ export function useUpdates() {
   // This toast MUST NEVER be removed or disabled
   // It has two buttons: "Update Later" (left, dismisses) and "Restart App Now" (right, restarts)
   const showUpdateToast = useCallback(() => {
-    // Reset flag to allow showing again if needed (e.g., after dismissing)
-    // This ensures the toast can be shown again if user dismisses and update is still pending
+    // CRITICAL: Only show toast ONCE per app session
+    if (hasShownUpdateToast.current) {
+      console.log("[Updates] Toast already shown this session, skipping");
+      return;
+    }
+    
+    // Mark as shown BEFORE showing to prevent race conditions
     hasShownUpdateToast.current = true;
     toastAttempts.current += 1;
     
     console.log("[Updates] Showing update toast, attempt:", toastAttempts.current);
     
-    // Strategy 1: Try sonner-native toast with TWO actions
-    const tryToast = () => {
-      try {
-        // CRITICAL: duration: Infinity ensures toast never auto-dismisses
-        // User must explicitly choose "Update Later" or "Restart App Now"
-        toast.success("Update Ready", {
-          description: "A new update is available. Restart to apply it.",
-          duration: Infinity, // NEVER auto-dismiss - user must choose
-          action: {
-            label: "Restart App Now",
-            onClick: reloadApp,
+    try {
+      // CRITICAL: duration: Infinity ensures toast never auto-dismisses
+      // User must explicitly choose "Update Later" or "Restart App Now"
+      toast.success("Update Ready", {
+        description: "A new update is available. Restart to apply it.",
+        duration: Infinity, // NEVER auto-dismiss - user must choose
+        action: {
+          label: "Restart Now",
+          onClick: reloadApp,
+        },
+        cancel: {
+          label: "Later",
+          onClick: () => {
+            console.log("[Updates] User chose to update later");
           },
-          cancel: {
-            label: "Update Later",
-            onClick: () => {
-              console.log("[Updates] User chose to update later");
-              // Reset flag so toast can be shown again if update is still pending
-              hasShownUpdateToast.current = false;
-            },
-          },
-        });
-        console.log("[Updates] Toast shown successfully with both buttons");
-        return true;
-      } catch (toastError) {
-        console.log("[Updates] Toast failed:", toastError);
-        return false;
-      }
-    };
-
-    // Strategy 2: Fallback to native Alert with two buttons
-    const tryAlert = () => {
+        },
+      });
+      console.log("[Updates] Toast shown successfully");
+    } catch (toastError) {
+      console.log("[Updates] Toast failed, trying Alert:", toastError);
+      // Fallback to native Alert
       try {
         Alert.alert(
           "Update Available",
           "A new update has been downloaded. Restart the app to apply it.",
           [
             { 
-              text: "Update Later", 
+              text: "Later", 
               style: "cancel",
-              onPress: () => {
-                console.log("[Updates] User chose to update later");
-                // Reset flag so alert can be shown again if update is still pending
-                hasShownUpdateToast.current = false;
-              },
             },
             { 
-              text: "Restart App Now", 
+              text: "Restart Now", 
               onPress: reloadApp,
             },
           ]
         );
-        console.log("[Updates] Alert shown successfully with both buttons");
-        return true;
       } catch (alertError) {
-        console.error("[Updates] Alert failed:", alertError);
-        return false;
+        console.error("[Updates] Alert also failed:", alertError);
       }
-    };
-
-    // Try BOTH toast and alert to ensure user sees the update notification
-    // This is critical for production - we must notify the user
-    const toastWorked = tryToast();
-    
-    // Always also try alert after a delay as backup (even if toast worked)
-    // This ensures maximum visibility for the update notification
-    setTimeout(() => {
-      if (!toastWorked) {
-        console.log("[Updates] Toast didn't work, trying Alert...");
-        tryAlert();
-      }
-    }, 500);
+    }
   }, [reloadApp]);
 
   // Download and apply update - never throws
