@@ -34,6 +34,7 @@ import {
   usePopover,
 } from "@/components/ui/popover";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
+import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { TextInput, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
