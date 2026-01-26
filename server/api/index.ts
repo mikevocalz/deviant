@@ -1,71 +1,16 @@
 /**
  * DVNT API Server - Vercel Serverless Entry Point
- *
+ * 
  * Handles special routes (comments, register) with user lookup,
- * Better Auth for authentication, and proxies other requests to Payload CMS.
+ * and proxies other requests to Payload CMS.
  */
 
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { betterAuth } from "better-auth";
-import { expo } from "@better-auth/expo";
 
 const PAYLOAD_URL = process.env.PAYLOAD_URL || "";
 const PAYLOAD_API_KEY = process.env.PAYLOAD_API_KEY || "";
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || "").trim().replace(/\\n/g, "");
-const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "")
-  .trim()
-  .replace(/\\n/g, "");
-const BETTER_AUTH_SECRET = process.env.BETTER_AUTH_SECRET;
-const DATABASE_URI = process.env.DATABASE_URI;
-
-// Initialize Better Auth
-const auth = betterAuth({
-  database: {
-    provider: "pg",
-    url: DATABASE_URI!,
-  },
-  secret: BETTER_AUTH_SECRET,
-  baseURL:
-    process.env.BETTER_AUTH_URL || "https://server-zeta-lovat.vercel.app",
-  trustedOrigins: [
-    "dvnt://",
-    "dvnt://*",
-    "exp+dvnt://",
-    "exp+dvnt://*",
-    "http://localhost:8081",
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://server-zeta-lovat.vercel.app",
-    "https://payload-cms-setup-gray.vercel.app",
-  ],
-  plugins: [expo()],
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-    maxPasswordLength: 128,
-  },
-  user: {
-    additionalFields: {
-      username: {
-        type: "string",
-        required: false,
-      },
-      avatar: {
-        type: "string",
-        required: false,
-      },
-      is_verified: {
-        type: "boolean",
-        required: false,
-        defaultValue: false,
-      },
-    },
-  },
-  session: {
-    expiresIn: 60 * 60 * 24 * 30, // 30 days
-    updateAge: 60 * 60 * 24, // 1 day
-  },
-});
+const ADMIN_PASSWORD = (process.env.ADMIN_PASSWORD || "").trim().replace(/\\n/g, "");
 
 // Cache admin token (expires after 1 hour)
 let adminTokenCache: { token: string; expiry: number } | null = null;
@@ -92,10 +37,7 @@ async function getAdminToken(): Promise<string | null> {
     const data = await response.json();
     if (data.token) {
       // Cache for 55 minutes (token usually expires in 1 hour)
-      adminTokenCache = {
-        token: data.token,
-        expiry: Date.now() + 55 * 60 * 1000,
-      };
+      adminTokenCache = { token: data.token, expiry: Date.now() + 55 * 60 * 1000 };
       return data.token;
     }
     return null;
@@ -112,7 +54,7 @@ async function payloadFetch<T>(
   useAdminAuth = false,
 ): Promise<T> {
   const url = `${PAYLOAD_URL}/api${endpoint}`;
-
+  
   let authHeader = `users API-Key ${PAYLOAD_API_KEY}`;
   if (useAdminAuth) {
     const adminToken = await getAdminToken();
@@ -130,9 +72,7 @@ async function payloadFetch<T>(
   const response = await fetch(url, { ...options, headers });
   const data = await response.json();
   if (!response.ok) {
-    const error = new Error(
-      data?.errors?.[0]?.message || data?.message || "Payload error",
-    ) as Error & { status: number };
+    const error = new Error(data?.errors?.[0]?.message || data?.message || "Payload error") as Error & { status: number };
     error.status = response.status;
     throw error;
   }
@@ -147,10 +87,7 @@ async function findUserByUsername(username: string): Promise<string | null> {
       { method: "GET" },
       true, // Use admin auth
     );
-    console.log(
-      `[Users] Lookup username '${username}':`,
-      result.docs?.length ? `Found ID ${result.docs[0].id}` : "Not found",
-    );
+    console.log(`[Users] Lookup username '${username}':`, result.docs?.length ? `Found ID ${result.docs[0].id}` : "Not found");
     return result.docs?.[0]?.id || null;
   } catch (error) {
     console.error(`[Users] Error looking up username '${username}':`, error);
@@ -175,14 +112,8 @@ async function findUserByEmail(email: string): Promise<string | null> {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // CORS headers
   res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-  );
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Cookie",
-  );
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Cookie");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
   if (req.method === "OPTIONS") {
@@ -194,53 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Health check
   if (reqUrl === "/" || reqUrl === "/health") {
-    return res.json({
-      status: "ok",
-      service: "dvnt-api",
-      payload_url: PAYLOAD_URL ? "configured" : "missing",
-    });
-  }
-
-  // ============== BETTER AUTH ENDPOINTS ==============
-  if (reqUrl.startsWith("/api/auth")) {
-    try {
-      // Convert Vercel request to Web Request for Better Auth
-      const url = new URL(
-        reqUrl,
-        `https://${req.headers.host || "server-zeta-lovat.vercel.app"}`,
-      );
-
-      const headers = new Headers();
-      for (const [key, value] of Object.entries(req.headers)) {
-        if (value) {
-          headers.set(key, Array.isArray(value) ? value[0] : value);
-        }
-      }
-
-      let body: string | undefined;
-      if (req.method !== "GET" && req.method !== "HEAD" && req.body) {
-        body = JSON.stringify(req.body);
-      }
-
-      const webRequest = new Request(url.toString(), {
-        method: req.method || "GET",
-        headers,
-        body,
-      });
-
-      const response = await auth.handler(webRequest);
-
-      // Copy response headers
-      response.headers.forEach((value, key) => {
-        res.setHeader(key, value);
-      });
-
-      const responseBody = await response.text();
-      return res.status(response.status).send(responseBody);
-    } catch (error) {
-      console.error("[Auth] Error:", error);
-      return res.status(500).json({ error: "Authentication service error" });
-    }
+    return res.json({ status: "ok", service: "dvnt-api", payload_url: PAYLOAD_URL ? "configured" : "missing" });
   }
 
   // ============== COMMENTS ENDPOINT (with user lookup) ==============
@@ -259,16 +144,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Find user by username (primary method - uses admin auth)
       let userId: string | null = null;
-
+      
       if (authorUsername) {
         userId = await findUserByUsername(authorUsername);
         if (userId) {
-          console.log(
-            "[Comments] Found user by username:",
-            authorUsername,
-            "->",
-            userId,
-          );
+          console.log("[Comments] Found user by username:", authorUsername, "->", userId);
         }
       }
 
@@ -300,11 +180,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Create comment - Payload expects numeric IDs
       const postId = parseInt(String(post), 10);
       const authorIdNum = parseInt(String(userId), 10);
-
+      
       if (isNaN(postId) || isNaN(authorIdNum)) {
-        return res
-          .status(400)
-          .json({ error: "Invalid post or author ID format" });
+        return res.status(400).json({ error: "Invalid post or author ID format" });
       }
 
       const commentData: Record<string, unknown> = {
@@ -313,11 +191,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         author: authorIdNum,
       };
 
-      console.log("[Comments] Creating comment:", {
-        post: postId,
-        author: authorIdNum,
-        content: content.slice(0, 30),
-      });
+      console.log("[Comments] Creating comment:", { post: postId, author: authorIdNum, content: content.slice(0, 30) });
 
       const result = await payloadFetch("/comments?depth=2", {
         method: "POST",
@@ -373,11 +247,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Create event comment - Payload expects numeric IDs
       const eventIdNum = parseInt(String(eventId), 10);
       const authorIdNum = parseInt(String(userId), 10);
-
+      
       if (isNaN(eventIdNum) || isNaN(authorIdNum)) {
-        return res
-          .status(400)
-          .json({ error: "Invalid event or author ID format" });
+        return res.status(400).json({ error: "Invalid event or author ID format" });
       }
 
       const commentData: Record<string, unknown> = {
@@ -386,10 +258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         author: authorIdNum,
       };
 
-      console.log("[EventComments] Creating:", {
-        event: eventIdNum,
-        author: authorIdNum,
-      });
+      console.log("[EventComments] Creating:", { event: eventIdNum, author: authorIdNum });
 
       const result = await payloadFetch("/event-comments?depth=2", {
         method: "POST",
@@ -399,9 +268,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(201).json(result);
     } catch (error) {
       const err = error as { status?: number; message?: string };
-      return res
-        .status(err.status || 500)
-        .json({ error: err.message || "Failed to create event comment" });
+      return res.status(err.status || 500).json({ error: err.message || "Failed to create event comment" });
     }
   }
 
@@ -411,25 +278,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { email, password, username } = req.body || {};
 
       if (!email || !password || !username) {
-        return res
-          .status(400)
-          .json({ error: "Email, password, and username are required" });
+        return res.status(400).json({ error: "Email, password, and username are required" });
       }
 
       // Login as admin
       const adminLoginRes = await fetch(`${PAYLOAD_URL}/api/users/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: ADMIN_EMAIL.trim(),
-          password: ADMIN_PASSWORD.trim(),
-        }),
+        body: JSON.stringify({ email: ADMIN_EMAIL.trim(), password: ADMIN_PASSWORD.trim() }),
       });
 
       if (!adminLoginRes.ok) {
-        return res
-          .status(500)
-          .json({ error: "Registration service unavailable" });
+        return res.status(500).json({ error: "Registration service unavailable" });
       }
 
       const adminData = await adminLoginRes.json();
