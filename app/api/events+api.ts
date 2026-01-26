@@ -7,14 +7,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
         sort,
         where,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -61,11 +61,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     console.log("[API] POST /api/events - Request received", {
-      hasCookies: !!cookies,
+      hasAuth: !!(auth.jwtToken || auth.cookies),
       bodyKeys: Object.keys(body || {}),
       hasDate: !!body.date,
       hasImage: !!body.image,
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     // Get current user to auto-set as organizer
     let currentUser: { id: string } | null = null;
     try {
-      currentUser = await payloadClient.me<{ id: string }>(cookies);
+      currentUser = await payloadClient.me<{ id: string }>(auth);
       console.log("[API] Current user:", currentUser ? { id: currentUser.id } : "null");
     } catch (meError) {
       console.error("[API] Error getting current user:", meError);
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         data: eventData,
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     console.log("[API] ✓ Event created successfully:", result?.id || "unknown");

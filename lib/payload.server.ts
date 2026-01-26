@@ -109,6 +109,7 @@ async function payloadFetch<T>(
   endpoint: string,
   options: RequestInit = {},
   cookies?: string,
+  jwtToken?: string,
 ): Promise<T> {
   if (!PAYLOAD_URL || !PAYLOAD_API_KEY) {
     throw new Error(
@@ -118,9 +119,15 @@ async function payloadFetch<T>(
 
   const url = `${PAYLOAD_URL}/api${endpoint}`;
 
+  // Priority: JWT token > API key
+  // JWT token authenticates as the specific user, API key provides collection access
+  const authHeader = jwtToken 
+    ? `JWT ${jwtToken}`
+    : `users API-Key ${PAYLOAD_API_KEY}`;
+
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Authorization: `users API-Key ${PAYLOAD_API_KEY}`,
+    Authorization: authHeader,
     ...options.headers,
   };
 
@@ -172,20 +179,28 @@ async function payloadFetch<T>(
  * }
  * ```
  */
+// Auth context for API calls
+interface AuthContext {
+  cookies?: string;
+  jwtToken?: string;
+}
+
 export const payloadClient = {
   /**
    * Find documents in a collection with pagination and filtering
    */
   async find<T = Record<string, unknown>>(
     options: FindOptions,
-    cookies?: string,
+    auth?: string | AuthContext,
   ): Promise<PaginatedDocs<T>> {
     const { collection, ...queryParams } = options;
     const query = buildQueryString(queryParams);
+    const { cookies, jwtToken } = normalizeAuth(auth);
     return payloadFetch<PaginatedDocs<T>>(
       `/${collection}${query}`,
       { method: "GET" },
       cookies,
+      jwtToken,
     );
   },
 
@@ -194,14 +209,16 @@ export const payloadClient = {
    */
   async findByID<T = Record<string, unknown>>(
     options: FindByIDOptions,
-    cookies?: string,
+    auth?: string | AuthContext,
   ): Promise<T> {
     const { collection, id, ...queryParams } = options;
     const query = buildQueryString(queryParams);
+    const { cookies, jwtToken } = normalizeAuth(auth);
     return payloadFetch<T>(
       `/${collection}/${id}${query}`,
       { method: "GET" },
       cookies,
+      jwtToken,
     );
   },
 
@@ -210,14 +227,16 @@ export const payloadClient = {
    */
   async create<T = Record<string, unknown>>(
     options: CreateOptions,
-    cookies?: string,
+    auth?: string | AuthContext,
   ): Promise<T> {
     const { collection, data, ...queryParams } = options;
     const query = buildQueryString(queryParams);
+    const { cookies, jwtToken } = normalizeAuth(auth);
     return payloadFetch<T>(
       `/${collection}${query}`,
       { method: "POST", body: JSON.stringify(data) },
       cookies,
+      jwtToken,
     );
   },
 
@@ -226,14 +245,16 @@ export const payloadClient = {
    */
   async update<T = Record<string, unknown>>(
     options: UpdateOptions,
-    cookies?: string,
+    auth?: string | AuthContext,
   ): Promise<T> {
     const { collection, id, data, ...queryParams } = options;
     const query = buildQueryString(queryParams);
+    const { cookies, jwtToken } = normalizeAuth(auth);
     return payloadFetch<T>(
       `/${collection}/${id}${query}`,
       { method: "PATCH", body: JSON.stringify(data) },
       cookies,
+      jwtToken,
     );
   },
 
@@ -242,22 +263,25 @@ export const payloadClient = {
    */
   async delete<T = Record<string, unknown>>(
     options: DeleteOptions,
-    cookies?: string,
+    auth?: string | AuthContext,
   ): Promise<T> {
     const { collection, id } = options;
+    const { cookies, jwtToken } = normalizeAuth(auth);
     return payloadFetch<T>(
       `/${collection}/${id}`,
       { method: "DELETE" },
       cookies,
+      jwtToken,
     );
   },
 
   /**
-   * Get current authenticated user (if using cookie-based auth)
+   * Get current authenticated user (if using cookie/JWT auth)
    */
-  async me<T = Record<string, unknown>>(cookies?: string): Promise<T | null> {
+  async me<T = Record<string, unknown>>(auth?: string | AuthContext): Promise<T | null> {
     try {
-      return await payloadFetch<T>("/users/me", { method: "GET" }, cookies);
+      const { cookies, jwtToken } = normalizeAuth(auth);
+      return await payloadFetch<T>("/users/me", { method: "GET" }, cookies, jwtToken);
     } catch (error) {
       // Return null if not authenticated
       if ((error as { status?: number }).status === 401) {
@@ -268,9 +292,34 @@ export const payloadClient = {
   },
 };
 
+// Helper to normalize auth parameter (backwards compatible with just cookies string)
+function normalizeAuth(auth?: string | AuthContext): { cookies?: string; jwtToken?: string } {
+  if (!auth) return {};
+  if (typeof auth === "string") return { cookies: auth };
+  return auth;
+}
+
 // Helper to extract cookies from request for auth forwarding
 export function getCookiesFromRequest(request: Request): string | undefined {
   return request.headers.get("Cookie") || undefined;
+}
+
+// Helper to extract JWT token from Authorization header
+export function getJWTFromRequest(request: Request): string | undefined {
+  const authHeader = request.headers.get("Authorization");
+  if (!authHeader) return undefined;
+  
+  // Support both "Bearer <token>" and "JWT <token>" formats
+  const match = authHeader.match(/^(?:Bearer|JWT)\s+(.+)$/i);
+  return match ? match[1] : undefined;
+}
+
+// Helper to get full auth context from request
+export function getAuthFromRequest(request: Request): { cookies?: string; jwtToken?: string } {
+  return {
+    cookies: getCookiesFromRequest(request),
+    jwtToken: getJWTFromRequest(request),
+  };
 }
 
 // Helper to create error responses

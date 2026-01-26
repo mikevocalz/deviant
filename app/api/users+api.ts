@@ -10,7 +10,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
@@ -18,12 +18,12 @@ import {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     // Check if this is a /me request (handled by path, but also support query)
     const me = url.searchParams.get("me");
     if (me === "true") {
-      const user = await payloadClient.me(cookies);
+      const user = await payloadClient.me(auth);
       if (!user) {
         return Response.json({ error: "Not authenticated" }, { status: 401 });
       }
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
         sort,
         where,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
 // POST /api/users (registration)
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
         collection: "users",
         data: body,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result, { status: 201 });

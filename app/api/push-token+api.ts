@@ -6,12 +6,12 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
 } from "@/lib/payload.server";
 
 export async function POST(request: Request): Promise<Response> {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
     const { token, userId, username, platform } = body;
 
@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
         collection: "users",
         where: { username: { equals: username } },
         limit: 1,
-      }, cookies);
+      }, auth);
       
       if (userResult.docs && userResult.docs.length > 0) {
         payloadUserId = (userResult.docs[0] as { id: string }).id;
@@ -57,7 +57,7 @@ export async function POST(request: Request): Promise<Response> {
       data: {
         pushToken: token,
       },
-    }, cookies);
+    }, auth);
 
     console.log("[push-token] Token saved for user:", payloadUserId, "platform:", platform);
     return Response.json({ success: true });

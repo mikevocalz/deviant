@@ -327,11 +327,40 @@ export const signUp = {
   },
 };
 
-// Wrapped sign out that clears store
+// Wrapped sign out that clears store and ALL cached data
 export const signOut = async () => {
+  console.log("[Auth] Starting sign out process...");
+  
+  // CRITICAL: Clear ALL cached data BEFORE signing out
+  // This prevents data leakage when a new user signs in
+  clearAllCachedData();
+  
+  // Clear the JWT token from storage
+  try {
+    const storage = getStorage();
+    await storage.deleteItem("dvnt_auth_token");
+    console.log("[Auth] ✓ JWT token cleared from storage");
+  } catch (e) {
+    console.error("[Auth] Error clearing JWT token:", e);
+  }
+  
+  // Clear auth storage (MMKV persisted auth state)
+  try {
+    const { clearAuthStorage } = require("@/lib/utils/storage");
+    clearAuthStorage();
+    console.log("[Auth] ✓ Auth storage cleared");
+  } catch (e) {
+    console.error("[Auth] Error clearing auth storage:", e);
+  }
+  
+  // Call the Better Auth signOut
   const result = await rawSignOut();
+  
+  // Clear the Zustand auth store
   const { logout } = useAuthStore.getState();
   logout();
+  
+  console.log("[Auth] Sign out complete");
   return result;
 };
 

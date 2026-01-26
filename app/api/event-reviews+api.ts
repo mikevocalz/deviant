@@ -7,14 +7,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 // POST /api/event-reviews - Create a review
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     
     if (!currentUser) {
       return Response.json(
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
         user: { equals: currentUser.id },
       },
       limit: 1,
-    }, cookies);
+    }, auth);
 
     if (existingReview.docs && existingReview.docs.length > 0) {
       // Update existing review
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           },
           depth: 2,
         },
-        cookies,
+        auth,
       );
       return Response.json(updated);
     }
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
         },
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(review, { status: 201 });
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
 // GET /api/event-reviews - Get reviews for an event
 export async function GET(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const url = new URL(request.url);
     const eventId = url.searchParams.get("eventId");
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
@@ -123,7 +123,7 @@ export async function GET(request: Request) {
       page,
       sort: "-createdAt",
       depth: 2,
-    }, cookies);
+    }, auth);
 
     return Response.json(reviews);
   } catch (error) {

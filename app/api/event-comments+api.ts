@@ -7,14 +7,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 // POST /api/event-comments - Create a comment
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     // Get current user from session
     let currentUser: { id: string; username: string; email?: string } | null = null;
     try {
-      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
+      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(auth);
       console.log("[API] Current user:", currentUser ? { id: currentUser.id, username: currentUser.username } : "null");
     } catch (meError) {
       console.error("[API] Error getting current user:", meError);
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { username: { equals: usernameToLookup } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { email: { equals: currentUser.email } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const event = await payloadClient.findByID({
       collection: "events",
       id: body.eventId,
-    }, cookies);
+    }, auth);
 
     if (!event) {
       return Response.json(
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
         },
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(comment, { status: 201 });
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
 // GET /api/event-comments - Get comments for an event
 export async function GET(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const url = new URL(request.url);
     const eventId = url.searchParams.get("eventId");
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
@@ -152,7 +152,7 @@ export async function GET(request: Request) {
       page,
       sort: "-createdAt",
       depth: 2,
-    }, cookies);
+    }, auth);
 
     return Response.json(comments);
   } catch (error) {

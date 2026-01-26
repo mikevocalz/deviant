@@ -4,13 +4,13 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function GET(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const url = new URL(request.url);
     const depth = parseInt(url.searchParams.get("depth") || "2", 10);
 
@@ -20,7 +20,7 @@ export async function GET(request: Request, { id }: { id: string }) {
         id,
         depth,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -32,7 +32,7 @@ export async function GET(request: Request, { id }: { id: string }) {
 
 export async function PATCH(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     const result = await payloadClient.update(
@@ -42,7 +42,7 @@ export async function PATCH(request: Request, { id }: { id: string }) {
         data: body,
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -54,14 +54,14 @@ export async function PATCH(request: Request, { id }: { id: string }) {
 
 export async function DELETE(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const result = await payloadClient.delete(
       {
         collection: "events",
         id,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);

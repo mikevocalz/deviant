@@ -7,14 +7,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const postId = url.searchParams.get("postId");
     const parentId = url.searchParams.get("parentId"); // For fetching replies
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
             parent: { equals: parentId },
           },
         },
-        cookies,
+        auth,
       );
       return Response.json(result);
     }
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
           parent: { exists: false }, // Top-level comments only
         },
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -69,11 +69,11 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     console.log("[API] POST /api/comments - Request received", {
-      hasCookies: !!cookies,
+      hasAuth: !!(auth.jwtToken || auth.cookies),
       bodyKeys: Object.keys(body || {}),
       post: body?.post,
       textLength: body?.text?.length,
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     // Get current user from session - this is critical for Payload hooks to work
     let currentUser: { id: string; username: string; email?: string } | null = null;
     try {
-      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(cookies);
+      currentUser = await payloadClient.me<{ id: string; username: string; email?: string }>(auth);
       console.log("[API] Current user from me():", currentUser ? { id: currentUser.id, username: currentUser.username, email: currentUser.email } : "null");
     } catch (meError) {
       console.error("[API] Error getting current user:", meError);
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       const post = await payloadClient.findByID({
         collection: "posts",
         id: postId,
-      }, cookies);
+      }, auth);
       
       if (!post) {
         console.error("[API] Post not found:", postId);
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { username: { equals: usernameToLookup } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -167,7 +167,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { email: { equals: currentUser.email } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -185,7 +185,7 @@ export async function POST(request: Request) {
         const userCheck = await payloadClient.findByID({
           collection: "users",
           id: clientAuthorId,
-        }, cookies);
+        }, auth);
         
         if (userCheck) {
           authorId = clientAuthorId;
@@ -202,7 +202,7 @@ export async function POST(request: Request) {
         const userCheck = await payloadClient.findByID({
           collection: "users",
           id: currentUser.id,
-        }, cookies);
+        }, auth);
         
         if (userCheck) {
           authorId = currentUser.id;
@@ -220,7 +220,7 @@ export async function POST(request: Request) {
         email: currentUser?.email,
         currentUserId: currentUser?.id,
         bodyAuthorId: body.authorId,
-        cookiesPresent: !!cookies,
+        authPresent: !!(auth.jwtToken || auth.cookies),
       });
       return Response.json(
         { 
@@ -281,8 +281,8 @@ export async function POST(request: Request) {
     try {
       // CRITICAL: Ensure we're sending the data correctly to Payload
       // Payload expects relationships as IDs (strings), not objects
-      // If we don't have authorId, we MUST ensure cookies are passed so the hook can set it
-      console.log("[API] Creating comment - cookies present:", !!cookies);
+      // JWT auth is passed so Payload can authenticate the user properly
+      console.log("[API] Creating comment - auth present:", !!(auth.jwtToken || auth.cookies));
       console.log("[API] Comment data being sent:", {
         post: commentData.post,
         content: String(commentData.content || "").substring(0, 30),
@@ -296,7 +296,7 @@ export async function POST(request: Request) {
           data: commentData,
           depth: 2,
         },
-        cookies, // CRITICAL: Pass cookies so Payload can authenticate and set req.user
+        auth, // CRITICAL: Pass auth so Payload can authenticate and set req.user
       );
 
       console.log("[API] ✓ Comment created successfully:", {

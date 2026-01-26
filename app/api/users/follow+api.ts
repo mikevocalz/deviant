@@ -6,13 +6,13 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user
-    const currentUser = await payloadClient.me(cookies);
+    const currentUser = await payloadClient.me(auth);
     if (!currentUser || !currentUser.id) {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
         collection: "users",
         id: userId,
       },
-      cookies,
+      auth,
     );
 
     if (!targetUser) {
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
         collection: "users",
         id: String(currentUser.id),
       },
-      cookies,
+      auth,
     );
 
     // Handle Payload array format (array of objects with 'user' field)
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
             followingCount: updatedFollowing.length,
           },
         },
-        cookies,
+        auth,
       );
 
       // Update target user's followers count
@@ -112,7 +112,7 @@ export async function POST(request: Request) {
             followersCount: targetFollowersCount,
           },
         },
-        cookies,
+        auth,
       );
 
       return Response.json({
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
             followingCount: updatedFollowing.length,
           },
         },
-        cookies,
+        auth,
       );
 
       // Update target user's followers count
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
             followersCount: targetFollowersCount,
           },
         },
-        cookies,
+        auth,
       );
 
       return Response.json({

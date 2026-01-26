@@ -13,7 +13,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 import {
@@ -38,7 +38,7 @@ export async function DELETE(request: Request) {
     }
 
     console.log("[Cleanup] Starting story cleanup...");
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     // Calculate 24 hours ago
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -61,7 +61,7 @@ export async function DELETE(request: Request) {
             },
           },
         },
-        cookies,
+        auth,
       );
 
       if (result.docs && result.docs.length > 0) {

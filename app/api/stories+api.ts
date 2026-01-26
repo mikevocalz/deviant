@@ -7,14 +7,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
           },
         },
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -59,6 +59,9 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get current user to set as author
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
+    
     // Handle author ID - client already looks up Payload CMS ID, so trust it if provided
     let storyData = { ...body };
     
@@ -69,7 +72,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { username: { equals: body.authorUsername } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           storyData.author = (userResult.docs[0] as { id: string }).id;
@@ -81,8 +84,12 @@ export async function POST(request: Request) {
       delete storyData.authorUsername;
     }
     
-    // If author is provided but not a valid ObjectId format, try to look it up
-    // Otherwise, trust the client-provided author ID (already a Payload CMS ID)
+    // If no author set, use current user
+    if (!storyData.author && currentUser) {
+      storyData.author = currentUser.id;
+      console.log("[API] Using authenticated user as author:", currentUser.id);
+    }
+    
     if (storyData.author) {
       console.log("[API] Creating story with author:", storyData.author);
     } else {
@@ -95,7 +102,7 @@ export async function POST(request: Request) {
         data: storyData,
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result, { status: 201 });

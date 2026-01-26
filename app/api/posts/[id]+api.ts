@@ -8,14 +8,14 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 // GET /api/posts/:id
 export async function GET(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const url = new URL(request.url);
     const depth = parseInt(url.searchParams.get("depth") || "1", 10);
 
@@ -25,7 +25,7 @@ export async function GET(request: Request, { id }: { id: string }) {
         id,
         depth,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -38,7 +38,7 @@ export async function GET(request: Request, { id }: { id: string }) {
 // PATCH /api/posts/:id
 export async function PATCH(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -58,7 +58,7 @@ export async function PATCH(request: Request, { id }: { id: string }) {
         data: body,
         depth,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -71,14 +71,14 @@ export async function PATCH(request: Request, { id }: { id: string }) {
 // DELETE /api/posts/:id
 export async function DELETE(request: Request, { id }: { id: string }) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const result = await payloadClient.delete(
       {
         collection: "posts",
         id,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);

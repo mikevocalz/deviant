@@ -127,6 +127,40 @@ Before pushing any changes that affect data structure:
 - ✅ Commit and push API changes
 - ✅ Publish EAS update to production
 
+### CMS Collection Access Control (CRITICAL)
+
+**⚠️ Access control MUST handle both API key and JWT authentication.**
+
+When using `req.user` in access control, remember:
+- `req.user` is populated when JWT auth is used
+- `req.user` is NOT populated with API key auth
+- API routes may use API key auth with user-specific filtering
+
+**Correct pattern for user-specific collections:**
+
+```typescript
+// In Payload collection (e.g., Messages, Notifications)
+access: {
+  read: ({ req }) => {
+    if (req.user) {
+      // JWT auth - filter by user
+      return { recipient: { equals: req.user.id } };
+    }
+    // API key auth - allow read, API route handles filtering
+    return true;
+  },
+  create: () => true,
+  update: ({ req }) => {
+    if (req.user) {
+      return { sender: { equals: req.user.id } };
+    }
+    return true;
+  },
+},
+```
+
+**Important:** The API route is responsible for filtering when using API key auth.
+
 **⚠️ REMEMBER: CMS changes require redeployment!** Pushing to git is not enough - you must redeploy the CMS for schema changes to take effect.
 
 ### Common Sync Issues
@@ -691,13 +725,47 @@ PAYLOAD_URL=http://localhost:3000
 PAYLOAD_API_KEY=your_api_key_here
 ```
 
-### Auth Forwarding
+### Auth Forwarding (JWT + Cookies)
 
-Cookies are automatically forwarded from client requests to Payload for user authentication:
+**⚠️ CRITICAL:** API routes must forward BOTH cookies AND JWT tokens for proper authentication:
 
 ```typescript
+import { payloadClient, getAuthFromRequest, createErrorResponse } from "@/lib/payload.server";
+
+export async function GET(request: Request) {
+  // Extract both cookies and JWT token from request
+  const auth = getAuthFromRequest(request);
+  
+  // Pass auth object to payloadClient - it handles both auth methods
+  const result = await payloadClient.find(
+    { collection: "posts", limit: 10 },
+    auth  // Contains { cookies?: string, jwtToken?: string }
+  );
+  
+  return Response.json(result);
+}
+```
+
+**Why both auth methods?**
+- Mobile app sends JWT in `Authorization: Bearer <token>` header
+- Web may use cookies
+- `payloadClient` prioritizes JWT over API key when present
+- This ensures the correct user context is applied to CMS queries
+
+### Auth Helpers Available
+
+```typescript
+// Get full auth context (recommended)
+const auth = getAuthFromRequest(request);
+
+// Get cookies only (legacy)
 const cookies = getCookiesFromRequest(request);
-await payloadClient.find({ collection: "posts" }, cookies);
+
+// Get JWT only
+const jwtToken = getJWTFromRequest(request);
+
+// Get current user
+const currentUser = await payloadClient.me<{ id: string }>(auth);
 ```
 
 ---
@@ -1034,3 +1102,56 @@ The app uses native modules that cannot run in Node.js SSR:
 - `@regulaforensics/react-native-face-api`
 
 These cause `__fbBatchedBridgeConfig is not set` errors during web export.
+
+---
+
+## 🐛 Known Bug Fixes (Jan 2026)
+
+### Authentication Flow (CRITICAL)
+
+**Problem:** API routes weren't properly forwarding JWT tokens to Payload CMS, causing user-specific operations to fail.
+
+**Fix:** Updated `lib/payload.server.ts` to:
+1. Accept JWT token in auth context
+2. Prioritize JWT over API key in `payloadFetch`
+3. Add `getJWTFromRequest()` and `getAuthFromRequest()` helpers
+4. All API routes now use `getAuthFromRequest()` pattern
+
+**Files changed:**
+- `lib/payload.server.ts` - Added JWT handling
+- All `app/api/*+api.ts` files - Updated to use `auth` object
+
+### User Data Leakage on Logout/Switch (CRITICAL)
+
+**Problem:** When users logged out and logged in as different user, old user's data appeared.
+
+**Fix:** Enhanced cache clearing in `lib/auth-client.ts`:
+1. Clear React Query with ALL methods (cancel, remove, clear, reset)
+2. Clear MMKV storage keys explicitly
+3. Clear auth-storage separately
+4. Added `clearAuthStorage()` to `lib/utils/storage.ts`
+5. Profile page has `useRef`-based user switch detection
+
+**Bug in `lib/utils/storage.ts`:** Fixed `mmkv.delete()` → `mmkv.remove()` (wrong API method)
+
+### Messages/Notifications Access Control (CRITICAL)
+
+**Problem:** Messages and Notifications collections returned empty results due to access control checking `req.user` which isn't set with API key auth.
+
+**Fix:** Updated collection access control in Payload CMS to:
+1. Check if `req.user` exists for user-specific filtering
+2. Return `true` for API key auth (let API route handle filtering)
+
+**Files changed (in payload-cms-setup repo):**
+- `collections/Messages.ts`
+- `collections/Notifications.ts`
+
+### Event Details Crash
+
+**Problem:** Event details page crashed when EventReviews or EventComments collections weren't available.
+
+**Fix:** Added try-catch in hooks with empty array fallback:
+- `lib/hooks/use-event-reviews.ts`
+- `lib/hooks/use-event-comments.ts`
+
+---

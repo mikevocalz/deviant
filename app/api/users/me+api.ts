@@ -4,23 +4,23 @@
  * GET   /api/users/me - Get the currently authenticated user
  * PATCH /api/users/me - Update the currently authenticated user
  *
- * Uses cookie-based auth forwarding to identify the user.
+ * Uses JWT token or cookie-based auth forwarding to identify the user.
  */
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 // GET /api/users/me
 export async function GET(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const url = new URL(request.url);
     const includeBookmarks = url.searchParams.get("includeBookmarks") === "true";
 
-    const user = await payloadClient.me(cookies);
+    const user = await payloadClient.me(auth);
 
     if (!user) {
       return Response.json(
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
           collection: "users",
           id: (user as any).id,
         },
-        cookies,
+        auth,
       );
 
       const bookmarkedPosts = (userData as any)?.bookmarkedPosts || [];
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
 // PATCH /api/users/me - Update current user profile
 export async function PATCH(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -76,7 +76,7 @@ export async function PATCH(request: Request) {
     }
 
     // First get the current user to get their ID
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     
     if (!currentUser) {
       return Response.json(
@@ -94,7 +94,7 @@ export async function PATCH(request: Request) {
         collection: "users",
         where: { username: { equals: body.username } },
         limit: 1,
-      }, cookies);
+      }, auth);
       
       if (userResult.docs && userResult.docs.length > 0) {
         userId = (userResult.docs[0] as { id: string }).id;
@@ -124,7 +124,7 @@ export async function PATCH(request: Request) {
         id: userId,
         data: updateData,
       },
-      cookies,
+      auth,
     );
 
     return Response.json({ user: updatedUser });

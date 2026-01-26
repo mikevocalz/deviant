@@ -6,13 +6,13 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user
-    const currentUser = await payloadClient.me<{ id: string; username: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string; username: string }>(auth);
     
     if (!currentUser) {
       return Response.json(
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         data: ticketData,
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(ticket, { status: 201 });

@@ -6,7 +6,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
@@ -15,10 +15,10 @@ export async function GET(
   { id }: { id: string },
 ) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     // Get current user
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     
     if (!currentUser) {
       return Response.json(
@@ -32,7 +32,7 @@ export async function GET(
       collection: "events",
       id: id,
       depth: 1,
-    }, cookies);
+    }, auth);
 
     if (!event) {
       return Response.json(
@@ -70,7 +70,7 @@ export async function GET(
       limit: 1000, // Adjust as needed
       sort: "-createdAt",
       depth: 2,
-    }, cookies);
+    }, auth);
 
     return Response.json({
       tickets: tickets.docs,

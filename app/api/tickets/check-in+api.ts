@@ -6,13 +6,13 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     // Get current user (organizer)
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     
     if (!currentUser) {
       return Response.json(
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       },
       limit: 1,
       depth: 2,
-    }, cookies);
+    }, auth);
 
     if (!ticket.docs || ticket.docs.length === 0) {
       return Response.json(
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       collection: "events",
       id: tokenData.eid,
       depth: 1,
-    }, cookies);
+    }, auth);
 
     if (!event) {
       return Response.json(
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         },
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     return Response.json({

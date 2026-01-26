@@ -6,7 +6,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
@@ -15,7 +15,7 @@ export async function POST(
   { id }: { id: string },
 ) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -35,7 +35,7 @@ export async function POST(
     }
 
     // Get current user
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     if (!currentUser || !currentUser.id) {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
@@ -46,7 +46,7 @@ export async function POST(
         collection: "comments",
         id,
       },
-      cookies,
+      auth,
     );
 
     if (!comment) {
@@ -59,7 +59,7 @@ export async function POST(
         collection: "users",
         id: currentUser.id,
       },
-      cookies,
+      auth,
     );
 
     // Handle Payload array format for likedComments
@@ -101,7 +101,7 @@ export async function POST(
             likedComments: updatedLikedComments,
           },
         },
-        cookies,
+        auth,
       );
 
       // Update comment's like count
@@ -116,7 +116,7 @@ export async function POST(
             likes: newLikes,
           },
         },
-        cookies,
+        auth,
       );
 
       return Response.json({
@@ -149,7 +149,7 @@ export async function POST(
             likedComments: updatedLikedComments,
           },
         },
-        cookies,
+        auth,
       );
 
       // Update comment's like count
@@ -164,7 +164,7 @@ export async function POST(
             likes: newLikes,
           },
         },
-        cookies,
+        auth,
       );
 
       return Response.json({

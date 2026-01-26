@@ -31,12 +31,27 @@ export function clearUserDataFromStorage(): void {
       });
     } else if (mmkv) {
       USER_DATA_STORAGE_KEYS.forEach(key => {
-        mmkv!.delete(key);
+        mmkv!.remove(key); // Fixed: was delete, should be remove
       });
     }
     console.log("[Storage] User data cleared successfully");
   } catch (error) {
     console.error("[Storage] Error clearing user data:", error);
+  }
+}
+
+// Clear auth storage (called separately during logout)
+export function clearAuthStorage(): void {
+  console.log("[Storage] Clearing auth storage");
+  try {
+    if (Platform.OS === "web") {
+      localStorage.removeItem("auth-storage");
+    } else if (mmkv) {
+      mmkv.remove("auth-storage");
+    }
+    console.log("[Storage] Auth storage cleared successfully");
+  } catch (error) {
+    console.error("[Storage] Error clearing auth storage:", error);
   }
 }
 

@@ -7,7 +7,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
@@ -15,13 +15,13 @@ import {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
 
-    // Get current user
-    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    // Get current user using JWT auth
+    const currentUser = await payloadClient.me<{ id: string }>(auth);
     if (!currentUser) {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
           recipient: { equals: currentUser.id },
         },
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 // POST /api/notifications
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     if (!body || typeof body !== "object") {
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       collection: "users",
       where: { username: { equals: recipientUsername } },
       limit: 1,
-    }, cookies);
+    }, auth);
 
     if (!recipientResult.docs || recipientResult.docs.length === 0) {
       return Response.json(
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
         collection: "users",
         where: { username: { equals: senderUsername } },
         limit: 1,
-      }, cookies);
+      }, auth);
 
       if (senderResult.docs && senderResult.docs.length > 0) {
         senderId = (senderResult.docs[0] as { id: string }).id;
@@ -104,10 +104,9 @@ export async function POST(request: Request) {
     const notificationData: Record<string, unknown> = {
       type,
       recipient: recipientId,
-      sender: senderId,
-      post: postId,
-      content,
-      isRead: false,
+      actor: senderId,
+      entityType: postId ? "post" : undefined,
+      entityId: postId,
     };
 
     const result = await payloadClient.create(
@@ -116,7 +115,7 @@ export async function POST(request: Request) {
         data: notificationData,
         depth: 2,
       },
-      cookies,
+      auth,
     );
 
     // TODO: Also send push notification if user has push tokens enabled

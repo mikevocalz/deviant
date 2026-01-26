@@ -9,7 +9,7 @@
 
 import {
   payloadClient,
-  getCookiesFromRequest,
+  getAuthFromRequest,
   createErrorResponse,
 } from "@/lib/payload.server";
 
@@ -17,7 +17,7 @@ import {
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
 
     // Parse query parameters
     const limit = parseInt(url.searchParams.get("limit") || "10", 10);
@@ -48,7 +48,7 @@ export async function GET(request: Request) {
         sort,
         where,
       },
-      cookies,
+      auth,
     );
 
     return Response.json(result);
@@ -61,12 +61,12 @@ export async function GET(request: Request) {
 // POST /api/posts
 export async function POST(request: Request) {
   try {
-    const cookies = getCookiesFromRequest(request);
+    const auth = getAuthFromRequest(request);
     const body = await request.json();
 
     console.log("[API] POST /api/posts - Request received");
     console.log("[API] Body keys:", Object.keys(body || {}));
-    console.log("[API] Has cookies:", !!cookies);
+    console.log("[API] Has JWT token:", !!auth.jwtToken);
 
     // Validate required fields
     if (!body || typeof body !== "object") {
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     // Get the current authenticated user from Payload CMS
     let currentUser: { id: string } | null = null;
     try {
-      const meResult = await payloadClient.me<{ id: string }>(cookies);
+      const meResult = await payloadClient.me<{ id: string }>(auth);
       if (meResult && meResult.id) {
         currentUser = meResult;
         console.log("[API] Current authenticated user ID:", currentUser.id);
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
           collection: "users",
           where: { username: { equals: body.authorUsername } },
           limit: 1,
-        }, cookies);
+        }, auth);
         
         if (userResult.docs && userResult.docs.length > 0) {
           authorId = (userResult.docs[0] as { id: string }).id;
@@ -154,7 +154,7 @@ export async function POST(request: Request) {
         data: postData,
         depth,
       },
-      cookies,
+      auth,
     );
 
     console.log("[API] Post created successfully:", result?.id || "unknown");
