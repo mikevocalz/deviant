@@ -185,7 +185,7 @@ export default function EventDetailScreen() {
   const eventId = id || "lower-east-side-winter-bar-fest";
   const { isRsvped, toggleRsvp } = useEventViewStore();
   const { getTicketByEventId, hasValidTicket } = useTicketStore();
-  const { showToast } = useUIStore();
+  const showToast = useUIStore((state) => state.showToast);
   const [isAttendeesExpanded, setIsAttendeesExpanded] = useState(false);
   const scrollY = useSharedValue(0);
 
