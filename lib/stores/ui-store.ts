@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { toast } from "sonner-native"
 
 type ScreenName = 
   | "profile" 
@@ -13,25 +14,15 @@ type ScreenName =
 
 type ToastType = 'success' | 'error' | 'info' | 'warning'
 
-interface Toast {
-  id: string
-  type: ToastType
-  title: string
-  description?: string
-}
-
 interface UIState {
   loadingScreens: Record<ScreenName, boolean>
   searchingState: boolean
-  toasts: Toast[]
   
   setScreenLoading: (screen: ScreenName, loading: boolean) => void
   setSearching: (searching: boolean) => void
   isScreenLoading: (screen: ScreenName) => boolean
   resetScreenLoading: (screen: ScreenName) => void
   showToast: (type: ToastType, title: string, description?: string) => void
-  dismissToast: (id: string) => void
-  clearToasts: () => void
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -47,7 +38,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     stories: true,
   },
   searchingState: false,
-  toasts: [],
 
   setScreenLoading: (screen, loading) =>
     set((state) => ({
@@ -63,23 +53,24 @@ export const useUIStore = create<UIState>((set, get) => ({
       loadingScreens: { ...state.loadingScreens, [screen]: true },
     })),
 
+  // Unified toast using sonner-native
   showToast: (type, title, description) => {
-    const id = Date.now().toString()
-    set((state) => ({
-      toasts: [...state.toasts, { id, type, title, description }],
-    }))
-    // Auto-dismiss after 3 seconds
-    setTimeout(() => {
-      set((state) => ({
-        toasts: state.toasts.filter((t) => t.id !== id),
-      }))
-    }, 3000)
+    const options = { description }
+    
+    switch (type) {
+      case 'success':
+        toast.success(title, options)
+        break
+      case 'error':
+        toast.error(title, options)
+        break
+      case 'warning':
+        toast.warning(title, options)
+        break
+      case 'info':
+      default:
+        toast.info(title, options)
+        break
+    }
   },
-
-  dismissToast: (id) =>
-    set((state) => ({
-      toasts: state.toasts.filter((t) => t.id !== id),
-    })),
-
-  clearToasts: () => set({ toasts: [] }),
 }))
