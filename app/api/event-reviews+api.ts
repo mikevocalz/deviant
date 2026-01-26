@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       const updated = await payloadClient.update(
         {
           collection: "event-reviews",
-          id: review.id,
+          id: String(review.id),
           data: {
             rating: body.rating,
             comment: body.comment || undefined,

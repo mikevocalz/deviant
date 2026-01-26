@@ -16,10 +16,24 @@ import { useQueryClient } from "@tanstack/react-query"
 const { width } = Dimensions.get("window")
 const columnWidth = (width - 8) / 3
 
-const mockUsers: Record<string, { username: string; fullName: string; avatar: string; bio: string; postsCount: number; followersCount: number; followingCount: number }> = {
+interface MockUser {
+  id?: string;
+  username: string;
+  fullName: string;
+  name?: string;
+  avatar: string;
+  bio: string;
+  postsCount: number;
+  followersCount: number;
+  followingCount: number;
+}
+
+const mockUsers: Record<string, MockUser> = {
   emma_wilson: {
+    id: "mock-emma",
     username: "emma_wilson",
     fullName: "Emma Wilson",
+    name: "Emma Wilson",
     avatar: "https://i.pravatar.cc/150?img=5",
     bio: "Travel enthusiast 🌍\nPhotography lover 📸",
     postsCount: 234,
@@ -27,8 +41,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 456,
   },
   john_fitness: {
+    id: "mock-john",
     username: "john_fitness",
     fullName: "John Fitness",
+    name: "John Fitness",
     avatar: "https://i.pravatar.cc/150?img=17",
     bio: "Fitness coach 💪\nHelping you reach your goals",
     postsCount: 189,
@@ -36,8 +52,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 234,
   },
   sarah_artist: {
+    id: "mock-sarah",
     username: "sarah_artist",
     fullName: "Sarah Artist",
+    name: "Sarah Artist",
     avatar: "https://i.pravatar.cc/150?img=14",
     bio: "Digital artist 🎨\nCommissions open",
     postsCount: 567,
@@ -45,8 +63,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 123,
   },
   naturephoto: {
+    id: "mock-nature",
     username: "naturephoto",
     fullName: "Nature Photography",
+    name: "Nature Photography",
     avatar: "https://i.pravatar.cc/150?img=13",
     bio: "Capturing the beauty of our planet 🌿\nSony Ambassador | DM for prints",
     postsCount: 892,
@@ -54,8 +74,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 312,
   },
   urban_explorer: {
+    id: "mock-urban",
     username: "urban_explorer",
     fullName: "Urban Explorer",
+    name: "Urban Explorer",
     avatar: "https://i.pravatar.cc/150?img=8",
     bio: "Street photography | City vibes 🏙️\nBased in Tokyo & NYC",
     postsCount: 445,
@@ -63,8 +85,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 189,
   },
   foodie_adventures: {
+    id: "mock-foodie",
     username: "foodie_adventures",
     fullName: "Foodie Adventures",
+    name: "Foodie Adventures",
     avatar: "https://i.pravatar.cc/150?img=9",
     bio: "Eating my way around the world 🍜\nMichelin hunter | Food blogger",
     postsCount: 678,
@@ -72,8 +96,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 445,
   },
   travel_with_me: {
+    id: "mock-travel",
     username: "travel_with_me",
     fullName: "Sarah Anderson",
+    name: "Sarah Anderson",
     avatar: "https://i.pravatar.cc/150?img=10",
     bio: "Full-time traveler ✈️\n50+ countries | Content creator",
     postsCount: 1234,
@@ -81,8 +107,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 567,
   },
   coffee_culture: {
+    id: "mock-coffee",
     username: "coffee_culture",
     fullName: "Marcus Chen",
+    name: "Marcus Chen",
     avatar: "https://i.pravatar.cc/150?img=31",
     bio: "Coffee enthusiast ☕\nBarista | Roaster | Educator",
     postsCount: 312,
@@ -90,8 +118,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 234,
   },
   street_style: {
+    id: "mock-street",
     username: "street_style",
     fullName: "Olivia Park",
+    name: "Olivia Park",
     avatar: "https://i.pravatar.cc/150?img=33",
     bio: "Fashion designer 👗\nSeoul | Paris | NYC\nShop link below ⬇️",
     postsCount: 567,
@@ -99,8 +129,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 178,
   },
   astro_captures: {
+    id: "mock-astro",
     username: "astro_captures",
     fullName: "David Starr",
+    name: "David Starr",
     avatar: "https://i.pravatar.cc/150?img=35",
     bio: "Astrophotographer 🌌\nChasing the cosmos one photo at a time",
     postsCount: 234,
@@ -108,8 +140,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 89,
   },
   pet_paradise: {
+    id: "mock-pet",
     username: "pet_paradise",
     fullName: "Luna & Max",
+    name: "Luna & Max",
     avatar: "https://i.pravatar.cc/150?img=37",
     bio: "Two rescue pups living their best life 🐕\nAdopt don't shop!",
     postsCount: 445,
@@ -117,8 +151,10 @@ const mockUsers: Record<string, { username: string; fullName: string; avatar: st
     followingCount: 567,
   },
   minimalist_home: {
+    id: "mock-minimalist",
     username: "minimalist_home",
     fullName: "Interior Studio",
+    name: "Interior Studio",
     avatar: "https://i.pravatar.cc/150?img=40",
     bio: "Interior design studio 🏠\nScandinavian inspired | Less is more",
     postsCount: 289,
@@ -165,13 +201,13 @@ function UserProfileScreenComponent() {
   
   // Update local follow state when user data loads
   useEffect(() => {
-    if (userData?.isFollowing !== undefined) {
+    if (userData?.isFollowing !== undefined && typeof userData.isFollowing === 'boolean') {
       setIsFollowing(userData.isFollowing)
     }
   }, [userData?.isFollowing])
 
   // Use API data or fallback to mock data
-  const user = userData || mockUsers[username || ""] || {
+  const user = (userData || mockUsers[username || ""] || {
     id: undefined,
     username: username || "unknown",
     fullName: "Unknown User",
@@ -181,7 +217,7 @@ function UserProfileScreenComponent() {
     postsCount: 0,
     followersCount: 0,
     followingCount: 0,
-  }
+  }) as MockUser & { isFollowing?: boolean }
   
   // Create a followMutation-like object for compatibility
   const followMutation = {

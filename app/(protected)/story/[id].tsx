@@ -123,6 +123,11 @@ export default function StoryViewerScreen() {
       }
     }
   })
+
+  // Wrapper function that calls the ref - this ensures we always use the latest handleNext
+  const callHandleNext = useCallback(() => {
+    handleNextRef.current()
+  }, [])
   
   // Play video when it's ready and VideoView is mounted
   useEffect(() => {
@@ -261,11 +266,6 @@ export default function StoryViewerScreen() {
     }, [player, isVideo, videoUrl])
   )
 
-  // Wrapper function that calls the ref - this ensures we always use the latest handleNext
-  const callHandleNext = useCallback(() => {
-    handleNextRef.current()
-  }, [])
-
   useEffect(() => {
     if (!currentItem || !currentStoryId) return
     
@@ -334,6 +334,10 @@ export default function StoryViewerScreen() {
     }
   }, [currentStoryIndex, availableStories, setCurrentItemIndex, setCurrentStoryId, progress])
 
+  // Check if viewing own story (don't show reply input for own story)
+  // Compare by username (case-insensitive) since IDs may not match between auth systems
+  const isOwnStory = story?.username?.toLowerCase() === currentUser?.username?.toLowerCase()
+
   const handleNext = useCallback(() => {
     if (!story || !story.items) return
     if (isExiting.current || hasNavigatedAway.current) return // Prevent multiple calls
@@ -400,10 +404,6 @@ export default function StoryViewerScreen() {
     // Don't reset isExiting or hasNavigatedAway here - those are permanent for the session
     return () => clearTimeout(timer)
   }, [currentItemIndex, currentStoryId])
-  
-  // Check if viewing own story (don't show reply input for own story)
-  // Compare by username (case-insensitive) since IDs may not match between auth systems
-  const isOwnStory = story?.username?.toLowerCase() === currentUser?.username?.toLowerCase()
   
   // Pause animation when input is focused
   useEffect(() => {
@@ -549,7 +549,7 @@ export default function StoryViewerScreen() {
             <Image source={{ uri: story.avatar }} style={{ width: 40, height: 40, borderRadius: 20 }} />
             <View>
               <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{story.username}</Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{currentItem.header?.subheading}</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{(currentItem as any).header?.subheading}</Text>
             </View>
           </View>
           <Pressable 

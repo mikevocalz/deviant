@@ -67,7 +67,7 @@ export function UserMentionAutocomplete({
           },
           limit: 10,
         });
-        return (result.docs || []) as User[];
+        return (result.docs || []) as unknown as User[];
       } catch (error) {
         console.error("[UserMention] Search error:", error);
         return [];

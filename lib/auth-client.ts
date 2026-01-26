@@ -241,6 +241,17 @@ export function getAuthCookies(): string | null {
   return authClient.getCookie();
 }
 
+// Helper to get auth token for authenticated requests
+export async function getAuthToken(): Promise<string | null> {
+  try {
+    const storage = getStorage();
+    const token = await storage.getItem("dvnt_auth_token");
+    return token || null;
+  } catch {
+    return null;
+  }
+}
+
 // Helper to make authenticated fetch requests
 export async function authenticatedFetch(
   url: string,

@@ -73,7 +73,6 @@ export default function AnimatedSplashScreen({
             style={styles.rive}
             fit={Fit.Contain}
             autoPlay={true}
-            loop={false}
             onError={handleRiveError}
           />
         ) : (

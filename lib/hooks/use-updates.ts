@@ -65,7 +65,7 @@ export function useUpdates() {
   useEffect(() => {
     console.log("[Updates] Hook mounted - __DEV__:", __DEV__, "FORCE_OTA:", FORCE_OTA_IN_DEV, "UpdatesAvailable:", UpdatesAvailable);
     if (Updates) {
-      console.log("[Updates] expo-updates module loaded, isEnabled:", safeGet(() => Updates?.isEnabled, "unknown"));
+      console.log("[Updates] expo-updates module loaded, isEnabled:", safeGet(() => Updates?.isEnabled, false));
     }
   }, []);
 
@@ -379,16 +379,19 @@ export function useUpdates() {
 
       // Listen for update events - optional, don't fail if unavailable
       try {
-        if (Updates && typeof Updates.addListener === "function") {
-          updateEventSubscription = Updates.addListener((event: any) => {
+        // Use addUpdatesStateChangeListener if available (newer expo-updates API)
+        const addListener = (Updates as any)?.addUpdatesStateChangeListener || (Updates as any)?.addListener;
+        if (Updates && typeof addListener === "function") {
+          updateEventSubscription = addListener((event: any) => {
             try {
-              console.log("[Updates] Received update event:", event?.type);
+              console.log("[Updates] Received update event:", event?.type || event?.context?.isUpdateAvailable);
 
               const eventType = event?.type;
+              const isUpdateAvailable = event?.context?.isUpdateAvailable;
               if (
                 eventType === "UPDATE_AVAILABLE" ||
                 eventType === "updateAvailable" ||
-                eventType === Updates?.UpdateEventType?.UPDATE_AVAILABLE
+                isUpdateAvailable === true
               ) {
                 console.log("[Updates] Update available event received");
                 setStatus((prev) => ({

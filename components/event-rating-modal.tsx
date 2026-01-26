@@ -16,7 +16,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StarRating } from "react-native-star-rating-widget";
+import StarRating from "react-native-star-rating-widget";
 import { X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -148,11 +148,11 @@ export function EventRatingModal({
                   </Text>
                   <StarRating
                     rating={rating}
-                    onChange={setRating}
+                    onChange={(value: number) => setRating(value)}
                     starSize={40}
                     color="#FFD700"
                     emptyColor="#E5E5E5"
-                    enableHalfStar={false}
+                    step="full"
                     enableSwiping={true}
                   />
                 </View>

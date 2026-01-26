@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     const currentUserData = await payloadClient.findByID(
       {
         collection: "users",
-        id: currentUser.id,
+        id: String(currentUser.id),
       },
       cookies,
     );
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       await payloadClient.update(
         {
           collection: "users",
-          id: currentUser.id,
+          id: String(currentUser.id),
           data: {
             following: updatedFollowing,
             followingCount: updatedFollowing.length,
@@ -133,7 +133,7 @@ export async function POST(request: Request) {
       await payloadClient.update(
         {
           collection: "users",
-          id: currentUser.id,
+          id: String(currentUser.id),
           data: {
             following: updatedFollowing,
             followingCount: updatedFollowing.length,

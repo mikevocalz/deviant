@@ -436,7 +436,6 @@ export default function CreateScreen() {
         keyboardShouldPersistTaps="handled"
         bottomOffset={100}
         enabled={true}
-        keyboardShouldPersistTaps="handled"
       >
         <View style={{ padding: 16 }}>
           <UserMentionAutocomplete
