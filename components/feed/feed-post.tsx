@@ -258,7 +258,7 @@ function FeedPostComponent({
   }, [player, id, setVideoState]);
 
   const isLiked = isPostLiked(id);
-  const isSaved = isBookmarked(id);
+  const isSaved = isBookmarked; // isBookmarked is already a boolean from line 99
   // Subscribe to like counts to trigger re-renders when they change
   const storedLikeCount = postLikeCounts[id];
   const likeCount = storedLikeCount !== undefined ? storedLikeCount : likes;
@@ -285,7 +285,7 @@ function FeedPostComponent({
   }, [id, likes, isPostLiked, toggleLike, setLikeAnimating, likePostMutation]);
 
   const handleSave = useCallback(() => {
-    const currentBookmarked = isBookmarked;
+    const currentBookmarked = isSaved; // Use isSaved which is the boolean value
     // Optimistically update local store
     bookmarkStore.toggleBookmark(id);
     // Sync with backend
@@ -298,7 +298,7 @@ function FeedPostComponent({
         },
       }
     );
-  }, [id, isBookmarked, bookmarkStore, toggleBookmarkMutation]);
+  }, [id, isSaved, bookmarkStore, toggleBookmarkMutation]);
 
   const handleShare = useCallback(async () => {
     try {
