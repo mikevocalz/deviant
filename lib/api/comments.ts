@@ -63,12 +63,24 @@ function formatTimeAgo(dateString: string): string {
 
 export const commentsApiClient = {
   // Fetch comments for a post
-  async getComments(postId: string): Promise<Comment[]> {
+  async getComments(postId: string, limit: number = 50): Promise<Comment[]> {
     try {
-      const response = await commentsApi.findByPost(postId, { limit: 50 });
+      const response = await commentsApi.findByPost(postId, { limit, depth: 2 });
+      // Transform comments - replies should be populated by Payload CMS with depth: 2
       return response.docs.map(transformComment);
     } catch (error) {
       console.error("[commentsApi] getComments error:", error);
+      return [];
+    }
+  },
+
+  // Fetch replies to a comment
+  async getReplies(parentId: string, limit: number = 50): Promise<Comment[]> {
+    try {
+      const response = await commentsApi.findByParent(parentId, { limit, depth: 2 });
+      return response.docs.map(transformComment);
+    } catch (error) {
+      console.error("[commentsApi] getReplies error:", error);
       return [];
     }
   },
@@ -203,6 +215,64 @@ export const commentsApiClient = {
       return createdComment;
     } catch (error) {
       console.error("[commentsApi] createComment error:", error);
+      throw error;
+    }
+  },
+
+  // Like/unlike a comment
+  async likeComment(
+    commentId: string,
+    isLiked: boolean,
+  ): Promise<{ commentId: string; likes: number; liked: boolean }> {
+    try {
+      const action = isLiked ? "unlike" : "like";
+      const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+      const url = `${API_BASE_URL}/api/comments/${commentId}/like`;
+      
+      const { getAuthToken, getAuthCookies } = await import("@/lib/auth-client");
+      const authToken = await getAuthToken();
+      const authCookies = getAuthCookies();
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      if (authToken) {
+        headers["Authorization"] = `JWT ${authToken}`;
+      }
+      
+      if (authCookies) {
+        headers["Cookie"] = authCookies;
+      }
+
+      const fetchResponse = await fetch(url, {
+        method: "POST",
+        headers,
+        credentials: API_BASE_URL ? "omit" : "include",
+        body: JSON.stringify({ action }),
+      });
+
+      if (!fetchResponse.ok) {
+        let errorMessage = `API error: ${fetchResponse.status}`;
+        try {
+          const errorData = await fetchResponse.json();
+          errorMessage = errorData?.error || errorMessage;
+        } catch {
+          // Response is not JSON, use status text
+          errorMessage = `API error: ${fetchResponse.status} ${fetchResponse.statusText || ""}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await fetchResponse.json();
+
+      return {
+        commentId,
+        likes: data.likes,
+        liked: data.liked,
+      };
+    } catch (error) {
+      console.error("[commentsApi] likeComment error:", error);
       throw error;
     }
   },

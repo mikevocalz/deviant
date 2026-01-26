@@ -37,8 +37,46 @@ export function useCreateEventComment() {
     }) => {
       return await eventComments.create(data);
     },
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: eventCommentKeys.event(variables.eventId),
+      });
+
+      // Snapshot previous data
+      const previousComments = queryClient.getQueryData(
+        eventCommentKeys.event(variables.eventId),
+      );
+
+      // Optimistically add the new comment
+      queryClient.setQueryData(
+        eventCommentKeys.event(variables.eventId),
+        (old: any[]) => {
+          if (!old) return old;
+          const optimisticComment = {
+            id: `temp-${Date.now()}`,
+            text: variables.text,
+            authorUsername: variables.authorUsername || "You",
+            createdAt: new Date().toISOString(),
+            parent: variables.parent,
+          };
+          return [...old, optimisticComment];
+        },
+      );
+
+      return { previousComments };
+    },
+    onError: (_err, variables, context) => {
+      // Rollback on error
+      if (context?.previousComments) {
+        queryClient.setQueryData(
+          eventCommentKeys.event(variables.eventId),
+          context.previousComments,
+        );
+      }
+    },
     onSuccess: (_, variables) => {
-      // Invalidate comments for this event
+      // Invalidate to get real data with correct ID
       queryClient.invalidateQueries({
         queryKey: eventCommentKeys.event(variables.eventId),
       });

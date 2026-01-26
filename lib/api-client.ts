@@ -289,6 +289,13 @@ export const users = {
       body: JSON.stringify({ userId, action }),
     });
   },
+
+  getBookmarks: async <T = string[]>() => {
+    const response = await apiFetch<{ user: T; bookmarkedPosts?: string[] }>(
+      "/api/users/me?includeBookmarks=true",
+    );
+    return response.bookmarkedPosts || [];
+  },
 };
 
 /**
@@ -414,6 +421,17 @@ export const comments = {
     const postIdParam = `${queryString ? "&" : "?"}postId=${postId}`;
     return apiFetch<PaginatedResponse<T>>(
       `/api/comments${queryString}${postIdParam}`,
+    );
+  },
+
+  findByParent: <T = Record<string, unknown>>(
+    parentId: string,
+    params: FindParams = {},
+  ) => {
+    const queryString = buildQueryString(params);
+    const parentIdParam = `${queryString ? "&" : "?"}parentId=${parentId}`;
+    return apiFetch<PaginatedResponse<T>>(
+      `/api/comments${queryString}${parentIdParam}`,
     );
   },
 

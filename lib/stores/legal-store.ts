@@ -92,23 +92,59 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // PRODUCTION: For native apps, use static content directly
-    // API routes are only available during development with Expo dev server
-    // In production builds, always use static content as the primary source
+    // Try to fetch from CMS API first
+    const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+    const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/legal/${slug}` : `/api/legal/${slug}`;
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: API_BASE_URL ? "omit" : "include",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data && data.content && typeof data.content === "string" && data.content.trim().length > 0) {
+          console.log("[LegalStore] ✓ Loaded from CMS for:", slug);
+          set((s) => ({
+            pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
+            loading: { ...s.loading, [slug]: false },
+            errors: { ...s.errors, [slug]: null },
+          }));
+          return;
+        }
+      }
+    } catch (error) {
+      console.log("[LegalStore] CMS fetch failed, using static fallback:", error);
+    }
+
+    // Fallback to static content
     const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
 
     if (staticContent) {
-      set((s) => ({
-        pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
-        loading: { ...s.loading, [slug]: false },
-      }));
-      return;
+      // Ensure content exists and is not empty
+      if (staticContent.content && typeof staticContent.content === "string" && staticContent.content.trim().length > 0) {
+        console.log("[LegalStore] Loading static content for:", slug, "Content length:", staticContent.content.length);
+        set((s) => ({
+          pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
+          loading: { ...s.loading, [slug]: false },
+          errors: { ...s.errors, [slug]: null },
+        }));
+        return;
+      } else {
+        console.warn("[LegalStore] Static content found but empty for slug:", slug);
+      }
+    } else {
+      console.warn("[LegalStore] No static content found for slug:", slug, "Available keys:", Object.keys(LEGAL_CONTENT));
     }
 
     // If no static content found, show error
     set((s) => ({
       loading: { ...s.loading, [slug]: false },
-      errors: { ...s.errors, [slug]: "Page not found" },
+      errors: { ...s.errors, [slug]: "Page content not available" },
     }));
   },
 

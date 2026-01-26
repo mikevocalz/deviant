@@ -36,14 +36,82 @@ export function useCreateEventReview() {
     }) => {
       return await eventReviews.create(data);
     },
+    onMutate: async (variables) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({
+        queryKey: eventReviewKeys.event(variables.eventId),
+      });
+      await queryClient.cancelQueries({
+        queryKey: ["events", "detail", variables.eventId],
+      });
+
+      // Snapshot previous data
+      const previousReviews = queryClient.getQueryData(
+        eventReviewKeys.event(variables.eventId),
+      );
+      const previousEvent = queryClient.getQueryData([
+        "events",
+        "detail",
+        variables.eventId,
+      ]);
+
+      // Optimistically add the new review
+      queryClient.setQueryData(
+        eventReviewKeys.event(variables.eventId),
+        (old: any[]) => {
+          if (!old) return old;
+          const optimisticReview = {
+            id: `temp-${Date.now()}`,
+            rating: variables.rating,
+            comment: variables.comment,
+            createdAt: new Date().toISOString(),
+          };
+          return [...old, optimisticReview];
+        },
+      );
+
+      // Optimistically update event average rating (simplified)
+      queryClient.setQueryData(
+        ["events", "detail", variables.eventId],
+        (old: any) => {
+          if (!old) return old;
+          const currentRating = old.averageRating || 0;
+          const currentCount = old.reviewCount || 0;
+          const newCount = currentCount + 1;
+          const newRating =
+            (currentRating * currentCount + variables.rating) / newCount;
+          return {
+            ...old,
+            averageRating: newRating,
+            reviewCount: newCount,
+          };
+        },
+      );
+
+      return { previousReviews, previousEvent };
+    },
+    onError: (_err, variables, context) => {
+      // Rollback on error
+      if (context?.previousReviews) {
+        queryClient.setQueryData(
+          eventReviewKeys.event(variables.eventId),
+          context.previousReviews,
+        );
+      }
+      if (context?.previousEvent) {
+        queryClient.setQueryData(
+          ["events", "detail", variables.eventId],
+          context.previousEvent,
+        );
+      }
+    },
     onSuccess: (_, variables) => {
-      // Invalidate reviews for this event
+      // Invalidate to get real data with correct ID and accurate ratings
       queryClient.invalidateQueries({
         queryKey: eventReviewKeys.event(variables.eventId),
       });
-      // Also invalidate event query to update average rating
       queryClient.invalidateQueries({
-        queryKey: ["events", variables.eventId],
+        queryKey: ["events", "detail", variables.eventId],
       });
     },
   });

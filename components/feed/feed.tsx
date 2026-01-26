@@ -52,7 +52,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
           media={item.media || []}
           caption={item.caption || ""}
           likes={item.likes || 0}
-          comments={Array.isArray(item.comments) ? item.comments.length : 0}
+          comments={0}
           timeAgo={item.timeAgo || ""}
           location={item.location}
           isNSFW={item.isNSFW}

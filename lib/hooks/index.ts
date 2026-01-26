@@ -26,6 +26,7 @@ export {
 export { storyKeys, useStories, useCreateStory } from "./use-stories";
 export { commentKeys, useComments, useCreateComment } from "./use-comments";
 export { useUser } from "./use-user";
+export { useBookmarks, useToggleBookmark } from "./use-bookmarks";
 export { useFollow } from "./use-follow";
 export { useSearchPosts, useSearchUsers } from "./use-search";
 export { useDebounce, useDebouncedCallback } from "./use-debounce";

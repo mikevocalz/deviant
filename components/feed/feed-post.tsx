@@ -15,9 +15,12 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store";
 import { useLikePost } from "@/lib/hooks/use-posts";
+import { useComments } from "@/lib/hooks/use-comments";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
+import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useRef, useCallback, useEffect, memo, useMemo } from "react";
+import { useRef, useCallback, useEffect, memo, useMemo, useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import { Motion } from "@legendapp/motion";
@@ -62,11 +65,44 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
-  const { isBookmarked, toggleBookmark } = useBookmarkStore();
+  const { isPostLiked, toggleLike, getLikeCount, getCommentCount, postCommentCounts } = usePostStore();
+  const bookmarkStore = useBookmarkStore();
+  const { data: bookmarkedPostIds = [] } = useBookmarks();
+  const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const likePostMutation = useLikePost();
+  
+  // Sync bookmarks from API to local store on mount
+  useEffect(() => {
+    if (bookmarkedPostIds.length > 0) {
+      // Update local store to match API state
+      const currentBookmarks = bookmarkStore.getBookmarkedPostIds();
+      const missingBookmarks = bookmarkedPostIds.filter(id => !currentBookmarks.includes(id));
+      const extraBookmarks = currentBookmarks.filter(id => !bookmarkedPostIds.includes(id));
+      
+      // Add missing bookmarks
+      missingBookmarks.forEach(id => {
+        if (!bookmarkStore.isBookmarked(id)) {
+          bookmarkStore.toggleBookmark(id);
+        }
+      });
+      
+      // Remove extra bookmarks
+      extraBookmarks.forEach(id => {
+        if (bookmarkStore.isBookmarked(id)) {
+          bookmarkStore.toggleBookmark(id);
+        }
+      });
+    }
+  }, [bookmarkedPostIds]);
+  
+  const isBookmarked = bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
+  // Fetch last 3 comments for feed display
+  const { data: recentCommentsData = [] } = useComments(id, 3);
   const currentSlide = currentSlides[id] || 0;
+  
+  // Comments are already limited to 3 from API, sorted newest first
+  const recentComments = recentCommentsData;
 
   const hasMedia = media && media.length > 0;
   const isVideo = hasMedia && media[0]?.type === "video";
@@ -223,7 +259,12 @@ function FeedPostComponent({
 
   const isLiked = isPostLiked(id);
   const isSaved = isBookmarked(id);
-  const likeCount = getLikeCount(id, likes);
+  // Subscribe to like counts to trigger re-renders when they change
+  const storedLikeCount = postLikeCounts[id];
+  const likeCount = storedLikeCount !== undefined ? storedLikeCount : likes;
+  // Subscribe to comment counts to trigger re-renders when they change
+  const storedCommentCount = postCommentCounts[id];
+  const commentCount = storedCommentCount !== undefined ? storedCommentCount : comments;
 
   const handleLike = useCallback(() => {
     const wasLiked = isPostLiked(id);
@@ -244,8 +285,20 @@ function FeedPostComponent({
   }, [id, likes, isPostLiked, toggleLike, setLikeAnimating, likePostMutation]);
 
   const handleSave = useCallback(() => {
-    toggleBookmark(id);
-  }, [id, toggleBookmark]);
+    const currentBookmarked = isBookmarked;
+    // Optimistically update local store
+    bookmarkStore.toggleBookmark(id);
+    // Sync with backend
+    toggleBookmarkMutation.mutate(
+      { postId: id, isBookmarked: currentBookmarked },
+      {
+        onError: () => {
+          // Rollback on error
+          bookmarkStore.toggleBookmark(id);
+        },
+      }
+    );
+  }, [id, isBookmarked, bookmarkStore, toggleBookmarkMutation]);
 
   const handleShare = useCallback(async () => {
     try {
@@ -530,14 +583,37 @@ function FeedPostComponent({
               />
             </View>
           )}
-          {comments > 0 ? (
-            <Pressable
-              onPress={() => router.push(`/(protected)/comments/${id}`)}
-            >
-              <Text className="mt-1 text-sm text-muted-foreground">
-                View all {comments} comments
-              </Text>
-            </Pressable>
+          {recentComments.length > 0 || commentCount > 0 ? (
+            <>
+              {/* Show last 3 comments */}
+              {recentComments.length > 0 && (
+                <View className="mt-2 gap-1">
+                  {recentComments.map((comment) => (
+                    <Pressable
+                      key={comment.id}
+                      onPress={() => router.push(`/(protected)/comments/${id}`)}
+                    >
+                      <Text className="text-sm text-foreground">
+                        <Text className="font-semibold text-foreground">
+                          {comment.username}
+                        </Text>{" "}
+                        <Text className="text-foreground">{comment.text}</Text>
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+              {commentCount > 3 && (
+                <Pressable
+                  onPress={() => router.push(`/(protected)/comments/${id}`)}
+                  className="mt-1"
+                >
+                  <Text className="text-sm text-muted-foreground">
+                    View all {commentCount} comments
+                  </Text>
+                </Pressable>
+              )}
+            </>
           ) : (
             <Text className="mt-1 text-sm text-muted-foreground">
               No comments yet. Be the first to comment!

@@ -25,7 +25,39 @@ export function useCreateStory() {
 
   return useMutation({
     mutationFn: storiesApiClient.createStory,
+    onMutate: async (newStoryData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: storyKeys.all });
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<Story[]>(
+        storyKeys.list(),
+      );
+
+      // Optimistically add the new story
+      queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
+        if (!old) return old;
+        const optimisticStory: Story = {
+          id: `temp-${Date.now()}`,
+          userId: newStoryData.userId || "",
+          username: newStoryData.username || "You",
+          avatar: newStoryData.avatar || "",
+          isViewed: false,
+          items: newStoryData.items || [],
+        };
+        return [optimisticStory, ...old];
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(storyKeys.list(), context.previousData);
+      }
+    },
     onSuccess: () => {
+      // Invalidate to get real data with correct ID
       queryClient.invalidateQueries({ queryKey: storyKeys.all });
     },
   });

@@ -134,19 +134,58 @@ export const postsApi = {
   async likePost(
     postId: string,
     isLiked: boolean,
-  ): Promise<{ postId: string; likes: number }> {
+  ): Promise<{ postId: string; likes: number; liked: boolean }> {
     try {
-      const post = await posts.findByID(postId);
-      const currentLikes =
-        ((post as Record<string, unknown>).likes as number) || 0;
-      const newLikes = isLiked
-        ? Math.max(0, currentLikes - 1)
-        : currentLikes + 1;
-      await posts.update(postId, { likes: newLikes });
-      return { postId, likes: newLikes };
+      const action = isLiked ? "unlike" : "like";
+      const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+      const url = `${API_BASE_URL}/api/posts/${postId}/like`;
+      
+      // Get auth token and cookies
+      const { getAuthToken, getAuthCookies } = await import("@/lib/auth-client");
+      const authToken = await getAuthToken();
+      const authCookies = getAuthCookies();
+      
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+      if (authToken) {
+        headers["Authorization"] = `JWT ${authToken}`;
+      }
+      
+      if (authCookies) {
+        headers["Cookie"] = authCookies;
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        credentials: API_BASE_URL ? "omit" : "include",
+        body: JSON.stringify({ action }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `API error: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.error || errorMessage;
+        } catch {
+          // Response is not JSON, use status text
+          errorMessage = `API error: ${response.status} ${response.statusText || ""}`;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+
+      return {
+        postId,
+        likes: data.likes,
+        liked: data.liked,
+      };
     } catch (error) {
       console.error("[postsApi] likePost error:", error);
-      return { postId, likes: 0 };
+      throw error;
     }
   },
 

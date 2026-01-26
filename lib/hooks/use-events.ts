@@ -55,7 +55,59 @@ export function useCreateEvent() {
 
   return useMutation({
     mutationFn: eventsApiClient.createEvent,
+    onMutate: async (newEventData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: eventKeys.all });
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueriesData({
+        queryKey: eventKeys.all,
+      });
+
+      // Optimistically add the new event to all event lists
+      queryClient.setQueriesData<Event[]>(
+        { queryKey: eventKeys.all },
+        (old) => {
+          if (!old) return old;
+          const optimisticEvent: Event = {
+            id: `temp-${Date.now()}`,
+            title: newEventData.title || "New Event",
+            description: newEventData.description,
+            date: new Date(newEventData.date || Date.now())
+              .getDate()
+              .toString()
+              .padStart(2, "0"),
+            month: new Date(newEventData.date || Date.now())
+              .toLocaleString("en-US", { month: "short" })
+              .toUpperCase(),
+            fullDate: new Date(newEventData.date || Date.now()),
+            time: newEventData.time || "",
+            location: newEventData.location || "TBA",
+            price: newEventData.price || 0,
+            image:
+              newEventData.image ||
+              "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
+            category: newEventData.category || "Event",
+            attendees: [],
+            totalAttendees: 0,
+            likes: 0,
+          };
+          return [optimisticEvent, ...old];
+        },
+      );
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
     onSuccess: () => {
+      // Invalidate to get real data with correct ID
       queryClient.invalidateQueries({ queryKey: eventKeys.all });
     },
   });

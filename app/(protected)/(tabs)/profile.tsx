@@ -40,6 +40,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { users } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
+import { useQueryClient } from "@tanstack/react-query";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
@@ -48,6 +49,7 @@ const columnWidth = (width - 6) / 3;
 function EditProfileContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
+  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [isSaving, setIsSaving] = useState(false);
@@ -57,12 +59,10 @@ function EditProfileContent() {
     userId: user?.id,
   });
   const {
-    editName,
     editBio,
     editWebsite,
     editLocation,
     editHashtags,
-    setEditName,
     setEditBio,
     setEditWebsite,
     setEditLocation,
@@ -120,7 +120,6 @@ function EditProfileContent() {
       }
 
       const updateData = {
-        name: editName,
         bio: editBio,
         website: editWebsite,
         avatar: avatarUrl,
@@ -136,13 +135,28 @@ function EditProfileContent() {
 
       setUser({
         ...user,
-        name: editName,
         bio: editBio,
         website: editWebsite,
         avatar: avatarUrl,
         location: editLocation,
         hashtags: editHashtags,
       });
+      
+      // Invalidate user queries to refresh profile data everywhere
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
+      queryClient.invalidateQueries({ queryKey: ["users", "username"] });
+      if (user?.username) {
+        queryClient.invalidateQueries({ queryKey: ["users", "username", user.username] });
+      }
+      
+      // Force image cache refresh by updating timestamp
+      if (avatarUrl && avatarUrl !== user.avatar) {
+        // The Image component will pick up the new URL automatically
+        // But we can force a refresh by ensuring the URL is different
+        console.log("[EditProfile] Avatar updated from", user.avatar, "to", avatarUrl);
+      }
+      
       setNewAvatarUri(null);
       setPopoverOpen(false);
       showToast("success", "Saved", "Profile updated successfully");
@@ -157,19 +171,17 @@ function EditProfileContent() {
 
   useEffect(() => {
     if (user) {
-      setEditName(user.name || "");
       setEditBio(user.bio || "");
       setEditWebsite(user.website || "");
       setEditLocation(user.location || "");
       setEditHashtags(Array.isArray(user.hashtags) ? user.hashtags : []);
     }
-  }, [user, setEditName, setEditBio, setEditWebsite, setEditLocation, setEditHashtags]);
+  }, [user, setEditBio, setEditWebsite, setEditLocation, setEditHashtags]);
 
   const hashtagsEqual =
     editHashtags.length === (user?.hashtags?.length ?? 0) &&
     editHashtags.every((t, i) => (user?.hashtags ?? [])[i] === t);
   const hasChanges =
-    editName !== (user?.name || "") ||
     editBio !== (user?.bio || "") ||
     editWebsite !== (user?.website || "") ||
     editLocation !== (user?.location || "") ||
@@ -177,9 +189,16 @@ function EditProfileContent() {
     newAvatarUri !== null;
 
   return (
-    <View className="flex-1">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-6 pb-6 border-b border-border">
+    <KeyboardAwareScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      bottomOffset={100}
+      enabled={true}
+    >
+      {/* Header - Inside Popover */}
+      <View className="flex-row items-center justify-between px-6 pt-4 pb-4 border-b border-border">
         <Pressable 
           onPress={() => setPopoverOpen(false)} 
           hitSlop={12}
@@ -225,75 +244,44 @@ function EditProfileContent() {
         </Pressable>
       </View>
 
-      <KeyboardAwareScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 40 }}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-        bottomOffset={100}
-        enabled={true}
-      >
-        {/* Avatar Section */}
-        <View className="items-center py-8">
-          <Pressable onPress={handlePickAvatar} disabled={isUploading} className="relative">
-            <Image
-              source={{
-                uri:
-                  newAvatarUri ||
-                  user?.avatar ||
-                  "https://ui-avatars.com/api/?name=" +
-                    encodeURIComponent(user?.name || "User"),
-              }}
-              className="w-32 h-32 rounded-full"
-              contentFit="cover"
-            />
-            {isUploading ? (
-              <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
-                <ActivityIndicator color="#fff" size="large" />
-                <Text className="text-white text-sm mt-2 font-semibold">{Math.round(progress)}%</Text>
-              </View>
-            ) : (
-              <View
-                className="absolute -bottom-2 left-1/2 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
-                style={{ borderColor: colors.card, transform: [{ translateX: -20 }] }}
-              >
-                <Camera size={18} color="#fff" />
-              </View>
-            )}
-          </Pressable>
-          <Pressable onPress={handlePickAvatar} disabled={isUploading} className="mt-4">
-            <Text className="text-base font-semibold text-primary">
-              Change Photo
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Form Fields */}
-        <View className="px-6 gap-6">
-          <View>
-            <Text
-              style={{ color: colors.mutedForeground }}
-              className="mb-3 text-sm font-semibold"
+      {/* Avatar Section */}
+      <View className="items-center py-8">
+        <Pressable onPress={handlePickAvatar} disabled={isUploading} className="relative">
+          <Image
+            source={{
+              uri:
+                newAvatarUri ||
+                user?.avatar ||
+                "https://ui-avatars.com/api/?name=" +
+                  encodeURIComponent(user?.name || "User"),
+            }}
+            className="w-32 h-32 rounded-full"
+            contentFit="cover"
+          />
+          {isUploading ? (
+            <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
+              <ActivityIndicator color="#fff" size="large" />
+              <Text className="text-white text-sm mt-2 font-semibold">{Math.round(progress)}%</Text>
+            </View>
+          ) : (
+            <View
+              className="absolute -bottom-2 left-1/2 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
+              style={{ borderColor: colors.card, transform: [{ translateX: -20 }] }}
             >
-              Name
-            </Text>
-            <TextInput
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="Your name"
-              placeholderTextColor={colors.mutedForeground}
-              style={{
-                color: colors.foreground,
-                backgroundColor: colors.muted,
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                fontSize: 16,
-              }}
-            />
-          </View>
+              <Camera size={18} color="#fff" />
+            </View>
+          )}
+        </Pressable>
+        <Pressable onPress={handlePickAvatar} disabled={isUploading} className="mt-4">
+          <Text className="text-base font-semibold text-primary">
+            Change Photo
+          </Text>
+        </Pressable>
+      </View>
 
-          <View>
+      {/* Form Fields */}
+      <View className="px-6 gap-6">
+        <View>
             <Text
               style={{ color: colors.mutedForeground }}
               className="mb-3 text-sm font-semibold"
@@ -430,7 +418,6 @@ function EditProfileContent() {
           </View>
         </View>
       </KeyboardAwareScrollView>
-    </View>
   );
 }
 
@@ -439,7 +426,10 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { activeTab, setActiveTab } = useProfileStore();
-  const bookmarkedPosts = useBookmarkStore((state) => state.bookmarkedPosts);
+  const bookmarkStore = useBookmarkStore();
+  const { data: bookmarkedPostIds = [] } = useBookmarks();
+  // Sync API bookmarks to local store - use API bookmarks as source of truth
+  const bookmarkedPosts = bookmarkedPostIds.length > 0 ? bookmarkedPostIds : bookmarkStore.getBookmarkedPostIds();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
@@ -570,51 +560,54 @@ export default function ProfileScreen() {
         contentContainerClassName="pb-5"
       >
         <View className="px-5 pt-5 pb-4">
-          <View className="flex-row items-center gap-6">
-            <Popover>
-              <PopoverTrigger>
-                <View className="relative">
-                  <Image
-                    source={{
-                      uri:
-                        user?.avatar ||
-                        "https://ui-avatars.com/api/?name=" +
-                          encodeURIComponent(user?.name || "User"),
-                    }}
-                    className="w-[88px] h-[88px] rounded-full"
-                    contentFit="cover"
-                  />
-                  <View
-                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                    style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
-                  >
-                    <Camera size={14} color="#fff" />
+          {/* Centered Profile Header */}
+          <View className="items-center">
+            <View className="flex-row items-center justify-center gap-8 mb-6">
+              <Popover>
+                <PopoverTrigger>
+                  <View className="relative">
+                    <Image
+                      source={{
+                        uri:
+                          user?.avatar ||
+                          "https://ui-avatars.com/api/?name=" +
+                            encodeURIComponent(user?.name || "User"),
+                      }}
+                      className="w-[88px] h-[88px] rounded-full"
+                      contentFit="cover"
+                    />
+                    <View
+                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                      style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
+                    >
+                      <Camera size={14} color="#fff" />
+                    </View>
                   </View>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
+                  <EditProfileContent />
+                </PopoverContent>
+              </Popover>
+              <View className="flex-row gap-8">
+                <View className="items-center">
+                  <Text className="text-xl font-bold text-foreground">
+                    {userPostsData?.length || 0}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
-                <EditProfileContent />
-              </PopoverContent>
-            </Popover>
-            <View className="flex-1 flex-row justify-around">
-              <Pressable className="items-center px-2">
-                <Text className="text-xl font-bold text-foreground">
-                  {userPostsData?.length || 0}
-                </Text>
-                <Text className="text-xs text-muted-foreground">Posts</Text>
-              </Pressable>
-              <Pressable className="items-center px-2">
-                <Text className="text-xl font-bold text-foreground">
-                  {formatCount(user?.followersCount || 0)}
-                </Text>
-                <Text className="text-xs text-muted-foreground">Followers</Text>
-              </Pressable>
-              <Pressable className="items-center px-2">
-                <Text className="text-xl font-bold text-foreground">
-                  {formatCount(user?.followingCount || 0)}
-                </Text>
-                <Text className="text-xs text-muted-foreground">Following</Text>
-              </Pressable>
+                <View className="items-center">
+                  <Text className="text-xl font-bold text-foreground">
+                    {formatCount(user?.followersCount || 0)}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">Followers</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-xl font-bold text-foreground">
+                    {formatCount(user?.followingCount || 0)}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">Following</Text>
+                </View>
+              </View>
             </View>
           </View>
 

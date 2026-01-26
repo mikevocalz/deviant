@@ -1,6 +1,6 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -12,8 +12,10 @@ import {
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
 import { usePost, useLikePost } from "@/lib/hooks/use-posts";
+import { useComments, useLikeComment } from "@/lib/hooks/use-comments";
 import { usePostStore } from "@/lib/stores/post-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
@@ -31,10 +33,30 @@ export default function PostDetailScreen() {
   
   // ALL HOOKS MUST BE CALLED UNCONDITIONALLY - before any early returns
   const { data: post, isLoading, error: postError } = usePost(postId);
-  const { isPostLiked, toggleLike, getLikeCount } = usePostStore();
-  const { isBookmarked, toggleBookmark } = useBookmarkStore();
+  const { data: comments = [], isLoading: commentsLoading } = useComments(postId);
+  const { isPostLiked, toggleLike, getLikeCount, getCommentCount, isCommentLiked, toggleCommentLike, getCommentLikeCount } = usePostStore();
+  const bookmarkStore = useBookmarkStore();
+  const { data: bookmarkedPostIds = [] } = useBookmarks();
+  const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
+  const likeCommentMutation = useLikeComment();
+  
+  // Sync bookmarks from API to local store
+  useEffect(() => {
+    if (bookmarkedPostIds.length > 0 && postId) {
+      const isBookmarkedInAPI = bookmarkedPostIds.includes(postId);
+      const isBookmarkedLocally = bookmarkStore.isBookmarked(postId);
+      
+      if (isBookmarkedInAPI !== isBookmarkedLocally) {
+        bookmarkStore.toggleBookmark(postId);
+      }
+    }
+  }, [postId, bookmarkedPostIds, bookmarkStore]);
+  
+  const isBookmarked = useMemo(() => {
+    return bookmarkStore.isBookmarked(postId) || bookmarkedPostIds.includes(postId);
+  }, [postId, bookmarkedPostIds, bookmarkStore]);
   
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
@@ -156,6 +178,7 @@ export default function PostDetailScreen() {
   const isLiked = postIdString ? isPostLiked(postIdString) : false;
   const isSaved = postIdString ? isBookmarked(postIdString) : false;
   const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
+  const commentCount = postIdString ? getCommentCount(postIdString, comments.length) : 0;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -256,12 +279,24 @@ export default function PostDetailScreen() {
             </View>
             <Pressable onPress={() => {
               if (!postIdString) return;
-              toggleBookmark(postIdString);
+              const currentBookmarked = isBookmarked;
+              // Optimistically update local store
+              bookmarkStore.toggleBookmark(postIdString);
+              // Sync with backend
+              toggleBookmarkMutation.mutate(
+                { postId: postIdString, isBookmarked: currentBookmarked },
+                {
+                  onError: () => {
+                    // Rollback on error
+                    bookmarkStore.toggleBookmark(postIdString);
+                  },
+                }
+              );
             }}>
               <Bookmark
                 size={28}
                 color={colors.foreground}
-                fill={isSaved ? colors.foreground : "none"}
+                fill={isBookmarked ? colors.foreground : "none"}
               />
             </Pressable>
           </View>
@@ -287,8 +322,10 @@ export default function PostDetailScreen() {
 
         {/* Comments */}
         <View className="p-4">
-          {Array.isArray(post.comments) && post.comments.length > 0 ? (
-            post.comments.map((comment) => {
+          {commentsLoading ? (
+            <Text className="text-center text-muted-foreground">Loading comments...</Text>
+          ) : Array.isArray(comments) && comments.length > 0 ? (
+            comments.map((comment) => {
               if (!comment || !comment.id) return null;
               return (
                 <View key={comment.id} className="mb-4">
@@ -309,21 +346,48 @@ export default function PostDetailScreen() {
                       {comment.timeAgo}
                     </Text>
 
-                      {/* Reply button */}
-                      <Pressable
-                        onPress={() => {
-                          if (!postIdString || !comment.id) return;
-                          router.push(
-                            `/(protected)/comments/${postIdString}?commentId=${comment.id}`,
-                          );
-                        }}
-                        className="mt-2"
-                      >
-                        <Text className="text-xs text-primary">
-                          {comment.replies?.length || 0}{" "}
-                          {comment.replies?.length === 1 ? "reply" : "replies"}
-                        </Text>
-                      </Pressable>
+                      {/* Like and Reply buttons */}
+                      <View className="mt-2 flex-row items-center gap-4">
+                        <Pressable
+                          onPress={() => {
+                            if (!comment.id) return;
+                            const wasLiked = isCommentLiked(comment.id);
+                            toggleCommentLike(comment.id, comment.likes || 0);
+                            likeCommentMutation.mutate(
+                              { commentId: comment.id, isLiked: wasLiked },
+                              {
+                                onError: () => {
+                                  // Rollback on error
+                                  toggleCommentLike(comment.id, comment.likes || 0);
+                                },
+                              },
+                            );
+                          }}
+                          className="flex-row items-center gap-1"
+                        >
+                          <Heart
+                            size={14}
+                            color={isCommentLiked(comment.id || "") ? "#FF5BFC" : colors.mutedForeground}
+                            fill={isCommentLiked(comment.id || "") ? "#FF5BFC" : "none"}
+                          />
+                          <Text className="text-xs text-muted-foreground">
+                            {getCommentLikeCount(comment.id || "", comment.likes || 0)}
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => {
+                            if (!postIdString || !comment.id) return;
+                            router.push(
+                              `/(protected)/comments/replies/${comment.id}?postId=${postIdString}`,
+                            );
+                          }}
+                        >
+                          <Text className="text-xs text-primary">
+                            {comment.replies?.length || 0}{" "}
+                            {comment.replies?.length === 1 ? "reply" : "replies"}
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </View>
 

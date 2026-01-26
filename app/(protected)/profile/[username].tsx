@@ -164,7 +164,7 @@ function UserProfileScreenComponent() {
   const [isFollowing, setIsFollowing] = useState(false)
   
   // Update local follow state when user data loads
-  useMemo(() => {
+  useEffect(() => {
     if (userData?.isFollowing !== undefined) {
       setIsFollowing(userData.isFollowing)
     }
@@ -199,7 +199,8 @@ function UserProfileScreenComponent() {
     if (!user.id || !username) return
     
     const action = isFollowing ? "unfollow" : "follow"
-    setIsFollowing(!isFollowing) // Optimistic update
+    const newFollowingState = !isFollowing
+    setIsFollowing(newFollowingState) // Optimistic update
     
     followMutate(
       { userId: user.id, action },
@@ -208,7 +209,9 @@ function UserProfileScreenComponent() {
           setIsFollowing(isFollowing) // Revert on error
         },
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["user", username] })
+          // Invalidate all user queries to refresh data
+          queryClient.invalidateQueries({ queryKey: ["users"] })
+          queryClient.invalidateQueries({ queryKey: ["users", "username", username] })
         },
       }
     )
@@ -236,33 +239,35 @@ function UserProfileScreenComponent() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile Info */}
+        {/* Profile Info - Centered */}
         <View className="p-4">
-          <View className="flex-row items-center gap-6">
-            <SharedImage 
-              source={{ 
-                uri: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`
-              }} 
-              style={{ ...styles.avatar, backgroundColor: '#2a2a2a' }}
-              contentFit="cover"
-              sharedTag={`profile-avatar-${user.username}`}
-            />
-            <View className="flex-1 flex-row justify-around">
-              <View className="items-center">
-                <Text className="text-lg font-bold text-foreground">{user.postsCount}</Text>
-                <Text className="text-xs text-muted-foreground">Posts</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-lg font-bold text-foreground">
-                  {user.followersCount >= 1000 
-                    ? `${(user.followersCount / 1000).toFixed(1)}K` 
-                    : user.followersCount}
-                </Text>
-                <Text className="text-xs text-muted-foreground">Followers</Text>
-              </View>
-              <View className="items-center">
-                <Text className="text-lg font-bold text-foreground">{user.followingCount}</Text>
-                <Text className="text-xs text-muted-foreground">Following</Text>
+          <View className="items-center">
+            <View className="flex-row items-center justify-center gap-8 mb-6">
+              <SharedImage 
+                source={{ 
+                  uri: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`
+                }} 
+                style={{ ...styles.avatar, backgroundColor: '#2a2a2a' }}
+                contentFit="cover"
+                sharedTag={`profile-avatar-${user.username}`}
+              />
+              <View className="flex-row gap-8">
+                <View className="items-center">
+                  <Text className="text-lg font-bold text-foreground">{user.postsCount || 0}</Text>
+                  <Text className="text-xs text-muted-foreground">Posts</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-lg font-bold text-foreground">
+                    {user.followersCount >= 1000 
+                      ? `${(user.followersCount / 1000).toFixed(1)}K` 
+                      : user.followersCount || 0}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">Followers</Text>
+                </View>
+                <View className="items-center">
+                  <Text className="text-lg font-bold text-foreground">{user.followingCount || 0}</Text>
+                  <Text className="text-xs text-muted-foreground">Following</Text>
+                </View>
               </View>
             </View>
           </View>

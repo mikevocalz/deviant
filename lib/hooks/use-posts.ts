@@ -36,10 +36,11 @@ export function useInfiniteFeedPosts() {
 }
 
 // Fetch profile posts
-export function useProfilePosts(username: string) {
+export function useProfilePosts(userId: string) {
   return useQuery({
-    queryKey: postKeys.profile(username),
-    queryFn: () => postsApi.getProfilePosts(username),
+    queryKey: postKeys.profile(userId),
+    queryFn: () => postsApi.getProfilePosts(userId),
+    enabled: !!userId,
   });
 }
 
@@ -82,6 +83,7 @@ export function useLikePost() {
         queryKey: postKeys.all,
       });
 
+      // Update React Query cache optimistically
       queryClient.setQueriesData<Post[] | Post | null>(
         { queryKey: postKeys.all },
         (old) => {
@@ -105,6 +107,18 @@ export function useLikePost() {
         },
       );
 
+      // Also update Zustand store optimistically for instant UI updates
+      const { usePostStore } = await import("@/lib/stores/post-store");
+      const store = usePostStore.getState();
+      const currentCount = store.getLikeCount(postId, 0);
+      const delta = isLiked ? -1 : 1;
+      usePostStore.setState({
+        postLikeCounts: {
+          ...store.postLikeCounts,
+          [postId]: Math.max(0, currentCount + delta),
+        },
+      });
+
       return { previousData };
     },
     onError: (_err, _variables, context) => {
@@ -115,12 +129,9 @@ export function useLikePost() {
         });
       }
     },
-    onSettled: (_data, _error, variables) => {
-      // Refetch after mutation
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
-      queryClient.invalidateQueries({
-        queryKey: postKeys.detail(variables.postId),
-      });
+    onSuccess: (data) => {
+      // Invalidate user data to sync liked posts
+      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
   });
 }
@@ -131,9 +142,87 @@ export function useCreatePost() {
 
   return useMutation({
     mutationFn: postsApi.createPost,
+    onMutate: async (newPostData) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: postKeys.all });
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueriesData({
+        queryKey: postKeys.all,
+      });
+
+      // Optimistically add the new post to infinite feed
+      queryClient.setQueryData(
+        postKeys.feedInfinite(),
+        (old: any) => {
+          if (!old || !old.pages || old.pages.length === 0) return old;
+          // Add to first page
+          const firstPage = old.pages[0];
+          if (firstPage && firstPage.data) {
+            const optimisticPost: Post = {
+              id: `temp-${Date.now()}`,
+              author: {
+                username: newPostData.authorUsername || "You",
+                avatar: "",
+                verified: false,
+              },
+              media: newPostData.media || [],
+              caption: newPostData.caption || "",
+              likes: 0,
+              comments: [],
+              timeAgo: "Just now",
+              location: newPostData.location,
+              isNSFW: newPostData.isNSFW || false,
+            };
+            return {
+              ...old,
+              pages: [
+                {
+                  ...firstPage,
+                  data: [optimisticPost, ...firstPage.data],
+                },
+                ...old.pages.slice(1),
+              ],
+            };
+          }
+          return old;
+        },
+      );
+
+      // Also update legacy feed query if it exists
+      queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
+        if (!old) return old;
+        const optimisticPost: Post = {
+          id: `temp-${Date.now()}`,
+          author: {
+            username: newPostData.authorUsername || "You",
+            avatar: "",
+            verified: false,
+          },
+          media: newPostData.media || [],
+          caption: newPostData.caption || "",
+          likes: 0,
+          comments: [],
+          timeAgo: "Just now",
+          location: newPostData.location,
+          isNSFW: newPostData.isNSFW || false,
+        };
+        return [optimisticPost, ...old];
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
     onSuccess: (newPost) => {
       console.log("[useCreatePost] Post created successfully:", newPost.id);
-      // Invalidate ALL post queries to refetch fresh data
+      // Invalidate to get real data with correct ID
       queryClient.invalidateQueries({ queryKey: postKeys.all });
     },
   });

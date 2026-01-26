@@ -17,6 +17,8 @@ import {
 export async function GET(request: Request) {
   try {
     const cookies = getCookiesFromRequest(request);
+    const url = new URL(request.url);
+    const includeBookmarks = url.searchParams.get("includeBookmarks") === "true";
 
     const user = await payloadClient.me(cookies);
 
@@ -25,6 +27,32 @@ export async function GET(request: Request) {
         { error: "Not authenticated", user: null },
         { status: 401 },
       );
+    }
+
+    // If includeBookmarks is requested, fetch bookmarked posts
+    if (includeBookmarks) {
+      const userData = await payloadClient.findByID(
+        {
+          collection: "users",
+          id: (user as any).id,
+        },
+        cookies,
+      );
+
+      const bookmarkedPosts = (userData as any)?.bookmarkedPosts || [];
+      const bookmarkedPostIds = Array.isArray(bookmarkedPosts)
+        ? bookmarkedPosts.map((item: any) => {
+            if (typeof item === "string") return item;
+            if (item?.post) return String(item.post);
+            if (item?.id) return String(item.id);
+            return String(item);
+          })
+        : [];
+
+      return Response.json({
+        user,
+        bookmarkedPosts: bookmarkedPostIds,
+      });
     }
 
     return Response.json({ user });

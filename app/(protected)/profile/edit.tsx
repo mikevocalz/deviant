@@ -19,11 +19,13 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { users } from "@/lib/api-client";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { colors } = useColorScheme();
+  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [isSaving, setIsSaving] = useState(false);
@@ -133,6 +135,13 @@ export default function EditProfileScreen() {
         website: editWebsite.trim() || user.website,
         avatar: avatarUrl || user.avatar,
       });
+      
+      // Invalidate user queries to refresh profile data everywhere
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
+      if (user?.username) {
+        queryClient.invalidateQueries({ queryKey: ["user", user.username] });
+      }
       
       showToast("success", "Saved", "Profile updated successfully");
       router.back();

@@ -552,7 +552,17 @@ export default function StoryViewerScreen() {
               <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{currentItem.header?.subheading}</Text>
             </View>
           </View>
-          <Pressable onPress={() => router.back()} style={{ padding: 8 }}>
+          <Pressable 
+            onPress={() => {
+              if (isExiting.current) return; // Prevent multiple presses
+              isExiting.current = true
+              hasNavigatedAway.current = true
+              cancelAnimation(progress)
+              router.back()
+            }} 
+            style={{ padding: 12, zIndex: 1000 }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
             <X size={24} color="#fff" />
           </Pressable>
         </View>
@@ -691,8 +701,13 @@ export default function StoryViewerScreen() {
             
             {replyText.trim().length > 0 && (
               <Pressable
-                onPress={handleSendReply}
+                onPress={() => {
+                  if (!isSendingReply && replyText.trim()) {
+                    handleSendReply();
+                  }
+                }}
                 disabled={isSendingReply}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={{
                   width: 40,
                   height: 40,

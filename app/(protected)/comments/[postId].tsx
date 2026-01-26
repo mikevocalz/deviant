@@ -33,6 +33,8 @@ export default function CommentsScreen() {
     setNewComment: setComment,
     setReplyingTo,
   } = useCommentsStore();
+  const { isCommentLiked, toggleCommentLike, getCommentLikeCount, commentLikeCounts } = usePostStore();
+  const likeCommentMutation = useLikeComment();
   const insets = useSafeAreaInsets();
 
   useLayoutEffect(() => {
@@ -139,10 +141,10 @@ export default function CommentsScreen() {
 
   const handleViewReplies = useCallback(
     (commentIdParam: string) => {
-      if (!commentIdParam) return;
-      router.push(`/(protected)/comments/replies/${commentIdParam}`);
+      if (!commentIdParam || !postId) return;
+      router.push(`/(protected)/comments/replies/${commentIdParam}?postId=${postId}`);
     },
-    [router],
+    [router, postId],
   );
 
   const handleProfilePress = useCallback(
@@ -247,15 +249,33 @@ export default function CommentsScreen() {
                       }}
                     >
                       <Pressable
+                        onPress={() => {
+                          if (!item.id) return;
+                          const wasLiked = isCommentLiked(item.id);
+                          toggleCommentLike(item.id, item.likes || 0);
+                          likeCommentMutation.mutate(
+                            { commentId: item.id, isLiked: wasLiked },
+                            {
+                              onError: () => {
+                                // Rollback on error
+                                toggleCommentLike(item.id, item.likes || 0);
+                              },
+                            },
+                          );
+                        }}
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
                           gap: 4,
                         }}
                       >
-                        <Heart size={16} color="#666" />
+                        <Heart
+                          size={16}
+                          color={isCommentLiked(item.id || "") ? "#FF5BFC" : "#666"}
+                          fill={isCommentLiked(item.id || "") ? "#FF5BFC" : "none"}
+                        />
                         <Text style={{ color: "#666", fontSize: 12 }}>
-                          {item.likes || 0}
+                          {getCommentLikeCount(item.id || "", item.likes || 0)}
                         </Text>
                       </Pressable>
                       <Pressable

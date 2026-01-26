@@ -17,12 +17,32 @@ export async function GET(request: Request) {
     const cookies = getCookiesFromRequest(request);
 
     const postId = url.searchParams.get("postId");
+    const parentId = url.searchParams.get("parentId"); // For fetching replies
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const depth = parseInt(url.searchParams.get("depth") || "2", 10);
 
+    // If parentId is provided, fetch replies to that comment
+    if (parentId) {
+      const result = await payloadClient.find(
+        {
+          collection: "comments",
+          limit,
+          page,
+          depth,
+          sort: "-createdAt",
+          where: {
+            parent: { equals: parentId },
+          },
+        },
+        cookies,
+      );
+      return Response.json(result);
+    }
+
+    // Otherwise, fetch top-level comments for a post
     if (!postId) {
-      return Response.json({ error: "postId is required" }, { status: 400 });
+      return Response.json({ error: "postId or parentId is required" }, { status: 400 });
     }
 
     const result = await payloadClient.find(

@@ -17,9 +17,17 @@ export const useFeedSlideStore = create<FeedSlideState>((set) => ({
 interface PostState {
   likedPosts: string[]
   postLikeCounts: Record<string, number>
+  postCommentCounts: Record<string, number>
+  likedComments: string[]
+  commentLikeCounts: Record<string, number>
   toggleLike: (postId: string, initialCount: number) => void
   getLikeCount: (postId: string, initialCount: number) => number
   isPostLiked: (postId: string) => boolean
+  incrementCommentCount: (postId: string, initialCount: number) => void
+  getCommentCount: (postId: string, initialCount: number) => number
+  toggleCommentLike: (commentId: string, initialCount: number) => void
+  getCommentLikeCount: (commentId: string, initialCount: number) => number
+  isCommentLiked: (commentId: string) => boolean
 }
 
 export const usePostStore = create<PostState>()(
@@ -27,6 +35,9 @@ export const usePostStore = create<PostState>()(
     (set, get) => ({
       likedPosts: [],
       postLikeCounts: {},
+      postCommentCounts: {},
+      likedComments: [],
+      commentLikeCounts: {},
 
       toggleLike: (postId, initialCount) => {
         const { likedPosts, postLikeCounts } = get()
@@ -48,6 +59,41 @@ export const usePostStore = create<PostState>()(
       },
 
       isPostLiked: (postId) => get().likedPosts.includes(postId),
+
+      incrementCommentCount: (postId, initialCount) => {
+        const { postCommentCounts } = get()
+        const currentCount = postCommentCounts[postId] ?? initialCount
+        set({
+          postCommentCounts: { ...postCommentCounts, [postId]: currentCount + 1 },
+        })
+      },
+
+      getCommentCount: (postId, initialCount) => {
+        return get().postCommentCounts[postId] ?? initialCount
+      },
+
+      toggleCommentLike: (commentId, initialCount) => {
+        const { likedComments, commentLikeCounts } = get()
+        const isCurrentlyLiked = likedComments.includes(commentId)
+
+        const newLikedComments = isCurrentlyLiked
+          ? likedComments.filter((id) => id !== commentId)
+          : [...likedComments, commentId]
+
+        const currentCount = commentLikeCounts[commentId] ?? initialCount
+        const newCount = isCurrentlyLiked ? currentCount - 1 : currentCount + 1
+
+        set({
+          likedComments: newLikedComments,
+          commentLikeCounts: { ...commentLikeCounts, [commentId]: newCount },
+        })
+      },
+
+      getCommentLikeCount: (commentId, initialCount) => {
+        return get().commentLikeCounts[commentId] ?? initialCount
+      },
+
+      isCommentLiked: (commentId) => get().likedComments.includes(commentId),
     }),
     {
       name: "post-storage",

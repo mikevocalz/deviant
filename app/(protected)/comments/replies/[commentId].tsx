@@ -4,11 +4,13 @@ import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import { useLocalSearchParams, useRouter } from "expo-router"
 import { Image } from "expo-image"
 import { ArrowLeft, Send, Heart } from "lucide-react-native"
-import { useMemo, useEffect } from "react"
+import { useEffect } from "react"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { feedPosts } from "@/lib/constants"
-import type { Comment } from "@/lib/constants"
+import { useReplies, useCreateComment } from "@/lib/hooks/use-comments"
 import { useCommentsStore } from "@/lib/stores/comments-store"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { useUIStore } from "@/lib/stores/ui-store"
+import type { Comment } from "@/lib/api/comments"
 
 export const unstable_settings = {
   options: {
@@ -18,28 +20,43 @@ export const unstable_settings = {
 }
 
 export default function RepliesScreen() {
-  const { commentId } = useLocalSearchParams<{ commentId: string }>()
+  const { commentId, postId } = useLocalSearchParams<{ commentId: string; postId?: string }>()
   const router = useRouter()
   const { newComment: reply, setNewComment: setReply } = useCommentsStore()
+  const user = useAuthStore((state) => state.user)
+  const showToast = useUIStore((state) => state.showToast)
   const insets = useSafeAreaInsets()
   
-  // Find the comment and its replies
-  const replies = useMemo(() => {
-    for (const post of feedPosts) {
-      for (const comment of post.comments) {
-        if (comment.id === commentId) {
-          return comment.replies || []
-        }
-      }
+  // Fetch replies from API
+  const { data: replies = [], isLoading } = useReplies(commentId || "")
+  const createCommentMutation = useCreateComment()
+  
+  const handleSend = async () => {
+    if (!reply.trim() || !commentId) return
+    
+    if (!postId) {
+      showToast("error", "Error", "Cannot determine post ID for reply")
+      return
     }
-    return []
-  }, [commentId])
-  
-  
-  const handleSend = () => {
-    if (!reply.trim()) return
-    setReply("")
-    Keyboard.dismiss()
+    
+    if (!user?.username) {
+      showToast("error", "Error", "You must be logged in to reply")
+      return
+    }
+    
+    try {
+      await createCommentMutation.mutateAsync({
+        post: postId,
+        text: reply.trim(),
+        parent: commentId,
+        authorUsername: user.username,
+        authorId: user.id,
+      })
+      setReply("")
+      Keyboard.dismiss()
+    } catch (error: any) {
+      showToast("error", "Error", error?.message || "Failed to post reply")
+    }
   }
 
   // Handle keyboard dismiss
@@ -65,7 +82,11 @@ export default function RepliesScreen() {
 
       {/* Replies List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-        {!replies || replies.length === 0 ? (
+        {isLoading ? (
+          <View style={{ alignItems: "center", paddingVertical: 40 }}>
+            <Text style={{ color: "#999" }}>Loading replies...</Text>
+          </View>
+        ) : !replies || replies.length === 0 ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ color: "#999" }}>No replies yet</Text>
           </View>
