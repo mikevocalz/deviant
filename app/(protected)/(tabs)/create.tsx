@@ -214,7 +214,12 @@ export default function CreateScreen() {
   };
 
   const handlePost = async () => {
+    // Bundle version identifier - changes with each OTA update
+    const BUNDLE_VERSION = "2026-01-26-v3-debug";
+    
+    console.log("[Create] ========================================");
     console.log("[Create] handlePost called!");
+    console.log("[Create] Bundle version:", BUNDLE_VERSION);
     console.log("[Create] isValid:", isValid);
     console.log("[Create] isUploading:", isUploading);
     console.log("[Create] isCreating:", isCreating);
@@ -228,18 +233,28 @@ export default function CreateScreen() {
     }
 
     // Check Bunny CDN configuration
+    // NOTE: These values are inlined at bundle time by Metro
     const bunnyZone = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE;
     const bunnyKey = process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY;
-    console.log("[Create] Bunny config:", {
-      zone: bunnyZone ? "set" : "MISSING",
-      key: bunnyKey ? "set" : "MISSING",
-    });
+    const bunnyRegion = process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION;
+    const bunnyCdn = process.env.EXPO_PUBLIC_BUNNY_CDN_URL;
+    
+    // Debug: Show actual values (partially masked)
+    console.log("[Create] === BUNNY CONFIG DEBUG (v2) ===");
+    console.log("[Create] EXPO_PUBLIC_BUNNY_STORAGE_ZONE:", bunnyZone || "(undefined)");
+    console.log("[Create] EXPO_PUBLIC_BUNNY_STORAGE_API_KEY:", bunnyKey ? `${bunnyKey.substring(0, 8)}...` : "(undefined)");
+    console.log("[Create] EXPO_PUBLIC_BUNNY_STORAGE_REGION:", bunnyRegion || "(undefined)");
+    console.log("[Create] EXPO_PUBLIC_BUNNY_CDN_URL:", bunnyCdn || "(undefined)");
+    console.log("[Create] typeof bunnyZone:", typeof bunnyZone);
+    console.log("[Create] typeof bunnyKey:", typeof bunnyKey);
+    console.log("[Create] ================================");
 
     if (!bunnyZone || !bunnyKey) {
+      console.error("[Create] FATAL: Bunny env vars missing! Zone:", bunnyZone, "Key:", bunnyKey ? "present" : "missing");
       showToast(
         "error",
         "Config Error",
-        "Media storage not configured. Please update the app.",
+        `Media storage not configured. Zone: ${bunnyZone || "missing"}, Key: ${bunnyKey ? "set" : "missing"}`,
       );
       return;
     }
