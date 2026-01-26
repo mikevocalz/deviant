@@ -2,7 +2,8 @@
  * Comments API Route
  *
  * GET  /api/comments?postId=xxx - Get comments for a post
- * POST /api/comments - Create a new comment
+ * GET  /api/comments?storyId=xxx - Get comments for a story
+ * POST /api/comments - Create a new comment (for post or story)
  */
 
 import {
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     const cookies = getCookiesFromRequest(request);
 
     const postId = url.searchParams.get("postId");
+    const storyId = url.searchParams.get("storyId"); // Support story comments
     const parentId = url.searchParams.get("parentId"); // For fetching replies
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -40,9 +42,29 @@ export async function GET(request: Request) {
       return Response.json(result);
     }
 
-    // Otherwise, fetch top-level comments for a post
+    // Fetch comments for a story
+    if (storyId) {
+      console.log("[API] Fetching comments for story:", storyId);
+      const result = await payloadClient.find(
+        {
+          collection: "comments",
+          limit,
+          page,
+          depth,
+          sort: "-createdAt",
+          where: {
+            story: { equals: storyId },
+            parent: { exists: false }, // Top-level comments only
+          },
+        },
+        cookies,
+      );
+      return Response.json(result);
+    }
+
+    // Fetch comments for a post
     if (!postId) {
-      return Response.json({ error: "postId or parentId is required" }, { status: 400 });
+      return Response.json({ error: "postId, storyId, or parentId is required" }, { status: 400 });
     }
 
     const result = await payloadClient.find(
@@ -76,6 +98,7 @@ export async function POST(request: Request) {
       hasCookies: !!cookies,
       bodyKeys: Object.keys(body || {}),
       post: body?.post,
+      story: body?.story,
       textLength: body?.text?.length,
       authorUsername: body?.authorUsername,
     });
@@ -88,10 +111,19 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.post || !body.text) {
-      console.error("[API] Missing required fields", { hasPost: !!body.post, hasText: !!body.text });
+    // Support both post and story comments
+    if (!body.post && !body.story) {
+      console.error("[API] Missing target - need either post or story");
       return Response.json(
-        { error: "post and text are required" },
+        { error: "post or story is required" },
+        { status: 400 },
+      );
+    }
+
+    if (!body.text) {
+      console.error("[API] Missing text field");
+      return Response.json(
+        { error: "text is required" },
         { status: 400 },
       );
     }
@@ -107,28 +139,54 @@ export async function POST(request: Request) {
       console.warn("[API] Could not get current user, but proceeding - hook may set author");
     }
 
-    // Verify post exists
-    let postId = String(body.post).trim();
-    try {
-      const post = await payloadClient.findByID({
-        collection: "posts",
-        id: postId,
-      }, cookies);
-      
-      if (!post) {
-        console.error("[API] Post not found:", postId);
+    // Verify post or story exists
+    let postId: string | null = body.post ? String(body.post).trim() : null;
+    let storyId: string | null = body.story ? String(body.story).trim() : null;
+    
+    if (postId) {
+      try {
+        const post = await payloadClient.findByID({
+          collection: "posts",
+          id: postId,
+        }, cookies);
+        
+        if (!post) {
+          console.error("[API] Post not found:", postId);
+          return Response.json(
+            { error: "Post not found" },
+            { status: 404 },
+          );
+        }
+        console.log("[API] Post verified:", postId);
+      } catch (postError) {
+        console.error("[API] Post lookup error:", postError);
         return Response.json(
           { error: "Post not found" },
           { status: 404 },
         );
       }
-      console.log("[API] Post verified:", postId);
-    } catch (postError) {
-      console.error("[API] Post lookup error:", postError);
-      return Response.json(
-        { error: "Post not found" },
-        { status: 404 },
-      );
+    } else if (storyId) {
+      try {
+        const story = await payloadClient.findByID({
+          collection: "stories",
+          id: storyId,
+        }, cookies);
+        
+        if (!story) {
+          console.error("[API] Story not found:", storyId);
+          return Response.json(
+            { error: "Story not found" },
+            { status: 404 },
+          );
+        }
+        console.log("[API] Story verified:", storyId);
+      } catch (storyError) {
+        console.error("[API] Story lookup error:", storyError);
+        return Response.json(
+          { error: "Story not found" },
+          { status: 404 },
+        );
+      }
     }
 
     // CRITICAL: We MUST find the Payload CMS user ID - the hook might not work with API key auth
@@ -253,10 +311,16 @@ export async function POST(request: Request) {
     // Build comment data - ensure all required fields are present
     // CRITICAL: We MUST set author explicitly - API key auth prevents hooks from setting req.user
     const commentData: Record<string, unknown> = {
-      post: postId, // Must be a valid post ID
       content: content, // Must be non-empty string
       author: authorId, // MUST be set explicitly - hook won't work with API key auth
     };
+    
+    // Set either post or story relationship
+    if (postId) {
+      commentData.post = postId;
+    } else if (storyId) {
+      commentData.story = storyId;
+    }
     
     console.log("[API] Setting author explicitly:", authorId);
     
@@ -267,13 +331,12 @@ export async function POST(request: Request) {
     
     console.log("[API] Creating comment with validated data:", {
       post: postId,
-      postIdType: typeof postId,
-      postIdLength: postId.length,
+      story: storyId,
       content: content.substring(0, 50),
       contentLength: content.length,
       author: authorId,
       authorIdType: typeof authorId,
-      authorIdLength: authorId.length,
+      authorIdLength: authorId?.length,
       hasParent: !!commentData.parent,
       parent: commentData.parent,
     });

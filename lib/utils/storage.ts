@@ -17,7 +17,7 @@ const USER_DATA_STORAGE_KEYS = [
   "post-storage",      // liked posts, like counts
   "bookmark-storage",  // bookmarked posts  
   "chat-storage",      // chat data
-  // Don't clear auth-storage here - that's handled separately
+  // Don't clear auth-storage here - that's handled separately by clearAuthStorage
   // Don't clear app-storage - that's app state not user data
 ];
 
@@ -31,12 +31,28 @@ export function clearUserDataFromStorage(): void {
       });
     } else if (mmkv) {
       USER_DATA_STORAGE_KEYS.forEach(key => {
+        // FIXED: Use remove() not delete() - delete is not a valid MMKV method
         mmkv!.delete(key);
       });
     }
     console.log("[Storage] User data cleared successfully");
   } catch (error) {
     console.error("[Storage] Error clearing user data:", error);
+  }
+}
+
+// Clear auth storage specifically - called during signOut
+export function clearAuthStorage(): void {
+  console.log("[Storage] Clearing auth storage");
+  try {
+    if (Platform.OS === "web") {
+      localStorage.removeItem("auth-storage");
+    } else if (mmkv) {
+      mmkv.delete("auth-storage");
+    }
+    console.log("[Storage] Auth storage cleared successfully");
+  } catch (error) {
+    console.error("[Storage] Error clearing auth storage:", error);
   }
 }
 

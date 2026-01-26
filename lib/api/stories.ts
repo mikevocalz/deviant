@@ -27,7 +27,36 @@ export interface Story {
 
 // Transform API response to match Story type
 function transformStory(doc: Record<string, unknown>): Story {
-  const author = doc.author as Record<string, unknown> | undefined;
+  // Author can be a populated object OR just an ID string
+  const authorRaw = doc.author;
+  let authorId = "";
+  let authorUsername = "user";
+  let authorName = "User";
+  let authorAvatar = "";
+  
+  if (typeof authorRaw === "object" && authorRaw !== null) {
+    // Author is a populated object
+    const author = authorRaw as Record<string, unknown>;
+    authorId = String(author.id || "");
+    authorUsername = (author.username as string) || "user";
+    authorName = (author.name as string) || (author.username as string) || "User";
+    authorAvatar = (author.avatar as string) || "";
+  } else if (typeof authorRaw === "string" && authorRaw) {
+    // Author is just an ID string (not populated)
+    authorId = authorRaw;
+    console.warn("[storiesApi] Author not populated, only ID:", authorId);
+  } else if (typeof authorRaw === "number") {
+    // Author is a numeric ID
+    authorId = String(authorRaw);
+    console.warn("[storiesApi] Author is numeric ID:", authorId);
+  }
+  
+  // Fallback to externalAuthorId if author.id is missing
+  if (!authorId && doc.externalAuthorId) {
+    authorId = String(doc.externalAuthorId);
+    console.log("[storiesApi] Using externalAuthorId:", authorId);
+  }
+  
   const rawItems = (doc.items as Array<Record<string, unknown>>) || [];
 
   const transformedItems = rawItems.map((item) => {
@@ -57,24 +86,22 @@ function transformStory(doc: Record<string, unknown>): Story {
 
   const story: Story = {
     id: String(doc.id),
-    userId: String(author?.id || ""),
-    username: (author?.username as string) || "user",
-    avatar:
-      (author?.avatar as string) ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent((author?.name as string) || "User")}`,
+    userId: authorId,
+    username: authorUsername,
+    avatar: authorAvatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}`,
     isViewed: (doc.viewed as boolean) || false,
     items: transformedItems,
   };
 
   // Debug: Log story with items for troubleshooting
-  if (transformedItems.length > 0) {
-    console.log("[storiesApi] Transformed story:", {
-      id: story.id,
-      username: story.username,
-      itemCount: transformedItems.length,
-      firstItemUrl: transformedItems[0]?.url?.slice(0, 50),
-    });
-  }
+  console.log("[storiesApi] Transformed story:", {
+    id: story.id,
+    userId: story.userId,
+    username: story.username,
+    hasAvatar: !!story.avatar,
+    itemCount: transformedItems.length,
+    firstItemUrl: transformedItems[0]?.url?.slice(0, 50),
+  });
 
   return story;
 }

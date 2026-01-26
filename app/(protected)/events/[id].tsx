@@ -603,6 +603,7 @@ export default function EventDetailScreen() {
           </Animated.View>
 
           {/* Venues */}
+          {event.venues && event.venues.length > 0 && (
           <Animated.View
             entering={FadeInDown.delay(600)}
             style={{ marginBottom: 24 }}
@@ -658,6 +659,7 @@ export default function EventDetailScreen() {
               ))}
             </View>
           </Animated.View>
+          )}
 
           {/* Who's Going */}
           <Animated.View

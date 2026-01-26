@@ -327,12 +327,46 @@ export const signUp = {
   },
 };
 
-// Wrapped sign out that clears store
+// Wrapped sign out that clears ALL user data and store
 export const signOut = async () => {
-  const result = await rawSignOut();
+  console.log("[Auth] === SIGNING OUT ===");
+  
+  // CRITICAL: Clear ALL cached data FIRST before signing out
+  // This ensures no data leakage between users
+  clearAllCachedData();
+  
+  // Also clear auth storage specifically
+  try {
+    const { clearAuthStorage } = require("@/lib/utils/storage");
+    clearAuthStorage();
+    console.log("[Auth] ✓ Auth storage cleared");
+  } catch (e) {
+    console.error("[Auth] ✗ Failed to clear auth storage:", e);
+  }
+  
+  // Clear the JWT token from secure store
+  try {
+    const storage = getStorage();
+    await storage.deleteItem("dvnt_auth_token");
+    console.log("[Auth] ✓ JWT token cleared");
+  } catch (e) {
+    console.error("[Auth] ✗ Failed to clear JWT token:", e);
+  }
+  
+  // Logout from auth store (sets user to null)
   const { logout } = useAuthStore.getState();
   logout();
-  return result;
+  console.log("[Auth] ✓ Auth store logged out");
+  
+  // Finally call the raw signOut
+  try {
+    const result = await rawSignOut();
+    console.log("[Auth] ✓ Raw signOut completed");
+    return result;
+  } catch (e) {
+    console.error("[Auth] ✗ Raw signOut error (non-fatal):", e);
+    return { error: null, data: null };
+  }
 };
 
 // Helper to get cookies for authenticated requests
