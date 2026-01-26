@@ -130,16 +130,26 @@ export default function ChatScreen() {
     messages,
     currentMessage,
     setCurrentMessage,
-    sendMessage,
+    sendMessageToBackend,
+    loadMessages,
     mentionQuery,
     showMentions,
     setCursorPosition,
     insertMention,
     pendingMedia,
     setPendingMedia,
+    isSending,
   } = useChatStore();
 
   const chatMessages = messages[chatId] || emptyMessages;
+
+  // Load messages from backend on mount
+  useEffect(() => {
+    if (chatId) {
+      console.log("[Chat] Loading messages for conversation:", chatId);
+      loadMessages(chatId);
+    }
+  }, [chatId, loadMessages]);
   const currentUser = useAuthStore((s) => s.user);
 
   // Chat recipient info (passed via params or loaded from conversation)
@@ -239,6 +249,7 @@ export default function ChatScreen() {
 
   const handleSend = useCallback(() => {
     if (!currentMessage.trim() && !pendingMedia) return;
+    if (isSending) return; // Prevent double send
 
     Animated.sequence([
       Animated.timing(sendButtonScale, {
@@ -253,8 +264,9 @@ export default function ChatScreen() {
       }),
     ]).start();
 
-    sendMessage(chatId);
-  }, [chatId, currentMessage, sendMessage, sendButtonScale, pendingMedia]);
+    // Send to backend (not local-only)
+    sendMessageToBackend(chatId);
+  }, [chatId, currentMessage, sendMessageToBackend, sendButtonScale, pendingMedia, isSending]);
 
   const handleMentionSelect = useCallback(
     (username: string) => {
@@ -337,7 +349,7 @@ export default function ChatScreen() {
     setPreviewMedia(null);
   }, [setShowPreviewModal, setPreviewMedia]);
 
-  const canSend = currentMessage.trim() || pendingMedia;
+  const canSend = (currentMessage.trim() || pendingMedia) && !isSending;
 
   if (isLoading) {
     return (
