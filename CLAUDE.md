@@ -789,6 +789,36 @@ const response = await fetch("/api/posts", {
 });
 ```
 
+### 🚨 CRITICAL: User Data Isolation
+
+**⚠️ When users log in/out, ALL user-specific data MUST be cleared to prevent data leakage.**
+
+The `clearAllCachedData()` function in `lib/auth-client.ts` handles this and is called automatically during `signIn` and `signUp`. It clears:
+
+1. **React Query Cache** - All cached API responses
+2. **MMKV Storage** - Persisted stores (`post-storage`, `bookmark-storage`)
+3. **Zustand Stores** - All user-specific state:
+   - `useProfileStore` - following, followers, edit state
+   - `useFeedPostUIStore` - video states, pressed posts
+   - `useFeedSlideStore` - carousel positions
+   - `usePostStore` - liked posts, like counts, comment counts
+   - `useBookmarkStore` - bookmarked posts
+
+**Storage keys cleared on user switch:**
+```typescript
+const USER_DATA_STORAGE_KEYS = [
+  "post-storage",      // liked posts, like counts
+  "bookmark-storage",  // bookmarked posts  
+  "chat-storage",      // chat data
+];
+```
+
+**If users report seeing another user's data:**
+1. Check that `clearAllCachedData()` is being called in `signIn.email` and `signUp.email`
+2. Verify MMKV storage is being cleared via `clearUserDataFromStorage()`
+3. Ensure Zustand stores are reset synchronously (not async)
+4. Check if any new persisted stores need to be added to the clear list
+
 ### Environment Variables
 
 ```bash
