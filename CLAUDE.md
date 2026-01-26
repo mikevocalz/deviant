@@ -53,6 +53,87 @@ ALTER TABLE posts ADD COLUMN is_nsfw BOOLEAN DEFAULT false;
 
 ---
 
+## 🔗 API & Schema Synchronization - CRITICAL
+
+**⚠️ ALL APIs MUST STAY IN SYNC WITH CMS COLLECTIONS AND DATABASE SCHEMA.**
+
+### The Three-Way Sync Requirement
+
+When making changes that affect data structure, you MUST update THREE places:
+
+1. **CMS Collection Schema** (`/Users/mikevocalz/Downloads/payload-cms-setup/collections/`)
+   - Add/remove fields in the collection definition
+   - Commit and push to CMS repo
+   - Redeploy CMS for changes to take effect
+
+2. **Database Schema** (PostgreSQL via Supabase)
+   - Ensure database columns match collection fields
+   - Run migrations or manually add columns
+   - Field names convert: `likedPosts` → `liked_posts` (camelCase to snake_case)
+
+3. **API Endpoints** (`/Users/mikevocalz/deviant/app/api/`)
+   - Update API routes to use new fields
+   - Ensure field names match CMS collection exactly
+   - Handle both camelCase (API) and snake_case (DB) formats
+
+### Example: Adding a New Field
+
+**Step 1: Update CMS Collection**
+```typescript
+// /Users/mikevocalz/Downloads/payload-cms-setup/collections/Users.ts
+{
+  name: "likedPosts",
+  type: "relationship",
+  relationTo: "posts",
+  hasMany: true,
+}
+```
+
+**Step 2: Update Database** (if auto-migration doesn't work)
+```sql
+-- Supabase SQL Editor
+ALTER TABLE users ADD COLUMN liked_posts JSONB DEFAULT '[]'::jsonb;
+```
+
+**Step 3: Update API Endpoints**
+```typescript
+// /Users/mikevocalz/deviant/app/api/posts/[id]/like+api.ts
+const likedPosts = (currentUserData as any)?.likedPosts || [];
+// Handle Payload array format (can be strings or objects)
+```
+
+### Sync Checklist
+
+Before pushing any changes that affect data structure:
+
+- ✅ CMS collection updated and pushed
+- ✅ Database schema matches (check Supabase)
+- ✅ API endpoints updated to use new fields
+- ✅ API handles both Payload format (objects) and DB format (IDs)
+- ✅ Test locally if possible
+- ✅ Commit and push CMS changes
+- ✅ Commit and push API changes
+- ✅ Redeploy CMS
+- ✅ Publish EAS update to production
+
+### Common Sync Issues
+
+**Problem:** API uses field that doesn't exist in CMS
+- **Solution:** Add field to CMS collection first, then update API
+
+**Problem:** API uses field that doesn't exist in database
+- **Solution:** Add column to database, or ensure CMS migration runs
+
+**Problem:** Field name mismatch (camelCase vs snake_case)
+- **Solution:** Payload uses camelCase, DB uses snake_case - handle both in API
+
+**Problem:** Field type mismatch (array vs relationship)
+- **Solution:** Payload relationships can be arrays of IDs or objects - handle both formats
+
+**Remember:** When in doubt, check all three places (CMS, DB, API) before deploying!
+
+---
+
 ## 🚫 Protected Files - DO NOT EDIT
 
 The following files should **NEVER** be modified unless explicitly requested by the user:

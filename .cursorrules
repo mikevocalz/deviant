@@ -98,8 +98,17 @@ After adding native dependencies: `npx expo run:android` or `npx expo run:ios`
    - Add loading states and fallbacks
    - Never rely on dev server features
 
-4. **Workflow checklist:**
+4. **ALL APIs MUST STAY IN SYNC** - When changing data structures, update THREE places:
+   - ✅ CMS Collection Schema (`/Users/mikevocalz/Downloads/payload-cms-setup/collections/`)
+   - ✅ Database Schema (PostgreSQL via Supabase)
+   - ✅ API Endpoints (`app/api/`)
+   - Commit and push CMS changes, then API changes, then redeploy CMS
+
+5. **Workflow checklist:**
    - ✅ Write code with production in mind
+   - ✅ Update CMS schema if needed (commit & push CMS repo)
+   - ✅ Update database schema if needed
+   - ✅ Update API endpoints to match schema
    - ✅ Test locally if possible
    - ✅ Commit changes with descriptive message
    - ✅ Push to `main` branch
