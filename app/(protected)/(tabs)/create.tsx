@@ -217,8 +217,15 @@ export default function CreateScreen() {
     console.log("[Create] handlePost called!");
     console.log("[Create] isValid:", isValid);
     console.log("[Create] isUploading:", isUploading);
+    console.log("[Create] isCreating:", isCreating);
     console.log("[Create] selectedMedia:", selectedMedia.length);
     console.log("[Create] caption length:", caption.trim().length);
+
+    // Prevent double submission
+    if (isCreating || isUploading) {
+      console.log("[Create] Already creating or uploading, ignoring");
+      return;
+    }
 
     // Check Bunny CDN configuration
     const bunnyZone = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE;
@@ -408,7 +415,7 @@ export default function CreateScreen() {
             }
             handlePost();
           }}
-          disabled={isUploading || !isValid}
+          disabled={isUploading || isCreating || !isValid}
           hitSlop={12}
           style={{ marginRight: 8 }}
         >
@@ -416,15 +423,15 @@ export default function CreateScreen() {
             style={{
               fontSize: 14,
               fontWeight: "600",
-              color: isValid && !isUploading ? colors.primary : colors.mutedForeground,
+              color: isValid && !isUploading && !isCreating ? colors.primary : colors.mutedForeground,
             }}
           >
-            {isUploading ? "Posting..." : "Share"}
+            {isUploading ? "Uploading..." : isCreating ? "Posting..." : "Share"}
           </Text>
         </Pressable>
       ),
     });
-  }, [navigation, colors, isValid, isUploading, selectedMedia.length, caption, handlePost, showToast, handleClose]);
+  }, [navigation, colors, isValid, isUploading, isCreating, selectedMedia.length, caption, handlePost, showToast, handleClose]);
 
   return (
     <View className="flex-1 bg-background">
