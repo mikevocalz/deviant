@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     const auth = getAuthFromRequest(request);
 
     const postId = url.searchParams.get("postId");
+    const storyId = url.searchParams.get("storyId"); // Support story comments
     const parentId = url.searchParams.get("parentId"); // For fetching replies
     const limit = parseInt(url.searchParams.get("limit") || "20", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
@@ -40,9 +41,28 @@ export async function GET(request: Request) {
       return Response.json(result);
     }
 
-    // Otherwise, fetch top-level comments for a post
+    // Fetch comments for a story
+    if (storyId) {
+      const result = await payloadClient.find(
+        {
+          collection: "comments",
+          limit,
+          page,
+          depth,
+          sort: "-createdAt",
+          where: {
+            story: { equals: storyId },
+            parent: { exists: false }, // Top-level comments only
+          },
+        },
+        auth,
+      );
+      return Response.json(result);
+    }
+
+    // Fetch top-level comments for a post
     if (!postId) {
-      return Response.json({ error: "postId or parentId is required" }, { status: 400 });
+      return Response.json({ error: "postId, storyId, or parentId is required" }, { status: 400 });
     }
 
     const result = await payloadClient.find(
@@ -88,10 +108,19 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body.post || !body.text) {
-      console.error("[API] Missing required fields", { hasPost: !!body.post, hasText: !!body.text });
+    // Require either post or story (for story comments)
+    if (!body.post && !body.story) {
+      console.error("[API] Missing required fields - need post or story");
       return Response.json(
-        { error: "post and text are required" },
+        { error: "post or story is required" },
+        { status: 400 },
+      );
+    }
+    
+    if (!body.text) {
+      console.error("[API] Missing text field");
+      return Response.json(
+        { error: "text is required" },
         { status: 400 },
       );
     }
@@ -107,28 +136,54 @@ export async function POST(request: Request) {
       console.warn("[API] Could not get current user, but proceeding - hook may set author");
     }
 
-    // Verify post exists
-    let postId = String(body.post).trim();
-    try {
-      const post = await payloadClient.findByID({
-        collection: "posts",
-        id: postId,
-      }, auth);
-      
-      if (!post) {
-        console.error("[API] Post not found:", postId);
+    // Verify post or story exists
+    let postId: string | null = body.post ? String(body.post).trim() : null;
+    let storyId: string | null = body.story ? String(body.story).trim() : null;
+    
+    if (postId) {
+      try {
+        const post = await payloadClient.findByID({
+          collection: "posts",
+          id: postId,
+        }, auth);
+        
+        if (!post) {
+          console.error("[API] Post not found:", postId);
+          return Response.json(
+            { error: "Post not found" },
+            { status: 404 },
+          );
+        }
+        console.log("[API] Post verified:", postId);
+      } catch (postError) {
+        console.error("[API] Post lookup error:", postError);
         return Response.json(
           { error: "Post not found" },
           { status: 404 },
         );
       }
-      console.log("[API] Post verified:", postId);
-    } catch (postError) {
-      console.error("[API] Post lookup error:", postError);
-      return Response.json(
-        { error: "Post not found" },
-        { status: 404 },
-      );
+    } else if (storyId) {
+      try {
+        const story = await payloadClient.findByID({
+          collection: "stories",
+          id: storyId,
+        }, auth);
+        
+        if (!story) {
+          console.error("[API] Story not found:", storyId);
+          return Response.json(
+            { error: "Story not found" },
+            { status: 404 },
+          );
+        }
+        console.log("[API] Story verified:", storyId);
+      } catch (storyError) {
+        console.error("[API] Story lookup error:", storyError);
+        return Response.json(
+          { error: "Story not found" },
+          { status: 404 },
+        );
+      }
     }
 
     // CRITICAL: We MUST find the Payload CMS user ID - the hook might not work with API key auth
@@ -241,11 +296,11 @@ export async function POST(request: Request) {
       );
     }
     
-    // Validate post ID format (should be MongoDB ObjectID or valid string)
-    if (!postId || postId.length === 0) {
-      console.error("[API] Post ID is empty");
+    // Validate we have either post or story
+    if ((!postId || postId.length === 0) && (!storyId || storyId.length === 0)) {
+      console.error("[API] Neither Post ID nor Story ID provided");
       return Response.json(
-        { error: "Post ID is required" },
+        { error: "Post ID or Story ID is required" },
         { status: 400 },
       );
     }
@@ -253,10 +308,16 @@ export async function POST(request: Request) {
     // Build comment data - ensure all required fields are present
     // CRITICAL: We MUST set author explicitly - API key auth prevents hooks from setting req.user
     const commentData: Record<string, unknown> = {
-      post: postId, // Must be a valid post ID
       content: content, // Must be non-empty string
       author: authorId, // MUST be set explicitly - hook won't work with API key auth
     };
+    
+    // Add post or story reference
+    if (postId) {
+      commentData.post = postId;
+    } else if (storyId) {
+      commentData.story = storyId;
+    }
     
     console.log("[API] Setting author explicitly:", authorId);
     
