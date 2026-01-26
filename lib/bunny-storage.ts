@@ -144,10 +144,30 @@ export async function uploadToBunny(
     const endpoint = getStorageEndpoint();
     const uploadUrl = `https://${endpoint}/${BUNNY_STORAGE_ZONE}/${path}`;
     console.log("[Bunny] Upload URL:", uploadUrl);
+    console.log("[Bunny] Storage zone:", BUNNY_STORAGE_ZONE);
+    console.log("[Bunny] Region:", BUNNY_STORAGE_REGION);
+    console.log("[Bunny] API key prefix:", BUNNY_STORAGE_API_KEY?.substring(0, 12) || "MISSING");
 
     // Read file as blob
-    console.log("[Bunny] Fetching local file...");
-    const response = await fetch(uri);
+    console.log("[Bunny] Step 1: Fetching local file from URI:", uri);
+    let response: Response;
+    let blob: Blob;
+    let totalSize: number;
+    
+    try {
+      response = await fetch(uri);
+      console.log("[Bunny] Step 1a: fetch() returned, ok:", response.ok, "status:", response.status);
+    } catch (fetchError) {
+      console.error("[Bunny] Step 1 FAILED - fetch() threw:", fetchError);
+      const errMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      return {
+        success: false,
+        url: "",
+        path: "",
+        filename: "",
+        error: `Local file fetch failed: ${errMsg}`,
+      };
+    }
     
     if (!response.ok) {
       console.error("[Bunny] Failed to read local file:", response.status, response.statusText);
@@ -160,9 +180,22 @@ export async function uploadToBunny(
       };
     }
     
-    const blob = await response.blob();
-    const totalSize = blob.size;
-    console.log("[Bunny] File read successfully, size:", totalSize, "bytes, type:", blob.type);
+    try {
+      console.log("[Bunny] Step 2: Converting response to blob...");
+      blob = await response.blob();
+      totalSize = blob.size;
+      console.log("[Bunny] Step 2 complete: size:", totalSize, "bytes, type:", blob.type);
+    } catch (blobError) {
+      console.error("[Bunny] Step 2 FAILED - blob() threw:", blobError);
+      const errMsg = blobError instanceof Error ? blobError.message : String(blobError);
+      return {
+        success: false,
+        url: "",
+        path: "",
+        filename: "",
+        error: `Blob conversion failed: ${errMsg}`,
+      };
+    }
 
     if (totalSize === 0) {
       console.error("[Bunny] File is empty (0 bytes)");
@@ -218,14 +251,19 @@ export async function uploadToBunny(
       });
 
       xhr.addEventListener("error", (event) => {
-        console.error("[Bunny] XHR error event:", event);
-        console.error("[Bunny] XHR readyState:", xhr.readyState, "status:", xhr.status);
+        console.error("[Bunny] Step 3 FAILED - XHR error event");
+        console.error("[Bunny] XHR readyState:", xhr.readyState);
+        console.error("[Bunny] XHR status:", xhr.status);
+        console.error("[Bunny] XHR statusText:", xhr.statusText);
+        console.error("[Bunny] XHR responseURL:", xhr.responseURL);
+        console.error("[Bunny] XHR responseType:", xhr.responseType);
+        console.error("[Bunny] Upload URL was:", uploadUrl);
         resolve({
           success: false,
           url: "",
           path: "",
           filename: "",
-          error: `Network error (status: ${xhr.status})`,
+          error: `XHR network error (readyState: ${xhr.readyState}, status: ${xhr.status}, url: ${uploadUrl})`,
         });
       });
 
@@ -251,12 +289,16 @@ export async function uploadToBunny(
         });
       });
 
-      console.log("[Bunny] Starting XHR upload...");
+      console.log("[Bunny] Step 3: Starting XHR upload...");
+      console.log("[Bunny] XHR PUT to:", uploadUrl);
+      console.log("[Bunny] Blob size:", totalSize, "bytes");
       xhr.open("PUT", uploadUrl);
       xhr.setRequestHeader("AccessKey", BUNNY_STORAGE_API_KEY);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
       xhr.timeout = 120000; // 2 minute timeout for large files
+      console.log("[Bunny] XHR headers set, sending blob...");
       xhr.send(blob);
+      console.log("[Bunny] XHR send() called, waiting for response...");
     });
   } catch (error) {
     console.error("[Bunny] Upload exception:", error);
