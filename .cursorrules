@@ -102,12 +102,14 @@ After adding native dependencies: `npx expo run:android` or `npx expo run:ios`
    - ✅ CMS Collection Schema (`/Users/mikevocalz/Downloads/payload-cms-setup/collections/`)
    - ✅ Database Schema (PostgreSQL via Supabase)
    - ✅ API Endpoints (`app/api/`)
-   - Commit and push CMS changes, then API changes, then redeploy CMS
+   - Commit and push CMS changes, then **redeploy CMS** (`cd /Users/mikevocalz/Downloads/payload-cms-setup && npx vercel --prod --yes`), then commit and push API changes
+   - **⚠️ CRITICAL: CMS changes require redeployment - pushing to git is not enough!**
 
 5. **Workflow checklist:**
    - ✅ Write code with production in mind
    - ✅ Update CMS schema if needed (commit & push CMS repo)
-   - ✅ Update database schema if needed
+   - ✅ **Redeploy CMS** (`cd /Users/mikevocalz/Downloads/payload-cms-setup && npx vercel --prod --yes`)
+   - ✅ Update database schema if needed (Payload auto-migrates on deploy)
    - ✅ Update API endpoints to match schema
    - ✅ Test locally if possible
    - ✅ Commit changes with descriptive message

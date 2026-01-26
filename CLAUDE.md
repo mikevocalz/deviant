@@ -11,6 +11,15 @@
 
 - There are **no** collections or `payload.config` in the deviant repo. Do not add any.
 - When changing CMS collections, edit them in **payload-cms-setup** only, then redeploy the CMS from that folder.
+- **⚠️ CRITICAL: After making CMS changes, you MUST redeploy:**
+  ```bash
+  cd /Users/mikevocalz/Downloads/payload-cms-setup
+  git add collections/
+  git commit -m "Description of changes"
+  git push origin master
+  npx vercel --prod --yes  # Redeploy to production
+  ```
+- Production CMS URL: `https://payload-cms-setup-gray.vercel.app`
 
 ---
 
@@ -64,7 +73,9 @@ When making changes that affect data structure, you MUST update THREE places:
 1. **CMS Collection Schema** (`/Users/mikevocalz/Downloads/payload-cms-setup/collections/`)
    - Add/remove fields in the collection definition
    - Commit and push to CMS repo
-   - Redeploy CMS for changes to take effect
+   - **⚠️ CRITICAL: Redeploy CMS for changes to take effect**
+   - Deploy command: `cd /Users/mikevocalz/Downloads/payload-cms-setup && npx vercel --prod --yes`
+   - CMS will auto-migrate database on deployment
 
 2. **Database Schema** (PostgreSQL via Supabase)
    - Ensure database columns match collection fields
@@ -107,14 +118,16 @@ const likedPosts = (currentUserData as any)?.likedPosts || [];
 Before pushing any changes that affect data structure:
 
 - ✅ CMS collection updated and pushed
-- ✅ Database schema matches (check Supabase)
+- ✅ **CMS redeployed to production** (`cd /Users/mikevocalz/Downloads/payload-cms-setup && npx vercel --prod --yes`)
+- ✅ Database schema matches (check Supabase - Payload auto-migrates on deploy)
 - ✅ API endpoints updated to use new fields
 - ✅ API handles both Payload format (objects) and DB format (IDs)
 - ✅ Test locally if possible
 - ✅ Commit and push CMS changes
 - ✅ Commit and push API changes
-- ✅ Redeploy CMS
 - ✅ Publish EAS update to production
+
+**⚠️ REMEMBER: CMS changes require redeployment!** Pushing to git is not enough - you must redeploy the CMS for schema changes to take effect.
 
 ### Common Sync Issues
 
