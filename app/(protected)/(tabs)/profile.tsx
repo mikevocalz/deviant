@@ -20,7 +20,7 @@ import {
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useMemo, useEffect, useState, useLayoutEffect } from "react";
+import { useMemo, useEffect, useState, useLayoutEffect, useRef } from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -469,7 +469,23 @@ export default function ProfileScreen() {
   }, [navigation, user?.username, colors, router]);
   
   // Fetch real user posts - query key includes user ID so it auto-refetches for new users
-  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "");
+  const { data: userPostsData, isLoading: isLoadingPosts, refetch } = useProfilePosts(user?.id || "");
+  
+  // Track previous user ID to detect user switches
+  const prevUserIdRef = useRef<string | null>(null);
+  
+  // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
+  useEffect(() => {
+    const currentUserId = user?.id || null;
+    
+    if (prevUserIdRef.current !== null && prevUserIdRef.current !== currentUserId) {
+      console.log("[Profile] User switched from", prevUserIdRef.current, "to", currentUserId);
+      // Force refetch for the new user
+      refetch();
+    }
+    
+    prevUserIdRef.current = currentUserId;
+  }, [user?.id, refetch]);
 
   // Format follower count (e.g., 24800 -> "24.8K")
   const formatCount = (count: number) => {

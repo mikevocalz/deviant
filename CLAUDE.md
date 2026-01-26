@@ -818,6 +818,41 @@ const USER_DATA_STORAGE_KEYS = [
 2. Verify MMKV storage is being cleared via `clearUserDataFromStorage()`
 3. Ensure Zustand stores are reset synchronously (not async)
 4. Check if any new persisted stores need to be added to the clear list
+5. Verify the profile page has the user switch detection (`prevUserIdRef`) that forces refetch
+
+### React Query Cache Clearing (CRITICAL)
+
+**⚠️ `queryClient.clear()` alone is NOT enough!** Use ALL of these methods:
+
+```typescript
+globalQueryClient.cancelQueries();   // Cancel active queries
+globalQueryClient.removeQueries();   // Remove all queries from cache
+globalQueryClient.clear();           // Clear the cache
+globalQueryClient.resetQueries();    // Reset query state
+```
+
+### Profile Page User Switch Detection (CRITICAL)
+
+The profile page MUST detect user switches and force refetch:
+
+```typescript
+// In profile.tsx
+const prevUserIdRef = useRef<string | null>(null);
+
+useEffect(() => {
+  const currentUserId = user?.id || null;
+  if (prevUserIdRef.current !== null && prevUserIdRef.current !== currentUserId) {
+    console.log("[Profile] User switched, refetching...");
+    refetch();
+  }
+  prevUserIdRef.current = currentUserId;
+}, [user?.id, refetch]);
+```
+
+This is needed because:
+1. React Query's `clear()` doesn't force active queries to re-render
+2. Mounted components may still hold stale data
+3. The ref-based detection catches when user ID changes and forces refetch
 
 ### Environment Variables
 

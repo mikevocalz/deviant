@@ -24,10 +24,17 @@ export function setQueryClient(client: QueryClient) {
 function clearAllCachedData() {
   console.log("[Auth] === CLEARING ALL USER DATA ===");
   
-  // 1. Clear React Query cache FIRST
+  // 1. Clear React Query cache FIRST - use multiple methods to ensure it's truly cleared
   if (globalQueryClient) {
+    // Cancel all active queries first
+    globalQueryClient.cancelQueries();
+    // Remove all queries from cache
+    globalQueryClient.removeQueries();
+    // Clear the entire cache
     globalQueryClient.clear();
-    console.log("[Auth] ✓ React Query cache cleared");
+    // Reset the query client state completely
+    globalQueryClient.resetQueries();
+    console.log("[Auth] ✓ React Query cache cleared (cancel + remove + clear + reset)");
   } else {
     console.warn("[Auth] ⚠ QueryClient not available for clearing");
   }
