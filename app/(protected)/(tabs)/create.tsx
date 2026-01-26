@@ -215,7 +215,7 @@ export default function CreateScreen() {
 
   const handlePost = async () => {
     // Bundle version identifier - changes with each OTA update
-    const BUNDLE_VERSION = "2026-01-26-v4-network-debug";
+    const BUNDLE_VERSION = "2026-01-26-v5-native-upload";
     
     console.log("[Create] ========================================");
     console.log("[Create] handlePost called!");

@@ -5,6 +5,8 @@
  * Docs: https://docs.bunny.net/reference/storage-api
  */
 
+import * as FileSystem from "expo-file-system";
+
 // Storage zone configuration from environment
 const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "";
 const BUNNY_STORAGE_API_KEY =
@@ -104,6 +106,7 @@ function getExtension(uri: string, mimeType?: string): string {
 
 /**
  * Upload a file to Bunny.net Edge Storage
+ * Uses expo-file-system for reliable native uploads
  *
  * @param uri - Local file URI (file://)
  * @param folder - Destination folder (e.g., "posts", "events", "stories")
@@ -115,22 +118,25 @@ export async function uploadToBunny(
   onProgress?: (progress: UploadProgress) => void,
   userId?: string,
 ): Promise<UploadResult> {
-  console.log("[Bunny] Starting upload for:", uri.substring(0, 100));
-  console.log("[Bunny] Config check:", {
-    zone: BUNNY_STORAGE_ZONE ? "set" : "MISSING",
-    key: BUNNY_STORAGE_API_KEY ? `set (${BUNNY_STORAGE_API_KEY.substring(0, 8)}...)` : "MISSING",
-    region: BUNNY_STORAGE_REGION,
-    cdnUrl: BUNNY_CDN_URL ? "set" : "MISSING",
+  const BUNDLE_VERSION = "v5-native-upload";
+  console.log("[Bunny] =========================================");
+  console.log("[Bunny] Starting upload (", BUNDLE_VERSION, ")");
+  console.log("[Bunny] URI:", uri.substring(0, 100));
+  console.log("[Bunny] Config:", {
+    zone: BUNNY_STORAGE_ZONE || "MISSING",
+    key: BUNNY_STORAGE_API_KEY ? `${BUNNY_STORAGE_API_KEY.substring(0, 8)}...` : "MISSING",
+    region: BUNNY_STORAGE_REGION || "MISSING",
+    cdnUrl: BUNNY_CDN_URL || "MISSING",
   });
 
   if (!BUNNY_STORAGE_ZONE || !BUNNY_STORAGE_API_KEY) {
-    console.error("[Bunny] Storage not configured - missing zone or API key");
+    console.error("[Bunny] FATAL: Storage not configured");
     return {
       success: false,
       url: "",
       path: "",
       filename: "",
-      error: "Storage not configured",
+      error: `Storage not configured (zone: ${BUNNY_STORAGE_ZONE ? "ok" : "missing"}, key: ${BUNNY_STORAGE_API_KEY ? "ok" : "missing"})`,
     };
   }
 
@@ -144,170 +150,97 @@ export async function uploadToBunny(
     const endpoint = getStorageEndpoint();
     const uploadUrl = `https://${endpoint}/${BUNNY_STORAGE_ZONE}/${path}`;
     console.log("[Bunny] Upload URL:", uploadUrl);
-    console.log("[Bunny] Storage zone:", BUNNY_STORAGE_ZONE);
-    console.log("[Bunny] Region:", BUNNY_STORAGE_REGION);
-    console.log("[Bunny] API key prefix:", BUNNY_STORAGE_API_KEY?.substring(0, 12) || "MISSING");
 
-    // Read file as blob
-    console.log("[Bunny] Step 1: Fetching local file from URI:", uri);
-    let response: Response;
-    let blob: Blob;
-    let totalSize: number;
-    
+    // Normalize the URI for expo-file-system
+    let normalizedUri = uri;
+    if (!uri.startsWith("file://") && !uri.startsWith("content://")) {
+      normalizedUri = `file://${uri}`;
+    }
+    console.log("[Bunny] Normalized URI:", normalizedUri.substring(0, 100));
+
+    // Check if file exists and get info
+    console.log("[Bunny] Checking file info...");
+    let fileInfo: FileSystem.FileInfo;
     try {
-      response = await fetch(uri);
-      console.log("[Bunny] Step 1a: fetch() returned, ok:", response.ok, "status:", response.status);
-    } catch (fetchError) {
-      console.error("[Bunny] Step 1 FAILED - fetch() threw:", fetchError);
-      const errMsg = fetchError instanceof Error ? fetchError.message : String(fetchError);
+      fileInfo = await FileSystem.getInfoAsync(normalizedUri);
+      console.log("[Bunny] File info:", JSON.stringify(fileInfo));
+    } catch (infoError) {
+      console.error("[Bunny] Failed to get file info:", infoError);
       return {
         success: false,
         url: "",
         path: "",
         filename: "",
-        error: `Local file fetch failed: ${errMsg}`,
+        error: `Cannot access file: ${infoError instanceof Error ? infoError.message : String(infoError)}`,
       };
     }
+
+    if (!fileInfo.exists) {
+      console.error("[Bunny] File does not exist at:", normalizedUri);
+      return {
+        success: false,
+        url: "",
+        path: "",
+        filename: "",
+        error: "File does not exist",
+      };
+    }
+
+    const fileSize = (fileInfo as any).size || 0;
+    console.log("[Bunny] File exists, size:", fileSize, "bytes");
+
+    // Use FileSystem.uploadAsync for reliable native upload
+    console.log("[Bunny] Starting native upload via FileSystem.uploadAsync...");
     
-    if (!response.ok) {
-      console.error("[Bunny] Failed to read local file:", response.status, response.statusText);
-      return {
-        success: false,
-        url: "",
-        path: "",
-        filename: "",
-        error: `Failed to read file: ${response.status}`,
-      };
-    }
-    
-    try {
-      console.log("[Bunny] Step 2: Converting response to blob...");
-      blob = await response.blob();
-      totalSize = blob.size;
-      console.log("[Bunny] Step 2 complete: size:", totalSize, "bytes, type:", blob.type);
-    } catch (blobError) {
-      console.error("[Bunny] Step 2 FAILED - blob() threw:", blobError);
-      const errMsg = blobError instanceof Error ? blobError.message : String(blobError);
-      return {
-        success: false,
-        url: "",
-        path: "",
-        filename: "",
-        error: `Blob conversion failed: ${errMsg}`,
-      };
-    }
-
-    if (totalSize === 0) {
-      console.error("[Bunny] File is empty (0 bytes)");
-      return {
-        success: false,
-        url: "",
-        path: "",
-        filename: "",
-        error: "File is empty",
-      };
-    }
-
-    // Upload with XMLHttpRequest for progress tracking
-    return new Promise((resolve) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable && onProgress) {
-          onProgress({
-            loaded: event.loaded,
-            total: event.total,
-            percentage: Math.round((event.loaded / event.total) * 100),
-          });
-        }
-      });
-
-      xhr.addEventListener("load", () => {
-        console.log("[Bunny] XHR load event, status:", xhr.status, "response:", xhr.responseText?.substring(0, 200));
-        
-        if (xhr.status === 201 || xhr.status === 200) {
-          // Construct CDN URL
-          const cdnUrl = BUNNY_CDN_URL
-            ? `${BUNNY_CDN_URL}/${path}`
-            : `https://${BUNNY_STORAGE_ZONE}.b-cdn.net/${path}`;
-
-          console.log("[Bunny] Upload successful, CDN URL:", cdnUrl);
-          resolve({
-            success: true,
-            url: cdnUrl,
-            path,
-            filename,
-          });
-        } else {
-          console.error("[Bunny] Upload failed with status:", xhr.status, xhr.statusText, xhr.responseText);
-          resolve({
-            success: false,
-            url: "",
-            path: "",
-            filename: "",
-            error: `Upload failed: ${xhr.status} ${xhr.statusText || ""} - ${xhr.responseText || "No response"}`,
-          });
-        }
-      });
-
-      xhr.addEventListener("error", (event) => {
-        console.error("[Bunny] Step 3 FAILED - XHR error event");
-        console.error("[Bunny] XHR readyState:", xhr.readyState);
-        console.error("[Bunny] XHR status:", xhr.status);
-        console.error("[Bunny] XHR statusText:", xhr.statusText);
-        console.error("[Bunny] XHR responseURL:", xhr.responseURL);
-        console.error("[Bunny] XHR responseType:", xhr.responseType);
-        console.error("[Bunny] Upload URL was:", uploadUrl);
-        resolve({
-          success: false,
-          url: "",
-          path: "",
-          filename: "",
-          error: `XHR network error (readyState: ${xhr.readyState}, status: ${xhr.status}, url: ${uploadUrl})`,
-        });
-      });
-
-      xhr.addEventListener("abort", () => {
-        console.error("[Bunny] XHR aborted");
-        resolve({
-          success: false,
-          url: "",
-          path: "",
-          filename: "",
-          error: "Upload aborted",
-        });
-      });
-
-      xhr.addEventListener("timeout", () => {
-        console.error("[Bunny] XHR timeout");
-        resolve({
-          success: false,
-          url: "",
-          path: "",
-          filename: "",
-          error: "Upload timeout",
-        });
-      });
-
-      console.log("[Bunny] Step 3: Starting XHR upload...");
-      console.log("[Bunny] XHR PUT to:", uploadUrl);
-      console.log("[Bunny] Blob size:", totalSize, "bytes");
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("AccessKey", BUNNY_STORAGE_API_KEY);
-      xhr.setRequestHeader("Content-Type", "application/octet-stream");
-      xhr.timeout = 120000; // 2 minute timeout for large files
-      console.log("[Bunny] XHR headers set, sending blob...");
-      xhr.send(blob);
-      console.log("[Bunny] XHR send() called, waiting for response...");
+    const uploadResult = await FileSystem.uploadAsync(uploadUrl, normalizedUri, {
+      httpMethod: "PUT",
+      uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      headers: {
+        "AccessKey": BUNNY_STORAGE_API_KEY,
+        "Content-Type": "application/octet-stream",
+      },
     });
+
+    console.log("[Bunny] Upload response status:", uploadResult.status);
+    console.log("[Bunny] Upload response body:", uploadResult.body?.substring(0, 200));
+
+    if (uploadResult.status === 201 || uploadResult.status === 200) {
+      // Construct CDN URL
+      const cdnUrl = BUNNY_CDN_URL
+        ? `${BUNNY_CDN_URL}/${path}`
+        : `https://${BUNNY_STORAGE_ZONE}.b-cdn.net/${path}`;
+
+      console.log("[Bunny] SUCCESS! CDN URL:", cdnUrl);
+      
+      // Call progress callback with 100%
+      onProgress?.({ loaded: fileSize, total: fileSize, percentage: 100 });
+      
+      return {
+        success: true,
+        url: cdnUrl,
+        path,
+        filename,
+      };
+    } else {
+      console.error("[Bunny] Upload failed with status:", uploadResult.status);
+      return {
+        success: false,
+        url: "",
+        path: "",
+        filename: "",
+        error: `Upload failed: HTTP ${uploadResult.status} - ${uploadResult.body || "No response"}`,
+      };
+    }
   } catch (error) {
     console.error("[Bunny] Upload exception:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("[Bunny] Error details:", errorMessage);
     return {
       success: false,
       url: "",
       path: "",
       filename: "",
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: `Upload error: ${errorMessage}`,
     };
   }
 }
