@@ -14,6 +14,7 @@ import { useStories } from "@/lib/hooks/use-stories"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { messagesApiClient } from "@/lib/api/messages"
 import { useUIStore } from "@/lib/stores/ui-store"
+import { users } from "@/lib/api-client"
 
 const { width, height } = Dimensions.get("window")
 const LONG_PRESS_DELAY = 300
@@ -40,6 +41,7 @@ export default function StoryViewerScreen() {
   const [replyText, setReplyText] = useState("")
   const [isSendingReply, setIsSendingReply] = useState(false)
   const [isInputFocused, setIsInputFocused] = useState(false)
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isPaused = useRef(false)
   const hasAdvanced = useRef(false)
@@ -77,8 +79,39 @@ export default function StoryViewerScreen() {
       foundIndex: currentStoryIndex,
       hasStory: !!story,
       hasItems: story?.items?.length || 0,
+      userId: story?.userId,
+      username: story?.username,
     })
   }, [id, currentStoryId, availableStories.length, currentStoryIndex, story])
+
+  // If story has username but no userId, look it up
+  useEffect(() => {
+    if (story?.userId) {
+      // Already have userId, use it
+      setResolvedUserId(story.userId)
+    } else if (story?.username) {
+      // No userId but have username, look it up
+      console.log("[StoryViewer] Looking up userId for username:", story.username)
+      users.find({
+        where: { username: { equals: story.username } },
+        limit: 1,
+      }).then((result) => {
+        if (result.docs && result.docs.length > 0) {
+          const foundUserId = (result.docs[0] as { id: string }).id
+          console.log("[StoryViewer] Found userId:", foundUserId)
+          setResolvedUserId(foundUserId)
+        } else {
+          console.warn("[StoryViewer] User not found for username:", story.username)
+          setResolvedUserId(null)
+        }
+      }).catch((error) => {
+        console.error("[StoryViewer] Error looking up userId:", error)
+        setResolvedUserId(null)
+      })
+    } else {
+      setResolvedUserId(null)
+    }
+  }, [story?.userId, story?.username])
 
   const hasNextUser = currentStoryIndex < availableStories.length - 1
   const hasPrevUser = currentStoryIndex > 0
@@ -429,8 +462,8 @@ export default function StoryViewerScreen() {
       return
     }
     
-    if (!story.userId) {
-      console.error("[StoryViewer] Story missing userId:", story)
+    if (!resolvedUserId) {
+      console.error("[StoryViewer] No resolved userId for story:", story)
       showToast("error", "Error", "Story data incomplete. Cannot send reply.")
       return
     }
@@ -439,9 +472,9 @@ export default function StoryViewerScreen() {
     Keyboard.dismiss()
     
     try {
-      console.log("[StoryViewer] Sending reply to userId:", story.userId)
+      console.log("[StoryViewer] Sending reply to userId:", resolvedUserId)
       // Get or create conversation with story owner
-      const conversation = await messagesApiClient.getOrCreateConversation(story.userId)
+      const conversation = await messagesApiClient.getOrCreateConversation(resolvedUserId)
       
       if (!conversation) {
         console.error("[StoryViewer] Failed to get/create conversation")
@@ -473,7 +506,7 @@ export default function StoryViewerScreen() {
       setIsSendingReply(false)
       setIsInputFocused(false)
     }
-  }, [replyText, story, isSendingReply, isOwnStory, showToast])
+  }, [replyText, story, isSendingReply, isOwnStory, showToast, resolvedUserId])
 
   // Video end detection - auto-advance when video finishes
   // Video end detection - auto-advance when video finishes
@@ -646,7 +679,7 @@ export default function StoryViewerScreen() {
       </View>
       
       {/* Reply input - only show for other users' stories */}
-      {!isOwnStory && story && story.userId && (
+      {!isOwnStory && story && resolvedUserId && (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}

@@ -96,11 +96,11 @@ export async function POST(request: Request) {
     // Prepare post data
     let postData = { ...body };
     
-    // Try to determine the author
+    // Determine the author ID (priority: username lookup > client-provided > authenticated user)
     let authorId: string | undefined;
     
+    // 1. If authorUsername is provided, look up the Payload CMS ID
     if (body.authorUsername) {
-      // Look up user by username to get the real Payload CMS ID
       try {
         const userResult = await payloadClient.find({
           collection: "users",
@@ -119,32 +119,29 @@ export async function POST(request: Request) {
       }
     }
     
-    // If username lookup failed, use the current authenticated user
+    // 2. If no lookup result but client sent author ID, trust it (already a Payload CMS ID)
+    if (!authorId && body.author && typeof body.author === "string") {
+      authorId = body.author;
+      console.log("[API] Using client-provided author ID:", authorId);
+    }
+    
+    // 3. If still no author, use the current authenticated user
     if (!authorId && currentUser) {
       authorId = currentUser.id;
-      console.log("[API] Using current authenticated user as author:", authorId);
+      console.log("[API] Using authenticated user as author:", authorId);
     }
     
-    // Set the author if we found one
+    // Set the final author
     if (authorId) {
       postData.author = authorId;
-      console.log("[API] Setting author to:", authorId);
+      console.log("[API] Final author ID:", authorId);
     } else {
-      // If we still don't have an author, remove it and let the hook handle it
-      // The hook will set it from req.user if authenticated
       delete postData.author;
-      console.warn("[API] No author ID found - letting hook handle it");
+      console.warn("[API] No author ID found - letting Payload hook handle it");
     }
     
-    // Remove helper fields
+    // Clean up helper fields
     delete postData.authorUsername;
-    if (postData.author && typeof postData.author === "string" && postData.author !== authorId) {
-      // Remove if it's the Better Auth ID (not Payload CMS ID)
-      delete postData.author;
-      if (authorId) {
-        postData.author = authorId;
-      }
-    }
 
     console.log("[API] Final postData:", {
       ...postData,

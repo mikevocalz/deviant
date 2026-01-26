@@ -59,11 +59,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Handle author ID mapping - client sends Better Auth ID, we need Payload CMS ObjectID
+    // Handle author ID - client already looks up Payload CMS ID, so trust it if provided
     let storyData = { ...body };
     
-    if (body.author && body.authorUsername) {
-      // Look up user by username to get the real Payload CMS ID
+    // If authorUsername is provided, look up the Payload CMS ID (for backwards compatibility)
+    if (body.authorUsername) {
       try {
         const userResult = await payloadClient.find({
           collection: "users",
@@ -73,18 +73,21 @@ export async function POST(request: Request) {
         
         if (userResult.docs && userResult.docs.length > 0) {
           storyData.author = (userResult.docs[0] as { id: string }).id;
-        } else {
-          delete storyData.author;
+          console.log("[API] Found author by username:", storyData.author);
         }
       } catch (lookupError) {
         console.error("[API] User lookup error:", lookupError);
-        delete storyData.author;
       }
-    } else if (body.author) {
-      delete storyData.author;
+      delete storyData.authorUsername;
     }
     
-    delete storyData.authorUsername;
+    // If author is provided but not a valid ObjectId format, try to look it up
+    // Otherwise, trust the client-provided author ID (already a Payload CMS ID)
+    if (storyData.author) {
+      console.log("[API] Creating story with author:", storyData.author);
+    } else {
+      console.warn("[API] No author ID provided for story");
+    }
 
     const result = await payloadClient.create(
       {
