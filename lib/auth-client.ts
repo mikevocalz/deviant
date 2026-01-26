@@ -11,6 +11,25 @@ import { expoClient } from "@better-auth/expo/client";
 import { usernameClient } from "better-auth/client/plugins";
 import { Platform } from "react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { QueryClient } from "@tanstack/react-query";
+
+// Reference to the global query client (set by the app)
+let globalQueryClient: QueryClient | null = null;
+
+export function setQueryClient(client: QueryClient) {
+  globalQueryClient = client;
+}
+
+// Clear all cached data when switching users
+function clearAllCachedData() {
+  console.log("[Auth] Clearing all cached data for user switch");
+  
+  // Clear React Query cache
+  if (globalQueryClient) {
+    globalQueryClient.clear();
+    console.log("[Auth] React Query cache cleared");
+  }
+}
 
 const BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || "http://localhost:8081";
 
@@ -131,6 +150,8 @@ export const signIn = {
 
       if (data.user) {
         console.log("[Auth] User logged in:", data.user.id);
+        // Clear cached data from previous user before setting new user
+        clearAllCachedData();
         syncUserToStore({
           id: String(data.user.id),
           email: data.user.email,
@@ -204,6 +225,8 @@ export const signUp = {
 
       if (data.user) {
         console.log("[Auth] User created:", data.user.id);
+        // Clear cached data from previous user before setting new user
+        clearAllCachedData();
         syncUserToStore({
           id: String(data.user.id),
           email: data.user.email,

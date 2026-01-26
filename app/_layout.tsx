@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
+import { setQueryClient } from "@/lib/auth-client";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,6 +36,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Register query client with auth module so it can clear cache on user switch
+setQueryClient(queryClient);
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
