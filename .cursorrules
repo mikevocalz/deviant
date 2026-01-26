@@ -74,3 +74,34 @@ After adding native dependencies: `npx expo run:android` or `npx expo run:ios`
 - Follow existing code patterns
 - Do not add or remove comments unless asked
 - Preserve existing formatting
+
+## Production-First Development
+
+**⚠️ ALWAYS write code for production and ALWAYS push changes.**
+
+**CRITICAL RULES:**
+1. **ALWAYS push code after making changes** - Never leave code uncommitted or unpushed. After completing any task:
+   ```bash
+   git add -A
+   git commit -m "Descriptive commit message"
+   git push origin main
+   ```
+
+2. **ALWAYS publish to production after pushing** - After pushing code, immediately publish an EAS update to production:
+   ```bash
+   eas update --channel production --message "Description of changes"
+   ```
+
+3. **Code for production from the start** - Write all code assuming it will run in production:
+   - Use production API URLs (`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_AUTH_URL`)
+   - Include error handling for network failures
+   - Add loading states and fallbacks
+   - Never rely on dev server features
+
+4. **Workflow checklist:**
+   - ✅ Write code with production in mind
+   - ✅ Test locally if possible
+   - ✅ Commit changes with descriptive message
+   - ✅ Push to `main` branch
+   - ✅ Publish EAS update to production channel
+   - ✅ Verify update appears in EAS dashboard

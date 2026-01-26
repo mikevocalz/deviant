@@ -264,22 +264,40 @@ bottom: -4   // WRONG - pushes button into tabbar
 
 **⚠️ ALWAYS write code for production, not just development.**
 
-**Rules:**
-1. **API Routes don't work in production native apps** - Expo Router API routes (`+api.ts`) only work with the dev server. In production builds, use:
+**CRITICAL RULES:**
+1. **ALWAYS push code after making changes** - Never leave code uncommitted or unpushed. After completing any task:
+   ```bash
+   git add -A
+   git commit -m "Descriptive commit message"
+   git push origin main
+   ```
+
+2. **ALWAYS publish to production after pushing** - After pushing code, immediately publish an EAS update to production:
+   ```bash
+   eas update --channel production --message "Description of changes"
+   ```
+
+3. **Code for production from the start** - Write all code assuming it will run in production:
+   - Use production API URLs (`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_AUTH_URL`)
+   - Include error handling for network failures
+   - Add loading states and fallbacks
+   - Never rely on dev server features
+
+4. **API Routes don't work in production native apps** - Expo Router API routes (`+api.ts`) only work with the dev server. In production builds, use:
    - Direct API calls to deployed services (Payload CMS, Hono server)
    - Static content fallbacks where appropriate
    - The `EXPO_PUBLIC_API_URL` environment variable for API endpoints
 
-2. **Static content fallbacks** - For legal pages, FAQs, etc., always include static fallback content that works without network requests
+5. **Static content fallbacks** - For legal pages, FAQs, etc., always include static fallback content that works without network requests
 
-3. **Never rely on dev-only features** - Features that only work in `__DEV__` mode must have production equivalents
+6. **Never rely on dev-only features** - Features that only work in `__DEV__` mode must have production equivalents
 
-4. **Test with production builds** - Before pushing EAS updates, test with:
+7. **Test with production builds** - Before pushing EAS updates, test with:
    ```bash
    npx expo start --no-dev --minify
    ```
 
-5. **Environment-aware code:**
+8. **Environment-aware code:**
    ```tsx
    // Good - works in production
    const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
@@ -291,6 +309,14 @@ bottom: -4   // WRONG - pushes button into tabbar
      // Production behavior
    }
    ```
+
+9. **Workflow checklist:**
+   - ✅ Write code with production in mind
+   - ✅ Test locally if possible
+   - ✅ Commit changes with descriptive message
+   - ✅ Push to `main` branch
+   - ✅ Publish EAS update to production channel
+   - ✅ Verify update appears in EAS dashboard
 
 ---
 
