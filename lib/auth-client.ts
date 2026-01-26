@@ -33,7 +33,6 @@ async function clearAllCachedData() {
   // Reset Zustand stores that hold user-specific data
   try {
     const { useProfileStore } = await import("@/lib/stores/profile-store");
-    const { useLegalStore } = await import("@/lib/stores/legal-store");
     const { useFeedPostUIStore, useFeedSlideStore } = await import("@/lib/stores/feed-post-store");
     const { usePostStore } = await import("@/lib/stores/post-store");
     
@@ -72,39 +71,7 @@ async function clearAllCachedData() {
       commentLikeCounts: {},
     });
     
-    // Reset legal store pages to force reload
-    useLegalStore.setState({
-      pages: {
-        about: null,
-        "privacy-policy": null,
-        "terms-of-service": null,
-        "community-standards": null,
-        faq: null,
-        eligibility: null,
-        "identity-protection": null,
-        "ad-policy": null,
-      },
-      loading: {
-        about: false,
-        "privacy-policy": false,
-        "terms-of-service": false,
-        "community-standards": false,
-        faq: false,
-        eligibility: false,
-        "identity-protection": false,
-        "ad-policy": false,
-      },
-      errors: {
-        about: null,
-        "privacy-policy": null,
-        "terms-of-service": null,
-        "community-standards": null,
-        faq: null,
-        eligibility: null,
-        "identity-protection": null,
-        "ad-policy": null,
-      },
-    });
+    // Note: Don't reset legal store - content is the same for all users
     
     console.log("[Auth] Zustand stores reset");
   } catch (error) {

@@ -468,8 +468,21 @@ export default function ProfileScreen() {
     });
   }, [navigation, user?.username, colors, router]);
   
-  // Fetch real user posts
-  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "");
+  // Fetch real user posts - refetch when user changes
+  const { data: userPostsData, isLoading: isLoadingPosts, refetch: refetchPosts } = useProfilePosts(user?.id || "");
+  
+  // Clear and refetch when user ID changes (e.g., after login/signup)
+  const [lastUserId, setLastUserId] = useState<string | null>(null);
+  useEffect(() => {
+    if (user?.id && user.id !== lastUserId) {
+      console.log("[Profile] User changed from", lastUserId, "to", user.id, "- refetching data");
+      setLastUserId(user.id);
+      // Invalidate and refetch this user's posts
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      refetchPosts();
+    }
+  }, [user?.id, lastUserId, queryClient, refetchPosts]);
 
   // Format follower count (e.g., 24800 -> "24.8K")
   const formatCount = (count: number) => {

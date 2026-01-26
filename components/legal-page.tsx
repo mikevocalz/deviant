@@ -1,22 +1,18 @@
-import { useEffect } from "react";
+import { useMemo } from "react";
 import {
   View,
   Text,
   ScrollView,
   Pressable,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
 import { ChevronLeft, ChevronDown } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import {
-  useLegalStore,
-  type LegalPageSlug,
-  type FAQItem,
-} from "@/lib/stores/legal-store";
+import { type LegalPageSlug, type FAQItem } from "@/lib/stores/legal-store";
 import { useFAQStore } from "@/lib/stores/faq-store";
+import { LEGAL_CONTENT } from "@/lib/constants/legal-content";
 
 interface LegalPageProps {
   slug: LegalPageSlug;
@@ -144,17 +140,16 @@ function FAQSection({ faqs }: { faqs: FAQItem[] }) {
 export function LegalPage({ slug, title }: LegalPageProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { fetchPage, getPage, isLoading, getError } = useLegalStore();
 
-  useEffect(() => {
-    fetchPage(slug);
-  }, [slug, fetchPage]);
+  // Load content directly from bundled static content - always available, no async needed
+  const page = useMemo(() => {
+    const content = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
+    return content || null;
+  }, [slug]);
 
-  const page = getPage(slug);
-  const loading = isLoading(slug);
-  const error = getError(slug);
-
-  const sections = page?.content ? parseMarkdownContent(page.content) : [];
+  const sections = useMemo(() => {
+    return page?.content ? parseMarkdownContent(page.content) : [];
+  }, [page?.content]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -168,14 +163,10 @@ export function LegalPage({ slug, title }: LegalPageProps) {
           </Text>
         </View>
 
-        {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : error ? (
+        {!page ? (
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-center text-muted-foreground">
-              Failed to load content. Please try again later.
+              Content not available for this page.
             </Text>
           </View>
         ) : (
@@ -195,10 +186,10 @@ export function LegalPage({ slug, title }: LegalPageProps) {
               </Text>
             )}
 
-            {sections.length === 0 && !loading && (
+            {sections.length === 0 && (
               <View className="mb-4 rounded-xl border border-border bg-card p-4">
                 <Text className="text-center text-muted-foreground">
-                  No content available. Please try again later.
+                  No content available.
                 </Text>
               </View>
             )}
