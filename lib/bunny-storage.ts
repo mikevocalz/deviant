@@ -9,12 +9,25 @@ import * as FileSystem from "expo-file-system";
 import { Platform } from "react-native";
 
 // Storage zone configuration from environment
-const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "";
+// CRITICAL: Production values as fallback - empty strings NEVER work on mobile
+const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "dvnt";
 const BUNNY_STORAGE_API_KEY =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY ||
+  "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b";
 const BUNNY_STORAGE_REGION =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "ny"; // ny, la, sg, etc.
-const BUNNY_CDN_URL = process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "";
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "de";
+const BUNNY_CDN_URL =
+  process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
+
+// Log config at module load for debugging
+console.log(
+  "[Bunny] Config loaded - zone:",
+  BUNNY_STORAGE_ZONE,
+  "region:",
+  BUNNY_STORAGE_REGION,
+  "cdn:",
+  BUNNY_CDN_URL ? "set" : "MISSING",
+);
 
 // Storage endpoint based on region
 const getStorageEndpoint = () => {
@@ -110,7 +123,7 @@ function getExtension(uri: string, mimeType?: string): string {
  */
 async function ensureFileAccessible(uri: string): Promise<string> {
   console.log("[Bunny] Checking file accessibility:", uri.substring(0, 80));
-  
+
   // If it's already a file:// URI, verify it exists
   if (uri.startsWith("file://")) {
     try {
@@ -123,13 +136,17 @@ async function ensureFileAccessible(uri: string): Promise<string> {
       console.warn("[Bunny] Error checking file:", e);
     }
   }
-  
+
   // For ph:// (iOS Photos) or content:// (Android) URIs, copy to cache
-  if (uri.startsWith("ph://") || uri.startsWith("content://") || uri.startsWith("assets-library://")) {
+  if (
+    uri.startsWith("ph://") ||
+    uri.startsWith("content://") ||
+    uri.startsWith("assets-library://")
+  ) {
     console.log("[Bunny] Copying asset to cache...");
     const extension = getExtension(uri);
     const cacheUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${extension}`;
-    
+
     try {
       await FileSystem.copyAsync({
         from: uri,
@@ -143,7 +160,7 @@ async function ensureFileAccessible(uri: string): Promise<string> {
       return uri;
     }
   }
-  
+
   return uri;
 }
 
@@ -168,10 +185,15 @@ export async function uploadToBunny(
   console.log("[Bunny] URI:", uri.substring(0, 100));
   console.log("[Bunny] Folder:", folder);
   console.log("[Bunny] UserId:", userId || "none");
-  
+
   // Check configuration
   if (!BUNNY_STORAGE_ZONE || !BUNNY_STORAGE_API_KEY) {
-    console.error("[Bunny] Missing config - zone:", !!BUNNY_STORAGE_ZONE, "key:", !!BUNNY_STORAGE_API_KEY);
+    console.error(
+      "[Bunny] Missing config - zone:",
+      !!BUNNY_STORAGE_ZONE,
+      "key:",
+      !!BUNNY_STORAGE_API_KEY,
+    );
     return {
       success: false,
       url: "",
@@ -180,8 +202,13 @@ export async function uploadToBunny(
       error: "Storage not configured",
     };
   }
-  
-  console.log("[Bunny] Config OK - zone:", BUNNY_STORAGE_ZONE, "region:", BUNNY_STORAGE_REGION);
+
+  console.log(
+    "[Bunny] Config OK - zone:",
+    BUNNY_STORAGE_ZONE,
+    "region:",
+    BUNNY_STORAGE_REGION,
+  );
 
   try {
     // Generate unique filename with social-network style path
@@ -192,7 +219,7 @@ export async function uploadToBunny(
     // Bunny Storage API endpoint
     const endpoint = getStorageEndpoint();
     const uploadUrl = `https://${endpoint}/${BUNNY_STORAGE_ZONE}/${path}`;
-    
+
     console.log("[Bunny] Upload URL:", uploadUrl);
     console.log("[Bunny] Filename:", filename);
     console.log("[Bunny] Path:", path);
@@ -218,7 +245,7 @@ export async function uploadToBunny(
     try {
       fileInfo = await FileSystem.getInfoAsync(accessibleUri);
       console.log("[Bunny] File info:", JSON.stringify(fileInfo));
-      
+
       if (!fileInfo.exists) {
         console.error("[Bunny] File does not exist:", accessibleUri);
         return {
@@ -241,20 +268,27 @@ export async function uploadToBunny(
     console.log("[Bunny] Method 1: Using FileSystem.uploadAsync...");
     let uploadSuccess = false;
     let uploadError = "";
-    
+
     try {
-      const uploadResult = await FileSystem.uploadAsync(uploadUrl, accessibleUri, {
-        httpMethod: "PUT",
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: {
-          "AccessKey": BUNNY_STORAGE_API_KEY,
-          "Content-Type": "application/octet-stream",
+      const uploadResult = await FileSystem.uploadAsync(
+        uploadUrl,
+        accessibleUri,
+        {
+          httpMethod: "PUT",
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            AccessKey: BUNNY_STORAGE_API_KEY,
+            "Content-Type": "application/octet-stream",
+          },
         },
-      });
-      
+      );
+
       console.log("[Bunny] Upload response status:", uploadResult.status);
-      console.log("[Bunny] Upload response body:", uploadResult.body?.substring(0, 200));
-      
+      console.log(
+        "[Bunny] Upload response body:",
+        uploadResult.body?.substring(0, 200),
+      );
+
       if (uploadResult.status === 201 || uploadResult.status === 200) {
         uploadSuccess = true;
         onProgress?.({ loaded: 100, total: 100, percentage: 100 });
@@ -264,35 +298,38 @@ export async function uploadToBunny(
       }
     } catch (nativeError) {
       console.error("[Bunny] Method 1 failed:", nativeError);
-      uploadError = nativeError instanceof Error ? nativeError.message : String(nativeError);
-      
+      uploadError =
+        nativeError instanceof Error
+          ? nativeError.message
+          : String(nativeError);
+
       // Method 2: Fallback to base64 + fetch (works on some platforms)
       console.log("[Bunny] Method 2: Falling back to base64+fetch...");
       try {
         const base64 = await FileSystem.readAsStringAsync(accessibleUri, {
           encoding: FileSystem.EncodingType.Base64,
         });
-        
+
         console.log("[Bunny] Base64 length:", base64.length);
-        
+
         // Convert base64 to binary
         const binaryString = atob(base64);
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) {
           bytes[i] = binaryString.charCodeAt(i);
         }
-        
+
         const fetchResponse = await fetch(uploadUrl, {
           method: "PUT",
           headers: {
-            "AccessKey": BUNNY_STORAGE_API_KEY,
+            AccessKey: BUNNY_STORAGE_API_KEY,
             "Content-Type": "application/octet-stream",
           },
           body: bytes,
         });
-        
+
         console.log("[Bunny] Fetch response status:", fetchResponse.status);
-        
+
         if (fetchResponse.status === 201 || fetchResponse.status === 200) {
           uploadSuccess = true;
           onProgress?.({ loaded: 100, total: 100, percentage: 100 });
