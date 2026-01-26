@@ -9,6 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
@@ -19,6 +21,8 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
@@ -29,7 +33,8 @@
       "channel": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "${API_URL}",
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
+        "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",

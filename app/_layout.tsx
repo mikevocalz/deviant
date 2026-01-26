@@ -74,6 +74,21 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    // Health check to verify network connectivity to API
+    const checkAPIHealth = async () => {
+      const API_URL =
+        process.env.EXPO_PUBLIC_AUTH_URL ||
+        "https://server-zeta-lovat.vercel.app";
+      console.log("[RootLayout] Checking API health at:", API_URL);
+      try {
+        const res = await fetch(`${API_URL}/api/users?limit=1`);
+        console.log("[RootLayout] API Health OK - Status:", res.status);
+      } catch (err) {
+        console.error("[RootLayout] API Health FAIL:", err);
+      }
+    };
+    checkAPIHealth();
+
     // Load auth state and attempt recovery if needed
     const initAuth = async () => {
       await loadAuthState();

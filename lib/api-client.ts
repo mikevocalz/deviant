@@ -18,15 +18,27 @@ import { Platform } from "react-native";
 // The Hono server (EXPO_PUBLIC_AUTH_URL) has all API routes with proper user lookup
 // EXPO_PUBLIC_API_URL points to Payload CMS directly, which doesn't have the user lookup logic
 // Priority: EXPO_PUBLIC_AUTH_URL (Hono server with API routes) > EXPO_PUBLIC_API_URL (Payload CMS)
-const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+// CRITICAL: Production URL as final fallback - localhost NEVER works on mobile devices
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_AUTH_URL ||
+  process.env.EXPO_PUBLIC_API_URL ||
+  "https://server-zeta-lovat.vercel.app";
 
 // Log the API URL for debugging
 console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
-console.log("[API] EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL || "(not set)");
-console.log("[API] EXPO_PUBLIC_AUTH_URL:", process.env.EXPO_PUBLIC_AUTH_URL || "(not set)");
+console.log(
+  "[API] EXPO_PUBLIC_API_URL:",
+  process.env.EXPO_PUBLIC_API_URL || "(not set)",
+);
+console.log(
+  "[API] EXPO_PUBLIC_AUTH_URL:",
+  process.env.EXPO_PUBLIC_AUTH_URL || "(not set)",
+);
 
 if (Platform.OS !== "web" && !API_BASE_URL) {
-  console.warn("[API] Warning: No API_URL set for native. API calls will fail.");
+  console.warn(
+    "[API] Warning: No API_URL set for native. API calls will fail.",
+  );
 }
 
 // Get JWT token from storage
@@ -126,7 +138,7 @@ async function apiFetch<T>(
 
   let data: any;
   const contentType = response.headers.get("content-type");
-  
+
   if (contentType?.includes("application/json")) {
     data = await response.json();
   } else {
@@ -137,13 +149,16 @@ async function apiFetch<T>(
   }
 
   if (!response.ok) {
-    console.error(`[API] Error ${response.status}:`, JSON.stringify(data, null, 2));
-    
+    console.error(
+      `[API] Error ${response.status}:`,
+      JSON.stringify(data, null, 2),
+    );
+
     const error = new Error(
-      data?.errors?.[0]?.message || 
-      (data as APIError).error || 
-      data?.message ||
-      `API error: ${response.status}`,
+      data?.errors?.[0]?.message ||
+        (data as APIError).error ||
+        data?.message ||
+        `API error: ${response.status}`,
     ) as Error & {
       status: number;
       errors?: Array<{ message: string; field?: string }>;

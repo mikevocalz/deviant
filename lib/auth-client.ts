@@ -23,7 +23,7 @@ export function setQueryClient(client: QueryClient) {
 // Clear all cached data when switching users - MUST be called before setting new user
 function clearAllCachedData() {
   console.log("[Auth] === CLEARING ALL USER DATA ===");
-  
+
   // 1. Clear React Query cache FIRST - use multiple methods to ensure it's truly cleared
   if (globalQueryClient) {
     // Cancel all active queries first
@@ -34,11 +34,13 @@ function clearAllCachedData() {
     globalQueryClient.clear();
     // Reset the query client state completely
     globalQueryClient.resetQueries();
-    console.log("[Auth] ✓ React Query cache cleared (cancel + remove + clear + reset)");
+    console.log(
+      "[Auth] ✓ React Query cache cleared (cancel + remove + clear + reset)",
+    );
   } else {
     console.warn("[Auth] ⚠ QueryClient not available for clearing");
   }
-  
+
   // 2. Clear persisted storage (MMKV) - this is critical for user data isolation
   try {
     const { clearUserDataFromStorage } = require("@/lib/utils/storage");
@@ -47,15 +49,18 @@ function clearAllCachedData() {
   } catch (e) {
     console.error("[Auth] ✗ Failed to clear MMKV storage:", e);
   }
-  
+
   // 3. Reset Zustand stores that hold user-specific data (sync, not async)
   try {
     // Import stores synchronously to ensure immediate reset
     const { useProfileStore } = require("@/lib/stores/profile-store");
     const { useFeedPostUIStore } = require("@/lib/stores/feed-post-store");
-    const { useFeedSlideStore, usePostStore } = require("@/lib/stores/post-store");
+    const {
+      useFeedSlideStore,
+      usePostStore,
+    } = require("@/lib/stores/post-store");
     const { useBookmarkStore } = require("@/lib/stores/bookmark-store");
-    
+
     // Reset profile store
     useProfileStore.setState({
       activeTab: "posts",
@@ -68,7 +73,7 @@ function clearAllCachedData() {
       editHashtags: [],
     });
     console.log("[Auth] ✓ Profile store reset");
-    
+
     // Reset feed UI stores
     useFeedPostUIStore.setState({
       pressedPosts: {},
@@ -79,12 +84,12 @@ function clearAllCachedData() {
       activePostId: null,
       isMuted: true,
     });
-    
+
     useFeedSlideStore.setState({
       currentSlides: {},
     });
     console.log("[Auth] ✓ Feed UI stores reset");
-    
+
     // Reset post store (liked posts, like counts, etc.)
     usePostStore.setState({
       likedPosts: [],
@@ -94,20 +99,29 @@ function clearAllCachedData() {
       commentLikeCounts: {},
     });
     console.log("[Auth] ✓ Post store reset");
-    
+
     // Reset bookmark store
     useBookmarkStore.setState({
       bookmarkedPosts: [],
     });
     console.log("[Auth] ✓ Bookmark store reset");
-    
+
     console.log("[Auth] === ALL USER DATA CLEARED ===");
   } catch (error) {
     console.error("[Auth] Error resetting stores:", error);
   }
 }
 
-const BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || "http://localhost:8081";
+// Production URL as fallback - localhost NEVER works on mobile devices
+const BASE_URL =
+  process.env.EXPO_PUBLIC_AUTH_URL || "https://server-zeta-lovat.vercel.app";
+
+// Log the resolved URL at startup for debugging
+console.log("[Auth] BASE_URL resolved to:", BASE_URL);
+console.log(
+  "[Auth] EXPO_PUBLIC_AUTH_URL env:",
+  process.env.EXPO_PUBLIC_AUTH_URL || "(not set)",
+);
 
 // Web-compatible storage fallback for SSR/web builds
 const webStorage = {
@@ -330,11 +344,11 @@ export const signUp = {
 // Wrapped sign out that clears ALL user data and store
 export const signOut = async () => {
   console.log("[Auth] === SIGNING OUT ===");
-  
+
   // CRITICAL: Clear ALL cached data FIRST before signing out
   // This ensures no data leakage between users
   clearAllCachedData();
-  
+
   // Also clear auth storage specifically
   try {
     const { clearAuthStorage } = require("@/lib/utils/storage");
@@ -343,7 +357,7 @@ export const signOut = async () => {
   } catch (e) {
     console.error("[Auth] ✗ Failed to clear auth storage:", e);
   }
-  
+
   // Clear the JWT token from secure store
   try {
     const storage = getStorage();
@@ -352,12 +366,12 @@ export const signOut = async () => {
   } catch (e) {
     console.error("[Auth] ✗ Failed to clear JWT token:", e);
   }
-  
+
   // Logout from auth store (sets user to null)
   const { logout } = useAuthStore.getState();
   logout();
   console.log("[Auth] ✓ Auth store logged out");
-  
+
   // Finally call the raw signOut
   try {
     const result = await rawSignOut();
