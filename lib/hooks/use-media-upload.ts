@@ -62,8 +62,9 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
     async (
       files: MediaFile[],
     ): Promise<
-      Array<{ type: "image" | "video"; url: string; success: boolean }>
+      Array<{ type: "image" | "video"; url: string; success: boolean; error?: string }>
     > => {
+      console.log("[useMediaUpload] Starting upload of", files.length, "files");
       setIsUploading(true);
       setProgress(0);
       setError(null);
@@ -77,13 +78,18 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
         userId,
       );
 
+      console.log("[useMediaUpload] Upload results:", JSON.stringify(results));
       setIsUploading(false);
 
       const successResults = results.filter((r) => r.success);
-      const failedCount = results.length - successResults.length;
+      const failedResults = results.filter((r) => !r.success);
+      const failedCount = failedResults.length;
 
       if (failedCount > 0) {
-        const errorMsg = `${failedCount} file(s) failed to upload`;
+        // Get the actual error message from the first failed upload
+        const firstError = (failedResults[0] as any)?.error || "Unknown error";
+        const errorMsg = `${failedCount} file(s) failed to upload: ${firstError}`;
+        console.error("[useMediaUpload] Upload failures:", failedResults);
         setError(errorMsg);
         onError?.(errorMsg);
       }
