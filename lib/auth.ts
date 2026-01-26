@@ -25,12 +25,17 @@ export const auth = betterAuth({
     url: DATABASE_URI!,
   },
   secret: BETTER_AUTH_SECRET,
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || "http://localhost:8081",
+  baseURL:
+    process.env.NEXT_PUBLIC_BETTER_AUTH_URL ||
+    "https://server-zeta-lovat.vercel.app",
   trustedOrigins: [
     "dvnt://",
     "dvnt://*",
     "exp+dvnt://",
     "exp+dvnt://*",
+    "https://server-zeta-lovat.vercel.app",
+    "https://payload-cms-setup-gray.vercel.app",
+    // Development origins (safe - only affects local dev server)
     "http://localhost:8081",
     "http://localhost:3000",
   ],
