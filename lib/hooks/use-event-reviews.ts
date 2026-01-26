@@ -17,8 +17,13 @@ export function useEventReviews(eventId: string, limit: number = 10) {
   return useQuery({
     queryKey: eventReviewKeys.event(eventId),
     queryFn: async () => {
-      const result = await eventReviews.getEventReviews(eventId, { limit });
-      return result.docs || [];
+      try {
+        const result = await eventReviews.getEventReviews(eventId, { limit });
+        return result.docs || [];
+      } catch (error) {
+        console.error("[useEventReviews] Error fetching reviews:", error);
+        return []; // Return empty array on error to prevent crash
+      }
     },
     enabled: !!eventId,
   });

@@ -19,33 +19,38 @@ export function useComments(postId: string, limit?: number) {
   return useQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
     queryFn: async () => {
-      const comments = await commentsApiClient.getComments(postId, limit);
-      // Update comment count in store when comments are fetched
-      // For limited fetches, only update if we got the full count (limit reached)
-      // For unlimited fetches, always update
-      const { postCommentCounts } = usePostStore.getState();
-      const currentCount = postCommentCounts[postId];
-      
-      if (!limit || limit >= 50) {
-        // Full fetch - update count
-        if (currentCount === undefined || comments.length !== currentCount) {
+      try {
+        const comments = await commentsApiClient.getComments(postId, limit);
+        // Update comment count in store when comments are fetched
+        // For limited fetches, only update if we got the full count (limit reached)
+        // For unlimited fetches, always update
+        const { postCommentCounts } = usePostStore.getState();
+        const currentCount = postCommentCounts[postId];
+        
+        if (!limit || limit >= 50) {
+          // Full fetch - update count
+          if (currentCount === undefined || comments.length !== currentCount) {
+            usePostStore.setState({
+              postCommentCounts: {
+                ...postCommentCounts,
+                [postId]: comments.length,
+              },
+            });
+          }
+        } else if (limit && comments.length >= limit && currentCount === undefined) {
+          // Limited fetch reached limit - set minimum count
           usePostStore.setState({
             postCommentCounts: {
               ...postCommentCounts,
-              [postId]: comments.length,
+              [postId]: limit,
             },
           });
         }
-      } else if (limit && comments.length >= limit && currentCount === undefined) {
-        // Limited fetch reached limit - set minimum count
-        usePostStore.setState({
-          postCommentCounts: {
-            ...postCommentCounts,
-            [postId]: limit,
-          },
-        });
+        return comments;
+      } catch (error) {
+        console.error("[useComments] Error fetching comments:", error);
+        return []; // Return empty array on error to prevent crash
       }
-      return comments;
     },
     enabled: !!postId,
   });

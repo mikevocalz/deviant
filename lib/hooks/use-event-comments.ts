@@ -17,8 +17,13 @@ export function useEventComments(eventId: string, limit: number = 10) {
   return useQuery({
     queryKey: eventCommentKeys.event(eventId),
     queryFn: async () => {
-      const result = await eventComments.getEventComments(eventId, { limit });
-      return result.docs || [];
+      try {
+        const result = await eventComments.getEventComments(eventId, { limit });
+        return result.docs || [];
+      } catch (error) {
+        console.error("[useEventComments] Error fetching comments:", error);
+        return []; // Return empty array on error to prevent crash
+      }
     },
     enabled: !!eventId,
   });
