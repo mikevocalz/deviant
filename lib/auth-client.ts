@@ -21,13 +21,94 @@ export function setQueryClient(client: QueryClient) {
 }
 
 // Clear all cached data when switching users
-function clearAllCachedData() {
+async function clearAllCachedData() {
   console.log("[Auth] Clearing all cached data for user switch");
   
   // Clear React Query cache
   if (globalQueryClient) {
     globalQueryClient.clear();
     console.log("[Auth] React Query cache cleared");
+  }
+  
+  // Reset Zustand stores that hold user-specific data
+  try {
+    const { useProfileStore } = await import("@/lib/stores/profile-store");
+    const { useLegalStore } = await import("@/lib/stores/legal-store");
+    const { useFeedPostUIStore, useFeedSlideStore } = await import("@/lib/stores/feed-post-store");
+    const { usePostStore } = await import("@/lib/stores/post-store");
+    
+    // Reset profile store
+    useProfileStore.setState({
+      activeTab: "posts",
+      following: {},
+      followers: {},
+      editName: "",
+      editBio: "",
+      editWebsite: "",
+      editLocation: "",
+      editHashtags: [],
+    });
+    
+    // Reset feed UI stores
+    useFeedPostUIStore.setState({
+      pressedPosts: {},
+      likeAnimatingPosts: {},
+      videoStates: {},
+      previewMedia: null,
+      showPreviewModal: false,
+      activePostId: null,
+    });
+    
+    useFeedSlideStore.setState({
+      currentSlides: {},
+    });
+    
+    // Reset post store (likes, comments cache) - this is persisted so need to clear properly
+    usePostStore.setState({
+      likedPosts: [],
+      postLikeCounts: {},
+      postCommentCounts: {},
+      likedComments: [],
+      commentLikeCounts: {},
+    });
+    
+    // Reset legal store pages to force reload
+    useLegalStore.setState({
+      pages: {
+        about: null,
+        "privacy-policy": null,
+        "terms-of-service": null,
+        "community-standards": null,
+        faq: null,
+        eligibility: null,
+        "identity-protection": null,
+        "ad-policy": null,
+      },
+      loading: {
+        about: false,
+        "privacy-policy": false,
+        "terms-of-service": false,
+        "community-standards": false,
+        faq: false,
+        eligibility: false,
+        "identity-protection": false,
+        "ad-policy": false,
+      },
+      errors: {
+        about: null,
+        "privacy-policy": null,
+        "terms-of-service": null,
+        "community-standards": null,
+        faq: null,
+        eligibility: null,
+        "identity-protection": null,
+        "ad-policy": null,
+      },
+    });
+    
+    console.log("[Auth] Zustand stores reset");
+  } catch (error) {
+    console.error("[Auth] Error resetting stores:", error);
   }
 }
 

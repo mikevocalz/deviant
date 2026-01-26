@@ -92,59 +92,20 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // Helper to load static content
-    const loadStaticContent = () => {
-      const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
-      if (staticContent && staticContent.content) {
-        console.log("[LegalStore] ✓ Using static content for:", slug, "Length:", staticContent.content.length);
-        set((s) => ({
-          pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
-          loading: { ...s.loading, [slug]: false },
-          errors: { ...s.errors, [slug]: null },
-        }));
-        return true;
-      }
-      return false;
-    };
-
-    // Try API first
-    const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
-    const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/legal/${slug}` : `/api/legal/${slug}`;
-
-    try {
-      console.log("[LegalStore] Fetching:", apiUrl);
-      const response = await fetch(apiUrl, {
-        method: "GET",
-        headers: { "Content-Type": "application/json" },
-        credentials: API_BASE_URL ? "omit" : "include",
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data && !data.error && data.content && data.content.trim().length > 0) {
-          console.log("[LegalStore] ✓ Loaded from API for:", slug);
-          set((s) => ({
-            pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
-            loading: { ...s.loading, [slug]: false },
-            errors: { ...s.errors, [slug]: null },
-          }));
-          return;
-        }
-        console.log("[LegalStore] API returned empty content, using static");
-      } else {
-        console.log("[LegalStore] API returned status:", response.status);
-      }
-    } catch (error: any) {
-      console.log("[LegalStore] API fetch failed:", error?.message);
-    }
-
-    // Always fall back to static content
-    if (loadStaticContent()) {
+    // Load directly from static content - it's bundled and reliable
+    const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
+    if (staticContent && staticContent.content) {
+      console.log("[LegalStore] ✓ Loaded static content for:", slug);
+      set((s) => ({
+        pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
+        loading: { ...s.loading, [slug]: false },
+        errors: { ...s.errors, [slug]: null },
+      }));
       return;
     }
 
-    // No content available (this should never happen)
-    console.error("[LegalStore] No static content found for:", slug);
+    // No content available
+    console.error("[LegalStore] No content found for:", slug);
     set((s) => ({
       loading: { ...s.loading, [slug]: false },
       errors: { ...s.errors, [slug]: "Content not available" },
