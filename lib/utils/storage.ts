@@ -12,6 +12,34 @@ try {
   console.error("[Storage] Failed to initialize MMKV:", error);
 }
 
+// Storage keys that contain user-specific data and should be cleared on logout/user switch
+const USER_DATA_STORAGE_KEYS = [
+  "post-storage",      // liked posts, like counts
+  "bookmark-storage",  // bookmarked posts  
+  "chat-storage",      // chat data
+  // Don't clear auth-storage here - that's handled separately
+  // Don't clear app-storage - that's app state not user data
+];
+
+// Clear all user-specific data from storage
+export function clearUserDataFromStorage(): void {
+  console.log("[Storage] Clearing all user-specific data from storage");
+  try {
+    if (Platform.OS === "web") {
+      USER_DATA_STORAGE_KEYS.forEach(key => {
+        localStorage.removeItem(key);
+      });
+    } else if (mmkv) {
+      USER_DATA_STORAGE_KEYS.forEach(key => {
+        mmkv!.delete(key);
+      });
+    }
+    console.log("[Storage] User data cleared successfully");
+  } catch (error) {
+    console.error("[Storage] Error clearing user data:", error);
+  }
+}
+
 export const storage: StateStorage = {
   getItem: (name: string): string | null => {
     try {

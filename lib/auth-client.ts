@@ -20,21 +20,34 @@ export function setQueryClient(client: QueryClient) {
   globalQueryClient = client;
 }
 
-// Clear all cached data when switching users
-async function clearAllCachedData() {
-  console.log("[Auth] Clearing all cached data for user switch");
+// Clear all cached data when switching users - MUST be called before setting new user
+function clearAllCachedData() {
+  console.log("[Auth] === CLEARING ALL USER DATA ===");
   
-  // Clear React Query cache
+  // 1. Clear React Query cache FIRST
   if (globalQueryClient) {
     globalQueryClient.clear();
-    console.log("[Auth] React Query cache cleared");
+    console.log("[Auth] ✓ React Query cache cleared");
+  } else {
+    console.warn("[Auth] ⚠ QueryClient not available for clearing");
   }
   
-  // Reset Zustand stores that hold user-specific data
+  // 2. Clear persisted storage (MMKV) - this is critical for user data isolation
   try {
-    const { useProfileStore } = await import("@/lib/stores/profile-store");
-    const { useFeedPostUIStore, useFeedSlideStore } = await import("@/lib/stores/feed-post-store");
-    const { usePostStore } = await import("@/lib/stores/post-store");
+    const { clearUserDataFromStorage } = require("@/lib/utils/storage");
+    clearUserDataFromStorage();
+    console.log("[Auth] ✓ MMKV storage cleared");
+  } catch (e) {
+    console.error("[Auth] ✗ Failed to clear MMKV storage:", e);
+  }
+  
+  // 3. Reset Zustand stores that hold user-specific data (sync, not async)
+  try {
+    // Import stores synchronously to ensure immediate reset
+    const { useProfileStore } = require("@/lib/stores/profile-store");
+    const { useFeedPostUIStore } = require("@/lib/stores/feed-post-store");
+    const { useFeedSlideStore, usePostStore } = require("@/lib/stores/post-store");
+    const { useBookmarkStore } = require("@/lib/stores/bookmark-store");
     
     // Reset profile store
     useProfileStore.setState({
@@ -47,6 +60,7 @@ async function clearAllCachedData() {
       editLocation: "",
       editHashtags: [],
     });
+    console.log("[Auth] ✓ Profile store reset");
     
     // Reset feed UI stores
     useFeedPostUIStore.setState({
@@ -56,13 +70,15 @@ async function clearAllCachedData() {
       previewMedia: null,
       showPreviewModal: false,
       activePostId: null,
+      isMuted: true,
     });
     
     useFeedSlideStore.setState({
       currentSlides: {},
     });
+    console.log("[Auth] ✓ Feed UI stores reset");
     
-    // Reset post store (likes, comments cache) - this is persisted so need to clear properly
+    // Reset post store (liked posts, like counts, etc.)
     usePostStore.setState({
       likedPosts: [],
       postLikeCounts: {},
@@ -70,10 +86,15 @@ async function clearAllCachedData() {
       likedComments: [],
       commentLikeCounts: {},
     });
+    console.log("[Auth] ✓ Post store reset");
     
-    // Note: Don't reset legal store - content is the same for all users
+    // Reset bookmark store
+    useBookmarkStore.setState({
+      bookmarkedPosts: [],
+    });
+    console.log("[Auth] ✓ Bookmark store reset");
     
-    console.log("[Auth] Zustand stores reset");
+    console.log("[Auth] === ALL USER DATA CLEARED ===");
   } catch (error) {
     console.error("[Auth] Error resetting stores:", error);
   }
