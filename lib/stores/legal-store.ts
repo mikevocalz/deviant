@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { LEGAL_CONTENT } from "@/lib/constants/legal-content";
 
 export type LegalPageSlug =
   | "about"
@@ -92,11 +91,12 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // Try to fetch from CMS API first
+    // Fetch from CMS API - content MUST come from backend
     const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
     const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/legal/${slug}` : `/api/legal/${slug}`;
 
     try {
+      console.log("[LegalStore] Fetching from CMS:", apiUrl);
       const response = await fetch(apiUrl, {
         method: "GET",
         headers: {
@@ -107,7 +107,7 @@ export const useLegalStore = create<LegalState>((set, get) => ({
 
       if (response.ok) {
         const data = await response.json();
-        if (data && data.content && typeof data.content === "string" && data.content.trim().length > 0) {
+        if (data && !data.error) {
           console.log("[LegalStore] ✓ Loaded from CMS for:", slug);
           set((s) => ({
             pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
@@ -117,35 +117,21 @@ export const useLegalStore = create<LegalState>((set, get) => ({
           return;
         }
       }
-    } catch (error) {
-      console.log("[LegalStore] CMS fetch failed, using static fallback:", error);
+
+      // API returned error or non-ok status
+      const errorData = await response.json().catch(() => ({}));
+      console.error("[LegalStore] CMS returned error:", response.status, errorData);
+      set((s) => ({
+        loading: { ...s.loading, [slug]: false },
+        errors: { ...s.errors, [slug]: errorData.error || "Failed to load content from CMS" },
+      }));
+    } catch (error: any) {
+      console.error("[LegalStore] CMS fetch failed:", error);
+      set((s) => ({
+        loading: { ...s.loading, [slug]: false },
+        errors: { ...s.errors, [slug]: error?.message || "Failed to connect to CMS" },
+      }));
     }
-
-    // Fallback to static content
-    const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
-
-    if (staticContent) {
-      // Ensure content exists and is not empty
-      if (staticContent.content && typeof staticContent.content === "string" && staticContent.content.trim().length > 0) {
-        console.log("[LegalStore] Loading static content for:", slug, "Content length:", staticContent.content.length);
-        set((s) => ({
-          pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
-          loading: { ...s.loading, [slug]: false },
-          errors: { ...s.errors, [slug]: null },
-        }));
-        return;
-      } else {
-        console.warn("[LegalStore] Static content found but empty for slug:", slug);
-      }
-    } else {
-      console.warn("[LegalStore] No static content found for slug:", slug, "Available keys:", Object.keys(LEGAL_CONTENT));
-    }
-
-    // If no static content found, show error
-    set((s) => ({
-      loading: { ...s.loading, [slug]: false },
-      errors: { ...s.errors, [slug]: "Page content not available" },
-    }));
   },
 
   getPage: (slug: LegalPageSlug) => get().pages[slug],
