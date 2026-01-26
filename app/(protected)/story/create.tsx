@@ -271,6 +271,12 @@ export default function CreateStoryScreen() {
   }, [progressAnim]);
 
   const handleShare = async () => {
+    // Prevent double submission
+    if (isSharing || createStory.isPending) {
+      console.log("[Story] Already sharing, ignoring");
+      return;
+    }
+
     if (selectedMedia.length === 0) {
       Alert.alert("Empty Story", "Please add media to your story");
       return;
