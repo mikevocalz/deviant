@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { LEGAL_CONTENT } from "@/lib/constants/legal-content";
 
 export type LegalPageSlug =
   | "about"
@@ -91,24 +92,22 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // Fetch from CMS API - content MUST come from backend
+    // Try API first (which has its own CMS -> static fallback)
     const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
     const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/legal/${slug}` : `/api/legal/${slug}`;
 
     try {
-      console.log("[LegalStore] Fetching from CMS:", apiUrl);
+      console.log("[LegalStore] Fetching:", apiUrl);
       const response = await fetch(apiUrl, {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: API_BASE_URL ? "omit" : "include",
       });
 
       if (response.ok) {
         const data = await response.json();
-        if (data && !data.error) {
-          console.log("[LegalStore] ✓ Loaded from CMS for:", slug);
+        if (data && !data.error && data.content) {
+          console.log("[LegalStore] ✓ Loaded for:", slug);
           set((s) => ({
             pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
             loading: { ...s.loading, [slug]: false },
@@ -117,21 +116,27 @@ export const useLegalStore = create<LegalState>((set, get) => ({
           return;
         }
       }
-
-      // API returned error or non-ok status
-      const errorData = await response.json().catch(() => ({}));
-      console.error("[LegalStore] CMS returned error:", response.status, errorData);
-      set((s) => ({
-        loading: { ...s.loading, [slug]: false },
-        errors: { ...s.errors, [slug]: errorData.error || "Failed to load content from CMS" },
-      }));
     } catch (error: any) {
-      console.error("[LegalStore] CMS fetch failed:", error);
-      set((s) => ({
-        loading: { ...s.loading, [slug]: false },
-        errors: { ...s.errors, [slug]: error?.message || "Failed to connect to CMS" },
-      }));
+      console.log("[LegalStore] API fetch failed, using local fallback:", error?.message);
     }
+
+    // Final fallback to local static content
+    const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
+    if (staticContent) {
+      console.log("[LegalStore] ✓ Using local static content for:", slug);
+      set((s) => ({
+        pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
+        loading: { ...s.loading, [slug]: false },
+        errors: { ...s.errors, [slug]: null },
+      }));
+      return;
+    }
+
+    // No content available
+    set((s) => ({
+      loading: { ...s.loading, [slug]: false },
+      errors: { ...s.errors, [slug]: "Content not available" },
+    }));
   },
 
   getPage: (slug: LegalPageSlug) => get().pages[slug],
