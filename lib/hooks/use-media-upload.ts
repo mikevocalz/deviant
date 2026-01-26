@@ -80,9 +80,17 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       setIsUploading(false);
 
       const successResults = results.filter((r) => r.success);
-      const failedCount = results.length - successResults.length;
+      const failedResults = results.filter((r) => !r.success);
+      const failedCount = failedResults.length;
 
       if (failedCount > 0) {
+        // Log detailed error info for debugging
+        console.error("[useMediaUpload] Upload failures:", failedResults);
+        console.error(
+          "[useMediaUpload] Files attempted:",
+          files.map((f) => ({ uri: f.uri.substring(0, 50), type: f.type })),
+        );
+
         const errorMsg = `${failedCount} file(s) failed to upload`;
         setError(errorMsg);
         onError?.(errorMsg);

@@ -391,11 +391,19 @@ export async function uploadMultipleToBunny(
   folder: string = "uploads",
   onProgress?: (progress: UploadProgress) => void,
   userId?: string,
-): Promise<Array<{ type: "image" | "video"; url: string; success: boolean }>> {
+): Promise<
+  Array<{
+    type: "image" | "video";
+    url: string;
+    success: boolean;
+    error?: string;
+  }>
+> {
   const results: Array<{
     type: "image" | "video";
     url: string;
     success: boolean;
+    error?: string;
   }> = [];
   const totalFiles = files.length;
   let completedFiles = 0;
@@ -423,6 +431,7 @@ export async function uploadMultipleToBunny(
       type: file.type,
       url: result.url,
       success: result.success,
+      error: result.error,
     });
 
     completedFiles++;
