@@ -102,7 +102,7 @@ export function useUpdates() {
 
   // CRITICAL: Show update toast - MUST ALWAYS SHOW when update is available
   // This toast MUST NEVER be removed or disabled
-  // It has two buttons: "Update Later" (left, dismisses) and "Restart App Now" (right, restarts)
+  // It has two buttons: "Later" (dismisses) and "Restart Now" (restarts)
   const showUpdateToast = useCallback(() => {
     // CRITICAL: Only show toast ONCE per app session
     if (hasShownUpdateToast.current) {
@@ -112,13 +112,14 @@ export function useUpdates() {
     
     // Mark as shown BEFORE showing to prevent race conditions
     hasShownUpdateToast.current = true;
-    toastAttempts.current += 1;
     
-    console.log("[Updates] Showing update toast, attempt:", toastAttempts.current);
+    console.log("[Updates] Showing update toast");
     
-    try {
-      // CRITICAL: duration: Infinity ensures toast never auto-dismisses
-      // User must explicitly choose "Update Later" or "Restart App Now"
+    // Dismiss ALL existing toasts first to clear any queue from old versions
+    toast.dismiss();
+    
+    // Small delay to ensure dismiss completes
+    setTimeout(() => {
       toast.success("Update Ready", {
         description: "A new update is available. Restart to apply it.",
         duration: Infinity, // NEVER auto-dismiss - user must choose
@@ -133,29 +134,7 @@ export function useUpdates() {
           },
         },
       });
-      console.log("[Updates] Toast shown successfully");
-    } catch (toastError) {
-      console.log("[Updates] Toast failed, trying Alert:", toastError);
-      // Fallback to native Alert
-      try {
-        Alert.alert(
-          "Update Available",
-          "A new update has been downloaded. Restart the app to apply it.",
-          [
-            { 
-              text: "Later", 
-              style: "cancel",
-            },
-            { 
-              text: "Restart Now", 
-              onPress: reloadApp,
-            },
-          ]
-        );
-      } catch (alertError) {
-        console.error("[Updates] Alert also failed:", alertError);
-      }
-    }
+    }, 100);
   }, [reloadApp]);
 
   // Download and apply update - never throws
