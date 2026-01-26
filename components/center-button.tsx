@@ -11,7 +11,7 @@ export function CenterButton({ Icon, onPress }: CenterButtonProps) {
   // Use negative bottom to push button UP above the tab bar
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: Platform.OS === "android" ? -30 : -34, // NEGATIVE = above tabbar when used as tabBarButton
+    bottom: Platform.OS === "android" ? -44 : -48, // NEGATIVE = above tabbar when used as tabBarButton (raised 14px)
     left: "50%",
     transform: [{ translateX: -30 }], // Center horizontally (half of 60px width)
     width: 60,

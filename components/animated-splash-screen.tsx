@@ -44,8 +44,8 @@ export default function AnimatedSplashScreen({
       return;
     }
 
-    console.log("[Splash] Rive file loaded, starting 10 second timer");
-    // Animation duration - 10 seconds (added 2 seconds total)
+    console.log("[Splash] Rive file loaded, starting 9 second timer");
+    // Animation duration - 9 seconds
     const timer = setTimeout(() => {
       if (!animationFinished.current && !hasCalledFinish) {
         animationFinished.current = true;
@@ -55,7 +55,7 @@ export default function AnimatedSplashScreen({
       } else {
         console.log("[Splash] Timer completed but already finished, skipping");
       }
-    }, 10000);
+    }, 9000);
 
     return () => clearTimeout(timer);
   }, [riveFile, onAnimationFinish]);
