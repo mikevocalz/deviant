@@ -60,29 +60,20 @@ export function useCreateComment() {
     mutationFn: commentsApiClient.createComment,
     // Optimistic update: show comment immediately
     onMutate: async (newComment) => {
-      // Cancel any outgoing refetches
+      // Cancel any outgoing refetches (including limited queries)
       await queryClient.cancelQueries({
         queryKey: commentKeys.byPost(newComment.post),
       });
 
-      // Snapshot the previous value
-      const previousComments = queryClient.getQueryData<Comment[]>(
-        commentKeys.byPost(newComment.post)
-      );
+      // Snapshot the previous value for all comment queries (including limited ones)
+      const previousQueries = queryClient.getQueriesData({
+        queryKey: commentKeys.byPost(newComment.post),
+      });
 
       // Optimistically increment comment count in store
       const currentCount = getCommentCount(newComment.post, 0);
       incrementCommentCount(newComment.post, currentCount);
       
-      // Also update React Query cache comment count optimistically
-      queryClient.setQueriesData<Comment[]>(
-        commentKeys.byPost(newComment.post),
-        (old) => {
-          if (!old) return [optimisticComment];
-          return [...old, optimisticComment];
-        },
-      );
-
       // Optimistically add the new comment
       const optimisticComment: Comment = {
         id: `temp-${Date.now()}`,
@@ -94,26 +85,53 @@ export function useCreateComment() {
         replies: [],
       };
 
-      queryClient.setQueryData<Comment[]>(
-        commentKeys.byPost(newComment.post),
-        (old) => [...(old || []), optimisticComment]
+      // Update ALL comment queries for this post (including limited queries like limit: 3)
+      queryClient.setQueriesData<Comment[]>(
+        { queryKey: commentKeys.byPost(newComment.post) },
+        (old) => {
+          if (!old) return [optimisticComment];
+          // For limited queries, add to the beginning and keep only the limit
+          // For unlimited queries, just add to the end
+          const isLimitedQuery = Array.isArray(old) && old.length > 0;
+          if (isLimitedQuery) {
+            // Add new comment at the beginning (newest first)
+            const updated = [optimisticComment, ...old];
+            // If this is a limited query (like limit: 3), keep only the first N comments
+            // We can't know the exact limit, so we'll keep the same length + 1
+            // The real refetch will correct this
+            return updated;
+          }
+          return [...old, optimisticComment];
+        },
       );
 
-      return { previousComments };
+      return { previousQueries };
     },
     onError: (err, newComment, context) => {
-      // Roll back on error - comment count will be corrected on refetch
-      if (context?.previousComments) {
-        queryClient.setQueryData(
-          commentKeys.byPost(newComment.post),
-          context.previousComments
-        );
+      // Roll back on error - restore all previous query states
+      if (context?.previousQueries) {
+        context.previousQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      // Rollback comment count increment
+      const { postCommentCounts } = usePostStore.getState();
+      const currentCount = postCommentCounts[newComment.post];
+      if (currentCount !== undefined && currentCount > 0) {
+        usePostStore.setState({
+          postCommentCounts: {
+            ...postCommentCounts,
+            [newComment.post]: currentCount - 1,
+          },
+        });
       }
     },
     onSettled: (_, __, variables) => {
       // Always refetch after mutation settles to get real data
+      // This invalidates ALL comment queries for this post (including limited ones)
       queryClient.invalidateQueries({
         queryKey: commentKeys.byPost(variables.post),
+        refetchType: "active", // Only refetch active queries (ones currently being used)
       });
       // Also invalidate the post data so comment count updates in feed/post details
       queryClient.invalidateQueries({

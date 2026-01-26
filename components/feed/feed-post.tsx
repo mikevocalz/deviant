@@ -98,11 +98,19 @@ function FeedPostComponent({
   
   const isBookmarked = bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
   // Fetch last 3 comments for feed display
-  const { data: recentCommentsData = [] } = useComments(id, 3);
+  const { data: recentCommentsData = [], refetch: refetchComments } = useComments(id, 3);
   const currentSlide = currentSlides[id] || 0;
   
   // Comments are already limited to 3 from API, sorted newest first
-  const recentComments = recentCommentsData;
+  const recentComments = recentCommentsData || [];
+  
+  // Refetch comments when comment count changes to ensure we have the latest
+  useEffect(() => {
+    if (commentCount > 0 && recentComments.length === 0) {
+      // If comment count says there are comments but we don't have any, refetch
+      refetchComments();
+    }
+  }, [commentCount, recentComments.length, refetchComments]);
 
   const hasMedia = media && media.length > 0;
   const isVideo = hasMedia && media[0]?.type === "video";
