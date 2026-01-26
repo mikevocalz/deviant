@@ -79,8 +79,8 @@ export function PopoverContent({ children, className, align = 'center', side = '
         <View style={styles.overlay}>
           <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
             <View 
-              className={`bg-popover border border-border rounded-2xl shadow-lg ${className || ''}`}
-              style={styles.content}
+              className={`bg-card border border-border rounded-2xl shadow-lg ${className || ''}`}
+              style={[styles.content, { backgroundColor: '#1a1a1a' }]}
             >
               {children}
             </View>
