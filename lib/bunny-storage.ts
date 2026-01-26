@@ -5,8 +5,11 @@
  * Docs: https://docs.bunny.net/reference/storage-api
  */
 
-import * as FileSystem from "expo-file-system";
+import * as LegacyFileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";
+
+// Use legacy FileSystem APIs (v19+ moved to new class-based API)
+const FileSystem = LegacyFileSystem;
 
 // Storage zone configuration from environment
 // CRITICAL: Production values as fallback - empty strings NEVER work on mobile
@@ -241,7 +244,7 @@ export async function uploadToBunny(
     }
 
     // Get file info
-    let fileInfo: FileSystem.FileInfo;
+    let fileInfo: { exists: boolean; size?: number; uri?: string };
     try {
       fileInfo = await FileSystem.getInfoAsync(accessibleUri);
       console.log("[Bunny] File info:", JSON.stringify(fileInfo));
