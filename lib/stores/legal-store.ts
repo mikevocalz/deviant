@@ -92,7 +92,22 @@ export const useLegalStore = create<LegalState>((set, get) => ({
       errors: { ...s.errors, [slug]: null },
     }));
 
-    // Try API first (which has its own CMS -> static fallback)
+    // Helper to load static content
+    const loadStaticContent = () => {
+      const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
+      if (staticContent && staticContent.content) {
+        console.log("[LegalStore] ✓ Using static content for:", slug, "Length:", staticContent.content.length);
+        set((s) => ({
+          pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
+          loading: { ...s.loading, [slug]: false },
+          errors: { ...s.errors, [slug]: null },
+        }));
+        return true;
+      }
+      return false;
+    };
+
+    // Try API first
     const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
     const apiUrl = API_BASE_URL ? `${API_BASE_URL}/api/legal/${slug}` : `/api/legal/${slug}`;
 
@@ -106,8 +121,8 @@ export const useLegalStore = create<LegalState>((set, get) => ({
 
       if (response.ok) {
         const data = await response.json();
-        if (data && !data.error && data.content) {
-          console.log("[LegalStore] ✓ Loaded for:", slug);
+        if (data && !data.error && data.content && data.content.trim().length > 0) {
+          console.log("[LegalStore] ✓ Loaded from API for:", slug);
           set((s) => ({
             pages: { ...s.pages, [slug]: data as LegalPageWithFAQ },
             loading: { ...s.loading, [slug]: false },
@@ -115,24 +130,21 @@ export const useLegalStore = create<LegalState>((set, get) => ({
           }));
           return;
         }
+        console.log("[LegalStore] API returned empty content, using static");
+      } else {
+        console.log("[LegalStore] API returned status:", response.status);
       }
     } catch (error: any) {
-      console.log("[LegalStore] API fetch failed, using local fallback:", error?.message);
+      console.log("[LegalStore] API fetch failed:", error?.message);
     }
 
-    // Final fallback to local static content
-    const staticContent = LEGAL_CONTENT[slug as keyof typeof LEGAL_CONTENT];
-    if (staticContent) {
-      console.log("[LegalStore] ✓ Using local static content for:", slug);
-      set((s) => ({
-        pages: { ...s.pages, [slug]: staticContent as LegalPageWithFAQ },
-        loading: { ...s.loading, [slug]: false },
-        errors: { ...s.errors, [slug]: null },
-      }));
+    // Always fall back to static content
+    if (loadStaticContent()) {
       return;
     }
 
-    // No content available
+    // No content available (this should never happen)
+    console.error("[LegalStore] No static content found for:", slug);
     set((s) => ({
       loading: { ...s.loading, [slug]: false },
       errors: { ...s.errors, [slug]: "Content not available" },
