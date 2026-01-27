@@ -326,21 +326,26 @@ export const users = {
   },
 
   // Get current user's following list (IDs of users they follow)
+  // STABILIZED: Fetches from dedicated follows collection
   getFollowing: async (): Promise<string[]> => {
     try {
-      const response = await users.me<{
-        following?: Array<{ user?: string | { id: string } } | string>;
-      }>();
-      if (!response.user?.following) return [];
+      const currentUser = await users.me<{ id: string }>();
+      if (!currentUser.user?.id) return [];
 
-      // Handle Payload's array format - can be array of objects or strings
-      return response.user.following
-        .map((item: any) => {
-          if (typeof item === "string") return item;
-          if (item?.user) {
-            return typeof item.user === "string" ? item.user : item.user?.id;
-          }
-          if (item?.id) return item.id;
+      // Fetch from follows collection
+      const response = await apiFetch<{
+        docs: Array<{ following: string | { id: string } }>;
+      }>(
+        `/api/follows?where[follower][equals]=${currentUser.user.id}&limit=1000`,
+      );
+
+      if (!response.docs) return [];
+
+      return response.docs
+        .map((follow: any) => {
+          const followingId = follow.following;
+          if (typeof followingId === "string") return followingId;
+          if (followingId?.id) return followingId.id;
           return null;
         })
         .filter(
@@ -352,18 +357,79 @@ export const users = {
     }
   },
 
-  getBookmarks: async <T = string[]>() => {
-    const response = await apiFetch<{ user: T; bookmarkedPosts?: string[] }>(
-      "/api/users/me?includeBookmarks=true",
-    );
-    return response.bookmarkedPosts || [];
+  // Check if current user is following a specific user
+  isFollowing: async (userId: string): Promise<boolean> => {
+    try {
+      const response = await apiFetch<{ following: boolean }>(
+        `/api/users/follow?userId=${userId}`,
+      );
+      return response.following;
+    } catch (error) {
+      console.error("[users] isFollowing error:", error);
+      return false;
+    }
   },
 
+  // STABILIZED: Fetches from dedicated bookmarks collection
+  getBookmarks: async (): Promise<string[]> => {
+    try {
+      const currentUser = await users.me<{ id: string }>();
+      if (!currentUser.user?.id) return [];
+
+      // Fetch from bookmarks collection
+      const response = await apiFetch<{
+        docs: Array<{ post: string | { id: string } }>;
+      }>(
+        `/api/bookmarks?where[user][equals]=${currentUser.user.id}&limit=1000`,
+      );
+
+      if (!response.docs) return [];
+
+      return response.docs
+        .map((bookmark: any) => {
+          const postId = bookmark.post;
+          if (typeof postId === "string") return postId;
+          if (postId?.id) return postId.id;
+          return null;
+        })
+        .filter(
+          (id): id is string => !!id && id !== "undefined" && id !== "null",
+        );
+    } catch (error) {
+      console.error("[users] getBookmarks error:", error);
+      return [];
+    }
+  },
+
+  // STABILIZED: Fetches from dedicated likes collection
   getLikedPosts: async (): Promise<string[]> => {
-    const response = await apiFetch<{ user: unknown; likedPosts?: string[] }>(
-      "/api/users/me?includeLikedPosts=true",
-    );
-    return response.likedPosts || [];
+    try {
+      const currentUser = await users.me<{ id: string }>();
+      if (!currentUser.user?.id) return [];
+
+      // Fetch from likes collection
+      const response = await apiFetch<{
+        docs: Array<{ post: string | { id: string } }>;
+      }>(
+        `/api/likes?where[user][equals]=${currentUser.user.id}&where[post][exists]=true&limit=1000`,
+      );
+
+      if (!response.docs) return [];
+
+      return response.docs
+        .map((like: any) => {
+          const postId = like.post;
+          if (typeof postId === "string") return postId;
+          if (postId?.id) return postId.id;
+          return null;
+        })
+        .filter(
+          (id): id is string => !!id && id !== "undefined" && id !== "null",
+        );
+    } catch (error) {
+      console.error("[users] getLikedPosts error:", error);
+      return [];
+    }
   },
 };
 

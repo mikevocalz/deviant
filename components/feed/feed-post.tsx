@@ -52,6 +52,8 @@ interface FeedPostProps {
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const mediaSize = SCREEN_WIDTH; // Full width for media
+// Instagram-like 4:5 aspect ratio for portrait-friendly display (prevents head cropping)
+const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * 1.25); // 4:5 ratio
 
 function FeedPostComponent({
   id,
@@ -376,7 +378,7 @@ function FeedPostComponent({
 
         {hasMedia && (
           <View
-            style={{ width: mediaSize, height: mediaSize }}
+            style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
             className="bg-muted"
           >
             {isVideo ? (
@@ -444,14 +446,21 @@ function FeedPostComponent({
                         {isValidUrl ? (
                           <Image
                             source={{ uri: medium.url }}
-                            style={{ width: mediaSize, height: mediaSize }}
+                            style={{
+                              width: mediaSize,
+                              height: PORTRAIT_HEIGHT,
+                            }}
                             contentFit="cover"
+                            contentPosition="top"
                             transition={200}
                             cachePolicy="memory-disk"
                           />
                         ) : (
                           <View
-                            style={{ width: mediaSize, height: mediaSize }}
+                            style={{
+                              width: mediaSize,
+                              height: PORTRAIT_HEIGHT,
+                            }}
                             className="bg-muted items-center justify-center"
                           >
                             <Text className="text-muted-foreground text-xs">
@@ -493,21 +502,22 @@ function FeedPostComponent({
                 onPress={handlePostPress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                style={{ width: mediaSize, height: mediaSize }}
+                style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
               >
                 {media[0]?.url &&
                 (media[0].url.startsWith("http://") ||
                   media[0].url.startsWith("https://")) ? (
                   <Image
                     source={{ uri: media[0].url }}
-                    style={{ width: mediaSize, height: mediaSize }}
+                    style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
                     contentFit="cover"
+                    contentPosition="top"
                     transition={200}
                     cachePolicy="memory-disk"
                   />
                 ) : (
                   <View
-                    style={{ width: mediaSize, height: mediaSize }}
+                    style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
                     className="bg-muted items-center justify-center"
                   >
                     <Text className="text-muted-foreground text-xs">

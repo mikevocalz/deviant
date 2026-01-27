@@ -34,11 +34,16 @@ export async function GET(request: Request) {
       }
     }
 
-    // Add type filter if specified
-    if (type && (type === "direct" || type === "group")) {
+    // Add type filter if specified - use isGroup field (type field doesn't exist)
+    if (type === "direct") {
       where = {
         ...where,
-        type: { equals: type },
+        isGroup: { equals: false },
+      };
+    } else if (type === "group") {
+      where = {
+        ...where,
+        isGroup: { equals: true },
       };
     }
 
@@ -96,17 +101,20 @@ export async function POST(request: Request) {
     const isGroup = body.isGroup === true || participantIds.length > 2;
 
     if (!isGroup && participantIds.length === 2) {
-      console.log("[API] Checking for existing direct conversation...");
+      console.log(
+        "[API/conversations] Checking for existing direct conversation...",
+      );
 
       // Sort IDs for consistent lookup
       const [user1, user2] = [...participantIds].sort();
 
+      // FIX: Use isGroup: false instead of type: "direct" (type field doesn't exist)
       const existing = await payloadClient.find(
         {
           collection: "conversations",
           where: {
             and: [
-              { type: { equals: "direct" } },
+              { isGroup: { equals: false } },
               { participants: { contains: user1 } },
               { participants: { contains: user2 } },
             ],
@@ -119,7 +127,7 @@ export async function POST(request: Request) {
 
       if (existing.docs && existing.docs.length > 0) {
         console.log(
-          "[API] Returning existing conversation:",
+          "[API/conversations] Returning existing conversation:",
           existing.docs[0].id,
         );
         return Response.json(existing.docs[0], { status: 200 });
@@ -127,7 +135,7 @@ export async function POST(request: Request) {
     }
 
     // Create new conversation
-    console.log("[API] Creating new conversation:", {
+    console.log("[API/conversations] Creating new conversation:", {
       participantCount: participantIds.length,
       isGroup,
     });
@@ -139,7 +147,7 @@ export async function POST(request: Request) {
           data: {
             ...body,
             participants: participantIds,
-            type: isGroup ? "group" : "direct",
+            // NOTE: Don't send 'type' field - it doesn't exist in schema
             isGroup,
           },
           depth: 2,

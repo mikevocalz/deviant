@@ -1,12 +1,15 @@
 /**
  * Bookmarks Hook
  *
- * Provides React Query hooks for managing bookmarks
+ * STABILIZED: Provides React Query hooks for managing bookmarks
+ * - Server is single source of truth
+ * - Syncs to Zustand store for offline access
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bookmarksApi } from "@/lib/api/bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 
 // Query keys
 export const bookmarkKeys = {
@@ -14,12 +17,22 @@ export const bookmarkKeys = {
   list: () => [...bookmarkKeys.all, "list"] as const,
 };
 
-// Fetch bookmarked posts
+// Fetch bookmarked posts and sync to store
 export function useBookmarks() {
   return useQuery({
     queryKey: bookmarkKeys.list(),
-    queryFn: () => bookmarksApi.getBookmarkedPosts(),
+    queryFn: async () => {
+      const bookmarks = await bookmarksApi.getBookmarkedPosts();
+
+      // Sync to Zustand store
+      useBookmarkStore.getState().syncBookmarks(bookmarks);
+
+      return bookmarks;
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -28,7 +41,7 @@ export function useBookmarks() {
  *
  * CRITICAL CHANGES:
  * 1. NO optimistic updates - wait for server confirmation
- * 2. Server response updates React Query cache
+ * 2. Server response updates React Query cache AND Zustand store
  * 3. Invalidate queries to refresh from server
  */
 export function useToggleBookmark() {
@@ -49,6 +62,9 @@ export function useToggleBookmark() {
     },
     onSuccess: (data, variables) => {
       const { postId } = variables;
+
+      // Update Zustand store with server state
+      useBookmarkStore.getState().setBookmarked(postId, data.bookmarked);
 
       // Update React Query cache with server state
       queryClient.setQueryData<string[]>(bookmarkKeys.list(), (old = []) => {
@@ -71,7 +87,6 @@ export function useToggleBookmark() {
 
       // Invalidate to ensure sync with server
       queryClient.invalidateQueries({ queryKey: bookmarkKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
   });
 }

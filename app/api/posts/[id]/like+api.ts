@@ -2,6 +2,11 @@
  * Post Like API Route
  *
  * POST /api/posts/:id/like - Like or unlike a post
+ *
+ * STABILIZED: Uses dedicated `likes` collection with proper invariants.
+ * - Idempotent: like twice -> NOOP (returns current state)
+ * - Count updates handled by collection hooks (likesCount on post)
+ * - Notifications handled by collection hooks
  */
 
 import {
@@ -10,10 +15,7 @@ import {
   createErrorResponse,
 } from "@/lib/payload.server";
 
-export async function POST(
-  request: Request,
-  { id }: { id: string },
-) {
+export async function POST(request: Request, { id }: { id: string }) {
   try {
     const cookies = getCookiesFromRequest(request);
     const body = await request.json();
@@ -40,11 +42,15 @@ export async function POST(
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    // Get the post
+    const userId = String(currentUser.id);
+    const postId = String(id);
+
+    // Verify post exists and get current count
     const post = await payloadClient.findByID(
       {
         collection: "posts",
-        id,
+        id: postId,
+        depth: 0,
       },
       cookies,
     );
@@ -53,124 +59,163 @@ export async function POST(
       return Response.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Get current user's liked posts
-    const currentUserData = await payloadClient.findByID(
+    // Check if like already exists in dedicated collection
+    const existingLike = await payloadClient.find(
       {
-        collection: "users",
-        id: currentUser.id,
+        collection: "likes",
+        where: {
+          and: [{ user: { equals: userId } }, { post: { equals: postId } }],
+        },
+        limit: 1,
       },
       cookies,
     );
 
-    // Handle Payload array format for likedPosts
-    let likedPosts: string[] = [];
-    if (Array.isArray((currentUserData as any)?.likedPosts)) {
-      likedPosts = (currentUserData as any).likedPosts.map((item: any) => {
-        if (typeof item === "string") return item;
-        if (item?.post) return String(item.post);
-        if (item?.id) return String(item.id);
-        return String(item);
-      });
-    }
-
-    const isLiked = likedPosts.includes(String(id));
+    const isLiked = existingLike.docs && existingLike.docs.length > 0;
 
     if (action === "like") {
+      // IDEMPOTENT: Already liked -> return current state
       if (isLiked) {
+        console.log("[API/like] Already liked, returning current state");
+        // Get fresh count
+        const freshPost = await payloadClient.findByID(
+          { collection: "posts", id: postId, depth: 0 },
+          cookies,
+        );
         return Response.json({
           message: "Already liked",
           liked: true,
-          likes: ((post as any).likes || 0) as number,
+          likes:
+            (freshPost?.likesCount as number) || (freshPost as any)?.likes || 0,
         });
       }
 
-      // Add to liked posts list
-      const updatedLikedPosts = [...likedPosts, String(id)].map((postId) => ({
-        post: postId,
-      }));
-
-      await payloadClient.update(
-        {
-          collection: "users",
-          id: currentUser.id,
-          data: {
-            likedPosts: updatedLikedPosts,
+      // CREATE like record in dedicated collection
+      // Hooks in Likes.ts handle: duplicate prevention, count updates, notifications
+      try {
+        await payloadClient.create(
+          {
+            collection: "likes",
+            data: {
+              user: userId,
+              post: postId,
+            },
           },
-        },
-        cookies,
-      );
+          cookies,
+        );
 
-      // Update post's like count
-      const currentLikes = ((post as any).likes as number) || 0;
-      const newLikes = currentLikes + 1;
+        console.log("[API/like] Like created:", { user: userId, post: postId });
 
-      await payloadClient.update(
-        {
-          collection: "posts",
-          id,
-          data: {
-            likes: newLikes,
-          },
-        },
-        cookies,
-      );
+        // Get fresh count after hook updates
+        const freshPost = await payloadClient.findByID(
+          { collection: "posts", id: postId, depth: 0 },
+          cookies,
+        );
 
-      return Response.json({
-        message: "Post liked successfully",
-        liked: true,
-        likes: newLikes,
-      });
+        return Response.json({
+          message: "Post liked successfully",
+          liked: true,
+          likes:
+            (freshPost?.likesCount as number) || (freshPost as any)?.likes || 0,
+        });
+      } catch (createError: any) {
+        // Handle duplicate gracefully
+        if (createError.message?.includes("already liked")) {
+          console.log("[API/like] Duplicate like prevented by hook");
+          return Response.json({
+            message: "Already liked",
+            liked: true,
+            likes: (post.likesCount as number) || (post as any)?.likes || 0,
+          });
+        }
+        throw createError;
+      }
     } else {
-      // unlike
+      // UNLIKE
+      // IDEMPOTENT: Not liked -> return current state
       if (!isLiked) {
+        console.log("[API/like] Not liked, returning current state");
         return Response.json({
           message: "Not liked",
           liked: false,
-          likes: ((post as any).likes || 0) as number,
+          likes: (post.likesCount as number) || (post as any)?.likes || 0,
         });
       }
 
-      // Remove from liked posts list
-      const updatedLikedPosts = likedPosts
-        .filter((postId) => String(postId) !== String(id))
-        .map((postId) => ({
-          post: postId,
-        }));
-
-      await payloadClient.update(
+      // DELETE like record
+      // Hooks in Likes.ts handle: count updates
+      const likeId = (existingLike.docs[0] as any).id;
+      await payloadClient.delete(
         {
-          collection: "users",
-          id: currentUser.id,
-          data: {
-            likedPosts: updatedLikedPosts,
-          },
+          collection: "likes",
+          id: likeId,
         },
         cookies,
       );
 
-      // Update post's like count
-      const currentLikes = ((post as any).likes as number) || 0;
-      const newLikes = Math.max(0, currentLikes - 1);
+      console.log("[API/like] Like deleted:", {
+        likeId,
+        user: userId,
+        post: postId,
+      });
 
-      await payloadClient.update(
-        {
-          collection: "posts",
-          id,
-          data: {
-            likes: newLikes,
-          },
-        },
+      // Get fresh count after hook updates
+      const freshPost = await payloadClient.findByID(
+        { collection: "posts", id: postId, depth: 0 },
         cookies,
       );
 
       return Response.json({
         message: "Post unliked successfully",
         liked: false,
-        likes: newLikes,
+        likes:
+          (freshPost?.likesCount as number) || (freshPost as any)?.likes || 0,
       });
     }
   } catch (error) {
-    console.error("[API] POST /api/posts/:id/like error:", error);
+    console.error("[API/like] Error:", error);
+    return createErrorResponse(error);
+  }
+}
+
+// GET: Check if current user has liked a post
+export async function GET(request: Request, { id }: { id: string }) {
+  try {
+    const cookies = getCookiesFromRequest(request);
+
+    const currentUser = await payloadClient.me<{ id: string }>(cookies);
+    if (!currentUser || !currentUser.id) {
+      return Response.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    const userId = String(currentUser.id);
+    const postId = String(id);
+
+    const existingLike = await payloadClient.find(
+      {
+        collection: "likes",
+        where: {
+          and: [{ user: { equals: userId } }, { post: { equals: postId } }],
+        },
+        limit: 1,
+      },
+      cookies,
+    );
+
+    const isLiked = existingLike.docs && existingLike.docs.length > 0;
+
+    // Get current count
+    const post = await payloadClient.findByID(
+      { collection: "posts", id: postId, depth: 0 },
+      cookies,
+    );
+
+    return Response.json({
+      liked: isLiked,
+      likes: (post?.likesCount as number) || (post as any)?.likes || 0,
+    });
+  } catch (error) {
+    console.error("[API/like] GET error:", error);
     return createErrorResponse(error);
   }
 }
