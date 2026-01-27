@@ -12,11 +12,10 @@ import { Platform } from "react-native";
 const FileSystem = LegacyFileSystem;
 
 // Storage zone configuration from environment
-// CRITICAL: Production values as fallback - empty strings NEVER work on mobile
+// Non-sensitive values have safe fallbacks, API key must come from env
 const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "dvnt";
 const BUNNY_STORAGE_API_KEY =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY ||
-  "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b";
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
 const BUNNY_STORAGE_REGION =
   process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "de";
 const BUNNY_CDN_URL =

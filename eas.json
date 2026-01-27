@@ -12,7 +12,6 @@
         "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "dvnt",
-        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "de",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "https://dvnt.b-cdn.net"
       }
@@ -24,7 +23,6 @@
         "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "dvnt",
-        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "de",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "https://dvnt.b-cdn.net"
       }
@@ -36,7 +34,6 @@
         "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "dvnt",
-        "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "de",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "https://dvnt.b-cdn.net"
       }
