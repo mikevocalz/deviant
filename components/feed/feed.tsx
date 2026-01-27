@@ -9,7 +9,7 @@ import {
   Pressable,
 } from "react-native";
 import { FeedPost } from "./feed-post";
-import { useInfiniteFeedPosts } from "@/lib/hooks/use-posts";
+import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useMemo, useEffect, useRef, useCallback } from "react";
@@ -192,6 +192,9 @@ export function Feed() {
     isRefetching,
   } = useInfiniteFeedPosts();
 
+  // Sync liked posts from server to Zustand store on mount
+  useSyncLikedPosts();
+
   const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
   const { setActivePostId } = useFeedPostUIStore();
   const prevNsfwEnabled = useRef(nsfwEnabled);
@@ -221,7 +224,10 @@ export function Feed() {
     [],
   );
 
-  const keyExtractor = useCallback((item: Post, index: number) => item?.id || `post-${index}`, []);
+  const keyExtractor = useCallback(
+    (item: Post, index: number) => item?.id || `post-${index}`,
+    [],
+  );
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {

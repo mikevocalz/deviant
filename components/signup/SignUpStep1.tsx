@@ -12,7 +12,14 @@ import { Button, Input } from "@/components/ui";
 import { FormInput } from "@/components/form";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { users } from "@/lib/api-client";
-import { CheckCircle2, XCircle } from "lucide-react-native";
+import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react-native";
+import {
+  getMaximumBirthDate,
+  getMinimumBirthDate,
+  validateDateOfBirth,
+  MINIMUM_AGE,
+  UNDERAGE_ERROR_MESSAGE,
+} from "@/lib/utils/age-verification";
 
 function getPasswordStrength(password: string) {
   let score = 0;
@@ -39,9 +46,9 @@ export function SignUpStep1() {
     "idle" | "checking" | "available" | "taken"
   >("idle");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
-  const [checkTimeoutId, setCheckTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const [checkTimeoutId, setCheckTimeoutId] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
@@ -90,6 +97,9 @@ export function SignUpStep1() {
     [checkTimeoutId, checkUsernameAvailability],
   );
 
+  // Track if user is underage based on DOB in form
+  const [isUserUnderage, setIsUserUnderage] = useState(false);
+
   const form = useForm({
     defaultValues: {
       firstName: formData?.firstName || "",
@@ -102,6 +112,14 @@ export function SignUpStep1() {
       confirmPassword: "",
     },
     onSubmit: async ({ value }) => {
+      // CRITICAL: Server-side age verification before proceeding
+      const ageCheck = validateDateOfBirth(value.dateOfBirth);
+      if (!ageCheck.isValid || ageCheck.isOver18 === false) {
+        setIsUserUnderage(true);
+        console.error("[SignUpStep1] BLOCKED: Underage user attempted signup");
+        return; // HARD BLOCK - do not proceed
+      }
+
       updateFormData({
         firstName: value.firstName,
         lastName: value.lastName,
@@ -275,17 +293,17 @@ export function SignUpStep1() {
               defaultDate.setFullYear(defaultDate.getFullYear() - 18);
               return defaultDate;
             }
-            
+
             // Parse YYYY-MM-DD format and create date in local timezone
             const parts = dateStr.split("-");
             if (parts.length === 3) {
               const year = parseInt(parts[0], 10);
               const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
               const day = parseInt(parts[2], 10);
-              
+
               // Create date in local timezone
               const date = new Date(year, month, day);
-              
+
               // Validate the date
               if (
                 date.getFullYear() === year &&
@@ -295,7 +313,7 @@ export function SignUpStep1() {
                 return date;
               }
             }
-            
+
             // Fallback to default date if parsing fails
             const fallbackDate = new Date();
             fallbackDate.setFullYear(fallbackDate.getFullYear() - 18);
@@ -307,18 +325,19 @@ export function SignUpStep1() {
             [field.state.value],
           );
 
-          // Calculate minimum date (18 years ago)
-          const minimumDate = useMemo(() => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() - 100); // Allow up to 100 years old
-            return date;
-          }, []);
+          // CRITICAL: Age verification - must be 18+ (NO EXCEPTIONS)
+          // minimumDate = oldest allowed (120 years ago)
+          // maximumDate = youngest allowed (18 years ago - user must be AT LEAST 18)
+          const minimumDate = useMemo(() => getMinimumBirthDate(), []);
+          const maximumDate = useMemo(() => getMaximumBirthDate(), []);
 
-          const maximumDate = useMemo(() => {
-            const date = new Date();
-            date.setFullYear(date.getFullYear() - 13); // Must be at least 13 years old
-            return date;
-          }, []);
+          // Validate current DOB selection for age requirement
+          const ageValidation = useMemo(() => {
+            if (!field.state.value) return null;
+            return validateDateOfBirth(field.state.value);
+          }, [field.state.value]);
+
+          const isUnderage = ageValidation && ageValidation.isOver18 === false;
 
           const handleDateChange = useCallback(
             (event: any, selectedDate: Date | undefined) => {
@@ -359,11 +378,17 @@ export function SignUpStep1() {
               </Text>
               <Pressable
                 onPress={() => setShowDatePicker(true)}
-                className="h-12 px-4 rounded-lg border border-border bg-card justify-center"
+                className={`h-12 px-4 rounded-lg border bg-card justify-center ${
+                  isUnderage ? "border-destructive" : "border-border"
+                }`}
               >
                 <Text
                   className={
-                    field.state.value ? "text-foreground" : "text-muted-foreground"
+                    field.state.value
+                      ? isUnderage
+                        ? "text-destructive"
+                        : "text-foreground"
+                      : "text-muted-foreground"
                   }
                 >
                   {field.state.value
@@ -378,6 +403,21 @@ export function SignUpStep1() {
                     : "Select date"}
                 </Text>
               </Pressable>
+
+              {/* CRITICAL: Age restriction warning - hard block for underage users */}
+              {isUnderage && (
+                <View className="bg-destructive/10 rounded-lg p-3 mt-2 flex-row items-start gap-2">
+                  <ShieldAlert size={16} color="#ef4444" />
+                  <View className="flex-1">
+                    <Text className="text-sm font-semibold text-destructive">
+                      Age Restriction
+                    </Text>
+                    <Text className="text-xs text-destructive/80 mt-0.5">
+                      {UNDERAGE_ERROR_MESSAGE}
+                    </Text>
+                  </View>
+                </View>
+              )}
               {showDatePicker && (
                 <View className="mt-2">
                   {Platform.OS === "ios" ? (
@@ -393,12 +433,19 @@ export function SignUpStep1() {
                           if (selectedDate && event.type !== "dismissed") {
                             try {
                               const year = selectedDate.getFullYear();
-                              const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
-                              const day = String(selectedDate.getDate()).padStart(2, "0");
+                              const month = String(
+                                selectedDate.getMonth() + 1,
+                              ).padStart(2, "0");
+                              const day = String(
+                                selectedDate.getDate(),
+                              ).padStart(2, "0");
                               const dateString = `${year}-${month}-${day}`;
                               field.handleChange(dateString);
                             } catch (error) {
-                              console.error("[SignUpStep1] iOS date change error:", error);
+                              console.error(
+                                "[SignUpStep1] iOS date change error:",
+                                error,
+                              );
                             }
                           }
                         }}
@@ -520,8 +567,28 @@ export function SignUpStep1() {
         )}
       </form.Field>
 
-      <Button onPress={form.handleSubmit} className="my-12">
-        Continue
+      {/* CRITICAL: Block underage users from proceeding */}
+      {isUserUnderage && (
+        <View className="bg-destructive/10 rounded-lg p-4 flex-row items-start gap-3">
+          <ShieldAlert size={20} color="#ef4444" />
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-destructive">
+              Access Denied
+            </Text>
+            <Text className="text-sm text-destructive/80 mt-1">
+              {UNDERAGE_ERROR_MESSAGE} You cannot create an account on this
+              platform.
+            </Text>
+          </View>
+        </View>
+      )}
+
+      <Button
+        onPress={form.handleSubmit}
+        className="my-12"
+        disabled={isUserUnderage}
+      >
+        {isUserUnderage ? "Access Denied" : "Continue"}
       </Button>
     </View>
   );

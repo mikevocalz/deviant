@@ -1,6 +1,6 @@
-import { Platform } from "react-native"
-import type { StateStorage } from "zustand/middleware"
-import { createMMKV } from "react-native-mmkv"
+import { Platform } from "react-native";
+import type { StateStorage } from "zustand/middleware";
+import { createMMKV } from "react-native-mmkv";
 
 let mmkv: ReturnType<typeof createMMKV> | null = null;
 
@@ -14,9 +14,9 @@ try {
 
 // Storage keys that contain user-specific data and should be cleared on logout/user switch
 const USER_DATA_STORAGE_KEYS = [
-  "post-storage",      // liked posts, like counts
-  "bookmark-storage",  // bookmarked posts  
-  "chat-storage",      // chat data
+  "post-storage", // liked posts, like counts
+  "bookmark-storage", // bookmarked posts
+  "chat-storage", // chat data
   // Don't clear auth-storage here - that's handled separately by clearAuthStorage
   // Don't clear app-storage - that's app state not user data
 ];
@@ -26,13 +26,13 @@ export function clearUserDataFromStorage(): void {
   console.log("[Storage] Clearing all user-specific data from storage");
   try {
     if (Platform.OS === "web") {
-      USER_DATA_STORAGE_KEYS.forEach(key => {
+      USER_DATA_STORAGE_KEYS.forEach((key) => {
         localStorage.removeItem(key);
       });
     } else if (mmkv) {
-      USER_DATA_STORAGE_KEYS.forEach(key => {
-        // FIXED: Use remove() not delete() - delete is not a valid MMKV method
-        mmkv!.delete(key);
+      USER_DATA_STORAGE_KEYS.forEach((key) => {
+        // MMKV v4 API: use remove() not delete()
+        mmkv!.remove(key);
       });
     }
     console.log("[Storage] User data cleared successfully");
@@ -48,7 +48,8 @@ export function clearAuthStorage(): void {
     if (Platform.OS === "web") {
       localStorage.removeItem("auth-storage");
     } else if (mmkv) {
-      mmkv.delete("auth-storage");
+      // MMKV v4 API: use remove() not delete()
+      mmkv.remove("auth-storage");
     }
     console.log("[Storage] Auth storage cleared successfully");
   } catch (error) {
@@ -60,10 +61,10 @@ export const storage: StateStorage = {
   getItem: (name: string): string | null => {
     try {
       if (Platform.OS === "web") {
-        return localStorage.getItem(name)
+        return localStorage.getItem(name);
       }
       if (!mmkv) return null;
-      return mmkv.getString(name) ?? null
+      return mmkv.getString(name) ?? null;
     } catch (error) {
       console.error("[Storage] Error getting item:", error);
       return null;
@@ -72,10 +73,10 @@ export const storage: StateStorage = {
   setItem: (name: string, value: string): void => {
     try {
       if (Platform.OS === "web") {
-        localStorage.setItem(name, value)
+        localStorage.setItem(name, value);
       } else {
         if (mmkv) {
-          mmkv.set(name, value)
+          mmkv.set(name, value);
         }
       }
     } catch (error) {
@@ -85,14 +86,14 @@ export const storage: StateStorage = {
   removeItem: (name: string): void => {
     try {
       if (Platform.OS === "web") {
-        localStorage.removeItem(name)
+        localStorage.removeItem(name);
       } else {
         if (mmkv) {
-          mmkv.remove(name)
+          mmkv.remove(name);
         }
       }
     } catch (error) {
       console.error("[Storage] Error removing item:", error);
     }
   },
-}
+};

@@ -23,7 +23,14 @@ export function useBookmarks() {
   });
 }
 
-// Toggle bookmark mutation
+/**
+ * STABILIZED Toggle Bookmark Mutation
+ *
+ * CRITICAL CHANGES:
+ * 1. NO optimistic updates - wait for server confirmation
+ * 2. Server response updates React Query cache
+ * 3. Invalidate queries to refresh from server
+ */
 export function useToggleBookmark() {
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
@@ -36,37 +43,24 @@ export function useToggleBookmark() {
       postId: string;
       isBookmarked: boolean;
     }) => bookmarksApi.toggleBookmark(postId, isBookmarked),
-    onMutate: async ({ postId, isBookmarked }) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: bookmarkKeys.all });
+    // NO onMutate - no optimistic updates
+    onError: (_err) => {
+      showToast("error", "Error", "Failed to update bookmark");
+    },
+    onSuccess: (data, variables) => {
+      const { postId } = variables;
 
-      // Snapshot previous data
-      const previousBookmarks = queryClient.getQueryData<string[]>(
-        bookmarkKeys.list(),
-      );
-
-      // Optimistically update bookmarks list
+      // Update React Query cache with server state
       queryClient.setQueryData<string[]>(bookmarkKeys.list(), (old = []) => {
-        if (isBookmarked) {
-          return old.filter((id) => id !== postId);
+        if (data.bookmarked) {
+          // Add to list if not present
+          return old.includes(postId) ? old : [...old, postId];
         } else {
-          return [...old, postId];
+          // Remove from list
+          return old.filter((id) => id !== postId);
         }
       });
 
-      return { previousBookmarks };
-    },
-    onError: (_err, _variables, context) => {
-      // Rollback on error
-      if (context?.previousBookmarks) {
-        queryClient.setQueryData(
-          bookmarkKeys.list(),
-          context.previousBookmarks,
-        );
-      }
-      showToast("error", "Error", "Failed to update bookmark");
-    },
-    onSuccess: (data) => {
       showToast(
         "success",
         data.bookmarked ? "Bookmarked" : "Unbookmarked",
@@ -74,7 +68,8 @@ export function useToggleBookmark() {
           ? "Post saved to your bookmarks"
           : "Post removed from bookmarks",
       );
-      // Invalidate to sync with server
+
+      // Invalidate to ensure sync with server
       queryClient.invalidateQueries({ queryKey: bookmarkKeys.all });
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },

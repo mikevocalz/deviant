@@ -18,7 +18,10 @@ export async function GET(request: Request) {
   try {
     const cookies = getCookiesFromRequest(request);
     const url = new URL(request.url);
-    const includeBookmarks = url.searchParams.get("includeBookmarks") === "true";
+    const includeBookmarks =
+      url.searchParams.get("includeBookmarks") === "true";
+    const includeLikedPosts =
+      url.searchParams.get("includeLikedPosts") === "true";
 
     const user = await payloadClient.me(cookies);
 
@@ -29,8 +32,8 @@ export async function GET(request: Request) {
       );
     }
 
-    // If includeBookmarks is requested, fetch bookmarked posts
-    if (includeBookmarks) {
+    // If includeBookmarks or includeLikedPosts is requested, fetch full user data
+    if (includeBookmarks || includeLikedPosts) {
       const userData = await payloadClient.findByID(
         {
           collection: "users",
@@ -39,20 +42,37 @@ export async function GET(request: Request) {
         cookies,
       );
 
-      const bookmarkedPosts = (userData as any)?.bookmarkedPosts || [];
-      const bookmarkedPostIds = Array.isArray(bookmarkedPosts)
-        ? bookmarkedPosts.map((item: any) => {
-            if (typeof item === "string") return item;
-            if (item?.post) return String(item.post);
-            if (item?.id) return String(item.id);
-            return String(item);
-          })
-        : [];
+      const response: {
+        user: typeof user;
+        bookmarkedPosts?: string[];
+        likedPosts?: string[];
+      } = { user };
 
-      return Response.json({
-        user,
-        bookmarkedPosts: bookmarkedPostIds,
-      });
+      if (includeBookmarks) {
+        const bookmarkedPosts = (userData as any)?.bookmarkedPosts || [];
+        response.bookmarkedPosts = Array.isArray(bookmarkedPosts)
+          ? bookmarkedPosts.map((item: any) => {
+              if (typeof item === "string") return item;
+              if (item?.post) return String(item.post);
+              if (item?.id) return String(item.id);
+              return String(item);
+            })
+          : [];
+      }
+
+      if (includeLikedPosts) {
+        const likedPosts = (userData as any)?.likedPosts || [];
+        response.likedPosts = Array.isArray(likedPosts)
+          ? likedPosts.map((item: any) => {
+              if (typeof item === "string") return item;
+              if (item?.post) return String(item.post);
+              if (item?.id) return String(item.id);
+              return String(item);
+            })
+          : [];
+      }
+
+      return Response.json(response);
     }
 
     return Response.json({ user });
@@ -77,41 +97,45 @@ export async function PATCH(request: Request) {
 
     // First get the current user to get their ID
     const currentUser = await payloadClient.me<{ id: string }>(cookies);
-    
+
     if (!currentUser) {
-      return Response.json(
-        { error: "Not authenticated" },
-        { status: 401 },
-      );
+      return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
 
     // Also check by username if provided
     let userId = currentUser.id;
-    
+
     if (body.username && !userId) {
       // Look up user by username
-      const userResult = await payloadClient.find({
-        collection: "users",
-        where: { username: { equals: body.username } },
-        limit: 1,
-      }, cookies);
-      
+      const userResult = await payloadClient.find(
+        {
+          collection: "users",
+          where: { username: { equals: body.username } },
+          limit: 1,
+        },
+        cookies,
+      );
+
       if (userResult.docs && userResult.docs.length > 0) {
         userId = (userResult.docs[0] as { id: string }).id;
       }
     }
 
     if (!userId) {
-      return Response.json(
-        { error: "User not found" },
-        { status: 404 },
-      );
+      return Response.json({ error: "User not found" }, { status: 404 });
     }
 
     // Only allow updating specific fields
-    const allowedFields = ["name", "bio", "avatar", "website", "location", "hashtags"];
+    const allowedFields = [
+      "name",
+      "bio",
+      "avatar",
+      "website",
+      "location",
+      "hashtags",
+    ];
     const updateData: Record<string, unknown> = {};
-    
+
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         updateData[field] = body[field];

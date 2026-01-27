@@ -1,6 +1,6 @@
 /**
  * Follow/Unfollow User API Route
- * 
+ *
  * POST /api/users/follow - Follow or unfollow a user
  */
 
@@ -42,6 +42,21 @@ export async function POST(request: Request) {
     const currentUser = await payloadClient.me(cookies);
     if (!currentUser || !currentUser.id) {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
+    }
+
+    // PHASE 1.3: ENFORCE SELF-FOLLOW PREVENTION
+    // Invariant: User cannot follow themselves
+    if (String(currentUser.id) === String(userId)) {
+      console.error("[API] INVARIANT VIOLATION: Self-follow attempted", {
+        userId: currentUser.id,
+      });
+      return Response.json(
+        {
+          error: "Cannot follow yourself",
+          code: "SELF_FOLLOW_FORBIDDEN",
+        },
+        { status: 409 }, // 409 Conflict - invariant violation
+      );
     }
 
     // Get target user
@@ -103,7 +118,8 @@ export async function POST(request: Request) {
       );
 
       // Update target user's followers count
-      const targetFollowersCount = ((targetUser.followersCount as number) || 0) + 1;
+      const targetFollowersCount =
+        ((targetUser.followersCount as number) || 0) + 1;
       await payloadClient.update(
         {
           collection: "users",

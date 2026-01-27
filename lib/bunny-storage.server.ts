@@ -1,13 +1,26 @@
 /**
  * Server-side Bunny.net Storage utilities
- * 
+ *
  * These functions can only be used in API routes (server-side)
  */
 
-const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE || process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "";
-const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY || process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
-const BUNNY_STORAGE_REGION = process.env.BUNNY_STORAGE_REGION || process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "ny";
-const BUNNY_CDN_URL = process.env.BUNNY_CDN_URL || process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "";
+// CRITICAL: Production fallbacks for all Bunny config - NEVER empty string for required values
+const BUNNY_STORAGE_ZONE =
+  process.env.BUNNY_STORAGE_ZONE ||
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE ||
+  "dvnt";
+const BUNNY_STORAGE_API_KEY =
+  process.env.BUNNY_STORAGE_API_KEY ||
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY
+  
+const BUNNY_STORAGE_REGION =
+  process.env.BUNNY_STORAGE_REGION ||
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION ||
+  "de";
+const BUNNY_CDN_URL =
+  process.env.BUNNY_CDN_URL ||
+  process.env.EXPO_PUBLIC_BUNNY_CDN_URL ||
+  "https://dvnt.b-cdn.net";
 
 // Storage endpoint based on region
 const getStorageEndpoint = () => {
@@ -19,7 +32,7 @@ const getStorageEndpoint = () => {
 
 /**
  * Extract storage path from Bunny CDN URL
- * 
+ *
  * Examples:
  * - https://dvnt.b-cdn.net/stories/2026/01/23/file.jpg -> stories/2026/01/23/file.jpg
  * - https://storage.bunnycdn.com/dvnt/stories/2026/01/23/file.jpg -> stories/2026/01/23/file.jpg
@@ -32,7 +45,7 @@ export function extractStoragePathFromUrl(cdnUrl: string): string | null {
   try {
     // Remove protocol and domain
     let path = cdnUrl;
-    
+
     // Remove CDN URL prefix if present
     if (BUNNY_CDN_URL && cdnUrl.startsWith(BUNNY_CDN_URL)) {
       path = cdnUrl.replace(BUNNY_CDN_URL, "");
@@ -44,7 +57,9 @@ export function extractStoragePathFromUrl(cdnUrl: string): string | null {
         path = bCdnMatch[1];
       } else {
         // Format: https://storage.bunnycdn.com/{zone}/{path}
-        const storageMatch = cdnUrl.match(/storage\.bunnycdn\.com\/[^\/]+\/(.+)$/);
+        const storageMatch = cdnUrl.match(
+          /storage\.bunnycdn\.com\/[^\/]+\/(.+)$/,
+        );
         if (storageMatch) {
           path = storageMatch[1];
         } else {
@@ -120,7 +135,7 @@ export async function deleteMultipleFromBunny(cdnUrls: string[]): Promise<{
   errors: string[];
 }> {
   const results = await Promise.allSettled(
-    cdnUrls.map((url) => deleteFromBunnyByUrl(url))
+    cdnUrls.map((url) => deleteFromBunnyByUrl(url)),
   );
 
   let deleted = 0;

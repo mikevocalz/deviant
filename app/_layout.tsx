@@ -23,8 +23,18 @@ import { Platform } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
+import { validateApiConfig, getApiBaseUrl } from "@/lib/api-config";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 SplashScreen.preventAutoHideAsync();
+
+// CRITICAL: Validate API configuration at app startup - BEFORE any requests
+const API_CONFIG_VALID = validateApiConfig();
+if (!API_CONFIG_VALID) {
+  console.error(
+    "[RootLayout] CRITICAL: API configuration is INVALID. App may not function correctly.",
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,10 +85,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     // Health check to verify network connectivity to API
+    // CRITICAL: Uses canonical API resolver - NEVER inline env vars
     const checkAPIHealth = async () => {
-      const API_URL =
-        process.env.EXPO_PUBLIC_AUTH_URL ||
-        "https://server-zeta-lovat.vercel.app";
+      const API_URL = getApiBaseUrl();
       console.log("[RootLayout] Checking API health at:", API_URL);
       try {
         const res = await fetch(`${API_URL}/api/users?limit=1`);
@@ -136,73 +145,84 @@ export default function RootLayout() {
   console.log("[RootLayout] Showing main app");
 
   return (
-    <GestureHandlerRootView
-      style={{
-        flex: 1,
-        height: "100%",
-        width: "100%",
-        backgroundColor: "#000",
+    <ErrorBoundary
+      screenName="App"
+      onError={(error, errorInfo) => {
+        // Log to crash reporting service
+        console.error("[RootLayout] Global crash caught:", error.message);
       }}
     >
-      <KeyboardProvider>
-        <QueryClientProvider client={queryClient}>
-          <ThemeProvider value={NAV_THEME[colorScheme]}>
-            <Animated.View
-              style={{
-                flex: 1,
-                paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
-              }}
-              entering={FadeIn.duration(800).easing(Easing.out(Easing.cubic))}
-            >
-              <StatusBar backgroundColor="#000" style="light" animated />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: "fade",
-                  animationDuration: 200,
-                  contentStyle: { backgroundColor: "#8a40cf" },
+      <GestureHandlerRootView
+        style={{
+          flex: 1,
+          height: "100%",
+          width: "100%",
+          backgroundColor: "#000",
+        }}
+      >
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <ThemeProvider value={NAV_THEME[colorScheme]}>
+              <Animated.View
+                style={{
+                  flex: 1,
+                  paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
                 }}
+                entering={FadeIn.duration(800).easing(Easing.out(Easing.cubic))}
               >
-                <Stack.Protected guard={!isAuthenticated}>
-                  <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-                </Stack.Protected>
-                <Stack.Protected guard={isAuthenticated}>
-                  <Stack.Screen
-                    name="(protected)"
-                    options={{ animation: "none" }}
-                  />
-                  <Stack.Screen
-                    name="settings"
-                    options={{
-                      headerShown: true,
-                      presentation: "fullScreenModal",
-                      animation: "slide_from_bottom",
-                      animationDuration: 300,
-                      gestureEnabled: true,
-                      gestureDirection: "vertical",
-                    }}
-                  />
-                </Stack.Protected>
-              </Stack>
-            </Animated.View>
-            <PortalHost />
-            <Toaster
-              position="top-center"
-              offset={60}
-              theme="dark"
-              toastOptions={{
-                style: {
-                  backgroundColor: "#1a1a1a",
-                  borderColor: "#333",
-                  borderWidth: 1,
-                },
-                titleStyle: { color: "#fff" },
-                descriptionStyle: { color: "#a1a1aa" },
-              }}
-            />
-          </ThemeProvider>
-        </QueryClientProvider>
-      </KeyboardProvider>
-    </GestureHandlerRootView>
+                <StatusBar backgroundColor="#000" style="light" animated />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: "fade",
+                    animationDuration: 200,
+                    contentStyle: { backgroundColor: "#8a40cf" },
+                  }}
+                >
+                  <Stack.Protected guard={!isAuthenticated}>
+                    <Stack.Screen
+                      name="(auth)"
+                      options={{ animation: "none" }}
+                    />
+                  </Stack.Protected>
+                  <Stack.Protected guard={isAuthenticated}>
+                    <Stack.Screen
+                      name="(protected)"
+                      options={{ animation: "none" }}
+                    />
+                    <Stack.Screen
+                      name="settings"
+                      options={{
+                        headerShown: true,
+                        presentation: "fullScreenModal",
+                        animation: "slide_from_bottom",
+                        animationDuration: 300,
+                        gestureEnabled: true,
+                        gestureDirection: "vertical",
+                      }}
+                    />
+                  </Stack.Protected>
+                </Stack>
+              </Animated.View>
+              <PortalHost />
+              <Toaster
+                position="top-center"
+                offset={60}
+                theme="dark"
+                toastOptions={{
+                  style: {
+                    backgroundColor: "#1a1a1a",
+                    borderColor: "#333",
+                    borderWidth: 1,
+                  },
+                  titleStyle: { color: "#fff" },
+                  descriptionStyle: { color: "#a1a1aa" },
+                }}
+              />
+            </ThemeProvider>
+          </QueryClientProvider>
+        </KeyboardProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

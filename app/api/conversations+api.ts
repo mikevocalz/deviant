@@ -2,7 +2,7 @@
  * Conversations API Route
  *
  * GET  /api/conversations - Get user's conversations
- * POST /api/conversations - Create a new conversation
+ * POST /api/conversations - Create or get existing conversation (idempotent)
  */
 
 import {
@@ -18,6 +18,7 @@ export async function GET(request: Request) {
 
     const limit = parseInt(url.searchParams.get("limit") || "50", 10);
     const page = parseInt(url.searchParams.get("page") || "1", 10);
+    const type = url.searchParams.get("type"); // 'direct' | 'group' | null
 
     // Parse where filter if provided
     let where: Record<string, unknown> | undefined;
@@ -31,6 +32,14 @@ export async function GET(request: Request) {
           { status: 400 },
         );
       }
+    }
+
+    // Add type filter if specified
+    if (type && (type === "direct" || type === "group")) {
+      where = {
+        ...where,
+        type: { equals: type },
+      };
     }
 
     const result = await payloadClient.find(
@@ -71,18 +80,104 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await payloadClient.create(
-      {
-        collection: "conversations",
-        data: body,
-        depth: 2,
-      },
-      cookies,
-    );
+    // Normalize participant IDs
+    const participantIds = body.participants
+      .map((p: string | { id: string }) => (typeof p === "object" ? p.id : p))
+      .filter(Boolean);
 
-    return Response.json(result, { status: 201 });
-  } catch (error) {
+    if (participantIds.length < 2) {
+      return Response.json(
+        { error: "At least 2 participants required" },
+        { status: 400 },
+      );
+    }
+
+    // IDEMPOTENT: For direct conversations, check if one already exists
+    const isGroup = body.isGroup === true || participantIds.length > 2;
+
+    if (!isGroup && participantIds.length === 2) {
+      console.log("[API] Checking for existing direct conversation...");
+
+      // Sort IDs for consistent lookup
+      const [user1, user2] = [...participantIds].sort();
+
+      const existing = await payloadClient.find(
+        {
+          collection: "conversations",
+          where: {
+            and: [
+              { type: { equals: "direct" } },
+              { participants: { contains: user1 } },
+              { participants: { contains: user2 } },
+            ],
+          },
+          depth: 2,
+          limit: 1,
+        },
+        cookies,
+      );
+
+      if (existing.docs && existing.docs.length > 0) {
+        console.log(
+          "[API] Returning existing conversation:",
+          existing.docs[0].id,
+        );
+        return Response.json(existing.docs[0], { status: 200 });
+      }
+    }
+
+    // Create new conversation
+    console.log("[API] Creating new conversation:", {
+      participantCount: participantIds.length,
+      isGroup,
+    });
+
+    try {
+      const result = await payloadClient.create(
+        {
+          collection: "conversations",
+          data: {
+            ...body,
+            participants: participantIds,
+            type: isGroup ? "group" : "direct",
+            isGroup,
+          },
+          depth: 2,
+        },
+        cookies,
+      );
+
+      return Response.json(result, { status: 201 });
+    } catch (createError: any) {
+      // Handle duplicate conversation error (409)
+      if (createError.status === 409 && createError.existingId) {
+        console.log(
+          "[API] Duplicate detected, fetching existing:",
+          createError.existingId,
+        );
+        const existing = await payloadClient.findByID(
+          {
+            collection: "conversations",
+            id: createError.existingId,
+            depth: 2,
+          },
+          cookies,
+        );
+        return Response.json(existing, { status: 200 });
+      }
+      throw createError;
+    }
+  } catch (error: any) {
     console.error("[API] POST /api/conversations error:", error);
+
+    // Return appropriate status code
+    if (error.status) {
+      return Response.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+
     return createErrorResponse(error);
   }
 }

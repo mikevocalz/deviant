@@ -20,7 +20,16 @@ export async function GET(request: Request) {
     const page = parseInt(url.searchParams.get("page") || "1", 10);
     const depth = parseInt(url.searchParams.get("depth") || "2", 10);
 
-    // Stories typically sorted by most recent, with active stories first
+    // PHASE 1.5: ENFORCE STORY EXPIRY FILTER
+    // Invariant: Stories expire after 24 hours - NEVER return expired stories
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    console.log("[API] Fetching stories with expiry filter:", {
+      now: now.toISOString(),
+      cutoff: twentyFourHoursAgo.toISOString(),
+    });
+
     const result = await payloadClient.find(
       {
         collection: "stories",
@@ -29,16 +38,21 @@ export async function GET(request: Request) {
         depth,
         sort: "-createdAt",
         where: {
-          // Only fetch stories that haven't expired (24 hours)
+          // INVARIANT: Only fetch stories created within last 24 hours
+          // This is the PRIMARY filter - cleanup job is secondary
           createdAt: {
-            greater_than: new Date(
-              Date.now() - 24 * 60 * 60 * 1000,
-            ).toISOString(),
+            greater_than: twentyFourHoursAgo.toISOString(),
           },
         },
       },
       cookies,
     );
+
+    // Log for monitoring
+    console.log("[API] Stories returned:", {
+      total: result.docs?.length || 0,
+      hasMore: result.hasNextPage,
+    });
 
     return Response.json(result);
   } catch (error) {
@@ -61,16 +75,19 @@ export async function POST(request: Request) {
 
     // Handle author ID - client already looks up Payload CMS ID, so trust it if provided
     let storyData = { ...body };
-    
+
     // If authorUsername is provided, look up the Payload CMS ID (for backwards compatibility)
     if (body.authorUsername) {
       try {
-        const userResult = await payloadClient.find({
-          collection: "users",
-          where: { username: { equals: body.authorUsername } },
-          limit: 1,
-        }, cookies);
-        
+        const userResult = await payloadClient.find(
+          {
+            collection: "users",
+            where: { username: { equals: body.authorUsername } },
+            limit: 1,
+          },
+          cookies,
+        );
+
         if (userResult.docs && userResult.docs.length > 0) {
           storyData.author = (userResult.docs[0] as { id: string }).id;
           console.log("[API] Found author by username:", storyData.author);
@@ -80,7 +97,7 @@ export async function POST(request: Request) {
       }
       delete storyData.authorUsername;
     }
-    
+
     // If author is provided but not a valid ObjectId format, try to look it up
     // Otherwise, trust the client-provided author ID (already a Payload CMS ID)
     if (storyData.author) {

@@ -3,8 +3,10 @@
  */
 
 import { users } from "@/lib/api-client";
+import { getApiBaseUrl } from "@/lib/api-config";
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+// CRITICAL: Use canonical API URL resolver - NEVER empty string fallback
+const API_BASE_URL = getApiBaseUrl();
 
 async function bookmarkFetch<T>(
   endpoint: string,

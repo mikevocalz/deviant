@@ -16,7 +16,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store";
 import { useLikePost } from "@/lib/hooks/use-posts";
 import { useComments } from "@/lib/hooks/use-comments";
-import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+// STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -27,6 +27,7 @@ import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { PostCaption } from "@/components/post-caption";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -65,50 +66,17 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const {
-    isPostLiked,
-    toggleLike,
-    getLikeCount,
-    getCommentCount,
-    postLikeCounts,
-    postCommentCounts,
-  } = usePostStore();
-  const bookmarkStore = useBookmarkStore();
+  // STABILIZED: Only use isPostLiked for boolean check
+  // Counts come from server via props, NOT from store
+  const { isPostLiked, getCommentCount, postCommentCounts } = usePostStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const likePostMutation = useLikePost();
 
-  // Sync bookmarks from API to local store on mount
-  useEffect(() => {
-    if (bookmarkedPostIds.length > 0) {
-      // Update local store to match API state
-      const currentBookmarks = bookmarkStore.getBookmarkedPostIds();
-      const missingBookmarks = bookmarkedPostIds.filter(
-        (id) => !currentBookmarks.includes(id),
-      );
-      const extraBookmarks = currentBookmarks.filter(
-        (id) => !bookmarkedPostIds.includes(id),
-      );
-
-      // Add missing bookmarks
-      missingBookmarks.forEach((id) => {
-        if (!bookmarkStore.isBookmarked(id)) {
-          bookmarkStore.toggleBookmark(id);
-        }
-      });
-
-      // Remove extra bookmarks
-      extraBookmarks.forEach((id) => {
-        if (bookmarkStore.isBookmarked(id)) {
-          bookmarkStore.toggleBookmark(id);
-        }
-      });
-    }
-  }, [bookmarkedPostIds]);
-
-  const isBookmarked =
-    bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
+  // STABILIZED: Bookmark state comes from server ONLY via React Query
+  // No local store sync needed - bookmarkedPostIds is the single source of truth
+  const isBookmarked = bookmarkedPostIds.includes(id);
   // Fetch last 3 comments for feed display
   const { data: recentCommentsData = [], refetch: refetchComments } =
     useComments(id, 3);
@@ -274,10 +242,12 @@ function FeedPostComponent({
 
   const isLiked = isPostLiked(id);
   const isSaved = isBookmarked; // isBookmarked is already a boolean from line 99
-  // Subscribe to like counts to trigger re-renders when they change
-  const storedLikeCount = postLikeCounts[id];
-  const likeCount = storedLikeCount !== undefined ? storedLikeCount : likes;
-  // Subscribe to comment counts to trigger re-renders when they change
+
+  // STABILIZED: Like count comes from server via props ONLY
+  // No client-side count manipulation
+  const likeCount = likes;
+
+  // Comment counts can be tracked for UI updates
   const storedCommentCount = postCommentCounts[id];
   const commentCount =
     storedCommentCount !== undefined ? storedCommentCount : comments;
@@ -291,35 +261,26 @@ function FeedPostComponent({
   }, [commentCount, recentComments.length, refetchComments, id]);
 
   const handleLike = useCallback(() => {
+    // CRITICAL: Block if mutation already pending for this post
+    if (likePostMutation.isPostPending(id)) {
+      console.log(`[FeedPost] Like blocked - mutation pending for ${id}`);
+      return;
+    }
+
     const wasLiked = isPostLiked(id);
     setLikeAnimating(id, true);
-    // NOTE: Don't call toggleLike here - useLikePost mutation handles optimistic updates
-    // and will rollback on error. Calling toggleLike here would cause double-toggle.
-    likePostMutation.mutate(
-      { postId: id, isLiked: wasLiked },
-      {
-        onSettled: () => {
-          setTimeout(() => setLikeAnimating(id, false), 300);
-        },
-      },
-    );
+
+    // STABILIZED: No optimistic updates - wait for server
+    // Animation clears after delay regardless of result
+    likePostMutation.mutate({ postId: id, isLiked: wasLiked });
+    setTimeout(() => setLikeAnimating(id, false), 300);
   }, [id, isPostLiked, setLikeAnimating, likePostMutation]);
 
   const handleSave = useCallback(() => {
-    const currentBookmarked = isSaved; // Use isSaved which is the boolean value
-    // Optimistically update local store
-    bookmarkStore.toggleBookmark(id);
-    // Sync with backend
-    toggleBookmarkMutation.mutate(
-      { postId: id, isBookmarked: currentBookmarked },
-      {
-        onError: () => {
-          // Rollback on error
-          bookmarkStore.toggleBookmark(id);
-        },
-      },
-    );
-  }, [id, isSaved, bookmarkStore, toggleBookmarkMutation]);
+    // STABILIZED: No dual state - only call mutation
+    // Server response will update React Query cache via useBookmarks
+    toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
+  }, [id, isSaved, toggleBookmarkMutation]);
 
   const handleShare = useCallback(async () => {
     try {
@@ -388,11 +349,13 @@ function FeedPostComponent({
             </Pressable>
             <View>
               <View className="flex-row items-center gap-1">
-                <Pressable onPress={handleProfilePress}>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {author?.username || "Unknown User"}
-                  </Text>
-                </Pressable>
+                {author?.username && (
+                  <Pressable onPress={handleProfilePress}>
+                    <Text className="text-sm font-semibold text-foreground">
+                      {author.username}
+                    </Text>
+                  </Pressable>
+                )}
                 {isNSFW && (
                   <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-[#FC253A]">
                     <Text className="text-[8px] text-white">✓</Text>
@@ -559,7 +522,10 @@ function FeedPostComponent({
 
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-4">
-            <Pressable onPress={handleLike}>
+            <Pressable
+              onPress={handleLike}
+              disabled={likePostMutation.isPostPending(id)}
+            >
               <Motion.View
                 animate={{
                   scale: likeAnimating ? 1.3 : 1,
@@ -615,15 +581,19 @@ function FeedPostComponent({
           </Pressable>
         </View>
 
+        {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
-          <Text className="text-sm font-semibold">
+          <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
             {likeCount.toLocaleString()} likes
           </Text>
-          {caption && (
-            <View className="mt-1">
-              <HashtagText
-                text={`${author?.username || "Unknown User"} ${caption}`}
-                textStyle={{ fontSize: 14 }}
+          {/* CRITICAL: Caption renders only if content exists, no empty gaps */}
+          {caption && caption.trim().length > 0 && author?.username && (
+            <View style={{ marginTop: 4 }}>
+              <PostCaption
+                username={author.username}
+                caption={caption}
+                fontSize={14}
+                onUsernamePress={handleProfilePress}
               />
             </View>
           )}
@@ -631,7 +601,7 @@ function FeedPostComponent({
             <>
               {/* Show last 3 comments */}
               {recentComments.length > 0 && (
-                <View className="mt-2 gap-1">
+                <View className="mt-1 gap-1">
                   {recentComments.map((comment) => (
                     <Pressable
                       key={comment.id}
@@ -644,7 +614,7 @@ function FeedPostComponent({
                       <Text className="text-sm text-foreground">
                         <Text className="font-semibold text-foreground">
                           {comment.username}
-                        </Text>{" "}
+                        </Text>
                         <Text className="text-foreground">{comment.text}</Text>
                       </Text>
                     </Pressable>

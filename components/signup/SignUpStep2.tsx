@@ -33,6 +33,11 @@ import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
 import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner-native";
+import {
+  validateDateOfBirth,
+  UNDERAGE_ERROR_MESSAGE,
+  AGE_VERIFICATION_FAILED_MESSAGE,
+} from "@/lib/utils/age-verification";
 
 export function SignUpStep2() {
   const {
@@ -161,7 +166,10 @@ export function SignUpStep2() {
         errorMsg = error.error.message;
       }
 
-      if (errorMsg.includes("already exists") || errorMsg.includes("duplicate")) {
+      if (
+        errorMsg.includes("already exists") ||
+        errorMsg.includes("duplicate")
+      ) {
         errorMsg = "This email or username is already registered";
       }
 
@@ -221,22 +229,14 @@ export function SignUpStep2() {
     }
   }, [faceImageUri]);
 
+  /**
+   * CRITICAL: Age check using centralized validation
+   * Returns true if 18+, false if under 18, null if invalid
+   */
   function checkAge(dobString: string): boolean | null {
-    try {
-      const dob = new Date(dobString);
-      const today = new Date();
-      let age = today.getFullYear() - dob.getFullYear();
-      const monthDiff = today.getMonth() - dob.getMonth();
-      if (
-        monthDiff < 0 ||
-        (monthDiff === 0 && today.getDate() < dob.getDate())
-      ) {
-        age--;
-      }
-      return age >= 18;
-    } catch {
-      return null;
-    }
+    const result = validateDateOfBirth(dobString);
+    if (!result.isValid) return null;
+    return result.isOver18;
   }
 
   const checkAndRequestPermissions = async () => {
@@ -613,7 +613,7 @@ export function SignUpStep2() {
               Verification Successful
             </Text>
             <Text className="text-sm text-white/80">
-              Your identity has been verified successfully - 
+              Your identity has been verified successfully -
               {matchConfidence &&
                 ` with ${matchConfidence.toFixed(1)}% confidence.`}
             </Text>
@@ -638,7 +638,9 @@ export function SignUpStep2() {
           <Text className="mr-3 text-primary-foreground">
             {isSubmitting ? "Creating..." : "Complete Signup"}
           </Text>
-          {!isSubmitting && <ArrowRight size={16} className="text-primary-foreground ml-2" />}
+          {!isSubmitting && (
+            <ArrowRight size={16} className="text-primary-foreground ml-2" />
+          )}
         </Button>
       </View>
     </ScrollView>

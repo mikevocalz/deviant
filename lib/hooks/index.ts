@@ -7,6 +7,7 @@ export {
   useProfilePosts,
   usePost,
   useLikePost,
+  useSyncLikedPosts,
   useCreatePost,
   useDeletePost,
 } from "./use-posts";

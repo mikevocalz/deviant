@@ -17,6 +17,8 @@ interface IDVerification {
   isVerified: boolean;
   extractedDOB: string | null;
   isOver18: boolean | null;
+  // CRITICAL: Age block flag - if true, user cannot proceed
+  isAgeBlocked: boolean;
 }
 
 interface SignupStore {
@@ -55,6 +57,7 @@ const initialIdVerification: IDVerification = {
   isVerified: false,
   extractedDOB: null,
   isOver18: null,
+  isAgeBlocked: false,
 };
 
 export const useSignupStore = create<SignupStore>((set) => ({

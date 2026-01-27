@@ -14,6 +14,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { shareProfile } from "@/lib/utils/sharing";
 import { SharedImage } from "@/components/shared-image";
 import { Motion } from "@legendapp/motion";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 import { useCallback, memo, useState, useMemo, useEffect } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
@@ -305,13 +306,14 @@ function UserProfileScreenComponent() {
   }, [userData?.isFollowing]);
 
   // Use API data or fallback to mock data
+  // CRITICAL: Never show "Unknown User" - use the username param as the name
   const user = (userData ||
     mockUsers[username || ""] || {
       id: undefined,
-      username: username || "unknown",
-      fullName: "Unknown User",
-      name: "Unknown User",
-      avatar: "https://i.pravatar.cc/150?img=1",
+      username: username || "",
+      fullName: username || "",
+      name: username || "",
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(username || "U")}`,
       bio: "",
       postsCount: 0,
       followersCount: 0,
@@ -613,4 +615,18 @@ const styles = StyleSheet.create({
   },
 });
 
-export default memo(UserProfileScreenComponent);
+// Wrap with ErrorBoundary for crash protection
+function UserProfileScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="Profile"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <UserProfileScreenComponent />
+    </ErrorBoundary>
+  );
+}
+
+export default memo(UserProfileScreen);

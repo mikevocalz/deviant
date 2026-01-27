@@ -11,15 +11,20 @@ import { Platform } from "react-native";
 // Use legacy FileSystem APIs (v19+ moved to new class-based API)
 const FileSystem = LegacyFileSystem;
 
+// CRITICAL: Import canonical URL resolver
+import { getCdnBaseUrl } from "@/lib/api-config";
+
 // Storage zone configuration from environment
-// Non-sensitive values have safe fallbacks, API key must come from env
+// Non-sensitive values have safe production fallbacks
 const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "dvnt";
-const BUNNY_STORAGE_API_KEY =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
 const BUNNY_STORAGE_REGION =
   process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "de";
-const BUNNY_CDN_URL =
-  process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
+// CRITICAL: Use canonical CDN URL resolver - NEVER empty string
+const BUNNY_CDN_URL = getCdnBaseUrl();
+
+// API key - required for uploads, but we don't fail if missing (uploads will fail gracefully)
+const BUNNY_STORAGE_API_KEY =
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
 
 // Log config at module load for debugging
 console.log(

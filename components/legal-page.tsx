@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, Text, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
@@ -246,11 +241,14 @@ export function LegalPage({ slug, title }: LegalPageProps) {
               }
             })}
 
-            {page?.faqs && page.faqs.length > 0 && (
-              <View className="mt-6">
-                <FAQSection faqs={page.faqs} />
-              </View>
-            )}
+            {/* FAQs only exist on the FAQ page */}
+            {"faqs" in page &&
+              Array.isArray((page as any).faqs) &&
+              (page as any).faqs.length > 0 && (
+                <View className="mt-6">
+                  <FAQSection faqs={(page as any).faqs} />
+                </View>
+              )}
 
             <View className="mt-8 rounded-xl border border-primary/20 bg-primary/5 p-4">
               <Text className="mb-2 font-semibold text-foreground">

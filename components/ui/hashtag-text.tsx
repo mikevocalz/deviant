@@ -1,6 +1,6 @@
 /**
  * Hashtag Text Component
- * 
+ *
  * Renders text with clickable hashtag badges (like Instagram)
  */
 
@@ -17,6 +17,7 @@ interface HashtagTextProps {
   onHashtagPress?: (hashtag: string) => void;
   style?: any;
   textStyle?: any;
+  color?: string; // Explicit text color - REQUIRED for visibility
 }
 
 interface TextPart {
@@ -25,11 +26,15 @@ interface TextPart {
   value: string; // hashtag without #, mention without @
 }
 
+// Default text color for visibility on dark backgrounds
+const DEFAULT_TEXT_COLOR = "rgb(255, 255, 255)";
+
 export function HashtagText({
   text,
   onHashtagPress,
   style,
   textStyle,
+  color = DEFAULT_TEXT_COLOR,
 }: HashtagTextProps) {
   const router = useRouter();
 
@@ -103,7 +108,7 @@ export function HashtagText({
   if (!text) return null;
 
   return (
-    <Text style={[styles.container, style, textStyle]}>
+    <Text style={[styles.container, style, textStyle, { color }]}>
       {parts.map((part, index) => {
         if (part.type === "hashtag") {
           return (
@@ -113,11 +118,7 @@ export function HashtagText({
               hitSlop={4}
             >
               <Text
-                style={[
-                  styles.hashtag,
-                  { color: HASHTAG_COLOR },
-                  textStyle,
-                ]}
+                style={[styles.hashtag, { color: HASHTAG_COLOR }, textStyle]}
               >
                 {part.content}
               </Text>
@@ -131,19 +132,16 @@ export function HashtagText({
               hitSlop={4}
             >
               <Text
-                style={[
-                  styles.mention,
-                  { color: MENTION_COLOR },
-                  textStyle,
-                ]}
+                style={[styles.mention, { color: MENTION_COLOR }, textStyle]}
               >
                 {part.content}
               </Text>
             </Pressable>
           );
         } else {
+          // CRITICAL: Explicit color for regular text to ensure visibility
           return (
-            <Text key={index} style={textStyle}>
+            <Text key={index} style={[textStyle, { color }]}>
               {part.content}
             </Text>
           );

@@ -93,7 +93,9 @@ export default function EventOrganizerScreen() {
     });
   };
 
-  const checkedInCount = eventTickets.filter((t) => t.status === "checked_in").length;
+  const checkedInCount = eventTickets.filter(
+    (t) => t.status === "checked_in",
+  ).length;
   const totalCount = eventTickets.length;
 
   if (showScanner) {
@@ -107,7 +109,10 @@ export default function EventOrganizerScreen() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: colors.background }}>
+    <SafeAreaView
+      edges={["top"]}
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
       {/* Header */}
       <View
         style={{
@@ -147,10 +152,22 @@ export default function EventOrganizerScreen() {
         }}
       >
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: colors.foreground }}>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "bold",
+              color: colors.foreground,
+            }}
+          >
             {totalCount}
           </Text>
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.mutedForeground,
+              marginTop: 4,
+            }}
+          >
             Total Tickets
           </Text>
         </View>
@@ -159,16 +176,30 @@ export default function EventOrganizerScreen() {
           <Text style={{ fontSize: 24, fontWeight: "bold", color: "#22c55e" }}>
             {checkedInCount}
           </Text>
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.mutedForeground,
+              marginTop: 4,
+            }}
+          >
             Checked In
           </Text>
         </View>
         <View style={{ width: 1, backgroundColor: colors.border }} />
         <View style={{ flex: 1, alignItems: "center" }}>
-          <Text style={{ fontSize: 24, fontWeight: "bold", color: colors.primary }}>
+          <Text
+            style={{ fontSize: 24, fontWeight: "bold", color: colors.primary }}
+          >
             {totalCount - checkedInCount}
           </Text>
-          <Text style={{ fontSize: 12, color: colors.mutedForeground, marginTop: 4 }}>
+          <Text
+            style={{
+              fontSize: 12,
+              color: colors.mutedForeground,
+              marginTop: 4,
+            }}
+          >
             Remaining
           </Text>
         </View>
@@ -197,14 +228,19 @@ export default function EventOrganizerScreen() {
 
       {/* Tickets List */}
       {isLoading ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <ScrollView
           style={{ flex: 1 }}
           refreshControl={
-            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} />
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+            />
           }
         >
           {eventTickets.length === 0 ? (
@@ -241,7 +277,13 @@ export default function EventOrganizerScreen() {
                       marginBottom: 12,
                     }}
                   >
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
                       <View
                         style={{
                           width: 40,
@@ -262,9 +304,16 @@ export default function EventOrganizerScreen() {
                             color: colors.foreground,
                           }}
                         >
-                          {ticket.user?.name || ticket.user?.username || "Unknown User"}
+                          {ticket.user?.name ||
+                            ticket.user?.username ||
+                            "Guest"}
                         </Text>
-                        <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            color: colors.mutedForeground,
+                          }}
+                        >
                           {ticket.id}
                         </Text>
                       </View>
@@ -283,7 +332,13 @@ export default function EventOrganizerScreen() {
                         }}
                       >
                         <CheckCircle size={16} color="#22c55e" />
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#22c55e" }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: "#22c55e",
+                          }}
+                        >
                           Checked In
                         </Text>
                       </View>
@@ -300,7 +355,13 @@ export default function EventOrganizerScreen() {
                         }}
                       >
                         <XCircle size={16} color="#ef4444" />
-                        <Text style={{ fontSize: 12, fontWeight: "600", color: "#ef4444" }}>
+                        <Text
+                          style={{
+                            fontSize: 12,
+                            fontWeight: "600",
+                            color: "#ef4444",
+                          }}
+                        >
                           Revoked
                         </Text>
                       </View>
@@ -331,7 +392,9 @@ export default function EventOrganizerScreen() {
                   </View>
 
                   {ticket.checkedInAt && (
-                    <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
+                    <Text
+                      style={{ fontSize: 12, color: colors.mutedForeground }}
+                    >
                       Checked in: {formatDate(ticket.checkedInAt)}
                     </Text>
                   )}

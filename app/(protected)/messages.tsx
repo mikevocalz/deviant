@@ -23,6 +23,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 
 interface ConversationItem {
   id: string;
@@ -148,6 +150,12 @@ export default function MessagesScreen() {
   const { loadingScreens, setScreenLoading } = useUIStore();
   const isLoading = loadingScreens.messages;
   const currentUser = useAuthStore((s) => s.user);
+
+  // Get unread counts from unified store
+  // messagesUnread = Inbox only (from followed users)
+  // spamUnread = Spam only (NOT shown in Messages badge)
+  const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
+    useUnreadMessageCount();
 
   // Separate state for Inbox and Spam
   const [inboxConversations, setInboxConversations] = useState<
@@ -288,10 +296,10 @@ export default function MessagesScreen() {
           >
             Inbox
           </Text>
-          {inboxConversations.length > 0 && (
+          {inboxUnreadCount > 0 && (
             <View className="bg-primary rounded-full px-2 py-0.5 min-w-[20px] items-center">
               <Text className="text-xs text-white font-bold">
-                {inboxConversations.length}
+                {inboxUnreadCount}
               </Text>
             </View>
           )}
@@ -314,10 +322,10 @@ export default function MessagesScreen() {
           >
             Requests
           </Text>
-          {spamConversations.length > 0 && (
+          {spamUnreadCount > 0 && (
             <View className="bg-muted-foreground rounded-full px-2 py-0.5 min-w-[20px] items-center">
               <Text className="text-xs text-white font-bold">
-                {spamConversations.length}
+                {spamUnreadCount}
               </Text>
             </View>
           )}

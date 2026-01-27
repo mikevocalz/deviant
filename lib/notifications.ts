@@ -99,8 +99,13 @@ export async function registerForPushNotificationsAsync(): Promise<
     // Handle Firebase initialization errors gracefully
     // This can happen on Android if Firebase isn't configured, but Expo push notifications
     // will still work via Expo's service
-    if (error?.message?.includes("FirebaseApp") || error?.code === "E_REGISTRATION_FAILED") {
-      console.log("[Notifications] Firebase not initialized - using Expo push service only");
+    if (
+      error?.message?.includes("FirebaseApp") ||
+      error?.code === "E_REGISTRATION_FAILED"
+    ) {
+      console.log(
+        "[Notifications] Firebase not initialized - using Expo push service only",
+      );
       // Try to continue without FCM - Expo push notifications will still work
       return null;
     }
@@ -130,7 +135,11 @@ export async function savePushTokenToBackend(
   username?: string,
 ): Promise<boolean> {
   try {
-    const response = await fetch("/api/push-token", {
+    // CRITICAL: Use canonical API URL - NEVER relative URLs on mobile
+    const { getApiBaseUrl } = await import("@/lib/api-config");
+    const API_BASE_URL = getApiBaseUrl();
+
+    const response = await fetch(`${API_BASE_URL}/api/push-token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

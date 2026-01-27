@@ -1,124 +1,156 @@
+import {
+  View,
+  Text,
+  Pressable,
+  Dimensions,
+  TextInput,
+  Keyboard,
+  Platform,
+} from "react-native";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import { Image } from "expo-image";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { X, Send } from "lucide-react-native";
+import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  runOnJS,
+  SharedValue,
+  cancelAnimation,
+} from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useStoryViewerStore } from "@/lib/stores/comments-store";
+import { VideoSeekBar } from "@/components/video-seek-bar";
+import { useStories } from "@/lib/hooks/use-stories";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { messagesApiClient } from "@/lib/api/messages";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { users } from "@/lib/api-client";
 
-import { View, Text, Pressable, Dimensions, TextInput, Keyboard, Platform } from "react-native"
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
-import { Image } from "expo-image"
-import { VideoView, useVideoPlayer } from "expo-video"
-import { X, Send } from "lucide-react-native"
-import { useEffect, useCallback, useRef, useState, useMemo } from "react"
-import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue, cancelAnimation } from "react-native-reanimated"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { KeyboardAvoidingView } from "react-native-keyboard-controller"
-import { useStoryViewerStore } from "@/lib/stores/comments-store"
-import { VideoSeekBar } from "@/components/video-seek-bar"
-import { useStories } from "@/lib/hooks/use-stories"
-import { useAuthStore } from "@/lib/stores/auth-store"
-import { messagesApiClient } from "@/lib/api/messages"
-import { useUIStore } from "@/lib/stores/ui-store"
-import { users } from "@/lib/api-client"
-
-const { width, height } = Dimensions.get("window")
-const LONG_PRESS_DELAY = 300
+const { width, height } = Dimensions.get("window");
+const LONG_PRESS_DELAY = 300;
 
 function ProgressBar({ progress }: { progress: SharedValue<number> }) {
   const animatedStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%`,
     height: "100%",
     backgroundColor: "#fff",
-  }))
+  }));
 
-  return <Animated.View style={animatedStyle} />
+  return <Animated.View style={animatedStyle} />;
 }
 
 export default function StoryViewerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>()
-  const router = useRouter()
-  const { currentStoryId, currentItemIndex, setCurrentStoryId, setCurrentItemIndex } = useStoryViewerStore()
-  const insets = useSafeAreaInsets()
-  const progress = useSharedValue(0)
-  const [showSeekBar, setShowSeekBar] = useState(false)
-  const [videoCurrentTime, setVideoCurrentTime] = useState(0)
-  const [videoDuration, setVideoDuration] = useState(0)
-  const [replyText, setReplyText] = useState("")
-  const [isSendingReply, setIsSendingReply] = useState(false)
-  const [isInputFocused, setIsInputFocused] = useState(false)
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null)
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isPaused = useRef(false)
-  const hasAdvanced = useRef(false)
-  const isExiting = useRef(false)
-  const hasNavigatedAway = useRef(false)
-  const handleNextRef = useRef<() => void>(() => {})
-  
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
+  const {
+    currentStoryId,
+    currentItemIndex,
+    setCurrentStoryId,
+    setCurrentItemIndex,
+  } = useStoryViewerStore();
+  const insets = useSafeAreaInsets();
+  const progress = useSharedValue(0);
+  const [showSeekBar, setShowSeekBar] = useState(false);
+  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [replyText, setReplyText] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isPaused = useRef(false);
+  const hasAdvanced = useRef(false);
+  const isExiting = useRef(false);
+  const hasNavigatedAway = useRef(false);
+  const handleNextRef = useRef<() => void>(() => {});
+
   // Auth and utilities
-  const { user: currentUser } = useAuthStore()
-  const showToast = useUIStore((s) => s.showToast)
+  const { user: currentUser } = useAuthStore();
+  const showToast = useUIStore((s) => s.showToast);
 
   // Fetch real stories from API
-  const { data: storiesData = [], isLoading } = useStories()
+  const { data: storiesData = [], isLoading } = useStories();
 
   useEffect(() => {
     if (id && currentStoryId !== id) {
-      setCurrentStoryId(id)
+      setCurrentStoryId(id);
     }
-  }, [id, currentStoryId, setCurrentStoryId])
+  }, [id, currentStoryId, setCurrentStoryId]);
 
   // Filter stories that have content
-  const availableStories = storiesData.filter((s) => s.items && s.items.length > 0)
+  const availableStories = storiesData.filter(
+    (s) => s.items && s.items.length > 0,
+  );
   // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
-  const currentStoryIndex = availableStories.findIndex((s) => String(s.id) === String(currentStoryId))
-  const story = availableStories[currentStoryIndex]
-  const currentItem = story?.items?.[currentItemIndex]
-  
+  const currentStoryIndex = availableStories.findIndex(
+    (s) => String(s.id) === String(currentStoryId),
+  );
+  const story = availableStories[currentStoryIndex];
+  const currentItem = story?.items?.[currentItemIndex];
+
   // Debug story lookup
   useEffect(() => {
     console.log("[StoryViewer] Story lookup:", {
       urlId: id,
       currentStoryId,
       availableStoriesCount: availableStories.length,
-      availableStoryIds: availableStories.map(s => s.id),
+      availableStoryIds: availableStories.map((s) => s.id),
       foundIndex: currentStoryIndex,
       hasStory: !!story,
       hasItems: story?.items?.length || 0,
       userId: story?.userId,
       username: story?.username,
-    })
-  }, [id, currentStoryId, availableStories.length, currentStoryIndex, story])
+    });
+  }, [id, currentStoryId, availableStories.length, currentStoryIndex, story]);
 
   // If story has username but no userId, look it up
   useEffect(() => {
     if (story?.userId) {
       // Already have userId, use it
-      setResolvedUserId(story.userId)
+      setResolvedUserId(story.userId);
     } else if (story?.username) {
       // No userId but have username, look it up
-      console.log("[StoryViewer] Looking up userId for username:", story.username)
-      users.find({
-        where: { username: { equals: story.username } },
-        limit: 1,
-      }).then((result) => {
-        if (result.docs && result.docs.length > 0) {
-          const foundUserId = (result.docs[0] as { id: string }).id
-          console.log("[StoryViewer] Found userId:", foundUserId)
-          setResolvedUserId(foundUserId)
-        } else {
-          console.warn("[StoryViewer] User not found for username:", story.username)
-          setResolvedUserId(null)
-        }
-      }).catch((error) => {
-        console.error("[StoryViewer] Error looking up userId:", error)
-        setResolvedUserId(null)
-      })
+      console.log(
+        "[StoryViewer] Looking up userId for username:",
+        story.username,
+      );
+      users
+        .find({
+          where: { username: { equals: story.username } },
+          limit: 1,
+        })
+        .then((result) => {
+          if (result.docs && result.docs.length > 0) {
+            const foundUserId = (result.docs[0] as { id: string }).id;
+            console.log("[StoryViewer] Found userId:", foundUserId);
+            setResolvedUserId(foundUserId);
+          } else {
+            console.warn(
+              "[StoryViewer] User not found for username:",
+              story.username,
+            );
+            setResolvedUserId(null);
+          }
+        })
+        .catch((error) => {
+          console.error("[StoryViewer] Error looking up userId:", error);
+          setResolvedUserId(null);
+        });
     } else {
-      setResolvedUserId(null)
+      setResolvedUserId(null);
     }
-  }, [story?.userId, story?.username])
+  }, [story?.userId, story?.username]);
 
-  const hasNextUser = currentStoryIndex < availableStories.length - 1
-  const hasPrevUser = currentStoryIndex > 0
+  const hasNextUser = currentStoryIndex < availableStories.length - 1;
+  const hasPrevUser = currentStoryIndex > 0;
 
-  const isVideo = currentItem?.type === "video"
-  const isImage = currentItem?.type === "image"
-  
+  const isVideo = currentItem?.type === "video";
+  const isImage = currentItem?.type === "image";
+
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
     if (isVideo && currentItem?.url) {
@@ -130,7 +162,7 @@ export default function StoryViewerScreen() {
     }
     return "";
   }, [isVideo, currentItem?.url]);
-  
+
   // Debug logging for story items
   useEffect(() => {
     if (currentItem) {
@@ -138,249 +170,290 @@ export default function StoryViewerScreen() {
         type: currentItem.type,
         url: currentItem.url,
         hasUrl: !!currentItem.url,
-        isValidUrl: currentItem.url ? (currentItem.url.startsWith("http://") || currentItem.url.startsWith("https://")) : false,
+        isValidUrl: currentItem.url
+          ? currentItem.url.startsWith("http://") ||
+            currentItem.url.startsWith("https://")
+          : false,
         isImage,
         isVideo,
       });
     }
-  }, [currentItem, isImage, isVideo])
+  }, [currentItem, isImage, isVideo]);
 
   const player = useVideoPlayer(videoUrl, (player) => {
     if (player && videoUrl) {
       try {
-        player.loop = false
-        player.muted = false
+        player.loop = false;
+        player.muted = false;
         // Don't play immediately in callback - wait for VideoView to mount
       } catch (error) {
         console.error("[StoryViewer] Error configuring player:", error);
       }
     }
-  })
+  });
 
   // Wrapper function that calls the ref - this ensures we always use the latest handleNext
   const callHandleNext = useCallback(() => {
-    handleNextRef.current()
-  }, [])
-  
+    handleNextRef.current();
+  }, []);
+
   // Play video when it's ready and VideoView is mounted
   useEffect(() => {
-    if (!isVideo || !player || !videoUrl) return
-    if (isExiting.current || hasNavigatedAway.current) return
-    if (isPaused.current) return
-    
+    if (!isVideo || !player || !videoUrl) return;
+    if (isExiting.current || hasNavigatedAway.current) return;
+    if (isPaused.current) return;
+
     // Small delay to ensure VideoView is mounted
     const playTimer = setTimeout(() => {
       try {
-        if (player && !isExiting.current && !hasNavigatedAway.current && !isPaused.current) {
-          console.log("[StoryViewer] Playing video:", videoUrl.slice(0, 50))
-          player.currentTime = 0
-          player.play()
+        if (
+          player &&
+          !isExiting.current &&
+          !hasNavigatedAway.current &&
+          !isPaused.current
+        ) {
+          console.log("[StoryViewer] Playing video:", videoUrl.slice(0, 50));
+          player.currentTime = 0;
+          player.play();
         }
       } catch (error) {
         console.error("[StoryViewer] Error playing video:", error);
         // If player fails, try to advance to next item
         if (!hasAdvanced.current) {
-          hasAdvanced.current = true
+          hasAdvanced.current = true;
           setTimeout(() => {
-            callHandleNext()
-          }, 500)
+            callHandleNext();
+          }, 500);
         }
       }
-    }, 100)
-    
-    return () => clearTimeout(playTimer)
-  }, [videoUrl, isVideo, player, callHandleNext])
+    }, 100);
+
+    return () => clearTimeout(playTimer);
+  }, [videoUrl, isVideo, player, callHandleNext]);
 
   useEffect(() => {
-    if (!isVideo || !player || !videoUrl) return
+    if (!isVideo || !player || !videoUrl) return;
 
     const interval = setInterval(() => {
       try {
         if (player && !isExiting.current && !hasNavigatedAway.current) {
-          const currentTime = player.currentTime || 0
-          const duration = player.duration || 0
-          setVideoCurrentTime(currentTime)
-          setVideoDuration(duration)
-          
+          const currentTime = player.currentTime || 0;
+          const duration = player.duration || 0;
+          setVideoCurrentTime(currentTime);
+          setVideoDuration(duration);
+
           // Update progress bar based on video playback
           if (duration > 0) {
-            const progressValue = Math.min(currentTime / duration, 1)
-            progress.value = progressValue
+            const progressValue = Math.min(currentTime / duration, 1);
+            progress.value = progressValue;
           }
         }
       } catch (error) {
         // Player may have been released or is invalid
-        console.warn("[StoryViewer] Error reading video player state:", error)
+        console.warn("[StoryViewer] Error reading video player state:", error);
       }
-    }, 100)
+    }, 100);
 
-    return () => clearInterval(interval)
-  }, [isVideo, player, videoUrl, progress])
+    return () => clearInterval(interval);
+  }, [isVideo, player, videoUrl, progress]);
 
   const handleLongPressStart = useCallback(() => {
-    if (!isVideo) return
+    if (!isVideo) return;
     longPressTimer.current = setTimeout(() => {
-      setShowSeekBar(true)
-      isPaused.current = true
-      progress.value = progress.value // Pause the animation
+      setShowSeekBar(true);
+      isPaused.current = true;
+      progress.value = progress.value; // Pause the animation
       try {
-        player?.pause()
+        player?.pause();
       } catch {}
-    }, LONG_PRESS_DELAY)
-  }, [isVideo, player, progress])
+    }, LONG_PRESS_DELAY);
+  }, [isVideo, player, progress]);
 
   const handleLongPressEnd = useCallback(() => {
     if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
     if (showSeekBar) {
-      setShowSeekBar(false)
-      isPaused.current = false
+      setShowSeekBar(false);
+      isPaused.current = false;
       try {
-        player?.play()
+        player?.play();
       } catch {}
     }
-  }, [showSeekBar, player])
+  }, [showSeekBar, player]);
 
-  const handleSeek = useCallback((time: number) => {
-    try {
-      if (player) {
-        player.currentTime = time
+  const handleSeek = useCallback(
+    (time: number) => {
+      try {
+        if (player) {
+          player.currentTime = time;
+        }
+      } catch (e) {
+        console.log("Seek error:", e);
       }
-    } catch (e) {
-      console.log("Seek error:", e)
-    }
-  }, [player])
+    },
+    [player],
+  );
 
   // Cleanup on unmount or navigation away
   useEffect(() => {
     return () => {
-      isExiting.current = true
-      hasNavigatedAway.current = true
-      cancelAnimation(progress)
+      isExiting.current = true;
+      hasNavigatedAway.current = true;
+      cancelAnimation(progress);
       try {
         if (player) {
-          player.pause()
-          player.currentTime = 0
+          player.pause();
+          player.currentTime = 0;
         }
       } catch (error) {
         // Player may have been released
-        console.warn("[StoryViewer] Error cleaning up player:", error)
+        console.warn("[StoryViewer] Error cleaning up player:", error);
       }
-    }
-  }, [player, progress])
-  
+    };
+  }, [player, progress]);
+
   useFocusEffect(
     useCallback(() => {
       // Play video when screen is focused
-      if (isVideo && player && videoUrl && !isExiting.current && !hasNavigatedAway.current && !isPaused.current) {
+      if (
+        isVideo &&
+        player &&
+        videoUrl &&
+        !isExiting.current &&
+        !hasNavigatedAway.current &&
+        !isPaused.current
+      ) {
         const focusTimer = setTimeout(() => {
           try {
             if (player && !isExiting.current && !hasNavigatedAway.current) {
-              player.play()
+              player.play();
             }
           } catch (error) {
-            console.warn("[StoryViewer] Error playing on focus:", error)
+            console.warn("[StoryViewer] Error playing on focus:", error);
           }
-        }, 150)
-        return () => clearTimeout(focusTimer)
+        }, 150);
+        return () => clearTimeout(focusTimer);
       }
-      
+
       return () => {
         try {
           if (player && isVideo && !isExiting.current) {
-            player.pause()
+            player.pause();
           }
         } catch {
           // Player may have been released
         }
-      }
-    }, [player, isVideo, videoUrl])
-  )
+      };
+    }, [player, isVideo, videoUrl]),
+  );
 
   useEffect(() => {
-    if (!currentItem || !currentStoryId) return
-    
+    if (!currentItem || !currentStoryId) return;
+
     // Don't start animation if already navigating away
-    if (isExiting.current || hasNavigatedAway.current) return
+    if (isExiting.current || hasNavigatedAway.current) return;
 
     // Reset progress for new item
-    progress.value = 0
-    hasAdvanced.current = false
-    
-    console.log("[StoryViewer] Starting animation for item:", currentItemIndex, "story:", currentStoryId)
-    
+    progress.value = 0;
+    hasAdvanced.current = false;
+
+    console.log(
+      "[StoryViewer] Starting animation for item:",
+      currentItemIndex,
+      "story:",
+      currentStoryId,
+    );
+
     // For images, use the item duration or default 5 seconds
     // For videos, the video end detection will handle advancement
-    const duration = isVideo ? 30000 : (currentItem.duration || 5000) // Longer timeout for video as backup
-    
+    const duration = isVideo ? 30000 : currentItem.duration || 5000; // Longer timeout for video as backup
+
     // Small delay to ensure component is mounted
     const timer = setTimeout(() => {
       // Don't start if already exiting
-      if (isExiting.current || hasNavigatedAway.current) return
-      
+      if (isExiting.current || hasNavigatedAway.current) return;
+
       // Animate progress bar - use callHandleNext which reads from ref to avoid stale closures
       if (!isVideo) {
         // For images, animate progress bar
         progress.value = withTiming(1, { duration }, (finished) => {
-          if (finished && !hasAdvanced.current && !isExiting.current && !hasNavigatedAway.current) {
-            hasAdvanced.current = true
-            runOnJS(callHandleNext)()
+          if (
+            finished &&
+            !hasAdvanced.current &&
+            !isExiting.current &&
+            !hasNavigatedAway.current
+          ) {
+            hasAdvanced.current = true;
+            runOnJS(callHandleNext)();
           }
-        })
+        });
       } else {
         // For videos, progress bar will be synced with video playback time in the video tracking effect
         // Start at 0, it will update as video plays
-        progress.value = 0
+        progress.value = 0;
       }
-    }, 50)
+    }, 50);
 
     return () => {
-      clearTimeout(timer)
-      cancelAnimation(progress)
-      progress.value = 0
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex, currentStoryId, isVideo, callHandleNext])
+      clearTimeout(timer);
+      cancelAnimation(progress);
+      progress.value = 0;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentItemIndex, currentStoryId, isVideo, callHandleNext]);
 
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
-      const nextStory = availableStories[currentStoryIndex + 1]
+      const nextStory = availableStories[currentStoryIndex + 1];
       // Update state instead of navigating - this keeps the viewer open
-      setCurrentItemIndex(0)
-      setCurrentStoryId(String(nextStory.id))
-      progress.value = 0
-      hasAdvanced.current = false
+      setCurrentItemIndex(0);
+      setCurrentStoryId(String(nextStory.id));
+      progress.value = 0;
+      hasAdvanced.current = false;
     }
-  }, [currentStoryIndex, availableStories, setCurrentItemIndex, setCurrentStoryId, progress])
+  }, [
+    currentStoryIndex,
+    availableStories,
+    setCurrentItemIndex,
+    setCurrentStoryId,
+    progress,
+  ]);
 
   const goToPrevUser = useCallback(() => {
     if (currentStoryIndex > 0) {
-      const prevStory = availableStories[currentStoryIndex - 1]
-      const prevStoryItemsCount = prevStory?.items?.length || 0
+      const prevStory = availableStories[currentStoryIndex - 1];
+      const prevStoryItemsCount = prevStory?.items?.length || 0;
       // Update state instead of navigating - this keeps the viewer open
-      setCurrentItemIndex(Math.max(0, prevStoryItemsCount - 1))
-      setCurrentStoryId(String(prevStory.id))
-      progress.value = 0
-      hasAdvanced.current = false
+      setCurrentItemIndex(Math.max(0, prevStoryItemsCount - 1));
+      setCurrentStoryId(String(prevStory.id));
+      progress.value = 0;
+      hasAdvanced.current = false;
     }
-  }, [currentStoryIndex, availableStories, setCurrentItemIndex, setCurrentStoryId, progress])
+  }, [
+    currentStoryIndex,
+    availableStories,
+    setCurrentItemIndex,
+    setCurrentStoryId,
+    progress,
+  ]);
 
   // Check if viewing own story (don't show reply input for own story)
   // Compare by username (case-insensitive) since IDs may not match between auth systems
-  const isOwnStory = story?.username?.toLowerCase() === currentUser?.username?.toLowerCase()
+  const isOwnStory =
+    story?.username?.toLowerCase() === currentUser?.username?.toLowerCase();
 
   const handleNext = useCallback(() => {
-    if (!story || !story.items) return
-    if (isExiting.current || hasNavigatedAway.current) return // Prevent multiple calls
-    
+    if (!story || !story.items) return;
+    if (isExiting.current || hasNavigatedAway.current) return; // Prevent multiple calls
+
     // Prevent double calls - set flag immediately
     if (hasAdvanced.current) {
-      console.log("[StoryViewer] Already advanced, ignoring duplicate call")
-      return
+      console.log("[StoryViewer] Already advanced, ignoring duplicate call");
+      return;
     }
-    hasAdvanced.current = true
+    hasAdvanced.current = true;
 
     console.log("[StoryViewer] handleNext called:", {
       currentItemIndex,
@@ -388,310 +461,417 @@ export default function StoryViewerScreen() {
       currentStoryIndex,
       availableStoriesLength: availableStories.length,
       isOwnStory,
-    })
+    });
 
     // Cancel any ongoing animations
-    cancelAnimation(progress)
+    cancelAnimation(progress);
 
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
-      console.log("[StoryViewer] Moving to next item")
-      setCurrentItemIndex(currentItemIndex + 1)
+      console.log("[StoryViewer] Moving to next item");
+      setCurrentItemIndex(currentItemIndex + 1);
       // Flag will be reset in useEffect when item changes
     } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
-      console.log("[StoryViewer] Moving to next user")
-      goToNextUser()
+      console.log("[StoryViewer] Moving to next user");
+      goToNextUser();
       // Flag will be reset in goToNextUser
     } else {
       // No more stories, exit
-      console.log("[StoryViewer] No more stories, exiting")
-      isExiting.current = true
-      hasNavigatedAway.current = true
-      cancelAnimation(progress)
-      router.back()
+      console.log("[StoryViewer] No more stories, exiting");
+      isExiting.current = true;
+      hasNavigatedAway.current = true;
+      cancelAnimation(progress);
+      router.back();
     }
-  }, [story, currentItemIndex, currentStoryIndex, availableStories, setCurrentItemIndex, goToNextUser, router, progress, isOwnStory])
+  }, [
+    story,
+    currentItemIndex,
+    currentStoryIndex,
+    availableStories,
+    setCurrentItemIndex,
+    goToNextUser,
+    router,
+    progress,
+    isOwnStory,
+  ]);
 
   // Keep ref updated with latest handleNext
   useEffect(() => {
-    handleNextRef.current = handleNext
-  }, [handleNext])
+    handleNextRef.current = handleNext;
+  }, [handleNext]);
 
   const handlePrev = useCallback(() => {
     if (currentItemIndex > 0) {
       // Previous story item for current user
-      setCurrentItemIndex(currentItemIndex - 1)
+      setCurrentItemIndex(currentItemIndex - 1);
     } else if (currentStoryIndex > 0) {
       // Move to previous user's last story
-      goToPrevUser()
+      goToPrevUser();
     }
-  }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser])
+  }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser]);
 
   // Reset flags when item changes
   useEffect(() => {
     // Small delay to prevent race conditions
     const timer = setTimeout(() => {
-      hasAdvanced.current = false
-    }, 100)
+      hasAdvanced.current = false;
+    }, 100);
     // Don't reset isExiting or hasNavigatedAway here - those are permanent for the session
-    return () => clearTimeout(timer)
-  }, [currentItemIndex, currentStoryId])
-  
+    return () => clearTimeout(timer);
+  }, [currentItemIndex, currentStoryId]);
+
   // Pause animation when input is focused
   useEffect(() => {
     if (isInputFocused) {
-      isPaused.current = true
-      cancelAnimation(progress)
+      isPaused.current = true;
+      cancelAnimation(progress);
       try {
-        player?.pause()
+        player?.pause();
       } catch {}
     } else {
-      isPaused.current = false
+      isPaused.current = false;
       try {
-        player?.play()
+        player?.play();
       } catch {}
     }
-  }, [isInputFocused, player, progress])
-  
+  }, [isInputFocused, player, progress]);
+
   // Send story reply as DM
   const handleSendReply = useCallback(async () => {
-    if (!replyText.trim() || !story || isSendingReply) return
+    if (!replyText.trim() || !story || isSendingReply) return;
     if (isOwnStory) {
-      showToast("info", "Info", "You can't reply to your own story")
-      return
+      showToast("info", "Info", "You can't reply to your own story");
+      return;
     }
-    
+
     if (!resolvedUserId) {
-      console.error("[StoryViewer] No resolved userId for story:", story)
-      showToast("error", "Error", "Story data incomplete. Cannot send reply.")
-      return
+      console.error("[StoryViewer] No resolved userId for story:", story);
+      showToast("error", "Error", "Story data incomplete. Cannot send reply.");
+      return;
     }
-    
-    setIsSendingReply(true)
-    Keyboard.dismiss()
-    
+
+    setIsSendingReply(true);
+    Keyboard.dismiss();
+
     try {
-      console.log("[StoryViewer] Sending reply to userId:", resolvedUserId)
+      console.log("[StoryViewer] Sending reply to userId:", resolvedUserId);
       // Get or create conversation with story owner
-      const conversation = await messagesApiClient.getOrCreateConversation(resolvedUserId)
-      
+      const conversation =
+        await messagesApiClient.getOrCreateConversation(resolvedUserId);
+
       if (!conversation) {
-        console.error("[StoryViewer] Failed to get/create conversation")
-        showToast("error", "Error", "Could not start conversation")
-        setIsSendingReply(false)
-        return
+        console.error("[StoryViewer] Failed to get/create conversation");
+        showToast("error", "Error", "Could not start conversation");
+        setIsSendingReply(false);
+        return;
       }
-      
+
       // Send the reply as a message
-      const storyReplyPrefix = `📷 Replied to your story: `
+      const storyReplyPrefix = `📷 Replied to your story: `;
       const message = await messagesApiClient.sendMessage({
         conversationId: conversation.id,
         content: `${storyReplyPrefix}${replyText.trim()}`,
-      })
-      
+      });
+
       if (message) {
-        console.log("[StoryViewer] Reply sent successfully")
-        showToast("success", "Sent", "Reply sent to their messages")
-        setReplyText("")
+        console.log("[StoryViewer] Reply sent successfully");
+        showToast("success", "Sent", "Reply sent to their messages");
+        setReplyText("");
       } else {
-        console.error("[StoryViewer] Message send returned null")
-        showToast("error", "Error", "Failed to send reply")
+        console.error("[StoryViewer] Message send returned null");
+        showToast("error", "Error", "Failed to send reply");
       }
     } catch (error: any) {
-      console.error("[StoryViewer] Reply error:", error)
-      const errorMsg = error?.message || error?.error?.message || "Failed to send reply"
-      showToast("error", "Error", errorMsg)
+      console.error("[StoryViewer] Reply error:", error);
+      const errorMsg =
+        error?.message || error?.error?.message || "Failed to send reply";
+      showToast("error", "Error", errorMsg);
     } finally {
-      setIsSendingReply(false)
-      setIsInputFocused(false)
+      setIsSendingReply(false);
+      setIsInputFocused(false);
     }
-  }, [replyText, story, isSendingReply, isOwnStory, showToast, resolvedUserId])
+  }, [replyText, story, isSendingReply, isOwnStory, showToast, resolvedUserId]);
 
   // Video end detection - auto-advance when video finishes
   // Video end detection - auto-advance when video finishes
   useEffect(() => {
-    if (!isVideo || !player || videoDuration === 0) return
-    if (isExiting.current || hasNavigatedAway.current) return
-    if (isPaused.current) return
-    if (hasAdvanced.current) return // Already advanced
-    
+    if (!isVideo || !player || videoDuration === 0) return;
+    if (isExiting.current || hasNavigatedAway.current) return;
+    if (isPaused.current) return;
+    if (hasAdvanced.current) return; // Already advanced
+
     // Check if video has ended (within 0.2s of end) and we haven't already advanced
     if (videoCurrentTime >= videoDuration - 0.2 && videoDuration > 0) {
       console.log("[StoryViewer] Video ended, advancing...", {
         videoCurrentTime,
         videoDuration,
         hasAdvanced: hasAdvanced.current,
-      })
-      hasAdvanced.current = true
+      });
+      hasAdvanced.current = true;
       // Cancel the progress animation since video ended naturally
-      cancelAnimation(progress)
+      cancelAnimation(progress);
       // Small delay to ensure state is consistent
       setTimeout(() => {
-        callHandleNext()
-      }, 50)
+        callHandleNext();
+      }, 50);
     }
-  }, [isVideo, player, videoCurrentTime, videoDuration, callHandleNext, progress])
+  }, [
+    isVideo,
+    player,
+    videoCurrentTime,
+    videoDuration,
+    callHandleNext,
+    progress,
+  ]);
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center", paddingTop: insets.top }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingTop: insets.top,
+        }}
+      >
         <Text style={{ color: "#fff" }}>Loading story...</Text>
       </View>
-    )
+    );
   }
 
   if (!story || !currentItem) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center", paddingTop: insets.top }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+          paddingTop: insets.top,
+        }}
+      >
         <Text style={{ color: "#fff" }}>Story not found</Text>
-        <Pressable onPress={() => router.back()} style={{ marginTop: 20, padding: 12, backgroundColor: "#333", borderRadius: 8 }}>
+        <Pressable
+          onPress={() => router.back()}
+          style={{
+            marginTop: 20,
+            padding: 12,
+            backgroundColor: "#333",
+            borderRadius: 8,
+          }}
+        >
           <Text style={{ color: "#fff" }}>Go Back</Text>
         </Pressable>
       </View>
-    )
+    );
   }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
       {/* Progress bars */}
-      <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
-          {story.items?.map((_, index) => (
-            <View
-              key={index}
-              style={{
-                flex: 1,
-                height: 2,
-                backgroundColor: "rgba(255,255,255,0.6)",
-                borderRadius: 1,
-                overflow: "hidden",
-              }}
-            >
-              {index < currentItemIndex ? (
-                <View style={{ flex: 1, backgroundColor: "#fff" }} />
-              ) : index === currentItemIndex ? (
-                <ProgressBar progress={progress} />
-              ) : null}
-            </View>
-          ))}
-        </View>
-
-        {/* Header */}
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 }}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <Image source={{ uri: story.avatar }} style={{ width: 40, height: 40, borderRadius: 20 }} />
-            <View>
-              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{story.username}</Text>
-              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{(currentItem as any).header?.subheading}</Text>
-            </View>
-          </View>
-          <Pressable 
-            onPress={() => {
-              if (isExiting.current) return; // Prevent multiple presses
-              isExiting.current = true
-              hasNavigatedAway.current = true
-              cancelAnimation(progress)
-              router.back()
-            }} 
-            style={{ padding: 12, zIndex: 1000 }}
-            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: 8,
+          paddingTop: 8,
+          gap: 4,
+        }}
+      >
+        {story.items?.map((_, index) => (
+          <View
+            key={index}
+            style={{
+              flex: 1,
+              height: 2,
+              backgroundColor: "rgba(255,255,255,0.6)",
+              borderRadius: 1,
+              overflow: "hidden",
+            }}
           >
-            <X size={24} color="#fff" />
-          </Pressable>
-        </View>
+            {index < currentItemIndex ? (
+              <View style={{ flex: 1, backgroundColor: "#fff" }} />
+            ) : index === currentItemIndex ? (
+              <ProgressBar progress={progress} />
+            ) : null}
+          </View>
+        ))}
+      </View>
 
-        {/* Content */}
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          {isVideo && videoUrl && player ? (
-            <View style={{ width, height: height * 0.7 }}>
-              {videoUrl ? (
-                <>
-                  <VideoView
-                    player={player}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="contain"
-                    nativeControls={false}
-                    allowsFullscreen={false}
-                    allowsPictureInPicture={false}
-                  />
-                  <VideoSeekBar
-                    currentTime={videoCurrentTime}
-                    duration={videoDuration}
-                    onSeek={handleSeek}
-                    visible={showSeekBar}
-                    barWidth={width - 32}
-                  />
-                </>
-              ) : (
-                <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-                  <Text style={{ color: "#fff" }}>Invalid video URL</Text>
-                </View>
-              )}
-            </View>
-          ) : isImage && currentItem?.url && (currentItem.url.startsWith("http://") || currentItem.url.startsWith("https://")) ? (
-            <Image
-              source={{ uri: currentItem.url }}
-              style={{ width, height: height * 0.7 }}
-              contentFit="contain"
-              transition={200}
-              cachePolicy="memory-disk"
-            />
-          ) : currentItem?.type === "text" ? (
-            <View
-              style={{
-                width,
-                height: height * 0.7,
-                justifyContent: "center",
-                alignItems: "center",
-                padding: 20,
-              }}
-            >
-              <Text
+      {/* Header */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: 12,
+        }}
+      >
+        <Pressable
+          style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+          onPress={() => {
+            // Navigate to user profile
+            if (!story?.username) return;
+            // Pause story and navigate
+            isPaused.current = true;
+            cancelAnimation(progress);
+            try {
+              player?.pause();
+            } catch {}
+
+            // Check if it's the current user's profile
+            if (
+              story.username.toLowerCase() ===
+              currentUser?.username?.toLowerCase()
+            ) {
+              router.push("/(protected)/(tabs)/profile");
+            } else {
+              router.push(`/(protected)/profile/${story.username}`);
+            }
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Image
+            source={{ uri: story.avatar }}
+            style={{ width: 40, height: 40, borderRadius: 20 }}
+          />
+          <View>
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
+              {story.username}
+            </Text>
+            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
+              {(currentItem as any).header?.subheading}
+            </Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            if (isExiting.current) return; // Prevent multiple presses
+            isExiting.current = true;
+            hasNavigatedAway.current = true;
+            cancelAnimation(progress);
+            router.back();
+          }}
+          style={{ padding: 12, zIndex: 1000 }}
+          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+        >
+          <X size={24} color="#fff" />
+        </Pressable>
+      </View>
+
+      {/* Content */}
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        {isVideo && videoUrl && player ? (
+          <View style={{ width, height: height * 0.7 }}>
+            {videoUrl ? (
+              <>
+                <VideoView
+                  player={player}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="contain"
+                  nativeControls={false}
+                  allowsFullscreen={false}
+                  allowsPictureInPicture={false}
+                />
+                <VideoSeekBar
+                  currentTime={videoCurrentTime}
+                  duration={videoDuration}
+                  onSeek={handleSeek}
+                  visible={showSeekBar}
+                  barWidth={width - 32}
+                />
+              </>
+            ) : (
+              <View
                 style={{
-                  color: currentItem.textColor || "#fff",
-                  fontSize: 32,
-                  fontWeight: "bold",
-                  textAlign: "center",
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
                 }}
               >
-                {currentItem.text}
-              </Text>
-            </View>
-          ) : (
-            <View style={{ width, height: height * 0.7, justifyContent: "center", alignItems: "center" }}>
-              <Text style={{ color: "#fff" }}>No content available</Text>
-            </View>
-          )}
-        </View>
+                <Text style={{ color: "#fff" }}>Invalid video URL</Text>
+              </View>
+            )}
+          </View>
+        ) : isImage &&
+          currentItem?.url &&
+          (currentItem.url.startsWith("http://") ||
+            currentItem.url.startsWith("https://")) ? (
+          <Image
+            source={{ uri: currentItem.url }}
+            style={{ width, height: height * 0.7 }}
+            contentFit="contain"
+            transition={200}
+            cachePolicy="memory-disk"
+          />
+        ) : currentItem?.type === "text" ? (
+          <View
+            style={{
+              width,
+              height: height * 0.7,
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 20,
+            }}
+          >
+            <Text
+              style={{
+                color: currentItem.textColor || "#fff",
+                fontSize: 32,
+                fontWeight: "bold",
+                textAlign: "center",
+              }}
+            >
+              {currentItem.text}
+            </Text>
+          </View>
+        ) : (
+          <View
+            style={{
+              width,
+              height: height * 0.7,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff" }}>No content available</Text>
+          </View>
+        )}
+      </View>
 
       {/* Touch areas for navigation - full screen overlay */}
-      <View style={{ position: "absolute", top: 100, bottom: isOwnStory ? 0 : 80, left: 0, right: 0, flexDirection: "row" }} pointerEvents="box-none">
+      <View
+        style={{
+          position: "absolute",
+          top: 100,
+          bottom: isOwnStory ? 0 : 80,
+          left: 0,
+          right: 0,
+          flexDirection: "row",
+        }}
+        pointerEvents="box-none"
+      >
         {/* Left tap area - previous */}
-        <Pressable 
-          onPress={handlePrev} 
-          style={{ flex: 1 }} 
-        />
+        <Pressable onPress={handlePrev} style={{ flex: 1 }} />
         {/* Right tap area - next */}
-        <Pressable 
-          onPress={handleNext} 
-          style={{ flex: 1 }} 
-        />
+        <Pressable onPress={handleNext} style={{ flex: 1 }} />
       </View>
-      
+
       {/* Reply input - only show for other users' stories */}
       {!isOwnStory && story && resolvedUserId && (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-          style={{ 
-            position: "absolute", 
+          style={{
+            position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
           }}
         >
-          <View 
-            style={{ 
+          <View
+            style={{
               paddingBottom: insets.bottom + 8,
               paddingTop: 8,
               paddingHorizontal: 16,
@@ -700,12 +880,12 @@ export default function StoryViewerScreen() {
               gap: 8,
             }}
           >
-            <View 
-              style={{ 
-                flex: 1, 
-                flexDirection: "row", 
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: "rgba(255,255,255,0.15)", 
+                backgroundColor: "rgba(255,255,255,0.15)",
                 borderRadius: 24,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.3)",
@@ -714,9 +894,9 @@ export default function StoryViewerScreen() {
               }}
             >
               <TextInput
-                style={{ 
-                  flex: 1, 
-                  color: "#fff", 
+                style={{
+                  flex: 1,
+                  color: "#fff",
                   fontSize: 14,
                   paddingVertical: 4,
                 }}
@@ -731,7 +911,7 @@ export default function StoryViewerScreen() {
                 editable={!isSendingReply}
               />
             </View>
-            
+
             {replyText.trim().length > 0 && (
               <Pressable
                 onPress={() => {
@@ -758,5 +938,5 @@ export default function StoryViewerScreen() {
         </KeyboardAvoidingView>
       )}
     </View>
-  )
+  );
 }

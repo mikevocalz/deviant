@@ -1,30 +1,33 @@
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL ?? ''
+import { getApiBaseUrl } from "@/lib/api-config";
 
-export async function uploadFaceForVerification(params: { token?: string; faceImageUri: string }) {
-  if (!API_BASE) {
-    // No backend configured; treat as success for local dev.
-    return { ok: true, verificationId: 'local-dev' as const }
-  }
+// CRITICAL: Use canonical API URL resolver - NEVER empty string fallback
+export const API_BASE = getApiBaseUrl();
 
-  const form = new FormData()
-  form.append('face', {
+export async function uploadFaceForVerification(params: {
+  token?: string;
+  faceImageUri: string;
+}) {
+  // API_BASE is now guaranteed to be a valid HTTPS URL
+
+  const form = new FormData();
+  form.append("face", {
     uri: params.faceImageUri,
-    name: 'face.jpg',
-    type: 'image/jpeg'
-  } as any)
+    name: "face.jpg",
+    type: "image/jpeg",
+  } as any);
 
   const res = await fetch(`${API_BASE}/verification/face`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      ...(params.token ? { Authorization: `Bearer ${params.token}` } : {})
+      ...(params.token ? { Authorization: `Bearer ${params.token}` } : {}),
     },
-    body: form
-  })
+    body: form,
+  });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || 'Face verification upload failed')
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Face verification upload failed");
   }
 
-  return res.json() as Promise<{ ok: boolean; verificationId: string }>
+  return res.json() as Promise<{ ok: boolean; verificationId: string }>;
 }

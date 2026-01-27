@@ -26,6 +26,8 @@ import {
   MediaAttachment,
 } from "@/lib/stores/chat-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { messagesApiClient } from "@/lib/api/messages";
+import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
 import { useRef, useCallback, useMemo, useEffect, useState } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -143,13 +145,31 @@ export default function ChatScreen() {
 
   const chatMessages = messages[chatId] || emptyMessages;
 
-  // Load messages from backend on mount
+  // Hook to refresh message counts after marking as read
+  const refreshMessageCounts = useRefreshMessageCounts();
+
+  // Load messages from backend on mount and mark as read
   useEffect(() => {
     if (chatId) {
       console.log("[Chat] Loading messages for conversation:", chatId);
       loadMessages(chatId);
+
+      // Mark messages as read when opening conversation
+      // This updates the backend and refreshes the Messages badge
+      const markMessagesRead = async () => {
+        try {
+          console.log("[Chat] Marking messages as read for:", chatId);
+          await messagesApiClient.markAsRead(chatId);
+          // Refresh the message badge count
+          await refreshMessageCounts();
+          console.log("[Chat] Messages marked as read, badge refreshed");
+        } catch (error) {
+          console.error("[Chat] Error marking messages as read:", error);
+        }
+      };
+      markMessagesRead();
     }
-  }, [chatId, loadMessages]);
+  }, [chatId, loadMessages, refreshMessageCounts]);
   const currentUser = useAuthStore((s) => s.user);
 
   // Chat recipient info (passed via params or loaded from conversation)
@@ -266,7 +286,14 @@ export default function ChatScreen() {
 
     // Send to backend (not local-only)
     sendMessageToBackend(chatId);
-  }, [chatId, currentMessage, sendMessageToBackend, sendButtonScale, pendingMedia, isSending]);
+  }, [
+    chatId,
+    currentMessage,
+    sendMessageToBackend,
+    sendButtonScale,
+    pendingMedia,
+    isSending,
+  ]);
 
   const handleMentionSelect = useCallback(
     (username: string) => {

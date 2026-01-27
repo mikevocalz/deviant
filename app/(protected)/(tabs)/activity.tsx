@@ -1,4 +1,3 @@
-
 import { View, Text, Pressable, RefreshControl } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
@@ -13,7 +12,7 @@ import {
   Bell,
   BellOff,
   CheckCheck,
-  Settings,
+  Calendar,
 } from "lucide-react-native";
 import { ActivitySkeleton } from "@/components/skeletons";
 import { useActivityStore, type Activity } from "@/lib/stores/activity-store";
@@ -33,6 +32,9 @@ const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
       return <UserPlus size={16} color="#8A40CF" />;
     case "mention":
       return <AtSign size={16} color="#34A2DF" />;
+    case "event_invite":
+    case "event_update":
+      return <Calendar size={16} color="#10B981" />;
     default:
       return null;
   }
@@ -48,6 +50,10 @@ function getActivityText(activity: Activity): string {
       return " started following you.";
     case "mention":
       return ` mentioned you: "${activity.comment}"`;
+    case "event_invite":
+      return ` invited you to ${activity.event?.title || "an event"}.`;
+    case "event_update":
+      return ` updated ${activity.event?.title || "an event"}.`;
     default:
       return "";
   }
@@ -154,7 +160,9 @@ export default function ActivityScreen() {
     markActivityAsRead,
     markAllAsRead,
     loadInitialActivities,
+    fetchFromBackend,
     getUnreadCount,
+    getRouteForActivity,
   } = useActivityStore();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const isLoading = loadingScreens.activity;
@@ -178,15 +186,18 @@ export default function ActivityScreen() {
     return true;
   });
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    console.log("[Activity] Refreshing activities...");
-    setTimeout(() => {
-      markAllAsRead();
-      setRefreshing(false);
+    console.log("[Activity] Refreshing activities from backend...");
+    try {
+      await fetchFromBackend();
       console.log("[Activity] Refresh complete");
-    }, 1000);
-  }, [setRefreshing, markAllAsRead]);
+    } catch (error) {
+      console.error("[Activity] Refresh failed:", error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [setRefreshing, fetchFromBackend]);
 
   const handleUserPress = useCallback(
     (username: string) => {
@@ -216,15 +227,19 @@ export default function ActivityScreen() {
 
   const handleActivityPress = useCallback(
     (activity: Activity) => {
+      // Mark as read (persists to backend)
       markActivityAsRead(activity.id);
 
-      if (activity.post) {
-        handlePostPress(activity.post.id);
-      } else {
-        handleUserPress(activity.user.username);
-      }
+      // Use entityType/entityId-based routing for correct navigation
+      const route = getRouteForActivity(activity);
+      console.log("[Activity] Navigating to:", route, {
+        type: activity.type,
+        entityType: activity.entityType,
+        entityId: activity.entityId,
+      });
+      router.push(route as any);
     },
-    [handlePostPress, handleUserPress, markActivityAsRead],
+    [markActivityAsRead, getRouteForActivity, router],
   );
 
   if (isLoading) {

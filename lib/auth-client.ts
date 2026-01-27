@@ -12,6 +12,10 @@ import { usernameClient } from "better-auth/client/plugins";
 import { Platform } from "react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { QueryClient } from "@tanstack/react-query";
+import {
+  validateDateOfBirth,
+  UNDERAGE_ERROR_MESSAGE,
+} from "@/lib/utils/age-verification";
 
 // Reference to the global query client (set by the app)
 let globalQueryClient: QueryClient | null = null;
@@ -112,16 +116,21 @@ function clearAllCachedData() {
   }
 }
 
-// Production URL as fallback - localhost NEVER works on mobile devices
-const BASE_URL =
-  process.env.EXPO_PUBLIC_AUTH_URL || "https://server-zeta-lovat.vercel.app";
+// CRITICAL: Import canonical URL resolver - single source of truth
+import { getAuthBaseUrl } from "@/lib/api-config";
+
+// Production URL using canonical resolver - NEVER returns empty/localhost
+const BASE_URL = getAuthBaseUrl();
+
+// Hard guard - fail fast if configuration is invalid
+if (!BASE_URL || !BASE_URL.startsWith("https://")) {
+  throw new Error(
+    `[Auth] CRITICAL: Invalid auth configuration. BASE_URL="${BASE_URL}" is not a valid HTTPS URL.`,
+  );
+}
 
 // Log the resolved URL at startup for debugging
 console.log("[Auth] BASE_URL resolved to:", BASE_URL);
-console.log(
-  "[Auth] EXPO_PUBLIC_AUTH_URL env:",
-  process.env.EXPO_PUBLIC_AUTH_URL || "(not set)",
-);
 
 // Web-compatible storage fallback for SSR/web builds
 const webStorage = {
@@ -289,8 +298,23 @@ export const signUp = {
     password: string;
     name: string;
     username?: string;
+    dateOfBirth?: string;
   }) => {
     console.log("[Auth] Starting signup for:", params.email);
+
+    // CRITICAL: Client-side age verification before sending to server
+    // This is a defense-in-depth measure - server also validates
+    if (params.dateOfBirth) {
+      const ageCheck = validateDateOfBirth(params.dateOfBirth);
+      if (!ageCheck.isValid || ageCheck.isOver18 === false) {
+        console.error("[Auth] BLOCKED: Underage user attempted signup");
+        return {
+          error: { message: UNDERAGE_ERROR_MESSAGE },
+          data: null,
+        };
+      }
+    }
+
     try {
       // Use server's public registration endpoint
       const response = await fetch(`${BASE_URL}/api/register`, {
@@ -300,6 +324,7 @@ export const signUp = {
           email: params.email,
           password: params.password,
           username: params.username || params.email.split("@")[0],
+          dateOfBirth: params.dateOfBirth, // Send DOB to server for validation
         }),
       });
 

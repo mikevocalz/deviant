@@ -15,97 +15,108 @@ export const useFeedSlideStore = create<FeedSlideState>((set) => ({
     })),
 }));
 
+/**
+ * STABILIZED Post Store
+ *
+ * CRITICAL RULES:
+ * 1. NO client-side count manipulation - counts come from server ONLY
+ * 2. Boolean states (liked/bookmarked) synced from server
+ * 3. NO toggleLike/toggleBookmark - use setLiked/setBookmarked with server values
+ * 4. Comment counts tracked for UI updates only
+ */
 interface PostState {
+  // Liked posts - SET by server, not toggled
   likedPosts: string[];
-  postLikeCounts: Record<string, number>;
-  postCommentCounts: Record<string, number>;
+  // Liked comments - SET by server, not toggled
   likedComments: string[];
-  commentLikeCounts: Record<string, number>;
-  toggleLike: (postId: string, initialCount: number) => void;
-  getLikeCount: (postId: string, initialCount: number) => number;
+  // Comment counts - for UI updates when new comments are added
+  postCommentCounts: Record<string, number>;
+
+  // Server-driven setters (NOT toggles)
+  setPostLiked: (postId: string, liked: boolean) => void;
+  setCommentLiked: (commentId: string, liked: boolean) => void;
+
+  // Read-only checks
   isPostLiked: (postId: string) => boolean;
-  syncLikedPosts: (serverLikedPosts: string[]) => void;
-  incrementCommentCount: (postId: string, initialCount: number) => void;
-  getCommentCount: (postId: string, initialCount: number) => number;
-  toggleCommentLike: (commentId: string, initialCount: number) => void;
-  getCommentLikeCount: (commentId: string, initialCount: number) => number;
   isCommentLiked: (commentId: string) => boolean;
+
+  // Sync from server - replaces local state entirely
+  syncLikedPosts: (serverLikedPosts: string[]) => void;
+  syncLikedComments: (serverLikedComments: string[]) => void;
+
+  // Comment count tracking (for optimistic comment creation only)
+  setCommentCount: (postId: string, count: number) => void;
+  getCommentCount: (postId: string, fallback: number) => number;
+
+  // Clear all state (for logout)
+  clearAll: () => void;
 }
 
 export const usePostStore = create<PostState>()(
   persist(
     (set, get) => ({
       likedPosts: [],
-      postLikeCounts: {},
-      postCommentCounts: {},
       likedComments: [],
-      commentLikeCounts: {},
+      postCommentCounts: {},
 
-      toggleLike: (postId, initialCount) => {
-        const { likedPosts, postLikeCounts } = get();
+      // Set liked state from server response - NOT a toggle
+      setPostLiked: (postId, liked) => {
+        const { likedPosts } = get();
         const isCurrentlyLiked = likedPosts.includes(postId);
 
-        const newLikedPosts = isCurrentlyLiked
-          ? likedPosts.filter((id) => id !== postId)
-          : [...likedPosts, postId];
-
-        const currentCount = postLikeCounts[postId] ?? initialCount;
-        const newCount = isCurrentlyLiked ? currentCount - 1 : currentCount + 1;
-
-        set({
-          likedPosts: newLikedPosts,
-          postLikeCounts: { ...postLikeCounts, [postId]: newCount },
-        });
+        if (liked && !isCurrentlyLiked) {
+          set({ likedPosts: [...likedPosts, postId] });
+        } else if (!liked && isCurrentlyLiked) {
+          set({ likedPosts: likedPosts.filter((id) => id !== postId) });
+        }
+        // If state already matches, do nothing (idempotent)
       },
 
-      getLikeCount: (postId, initialCount) => {
-        return get().postLikeCounts[postId] ?? initialCount;
+      // Set comment liked state from server response - NOT a toggle
+      setCommentLiked: (commentId, liked) => {
+        const { likedComments } = get();
+        const isCurrentlyLiked = likedComments.includes(commentId);
+
+        if (liked && !isCurrentlyLiked) {
+          set({ likedComments: [...likedComments, commentId] });
+        } else if (!liked && isCurrentlyLiked) {
+          set({
+            likedComments: likedComments.filter((id) => id !== commentId),
+          });
+        }
       },
 
       isPostLiked: (postId) => get().likedPosts.includes(postId),
+      isCommentLiked: (commentId) => get().likedComments.includes(commentId),
 
-      // Sync liked posts from server - replaces local state with server truth
+      // Replace local state entirely with server truth
       syncLikedPosts: (serverLikedPosts) => {
         set({ likedPosts: serverLikedPosts });
       },
 
-      incrementCommentCount: (postId, initialCount) => {
-        const { postCommentCounts } = get();
-        const currentCount = postCommentCounts[postId] ?? initialCount;
+      syncLikedComments: (serverLikedComments) => {
+        set({ likedComments: serverLikedComments });
+      },
+
+      // Comment count tracking
+      setCommentCount: (postId, count) => {
+        set((state) => ({
+          postCommentCounts: { ...state.postCommentCounts, [postId]: count },
+        }));
+      },
+
+      getCommentCount: (postId, fallback) => {
+        return get().postCommentCounts[postId] ?? fallback;
+      },
+
+      // Clear all state on logout
+      clearAll: () => {
         set({
-          postCommentCounts: {
-            ...postCommentCounts,
-            [postId]: currentCount + 1,
-          },
+          likedPosts: [],
+          likedComments: [],
+          postCommentCounts: {},
         });
       },
-
-      getCommentCount: (postId, initialCount) => {
-        return get().postCommentCounts[postId] ?? initialCount;
-      },
-
-      toggleCommentLike: (commentId, initialCount) => {
-        const { likedComments, commentLikeCounts } = get();
-        const isCurrentlyLiked = likedComments.includes(commentId);
-
-        const newLikedComments = isCurrentlyLiked
-          ? likedComments.filter((id) => id !== commentId)
-          : [...likedComments, commentId];
-
-        const currentCount = commentLikeCounts[commentId] ?? initialCount;
-        const newCount = isCurrentlyLiked ? currentCount - 1 : currentCount + 1;
-
-        set({
-          likedComments: newLikedComments,
-          commentLikeCounts: { ...commentLikeCounts, [commentId]: newCount },
-        });
-      },
-
-      getCommentLikeCount: (commentId, initialCount) => {
-        return get().commentLikeCounts[commentId] ?? initialCount;
-      },
-
-      isCommentLiked: (commentId) => get().likedComments.includes(commentId),
     }),
     {
       name: "post-storage",

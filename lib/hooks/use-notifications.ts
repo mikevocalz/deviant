@@ -7,7 +7,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useActivityStore } from "@/lib/stores/activity-store";
+import {
+  useActivityStore,
+  type ActivityType,
+} from "@/lib/stores/activity-store";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { messagesApiClient } from "@/lib/api/messages";
 import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,
@@ -62,34 +67,106 @@ export function useNotifications() {
 
       // Listen for incoming notifications (app in foreground)
       notificationListener.current =
-        Notifications.addNotificationReceivedListener((notification) => {
+        Notifications.addNotificationReceivedListener(async (notification) => {
           console.log("[Notifications] Received:", notification);
           setNotification(notification);
-          
-          // Add to activity store for real-time updates
+
+          // Handle notification based on type
           try {
-            const data = notification.request.content.data as Record<string, unknown>;
-            if (data?.type && data?.senderId) {
-              const notificationType = data.type as "like" | "comment" | "follow" | "mention";
+            const data = notification.request.content.data as Record<
+              string,
+              unknown
+            >;
+            const notificationType = data?.type as string;
+
+            if (!notificationType) return;
+
+            // CRITICAL: Messages are handled SEPARATELY from Activity notifications
+            if (notificationType === "message") {
+              // Message notification - update Messages badge, NOT Activity
+              console.log(
+                "[Notifications] Message received - updating Messages badge",
+              );
+
+              // Check if sender is followed (Inbox) or not (Spam)
+              const senderId = data.senderId as string;
+              if (senderId) {
+                const followingIds = await messagesApiClient.getFollowingIds();
+                const isInbox = followingIds.includes(senderId);
+
+                if (isInbox) {
+                  // Only increment Messages badge for Inbox messages
+                  useUnreadCountsStore.getState().incrementMessages();
+                  console.log(
+                    "[Notifications] Inbox message - Messages badge incremented",
+                  );
+                } else {
+                  // Spam message - do NOT increment badge
+                  console.log(
+                    "[Notifications] Spam message - badge NOT incremented",
+                  );
+                }
+              }
+
+              // Do NOT add to Activity store for messages (policy decision)
+              return;
+            }
+
+            // Non-message notifications go to Activity feed
+            const validActivityTypes: ActivityType[] = [
+              "like",
+              "comment",
+              "follow",
+              "mention",
+              "event_invite",
+              "event_update",
+            ];
+            if (validActivityTypes.includes(notificationType as ActivityType)) {
+              console.log(
+                "[Notifications] Activity notification - updating Activity",
+              );
+
               const newActivity = {
-                id: data.notificationId as string || `notif-${Date.now()}`,
-                type: notificationType,
+                id: (data.notificationId as string) || `notif-${Date.now()}`,
+                type: notificationType as ActivityType,
                 user: {
-                  username: data.senderUsername as string || "Someone",
-                  avatar: data.senderAvatar as string || `https://ui-avatars.com/api/?name=User`,
+                  id: data.senderId as string,
+                  username: (data.senderUsername as string) || "Someone",
+                  avatar:
+                    (data.senderAvatar as string) ||
+                    `https://ui-avatars.com/api/?name=User`,
                 },
-                post: data.postId ? {
-                  id: data.postId as string,
-                  thumbnail: data.postThumbnail as string || "",
-                } : undefined,
-                comment: data.content as string || undefined,
+                entityType: data.entityType as
+                  | "post"
+                  | "comment"
+                  | "user"
+                  | "event"
+                  | undefined,
+                entityId: data.entityId as string | undefined,
+                post: data.postId
+                  ? {
+                      id: data.postId as string,
+                      thumbnail: (data.postThumbnail as string) || "",
+                    }
+                  : undefined,
+                event: data.eventId
+                  ? {
+                      id: data.eventId as string,
+                      title: data.eventTitle as string,
+                    }
+                  : undefined,
+                comment: (data.content as string) || undefined,
                 timeAgo: "Just now",
                 isRead: false,
               };
               addActivity(newActivity);
+              // Activity unread count is automatically synced via addActivity
             }
           } catch (error) {
-            console.error("[Notifications] Error adding to activity store:", error);
+            console.error(
+              "[Notifications] Error handling notification:",
+              error,
+            );
           }
         });
 
@@ -119,7 +196,9 @@ export function useNotifications() {
                   break;
                 case "follow":
                   if (data.userId || data.senderId) {
-                    router.push(`/(protected)/profile/${data.userId || data.senderId}` as any);
+                    router.push(
+                      `/(protected)/profile/${data.userId || data.senderId}` as any,
+                    );
                   }
                   break;
                 case "event":

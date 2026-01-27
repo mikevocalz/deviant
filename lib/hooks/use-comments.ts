@@ -11,7 +11,8 @@ import { usePostStore } from "@/lib/stores/post-store";
 export const commentKeys = {
   all: ["comments"] as const,
   byPost: (postId: string) => [...commentKeys.all, "post", postId] as const,
-  byParent: (parentId: string) => [...commentKeys.all, "parent", parentId] as const,
+  byParent: (parentId: string) =>
+    [...commentKeys.all, "parent", parentId] as const,
 };
 
 // Fetch comments for a post
@@ -26,7 +27,7 @@ export function useComments(postId: string, limit?: number) {
         // For unlimited fetches, always update
         const { postCommentCounts } = usePostStore.getState();
         const currentCount = postCommentCounts[postId];
-        
+
         if (!limit || limit >= 50) {
           // Full fetch - update count
           if (currentCount === undefined || comments.length !== currentCount) {
@@ -37,7 +38,11 @@ export function useComments(postId: string, limit?: number) {
               },
             });
           }
-        } else if (limit && comments.length >= limit && currentCount === undefined) {
+        } else if (
+          limit &&
+          comments.length >= limit &&
+          currentCount === undefined
+        ) {
           // Limited fetch reached limit - set minimum count
           usePostStore.setState({
             postCommentCounts: {
@@ -59,7 +64,6 @@ export function useComments(postId: string, limit?: number) {
 // Create comment mutation with optimistic updates
 export function useCreateComment() {
   const queryClient = useQueryClient();
-  const { incrementCommentCount, getCommentCount } = usePostStore.getState();
 
   return useMutation({
     mutationFn: commentsApiClient.createComment,
@@ -75,10 +79,13 @@ export function useCreateComment() {
         queryKey: commentKeys.byPost(newComment.post),
       });
 
-      // Optimistically increment comment count in store
-      const currentCount = getCommentCount(newComment.post, 0);
-      incrementCommentCount(newComment.post, currentCount);
-      
+      // Get current comment count for rollback
+      const store = usePostStore.getState();
+      const previousCount = store.getCommentCount(newComment.post, 0);
+
+      // Optimistically increment comment count
+      store.setCommentCount(newComment.post, previousCount + 1);
+
       // Optimistically add the new comment
       const optimisticComment: Comment = {
         id: `temp-${Date.now()}`,
@@ -120,15 +127,10 @@ export function useCreateComment() {
         });
       }
       // Rollback comment count increment
-      const { postCommentCounts } = usePostStore.getState();
-      const currentCount = postCommentCounts[newComment.post];
-      if (currentCount !== undefined && currentCount > 0) {
-        usePostStore.setState({
-          postCommentCounts: {
-            ...postCommentCounts,
-            [newComment.post]: currentCount - 1,
-          },
-        });
+      const store = usePostStore.getState();
+      const currentCount = store.getCommentCount(newComment.post, 0);
+      if (currentCount > 0) {
+        store.setCommentCount(newComment.post, currentCount - 1);
       }
     },
     onSettled: (_, __, variables) => {
@@ -149,54 +151,57 @@ export function useCreateComment() {
   });
 }
 
-// Like/unlike comment mutation
+/**
+ * STABILIZED Like Comment Mutation
+ *
+ * CRITICAL CHANGES:
+ * 1. NO optimistic updates - wait for server confirmation
+ * 2. Server response is the ONLY source of truth
+ * 3. Update Zustand store with server data
+ * 4. Invalidate queries to refresh from server
+ */
 export function useLikeComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ commentId, isLiked }: { commentId: string; isLiked: boolean }) =>
-      commentsApiClient.likeComment(commentId, isLiked),
-    onMutate: async ({ commentId, isLiked }) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: commentKeys.all });
+    mutationFn: ({
+      commentId,
+      isLiked,
+    }: {
+      commentId: string;
+      isLiked: boolean;
+    }) => commentsApiClient.likeComment(commentId, isLiked),
+    // NO onMutate - no optimistic updates
+    onError: (err, variables) => {
+      console.error(
+        `[useLikeComment] Error liking comment ${variables.commentId}:`,
+        err,
+      );
+    },
+    onSuccess: (data, variables) => {
+      const { commentId } = variables;
 
-      // Snapshot previous data
-      const previousData = queryClient.getQueriesData({
-        queryKey: commentKeys.all,
+      // CRITICAL: Update Zustand store with SERVER state
+      import("@/lib/stores/post-store").then(({ usePostStore }) => {
+        usePostStore.getState().setCommentLiked(commentId, data.liked);
       });
 
-      // Also update Zustand store optimistically for instant UI updates
-      const { usePostStore } = await import("@/lib/stores/post-store");
-      const store = usePostStore.getState();
-      const currentCount = store.getCommentLikeCount(commentId, 0);
-      const delta = isLiked ? -1 : 1;
-      usePostStore.setState({
-        commentLikeCounts: {
-          ...store.commentLikeCounts,
-          [commentId]: Math.max(0, currentCount + delta),
-        },
-        likedComments: isLiked
-          ? store.likedComments.filter((id) => id !== commentId)
-          : [...store.likedComments, commentId],
-      });
-
-      // Optimistically update comment likes in all comment caches
+      // Update React Query cache with server data
       queryClient.setQueriesData<Comment[]>(
         { queryKey: commentKeys.all },
         (old) => {
           if (!old) return old;
-          const delta = isLiked ? -1 : 1;
           return old.map((comment) => {
             if (comment.id === commentId) {
-              return { ...comment, likes: Math.max(0, comment.likes + delta) };
+              return { ...comment, likes: data.likes };
             }
-            // Also check replies
+            // Also update in replies
             if (comment.replies && comment.replies.length > 0) {
               return {
                 ...comment,
                 replies: comment.replies.map((reply) =>
                   reply.id === commentId
-                    ? { ...reply, likes: Math.max(0, reply.likes + delta) }
+                    ? { ...reply, likes: data.likes }
                     : reply,
                 ),
               };
@@ -206,18 +211,8 @@ export function useLikeComment() {
         },
       );
 
-      return { previousData };
-    },
-    onError: (_err, _variables, context) => {
-      // Rollback on error
-      if (context?.previousData) {
-        context.previousData.forEach(([queryKey, data]) => {
-          queryClient.setQueryData(queryKey, data);
-        });
-      }
-    },
-    onSuccess: () => {
-      // Invalidate user data to sync liked comments
+      // Invalidate to ensure sync with server
+      queryClient.invalidateQueries({ queryKey: commentKeys.all });
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
   });

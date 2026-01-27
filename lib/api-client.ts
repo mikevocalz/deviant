@@ -14,30 +14,20 @@
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// API base URL - Uses the Hono server for all API calls
-// The Hono server (EXPO_PUBLIC_AUTH_URL) has all API routes with proper user lookup
-// EXPO_PUBLIC_API_URL points to Payload CMS directly, which doesn't have the user lookup logic
-// Priority: EXPO_PUBLIC_AUTH_URL (Hono server with API routes) > EXPO_PUBLIC_API_URL (Payload CMS)
-// CRITICAL: Production URL as final fallback - localhost NEVER works on mobile devices
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_AUTH_URL ||
-  process.env.EXPO_PUBLIC_API_URL ||
-  "https://server-zeta-lovat.vercel.app";
+// CRITICAL: Import canonical API URL resolver - single source of truth
+import { getApiBaseUrl, validateApiConfig } from "@/lib/api-config";
 
-// Log the API URL for debugging
-console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
-console.log(
-  "[API] EXPO_PUBLIC_API_URL:",
-  process.env.EXPO_PUBLIC_API_URL || "(not set)",
-);
-console.log(
-  "[API] EXPO_PUBLIC_AUTH_URL:",
-  process.env.EXPO_PUBLIC_AUTH_URL || "(not set)",
-);
+// API base URL - Uses canonical resolver that NEVER returns empty/localhost
+// This is the SINGLE SOURCE OF TRUTH for API URLs
+const API_BASE_URL = getApiBaseUrl();
 
-if (Platform.OS !== "web" && !API_BASE_URL) {
-  console.warn(
-    "[API] Warning: No API_URL set for native. API calls will fail.",
+// Validate configuration at module load
+validateApiConfig();
+
+// Hard guard - fail fast if configuration is invalid
+if (!API_BASE_URL || !API_BASE_URL.startsWith("https://")) {
+  throw new Error(
+    `[API] CRITICAL: Invalid API configuration. API_BASE_URL="${API_BASE_URL}" is not a valid HTTPS URL. Check environment variables.`,
   );
 }
 
@@ -367,6 +357,13 @@ export const users = {
       "/api/users/me?includeBookmarks=true",
     );
     return response.bookmarkedPosts || [];
+  },
+
+  getLikedPosts: async (): Promise<string[]> => {
+    const response = await apiFetch<{ user: unknown; likedPosts?: string[] }>(
+      "/api/users/me?includeLikedPosts=true",
+    );
+    return response.likedPosts || [];
   },
 };
 

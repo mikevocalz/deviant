@@ -41,12 +41,9 @@ export default function CommentsScreen() {
     setNewComment: setComment,
     setReplyingTo,
   } = useCommentsStore();
-  const {
-    isCommentLiked,
-    toggleCommentLike,
-    getCommentLikeCount,
-    commentLikeCounts,
-  } = usePostStore();
+  // STABILIZED: Only use boolean check from store
+  // Counts come from server via comment data, NOT from store
+  const { isCommentLiked } = usePostStore();
   const likeCommentMutation = useLikeComment();
   const insets = useSafeAreaInsets();
 
@@ -290,16 +287,11 @@ export default function CommentsScreen() {
                           onPress={() => {
                             if (!item.id) return;
                             const wasLiked = isCommentLiked(item.id);
-                            toggleCommentLike(item.id, item.likes || 0);
-                            likeCommentMutation.mutate(
-                              { commentId: item.id, isLiked: wasLiked },
-                              {
-                                onError: () => {
-                                  // Rollback on error
-                                  toggleCommentLike(item.id, item.likes || 0);
-                                },
-                              },
-                            );
+                            // STABILIZED: No optimistic updates - wait for server
+                            likeCommentMutation.mutate({
+                              commentId: item.id,
+                              isLiked: wasLiked,
+                            });
                           }}
                           style={{
                             flexDirection: "row",
@@ -317,10 +309,7 @@ export default function CommentsScreen() {
                             }
                           />
                           <Text style={{ color: "#666", fontSize: 12 }}>
-                            {getCommentLikeCount(
-                              item.id || "",
-                              item.likes || 0,
-                            )}
+                            {item.likes || 0}
                           </Text>
                         </Pressable>
                         <Pressable
@@ -489,24 +478,11 @@ export default function CommentsScreen() {
                                                 const wasLiked = isCommentLiked(
                                                   reply.id,
                                                 );
-                                                toggleCommentLike(
-                                                  reply.id,
-                                                  reply.likes || 0,
-                                                );
-                                                likeCommentMutation.mutate(
-                                                  {
-                                                    commentId: reply.id,
-                                                    isLiked: wasLiked,
-                                                  },
-                                                  {
-                                                    onError: () => {
-                                                      toggleCommentLike(
-                                                        reply.id,
-                                                        reply.likes || 0,
-                                                      );
-                                                    },
-                                                  },
-                                                );
+                                                // STABILIZED: No optimistic updates - wait for server
+                                                likeCommentMutation.mutate({
+                                                  commentId: reply.id,
+                                                  isLiked: wasLiked,
+                                                });
                                               }}
                                               style={{
                                                 flexDirection: "row",
@@ -533,10 +509,7 @@ export default function CommentsScreen() {
                                                   fontSize: 11,
                                                 }}
                                               >
-                                                {getCommentLikeCount(
-                                                  reply.id || "",
-                                                  reply.likes || 0,
-                                                )}
+                                                {reply.likes || 0}
                                               </Text>
                                             </Pressable>
                                           </View>
@@ -665,24 +638,11 @@ export default function CommentsScreen() {
                                                 const wasLiked = isCommentLiked(
                                                   reply.id,
                                                 );
-                                                toggleCommentLike(
-                                                  reply.id,
-                                                  reply.likes || 0,
-                                                );
-                                                likeCommentMutation.mutate(
-                                                  {
-                                                    commentId: reply.id,
-                                                    isLiked: wasLiked,
-                                                  },
-                                                  {
-                                                    onError: () => {
-                                                      toggleCommentLike(
-                                                        reply.id,
-                                                        reply.likes || 0,
-                                                      );
-                                                    },
-                                                  },
-                                                );
+                                                // STABILIZED: No optimistic updates - wait for server
+                                                likeCommentMutation.mutate({
+                                                  commentId: reply.id,
+                                                  isLiked: wasLiked,
+                                                });
                                               }}
                                               style={{
                                                 flexDirection: "row",
@@ -709,10 +669,7 @@ export default function CommentsScreen() {
                                                   fontSize: 11,
                                                 }}
                                               >
-                                                {getCommentLikeCount(
-                                                  reply.id || "",
-                                                  reply.likes || 0,
-                                                )}
+                                                {reply.likes || 0}
                                               </Text>
                                             </Pressable>
                                           </View>

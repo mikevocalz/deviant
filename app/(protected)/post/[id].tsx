@@ -14,17 +14,19 @@ import { PostDetailSkeleton } from "@/components/skeletons";
 import { usePost, useLikePost } from "@/lib/hooks/use-posts";
 import { useComments, useLikeComment } from "@/lib/hooks/use-comments";
 import { usePostStore } from "@/lib/stores/post-store";
-import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+// STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { PostCaption } from "@/components/post-caption";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const { width } = Dimensions.get("window");
 
-export default function PostDetailScreen() {
+function PostDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
 
@@ -35,53 +37,44 @@ export default function PostDetailScreen() {
   const { data: post, isLoading, error: postError } = usePost(postId);
   const { data: comments = [], isLoading: commentsLoading } =
     useComments(postId);
-  const {
-    isPostLiked,
-    toggleLike,
-    getLikeCount,
-    getCommentCount,
-    isCommentLiked,
-    toggleCommentLike,
-    getCommentLikeCount,
-  } = usePostStore();
-  const bookmarkStore = useBookmarkStore();
+  // STABILIZED: Only use boolean checks from store
+  // Counts come from server via post data, NOT from store
+  const { isPostLiked, isCommentLiked } = usePostStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
   const likeCommentMutation = useLikeComment();
 
-  // Sync bookmarks from API to local store
-  useEffect(() => {
-    if (bookmarkedPostIds.length > 0 && postId) {
-      const isBookmarkedInAPI = bookmarkedPostIds.includes(postId);
-      const isBookmarkedLocally = bookmarkStore.isBookmarked(postId);
-
-      if (isBookmarkedInAPI !== isBookmarkedLocally) {
-        bookmarkStore.toggleBookmark(postId);
-      }
-    }
-  }, [postId, bookmarkedPostIds, bookmarkStore]);
-
+  // STABILIZED: Bookmark state comes from server ONLY via React Query
   const isBookmarked = useMemo(() => {
-    return (
-      bookmarkStore.isBookmarked(postId) || bookmarkedPostIds.includes(postId)
-    );
-  }, [postId, bookmarkedPostIds, bookmarkStore]);
+    return bookmarkedPostIds.includes(postId);
+  }, [postId, bookmarkedPostIds]);
 
   // Validate video URL - must be valid HTTP/HTTPS URL
+  // CRITICAL: Only create a valid URL if we actually have video content
   const videoUrl = useMemo(() => {
-    if (post?.media?.[0]?.type === "video" && post?.media?.[0]?.url) {
-      const url = post.media[0].url;
-      // Only use valid HTTP/HTTPS URLs
-      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
-        return url;
+    try {
+      if (post?.media?.[0]?.type === "video" && post?.media?.[0]?.url) {
+        const url = post.media[0].url;
+        // Only use valid HTTP/HTTPS URLs
+        if (
+          url &&
+          typeof url === "string" &&
+          (url.startsWith("http://") || url.startsWith("https://"))
+        ) {
+          return url;
+        }
       }
+    } catch (e) {
+      console.warn("[PostDetail] Error validating video URL:", e);
     }
     return "";
   }, [post?.media]);
 
-  const player = useVideoPlayer(videoUrl, (player) => {
+  // CRITICAL: Only create player if we have a valid video URL
+  // This prevents crashes when videoUrl is empty or invalid
+  const player = useVideoPlayer(videoUrl || null, (player) => {
     if (player && videoUrl) {
       try {
         player.loop = false;
@@ -112,6 +105,13 @@ export default function PostDetailScreen() {
       };
     }, [player, videoUrl]),
   );
+
+  // Navigate to user profile
+  const handleProfilePress = useCallback(() => {
+    if (!post?.author?.username) return;
+    console.log(`[PostDetail] Navigating to profile: ${post.author.username}`);
+    router.push(`/(protected)/profile/${post.author.username}`);
+  }, [post?.author?.username, router]);
 
   const handleShare = useCallback(async () => {
     if (!postId || !post) return;
@@ -229,11 +229,10 @@ export default function PostDetailScreen() {
   const postIdString = post?.id ? String(post.id) : postId;
   const isLiked = postIdString ? isPostLiked(postIdString) : false;
   const isSaved = isBookmarked;
-  const likeCount =
-    postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
-  const commentCount = postIdString
-    ? getCommentCount(postIdString, comments.length)
-    : 0;
+
+  // STABILIZED: Counts come from server via post data ONLY
+  const likeCount = post?.likes || 0;
+  const commentCount = comments.length;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -249,18 +248,24 @@ export default function PostDetailScreen() {
           {/* Header */}
           <View className="flex-row items-center justify-between p-4">
             <View className="flex-row items-center gap-3">
-              <Image
-                source={{
-                  uri:
-                    post.author?.avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author?.username || "User")}`,
-                }}
-                className="h-10 w-10 rounded-full"
-              />
+              <Pressable onPress={handleProfilePress}>
+                <Image
+                  source={{
+                    uri:
+                      post.author?.avatar ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author?.username || "User")}`,
+                  }}
+                  className="h-10 w-10 rounded-full"
+                />
+              </Pressable>
               <View>
-                <Text className="text-base font-semibold text-foreground">
-                  {post.author?.username || "Unknown User"}
-                </Text>
+                {post.author?.username && (
+                  <Pressable onPress={handleProfilePress}>
+                    <Text className="text-base font-semibold text-foreground">
+                      {post.author.username}
+                    </Text>
+                  </Pressable>
+                )}
                 {post.location && (
                   <Text className="text-sm text-muted-foreground">
                     {post.location}
@@ -274,12 +279,23 @@ export default function PostDetailScreen() {
           {hasMedia ? (
             <View style={{ width, height: width }} className="bg-muted">
               {isVideo && videoUrl && player ? (
-                <VideoView
-                  player={player}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  nativeControls
-                />
+                // CRITICAL: Wrap VideoView in error boundary style check
+                // Only render if player is valid
+                <View style={{ width: "100%", height: "100%" }}>
+                  <VideoView
+                    player={player}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    nativeControls
+                  />
+                </View>
+              ) : isVideo && !videoUrl ? (
+                // Video post but invalid URL - show placeholder, NOT crash
+                <View className="flex-1 items-center justify-center">
+                  <Text className="text-muted-foreground">
+                    Video unavailable
+                  </Text>
+                </View>
               ) : post.media?.[0]?.url &&
                 (post.media[0].url.startsWith("http://") ||
                   post.media[0].url.startsWith("https://")) ? (
@@ -312,6 +328,13 @@ export default function PostDetailScreen() {
               <Pressable
                 onPress={() => {
                   if (!postIdString || !post) return;
+                  // CRITICAL: Block if mutation already pending for this post
+                  if (likePostMutation.isPostPending(postIdString)) {
+                    console.log(
+                      `[PostDetail] Like blocked - mutation pending for ${postIdString}`,
+                    );
+                    return;
+                  }
                   const wasLiked = isLiked;
                   // NOTE: Don't call toggleLike here - useLikePost mutation handles optimistic updates
                   // and will rollback on error. Calling toggleLike here would cause double-toggle.
@@ -320,6 +343,7 @@ export default function PostDetailScreen() {
                     isLiked: wasLiked,
                   });
                 }}
+                disabled={likePostMutation.isPostPending(postIdString)}
               >
                 <Heart
                   size={28}
@@ -342,19 +366,11 @@ export default function PostDetailScreen() {
             <Pressable
               onPress={() => {
                 if (!postIdString) return;
-                const currentBookmarked = isBookmarked;
-                // Optimistically update local store
-                bookmarkStore.toggleBookmark(postIdString);
-                // Sync with backend
-                toggleBookmarkMutation.mutate(
-                  { postId: postIdString, isBookmarked: currentBookmarked },
-                  {
-                    onError: () => {
-                      // Rollback on error
-                      bookmarkStore.toggleBookmark(postIdString);
-                    },
-                  },
-                );
+                // STABILIZED: No dual state - only call mutation
+                toggleBookmarkMutation.mutate({
+                  postId: postIdString,
+                  isBookmarked: isSaved,
+                });
               }}
             >
               <Bookmark
@@ -365,20 +381,32 @@ export default function PostDetailScreen() {
             </Pressable>
           </View>
 
-          {/* Info */}
+          {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
-            <Text className="text-base font-semibold text-foreground">
+            <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
               {likeCount.toLocaleString()} likes
             </Text>
-            {post.caption && (
-              <View className="mt-2">
-                <HashtagText
-                  text={`${post.author?.username || "Unknown User"} ${post.caption}`}
-                  textStyle={{ fontSize: 16 }}
-                />
-              </View>
-            )}
-            <Text className="mt-2 text-xs uppercase text-muted-foreground">
+            {/* CRITICAL: Caption renders only if content exists, no empty gaps */}
+            {post.caption &&
+              post.caption.trim().length > 0 &&
+              post.author?.username && (
+                <View style={{ marginTop: 8 }}>
+                  <PostCaption
+                    username={post.author.username}
+                    caption={post.caption}
+                    fontSize={16}
+                    onUsernamePress={handleProfilePress}
+                  />
+                </View>
+              )}
+            <Text
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                textTransform: "uppercase",
+                color: "#A3A3A3",
+              }}
+            >
               {post.timeAgo}
             </Text>
           </View>
@@ -397,22 +425,38 @@ export default function PostDetailScreen() {
                 <View key={comment.id} className="mb-4">
                   {/* Main comment */}
                   <View className="flex-row gap-3">
-                    <Image
-                      source={{
-                        uri:
-                          comment.avatar ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username || "User")}`,
+                    <Pressable
+                      onPress={() => {
+                        if (!comment.username) return;
+                        router.push(`/(protected)/profile/${comment.username}`);
                       }}
-                      style={{ width: 32, height: 32, borderRadius: 16 }}
-                    />
+                    >
+                      <Image
+                        source={{
+                          uri:
+                            comment.avatar ||
+                            `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username || "User")}`,
+                        }}
+                        style={{ width: 32, height: 32, borderRadius: 16 }}
+                      />
+                    </Pressable>
                     <View className="flex-1">
-                      <Text className="text-sm text-foreground">
-                        <Text className="font-semibold text-foreground">
-                          {comment.username || "User"}
-                        </Text>{" "}
-                        <Text className="text-foreground">
-                          {comment.text || ""}
+                      <Pressable
+                        onPress={() => {
+                          if (!comment.username) return;
+                          router.push(
+                            `/(protected)/profile/${comment.username}`,
+                          );
+                        }}
+                      >
+                        <Text className="text-sm text-foreground">
+                          <Text className="font-semibold text-foreground">
+                            {comment.username || "User"}
+                          </Text>{" "}
                         </Text>
+                      </Pressable>
+                      <Text className="text-sm text-foreground">
+                        {comment.text || ""}
                       </Text>
                       <Text className="mt-1 text-xs text-muted-foreground">
                         {comment.timeAgo}
@@ -424,19 +468,11 @@ export default function PostDetailScreen() {
                           onPress={() => {
                             if (!comment.id) return;
                             const wasLiked = isCommentLiked(comment.id);
-                            toggleCommentLike(comment.id, comment.likes || 0);
-                            likeCommentMutation.mutate(
-                              { commentId: comment.id, isLiked: wasLiked },
-                              {
-                                onError: () => {
-                                  // Rollback on error
-                                  toggleCommentLike(
-                                    comment.id,
-                                    comment.likes || 0,
-                                  );
-                                },
-                              },
-                            );
+                            // STABILIZED: No optimistic updates - wait for server
+                            likeCommentMutation.mutate({
+                              commentId: comment.id,
+                              isLiked: wasLiked,
+                            });
                           }}
                           className="flex-row items-center gap-1"
                         >
@@ -454,10 +490,7 @@ export default function PostDetailScreen() {
                             }
                           />
                           <Text className="text-xs text-muted-foreground">
-                            {getCommentLikeCount(
-                              comment.id || "",
-                              comment.likes || 0,
-                            )}
+                            {comment.likes || 0}
                           </Text>
                         </Pressable>
                         <Pressable
@@ -490,26 +523,42 @@ export default function PostDetailScreen() {
                               key={reply.id}
                               className="mb-2 flex-row gap-2"
                             >
-                              <Image
-                                source={{
-                                  uri:
-                                    reply.avatar ||
-                                    `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username || "User")}`,
+                              <Pressable
+                                onPress={() => {
+                                  if (!reply.username) return;
+                                  router.push(
+                                    `/(protected)/profile/${reply.username}`,
+                                  );
                                 }}
-                                style={{
-                                  width: 24,
-                                  height: 24,
-                                  borderRadius: 12,
-                                }}
-                              />
+                              >
+                                <Image
+                                  source={{
+                                    uri:
+                                      reply.avatar ||
+                                      `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username || "User")}`,
+                                  }}
+                                  style={{
+                                    width: 24,
+                                    height: 24,
+                                    borderRadius: 12,
+                                  }}
+                                />
+                              </Pressable>
                               <View className="flex-1">
-                                <Text className="text-sm text-foreground">
-                                  <Text className="font-semibold text-foreground">
+                                <Pressable
+                                  onPress={() => {
+                                    if (!reply.username) return;
+                                    router.push(
+                                      `/(protected)/profile/${reply.username}`,
+                                    );
+                                  }}
+                                >
+                                  <Text className="text-sm font-semibold text-foreground">
                                     {reply.username || "User"}
-                                  </Text>{" "}
-                                  <Text className="text-foreground">
-                                    {reply.text || ""}
                                   </Text>
+                                </Pressable>
+                                <Text className="text-sm text-foreground">
+                                  {reply.text || ""}
                                 </Text>
                                 <Text className="mt-1 text-xs text-muted-foreground">
                                   {reply.timeAgo || "Just now"}
@@ -547,5 +596,19 @@ export default function PostDetailScreen() {
         </View>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection (especially video)
+export default function PostDetailScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="PostDetail"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <PostDetailScreenContent />
+    </ErrorBoundary>
   );
 }

@@ -375,7 +375,8 @@ export const messagesApiClient = {
     }
   },
 
-  // Get unread message count across all conversations
+  // Get unread message count for INBOX ONLY (messages from followed users)
+  // This is the source of truth for the Messages badge
   async getUnreadCount(): Promise<number> {
     try {
       const user = useAuthStore.getState().user;
@@ -384,6 +385,9 @@ export const messagesApiClient = {
       // Get Payload CMS user ID
       const payloadUserId = await getPayloadUserId(user.username);
       if (!payloadUserId) return 0;
+
+      // Get following list to filter Inbox-only messages
+      const followingIds = await this.getFollowingIds();
 
       // Find all unread messages not sent by current user
       const unread = await messagesApi.find({
@@ -394,11 +398,71 @@ export const messagesApiClient = {
           ],
         },
         limit: 100,
+        depth: 2,
       });
 
-      return unread.totalDocs || unread.docs.length;
+      // Filter to only count messages from followed users (Inbox only)
+      // Spam messages should NOT increment the Messages badge
+      let inboxUnreadCount = 0;
+      for (const msg of unread.docs) {
+        const sender = msg.sender as Record<string, unknown> | undefined;
+        const senderId = String(sender?.id || "");
+
+        // Only count if sender is in following list (Inbox)
+        if (followingIds.includes(senderId)) {
+          inboxUnreadCount++;
+        }
+      }
+
+      console.log("[messagesApi] getUnreadCount:", {
+        totalUnread: unread.docs.length,
+        inboxUnread: inboxUnreadCount,
+        followingCount: followingIds.length,
+      });
+
+      return inboxUnreadCount;
     } catch (error) {
       console.error("[messagesApi] getUnreadCount error:", error);
+      return 0;
+    }
+  },
+
+  // Get unread count for spam messages (non-followed users) - for UI display only
+  async getSpamUnreadCount(): Promise<number> {
+    try {
+      const user = useAuthStore.getState().user;
+      if (!user) return 0;
+
+      const payloadUserId = await getPayloadUserId(user.username);
+      if (!payloadUserId) return 0;
+
+      const followingIds = await this.getFollowingIds();
+
+      const unread = await messagesApi.find({
+        where: {
+          and: [
+            { sender: { not_equals: payloadUserId } },
+            { readAt: { exists: false } },
+          ],
+        },
+        limit: 100,
+        depth: 2,
+      });
+
+      // Count only messages from NON-followed users (Spam)
+      let spamUnreadCount = 0;
+      for (const msg of unread.docs) {
+        const sender = msg.sender as Record<string, unknown> | undefined;
+        const senderId = String(sender?.id || "");
+
+        if (!followingIds.includes(senderId)) {
+          spamUnreadCount++;
+        }
+      }
+
+      return spamUnreadCount;
+    } catch (error) {
+      console.error("[messagesApi] getSpamUnreadCount error:", error);
       return 0;
     }
   },

@@ -171,7 +171,7 @@ export function SignUpStep3() {
         <Checkbox
           checked={termsAccepted}
           onCheckedChange={(v) => hasScrolledToBottom && setTermsAccepted(v)}
-          borderColor="#FC253A"
+          borderColor="#34A2DF"
         />
         <Text
           className={`flex-1 text-sm leading-relaxed ${!hasScrolledToBottom ? "text-slate-400" : "text-foreground"}`}
