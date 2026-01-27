@@ -19,6 +19,22 @@ const PRODUCTION_API_URL = "https://payload-cms-setup-gray.vercel.app";
 const PRODUCTION_CDN_URL = "https://dvnt.b-cdn.net";
 
 /**
+ * Get the canonical Payload CMS URL
+ * Used ONLY for Payload CMS data endpoints (follows, likes, bookmarks, posts, etc.)
+ * This is SEPARATE from the auth URL which is for authentication only.
+ */
+export function getPayloadBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+
+  if (isValidHttpsUrl(envUrl)) {
+    return envUrl;
+  }
+
+  // Production fallback - Payload CMS server
+  return PRODUCTION_API_URL;
+}
+
+/**
  * Validate that a URL is a valid HTTPS URL
  */
 function isValidHttpsUrl(url: string | undefined): url is string {

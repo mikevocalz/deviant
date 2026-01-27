@@ -15,11 +15,19 @@ import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
 // CRITICAL: Import canonical API URL resolver - single source of truth
-import { getApiBaseUrl, validateApiConfig } from "@/lib/api-config";
+import {
+  getApiBaseUrl,
+  getPayloadBaseUrl,
+  validateApiConfig,
+} from "@/lib/api-config";
 
 // API base URL - Uses canonical resolver that NEVER returns empty/localhost
 // This is the SINGLE SOURCE OF TRUTH for API URLs
 const API_BASE_URL = getApiBaseUrl();
+
+// Payload CMS URL - for social actions (follows, likes, bookmarks, etc.)
+// CRITICAL: This must point to Payload CMS, NOT the auth server
+const PAYLOAD_BASE_URL = getPayloadBaseUrl();
 
 // Validate configuration at module load
 validateApiConfig();
@@ -191,6 +199,69 @@ async function apiFetch<T>(
   return data as T;
 }
 
+// Payload CMS fetch - for social actions (follows, likes, bookmarks)
+// CRITICAL: Uses PAYLOAD_BASE_URL which points to Payload CMS, not auth server
+async function payloadFetch<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const url = `${PAYLOAD_BASE_URL}${endpoint}`;
+
+  // Get auth token for authenticated requests
+  const authToken = await getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+
+  // Use JWT token for authorization
+  if (authToken) {
+    headers["Authorization"] = `JWT ${authToken}`;
+  }
+
+  console.log(`[PayloadAPI] ${options.method || "GET"} ${url}`);
+  console.log("[PayloadAPI] Has auth token:", !!authToken);
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    credentials: "omit", // Always omit for cross-origin
+  });
+
+  let data: any;
+  const contentType = response.headers.get("content-type");
+
+  if (contentType?.includes("application/json")) {
+    data = await response.json();
+  } else {
+    const text = await response.text();
+    console.error("[PayloadAPI] Non-JSON response:", text.slice(0, 200));
+    data = { error: `Server returned non-JSON response (${response.status})` };
+  }
+
+  if (!response.ok) {
+    console.error(
+      `[PayloadAPI] Error ${response.status}:`,
+      JSON.stringify(data, null, 2),
+    );
+
+    const error = new Error(
+      data?.errors?.[0]?.message ||
+        (data as APIError).error ||
+        data?.message ||
+        `API error: ${response.status}`,
+    ) as Error & {
+      status: number;
+      errors?: Array<{ message: string; field?: string }>;
+    };
+    error.status = response.status;
+    error.errors = (data as APIError).errors || data?.errors;
+    throw error;
+  }
+
+  return data as T;
+}
+
 /**
  * Posts API
  *
@@ -314,8 +385,11 @@ export const users = {
     }
   },
 
+  // CRITICAL FIX: Use payloadFetch to call Payload CMS directly
+  // The auth server does NOT have the follow route - Payload CMS does
   follow: async (userId: string, action: "follow" | "unfollow") => {
-    return apiFetch<{
+    console.log("[users.follow] Calling Payload CMS:", { userId, action });
+    return payloadFetch<{
       message: string;
       following: boolean;
       followersCount: number;
@@ -326,14 +400,14 @@ export const users = {
   },
 
   // Get current user's following list (IDs of users they follow)
-  // STABILIZED: Fetches from dedicated follows collection
+  // STABILIZED: Fetches from dedicated follows collection via Payload CMS
   getFollowing: async (): Promise<string[]> => {
     try {
       const currentUser = await users.me<{ id: string }>();
       if (!currentUser.user?.id) return [];
 
-      // Fetch from follows collection
-      const response = await apiFetch<{
+      // Fetch from follows collection via Payload CMS
+      const response = await payloadFetch<{
         docs: Array<{ following: string | { id: string } }>;
       }>(
         `/api/follows?where[follower][equals]=${currentUser.user.id}&limit=1000`,
@@ -357,10 +431,10 @@ export const users = {
     }
   },
 
-  // Check if current user is following a specific user
+  // Check if current user is following a specific user - via Payload CMS
   isFollowing: async (userId: string): Promise<boolean> => {
     try {
-      const response = await apiFetch<{ following: boolean }>(
+      const response = await payloadFetch<{ following: boolean }>(
         `/api/users/follow?userId=${userId}`,
       );
       return response.following;
@@ -370,14 +444,14 @@ export const users = {
     }
   },
 
-  // STABILIZED: Fetches from dedicated bookmarks collection
+  // STABILIZED: Fetches from dedicated bookmarks collection via Payload CMS
   getBookmarks: async (): Promise<string[]> => {
     try {
       const currentUser = await users.me<{ id: string }>();
       if (!currentUser.user?.id) return [];
 
-      // Fetch from bookmarks collection
-      const response = await apiFetch<{
+      // Fetch from bookmarks collection via Payload CMS
+      const response = await payloadFetch<{
         docs: Array<{ post: string | { id: string } }>;
       }>(
         `/api/bookmarks?where[user][equals]=${currentUser.user.id}&limit=1000`,
