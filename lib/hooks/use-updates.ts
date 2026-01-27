@@ -63,9 +63,19 @@ export function useUpdates() {
 
   // DIAGNOSTIC: Log on hook mount to verify it's being called
   useEffect(() => {
-    console.log("[Updates] Hook mounted - __DEV__:", __DEV__, "FORCE_OTA:", FORCE_OTA_IN_DEV, "UpdatesAvailable:", UpdatesAvailable);
+    console.log(
+      "[Updates] Hook mounted - __DEV__:",
+      __DEV__,
+      "FORCE_OTA:",
+      FORCE_OTA_IN_DEV,
+      "UpdatesAvailable:",
+      UpdatesAvailable,
+    );
     if (Updates) {
-      console.log("[Updates] expo-updates module loaded, isEnabled:", safeGet(() => Updates?.isEnabled, false));
+      console.log(
+        "[Updates] expo-updates module loaded, isEnabled:",
+        safeGet(() => Updates?.isEnabled, false),
+      );
     }
   }, []);
 
@@ -74,22 +84,26 @@ export function useUpdates() {
   const reloadApp = useCallback(async () => {
     try {
       console.log("[Updates] Preparing to restart app...");
-      
+
       // Wait for auth store rehydration to complete
       try {
-        const { waitForRehydration, flushAuthStorage } = await import("@/lib/stores/auth-store");
+        const { waitForRehydration, flushAuthStorage } =
+          await import("@/lib/stores/auth-store");
         await waitForRehydration();
         console.log("[Updates] Rehydration complete, flushing storage...");
         await flushAuthStorage();
         console.log("[Updates] Storage flushed");
       } catch (rehydrateError) {
-        console.warn("[Updates] Rehydration wait failed (non-fatal):", rehydrateError);
+        console.warn(
+          "[Updates] Rehydration wait failed (non-fatal):",
+          rehydrateError,
+        );
         // Continue anyway - better to reload than hang
       }
-      
+
       // Small additional delay to ensure all writes are persisted
       await new Promise((resolve) => setTimeout(resolve, 200));
-      
+
       console.log("[Updates] Restarting app...");
       if (Updates && typeof Updates.reloadAsync === "function") {
         await Updates.reloadAsync();
@@ -109,28 +123,34 @@ export function useUpdates() {
       console.log("[Updates] Toast already shown this session, skipping");
       return;
     }
-    
+
     // Mark as shown BEFORE showing to prevent race conditions
     hasShownUpdateToast.current = true;
-    
+
     console.log("[Updates] Showing update toast");
-    
+
     // Dismiss ALL existing toasts first to clear any queue from old versions
     toast.dismiss();
-    
+
     // Small delay to ensure dismiss completes
     setTimeout(() => {
       toast.success("Update Ready", {
+        id: "update-toast", // Use consistent ID so we can dismiss it
         description: "A new update is available. Restart to apply it.",
         duration: Infinity, // NEVER auto-dismiss - user must choose
         action: {
           label: "Restart Now",
-          onClick: reloadApp,
+          onClick: () => {
+            // Dismiss the toast BEFORE restarting
+            toast.dismiss("update-toast");
+            reloadApp();
+          },
         },
         cancel: {
           label: "Later",
           onClick: () => {
             console.log("[Updates] User chose to update later");
+            toast.dismiss("update-toast");
           },
         },
       });
@@ -141,7 +161,10 @@ export function useUpdates() {
   const downloadAndApplyUpdate = useCallback(async () => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev || !Updates || !UpdatesAvailable) {
-      if (skipDev) console.log("[Updates] Skip download: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)");
+      if (skipDev)
+        console.log(
+          "[Updates] Skip download: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)",
+        );
       return;
     }
 
@@ -169,7 +192,9 @@ export function useUpdates() {
     try {
       const result = await safeGet(
         () => Updates!.fetchUpdateAsync(),
-        Promise.resolve({ isNew: false } as Awaited<ReturnType<typeof Updates.fetchUpdateAsync>>)
+        Promise.resolve({ isNew: false } as Awaited<
+          ReturnType<typeof Updates.fetchUpdateAsync>
+        >),
       );
 
       if (result && result.isNew) {
@@ -181,7 +206,10 @@ export function useUpdates() {
         console.log("[Updates] Update fetched, isNew: true — showing toast");
         showUpdateToast();
       } else {
-        console.log("[Updates] Fetch complete, isNew:", !!(result && result.isNew));
+        console.log(
+          "[Updates] Fetch complete, isNew:",
+          !!(result && result.isNew),
+        );
         setStatus((prev) => ({ ...prev, isDownloading: false }));
       }
     } catch (error) {
@@ -189,7 +217,8 @@ export function useUpdates() {
       setStatus((prev) => ({
         ...prev,
         isDownloading: false,
-        error: error instanceof Error ? error.message : "Failed to download update",
+        error:
+          error instanceof Error ? error.message : "Failed to download update",
       }));
     } finally {
       isCheckingRef.current = false;
@@ -200,7 +229,10 @@ export function useUpdates() {
   const checkForUpdates = useCallback(async () => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev || !Updates || !UpdatesAvailable) {
-      if (skipDev) console.log("[Updates] Skip check: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)");
+      if (skipDev)
+        console.log(
+          "[Updates] Skip check: __DEV__ (set EXPO_PUBLIC_FORCE_OTA_CHECK=true to test)",
+        );
       return;
     }
 
@@ -223,23 +255,41 @@ export function useUpdates() {
 
     const channel = safeGet(() => Updates?.channel ?? null, null);
     const runtimeVersion = safeGet(() => Updates?.runtimeVersion ?? null, null);
-    console.log("[Updates] Checking — channel:", channel, "runtimeVersion:", runtimeVersion);
+    console.log(
+      "[Updates] Checking — channel:",
+      channel,
+      "runtimeVersion:",
+      runtimeVersion,
+    );
 
     setStatus((prev) => ({ ...prev, isChecking: true, error: null }));
 
     try {
       const update = await safeGet(
         () => Updates!.checkForUpdateAsync(),
-        Promise.resolve({ isAvailable: false } as Awaited<ReturnType<typeof Updates.checkForUpdateAsync>>)
+        Promise.resolve({ isAvailable: false } as Awaited<
+          ReturnType<typeof Updates.checkForUpdateAsync>
+        >),
       );
 
-      console.log("[Updates] Check result — isAvailable:", !!update?.isAvailable);
+      console.log(
+        "[Updates] Check result — isAvailable:",
+        !!update?.isAvailable,
+      );
 
-      if (!update?.isAvailable && Updates && typeof Updates.readLogEntriesAsync === "function") {
+      if (
+        !update?.isAvailable &&
+        Updates &&
+        typeof Updates.readLogEntriesAsync === "function"
+      ) {
         try {
           const entries = await Updates.readLogEntriesAsync(60_000);
           const last = entries.slice(-5);
-          if (last.length) console.log("[Updates] Native log entries (last 5):", JSON.stringify(last, null, 0));
+          if (last.length)
+            console.log(
+              "[Updates] Native log entries (last 5):",
+              JSON.stringify(last, null, 0),
+            );
         } catch (e) {
           /* no-op */
         }
@@ -264,7 +314,10 @@ export function useUpdates() {
       setStatus((prev) => ({
         ...prev,
         isChecking: false,
-        error: error instanceof Error ? error.message : "Failed to check for updates",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to check for updates",
       }));
     } finally {
       isCheckingRef.current = false;
@@ -275,7 +328,9 @@ export function useUpdates() {
   useEffect(() => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev) {
-      console.log("[Updates] Skipping OTA init in __DEV__ (use production build or EXPO_PUBLIC_FORCE_OTA_CHECK=true)");
+      console.log(
+        "[Updates] Skipping OTA init in __DEV__ (use production build or EXPO_PUBLIC_FORCE_OTA_CHECK=true)",
+      );
       return;
     }
     if (!Updates || !UpdatesAvailable || isInitialized.current) {
@@ -296,20 +351,33 @@ export function useUpdates() {
       isInitialized.current = true;
       const ch = safeGet(() => Updates?.channel ?? null, null);
       const rv = safeGet(() => Updates?.runtimeVersion ?? null, null);
-      console.log("[Updates] OTA init — channel:", ch, "runtimeVersion:", rv, "| Publish: eas update --channel", ch ?? "production");
+      console.log(
+        "[Updates] OTA init — channel:",
+        ch,
+        "runtimeVersion:",
+        rv,
+        "| Publish: eas update --channel",
+        ch ?? "production",
+      );
 
-      let appStateSubscription: ReturnType<typeof AppState.addEventListener> | null = null;
+      let appStateSubscription: ReturnType<
+        typeof AppState.addEventListener
+      > | null = null;
       let updateEventSubscription: { remove: () => void } | null = null;
 
       // First check - short delay so OTA toast can show
       const initialCheckTimer = setTimeout(() => {
-        checkForUpdates().catch((e) => console.error("[Updates] Initial check error:", e));
+        checkForUpdates().catch((e) =>
+          console.error("[Updates] Initial check error:", e),
+        );
       }, 1500);
 
       // Second check - retry in case first failed (e.g. network) or app opened before update published
       const retryTimer = setTimeout(() => {
         console.log("[Updates] Second OTA check (retry)");
-        checkForUpdates().catch((e) => console.error("[Updates] Retry check error:", e));
+        checkForUpdates().catch((e) =>
+          console.error("[Updates] Retry check error:", e),
+        );
       }, 15000);
 
       // Check when app comes to foreground
@@ -319,25 +387,39 @@ export function useUpdates() {
           try {
             checkForUpdates();
           } catch (error) {
-            console.error("[Updates] Foreground check error (non-fatal):", error);
+            console.error(
+              "[Updates] Foreground check error (non-fatal):",
+              error,
+            );
           }
         }
       };
 
       try {
-        appStateSubscription = AppState.addEventListener("change", handleAppStateChange);
+        appStateSubscription = AppState.addEventListener(
+          "change",
+          handleAppStateChange,
+        );
       } catch (error) {
-        console.error("[Updates] Failed to add app state listener (non-fatal):", error);
+        console.error(
+          "[Updates] Failed to add app state listener (non-fatal):",
+          error,
+        );
       }
 
       // Listen for update events - optional, don't fail if unavailable
       try {
         // Use addUpdatesStateChangeListener if available (newer expo-updates API)
-        const addListener = (Updates as any)?.addUpdatesStateChangeListener || (Updates as any)?.addListener;
+        const addListener =
+          (Updates as any)?.addUpdatesStateChangeListener ||
+          (Updates as any)?.addListener;
         if (Updates && typeof addListener === "function") {
           updateEventSubscription = addListener((event: any) => {
             try {
-              console.log("[Updates] Received update event:", event?.type || event?.context?.isUpdateAvailable);
+              console.log(
+                "[Updates] Received update event:",
+                event?.type || event?.context?.isUpdateAvailable,
+              );
 
               const eventType = event?.type;
               const isUpdateAvailable = event?.context?.isUpdateAvailable;
@@ -354,12 +436,18 @@ export function useUpdates() {
                 downloadAndApplyUpdate();
               }
             } catch (eventError) {
-              console.error("[Updates] Error handling event (non-fatal):", eventError);
+              console.error(
+                "[Updates] Error handling event (non-fatal):",
+                eventError,
+              );
             }
           });
         }
       } catch (listenerError) {
-        console.error("[Updates] Failed to add update listener (non-fatal):", listenerError);
+        console.error(
+          "[Updates] Failed to add update listener (non-fatal):",
+          listenerError,
+        );
       }
 
       // Cleanup
@@ -375,27 +463,27 @@ export function useUpdates() {
       };
     } catch (error) {
       // CRITICAL: Never let initialization errors crash the app
-      console.error("[Updates] Initialization error (non-fatal, app continues):", error);
+      console.error(
+        "[Updates] Initialization error (non-fatal, app continues):",
+        error,
+      );
       isInitialized.current = false; // Allow retry on next mount
     }
   }, [checkForUpdates, downloadAndApplyUpdate]);
 
   // Safe getter for currently running update info
-  const currentlyRunning = safeGet(
-    () => {
-      if (!Updates || !UpdatesAvailable) return null;
-      const isEnabled = safeGet(() => Updates?.isEnabled, false);
-      if (!isEnabled) return null;
+  const currentlyRunning = safeGet(() => {
+    if (!Updates || !UpdatesAvailable) return null;
+    const isEnabled = safeGet(() => Updates?.isEnabled, false);
+    if (!isEnabled) return null;
 
-      return {
-        updateId: safeGet(() => Updates?.updateId, null),
-        channel: safeGet(() => Updates?.channel, null),
-        createdAt: safeGet(() => Updates?.createdAt, null),
-        isEmbeddedLaunch: safeGet(() => Updates?.isEmbeddedLaunch, null),
-      };
-    },
-    null
-  );
+    return {
+      updateId: safeGet(() => Updates?.updateId, null),
+      channel: safeGet(() => Updates?.channel, null),
+      createdAt: safeGet(() => Updates?.createdAt, null),
+      isEmbeddedLaunch: safeGet(() => Updates?.isEmbeddedLaunch, null),
+    };
+  }, null);
 
   return {
     ...status,
