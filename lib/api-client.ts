@@ -475,14 +475,14 @@ export const users = {
     }
   },
 
-  // STABILIZED: Fetches from dedicated likes collection
+  // STABILIZED: Fetches from dedicated likes collection via Payload CMS
   getLikedPosts: async (): Promise<string[]> => {
     try {
       const currentUser = await users.me<{ id: string }>();
       if (!currentUser.user?.id) return [];
 
-      // Fetch from likes collection
-      const response = await apiFetch<{
+      // Fetch from likes collection via Payload CMS
+      const response = await payloadFetch<{
         docs: Array<{ post: string | { id: string } }>;
       }>(
         `/api/likes?where[user][equals]=${currentUser.user.id}&where[post][exists]=true&limit=1000`,
