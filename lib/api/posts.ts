@@ -25,9 +25,43 @@ export interface PaginatedResponse<T> {
 }
 
 // Transform API response to match Post type
+// CRITICAL: Properly extract media fields - video posts may have different structure
 function transformPost(doc: Record<string, unknown>): Post {
-  const media =
-    (doc.media as Array<{ type: "image" | "video"; url: string }>) || [];
+  const rawMedia = (doc.media as Array<Record<string, unknown>>) || [];
+
+  // Safely transform each media item with proper field extraction
+  const media = rawMedia
+    .map((m) => {
+      // Handle case where m might be null/undefined
+      if (!m) return null;
+
+      // Extract URL - could be in 'url' field or 'filename' for uploaded media
+      // Payload CMS may store media as relationship objects with nested data
+      const url = String(m.url || m.filename || "");
+
+      // Extract type - default to 'image' if not specified
+      // Video posts should have type: 'video' set
+      const type = (m.type as "image" | "video") || "image";
+
+      // Skip media without valid URL
+      if (!url) {
+        console.warn("[transformPost] Media item missing URL:", m);
+        return null;
+      }
+
+      return { type, url };
+    })
+    .filter((m): m is { type: "image" | "video"; url: string } => m !== null);
+
+  // Log media transformation for debugging
+  if (rawMedia.length > 0) {
+    console.log("[transformPost] Media transform:", {
+      postId: doc.id,
+      rawCount: rawMedia.length,
+      transformedCount: media.length,
+      hasVideo: media.some((m) => m.type === "video"),
+    });
+  }
 
   return {
     id: doc.id as string,
@@ -130,7 +164,8 @@ export const postsApi = {
     console.log("[postsApi] getPostById called with id:", id);
 
     try {
-      const doc = await posts.findByID(id, 2);
+      // Use depth=3 to ensure nested media relationships are fully populated
+      const doc = await posts.findByID(id, 3);
 
       if (!doc || !doc.id) {
         console.error(
@@ -140,10 +175,24 @@ export const postsApi = {
         throw new Error("Post not found");
       }
 
+      // Log raw media structure for debugging video issues
+      const rawMedia = (doc as Record<string, unknown>).media;
+      console.log("[postsApi] getPostById raw response:", {
+        id: doc.id,
+        hasMedia: !!rawMedia,
+        mediaType: Array.isArray(rawMedia) ? "array" : typeof rawMedia,
+        mediaCount: Array.isArray(rawMedia) ? rawMedia.length : 0,
+        mediaStructure:
+          Array.isArray(rawMedia) && rawMedia.length > 0
+            ? JSON.stringify(rawMedia[0]).slice(0, 200)
+            : "empty",
+      });
+
       const post = transformPost(doc as Record<string, unknown>);
       console.log("[postsApi] getPostById success:", {
         id: post.id,
         hasMedia: !!post.media?.length,
+        mediaTypes: post.media?.map((m) => m.type),
       });
       return post;
     } catch (error: any) {
