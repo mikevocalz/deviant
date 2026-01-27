@@ -1,5 +1,11 @@
-
-import { View, Text, ScrollView, Pressable, Dimensions, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  ActivityIndicator,
+} from "react-native";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import {
@@ -76,9 +82,13 @@ function EditProfileContent() {
 
   const handlePickAvatar = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission Required", "Please grant media library access to change your photo.");
+        Alert.alert(
+          "Permission Required",
+          "Please grant media library access to change your photo.",
+        );
         return;
       }
 
@@ -101,9 +111,9 @@ function EditProfileContent() {
   const handleSave = async () => {
     if (!user) return;
     setIsSaving(true);
-    
+
     const showToast = useUIStore.getState().showToast;
-    
+
     try {
       let avatarUrl = user.avatar;
 
@@ -116,7 +126,11 @@ function EditProfileContent() {
           console.log("[EditProfile] Avatar uploaded:", avatarUrl);
         } else {
           console.error("[EditProfile] Avatar upload failed");
-          showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
+          showToast(
+            "warning",
+            "Upload Issue",
+            "Avatar upload failed. Other changes will be saved.",
+          );
         }
       }
 
@@ -128,7 +142,10 @@ function EditProfileContent() {
         hashtags: editHashtags,
       };
 
-      console.log("[EditProfile] Updating profile with:", JSON.stringify(updateData));
+      console.log(
+        "[EditProfile] Updating profile with:",
+        JSON.stringify(updateData),
+      );
       console.log("[EditProfile] User ID:", user.id);
 
       await users.updateMe(updateData);
@@ -142,29 +159,43 @@ function EditProfileContent() {
         location: editLocation,
         hashtags: editHashtags,
       });
-      
+
       // Invalidate user queries to refresh profile data everywhere
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
       queryClient.invalidateQueries({ queryKey: ["users", "username"] });
       if (user?.username) {
-        queryClient.invalidateQueries({ queryKey: ["users", "username", user.username] });
+        queryClient.invalidateQueries({
+          queryKey: ["users", "username", user.username],
+        });
       }
-      
+
       // Force image cache refresh by updating timestamp
       if (avatarUrl && avatarUrl !== user.avatar) {
         // The Image component will pick up the new URL automatically
         // But we can force a refresh by ensuring the URL is different
-        console.log("[EditProfile] Avatar updated from", user.avatar, "to", avatarUrl);
+        console.log(
+          "[EditProfile] Avatar updated from",
+          user.avatar,
+          "to",
+          avatarUrl,
+        );
       }
-      
+
       setNewAvatarUri(null);
       setPopoverOpen(false);
       showToast("success", "Saved", "Profile updated successfully");
     } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
-      console.error("[EditProfile] Error details:", JSON.stringify(error, null, 2));
-      showToast("error", "Error", error?.message || "Failed to save profile. Please try again.");
+      console.error(
+        "[EditProfile] Error details:",
+        JSON.stringify(error, null, 2),
+      );
+      showToast(
+        "error",
+        "Error",
+        error?.message || "Failed to save profile. Please try again.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -200,8 +231,8 @@ function EditProfileContent() {
     >
       {/* Header - Inside Popover */}
       <View className="flex-row items-center justify-between px-6 pt-4 pb-4 border-b border-border">
-        <Pressable 
-          onPress={() => setPopoverOpen(false)} 
+        <Pressable
+          onPress={() => setPopoverOpen(false)}
           hitSlop={12}
           style={{
             width: 40,
@@ -229,7 +260,9 @@ function EditProfileContent() {
             <View className="flex-row items-center gap-2">
               <Check
                 size={18}
-                color={hasChanges ? colors.primaryForeground : colors.mutedForeground}
+                color={
+                  hasChanges ? colors.primaryForeground : colors.mutedForeground
+                }
               />
               <Text
                 className={`text-sm font-semibold ${
@@ -247,7 +280,11 @@ function EditProfileContent() {
 
       {/* Avatar Section */}
       <View className="items-center py-8">
-        <Pressable onPress={handlePickAvatar} disabled={isUploading} className="relative">
+        <Pressable
+          onPress={handlePickAvatar}
+          disabled={isUploading}
+          className="relative"
+        >
           <Image
             source={{
               uri:
@@ -262,18 +299,27 @@ function EditProfileContent() {
           {isUploading ? (
             <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
               <ActivityIndicator color="#fff" size="large" />
-              <Text className="text-white text-sm mt-2 font-semibold">{Math.round(progress)}%</Text>
+              <Text className="text-white text-sm mt-2 font-semibold">
+                {Math.round(progress)}%
+              </Text>
             </View>
           ) : (
             <View
               className="absolute -bottom-2 left-1/2 h-10 w-10 items-center justify-center rounded-full bg-primary border-4"
-              style={{ borderColor: colors.card, transform: [{ translateX: -20 }] }}
+              style={{
+                borderColor: colors.card,
+                transform: [{ translateX: -20 }],
+              }}
             >
               <Camera size={18} color="#fff" />
             </View>
           )}
         </Pressable>
-        <Pressable onPress={handlePickAvatar} disabled={isUploading} className="mt-4">
+        <Pressable
+          onPress={handlePickAvatar}
+          disabled={isUploading}
+          className="mt-4"
+        >
           <Text className="text-base font-semibold text-primary">
             Change Photo
           </Text>
@@ -283,142 +329,154 @@ function EditProfileContent() {
       {/* Form Fields */}
       <View className="px-6 gap-6">
         <View>
-            <Text
-              style={{ color: colors.mutedForeground }}
-              className="mb-3 text-sm font-semibold"
-            >
-              Bio
-            </Text>
-            <TextInput
-              value={editBio}
-              onChangeText={setEditBio}
-              placeholder="Write a short bio..."
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              textAlignVertical="top"
-              style={{
-                minHeight: 100,
-                color: colors.foreground,
-                backgroundColor: colors.muted,
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                fontSize: 16,
-              }}
-            />
-          </View>
-
-          <View>
-            <Text
-              style={{ color: colors.mutedForeground }}
-              className="mb-3 text-sm font-semibold"
-            >
-              Website
-            </Text>
-            <TextInput
-              value={editWebsite}
-              onChangeText={setEditWebsite}
-              placeholder="https://yourwebsite.com"
-              placeholderTextColor={colors.mutedForeground}
-              autoCapitalize="none"
-              keyboardType="url"
-              style={{
-                color: colors.foreground,
-                backgroundColor: colors.muted,
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                fontSize: 16,
-              }}
-            />
-          </View>
-
-          <View>
-            <Text
-              style={{ color: colors.mutedForeground }}
-              className="mb-3 text-sm font-semibold"
-            >
-              Location
-            </Text>
-            <TextInput
-              value={editLocation}
-              onChangeText={setEditLocation}
-              placeholder="City, region, or country"
-              placeholderTextColor={colors.mutedForeground}
-              style={{
-                color: colors.foreground,
-                backgroundColor: colors.muted,
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 14,
-                fontSize: 16,
-              }}
-            />
-          </View>
-
-          <View>
-            <Text
-              style={{ color: colors.mutedForeground }}
-              className="mb-3 text-sm font-semibold"
-            >
-              Hashtags (max 10)
-            </Text>
-            <View className="flex-row gap-2 flex-wrap mb-2">
-              {editHashtags.map((tag, index) => (
-                <Badge key={tag + index} variant="secondary" className="flex-row items-center gap-1">
-                  <Text className="text-xs font-medium text-secondary-foreground">#{tag}</Text>
-                  <Pressable
-                    hitSlop={8}
-                    onPress={() => removeEditHashtag(index)}
-                    className="ml-0.5"
-                  >
-                    <X size={12} color={colors.mutedForeground} />
-                  </Pressable>
-                </Badge>
-              ))}
-            </View>
-            {editHashtags.length < 10 && (
-              <View className="flex-row gap-2 items-center">
-                <TextInput
-                  value={hashtagInput}
-                  onChangeText={setHashtagInput}
-                  placeholder="Add tag (e.g. music)"
-                  placeholderTextColor={colors.mutedForeground}
-                  autoCapitalize="none"
-                  onSubmitEditing={() => {
-                    const t = hashtagInput.replace(/^#+/, "").trim().toLowerCase();
-                    if (t) {
-                      addEditHashtag(t);
-                      setHashtagInput("");
-                    }
-                  }}
-                  style={{
-                    flex: 1,
-                    color: colors.foreground,
-                    backgroundColor: colors.muted,
-                    borderRadius: 12,
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    fontSize: 16,
-                  }}
-                />
-                <Pressable
-                  onPress={() => {
-                    const t = hashtagInput.replace(/^#+/, "").trim().toLowerCase();
-                    if (t) {
-                      addEditHashtag(t);
-                      setHashtagInput("");
-                    }
-                  }}
-                  className="h-11 w-11 items-center justify-center rounded-full bg-primary"
-                >
-                  <Plus size={20} color="#fff" />
-                </Pressable>
-              </View>
-            )}
-          </View>
+          <Text
+            style={{ color: colors.mutedForeground }}
+            className="mb-3 text-sm font-semibold"
+          >
+            Bio
+          </Text>
+          <TextInput
+            value={editBio}
+            onChangeText={setEditBio}
+            placeholder="Write a short bio..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            textAlignVertical="top"
+            style={{
+              minHeight: 100,
+              color: colors.foreground,
+              backgroundColor: colors.muted,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 16,
+            }}
+          />
         </View>
-      </KeyboardAwareScrollView>
+
+        <View>
+          <Text
+            style={{ color: colors.mutedForeground }}
+            className="mb-3 text-sm font-semibold"
+          >
+            Website
+          </Text>
+          <TextInput
+            value={editWebsite}
+            onChangeText={setEditWebsite}
+            placeholder="https://yourwebsite.com"
+            placeholderTextColor={colors.mutedForeground}
+            autoCapitalize="none"
+            keyboardType="url"
+            style={{
+              color: colors.foreground,
+              backgroundColor: colors.muted,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 16,
+            }}
+          />
+        </View>
+
+        <View>
+          <Text
+            style={{ color: colors.mutedForeground }}
+            className="mb-3 text-sm font-semibold"
+          >
+            Location
+          </Text>
+          <TextInput
+            value={editLocation}
+            onChangeText={setEditLocation}
+            placeholder="City, region, or country"
+            placeholderTextColor={colors.mutedForeground}
+            style={{
+              color: colors.foreground,
+              backgroundColor: colors.muted,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              fontSize: 16,
+            }}
+          />
+        </View>
+
+        <View>
+          <Text
+            style={{ color: colors.mutedForeground }}
+            className="mb-3 text-sm font-semibold"
+          >
+            Hashtags (max 10)
+          </Text>
+          <View className="flex-row gap-2 flex-wrap mb-2">
+            {editHashtags.map((tag, index) => (
+              <Badge
+                key={tag + index}
+                variant="secondary"
+                className="flex-row items-center gap-1"
+              >
+                <Text className="text-xs font-medium text-secondary-foreground">
+                  #{tag}
+                </Text>
+                <Pressable
+                  hitSlop={8}
+                  onPress={() => removeEditHashtag(index)}
+                  className="ml-0.5"
+                >
+                  <X size={12} color={colors.mutedForeground} />
+                </Pressable>
+              </Badge>
+            ))}
+          </View>
+          {editHashtags.length < 10 && (
+            <View className="flex-row gap-2 items-center">
+              <TextInput
+                value={hashtagInput}
+                onChangeText={setHashtagInput}
+                placeholder="Add tag (e.g. music)"
+                placeholderTextColor={colors.mutedForeground}
+                autoCapitalize="none"
+                onSubmitEditing={() => {
+                  const t = hashtagInput
+                    .replace(/^#+/, "")
+                    .trim()
+                    .toLowerCase();
+                  if (t) {
+                    addEditHashtag(t);
+                    setHashtagInput("");
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  color: colors.foreground,
+                  backgroundColor: colors.muted,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  fontSize: 16,
+                }}
+              />
+              <Pressable
+                onPress={() => {
+                  const t = hashtagInput
+                    .replace(/^#+/, "")
+                    .trim()
+                    .toLowerCase();
+                  if (t) {
+                    addEditHashtag(t);
+                    setHashtagInput("");
+                  }
+                }}
+                className="h-11 w-11 items-center justify-center rounded-full bg-primary"
+              >
+                <Plus size={20} color="#fff" />
+              </Pressable>
+            </View>
+          )}
+        </View>
+      </View>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -430,7 +488,10 @@ export default function ProfileScreen() {
   const bookmarkStore = useBookmarkStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   // Sync API bookmarks to local store - use API bookmarks as source of truth
-  const bookmarkedPosts = bookmarkedPostIds.length > 0 ? bookmarkedPostIds : bookmarkStore.getBookmarkedPostIds();
+  const bookmarkedPosts =
+    bookmarkedPostIds.length > 0
+      ? bookmarkedPostIds
+      : bookmarkStore.getBookmarkedPostIds();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
@@ -439,7 +500,7 @@ export default function ProfileScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: "Profile",
+      headerLeft: "Profile",
       headerTitleAlign: "center" as const,
       headerStyle: {
         backgroundColor: colors.background,
@@ -449,9 +510,15 @@ export default function ProfileScreen() {
         fontWeight: "600" as const,
         fontSize: 18,
       },
-      headerLeft: () => (
-        <View style={{ marginLeft: 8 }}>
-          <Text style={{ color: colors.foreground, fontWeight: "700", fontSize: 16 }}>
+      headerTitle: () => (
+        <View style={{ marginLeft: 3 }}>
+          <Text
+            style={{
+              color: colors.foreground,
+              fontWeight: "700",
+              fontSize: 12,
+            }}
+          >
             @{user?.username || ""}
           </Text>
         </View>
@@ -460,30 +527,48 @@ export default function ProfileScreen() {
         <Pressable
           onPress={() => router.push("/settings")}
           hitSlop={12}
-          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            marginRight: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <Settings size={24} color={colors.foreground} />
         </Pressable>
       ),
     });
   }, [navigation, user?.username, colors, router]);
-  
+
   // Fetch real user posts - query key includes user ID so it auto-refetches for new users
-  const { data: userPostsData, isLoading: isLoadingPosts, refetch } = useProfilePosts(user?.id || "");
-  
+  const {
+    data: userPostsData,
+    isLoading: isLoadingPosts,
+    refetch,
+  } = useProfilePosts(user?.id || "");
+
   // Track previous user ID to detect user switches
   const prevUserIdRef = useRef<string | null>(null);
-  
+
   // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
   useEffect(() => {
     const currentUserId = user?.id || null;
-    
-    if (prevUserIdRef.current !== null && prevUserIdRef.current !== currentUserId) {
-      console.log("[Profile] User switched from", prevUserIdRef.current, "to", currentUserId);
+
+    if (
+      prevUserIdRef.current !== null &&
+      prevUserIdRef.current !== currentUserId
+    ) {
+      console.log(
+        "[Profile] User switched from",
+        prevUserIdRef.current,
+        "to",
+        currentUserId,
+      );
       // Force refetch for the new user
       refetch();
     }
-    
+
     prevUserIdRef.current = currentUserId;
   }, [user?.id, refetch]);
 
@@ -509,7 +594,10 @@ export default function ProfileScreen() {
       const media = Array.isArray(post.media) ? post.media : [];
       const thumbnailUrl = media[0]?.url;
       // Only use valid HTTP/HTTPS URLs, skip relative paths
-      const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith("http://") || thumbnailUrl.startsWith("https://"));
+      const isValidUrl =
+        thumbnailUrl &&
+        (thumbnailUrl.startsWith("http://") ||
+          thumbnailUrl.startsWith("https://"));
       return {
         id: post.id,
         thumbnail: isValidUrl ? thumbnailUrl : undefined,
@@ -529,7 +617,10 @@ export default function ProfileScreen() {
       const media = Array.isArray(post.media) ? post.media : [];
       const thumbnailUrl = media[0]?.url;
       // Only use valid HTTP/HTTPS URLs, skip relative paths
-      const isValidUrl = thumbnailUrl && (thumbnailUrl.startsWith("http://") || thumbnailUrl.startsWith("https://"));
+      const isValidUrl =
+        thumbnailUrl &&
+        (thumbnailUrl.startsWith("http://") ||
+          thumbnailUrl.startsWith("https://"));
       return {
         id: post.id,
         thumbnail: isValidUrl ? thumbnailUrl : undefined,
@@ -571,7 +662,6 @@ export default function ProfileScreen() {
 
   return (
     <View className="flex-1 bg-background">
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-5"
@@ -595,13 +685,20 @@ export default function ProfileScreen() {
                     />
                     <View
                       className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                      style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
+                      style={{
+                        borderColor: colors.background,
+                        transform: [{ translateX: -14 }],
+                      }}
                     >
                       <Camera size={14} color="#fff" />
                     </View>
                   </View>
                 </PopoverTrigger>
-                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
+                <PopoverContent
+                  side="bottom"
+                  align="center"
+                  className="w-[90%] max-w-md max-h-[85%]"
+                >
                   <EditProfileContent />
                 </PopoverContent>
               </Popover>
@@ -616,13 +713,17 @@ export default function ProfileScreen() {
                   <Text className="text-xl font-bold text-foreground">
                     {formatCount(user?.followersCount || 0)}
                   </Text>
-                  <Text className="text-xs text-muted-foreground">Followers</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Followers
+                  </Text>
                 </View>
                 <View className="items-center">
                   <Text className="text-xl font-bold text-foreground">
                     {formatCount(user?.followingCount || 0)}
                   </Text>
-                  <Text className="text-xs text-muted-foreground">Following</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Following
+                  </Text>
                 </View>
               </View>
             </View>
@@ -651,7 +752,9 @@ export default function ProfileScreen() {
               <View className="mt-2 flex-row flex-wrap gap-2">
                 {user.hashtags.map((tag, index) => (
                   <Badge key={tag + index} variant="secondary">
-                    <Text className="text-xs font-medium text-secondary-foreground">#{tag}</Text>
+                    <Text className="text-xs font-medium text-secondary-foreground">
+                      #{tag}
+                    </Text>
                   </Badge>
                 ))}
               </View>
@@ -667,7 +770,11 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
+              <PopoverContent
+                side="bottom"
+                align="center"
+                className="w-[90%] max-w-md max-h-[85%]"
+              >
                 <EditProfileContent />
               </PopoverContent>
             </Popover>

@@ -1,20 +1,28 @@
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  StyleSheet,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useColorScheme } from "@/lib/hooks";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { shareProfile } from "@/lib/utils/sharing";
+import { SharedImage } from "@/components/shared-image";
+import { Motion } from "@legendapp/motion";
 
-import { View, Text, ScrollView, Pressable, Dimensions, StyleSheet } from "react-native"
-import { SafeAreaView } from "react-native-safe-area-context"
-import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native"
-import { useLocalSearchParams, useRouter } from "expo-router"
-import { useColorScheme } from "@/lib/hooks"
-import { useAuthStore } from "@/lib/stores/auth-store"
-import { shareProfile } from "@/lib/utils/sharing"
-import { SharedImage } from "@/components/shared-image"
-import { Motion } from "@legendapp/motion"
+import { useCallback, memo, useState, useMemo, useEffect } from "react";
+import { useUser, useFollow } from "@/lib/hooks";
+import { useProfilePosts } from "@/lib/hooks/use-posts";
+import { useQueryClient } from "@tanstack/react-query";
+import { Image } from "expo-image";
 
-import { useCallback, memo, useState, useMemo, useEffect } from "react"
-import { useUser, useFollow } from "@/lib/hooks"
-import { useQueryClient } from "@tanstack/react-query"
-
-const { width } = Dimensions.get("window")
-const columnWidth = (width - 8) / 3
+const { width } = Dimensions.get("window");
+const columnWidth = (width - 8) / 3;
 
 interface MockUser {
   id?: string;
@@ -161,103 +169,199 @@ const mockUsers: Record<string, MockUser> = {
     followersCount: 67800,
     followingCount: 156,
   },
-}
+};
 
 const mockPosts = [
-  { id: "1", thumbnail: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800" },
-  { id: "2", thumbnail: "https://images.unsplash.com/photo-1512621776950-296cd0d26b37?w=800" },
-  { id: "3", thumbnail: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800" },
-  { id: "4", thumbnail: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800" },
-  { id: "5", thumbnail: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800" },
-  { id: "6", thumbnail: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800" },
-  { id: "f1", thumbnail: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800" },
-  { id: "f2", thumbnail: "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800" },
-  { id: "f3", thumbnail: "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800" },
-  { id: "f4", thumbnail: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800" },
-  { id: "f5", thumbnail: "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800" },
-  { id: "f6", thumbnail: "https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=800" },
-  { id: "f7", thumbnail: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800" },
-  { id: "f8", thumbnail: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800" },
-  { id: "f9", thumbnail: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800" },
-]
+  {
+    id: "1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
+  },
+  {
+    id: "2",
+    thumbnail:
+      "https://images.unsplash.com/photo-1512621776950-296cd0d26b37?w=800",
+  },
+  {
+    id: "3",
+    thumbnail:
+      "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800",
+  },
+  {
+    id: "4",
+    thumbnail:
+      "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800",
+  },
+  {
+    id: "5",
+    thumbnail:
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+  },
+  {
+    id: "6",
+    thumbnail:
+      "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800",
+  },
+  {
+    id: "f1",
+    thumbnail:
+      "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=800",
+  },
+  {
+    id: "f2",
+    thumbnail:
+      "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800",
+  },
+  {
+    id: "f3",
+    thumbnail:
+      "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=800",
+  },
+  {
+    id: "f4",
+    thumbnail:
+      "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=800",
+  },
+  {
+    id: "f5",
+    thumbnail:
+      "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=800",
+  },
+  {
+    id: "f6",
+    thumbnail:
+      "https://images.unsplash.com/photo-1603048588665-791ca8aea617?w=800",
+  },
+  {
+    id: "f7",
+    thumbnail:
+      "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800",
+  },
+  {
+    id: "f8",
+    thumbnail:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800",
+  },
+  {
+    id: "f9",
+    thumbnail:
+      "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800",
+  },
+];
 
 function UserProfileScreenComponent() {
-  const { username } = useLocalSearchParams<{ username: string }>()
-  const router = useRouter()
-  const { colors } = useColorScheme()
-  const currentUser = useAuthStore((state) => state.user)
-  const queryClient = useQueryClient()
-  
-  const isOwnProfile = currentUser?.username === username
+  const { username } = useLocalSearchParams<{ username: string }>();
+  const router = useRouter();
+  const { colors } = useColorScheme();
+  const currentUser = useAuthStore((state) => state.user);
+  const queryClient = useQueryClient();
+
+  const isOwnProfile = currentUser?.username === username;
 
   // Fetch user data from API
-  const { data: userData, isLoading } = useUser(username || "")
-  
+  const { data: userData, isLoading } = useUser(username || "");
+
+  // Fetch user's posts - use the user's ID from API data
+  const userId =
+    typeof userData?.id === "object"
+      ? (userData?.id as { id: string })?.id
+      : userData?.id;
+  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(
+    String(userId || ""),
+  );
+
+  // Transform posts for grid display
+  const userPosts = useMemo(() => {
+    if (!userPostsData) return [];
+    return userPostsData.map((post) => {
+      const media = Array.isArray(post.media) ? post.media : [];
+      const thumbnailUrl = media[0]?.url;
+      const isValidUrl =
+        thumbnailUrl &&
+        (thumbnailUrl.startsWith("http://") ||
+          thumbnailUrl.startsWith("https://"));
+      return {
+        id: post.id,
+        thumbnail: isValidUrl ? thumbnailUrl : undefined,
+        type: media[0]?.type === "video" ? "video" : "image",
+      };
+    });
+  }, [userPostsData]);
+
   // Follow mutation
-  const { mutate: followMutate, isPending: isFollowPending } = useFollow()
-  
+  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
+
   // Local follow state (optimistic)
-  const [isFollowing, setIsFollowing] = useState(false)
-  
+  const [isFollowing, setIsFollowing] = useState(false);
+
   // Update local follow state when user data loads
   useEffect(() => {
-    if (userData?.isFollowing !== undefined && typeof userData.isFollowing === 'boolean') {
-      setIsFollowing(userData.isFollowing)
+    if (
+      userData?.isFollowing !== undefined &&
+      typeof userData.isFollowing === "boolean"
+    ) {
+      setIsFollowing(userData.isFollowing);
     }
-  }, [userData?.isFollowing])
+  }, [userData?.isFollowing]);
 
   // Use API data or fallback to mock data
-  const user = (userData || mockUsers[username || ""] || {
-    id: undefined,
-    username: username || "unknown",
-    fullName: "Unknown User",
-    name: "Unknown User",
-    avatar: "https://i.pravatar.cc/150?img=1",
-    bio: "",
-    postsCount: 0,
-    followersCount: 0,
-    followingCount: 0,
-  }) as MockUser & { isFollowing?: boolean }
-  
+  const user = (userData ||
+    mockUsers[username || ""] || {
+      id: undefined,
+      username: username || "unknown",
+      fullName: "Unknown User",
+      name: "Unknown User",
+      avatar: "https://i.pravatar.cc/150?img=1",
+      bio: "",
+      postsCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+    }) as MockUser & { isFollowing?: boolean };
+
   // Create a followMutation-like object for compatibility
   const followMutation = {
     isPending: isFollowPending,
     mutate: followMutate,
-  }
+  };
 
-  const handlePostPress = useCallback((postId: string) => {
-    if (postId) {
-      router.push(`/(protected)/post/${postId}`);
-    }
-  }, [router])
+  const handlePostPress = useCallback(
+    (postId: string) => {
+      if (postId) {
+        router.push(`/(protected)/post/${postId}`);
+      }
+    },
+    [router],
+  );
 
   const handleFollowPress = useCallback(() => {
-    if (!user.id || !username) return
-    
-    const action = isFollowing ? "unfollow" : "follow"
-    const newFollowingState = !isFollowing
-    setIsFollowing(newFollowingState) // Optimistic update
-    
+    if (!user.id || !username) return;
+
+    const action = isFollowing ? "unfollow" : "follow";
+    const newFollowingState = !isFollowing;
+    setIsFollowing(newFollowingState); // Optimistic update
+
     followMutate(
       { userId: user.id, action },
       {
         onError: () => {
-          setIsFollowing(isFollowing) // Revert on error
+          setIsFollowing(isFollowing); // Revert on error
         },
         onSuccess: () => {
           // Invalidate all user queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ["users"] })
-          queryClient.invalidateQueries({ queryKey: ["users", "username", username] })
+          queryClient.invalidateQueries({ queryKey: ["users"] });
+          queryClient.invalidateQueries({
+            queryKey: ["users", "username", username],
+          });
         },
-      }
-    )
-  }, [user.id, username, isFollowing, followMutate, queryClient])
+      },
+    );
+  }, [user.id, username, isFollowing, followMutate, queryClient]);
 
   const handleMessagePress = useCallback(() => {
     if (username) {
-      router.push(`/(protected)/chat/${username}`)
+      router.push(`/(protected)/chat/${username}`);
     }
-  }, [router, username])
+  }, [router, username]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -279,30 +383,40 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <SharedImage 
-                source={{ 
-                  uri: user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`
-                }} 
-                style={{ ...styles.avatar, backgroundColor: '#2a2a2a' }}
+              <SharedImage
+                source={{
+                  uri:
+                    user.avatar ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`,
+                }}
+                style={{ ...styles.avatar, backgroundColor: "#2a2a2a" }}
                 contentFit="cover"
                 sharedTag={`profile-avatar-${user.username}`}
               />
               <View className="flex-row gap-8">
                 <View className="items-center">
-                  <Text className="text-lg font-bold text-foreground">{user.postsCount || 0}</Text>
+                  <Text className="text-lg font-bold text-foreground">
+                    {user.postsCount || 0}
+                  </Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
                 <View className="items-center">
                   <Text className="text-lg font-bold text-foreground">
-                    {user.followersCount >= 1000 
-                      ? `${(user.followersCount / 1000).toFixed(1)}K` 
+                    {user.followersCount >= 1000
+                      ? `${(user.followersCount / 1000).toFixed(1)}K`
                       : user.followersCount || 0}
                   </Text>
-                  <Text className="text-xs text-muted-foreground">Followers</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Followers
+                  </Text>
                 </View>
                 <View className="items-center">
-                  <Text className="text-lg font-bold text-foreground">{user.followingCount || 0}</Text>
-                  <Text className="text-xs text-muted-foreground">Following</Text>
+                  <Text className="text-lg font-bold text-foreground">
+                    {user.followingCount || 0}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Following
+                  </Text>
                 </View>
               </View>
             </View>
@@ -310,23 +424,37 @@ function UserProfileScreenComponent() {
 
           <View className="mt-4">
             <Text className="font-semibold text-foreground">{user.name}</Text>
-            {user.bio && <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>}
+            {user.bio && (
+              <Text className="mt-1 text-sm text-foreground/90">
+                {user.bio}
+              </Text>
+            )}
           </View>
 
           {/* Action Buttons */}
           <View className="mt-4 flex-row gap-2">
             {isOwnProfile ? (
               <>
-                <Pressable onPress={() => router.push("/(protected)/profile/edit" as any)} style={{ flex: 1 }}>
+                <Pressable
+                  onPress={() =>
+                    router.push("/(protected)/profile/edit" as any)
+                  }
+                  style={{ flex: 1 }}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
                     style={styles.secondaryButton}
                   >
-                    <Text className="font-semibold text-secondary-foreground">Edit Profile</Text>
+                    <Text className="font-semibold text-secondary-foreground">
+                      Edit Profile
+                    </Text>
                   </Motion.View>
                 </Pressable>
-                <Pressable onPress={() => shareProfile(user.username, user.fullName)} style={styles.shareButton}>
+                <Pressable
+                  onPress={() => shareProfile(user.username, user.fullName)}
+                  style={styles.shareButton}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -337,8 +465,8 @@ function UserProfileScreenComponent() {
               </>
             ) : (
               <>
-                <Pressable 
-                  onPress={handleFollowPress} 
+                <Pressable
+                  onPress={handleFollowPress}
                   disabled={followMutation.isPending || !user.id}
                   style={{ flex: 1 }}
                 >
@@ -348,14 +476,21 @@ function UserProfileScreenComponent() {
                     style={[
                       styles.primaryButton,
                       isFollowing && styles.secondaryButton,
-                      (followMutation.isPending || !user.id) && { opacity: 0.5 },
+                      (followMutation.isPending || !user.id) && {
+                        opacity: 0.5,
+                      },
                     ]}
                   >
-                    <Text className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}>
-                      {followMutation.isPending 
-                        ? (isFollowing ? "Unfollowing..." : "Following...")
-                        : (isFollowing ? "Following" : "Follow")
-                      }
+                    <Text
+                      className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}
+                    >
+                      {followMutation.isPending
+                        ? isFollowing
+                          ? "Unfollowing..."
+                          : "Following..."
+                        : isFollowing
+                          ? "Following"
+                          : "Follow"}
                     </Text>
                   </Motion.View>
                 </Pressable>
@@ -365,7 +500,9 @@ function UserProfileScreenComponent() {
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
                     style={styles.secondaryButton}
                   >
-                    <Text className="font-semibold text-secondary-foreground">Message</Text>
+                    <Text className="font-semibold text-secondary-foreground">
+                      Message
+                    </Text>
                   </Motion.View>
                 </Pressable>
               </>
@@ -381,21 +518,54 @@ function UserProfileScreenComponent() {
         </View>
 
         {/* Posts Grid */}
-        {isLoading ? (
+        {isLoading || isLoadingPosts ? (
           <View className="p-4 items-center">
             <Text className="text-muted-foreground">Loading...</Text>
           </View>
+        ) : userPosts.length === 0 ? (
+          <View className="p-4 items-center flex-1">
+            <Text className="text-muted-foreground">No posts yet</Text>
+          </View>
         ) : (
           <View className="flex-row flex-wrap">
-            {/* TODO: Fetch user's posts from API */}
-            <View className="p-4 items-center flex-1">
-              <Text className="text-muted-foreground">No posts yet</Text>
-            </View>
+            {userPosts.map((post) => (
+              <Pressable
+                key={post.id}
+                onPress={() => router.push(`/(protected)/post/${post.id}`)}
+                style={{ width: columnWidth, height: columnWidth, padding: 1 }}
+              >
+                {post.thumbnail ? (
+                  <Image
+                    source={{ uri: post.thumbnail }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      backgroundColor: "#1a1a1a",
+                    }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      backgroundColor: "#1a1a1a",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text className="text-muted-foreground text-xs">
+                      No image
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            ))}
           </View>
         )}
       </ScrollView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -441,6 +611,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-})
+});
 
-export default memo(UserProfileScreenComponent)
+export default memo(UserProfileScreenComponent);

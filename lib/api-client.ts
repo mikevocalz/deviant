@@ -83,6 +83,30 @@ export interface FindParams {
   where?: Record<string, unknown>;
 }
 
+// Serialize where clause to Payload bracket notation
+// e.g., { author: { equals: "15" } } => "where[author][equals]=15"
+function serializeWhereClause(
+  where: Record<string, unknown>,
+  prefix = "where",
+): string {
+  const parts: string[] = [];
+
+  for (const [key, value] of Object.entries(where)) {
+    const fullKey = `${prefix}[${key}]`;
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      parts.push(
+        serializeWhereClause(value as Record<string, unknown>, fullKey),
+      );
+    } else {
+      parts.push(
+        `${encodeURIComponent(fullKey)}=${encodeURIComponent(String(value))}`,
+      );
+    }
+  }
+
+  return parts.join("&");
+}
+
 // Build query string from params
 function buildQueryString(params: FindParams): string {
   const searchParams = new URLSearchParams();
@@ -93,9 +117,15 @@ function buildQueryString(params: FindParams): string {
   if (params.depth !== undefined)
     searchParams.set("depth", String(params.depth));
   if (params.sort) searchParams.set("sort", params.sort);
-  if (params.where) searchParams.set("where", JSON.stringify(params.where));
 
-  const queryString = searchParams.toString();
+  let queryString = searchParams.toString();
+
+  // Add where clause in bracket notation (Payload CMS format)
+  if (params.where) {
+    const whereString = serializeWhereClause(params.where);
+    queryString = queryString ? `${queryString}&${whereString}` : whereString;
+  }
+
   return queryString ? `?${queryString}` : "";
 }
 
