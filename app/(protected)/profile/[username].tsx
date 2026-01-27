@@ -266,19 +266,31 @@ function UserProfileScreenComponent() {
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
-  const isOwnProfile = currentUser?.username === username;
+  // DEFENSIVE: Ensure username is a valid string
+  const safeUsername =
+    typeof username === "string" && username.length > 0 ? username : null;
 
-  // Fetch user data from API
-  const { data: userData, isLoading } = useUser(username || "");
+  const isOwnProfile = currentUser?.username === safeUsername;
 
-  // Fetch user's posts - use the user's ID from API data
-  const userId =
-    typeof userData?.id === "object"
-      ? (userData?.id as { id: string })?.id
-      : userData?.id;
-  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(
-    String(userId || ""),
-  );
+  // Fetch user data from API - DEFENSIVE: Only fetch if we have a valid username
+  const { data: userData, isLoading, isError, error } = useUser(safeUsername);
+
+  // DEFENSIVE: Safely extract user ID with multiple fallbacks
+  const userId = useMemo(() => {
+    if (!userData) return null;
+    if (typeof userData.id === "object" && userData.id !== null) {
+      return String((userData.id as { id: string })?.id || "");
+    }
+    if (userData.id) return String(userData.id);
+    return null;
+  }, [userData]);
+
+  // Fetch user's posts - DEFENSIVE: Only fetch if we have a valid userId
+  const {
+    data: userPostsData,
+    isLoading: isLoadingPosts,
+    isError: isPostsError,
+  } = useProfilePosts(userId || "");
 
   // Transform posts for grid display - MUST match my profile transformation
   const userPosts = useMemo(() => {
@@ -318,30 +330,72 @@ function UserProfileScreenComponent() {
   // Local follow state (optimistic)
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // Update local follow state when user data loads
+  // Update local follow state when user data loads - DEFENSIVE
   useEffect(() => {
-    if (
-      userData?.isFollowing !== undefined &&
-      typeof userData.isFollowing === "boolean"
-    ) {
-      setIsFollowing(userData.isFollowing);
+    try {
+      if (
+        userData?.isFollowing !== undefined &&
+        typeof userData.isFollowing === "boolean"
+      ) {
+        setIsFollowing(userData.isFollowing);
+      }
+    } catch (e) {
+      console.error("[Profile] Error updating follow state:", e);
     }
   }, [userData?.isFollowing]);
 
-  // Use API data or fallback to mock data
-  // CRITICAL: Never show "Unknown User" - use the username param as the name
-  const user = (userData ||
-    mockUsers[username || ""] || {
+  // DEFENSIVE: Create safe user object that NEVER crashes
+  // Priority: API data > Mock data > Fallback
+  const user = useMemo((): MockUser & { isFollowing?: boolean } => {
+    const displayUsername = safeUsername || "user";
+    const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUsername)}&background=3EA4E5&color=fff`;
+
+    // Try API data first
+    if (userData && typeof userData === "object") {
+      return {
+        id: userId || undefined,
+        username: String(userData.username || displayUsername),
+        fullName: String(
+          userData.name ||
+            userData.displayName ||
+            userData.username ||
+            displayUsername,
+        ),
+        name: String(
+          userData.name ||
+            userData.displayName ||
+            userData.username ||
+            displayUsername,
+        ),
+        avatar: String(userData.avatar || userData.avatarUrl || fallbackAvatar),
+        bio: String(userData.bio || ""),
+        postsCount: Number(userData.postsCount) || 0,
+        followersCount: Number(userData.followersCount) || 0,
+        followingCount: Number(userData.followingCount) || 0,
+        isFollowing: Boolean(userData.isFollowing),
+      };
+    }
+
+    // Try mock data
+    const mockUser = mockUsers[displayUsername];
+    if (mockUser) {
+      return { ...mockUser, isFollowing: false };
+    }
+
+    // Final fallback - guaranteed safe object
+    return {
       id: undefined,
-      username: username || "",
-      fullName: username || "",
-      name: username || "",
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(username || "U")}`,
+      username: displayUsername,
+      fullName: displayUsername,
+      name: displayUsername,
+      avatar: fallbackAvatar,
       bio: "",
       postsCount: 0,
       followersCount: 0,
       followingCount: 0,
-    }) as MockUser & { isFollowing?: boolean };
+      isFollowing: false,
+    };
+  }, [userData, userId, safeUsername]);
 
   // Create a followMutation-like object for compatibility
   const followMutation = {
@@ -420,6 +474,33 @@ function UserProfileScreenComponent() {
     }
   }, [user.id, router, isCreatingConversation, showToast]);
 
+  // DEFENSIVE: Early return for missing username - show safe error state
+  if (!safeUsername) {
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+          <Pressable onPress={() => router.back()}>
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Profile</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground">User not found</Text>
+          <Pressable onPress={() => router.back()} className="mt-4">
+            <Text className="text-primary">Go Back</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // DEFENSIVE: Show error state if API failed (but don't crash)
+  if (isError && !userData) {
+    console.error("[Profile] API error:", error);
+    // Continue rendering with fallback data instead of crashing
+  }
+
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       {/* Header */}
@@ -428,7 +509,7 @@ function UserProfileScreenComponent() {
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">
-          {isLoading ? "Loading..." : user.username}
+          {isLoading ? "Loading..." : user.username || "Profile"}
         </Text>
         <Pressable>
           <MoreHorizontal size={24} color={colors.foreground} />
