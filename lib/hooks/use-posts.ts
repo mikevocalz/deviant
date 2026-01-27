@@ -59,7 +59,7 @@ export function usePostsByIds(ids: string[]) {
     queryKey: [...postKeys.all, "byIds", ids.sort().join(",")],
     queryFn: async () => {
       const posts = await Promise.all(
-        ids.map((id) => postsApi.getPostById(id))
+        ids.map((id) => postsApi.getPostById(id)),
       );
       return posts.filter((post): post is Post => post !== null);
     },
@@ -83,11 +83,17 @@ export function useLikePost() {
         queryKey: postKeys.all,
       });
 
+      // Get previous Zustand state for rollback
+      const { usePostStore } = await import("@/lib/stores/post-store");
+      const store = usePostStore.getState();
+      const previousLikedPosts = [...store.likedPosts];
+      const previousLikeCounts = { ...store.postLikeCounts };
+
       // Update React Query cache optimistically
+      const delta = isLiked ? -1 : 1;
       queryClient.setQueriesData<Post[] | Post | null>(
         { queryKey: postKeys.all },
         (old) => {
-          const delta = isLiked ? -1 : 1;
           if (Array.isArray(old)) {
             return old.map((post) =>
               post.id === postId
@@ -107,29 +113,70 @@ export function useLikePost() {
         },
       );
 
-      // Also update Zustand store optimistically for instant UI updates
-      const { usePostStore } = await import("@/lib/stores/post-store");
-      const store = usePostStore.getState();
+      // Update Zustand store optimistically - BOTH likedPosts array AND count
       const currentCount = store.getLikeCount(postId, 0);
-      const delta = isLiked ? -1 : 1;
+      const newLikedPosts = isLiked
+        ? store.likedPosts.filter((id) => id !== postId)
+        : [...store.likedPosts, postId];
+
       usePostStore.setState({
+        likedPosts: newLikedPosts,
         postLikeCounts: {
           ...store.postLikeCounts,
           [postId]: Math.max(0, currentCount + delta),
         },
       });
 
-      return { previousData };
+      return { previousData, previousLikedPosts, previousLikeCounts };
     },
-    onError: (_err, _variables, context) => {
-      // Rollback on error
+    onError: (_err, variables, context) => {
+      // Rollback React Query cache on error
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
+      // Rollback Zustand store on error
+      if (context?.previousLikedPosts && context?.previousLikeCounts) {
+        import("@/lib/stores/post-store").then(({ usePostStore }) => {
+          usePostStore.setState({
+            likedPosts: context.previousLikedPosts,
+            postLikeCounts: context.previousLikeCounts,
+          });
+        });
+      }
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // CRITICAL: Sync server state back to store to ensure consistency
+      import("@/lib/stores/post-store").then(({ usePostStore }) => {
+        const store = usePostStore.getState();
+        const postId = variables.postId;
+
+        // Update likedPosts array based on server response
+        const serverLiked = data.liked;
+        const isInStore = store.likedPosts.includes(postId);
+
+        if (serverLiked && !isInStore) {
+          // Server says liked but not in store - add it
+          usePostStore.setState({
+            likedPosts: [...store.likedPosts, postId],
+          });
+        } else if (!serverLiked && isInStore) {
+          // Server says not liked but in store - remove it
+          usePostStore.setState({
+            likedPosts: store.likedPosts.filter((id) => id !== postId),
+          });
+        }
+
+        // Sync like count from server
+        usePostStore.setState({
+          postLikeCounts: {
+            ...store.postLikeCounts,
+            [postId]: data.likes,
+          },
+        });
+      });
+
       // Invalidate user data to sync liked posts
       queryClient.invalidateQueries({ queryKey: ["users", "me"] });
     },
@@ -152,42 +199,42 @@ export function useCreatePost() {
       });
 
       // Optimistically add the new post to infinite feed
-      queryClient.setQueryData(
-        postKeys.feedInfinite(),
-        (old: any) => {
-          if (!old || !old.pages || old.pages.length === 0) return old;
-          // Add to first page
-          const firstPage = old.pages[0];
-          if (firstPage && firstPage.data) {
-            const optimisticPost: Post = {
-              id: `temp-${Date.now()}`,
-              author: {
-                username: newPostData.authorUsername || "You",
-                avatar: "",
-                verified: false,
+      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
+        if (!old || !old.pages || old.pages.length === 0) return old;
+        // Add to first page
+        const firstPage = old.pages[0];
+        if (firstPage && firstPage.data) {
+          const optimisticPost: Post = {
+            id: `temp-${Date.now()}`,
+            author: {
+              username: newPostData.authorUsername || "You",
+              avatar: "",
+              verified: false,
+            },
+            media: (newPostData.media || []).map((m) => ({
+              ...m,
+              type: m.type as "image" | "video",
+            })),
+            caption: newPostData.caption || "",
+            likes: 0,
+            comments: [],
+            timeAgo: "Just now",
+            location: newPostData.location,
+            isNSFW: newPostData.isNSFW || false,
+          };
+          return {
+            ...old,
+            pages: [
+              {
+                ...firstPage,
+                data: [optimisticPost, ...firstPage.data],
               },
-              media: (newPostData.media || []).map(m => ({ ...m, type: m.type as "image" | "video" })),
-              caption: newPostData.caption || "",
-              likes: 0,
-              comments: [],
-              timeAgo: "Just now",
-              location: newPostData.location,
-              isNSFW: newPostData.isNSFW || false,
-            };
-            return {
-              ...old,
-              pages: [
-                {
-                  ...firstPage,
-                  data: [optimisticPost, ...firstPage.data],
-                },
-                ...old.pages.slice(1),
-              ],
-            };
-          }
-          return old;
-        },
-      );
+              ...old.pages.slice(1),
+            ],
+          };
+        }
+        return old;
+      });
 
       // Also update legacy feed query if it exists
       queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
@@ -199,7 +246,10 @@ export function useCreatePost() {
             avatar: "",
             verified: false,
           },
-          media: (newPostData.media || []).map(m => ({ ...m, type: m.type as "image" | "video" })),
+          media: (newPostData.media || []).map((m) => ({
+            ...m,
+            type: m.type as "image" | "video",
+          })),
           caption: newPostData.caption || "",
           likes: 0,
           comments: [],

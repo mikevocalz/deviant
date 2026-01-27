@@ -65,42 +65,55 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { isPostLiked, toggleLike, getLikeCount, getCommentCount, postLikeCounts, postCommentCounts } = usePostStore();
+  const {
+    isPostLiked,
+    toggleLike,
+    getLikeCount,
+    getCommentCount,
+    postLikeCounts,
+    postCommentCounts,
+  } = usePostStore();
   const bookmarkStore = useBookmarkStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const likePostMutation = useLikePost();
-  
+
   // Sync bookmarks from API to local store on mount
   useEffect(() => {
     if (bookmarkedPostIds.length > 0) {
       // Update local store to match API state
       const currentBookmarks = bookmarkStore.getBookmarkedPostIds();
-      const missingBookmarks = bookmarkedPostIds.filter(id => !currentBookmarks.includes(id));
-      const extraBookmarks = currentBookmarks.filter(id => !bookmarkedPostIds.includes(id));
-      
+      const missingBookmarks = bookmarkedPostIds.filter(
+        (id) => !currentBookmarks.includes(id),
+      );
+      const extraBookmarks = currentBookmarks.filter(
+        (id) => !bookmarkedPostIds.includes(id),
+      );
+
       // Add missing bookmarks
-      missingBookmarks.forEach(id => {
+      missingBookmarks.forEach((id) => {
         if (!bookmarkStore.isBookmarked(id)) {
           bookmarkStore.toggleBookmark(id);
         }
       });
-      
+
       // Remove extra bookmarks
-      extraBookmarks.forEach(id => {
+      extraBookmarks.forEach((id) => {
         if (bookmarkStore.isBookmarked(id)) {
           bookmarkStore.toggleBookmark(id);
         }
       });
     }
   }, [bookmarkedPostIds]);
-  
-  const isBookmarked = bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
+
+  const isBookmarked =
+    bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
   // Fetch last 3 comments for feed display
-  const { data: recentCommentsData = [], refetch: refetchComments } = useComments(id, 3);
+  const { data: recentCommentsData = [], refetch: refetchComments } =
+    useComments(id, 3);
   const currentSlide = currentSlides[id] || 0;
-  
+
   // Comments are already limited to 3 from API, sorted newest first
   const recentComments = recentCommentsData || [];
 
@@ -142,19 +155,16 @@ function FeedPostComponent({
     return "";
   }, [isVideo, media]);
 
-  const player = useVideoPlayer(
-    videoUrl,
-    (player) => {
-      if (player && videoUrl) {
-        try {
-          player.loop = false;
-          player.muted = isMuted;
-        } catch (error) {
-          console.log("[FeedPost] Error configuring player:", error);
-        }
+  const player = useVideoPlayer(videoUrl, (player) => {
+    if (player && videoUrl) {
+      try {
+        player.loop = false;
+        player.muted = isMuted;
+      } catch (error) {
+        console.log("[FeedPost] Error configuring player:", error);
       }
-    },
-  );
+    }
+  });
 
   useEffect(() => {
     if (isVideo && player && videoUrl) {
@@ -162,7 +172,12 @@ function FeedPostComponent({
         player.muted = isMuted;
       } catch (error) {
         // Player may have been released - this is expected
-        if (error && typeof error === "object" && "code" in error && error.code !== "ERR_USING_RELEASED_SHARED_OBJECT") {
+        if (
+          error &&
+          typeof error === "object" &&
+          "code" in error &&
+          error.code !== "ERR_USING_RELEASED_SHARED_OBJECT"
+        ) {
           console.log("[FeedPost] Error setting mute:", error);
         }
       }
@@ -264,8 +279,9 @@ function FeedPostComponent({
   const likeCount = storedLikeCount !== undefined ? storedLikeCount : likes;
   // Subscribe to comment counts to trigger re-renders when they change
   const storedCommentCount = postCommentCounts[id];
-  const commentCount = storedCommentCount !== undefined ? storedCommentCount : comments;
-  
+  const commentCount =
+    storedCommentCount !== undefined ? storedCommentCount : comments;
+
   // Refetch comments when comment count changes to ensure we have the latest
   useEffect(() => {
     if (commentCount > 0 && recentComments.length === 0) {
@@ -277,20 +293,17 @@ function FeedPostComponent({
   const handleLike = useCallback(() => {
     const wasLiked = isPostLiked(id);
     setLikeAnimating(id, true);
-    toggleLike(id, likes);
+    // NOTE: Don't call toggleLike here - useLikePost mutation handles optimistic updates
+    // and will rollback on error. Calling toggleLike here would cause double-toggle.
     likePostMutation.mutate(
       { postId: id, isLiked: wasLiked },
       {
-        onError: () => {
-          // Rollback on error
-          toggleLike(id, likes);
-        },
         onSettled: () => {
           setTimeout(() => setLikeAnimating(id, false), 300);
         },
       },
     );
-  }, [id, likes, isPostLiked, toggleLike, setLikeAnimating, likePostMutation]);
+  }, [id, isPostLiked, setLikeAnimating, likePostMutation]);
 
   const handleSave = useCallback(() => {
     const currentBookmarked = isSaved; // Use isSaved which is the boolean value
@@ -304,7 +317,7 @@ function FeedPostComponent({
           // Rollback on error
           bookmarkStore.toggleBookmark(id);
         },
-      }
+      },
     );
   }, [id, isSaved, bookmarkStore, toggleBookmarkMutation]);
 
@@ -362,7 +375,11 @@ function FeedPostComponent({
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
               >
                 <Image
-                  source={{ uri: author?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.username || "User")}` }}
+                  source={{
+                    uri:
+                      author?.avatar ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.username || "User")}`,
+                  }}
                   className="h-8 w-8 rounded-full"
                   transition={200}
                   cachePolicy="memory-disk"
@@ -450,7 +467,10 @@ function FeedPostComponent({
                   scrollEventThrottle={16}
                 >
                   {media.map((medium, index) => {
-                    const isValidUrl = medium.url && (medium.url.startsWith("http://") || medium.url.startsWith("https://"));
+                    const isValidUrl =
+                      medium.url &&
+                      (medium.url.startsWith("http://") ||
+                        medium.url.startsWith("https://"));
                     return (
                       <Pressable
                         key={index}
@@ -467,8 +487,13 @@ function FeedPostComponent({
                             cachePolicy="memory-disk"
                           />
                         ) : (
-                          <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted items-center justify-center">
-                            <Text className="text-muted-foreground text-xs">No image</Text>
+                          <View
+                            style={{ width: mediaSize, height: mediaSize }}
+                            className="bg-muted items-center justify-center"
+                          >
+                            <Text className="text-muted-foreground text-xs">
+                              No image
+                            </Text>
                           </View>
                         )}
                       </Pressable>
@@ -507,7 +532,9 @@ function FeedPostComponent({
                 onPressOut={handlePressOut}
                 style={{ width: mediaSize, height: mediaSize }}
               >
-                {media[0]?.url && (media[0].url.startsWith("http://") || media[0].url.startsWith("https://")) ? (
+                {media[0]?.url &&
+                (media[0].url.startsWith("http://") ||
+                  media[0].url.startsWith("https://")) ? (
                   <Image
                     source={{ uri: media[0].url }}
                     style={{ width: mediaSize, height: mediaSize }}
@@ -516,8 +543,13 @@ function FeedPostComponent({
                     cachePolicy="memory-disk"
                   />
                 ) : (
-                  <View style={{ width: mediaSize, height: mediaSize }} className="bg-muted items-center justify-center">
-                    <Text className="text-muted-foreground text-xs">No image</Text>
+                  <View
+                    style={{ width: mediaSize, height: mediaSize }}
+                    className="bg-muted items-center justify-center"
+                  >
+                    <Text className="text-muted-foreground text-xs">
+                      No image
+                    </Text>
                   </View>
                 )}
               </Pressable>
