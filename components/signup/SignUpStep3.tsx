@@ -6,12 +6,12 @@ import { FileText } from "lucide-react-native";
 
 /**
  * SignUpStep3 - Terms Agreement
- * 
+ *
  * This is STEP 3 in the signup flow (displayed at activeStep index 1):
  * - Step 1 (index 0): User Info (SignUpStep1)
  * - Step 2 (index 1): Terms (SignUpStep3) ← WE ARE HERE
  * - Step 3 (index 2): Verification (SignUpStep2)
- * 
+ *
  * User reads and accepts terms before proceeding to verification.
  * Account creation happens AFTER verification in SignUpStep2.
  */
@@ -158,7 +158,7 @@ export function SignUpStep3() {
 
       {!hasScrolledToBottom && (
         <View className="items-center">
-          <Text className="text-sm text-zinc-400">
+          <Text className="text-sm" style={{ color: "#FC253A" }}>
             Please scroll to the bottom to continue
           </Text>
         </View>
@@ -171,6 +171,7 @@ export function SignUpStep3() {
         <Checkbox
           checked={termsAccepted}
           onCheckedChange={(v) => hasScrolledToBottom && setTermsAccepted(v)}
+          borderColor="#FC253A"
         />
         <Text
           className={`flex-1 text-sm leading-relaxed ${!hasScrolledToBottom ? "text-slate-400" : "text-foreground"}`}
