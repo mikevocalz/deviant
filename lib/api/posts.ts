@@ -222,9 +222,9 @@ export const postsApi = {
   ): Promise<{ postId: string; likes: number; liked: boolean }> {
     try {
       const action = isLiked ? "unlike" : "like";
-      // CRITICAL: Use canonical API URL - NEVER empty string fallback
-      const { getApiBaseUrl } = await import("@/lib/api-config");
-      const API_BASE_URL = getApiBaseUrl();
+      // CRITICAL: Use PAYLOAD URL for social actions - NOT auth server
+      const { getPayloadBaseUrl } = await import("@/lib/api-config");
+      const API_BASE_URL = getPayloadBaseUrl();
       const url = `${API_BASE_URL}/api/posts/${postId}/like`;
 
       // Get auth token and cookies

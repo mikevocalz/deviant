@@ -3,10 +3,10 @@
  */
 
 import { users } from "@/lib/api-client";
-import { getApiBaseUrl } from "@/lib/api-config";
+import { getPayloadBaseUrl } from "@/lib/api-config";
 
-// CRITICAL: Use canonical API URL resolver - NEVER empty string fallback
-const API_BASE_URL = getApiBaseUrl();
+// CRITICAL: Use PAYLOAD URL for social actions - NOT auth server
+const API_BASE_URL = getPayloadBaseUrl();
 
 async function bookmarkFetch<T>(
   endpoint: string,
