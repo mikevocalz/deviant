@@ -5,18 +5,30 @@
  * CRITICAL: This hook must NEVER crash the app. All operations are wrapped
  * in try-catch blocks and failures are logged.
  *
+ * DEDUPLICATION: Uses persistent storage to track which update IDs have been
+ * shown/dismissed to prevent toast spam across app restarts.
+ *
  * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
  * Publish updates with: eas update --channel production
- * (Use the same channel as your EAS build profile, e.g. production/preview/development.)
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { AppState, type AppStateStatus, Alert, Platform } from "react-native";
+import { AppState, type AppStateStatus, Platform } from "react-native";
 import { toast } from "sonner-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
   process.env?.EXPO_PUBLIC_FORCE_OTA_CHECK === "true";
+
+// Storage keys for update deduplication
+const STORAGE_KEY_LAST_SHOWN_UPDATE = "@dvnt_last_shown_update_id";
+const STORAGE_KEY_DISMISSED_UPDATE = "@dvnt_dismissed_update_id";
+
+// SINGLETON: Module-level state to prevent multiple hook instances from racing
+let globalHasShownToastThisSession = false;
+let globalIsInitialized = false;
+let globalIsChecking = false;
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -49,10 +61,6 @@ export interface UpdateStatus {
 }
 
 export function useUpdates() {
-  const hasShownUpdateToast = useRef(false);
-  const toastAttempts = useRef(0);
-  const isInitialized = useRef(false);
-  const isCheckingRef = useRef(false);
   const [status, setStatus] = useState<UpdateStatus>({
     isChecking: false,
     isDownloading: false,
@@ -70,6 +78,8 @@ export function useUpdates() {
       FORCE_OTA_IN_DEV,
       "UpdatesAvailable:",
       UpdatesAvailable,
+      "globalInitialized:",
+      globalIsInitialized,
     );
     if (Updates) {
       console.log(
@@ -114,48 +124,103 @@ export function useUpdates() {
     }
   }, []);
 
-  // CRITICAL: Show update toast - MUST ALWAYS SHOW when update is available
-  // This toast MUST NEVER be removed or disabled
-  // It has two buttons: "Later" (dismisses) and "Restart Now" (restarts)
-  const showUpdateToast = useCallback(() => {
-    // CRITICAL: Only show toast ONCE per app session
-    if (hasShownUpdateToast.current) {
-      console.log("[Updates] Toast already shown this session, skipping");
-      return;
-    }
+  // CRITICAL: Show update toast with deduplication by update ID
+  // Only shows once per unique update ID, persists across app restarts
+  const showUpdateToast = useCallback(
+    async (updateId?: string) => {
+      try {
+        // CRITICAL: Only show toast ONCE per app session (module-level singleton)
+        if (globalHasShownToastThisSession) {
+          console.log("[Updates] Toast already shown this session, skipping");
+          return;
+        }
 
-    // Mark as shown BEFORE showing to prevent race conditions
-    hasShownUpdateToast.current = true;
+        // Get the update ID - either passed in or from expo-updates
+        const currentUpdateId =
+          updateId || safeGet(() => Updates?.updateId, null);
+        console.log("[Updates] Checking update ID:", currentUpdateId);
 
-    console.log("[Updates] Showing update toast");
+        if (currentUpdateId) {
+          // Check if this update was already shown or dismissed
+          const [lastShownId, dismissedId] = await Promise.all([
+            AsyncStorage.getItem(STORAGE_KEY_LAST_SHOWN_UPDATE).catch(
+              () => null,
+            ),
+            AsyncStorage.getItem(STORAGE_KEY_DISMISSED_UPDATE).catch(
+              () => null,
+            ),
+          ]);
 
-    // Dismiss ALL existing toasts first to clear any queue from old versions
-    toast.dismiss();
+          console.log(
+            "[Updates] Last shown:",
+            lastShownId,
+            "Dismissed:",
+            dismissedId,
+          );
 
-    // Small delay to ensure dismiss completes
-    setTimeout(() => {
-      toast.success("Update Ready", {
-        id: "update-toast", // Use consistent ID so we can dismiss it
-        description: "A new update is available. Restart to apply it.",
-        duration: Infinity, // NEVER auto-dismiss - user must choose
-        action: {
-          label: "Restart Now",
-          onClick: () => {
-            // Dismiss the toast BEFORE restarting
-            toast.dismiss("update-toast");
-            reloadApp();
-          },
-        },
-        cancel: {
-          label: "Later",
-          onClick: () => {
-            console.log("[Updates] User chose to update later");
-            toast.dismiss("update-toast");
-          },
-        },
-      });
-    }, 100);
-  }, [reloadApp]);
+          // Skip if already shown for this update ID
+          if (lastShownId === currentUpdateId) {
+            console.log("[Updates] Already shown for this update ID, skipping");
+            return;
+          }
+
+          // Skip if user dismissed this specific update
+          if (dismissedId === currentUpdateId) {
+            console.log("[Updates] User dismissed this update ID, skipping");
+            return;
+          }
+
+          // Persist that we're showing this update ID
+          await AsyncStorage.setItem(
+            STORAGE_KEY_LAST_SHOWN_UPDATE,
+            currentUpdateId,
+          ).catch(() => {});
+        }
+
+        // Mark as shown BEFORE showing to prevent race conditions
+        globalHasShownToastThisSession = true;
+
+        console.log("[Updates] Showing update toast for ID:", currentUpdateId);
+
+        // Dismiss ALL existing toasts first to clear any queue
+        toast.dismiss();
+
+        // Small delay to ensure dismiss completes
+        setTimeout(() => {
+          toast.success("Update Ready", {
+            id: "update-toast", // Use consistent ID so we can dismiss it
+            description: "A new update is available. Restart to apply it.",
+            duration: Infinity, // NEVER auto-dismiss - user must choose
+            action: {
+              label: "Restart Now",
+              onClick: () => {
+                // Dismiss the toast BEFORE restarting
+                toast.dismiss("update-toast");
+                reloadApp();
+              },
+            },
+            cancel: {
+              label: "Later",
+              onClick: async () => {
+                console.log("[Updates] User chose to update later");
+                toast.dismiss("update-toast");
+                // Persist dismissal for this specific update ID
+                if (currentUpdateId) {
+                  await AsyncStorage.setItem(
+                    STORAGE_KEY_DISMISSED_UPDATE,
+                    currentUpdateId,
+                  ).catch(() => {});
+                }
+              },
+            },
+          });
+        }, 100);
+      } catch (error) {
+        console.error("[Updates] Error showing toast (non-fatal):", error);
+      }
+    },
+    [reloadApp],
+  );
 
   // Download and apply update - never throws
   const downloadAndApplyUpdate = useCallback(async () => {
@@ -169,11 +234,11 @@ export function useUpdates() {
     }
 
     // Prevent concurrent downloads
-    if (isCheckingRef.current) {
+    if (globalIsChecking) {
       return;
     }
 
-    isCheckingRef.current = true;
+    globalIsChecking = true;
 
     // Safely check if updates are enabled
     const isEnabled = safeGet(() => {
@@ -183,7 +248,7 @@ export function useUpdates() {
 
     if (!isEnabled) {
       console.log("[Updates] Skip download: expo-updates not enabled");
-      isCheckingRef.current = false;
+      globalIsChecking = false;
       return;
     }
 
@@ -203,8 +268,17 @@ export function useUpdates() {
           isDownloading: false,
           isUpdatePending: true,
         }));
-        console.log("[Updates] Update fetched, isNew: true — showing toast");
-        showUpdateToast();
+        // Extract update ID from the manifest if available
+        const newUpdateId = safeGet(
+          () => (result as any)?.manifest?.id || (result as any)?.updateId,
+          null,
+        );
+        console.log(
+          "[Updates] Update fetched, isNew: true, updateId:",
+          newUpdateId,
+          "— showing toast",
+        );
+        showUpdateToast(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
@@ -221,7 +295,7 @@ export function useUpdates() {
           error instanceof Error ? error.message : "Failed to download update",
       }));
     } finally {
-      isCheckingRef.current = false;
+      globalIsChecking = false;
     }
   }, [showUpdateToast]);
 
@@ -236,11 +310,11 @@ export function useUpdates() {
       return;
     }
 
-    if (isCheckingRef.current) {
+    if (globalIsChecking) {
       return;
     }
 
-    isCheckingRef.current = true;
+    globalIsChecking = true;
 
     const isEnabled = safeGet(() => {
       if (typeof Updates?.isEnabled === "undefined") return false;
@@ -249,7 +323,7 @@ export function useUpdates() {
 
     if (!isEnabled) {
       console.log("[Updates] Skip check: expo-updates not enabled");
-      isCheckingRef.current = false;
+      globalIsChecking = false;
       return;
     }
 
@@ -320,7 +394,7 @@ export function useUpdates() {
             : "Failed to check for updates",
       }));
     } finally {
-      isCheckingRef.current = false;
+      globalIsChecking = false;
     }
   }, [downloadAndApplyUpdate]);
 
@@ -333,7 +407,7 @@ export function useUpdates() {
       );
       return;
     }
-    if (!Updates || !UpdatesAvailable || isInitialized.current) {
+    if (!Updates || !UpdatesAvailable || globalIsInitialized) {
       return;
     }
 
@@ -348,7 +422,7 @@ export function useUpdates() {
         return;
       }
 
-      isInitialized.current = true;
+      globalIsInitialized = true;
       const ch = safeGet(() => Updates?.channel ?? null, null);
       const rv = safeGet(() => Updates?.runtimeVersion ?? null, null);
       console.log(
@@ -467,7 +541,7 @@ export function useUpdates() {
         "[Updates] Initialization error (non-fatal, app continues):",
         error,
       );
-      isInitialized.current = false; // Allow retry on next mount
+      globalIsInitialized = false; // Allow retry on next mount
     }
   }, [checkForUpdates, downloadAndApplyUpdate]);
 
