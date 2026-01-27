@@ -7,7 +7,14 @@ import {
   StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Grid,
+  MoreHorizontal,
+  Share2,
+  Play,
+  Grid3x3,
+} from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -21,6 +28,8 @@ import { useUser, useFollow } from "@/lib/hooks";
 import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
+import { messagesApiClient } from "@/lib/api/messages";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 8) / 3;
@@ -271,22 +280,36 @@ function UserProfileScreenComponent() {
     String(userId || ""),
   );
 
-  // Transform posts for grid display
+  // Transform posts for grid display - MUST match my profile transformation
   const userPosts = useMemo(() => {
-    if (!userPostsData) return [];
-    return userPostsData.map((post) => {
-      const media = Array.isArray(post.media) ? post.media : [];
-      const thumbnailUrl = media[0]?.url;
-      const isValidUrl =
-        thumbnailUrl &&
-        (thumbnailUrl.startsWith("http://") ||
-          thumbnailUrl.startsWith("https://"));
-      return {
-        id: post.id,
-        thumbnail: isValidUrl ? thumbnailUrl : undefined,
-        type: media[0]?.type === "video" ? "video" : "image",
-      };
-    });
+    if (!userPostsData || !Array.isArray(userPostsData)) return [];
+    return userPostsData
+      .filter((post) => post && post.id)
+      .map((post) => {
+        try {
+          const media = Array.isArray(post.media) ? post.media : [];
+          const thumbnailUrl = media[0]?.url;
+          const isValidUrl =
+            thumbnailUrl &&
+            (thumbnailUrl.startsWith("http://") ||
+              thumbnailUrl.startsWith("https://"));
+          return {
+            id: String(post.id),
+            thumbnail: isValidUrl ? thumbnailUrl : undefined,
+            type: media[0]?.type === "video" ? "video" : "image",
+            mediaCount: media.length,
+            hasMultipleImages: media.length > 1 && media[0]?.type === "image",
+          };
+        } catch {
+          return {
+            id: String(post.id),
+            thumbnail: undefined,
+            type: "image" as const,
+            mediaCount: 0,
+            hasMultipleImages: false,
+          };
+        }
+      });
   }, [userPostsData]);
 
   // Follow mutation
@@ -359,11 +382,43 @@ function UserProfileScreenComponent() {
     );
   }, [user.id, username, isFollowing, followMutate, queryClient]);
 
-  const handleMessagePress = useCallback(() => {
-    if (username) {
-      router.push(`/(protected)/chat/${username}`);
+  // State for message button loading
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleMessagePress = useCallback(async () => {
+    if (!user.id || isCreatingConversation) return;
+
+    setIsCreatingConversation(true);
+    try {
+      console.log(
+        "[Profile] Creating/getting conversation with user:",
+        user.id,
+      );
+      const conversation = await messagesApiClient.getOrCreateConversation(
+        user.id,
+      );
+
+      if (conversation?.id) {
+        console.log("[Profile] Navigating to chat:", conversation.id);
+        router.push(`/(protected)/chat/${conversation.id}`);
+      } else {
+        console.error(
+          "[Profile] Failed to create conversation - no ID returned",
+        );
+        showToast("error", "Error", "Could not start conversation");
+      }
+    } catch (error: any) {
+      console.error("[Profile] Message error:", error);
+      showToast(
+        "error",
+        "Error",
+        error?.message || "Failed to start conversation",
+      );
+    } finally {
+      setIsCreatingConversation(false);
     }
-  }, [router, username]);
+  }, [user.id, router, isCreatingConversation, showToast]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -496,14 +551,21 @@ function UserProfileScreenComponent() {
                     </Text>
                   </Motion.View>
                 </Pressable>
-                <Pressable onPress={handleMessagePress} style={{ flex: 1 }}>
+                <Pressable
+                  onPress={handleMessagePress}
+                  disabled={isCreatingConversation || !user.id}
+                  style={{ flex: 1 }}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                    style={styles.secondaryButton}
+                    style={[
+                      styles.secondaryButton,
+                      (isCreatingConversation || !user.id) && { opacity: 0.5 },
+                    ]}
                   >
                     <Text className="font-semibold text-secondary-foreground">
-                      Message
+                      {isCreatingConversation ? "Opening..." : "Message"}
                     </Text>
                   </Motion.View>
                 </Pressable>
@@ -537,15 +599,53 @@ function UserProfileScreenComponent() {
                 style={{ width: columnWidth, height: columnWidth, padding: 1 }}
               >
                 {post.thumbnail ? (
-                  <Image
-                    source={{ uri: post.thumbnail }}
+                  <View
                     style={{
                       width: "100%",
                       height: "100%",
-                      backgroundColor: "#1a1a1a",
+                      position: "relative",
                     }}
-                    contentFit="cover"
-                  />
+                  >
+                    <Image
+                      source={{ uri: post.thumbnail }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        backgroundColor: "#1a1a1a",
+                      }}
+                      contentFit="cover"
+                    />
+                    {/* Video indicator */}
+                    {post.type === "video" && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                          borderRadius: 12,
+                          padding: 6,
+                        }}
+                      >
+                        <Play size={16} color="#fff" fill="#fff" />
+                      </View>
+                    )}
+                    {/* Carousel indicator */}
+                    {post.hasMultipleImages && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 8,
+                          right: 8,
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                          borderRadius: 12,
+                          padding: 6,
+                        }}
+                      >
+                        <Grid3x3 size={16} color="#fff" />
+                      </View>
+                    )}
+                  </View>
                 ) : (
                   <View
                     style={{

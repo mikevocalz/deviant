@@ -16,9 +16,13 @@ import {
 } from "@/lib/payload.server";
 
 export async function POST(request: Request) {
+  console.log("[API/follow] POST request received");
   try {
     const cookies = getCookiesFromRequest(request);
+    console.log("[API/follow] Cookies extracted:", !!cookies);
+
     const body = await request.json();
+    console.log("[API/follow] Request body:", JSON.stringify(body));
 
     if (!body || typeof body !== "object") {
       return Response.json(
