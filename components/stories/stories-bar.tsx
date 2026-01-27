@@ -32,13 +32,55 @@ export function StoriesBar() {
     [router],
   );
 
-  // Find user's own story
+  // CRITICAL: Find user's own story by userId (author ID), NOT story ID
+  // Also filter to only include stories with valid items
   const myStory = useMemo(() => {
     if (!user) return null;
-    return stories.find((story) => story.id === user.id || story.username === user.username);
+    // Find stories where the author (userId) matches the logged-in user
+    const userStories = stories.filter(
+      (story) =>
+        String(story.userId) === String(user.id) &&
+        story.items &&
+        story.items.length > 0,
+    );
+    // Return the most recent one (first in array since sorted by createdAt desc)
+    return userStories[0] || null;
   }, [stories, user]);
 
-  const hasMyStory = myStory && myStory.items && myStory.items.length > 0;
+  const hasMyStory = !!myStory;
+
+  // CRITICAL: Filter out user's own stories from "Other Stories" list
+  // Also deduplicate by story ID and group by author
+  const otherStories = useMemo(() => {
+    if (!user) return stories;
+
+    // Filter out current user's stories
+    const filtered = stories.filter(
+      (story) =>
+        String(story.userId) !== String(user.id) &&
+        story.items &&
+        story.items.length > 0,
+    );
+
+    // Deduplicate by story ID
+    const seen = new Set<string>();
+    const deduped = filtered.filter((story) => {
+      if (seen.has(story.id)) return false;
+      seen.add(story.id);
+      return true;
+    });
+
+    // Group by author - show one story ring per author with their most recent story
+    const authorMap = new Map<string, (typeof stories)[0]>();
+    for (const story of deduped) {
+      const authorKey = story.userId || story.username;
+      if (!authorMap.has(authorKey)) {
+        authorMap.set(authorKey, story);
+      }
+    }
+
+    return Array.from(authorMap.values());
+  }, [stories, user]);
 
   if (isLoading) {
     return <StoriesBarSkeleton />;
@@ -96,8 +138,8 @@ export function StoriesBar() {
         {/* Other Stories */}
         <FlatList
           horizontal
-          data={stories}
-          keyExtractor={(item) => item.id}
+          data={otherStories}
+          keyExtractor={(item) => `story-${item.id}`}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{
             paddingVertical: 6,
