@@ -46,18 +46,26 @@ export const useAuthStore = create<AuthStore>()(
         if (rehydrationPromise) {
           await rehydrationPromise;
         }
-        
+
         // State is automatically loaded from storage by Zustand persist
         // If user is null but we have a token, try to restore from API
         const state = get();
         if (!state.user && !state.isAuthenticated) {
           try {
             const { Platform } = require("react-native");
-            const storage = Platform.OS === "web"
-              ? { getItem: (key: string) => (typeof window !== "undefined" ? localStorage.getItem(key) : null) }
-              : require("expo-secure-store");
-            
-            const token = await storage.getItem("dvnt_auth_token");
+            const SecureStore =
+              Platform.OS === "web" ? null : require("expo-secure-store");
+
+            // Use correct async methods for SecureStore vs localStorage
+            let token: string | null = null;
+            if (Platform.OS === "web") {
+              token =
+                typeof window !== "undefined"
+                  ? localStorage.getItem("dvnt_auth_token")
+                  : null;
+            } else {
+              token = await SecureStore.getItemAsync("dvnt_auth_token");
+            }
             if (token) {
               console.log("[Auth] Token found, restoring user from API...");
               // Try to fetch current user from API
@@ -72,11 +80,19 @@ export const useAuthStore = create<AuthStore>()(
                     email: String(userData.email || ""),
                     username: String(userData.username || ""),
                     name: String(userData.name || userData.username || ""),
-                    avatar: userData.avatar ? String(userData.avatar) : undefined,
+                    avatar: userData.avatar
+                      ? String(userData.avatar)
+                      : undefined,
                     bio: userData.bio ? String(userData.bio) : undefined,
-                    website: userData.website ? String(userData.website) : undefined,
-                    location: userData.location ? String(userData.location) : undefined,
-                    hashtags: Array.isArray(userData.hashtags) ? userData.hashtags : [],
+                    website: userData.website
+                      ? String(userData.website)
+                      : undefined,
+                    location: userData.location
+                      ? String(userData.location)
+                      : undefined,
+                    hashtags: Array.isArray(userData.hashtags)
+                      ? userData.hashtags
+                      : [],
                     isVerified: Boolean(userData.isVerified) || false,
                     postsCount: Number(userData.postsCount) || 0,
                     followersCount: Number(userData.followersCount) || 0,
@@ -86,7 +102,11 @@ export const useAuthStore = create<AuthStore>()(
                 });
               } else {
                 console.log("[Auth] Token invalid, clearing...");
-                await storage.removeItem("dvnt_auth_token");
+                if (Platform.OS === "web") {
+                  localStorage.removeItem("dvnt_auth_token");
+                } else {
+                  await SecureStore.deleteItemAsync("dvnt_auth_token");
+                }
               }
             }
           } catch (error) {
@@ -110,7 +130,7 @@ export const useAuthStore = create<AuthStore>()(
             resolve();
           }, 100); // Small delay to ensure all stores are rehydrated
         });
-        
+
         return (state, error) => {
           if (error) {
             console.error("[Auth] Rehydration error:", error);
@@ -119,7 +139,10 @@ export const useAuthStore = create<AuthStore>()(
               rehydrationPromise = null;
             }
           } else if (state) {
-            console.log("[Auth] State rehydrated, user:", state.user?.id || "none");
+            console.log(
+              "[Auth] State rehydrated, user:",
+              state.user?.id || "none",
+            );
             // Rehydration complete - will be marked in setTimeout above
           }
         };
@@ -144,7 +167,7 @@ export const flushAuthStorage = async (): Promise<void> => {
   try {
     // Wait for any pending rehydration
     await waitForRehydration();
-    
+
     // Force Zustand to persist current state by triggering a state update
     // This ensures the persist middleware runs and writes to storage
     const state = useAuthStore.getState();
@@ -154,11 +177,11 @@ export const flushAuthStorage = async (): Promise<void> => {
       // Give Zustand persist middleware time to write
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
-    
+
     // MMKV is synchronous and immediately persisted, but we add a small delay
     // to ensure any pending async operations complete
     await new Promise((resolve) => setTimeout(resolve, 50));
-    
+
     console.log("[Auth] Storage flushed, ready for reload");
   } catch (error) {
     console.error("[Auth] Error flushing storage:", error);

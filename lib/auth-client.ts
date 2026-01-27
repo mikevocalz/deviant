@@ -149,13 +149,21 @@ const webStorage = {
 };
 
 // Dynamically get storage based on platform
+// CRITICAL: Wraps expo-secure-store to use consistent method names
 function getStorage() {
   if (Platform.OS === "web") {
     return webStorage;
   }
   // Lazy require to avoid bundling native module on web
   const SecureStore = require("expo-secure-store");
-  return SecureStore;
+  // Wrap SecureStore to match our interface (getItem/setItem/deleteItem)
+  // SecureStore uses getItemAsync/setItemAsync/deleteItemAsync
+  return {
+    getItem: (key: string) => SecureStore.getItemAsync(key),
+    setItem: (key: string, value: string) =>
+      SecureStore.setItemAsync(key, value),
+    deleteItem: (key: string) => SecureStore.deleteItemAsync(key),
+  };
 }
 
 export const authClient = createAuthClient({

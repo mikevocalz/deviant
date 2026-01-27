@@ -28,7 +28,33 @@ if (!PAYLOAD_URL || !PAYLOAD_URL.startsWith("https://")) {
   );
 }
 
-// Get JWT token from storage
+// ============================================================
+// PHASE 1 INSTRUMENTATION: Log API base at startup
+// ============================================================
+console.log("[API] ========================================");
+console.log("[API] STARTUP INSTRUMENTATION");
+console.log("[API] API_BASE:", PAYLOAD_URL);
+console.log("[API] /users/me endpoint:", `${PAYLOAD_URL}/api/users/me`);
+console.log("[API] Platform:", Platform.OS);
+console.log("[API] ========================================");
+
+/**
+ * Join URL parts safely, preventing // and /api/api issues
+ * Option A: PAYLOAD_URL has NO /api suffix, all endpoints start with /api
+ */
+function joinUrl(base: string, path: string): string {
+  // Remove trailing slash from base
+  const cleanBase = base.replace(/\/+$/, "");
+  // Ensure path starts with /
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  // Prevent double /api
+  if (cleanBase.endsWith("/api") && cleanPath.startsWith("/api")) {
+    return `${cleanBase}${cleanPath.slice(4)}`;
+  }
+  return `${cleanBase}${cleanPath}`;
+}
+
+// Get JWT token from storage - MUST match auth-client.ts storage methods
 async function getAuthToken(): Promise<string | null> {
   try {
     if (Platform.OS === "web") {
@@ -36,8 +62,10 @@ async function getAuthToken(): Promise<string | null> {
       return localStorage.getItem("dvnt_auth_token");
     }
     const SecureStore = require("expo-secure-store");
-    return await SecureStore.getItemAsync("dvnt_auth_token");
-  } catch {
+    const token = await SecureStore.getItemAsync("dvnt_auth_token");
+    return token || null;
+  } catch (e) {
+    console.error("[API] getAuthToken error:", e);
     return null;
   }
 }
@@ -121,7 +149,8 @@ async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${PAYLOAD_URL}${endpoint}`;
+  // Use joinUrl to prevent // and /api/api issues
+  const url = joinUrl(PAYLOAD_URL, endpoint);
 
   // Get auth token and cookies for authenticated requests
   const authToken = await getAuthToken();
@@ -141,36 +170,45 @@ async function apiFetch<T>(
     headers["Cookie"] = authCookies;
   }
 
-  // Debug logging for API calls
-  if (__DEV__ || options.method === "POST" || options.method === "PATCH") {
-    console.log(`[API] ${options.method || "GET"} ${url}`);
-    console.log("[API] Has auth token:", !!authToken);
-  }
+  // ============================================================
+  // PHASE 1 INSTRUMENTATION: Log EVERY request
+  // ============================================================
+  const method = options.method || "GET";
+  console.log(`[API] REQUEST: ${method} ${url}`);
+  console.log(`[API]   hasAuth: ${!!authToken}`);
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "omit", // Always cross-origin to Payload CMS
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "omit", // Always cross-origin to Payload CMS
+    });
+  } catch (networkError: any) {
+    console.error(`[API] NETWORK ERROR: ${networkError.message}`);
+    throw networkError;
+  }
 
   let data: any;
   const contentType = response.headers.get("content-type");
+  let responseText = "";
 
   if (contentType?.includes("application/json")) {
     data = await response.json();
+    responseText = JSON.stringify(data).slice(0, 200);
   } else {
     // Handle non-JSON responses (HTML error pages, etc)
     const text = await response.text();
-    console.error("[API] Non-JSON response:", text.slice(0, 200));
+    responseText = text.slice(0, 200);
+    console.error("[API] Non-JSON response:", responseText);
     data = { error: `Server returned non-JSON response (${response.status})` };
   }
 
-  if (!response.ok) {
-    console.error(
-      `[API] Error ${response.status}:`,
-      JSON.stringify(data, null, 2),
-    );
+  // Log response status and body preview
+  console.log(`[API]   status: ${response.status}`);
+  console.log(`[API]   body: ${responseText}`);
 
+  if (!response.ok) {
     const error = new Error(
       data?.errors?.[0]?.message ||
         (data as APIError).error ||
@@ -194,61 +232,8 @@ async function payloadFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${PAYLOAD_URL}${endpoint}`;
-
-  // Get auth token for authenticated requests
-  const authToken = await getAuthToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(options.headers as Record<string, string>),
-  };
-
-  // Use JWT token for authorization
-  if (authToken) {
-    headers["Authorization"] = `JWT ${authToken}`;
-  }
-
-  console.log(`[PayloadAPI] ${options.method || "GET"} ${url}`);
-  console.log("[PayloadAPI] Has auth token:", !!authToken);
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "omit", // Always omit for cross-origin
-  });
-
-  let data: any;
-  const contentType = response.headers.get("content-type");
-
-  if (contentType?.includes("application/json")) {
-    data = await response.json();
-  } else {
-    const text = await response.text();
-    console.error("[PayloadAPI] Non-JSON response:", text.slice(0, 200));
-    data = { error: `Server returned non-JSON response (${response.status})` };
-  }
-
-  if (!response.ok) {
-    console.error(
-      `[PayloadAPI] Error ${response.status}:`,
-      JSON.stringify(data, null, 2),
-    );
-
-    const error = new Error(
-      data?.errors?.[0]?.message ||
-        (data as APIError).error ||
-        data?.message ||
-        `API error: ${response.status}`,
-    ) as Error & {
-      status: number;
-      errors?: Array<{ message: string; field?: string }>;
-    };
-    error.status = response.status;
-    error.errors = (data as APIError).errors || data?.errors;
-    throw error;
-  }
-
-  return data as T;
+  // Simply delegate to apiFetch - no code duplication
+  return apiFetch<T>(endpoint, options);
 }
 
 /**
