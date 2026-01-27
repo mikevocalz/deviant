@@ -501,20 +501,13 @@ export default function ProfileScreen() {
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
 
-  // CRITICAL: Early return if no user - prevents crash on null access
-  // This ensures profile ONLY loads for logged-in user
-  if (!user) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">Loading profile...</Text>
-      </View>
-    );
-  }
+  // Logged-in user ID - safe even if user is null
+  const loggedInUserId = String(user?.id || "");
 
-  // Logged-in user ID - this is the ONLY source of truth for "my profile"
-  const loggedInUserId = String(user.id || "");
+  // Track previous user ID to detect user switches
+  const prevUserIdRef = useRef<string | null>(null);
 
-  // Set up header with useLayoutEffect
+  // Set up header with useLayoutEffect - MUST be called unconditionally
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
@@ -559,16 +552,14 @@ export default function ProfileScreen() {
     });
   }, [navigation, user?.username, colors, router]);
 
-  // Fetch real user posts - ONLY for logged-in user (loggedInUserId is the single source of truth)
+  // Fetch real user posts - ONLY for logged-in user
+  // Must be called unconditionally (React hooks rule)
   const {
     data: userPostsData,
     isLoading: isLoadingPosts,
     isError: postsError,
     refetch,
   } = useProfilePosts(loggedInUserId);
-
-  // Track previous user ID to detect user switches
-  const prevUserIdRef = useRef<string | null>(null);
 
   // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
   useEffect(() => {
@@ -589,13 +580,7 @@ export default function ProfileScreen() {
     prevUserIdRef.current = loggedInUserId;
   }, [loggedInUserId, refetch]);
 
-  // Format follower count (e.g., 24800 -> "24.8K")
-  const formatCount = (count: number) => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
-
+  // Load profile screen loading state
   useEffect(() => {
     const loadProfile = async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
@@ -698,6 +683,23 @@ export default function ProfileScreen() {
         return userPosts;
     }
   }, [activeTab, savedPosts, videoPosts, userPosts]);
+
+  // Format follower count (e.g., 24800 -> "24.8K")
+  const formatCount = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
+  };
+
+  // CRITICAL: Early return if no user - MUST come AFTER all hooks
+  // This ensures hooks are called in same order every render (React rules)
+  if (!user) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">Loading profile...</Text>
+      </View>
+    );
+  }
 
   if (isLoading || isLoadingPosts) {
     return (
