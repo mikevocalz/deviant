@@ -385,8 +385,8 @@ export const users = {
     }
   },
 
-  // CRITICAL FIX: Use payloadFetch to call Payload CMS directly
-  // The auth server does NOT have the follow route - Payload CMS does
+  // CANONICAL: Use Payload v3 custom endpoints
+  // POST /api/users/follow for follow, DELETE for unfollow
   follow: async (userId: string, action: "follow" | "unfollow") => {
     console.log("[users.follow] Calling Payload CMS:", { userId, action });
     return payloadFetch<{
@@ -394,8 +394,8 @@ export const users = {
       following: boolean;
       followersCount: number;
     }>("/api/users/follow", {
-      method: "POST",
-      body: JSON.stringify({ userId, action }),
+      method: action === "follow" ? "POST" : "DELETE",
+      body: JSON.stringify({ followingId: userId }),
     });
   },
 
@@ -431,41 +431,55 @@ export const users = {
     }
   },
 
-  // Check if current user is following a specific user - via Payload CMS
+  // CANONICAL: GET /api/users/:id/follow-state
   isFollowing: async (userId: string): Promise<boolean> => {
     try {
-      const response = await payloadFetch<{ following: boolean }>(
-        `/api/users/follow?userId=${userId}`,
+      const response = await payloadFetch<{ isFollowing: boolean }>(
+        `/api/users/${userId}/follow-state`,
       );
-      return response.following;
+      return response.isFollowing;
     } catch (error) {
       console.error("[users] isFollowing error:", error);
       return false;
     }
   },
 
-  // STABILIZED: Fetches from dedicated bookmarks collection via Payload CMS
+  // CANONICAL: GET /api/users/:id/profile
+  getProfile: async (userId: string) => {
+    return payloadFetch<{
+      id: string;
+      username: string;
+      displayName: string;
+      bio: string;
+      avatar: any;
+      avatarUrl: string;
+      followersCount: number;
+      followingCount: number;
+      postsCount: number;
+      isFollowing: boolean;
+      isFollowedBy: boolean;
+      isOwnProfile: boolean;
+    }>(`/api/users/${userId}/profile`);
+  },
+
+  // CANONICAL: GET /api/users/:id/posts
+  getPosts: async (userId: string, page = 1, limit = 20) => {
+    return payloadFetch<PaginatedResponse<any>>(
+      `/api/users/${userId}/posts?page=${page}&limit=${limit}`,
+    );
+  },
+
+  // CANONICAL: GET /api/users/me/bookmarks
   getBookmarks: async (): Promise<string[]> => {
     try {
-      const currentUser = await users.me<{ id: string }>();
-      if (!currentUser.user?.id) return [];
-
-      // Fetch from bookmarks collection via Payload CMS
       const response = await payloadFetch<{
-        docs: Array<{ post: string | { id: string } }>;
-      }>(
-        `/api/bookmarks?where[user][equals]=${currentUser.user.id}&limit=1000`,
-      );
+        docs: Array<{ id: string }>;
+      }>("/api/users/me/bookmarks?limit=1000");
 
       if (!response.docs) return [];
 
       return response.docs
-        .map((bookmark: any) => {
-          const postId = bookmark.post;
-          if (typeof postId === "string") return postId;
-          if (postId?.id) return postId.id;
-          return null;
-        })
+        .map((post: any) => String(post.id))
         .filter(
           (id): id is string => !!id && id !== "undefined" && id !== "null",
         );
@@ -583,39 +597,217 @@ export const events = {
 };
 
 /**
- * Stories API
+ * Stories API - CANONICAL Payload v3 endpoints
  */
 export const stories = {
   find: <T = Record<string, unknown>>(params: FindParams = {}) =>
-    apiFetch<PaginatedResponse<T>>(`/api/stories${buildQueryString(params)}`),
+    payloadFetch<PaginatedResponse<T>>(
+      `/api/stories${buildQueryString(params)}`,
+    ),
 
-  create: <T = Record<string, unknown>>(data: Record<string, unknown>) =>
-    apiFetch<T>("/api/stories", {
+  // CANONICAL: GET /api/stories (grouped: my story + others)
+  getGrouped: () =>
+    payloadFetch<{
+      myStories: { user: any; stories: any[] } | null;
+      otherStories: Array<{ user: any; stories: any[]; hasUnviewed: boolean }>;
+    }>("/api/stories"),
+
+  create: <T = Record<string, unknown>>(data: {
+    media: { type: "image" | "video"; url: string; posterUrl?: string };
+    clientMutationId?: string;
+  }) =>
+    payloadFetch<T>("/api/stories", {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // CANONICAL: POST /api/stories/:id/view (idempotent)
+  view: (storyId: string) =>
+    payloadFetch<{ viewed: boolean; deduplicated?: boolean }>(
+      `/api/stories/${storyId}/view`,
+      { method: "POST" },
+    ),
+
+  // CANONICAL: POST /api/stories/:id/reply (creates DM)
+  reply: (storyId: string, text: string, clientMutationId?: string) =>
+    payloadFetch<{ message: any; conversationId: string }>(
+      `/api/stories/${storyId}/reply`,
+      {
+        method: "POST",
+        body: JSON.stringify({ text, clientMutationId }),
+      },
+    ),
 };
 
 /**
- * Notifications API
+ * Notifications API - CANONICAL Payload v3 endpoints
  */
 export const notifications = {
   find: <T = Record<string, unknown>>(params: FindParams = {}) =>
-    apiFetch<PaginatedResponse<T>>(
+    payloadFetch<PaginatedResponse<T>>(
       `/api/notifications${buildQueryString(params)}`,
     ),
 
-  create: <T = Record<string, unknown>>(data: {
-    type: "like" | "comment" | "follow" | "mention";
-    recipientUsername: string;
-    senderUsername?: string;
-    postId?: string;
-    content?: string;
-  }) =>
-    apiFetch<T>("/api/notifications", {
-      method: "POST",
-      body: JSON.stringify(data),
+  // CANONICAL: GET /api/notifications
+  get: (params: { page?: number; limit?: number; unread?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.limit) query.set("limit", String(params.limit));
+    if (params.unread) query.set("unread", "true");
+    return payloadFetch<PaginatedResponse<any>>(
+      `/api/notifications${query.toString() ? `?${query}` : ""}`,
+    );
+  },
+
+  // CANONICAL: POST /api/notifications/:id/read
+  markRead: (notificationId: string) =>
+    payloadFetch<{ read: boolean }>(
+      `/api/notifications/${notificationId}/read`,
+      {
+        method: "POST",
+      },
+    ),
+
+  // CANONICAL: GET /api/badges
+  getBadges: () =>
+    payloadFetch<{ notificationsUnread: number; messagesUnread: number }>(
+      "/api/badges",
+    ),
+
+  // CANONICAL: POST /api/devices/register
+  registerDevice: (
+    deviceId: string,
+    expoPushToken: string,
+    platform?: string,
+  ) =>
+    payloadFetch<{ registered: boolean; deviceId: string }>(
+      "/api/devices/register",
+      {
+        method: "POST",
+        body: JSON.stringify({ deviceId, expoPushToken, platform }),
+      },
+    ),
+};
+
+/**
+ * Likes API - CANONICAL Payload v3 endpoints
+ */
+export const likes = {
+  // CANONICAL: POST /api/posts/:id/like (idempotent)
+  likePost: (postId: string) =>
+    payloadFetch<{ liked: boolean; likesCount: number }>(
+      `/api/posts/${postId}/like`,
+      { method: "POST" },
+    ),
+
+  // CANONICAL: DELETE /api/posts/:id/like (idempotent)
+  unlikePost: (postId: string) =>
+    payloadFetch<{ liked: boolean; likesCount: number }>(
+      `/api/posts/${postId}/like`,
+      { method: "DELETE" },
+    ),
+
+  // CANONICAL: GET /api/posts/:id/like-state
+  getLikeState: (postId: string) =>
+    payloadFetch<{ liked: boolean; likesCount: number }>(
+      `/api/posts/${postId}/like-state`,
+    ),
+
+  // CANONICAL: POST /api/comments/:id/like (idempotent)
+  likeComment: (commentId: string) =>
+    payloadFetch<{ liked: boolean; likesCount: number }>(
+      `/api/comments/${commentId}/like`,
+      { method: "POST" },
+    ),
+
+  // CANONICAL: DELETE /api/comments/:id/like (idempotent)
+  unlikeComment: (commentId: string) =>
+    payloadFetch<{ liked: boolean; likesCount: number }>(
+      `/api/comments/${commentId}/like`,
+      { method: "DELETE" },
+    ),
+};
+
+/**
+ * Bookmarks API - CANONICAL Payload v3 endpoints
+ */
+export const bookmarks = {
+  // CANONICAL: POST /api/posts/:id/bookmark (idempotent)
+  bookmark: (postId: string) =>
+    payloadFetch<{ bookmarked: boolean; bookmarkId?: string }>(
+      `/api/posts/${postId}/bookmark`,
+      { method: "POST" },
+    ),
+
+  // CANONICAL: DELETE /api/posts/:id/bookmark (idempotent)
+  unbookmark: (postId: string) =>
+    payloadFetch<{ bookmarked: boolean }>(`/api/posts/${postId}/bookmark`, {
+      method: "DELETE",
     }),
+
+  // CANONICAL: GET /api/posts/:id/bookmark-state
+  getState: (postId: string) =>
+    payloadFetch<{ bookmarked: boolean; bookmarkId?: string }>(
+      `/api/posts/${postId}/bookmark-state`,
+    ),
+
+  // CANONICAL: GET /api/users/me/bookmarks
+  getAll: (page = 1, limit = 20) =>
+    payloadFetch<PaginatedResponse<any>>(
+      `/api/users/me/bookmarks?page=${page}&limit=${limit}`,
+    ),
+};
+
+/**
+ * Messaging API - CANONICAL Payload v3 endpoints
+ */
+export const messaging = {
+  // CANONICAL: POST /api/conversations/direct (idempotent via directKey)
+  createDirect: (userId: string) =>
+    payloadFetch<any>("/api/conversations/direct", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    }),
+
+  // CANONICAL: POST /api/conversations/group
+  createGroup: (participantIds: string[], name?: string) =>
+    payloadFetch<any>("/api/conversations/group", {
+      method: "POST",
+      body: JSON.stringify({ participantIds, name }),
+    }),
+
+  // CANONICAL: GET /api/conversations?box=inbox|spam
+  getConversations: (box: "inbox" | "spam" = "inbox") =>
+    payloadFetch<{ docs: any[]; totalDocs: number; box: string }>(
+      `/api/conversations?box=${box}`,
+    ),
+
+  // CANONICAL: GET /api/conversations/:id/messages
+  getMessages: (conversationId: string, page = 1, limit = 50) =>
+    payloadFetch<PaginatedResponse<any>>(
+      `/api/conversations/${conversationId}/messages?page=${page}&limit=${limit}`,
+    ),
+
+  // CANONICAL: POST /api/conversations/:id/messages (dedupe by clientMutationId)
+  sendMessage: (
+    conversationId: string,
+    text: string,
+    clientMutationId?: string,
+    media?: any,
+  ) =>
+    payloadFetch<any>(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ text, clientMutationId, media }),
+    }),
+
+  // CANONICAL: POST /api/conversations/:id/read
+  markRead: (conversationId: string) =>
+    payloadFetch<{ read: boolean }>(
+      `/api/conversations/${conversationId}/read`,
+      {
+        method: "POST",
+      },
+    ),
 };
 
 /**
