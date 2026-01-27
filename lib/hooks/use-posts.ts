@@ -44,12 +44,21 @@ export function useProfilePosts(userId: string) {
   });
 }
 
-// Fetch single post
+// Fetch single post by ID
+// CRITICAL: This is the canonical query for Post Detail - always ID-driven
 export function usePost(id: string) {
   return useQuery({
     queryKey: postKeys.detail(id),
-    queryFn: () => postsApi.getPostById(id),
-    enabled: !!id,
+    queryFn: () => {
+      console.log("[usePost] Fetching post:", id);
+      return postsApi.getPostById(id);
+    },
+    enabled: !!id && id.length > 0,
+    staleTime: 30 * 1000, // 30 seconds - prevents aggressive refetching
+    gcTime: 5 * 60 * 1000, // 5 minutes cache
+    retry: 2, // Retry failed requests twice
+    refetchOnMount: true, // Always fetch fresh data when component mounts
+    refetchOnWindowFocus: false, // Don't refetch on app focus (prevents flicker)
   });
 }
 

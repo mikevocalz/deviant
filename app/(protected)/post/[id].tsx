@@ -163,7 +163,12 @@ export default function PostDetailScreen() {
     );
   }
 
-  if (postError || !post) {
+  // CRITICAL: Show error state with specific message
+  // postError now contains meaningful error messages (not found, permission denied, etc.)
+  if (postError) {
+    const errorMessage = (postError as Error)?.message || "Failed to load post";
+    console.log("[PostDetail] Error state:", { postId, errorMessage });
+
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
@@ -174,7 +179,36 @@ export default function PostDetailScreen() {
         </View>
         <View className="flex-1 items-center justify-center p-4">
           <Text className="text-muted-foreground text-center">
-            {postError ? "Failed to load post" : "Post not found"}
+            {errorMessage}
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mt-4 px-4 py-2 bg-primary rounded-lg"
+          >
+            <Text className="text-primary-foreground font-semibold">
+              Go Back
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // CRITICAL: Only show "not found" if we're not loading AND have no post
+  // This prevents flash of "not found" during initial load
+  if (!post) {
+    console.log("[PostDetail] No post data:", { postId, isLoading });
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable onPress={() => router.back()} className="mr-4">
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground text-center">
+            Post not found
           </Text>
           <Pressable
             onPress={() => router.back()}

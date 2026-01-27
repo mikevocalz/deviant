@@ -120,13 +120,49 @@ export const postsApi = {
   },
 
   // Fetch single post by ID
-  async getPostById(id: string): Promise<Post | null> {
+  // CRITICAL: Throws on error instead of returning null
+  // This allows React Query to properly distinguish loading/error/success states
+  async getPostById(id: string): Promise<Post> {
+    if (!id) {
+      throw new Error("Post ID is required");
+    }
+
+    console.log("[postsApi] getPostById called with id:", id);
+
     try {
       const doc = await posts.findByID(id, 2);
-      return transformPost(doc as Record<string, unknown>);
-    } catch (error) {
-      console.error("[postsApi] getPostById error:", error);
-      return null;
+
+      if (!doc || !doc.id) {
+        console.error(
+          "[postsApi] getPostById: No document returned for id:",
+          id,
+        );
+        throw new Error("Post not found");
+      }
+
+      const post = transformPost(doc as Record<string, unknown>);
+      console.log("[postsApi] getPostById success:", {
+        id: post.id,
+        hasMedia: !!post.media?.length,
+      });
+      return post;
+    } catch (error: any) {
+      console.error(
+        "[postsApi] getPostById error for id:",
+        id,
+        error?.message || error,
+      );
+
+      // Re-throw with proper error message
+      if (error?.status === 404) {
+        throw new Error("Post not found");
+      } else if (error?.status === 403) {
+        throw new Error("You don't have permission to view this post");
+      } else if (error?.message) {
+        throw error;
+      } else {
+        throw new Error("Failed to load post");
+      }
     }
   },
 
