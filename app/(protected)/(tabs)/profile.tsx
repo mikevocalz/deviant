@@ -486,15 +486,33 @@ export default function ProfileScreen() {
   const { colors } = useColorScheme();
   const { activeTab, setActiveTab } = useProfileStore();
   const bookmarkStore = useBookmarkStore();
-  const { data: bookmarkedPostIds = [] } = useBookmarks();
+  const { data: bookmarkedPostIds = [], isError: bookmarksError } =
+    useBookmarks();
   // Sync API bookmarks to local store - use API bookmarks as source of truth
+  // Defensive: ensure bookmarkedPostIds is always an array
+  const safeBookmarkedPostIds = Array.isArray(bookmarkedPostIds)
+    ? bookmarkedPostIds
+    : [];
   const bookmarkedPosts =
-    bookmarkedPostIds.length > 0
-      ? bookmarkedPostIds
+    safeBookmarkedPostIds.length > 0
+      ? safeBookmarkedPostIds
       : bookmarkStore.getBookmarkedPostIds();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const user = useAuthStore((state) => state.user);
   const isLoading = loadingScreens.profile;
+
+  // CRITICAL: Early return if no user - prevents crash on null access
+  // This ensures profile ONLY loads for logged-in user
+  if (!user) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">Loading profile...</Text>
+      </View>
+    );
+  }
+
+  // Logged-in user ID - this is the ONLY source of truth for "my profile"
+  const loggedInUserId = String(user.id || "");
 
   // Set up header with useLayoutEffect
   useLayoutEffect(() => {
@@ -541,36 +559,35 @@ export default function ProfileScreen() {
     });
   }, [navigation, user?.username, colors, router]);
 
-  // Fetch real user posts - query key includes user ID so it auto-refetches for new users
+  // Fetch real user posts - ONLY for logged-in user (loggedInUserId is the single source of truth)
   const {
     data: userPostsData,
     isLoading: isLoadingPosts,
+    isError: postsError,
     refetch,
-  } = useProfilePosts(user?.id || "");
+  } = useProfilePosts(loggedInUserId);
 
   // Track previous user ID to detect user switches
   const prevUserIdRef = useRef<string | null>(null);
 
   // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
   useEffect(() => {
-    const currentUserId = user?.id || null;
-
     if (
       prevUserIdRef.current !== null &&
-      prevUserIdRef.current !== currentUserId
+      prevUserIdRef.current !== loggedInUserId
     ) {
       console.log(
         "[Profile] User switched from",
         prevUserIdRef.current,
         "to",
-        currentUserId,
+        loggedInUserId,
       );
       // Force refetch for the new user
       refetch();
     }
 
-    prevUserIdRef.current = currentUserId;
-  }, [user?.id, refetch]);
+    prevUserIdRef.current = loggedInUserId;
+  }, [loggedInUserId, refetch]);
 
   // Format follower count (e.g., 24800 -> "24.8K")
   const formatCount = (count: number) => {
@@ -587,48 +604,78 @@ export default function ProfileScreen() {
     loadProfile();
   }, [setScreenLoading]);
 
-  // Transform user posts data
+  // Transform user posts data - with defensive guards to prevent crashes
   const userPosts = useMemo(() => {
-    if (!userPostsData) return [];
-    return userPostsData.map((post) => {
-      const media = Array.isArray(post.media) ? post.media : [];
-      const thumbnailUrl = media[0]?.url;
-      // Only use valid HTTP/HTTPS URLs, skip relative paths
-      const isValidUrl =
-        thumbnailUrl &&
-        (thumbnailUrl.startsWith("http://") ||
-          thumbnailUrl.startsWith("https://"));
-      return {
-        id: post.id,
-        thumbnail: isValidUrl ? thumbnailUrl : undefined,
-        type: media[0]?.type === "video" ? "video" : "image",
-        mediaCount: media.length,
-        hasMultipleImages: media.length > 1 && media[0]?.type === "image",
-      };
-    });
+    if (!userPostsData || !Array.isArray(userPostsData)) return [];
+    return userPostsData
+      .filter((post) => post && post.id) // Filter out invalid posts
+      .map((post) => {
+        try {
+          const media = Array.isArray(post.media) ? post.media : [];
+          const thumbnailUrl = media[0]?.url;
+          // Only use valid HTTP/HTTPS URLs, skip relative paths
+          const isValidUrl =
+            thumbnailUrl &&
+            (thumbnailUrl.startsWith("http://") ||
+              thumbnailUrl.startsWith("https://"));
+          return {
+            id: String(post.id),
+            thumbnail: isValidUrl ? thumbnailUrl : undefined,
+            type: media[0]?.type === "video" ? "video" : "image",
+            mediaCount: media.length,
+            hasMultipleImages: media.length > 1 && media[0]?.type === "image",
+          };
+        } catch {
+          // If any post transformation fails, return a safe fallback
+          return {
+            id: String(post.id),
+            thumbnail: undefined,
+            type: "image" as const,
+            mediaCount: 0,
+            hasMultipleImages: false,
+          };
+        }
+      });
   }, [userPostsData]);
 
   // Fetch bookmarked posts
   const { data: bookmarkedPostsData = [] } = usePostsByIds(bookmarkedPosts);
 
   const savedPosts = useMemo(() => {
-    if (!bookmarkedPostsData || bookmarkedPostsData.length === 0) return [];
-    return bookmarkedPostsData.map((post) => {
-      const media = Array.isArray(post.media) ? post.media : [];
-      const thumbnailUrl = media[0]?.url;
-      // Only use valid HTTP/HTTPS URLs, skip relative paths
-      const isValidUrl =
-        thumbnailUrl &&
-        (thumbnailUrl.startsWith("http://") ||
-          thumbnailUrl.startsWith("https://"));
-      return {
-        id: post.id,
-        thumbnail: isValidUrl ? thumbnailUrl : undefined,
-        type: media[0]?.type === "video" ? "video" : "image",
-        mediaCount: media.length,
-        hasMultipleImages: media.length > 1 && media[0]?.type === "image",
-      };
-    });
+    if (
+      !bookmarkedPostsData ||
+      !Array.isArray(bookmarkedPostsData) ||
+      bookmarkedPostsData.length === 0
+    )
+      return [];
+    return bookmarkedPostsData
+      .filter((post) => post && post.id) // Filter out invalid posts
+      .map((post) => {
+        try {
+          const media = Array.isArray(post.media) ? post.media : [];
+          const thumbnailUrl = media[0]?.url;
+          // Only use valid HTTP/HTTPS URLs, skip relative paths
+          const isValidUrl =
+            thumbnailUrl &&
+            (thumbnailUrl.startsWith("http://") ||
+              thumbnailUrl.startsWith("https://"));
+          return {
+            id: String(post.id),
+            thumbnail: isValidUrl ? thumbnailUrl : undefined,
+            type: media[0]?.type === "video" ? "video" : "image",
+            mediaCount: media.length,
+            hasMultipleImages: media.length > 1 && media[0]?.type === "image",
+          };
+        } catch {
+          return {
+            id: String(post.id),
+            thumbnail: undefined,
+            type: "image" as const,
+            mediaCount: 0,
+            hasMultipleImages: false,
+          };
+        }
+      });
   }, [bookmarkedPostsData]);
 
   const videoPosts = useMemo(
