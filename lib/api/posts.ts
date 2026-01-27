@@ -42,7 +42,7 @@ function transformPost(doc: Record<string, unknown>): Post {
       name: (doc.author as Record<string, unknown>)?.name as string,
     },
     media,
-    caption: doc.caption as string,
+    caption: (doc.content || doc.caption) as string,
     likes: (doc.likes as number) || 0,
     comments: [],
     timeAgo: formatTimeAgo(doc.createdAt as string),
@@ -137,22 +137,26 @@ export const postsApi = {
   ): Promise<{ postId: string; likes: number; liked: boolean }> {
     try {
       const action = isLiked ? "unlike" : "like";
-      const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+      const API_BASE_URL =
+        process.env.EXPO_PUBLIC_AUTH_URL ||
+        process.env.EXPO_PUBLIC_API_URL ||
+        "";
       const url = `${API_BASE_URL}/api/posts/${postId}/like`;
-      
+
       // Get auth token and cookies
-      const { getAuthToken, getAuthCookies } = await import("@/lib/auth-client");
+      const { getAuthToken, getAuthCookies } =
+        await import("@/lib/auth-client");
       const authToken = await getAuthToken();
       const authCookies = getAuthCookies();
-      
+
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      
+
       if (authToken) {
         headers["Authorization"] = `JWT ${authToken}`;
       }
-      
+
       if (authCookies) {
         headers["Cookie"] = authCookies;
       }
@@ -206,7 +210,7 @@ export const postsApi = {
     try {
       // Look up the Payload CMS user ID by username
       let authorId: string | undefined;
-      
+
       if (data.authorUsername) {
         // Check cache first
         if (userIdCache[data.authorUsername]) {
@@ -219,20 +223,23 @@ export const postsApi = {
               where: { username: { equals: data.authorUsername } },
               limit: 1,
             });
-            
+
             if (userResult.docs && userResult.docs.length > 0) {
               authorId = (userResult.docs[0] as { id: string }).id;
               userIdCache[data.authorUsername] = authorId;
               console.log("[postsApi] Found author ID:", authorId);
             } else {
-              console.warn("[postsApi] User not found in CMS:", data.authorUsername);
+              console.warn(
+                "[postsApi] User not found in CMS:",
+                data.authorUsername,
+              );
             }
           } catch (lookupError) {
             console.error("[postsApi] User lookup error:", lookupError);
           }
         }
       }
-      
+
       const doc = await posts.create({
         author: authorId, // Use the looked-up Payload CMS user ID
         content: data.caption,
@@ -242,17 +249,20 @@ export const postsApi = {
         isNSFW: data.isNSFW || false,
       });
       console.log("[postsApi] createPost success:", JSON.stringify(doc));
-      
+
       const newPost = transformPost(doc as Record<string, unknown>);
-      
+
       // Extract mentions and send notifications
       if (data.caption && data.authorUsername) {
         const mentions = extractMentions(data.caption);
         console.log("[postsApi] Extracted mentions:", mentions);
-        
+
         // Send notification to each mentioned user (except self)
         for (const mentionedUsername of mentions) {
-          if (mentionedUsername.toLowerCase() !== data.authorUsername.toLowerCase()) {
+          if (
+            mentionedUsername.toLowerCase() !==
+            data.authorUsername.toLowerCase()
+          ) {
             try {
               await notifications.create({
                 type: "mention",
@@ -261,15 +271,21 @@ export const postsApi = {
                 postId: newPost.id,
                 content: data.caption.slice(0, 100), // First 100 chars
               });
-              console.log("[postsApi] Sent mention notification to:", mentionedUsername);
+              console.log(
+                "[postsApi] Sent mention notification to:",
+                mentionedUsername,
+              );
             } catch (notifError) {
               // Don't fail post creation if notification fails
-              console.error("[postsApi] Failed to send mention notification:", notifError);
+              console.error(
+                "[postsApi] Failed to send mention notification:",
+                notifError,
+              );
             }
           }
         }
       }
-      
+
       return newPost;
     } catch (error: any) {
       console.error("[postsApi] createPost error:", error);
