@@ -1,8 +1,13 @@
 /**
- * Canonical API Configuration
+ * Canonical API Configuration - OPTION A: DIRECT-TO-PAYLOAD ONLY
  *
  * CRITICAL: This is the SINGLE SOURCE OF TRUTH for all API URLs.
  * All API clients MUST import from this module.
+ *
+ * DECISION LOCKED:
+ * - ONE backend: Payload CMS
+ * - NO Expo API routes
+ * - NO mixed calls
  *
  * Rules:
  * - Returns ONLY valid HTTPS URLs
@@ -13,15 +18,14 @@
 
 import { Platform } from "react-native";
 
-// Production fallback URLs - MANDATORY
-const PRODUCTION_AUTH_URL = "https://server-zeta-lovat.vercel.app";
-const PRODUCTION_API_URL = "https://payload-cms-setup-gray.vercel.app";
+// Production URLs - MANDATORY
+// OPTION A: ALL API calls go to Payload CMS
+const PRODUCTION_PAYLOAD_URL = "https://payload-cms-setup-gray.vercel.app";
 const PRODUCTION_CDN_URL = "https://dvnt.b-cdn.net";
 
 /**
  * Get the canonical Payload CMS URL
- * Used ONLY for Payload CMS data endpoints (follows, likes, bookmarks, posts, etc.)
- * This is SEPARATE from the auth URL which is for authentication only.
+ * OPTION A: This is the ONLY backend URL for ALL API calls
  */
 export function getPayloadBaseUrl(): string {
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -31,7 +35,7 @@ export function getPayloadBaseUrl(): string {
   }
 
   // Production fallback - Payload CMS server
-  return PRODUCTION_API_URL;
+  return PRODUCTION_PAYLOAD_URL;
 }
 
 /**
@@ -47,43 +51,19 @@ function isValidHttpsUrl(url: string | undefined): url is string {
 }
 
 /**
- * Get the canonical Auth URL
- * Used for authentication endpoints (Better Auth / Hono server)
+ * Get the canonical API URL
+ * OPTION A: Always returns Payload CMS URL - NO separate auth server
  */
-export function getAuthBaseUrl(): string {
-  const envUrl = process.env.EXPO_PUBLIC_AUTH_URL;
-
-  if (isValidHttpsUrl(envUrl)) {
-    return envUrl;
-  }
-
-  // Production fallback - NEVER empty string
-  console.warn(
-    "[API Config] EXPO_PUBLIC_AUTH_URL not set, using production fallback",
-  );
-  return PRODUCTION_AUTH_URL;
+export function getApiBaseUrl(): string {
+  return getPayloadBaseUrl();
 }
 
 /**
- * Get the canonical API URL
- * Used for Payload CMS / API endpoints
+ * DEPRECATED: Auth URL now points to Payload CMS
+ * Payload handles auth via /api/users/login, /api/users/me, etc.
  */
-export function getApiBaseUrl(): string {
-  // Priority: AUTH_URL (Hono server) > API_URL (Payload) > Production fallback
-  const authUrl = process.env.EXPO_PUBLIC_AUTH_URL;
-  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-
-  if (isValidHttpsUrl(authUrl)) {
-    return authUrl;
-  }
-
-  if (isValidHttpsUrl(apiUrl)) {
-    return apiUrl;
-  }
-
-  // Production fallback - NEVER empty string
-  console.warn("[API Config] No valid API URL set, using production fallback");
-  return PRODUCTION_AUTH_URL;
+export function getAuthBaseUrl(): string {
+  return getPayloadBaseUrl();
 }
 
 /**
@@ -109,27 +89,18 @@ export function getCdnBaseUrl(): string {
  * No more silent failures - crash loudly if misconfigured
  */
 export function validateApiConfig(): boolean {
-  const authUrl = getAuthBaseUrl();
-  const apiUrl = getApiBaseUrl();
+  const apiUrl = getPayloadBaseUrl();
   const cdnUrl = getCdnBaseUrl();
 
   const errors: string[] = [];
 
   // FAIL-FAST: Validate all URLs are HTTPS - no localhost, no empty
-  if (!authUrl || authUrl === "") {
-    errors.push("AUTH_URL is empty");
-  } else if (authUrl.includes("localhost") || authUrl.includes("127.0.0.1")) {
-    errors.push(`AUTH_URL contains localhost: ${authUrl}`);
-  } else if (!authUrl.startsWith("https://")) {
-    errors.push(`AUTH_URL is not HTTPS: ${authUrl}`);
-  }
-
   if (!apiUrl || apiUrl === "") {
-    errors.push("API_URL is empty");
+    errors.push("PAYLOAD_URL is empty");
   } else if (apiUrl.includes("localhost") || apiUrl.includes("127.0.0.1")) {
-    errors.push(`API_URL contains localhost: ${apiUrl}`);
+    errors.push(`PAYLOAD_URL contains localhost: ${apiUrl}`);
   } else if (!apiUrl.startsWith("https://")) {
-    errors.push(`API_URL is not HTTPS: ${apiUrl}`);
+    errors.push(`PAYLOAD_URL is not HTTPS: ${apiUrl}`);
   }
 
   if (!cdnUrl || cdnUrl === "") {
@@ -140,10 +111,10 @@ export function validateApiConfig(): boolean {
     errors.push(`CDN_URL is not HTTPS: ${cdnUrl}`);
   }
 
-  // Log configuration
+  // Log configuration - OPTION A: Single backend
   console.log("[API Config] ========================================");
-  console.log("[API Config] AUTH_URL:", authUrl);
-  console.log("[API Config] API_URL:", apiUrl);
+  console.log("[API Config] OPTION A: Direct-to-Payload Only");
+  console.log("[API Config] PAYLOAD_URL:", apiUrl);
   console.log("[API Config] CDN_URL:", cdnUrl);
   console.log("[API Config] Platform:", Platform.OS);
 
@@ -154,7 +125,6 @@ export function validateApiConfig(): boolean {
     console.error("[API Config] ========================================");
 
     // FAIL-FAST: In production, this is fatal
-    // In dev, we allow it but log loudly
     if (!__DEV__) {
       throw new Error(
         `[API Config] FATAL: Invalid API configuration. Errors: ${errors.join("; ")}`,
@@ -171,12 +141,16 @@ export function validateApiConfig(): boolean {
 }
 
 // Export constants for direct use where needed
+// OPTION A: api and auth both point to Payload
 export const API_URLS = {
-  get auth() {
-    return getAuthBaseUrl();
+  get payload() {
+    return getPayloadBaseUrl();
   },
   get api() {
-    return getApiBaseUrl();
+    return getPayloadBaseUrl();
+  },
+  get auth() {
+    return getPayloadBaseUrl();
   },
   get cdn() {
     return getCdnBaseUrl();

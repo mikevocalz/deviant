@@ -1,41 +1,30 @@
 /**
  * Client-side API utilities for Expo app
  *
- * These functions call the Expo Router API routes, NOT Payload CMS directly.
- * API keys are never exposed to the client.
+ * OPTION A: DIRECT-TO-PAYLOAD ONLY
+ * All API calls go directly to Payload CMS.
+ * No Expo API routes. No proxies. No mixed calls.
  *
  * Architecture:
- * This Client → Expo API Route (+api.ts) → Payload CMS
- *
- * In production, set EXPO_PUBLIC_API_URL to your deployed API server URL.
- * In development, leave it empty to use relative URLs with the Expo dev server.
+ * This Client → Payload CMS (direct)
  */
 
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
 // CRITICAL: Import canonical API URL resolver - single source of truth
-import {
-  getApiBaseUrl,
-  getPayloadBaseUrl,
-  validateApiConfig,
-} from "@/lib/api-config";
+import { getPayloadBaseUrl, validateApiConfig } from "@/lib/api-config";
 
-// API base URL - Uses canonical resolver that NEVER returns empty/localhost
-// This is the SINGLE SOURCE OF TRUTH for API URLs
-const API_BASE_URL = getApiBaseUrl();
-
-// Payload CMS URL - for social actions (follows, likes, bookmarks, etc.)
-// CRITICAL: This must point to Payload CMS, NOT the auth server
-const PAYLOAD_BASE_URL = getPayloadBaseUrl();
+// OPTION A: ONE backend URL - Payload CMS
+const PAYLOAD_URL = getPayloadBaseUrl();
 
 // Validate configuration at module load
 validateApiConfig();
 
 // Hard guard - fail fast if configuration is invalid
-if (!API_BASE_URL || !API_BASE_URL.startsWith("https://")) {
+if (!PAYLOAD_URL || !PAYLOAD_URL.startsWith("https://")) {
   throw new Error(
-    `[API] CRITICAL: Invalid API configuration. API_BASE_URL="${API_BASE_URL}" is not a valid HTTPS URL. Check environment variables.`,
+    `[API] CRITICAL: Invalid API configuration. PAYLOAD_URL="${PAYLOAD_URL}" is not a valid HTTPS URL. Check environment variables.`,
   );
 }
 
@@ -127,12 +116,12 @@ function buildQueryString(params: FindParams): string {
   return queryString ? `?${queryString}` : "";
 }
 
-// Base fetch with error handling
+// Base fetch with error handling - ALL requests go to Payload CMS
 async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = `${PAYLOAD_URL}${endpoint}`;
 
   // Get auth token and cookies for authenticated requests
   const authToken = await getAuthToken();
@@ -161,7 +150,7 @@ async function apiFetch<T>(
   const response = await fetch(url, {
     ...options,
     headers,
-    credentials: API_BASE_URL ? "omit" : "include", // omit for cross-origin, include for same-origin
+    credentials: "omit", // Always cross-origin to Payload CMS
   });
 
   let data: any;
@@ -199,13 +188,13 @@ async function apiFetch<T>(
   return data as T;
 }
 
-// Payload CMS fetch - for social actions (follows, likes, bookmarks)
-// CRITICAL: Uses PAYLOAD_BASE_URL which points to Payload CMS, not auth server
+// Payload fetch - alias for apiFetch (OPTION A: they're the same)
+// Kept for backward compatibility with existing code
 async function payloadFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${PAYLOAD_BASE_URL}${endpoint}`;
+  const url = `${PAYLOAD_URL}${endpoint}`;
 
   // Get auth token for authenticated requests
   const authToken = await getAuthToken();
@@ -613,7 +602,16 @@ export const stories = {
     }>("/api/stories"),
 
   create: <T = Record<string, unknown>>(data: {
-    media: { type: "image" | "video"; url: string; posterUrl?: string };
+    caption?: string;
+    items?: Array<{
+      type: string;
+      url?: string;
+      text?: string;
+      textColor?: string;
+      backgroundColor?: string;
+    }>;
+    author?: string;
+    media?: { type: "image" | "video"; url: string; posterUrl?: string };
     clientMutationId?: string;
   }) =>
     payloadFetch<T>("/api/stories", {

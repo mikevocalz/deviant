@@ -68,12 +68,16 @@ export function SignUpStep2() {
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
 
-  // Record terms acceptance
+  // Record terms acceptance - calls Payload CMS directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
     try {
-      await fetch("/api/terms-acceptance", {
+      const { getPayloadBaseUrl } = await import("@/lib/api-config");
+      const PAYLOAD_URL = getPayloadBaseUrl();
+
+      await fetch(`${PAYLOAD_URL}/api/terms-acceptance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "omit",
         body: JSON.stringify({
           userId,
           email,

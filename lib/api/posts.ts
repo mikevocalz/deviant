@@ -248,7 +248,7 @@ export const postsApi = {
       const response = await fetch(url, {
         method: "POST",
         headers,
-        credentials: API_BASE_URL ? "omit" : "include",
+        credentials: "omit", // Always cross-origin to Payload CMS
         body: JSON.stringify({ action }),
       });
 
@@ -342,31 +342,13 @@ export const postsApi = {
         console.log("[postsApi] Extracted mentions:", mentions);
 
         // Send notification to each mentioned user (except self)
-        for (const mentionedUsername of mentions) {
-          if (
-            mentionedUsername.toLowerCase() !==
-            data.authorUsername.toLowerCase()
-          ) {
-            try {
-              await notifications.create({
-                type: "mention",
-                recipientUsername: mentionedUsername,
-                senderUsername: data.authorUsername,
-                postId: newPost.id,
-                content: data.caption.slice(0, 100), // First 100 chars
-              });
-              console.log(
-                "[postsApi] Sent mention notification to:",
-                mentionedUsername,
-              );
-            } catch (notifError) {
-              // Don't fail post creation if notification fails
-              console.error(
-                "[postsApi] Failed to send mention notification:",
-                notifError,
-              );
-            }
-          }
+        // NOTE: Mention notifications are now created server-side in Payload hooks
+        // when posts are created. No client-side notification creation needed.
+        if (mentions.length > 0) {
+          console.log(
+            "[postsApi] Post created with mentions, notifications handled server-side:",
+            mentions,
+          );
         }
       }
 

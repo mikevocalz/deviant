@@ -237,51 +237,11 @@ export const commentsApiClient = {
             );
           }
 
-          // Notify post author if it's not the commenter
-          if (
-            postAuthorUsername &&
-            postAuthorUsername.toLowerCase() !== senderUsername.toLowerCase()
-          ) {
-            notifications
-              .create({
-                type: "comment",
-                recipientUsername: postAuthorUsername,
-                senderUsername: senderUsername,
-                postId: cleanedPostId,
-                content: commentText.slice(0, 100),
-              })
-              .catch((e) =>
-                console.log(
-                  "[commentsApi] Post author notification failed:",
-                  e,
-                ),
-              );
-          }
-
-          // Create notifications for mentioned users
-          for (const mentionedUsername of mentions) {
-            if (
-              mentionedUsername.toLowerCase() === senderUsername.toLowerCase()
-            )
-              continue;
-            if (
-              mentionedUsername.toLowerCase() ===
-              postAuthorUsername?.toLowerCase()
-            )
-              continue;
-
-            notifications
-              .create({
-                type: "mention",
-                recipientUsername: mentionedUsername,
-                senderUsername: senderUsername,
-                postId: cleanedPostId,
-                content: commentText.slice(0, 100),
-              })
-              .catch((e) =>
-                console.log("[commentsApi] Mention notification failed:", e),
-              );
-          }
+          // NOTE: Notifications are now created server-side in Payload hooks
+          // when comments are created. No client-side notification creation needed.
+          console.log(
+            "[commentsApi] Comment created, notifications handled server-side",
+          );
         } catch (notificationError) {
           console.error(
             "[commentsApi] Notification setup error:",
@@ -332,7 +292,7 @@ export const commentsApiClient = {
       const fetchResponse = await fetch(url, {
         method: "POST",
         headers,
-        credentials: API_BASE_URL ? "omit" : "include",
+        credentials: "omit", // Always cross-origin to Payload CMS
         body: JSON.stringify({ action }),
       });
 

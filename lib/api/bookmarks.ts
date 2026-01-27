@@ -35,7 +35,7 @@ async function bookmarkFetch<T>(
   const response = await fetch(url, {
     ...options,
     headers,
-    credentials: API_BASE_URL ? "omit" : "include",
+    credentials: "omit", // Always cross-origin to Payload CMS
   });
 
   if (!response.ok) {
