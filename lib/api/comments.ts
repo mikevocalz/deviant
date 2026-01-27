@@ -137,6 +137,7 @@ export const commentsApiClient = {
     parent?: string;
     authorUsername?: string;
     authorId?: string; // Payload CMS user ID from Zustand store
+    clientMutationId?: string; // For idempotency - prevents duplicate submissions
   }): Promise<Comment> {
     try {
       // Clean and validate post ID
@@ -178,6 +179,7 @@ export const commentsApiClient = {
         authorUsername: data.authorUsername,
         authorId: data.authorId, // Payload CMS user ID from Zustand store
         parent: data.parent || undefined,
+        clientMutationId: data.clientMutationId, // For server-side idempotency
       };
       console.log(
         "[commentsApi] Sending to API:",

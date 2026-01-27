@@ -48,6 +48,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { users } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
@@ -480,7 +481,7 @@ function EditProfileContent() {
   );
 }
 
-export default function ProfileScreen() {
+function ProfileScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
@@ -980,5 +981,19 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+// PHASE 5: Wrap with ErrorBoundary for crash protection
+export default function ProfileScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="Profile"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <ProfileScreenContent />
+    </ErrorBoundary>
   );
 }

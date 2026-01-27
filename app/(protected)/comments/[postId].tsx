@@ -13,7 +13,14 @@ import {
 } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { X, Send } from "lucide-react-native";
-import { useEffect, useCallback, useLayoutEffect, useMemo } from "react";
+import {
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -29,6 +36,11 @@ import {
   ThreadedComment,
   type CommentData,
 } from "@/components/comments/threaded-comment";
+
+// Generate unique client mutation ID for idempotency
+function generateMutationId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
 
 export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
@@ -49,6 +61,11 @@ export default function CommentsScreen() {
   const { isCommentLiked } = usePostStore();
   const likeCommentMutation = useLikeComment();
   const insets = useSafeAreaInsets();
+
+  // PHASE 1 FIX: Robust submit lock to prevent duplicates
+  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
+  const lastSubmitTimeRef = useRef<number>(0);
+  const submitCooldownMs = 2000; // 2 second cooldown between submits
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -73,8 +90,31 @@ export default function CommentsScreen() {
   const createComment = useCreateComment();
 
   const handleSend = useCallback(() => {
-    // Show immediate feedback that button was pressed
-    console.log("[Comments] handleSend called");
+    // PHASE 1 FIX: Comprehensive duplicate prevention
+    const now = Date.now();
+    console.log("[Comments] handleSend called", {
+      isSubmitLocked,
+      isPending: createComment.isPending,
+      timeSinceLastSubmit: now - lastSubmitTimeRef.current,
+    });
+
+    // CHECK 1: Local submit lock (prevents rapid taps)
+    if (isSubmitLocked) {
+      console.log("[Comments] BLOCKED: Submit locked");
+      return;
+    }
+
+    // CHECK 2: Mutation already in flight
+    if (createComment.isPending) {
+      console.log("[Comments] BLOCKED: Mutation pending");
+      return;
+    }
+
+    // CHECK 3: Cooldown period (prevents double-tap even if lock was released)
+    if (now - lastSubmitTimeRef.current < submitCooldownMs) {
+      console.log("[Comments] BLOCKED: Cooldown period");
+      return;
+    }
 
     if (!comment.trim()) {
       showToast("warning", "Empty", "Please enter a comment");
@@ -82,10 +122,6 @@ export default function CommentsScreen() {
     }
     if (!postId) {
       showToast("error", "Error", "No post ID found");
-      return;
-    }
-    if (createComment.isPending) {
-      showToast("info", "Wait", "Already sending...");
       return;
     }
 
@@ -104,11 +140,25 @@ export default function CommentsScreen() {
       return;
     }
 
-    // Show sending feedback
-    showToast("info", "Sending", `Posting as @${user.username}...`);
+    // LOCK IMMEDIATELY before any async work
+    setIsSubmitLocked(true);
+    lastSubmitTimeRef.current = now;
+
+    // Generate unique mutation ID for server-side idempotency
+    const clientMutationId = generateMutationId();
+    console.log(
+      "[Comments] Submitting with clientMutationId:",
+      clientMutationId,
+    );
 
     const commentText = comment.trim();
     const parentId = replyingTo || undefined;
+
+    // Clear input IMMEDIATELY to prevent re-submission of same text
+    const originalComment = comment;
+    const originalReplyingTo = replyingTo;
+    setComment("");
+    setReplyingTo(null);
 
     createComment.mutate(
       {
@@ -117,22 +167,28 @@ export default function CommentsScreen() {
         parent: parentId,
         authorUsername: user.username,
         authorId: user.id,
+        clientMutationId, // For server-side idempotency
       },
       {
         onSuccess: () => {
-          setComment("");
-          setReplyingTo(null);
           Keyboard.dismiss();
           showToast("success", "Posted!", "Your comment was added");
+          // Unlock after success
+          setIsSubmitLocked(false);
         },
         onError: (error: any) => {
           console.error("[Comments] Error:", error);
+          // Restore input on error so user can retry
+          setComment(originalComment);
+          setReplyingTo(originalReplyingTo);
           const errorMessage =
             error?.message ||
             error?.error?.message ||
             error?.error ||
             "Failed to create comment";
           showToast("error", "Failed", errorMessage);
+          // Unlock after error
+          setIsSubmitLocked(false);
         },
       },
     );
@@ -145,6 +201,7 @@ export default function CommentsScreen() {
     setReplyingTo,
     user,
     showToast,
+    isSubmitLocked,
   ]);
 
   useEffect(() => {
@@ -307,9 +364,14 @@ export default function CommentsScreen() {
               placeholderTextColor="#666"
               multiline
               returnKeyType="send"
-              onSubmitEditing={handleSend}
+              onSubmitEditing={
+                isSubmitLocked || createComment.isPending
+                  ? undefined
+                  : handleSend
+              }
               blurOnSubmit={false}
               enablesReturnKeyAutomatically={true}
+              editable={!isSubmitLocked && !createComment.isPending}
               style={{
                 flex: 1,
                 minHeight: 40,
@@ -323,7 +385,12 @@ export default function CommentsScreen() {
             />
             <Pressable
               onPress={handleSend}
-              disabled={!comment.trim() || createComment.isPending || !user}
+              disabled={
+                !comment.trim() ||
+                createComment.isPending ||
+                !user ||
+                isSubmitLocked
+              }
               style={{
                 width: 40,
                 height: 40,
@@ -336,7 +403,7 @@ export default function CommentsScreen() {
                 alignItems: "center",
               }}
             >
-              {createComment.isPending ? (
+              {createComment.isPending || isSubmitLocked ? (
                 <ActivityIndicator size="small" color="#666" />
               ) : (
                 <Send

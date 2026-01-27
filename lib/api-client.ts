@@ -576,6 +576,7 @@ export const comments = {
     parent?: string;
     authorUsername?: string;
     authorId?: string; // Payload CMS user ID
+    clientMutationId?: string; // For idempotency
   }) =>
     apiFetch<T>("/api/comments", {
       method: "POST",

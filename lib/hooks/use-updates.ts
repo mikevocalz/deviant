@@ -29,6 +29,10 @@ const STORAGE_KEY_DISMISSED_UPDATE = "@dvnt_dismissed_update_id";
 let globalHasShownToastThisSession = false;
 let globalIsInitialized = false;
 let globalIsChecking = false;
+let globalToastVisible = false; // Track if toast is currently visible
+let globalLastToastTime = 0; // Debounce toast showing
+const TOAST_DEBOUNCE_MS = 5000; // 5 second debounce between toast shows
+const TOAST_ID = "ota-update-toast"; // Single consistent toast ID
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -124,14 +128,31 @@ export function useUpdates() {
     }
   }, []);
 
-  // CRITICAL: Show update toast with deduplication by update ID
-  // Only shows once per unique update ID, persists across app restarts
+  // PHASE 6 FIX: Show update toast with robust single-instance guarantee
+  // - Only ONE toast visible at a time
+  // - Debounced to prevent rapid fire
+  // - Persists show/dismiss state across sessions
+  // - Always dismissible
   const showUpdateToast = useCallback(
     async (updateId?: string) => {
       try {
-        // CRITICAL: Only show toast ONCE per app session (module-level singleton)
+        const now = Date.now();
+
+        // CHECK 1: Debounce - prevent rapid toast showing
+        if (now - globalLastToastTime < TOAST_DEBOUNCE_MS) {
+          console.log("[Updates] Toast debounced, skipping");
+          return;
+        }
+
+        // CHECK 2: Already shown this session
         if (globalHasShownToastThisSession) {
           console.log("[Updates] Toast already shown this session, skipping");
+          return;
+        }
+
+        // CHECK 3: Toast currently visible
+        if (globalToastVisible) {
+          console.log("[Updates] Toast already visible, skipping");
           return;
         }
 
@@ -177,25 +198,32 @@ export function useUpdates() {
           ).catch(() => {});
         }
 
-        // Mark as shown BEFORE showing to prevent race conditions
+        // LOCK: Mark all flags BEFORE showing toast
         globalHasShownToastThisSession = true;
+        globalToastVisible = true;
+        globalLastToastTime = now;
 
         console.log("[Updates] Showing update toast for ID:", currentUpdateId);
 
-        // Dismiss ALL existing toasts first to clear any queue
+        // CRITICAL: Dismiss ALL existing toasts first to clear any queue
         toast.dismiss();
 
-        // Small delay to ensure dismiss completes
+        // Helper to dismiss toast and reset state
+        const dismissToast = () => {
+          toast.dismiss(TOAST_ID);
+          globalToastVisible = false;
+        };
+
+        // Small delay to ensure dismiss completes, then show single toast
         setTimeout(() => {
           toast.success("Update Ready", {
-            id: "update-toast", // Use consistent ID so we can dismiss it
+            id: TOAST_ID, // CRITICAL: Consistent ID prevents stacking
             description: "A new update is available. Restart to apply it.",
             duration: Infinity, // NEVER auto-dismiss - user must choose
             action: {
               label: "Restart Now",
               onClick: () => {
-                // Dismiss the toast BEFORE restarting
-                toast.dismiss("update-toast");
+                dismissToast();
                 reloadApp();
               },
             },
@@ -203,7 +231,7 @@ export function useUpdates() {
               label: "Later",
               onClick: async () => {
                 console.log("[Updates] User chose to update later");
-                toast.dismiss("update-toast");
+                dismissToast();
                 // Persist dismissal for this specific update ID
                 if (currentUpdateId) {
                   await AsyncStorage.setItem(
@@ -214,9 +242,11 @@ export function useUpdates() {
               },
             },
           });
-        }, 100);
+        }, 150);
       } catch (error) {
         console.error("[Updates] Error showing toast (non-fatal):", error);
+        // Reset flags on error so we can retry
+        globalToastVisible = false;
       }
     },
     [reloadApp],

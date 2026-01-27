@@ -346,12 +346,63 @@ export async function POST(request: Request) {
       return Response.json({ error: "Post ID is required" }, { status: 400 });
     }
 
+    // PHASE 1 FIX: Server-side idempotency check using clientMutationId
+    // Prevents duplicate comments from rapid client retries
+    const clientMutationId = body.clientMutationId
+      ? String(body.clientMutationId).trim()
+      : null;
+
+    if (clientMutationId) {
+      console.log(
+        "[API] Checking idempotency for clientMutationId:",
+        clientMutationId,
+      );
+      try {
+        // Check if a comment with this clientMutationId already exists
+        const existingComment = await payloadClient.find(
+          {
+            collection: "comments",
+            where: {
+              and: [
+                { author: { equals: authorId } },
+                { post: { equals: postId } },
+                { clientMutationId: { equals: clientMutationId } },
+              ],
+            },
+            limit: 1,
+            depth: 2,
+          },
+          cookies,
+        );
+
+        if (existingComment.docs && existingComment.docs.length > 0) {
+          console.log(
+            "[API] IDEMPOTENT: Comment already exists for clientMutationId:",
+            clientMutationId,
+          );
+          // Return existing comment (NOOP) - prevents duplicate
+          return Response.json(existingComment.docs[0], { status: 200 });
+        }
+      } catch (idempotencyError) {
+        // Log but don't fail - idempotency check is a safety net, not a blocker
+        console.warn(
+          "[API] Idempotency check failed (non-fatal):",
+          idempotencyError,
+        );
+      }
+    }
+
     // Build comment data - ensure all required fields are present
     // CRITICAL: We MUST set author explicitly - API key auth prevents hooks from setting req.user
     const commentData: Record<string, unknown> = {
       content: content, // Must be non-empty string
       author: authorId, // MUST be set explicitly - hook won't work with API key auth
     };
+
+    // Store clientMutationId for idempotency (if provided)
+    if (clientMutationId) {
+      commentData.clientMutationId = clientMutationId;
+    }
 
     // Set either post or story relationship
     if (postId) {
