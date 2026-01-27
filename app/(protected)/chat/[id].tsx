@@ -172,26 +172,70 @@ export default function ChatScreen() {
   }, [chatId, loadMessages, refreshMessageCounts]);
   const currentUser = useAuthStore((s) => s.user);
 
-  // Chat recipient info (passed via params or loaded from conversation)
-  // For now, parse from chatId which might be "username" format or load from conversation
+  // Chat recipient info loaded from conversation
   const [recipient, setRecipient] = useState<{
     id: string;
     username: string;
     name: string;
     avatar: string;
   } | null>(null);
+  const [isLoadingRecipient, setIsLoadingRecipient] = useState(true);
 
-  // Load recipient info from chatId (could be username or conversation id)
+  // FIXED: Load recipient info from conversation data
   useEffect(() => {
-    // TODO: Load from conversation API when backend is ready
-    // For now, use chatId as username placeholder
-    setRecipient({
-      id: chatId,
-      username: chatId,
-      name: chatId,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
-    });
-  }, [chatId]);
+    const loadRecipientFromConversation = async () => {
+      if (!chatId || !currentUser) {
+        setIsLoadingRecipient(false);
+        return;
+      }
+
+      try {
+        console.log("[Chat] Loading conversation data for:", chatId);
+
+        // Fetch conversation to get participants
+        const conversations = await messagesApiClient.getConversations();
+        const conversation = conversations.find((c) => c.id === chatId);
+
+        if (conversation) {
+          // Find the other participant (not current user)
+          const otherParticipant = conversation.participants.find(
+            (p) => p.username !== currentUser.username,
+          );
+
+          if (otherParticipant) {
+            console.log("[Chat] Found recipient:", otherParticipant.username);
+            setRecipient({
+              id: otherParticipant.id,
+              username: otherParticipant.username,
+              name: otherParticipant.name || otherParticipant.username,
+              avatar:
+                otherParticipant.avatar ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                  otherParticipant.username,
+                )}&background=3EA4E5&color=fff`,
+            });
+          } else {
+            console.warn("[Chat] No other participant found in conversation");
+          }
+        } else {
+          console.warn("[Chat] Conversation not found:", chatId);
+          // Fallback - chatId might be a username from old navigation
+          setRecipient({
+            id: chatId,
+            username: chatId,
+            name: chatId,
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+          });
+        }
+      } catch (error) {
+        console.error("[Chat] Error loading conversation:", error);
+      } finally {
+        setIsLoadingRecipient(false);
+      }
+    };
+
+    loadRecipientFromConversation();
+  }, [chatId, currentUser]);
 
   // Get toast function
   const showToast = useUIStore((s) => s.showToast);
@@ -378,7 +422,8 @@ export default function ChatScreen() {
 
   const canSend = (currentMessage.trim() || pendingMedia) && !isSending;
 
-  if (isLoading) {
+  // Show loading while loading screen state OR loading recipient
+  if (isLoading || isLoadingRecipient) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <ChatSkeleton />
