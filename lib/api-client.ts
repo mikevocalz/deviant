@@ -335,6 +335,33 @@ export const users = {
     });
   },
 
+  // Get current user's following list (IDs of users they follow)
+  getFollowing: async (): Promise<string[]> => {
+    try {
+      const response = await users.me<{
+        following?: Array<{ user?: string | { id: string } } | string>;
+      }>();
+      if (!response.user?.following) return [];
+
+      // Handle Payload's array format - can be array of objects or strings
+      return response.user.following
+        .map((item: any) => {
+          if (typeof item === "string") return item;
+          if (item?.user) {
+            return typeof item.user === "string" ? item.user : item.user?.id;
+          }
+          if (item?.id) return item.id;
+          return null;
+        })
+        .filter(
+          (id): id is string => !!id && id !== "undefined" && id !== "null",
+        );
+    } catch (error) {
+      console.error("[users] getFollowing error:", error);
+      return [];
+    }
+  },
+
   getBookmarks: async <T = string[]>() => {
     const response = await apiFetch<{ user: T; bookmarkedPosts?: string[] }>(
       "/api/users/me?includeBookmarks=true",

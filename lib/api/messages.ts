@@ -90,32 +90,48 @@ function transformConversation(doc: Record<string, unknown>): Conversation {
 // Helper to get Payload CMS user ID by username
 async function getPayloadUserId(username: string): Promise<string | null> {
   if (!username) return null;
-  
+
   // Check cache first
   if (payloadUserIdCache[username]) {
     return payloadUserIdCache[username];
   }
-  
+
   try {
     const result = await users.find({
       where: { username: { equals: username } },
       limit: 1,
     });
-    
+
     if (result.docs && result.docs.length > 0) {
       const payloadId = (result.docs[0] as { id: string }).id;
       payloadUserIdCache[username] = payloadId;
-      console.log("[messagesApi] Found Payload user ID for", username, "->", payloadId);
+      console.log(
+        "[messagesApi] Found Payload user ID for",
+        username,
+        "->",
+        payloadId,
+      );
       return payloadId;
     }
   } catch (error) {
     console.error("[messagesApi] Error looking up Payload user ID:", error);
   }
-  
+
   return null;
 }
 
 export const messagesApiClient = {
+  // Get current user's following list for Inbox/Spam classification
+  async getFollowingIds(): Promise<string[]> {
+    try {
+      const { users } = await import("@/lib/api-client");
+      return await users.getFollowing();
+    } catch (error) {
+      console.error("[messagesApi] getFollowingIds error:", error);
+      return [];
+    }
+  },
+
   // Get messages for a conversation
   async getMessages(conversationId: string, limit = 50): Promise<Message[]> {
     try {
@@ -147,7 +163,10 @@ export const messagesApiClient = {
       // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
       const payloadUserId = await getPayloadUserId(user.username);
       if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        console.error(
+          "[messagesApi] Could not find Payload user ID for:",
+          user.username,
+        );
         throw new Error("User not found in system");
       }
 
@@ -173,7 +192,10 @@ export const messagesApiClient = {
         }
       }
 
-      console.log("[messagesApi] Sending message with Payload user ID:", payloadUserId);
+      console.log(
+        "[messagesApi] Sending message with Payload user ID:",
+        payloadUserId,
+      );
 
       const doc = await messagesApi.create({
         conversation: data.conversationId,
@@ -202,11 +224,19 @@ export const messagesApiClient = {
       // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
       const payloadUserId = await getPayloadUserId(user.username);
       if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        console.error(
+          "[messagesApi] Could not find Payload user ID for:",
+          user.username,
+        );
         throw new Error("User not found in system");
       }
 
-      console.log("[messagesApi] Looking for conversation between", payloadUserId, "and", otherUserId);
+      console.log(
+        "[messagesApi] Looking for conversation between",
+        payloadUserId,
+        "and",
+        otherUserId,
+      );
 
       // Try to find existing conversation using Payload CMS user IDs
       const existing = await conversationsApi.find({
@@ -221,7 +251,10 @@ export const messagesApiClient = {
       });
 
       if (existing.docs.length > 0) {
-        console.log("[messagesApi] Found existing conversation:", existing.docs[0].id);
+        console.log(
+          "[messagesApi] Found existing conversation:",
+          existing.docs[0].id,
+        );
         return transformConversation(existing.docs[0]);
       }
 
@@ -248,7 +281,10 @@ export const messagesApiClient = {
       // Get Payload CMS user ID
       const payloadUserId = await getPayloadUserId(user.username);
       if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+        console.error(
+          "[messagesApi] Could not find Payload user ID for:",
+          user.username,
+        );
         return [];
       }
 
@@ -262,6 +298,47 @@ export const messagesApiClient = {
       return response.docs.map(transformConversation);
     } catch (error) {
       console.error("[messagesApi] getConversations error:", error);
+      return [];
+    }
+  },
+
+  // Get conversations filtered by follow status (Inbox = followed, Spam = not followed)
+  async getFilteredConversations(
+    type: "inbox" | "spam",
+  ): Promise<Conversation[]> {
+    try {
+      const user = useAuthStore.getState().user;
+      if (!user) return [];
+
+      // Get all conversations and following list in parallel
+      const [allConversations, followingIds] = await Promise.all([
+        this.getConversations(),
+        this.getFollowingIds(),
+      ]);
+
+      console.log("[messagesApi] Filtering conversations:", {
+        type,
+        totalConversations: allConversations.length,
+        followingCount: followingIds.length,
+      });
+
+      // Filter based on whether the other participant is followed
+      return allConversations.filter((conv) => {
+        // Find the other participant (not current user)
+        const otherParticipant = conv.participants.find(
+          (p) => p.username !== user.username,
+        );
+
+        if (!otherParticipant) return false;
+
+        const isFollowed = followingIds.includes(otherParticipant.id);
+
+        // Inbox = conversations with users I follow
+        // Spam = conversations with users I don't follow
+        return type === "inbox" ? isFollowed : !isFollowed;
+      });
+    } catch (error) {
+      console.error("[messagesApi] getFilteredConversations error:", error);
       return [];
     }
   },

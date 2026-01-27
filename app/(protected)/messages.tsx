@@ -5,21 +5,32 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { ArrowLeft, Edit, MessageSquare } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Edit,
+  MessageSquare,
+  Inbox,
+  ShieldAlert,
+} from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import PagerView from "react-native-pager-view";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface ConversationItem {
   id: string;
+  oderpantId: string;
   user: { username: string; name: string; avatar: string };
   lastMessage: string;
   timeAgo: string;
@@ -42,49 +53,172 @@ function formatTimeAgo(dateString?: string): string {
   return date.toLocaleDateString();
 }
 
+// Shared conversation list component
+function ConversationList({
+  conversations,
+  isRefreshing,
+  onRefresh,
+  onChatPress,
+  onProfilePress,
+  emptyTitle,
+  emptyDescription,
+  emptyIcon,
+  router,
+}: {
+  conversations: ConversationItem[];
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  onChatPress: (id: string) => void;
+  onProfilePress: (username: string) => void;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyIcon: typeof MessageSquare;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <ScrollView
+      style={{ width: SCREEN_WIDTH }}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor="#3EA4E5"
+        />
+      }
+    >
+      {conversations.map((item) => (
+        <View
+          key={item.id}
+          className="flex-row items-center gap-3 border-b border-border px-4 py-3"
+        >
+          <Pressable onPress={() => onProfilePress(item.user.username)}>
+            <View className="relative">
+              <Image
+                source={{ uri: item.user.avatar }}
+                className="h-14 w-14 rounded-full"
+              />
+              {item.unread && (
+                <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />
+              )}
+            </View>
+          </Pressable>
+
+          <TouchableOpacity
+            onPress={() => onChatPress(item.id)}
+            activeOpacity={0.7}
+            className="flex-1"
+          >
+            <View className="flex-row items-center justify-between">
+              <Pressable onPress={() => onProfilePress(item.user.username)}>
+                <Text
+                  className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
+                >
+                  {item.user.username}
+                </Text>
+              </Pressable>
+              <Text className="text-xs text-muted-foreground">
+                {item.timeAgo}
+              </Text>
+            </View>
+            <Text
+              className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
+              numberOfLines={1}
+            >
+              {item.lastMessage}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {conversations.length === 0 && (
+        <EmptyState
+          icon={emptyIcon}
+          title={emptyTitle}
+          description={emptyDescription}
+          action={
+            <Button onPress={() => router.push("/(protected)/messages/new")}>
+              Start a Conversation
+            </Button>
+          }
+        />
+      )}
+    </ScrollView>
+  );
+}
+
 export default function MessagesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const isLoading = loadingScreens.messages;
   const currentUser = useAuthStore((s) => s.user);
-  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+
+  // Separate state for Inbox and Spam
+  const [inboxConversations, setInboxConversations] = useState<
+    ConversationItem[]
+  >([]);
+  const [spamConversations, setSpamConversations] = useState<
+    ConversationItem[]
+  >([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState(0);
+
+  const pagerRef = useRef<PagerView>(null);
 
   // Transform backend conversation to UI format
-  const transformConversation = useCallback((conv: Conversation): ConversationItem | null => {
-    // Find the other participant (not current user)
-    const otherUser = conv.participants.find(
-      (p) => p.username !== currentUser?.username
-    );
-    
-    if (!otherUser) return null;
+  const transformConversation = useCallback(
+    (conv: Conversation): ConversationItem | null => {
+      // Find the other participant (not current user)
+      const otherUser = conv.participants.find(
+        (p) => p.username !== currentUser?.username,
+      );
 
-    return {
-      id: conv.id,
-      user: {
-        username: otherUser.username,
-        name: otherUser.name || otherUser.username,
-        avatar: otherUser.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.username)}&background=3EA4E5&color=fff`,
-      },
-      lastMessage: "", // Would need to fetch last message separately
-      timeAgo: formatTimeAgo(conv.lastMessageAt),
-      unread: false, // Would need to track read status
-    };
-  }, [currentUser?.username]);
+      if (!otherUser) return null;
 
-  // Load conversations from backend
+      return {
+        id: conv.id,
+        oderpantId: otherUser.id,
+        user: {
+          username: otherUser.username,
+          name: otherUser.name || otherUser.username,
+          avatar:
+            otherUser.avatar ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.username)}&background=3EA4E5&color=fff`,
+        },
+        lastMessage: "",
+        timeAgo: formatTimeAgo(conv.lastMessageAt),
+        unread: false,
+      };
+    },
+    [currentUser?.username],
+  );
+
+  // Load conversations filtered by follow status
   const loadConversations = useCallback(async () => {
     try {
-      console.log("[Messages] Loading conversations...");
-      const backendConvs = await messagesApiClient.getConversations();
-      console.log("[Messages] Loaded", backendConvs.length, "conversations");
-      
-      const transformed = backendConvs
+      console.log("[Messages] Loading filtered conversations...");
+
+      // Fetch Inbox (followed users) and Spam (non-followed users) in parallel
+      const [inboxConvs, spamConvs] = await Promise.all([
+        messagesApiClient.getFilteredConversations("inbox"),
+        messagesApiClient.getFilteredConversations("spam"),
+      ]);
+
+      console.log("[Messages] Loaded:", {
+        inbox: inboxConvs.length,
+        spam: spamConvs.length,
+      });
+
+      const transformedInbox = inboxConvs
         .map(transformConversation)
         .filter((c): c is ConversationItem => c !== null);
-      
-      setConversations(transformed);
+
+      const transformedSpam = spamConvs
+        .map(transformConversation)
+        .filter((c): c is ConversationItem => c !== null);
+
+      setInboxConversations(transformedInbox);
+      setSpamConversations(transformedSpam);
     } catch (error) {
       console.error("[Messages] Error loading conversations:", error);
     } finally {
@@ -116,6 +250,11 @@ export default function MessagesScreen() {
     [router],
   );
 
+  const handleTabPress = useCallback((index: number) => {
+    setActiveTab(index);
+    pagerRef.current?.setPage(index);
+  }, []);
+
   if (isLoading) {
     return (
       <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -126,6 +265,7 @@ export default function MessagesScreen() {
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
@@ -139,75 +279,95 @@ export default function MessagesScreen() {
         </Pressable>
       </View>
 
-      <ScrollView 
-        className="flex-1"
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            tintColor="#3EA4E5"
-          />
-        }
-      >
-        {conversations.map((item) => (
-          <View
-            key={item.id}
-            className="flex-row items-center gap-3 border-b border-border px-4 py-3"
+      {/* Tab Bar */}
+      <View className="flex-row border-b border-border">
+        <Pressable
+          onPress={() => handleTabPress(0)}
+          className={`flex-1 flex-row items-center justify-center gap-2 py-3 ${
+            activeTab === 0 ? "border-b-2 border-primary" : ""
+          }`}
+        >
+          <Inbox size={18} color={activeTab === 0 ? "#3EA4E5" : "#6B7280"} />
+          <Text
+            className={`font-semibold ${
+              activeTab === 0 ? "text-primary" : "text-muted-foreground"
+            }`}
           >
-            <Pressable onPress={() => handleProfilePress(item.user.username)}>
-              <View className="relative">
-                <Image
-                  source={{ uri: item.user.avatar }}
-                  className="h-14 w-14 rounded-full"
-                />
-                {item.unread && (
-                  <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />
-                )}
-              </View>
-            </Pressable>
-
-            <TouchableOpacity
-              onPress={() => handleChatPress(item.id)}
-              activeOpacity={0.7}
-              className="flex-1"
-            >
-              <View className="flex-row items-center justify-between">
-                <Pressable
-                  onPress={() => handleProfilePress(item.user.username)}
-                >
-                  <Text
-                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
-                  >
-                    {item.user.username}
-                  </Text>
-                </Pressable>
-                <Text className="text-xs text-muted-foreground">
-                  {item.timeAgo}
-                </Text>
-              </View>
-              <Text
-                className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
-                numberOfLines={1}
-              >
-                {item.lastMessage}
+            Inbox
+          </Text>
+          {inboxConversations.length > 0 && (
+            <View className="bg-primary rounded-full px-2 py-0.5 min-w-[20px] items-center">
+              <Text className="text-xs text-white font-bold">
+                {inboxConversations.length}
               </Text>
-            </TouchableOpacity>
-          </View>
-        ))}
+            </View>
+          )}
+        </Pressable>
 
-        {conversations.length === 0 && (
-          <EmptyState
-            icon={MessageSquare}
-            title="No Messages"
-            description="When you message someone, your conversations will appear here"
-            action={
-              <Button onPress={() => router.push("/(protected)/messages/new")}>
-                Start a Conversation
-              </Button>
-            }
+        <Pressable
+          onPress={() => handleTabPress(1)}
+          className={`flex-1 flex-row items-center justify-center gap-2 py-3 ${
+            activeTab === 1 ? "border-b-2 border-primary" : ""
+          }`}
+        >
+          <ShieldAlert
+            size={18}
+            color={activeTab === 1 ? "#3EA4E5" : "#6B7280"}
           />
-        )}
-      </ScrollView>
+          <Text
+            className={`font-semibold ${
+              activeTab === 1 ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Requests
+          </Text>
+          {spamConversations.length > 0 && (
+            <View className="bg-muted-foreground rounded-full px-2 py-0.5 min-w-[20px] items-center">
+              <Text className="text-xs text-white font-bold">
+                {spamConversations.length}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      </View>
+
+      {/* PagerView for swipeable tabs */}
+      <PagerView
+        ref={pagerRef}
+        style={{ flex: 1 }}
+        initialPage={0}
+        onPageSelected={(e) => setActiveTab(e.nativeEvent.position)}
+      >
+        {/* Inbox Tab */}
+        <View key="inbox" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={inboxConversations}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            emptyTitle="No Messages"
+            emptyDescription="Messages from people you follow will appear here"
+            emptyIcon={Inbox}
+            router={router}
+          />
+        </View>
+
+        {/* Spam/Requests Tab */}
+        <View key="spam" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={spamConversations}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            emptyTitle="No Message Requests"
+            emptyDescription="Messages from people you don't follow will appear here"
+            emptyIcon={ShieldAlert}
+            router={router}
+          />
+        </View>
+      </PagerView>
     </View>
   );
 }
