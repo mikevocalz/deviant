@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -17,16 +16,13 @@ import {
   ShieldAlert,
 } from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import PagerView from "react-native-pager-view";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 interface ConversationItem {
   id: string;
@@ -77,7 +73,7 @@ function ConversationList({
 }) {
   return (
     <ScrollView
-      style={{ width: SCREEN_WIDTH }}
+      className="flex-1"
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -162,8 +158,6 @@ export default function MessagesScreen() {
   >([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
-
-  const pagerRef = useRef<PagerView>(null);
 
   // Transform backend conversation to UI format
   const transformConversation = useCallback(
@@ -252,7 +246,6 @@ export default function MessagesScreen() {
 
   const handleTabPress = useCallback((index: number) => {
     setActiveTab(index);
-    pagerRef.current?.setPage(index);
   }, []);
 
   if (isLoading) {
@@ -331,43 +324,32 @@ export default function MessagesScreen() {
         </Pressable>
       </View>
 
-      {/* PagerView for swipeable tabs */}
-      <PagerView
-        ref={pagerRef}
-        style={{ flex: 1 }}
-        initialPage={0}
-        onPageSelected={(e) => setActiveTab(e.nativeEvent.position)}
-      >
-        {/* Inbox Tab */}
-        <View key="inbox" style={{ flex: 1 }}>
-          <ConversationList
-            conversations={inboxConversations}
-            isRefreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            onChatPress={handleChatPress}
-            onProfilePress={handleProfilePress}
-            emptyTitle="No Messages"
-            emptyDescription="Messages from people you follow will appear here"
-            emptyIcon={Inbox}
-            router={router}
-          />
-        </View>
-
-        {/* Spam/Requests Tab */}
-        <View key="spam" style={{ flex: 1 }}>
-          <ConversationList
-            conversations={spamConversations}
-            isRefreshing={isRefreshing}
-            onRefresh={handleRefresh}
-            onChatPress={handleChatPress}
-            onProfilePress={handleProfilePress}
-            emptyTitle="No Message Requests"
-            emptyDescription="Messages from people you don't follow will appear here"
-            emptyIcon={ShieldAlert}
-            router={router}
-          />
-        </View>
-      </PagerView>
+      {/* Tab Content - Conditional rendering */}
+      {activeTab === 0 ? (
+        <ConversationList
+          conversations={inboxConversations}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          onChatPress={handleChatPress}
+          onProfilePress={handleProfilePress}
+          emptyTitle="No Messages"
+          emptyDescription="Messages from people you follow will appear here"
+          emptyIcon={Inbox}
+          router={router}
+        />
+      ) : (
+        <ConversationList
+          conversations={spamConversations}
+          isRefreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          onChatPress={handleChatPress}
+          onProfilePress={handleProfilePress}
+          emptyTitle="No Message Requests"
+          emptyDescription="Messages from people you don't follow will appear here"
+          emptyIcon={ShieldAlert}
+          router={router}
+        />
+      )}
     </View>
   );
 }
