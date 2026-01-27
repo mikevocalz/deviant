@@ -63,36 +63,52 @@ interface ActivityState {
 }
 
 // Transform backend notification to Activity format
-function notificationToActivity(notif: Notification): Activity {
-  return {
-    id: notif.id,
-    type: notif.type as ActivityType,
-    user: {
-      id: notif.sender.id,
-      username: notif.sender.username,
-      avatar:
-        notif.sender.avatar ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(notif.sender.username)}&background=3EA4E5&color=fff`,
-    },
-    entityType: notif.entityType,
-    entityId: notif.entityId,
-    post: notif.post
-      ? {
-          id: notif.post.id,
-          thumbnail: notif.post.thumbnail || "",
-        }
-      : undefined,
-    event: notif.event
-      ? {
-          id: notif.event.id,
-          title: notif.event.title,
-        }
-      : undefined,
-    comment: notif.content,
-    timeAgo: notificationsApiClient.formatTimeAgo(notif.createdAt),
-    isRead: !!notif.readAt,
-    createdAt: notif.createdAt,
-  };
+// DEFENSIVE: Never crash on malformed data
+function notificationToActivity(notif: Notification): Activity | null {
+  try {
+    if (!notif || !notif.id) return null;
+
+    const senderUsername = notif.sender?.username || "user";
+
+    return {
+      id: String(notif.id),
+      type: (notif.type as ActivityType) || "like",
+      user: {
+        id: notif.sender?.id || "",
+        username: senderUsername,
+        avatar:
+          notif.sender?.avatar ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(senderUsername)}&background=3EA4E5&color=fff`,
+      },
+      entityType: notif.entityType,
+      entityId: notif.entityId,
+      post: notif.post
+        ? {
+            id: String(notif.post.id || ""),
+            thumbnail: notif.post.thumbnail || "",
+          }
+        : undefined,
+      event: notif.event
+        ? {
+            id: String(notif.event.id || ""),
+            title: notif.event.title,
+          }
+        : undefined,
+      comment: notif.content,
+      timeAgo: notificationsApiClient.formatTimeAgo(
+        notif.createdAt || new Date().toISOString(),
+      ),
+      isRead: !!notif.readAt,
+      createdAt: notif.createdAt || new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error(
+      "[ActivityStore] notificationToActivity error:",
+      error,
+      notif,
+    );
+    return null;
+  }
 }
 
 export const useActivityStore = create<ActivityState>((set, get) => ({
@@ -178,7 +194,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     set({ isLoading: true });
     try {
       const notifications = await notificationsApiClient.getNotifications(50);
-      const activities = notifications.map(notificationToActivity);
+      // DEFENSIVE: Filter out null values from failed transformations
+      const activities = notifications
+        .map(notificationToActivity)
+        .filter((a): a is Activity => a !== null);
 
       console.log("[ActivityStore] Fetched from backend:", {
         count: activities.length,
