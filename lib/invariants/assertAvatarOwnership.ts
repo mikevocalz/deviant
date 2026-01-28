@@ -1,41 +1,49 @@
 /**
- * DEV-ONLY Avatar Ownership Invariant
- * 
- * Throws immediately if avatar data ownership is violated.
- * This prevents cross-user avatar data leaks.
+ * DEV-ONLY Identity Ownership Invariants
+ *
+ * Throws immediately if ANY identity data ownership is violated.
+ * This prevents cross-user data leaks for ALL identity fields:
+ * - avatarUrl
+ * - username
+ * - displayName
+ * - bio
+ * - verified
+ * - followerCount / followingCount
+ * - isFollowing (relative state)
  */
 
-type AvatarContext =
-  | 'story'
-  | 'feed'
-  | 'comment'
-  | 'message'
-  | 'profile'
-  | 'settings';
+export type IdentityContext =
+  | "story"
+  | "feed"
+  | "comment"
+  | "message"
+  | "profile"
+  | "followersList"
+  | "followingList"
+  | "settings";
 
-interface AvatarOwnershipParams {
-  context: AvatarContext;
+interface IdentityOwnershipParams {
+  context: IdentityContext;
   ownerId: string | number | null | undefined;
-  avatarUrl?: string | null;
   authUserId?: string | number | null | undefined;
+  field?: string; // Optional: which identity field is being rendered
 }
 
 /**
- * Assert that avatar data is owned by the correct entity.
- * 
- * In development, this throws if a non-auth entity attempts to use
- * authUser data for avatar rendering.
- * 
- * @throws Error if ownership is violated in development
+ * Assert that identity data is owned by the correct entity.
+ *
+ * In development, this warns if identity data might be coming from wrong source.
+ * Settings is the ONLY context allowed to use authUser data directly.
+ *
+ * @param params - The ownership check parameters
  */
-export function assertAvatarOwnership(params: AvatarOwnershipParams): void {
-  // Only check in development
+export function assertIdentityOwnership(params: IdentityOwnershipParams): void {
   if (__DEV__ !== true) return;
 
-  const { context, ownerId, authUserId } = params;
+  const { context, ownerId, authUserId, field } = params;
 
-  // Settings is the ONLY place allowed to use authUser avatar freely
-  if (context === 'settings') return;
+  // Settings is the ONLY context allowed to reference authUser
+  if (context === "settings") return;
 
   // If no authUserId, we can't check
   if (!authUserId) return;
@@ -43,84 +51,107 @@ export function assertAvatarOwnership(params: AvatarOwnershipParams): void {
   // If no ownerId, this is a problem - data isn't properly scoped
   if (!ownerId) {
     console.warn(
-      `[AVATAR OWNERSHIP WARNING] Context: ${context} - Missing ownerId. Avatar data may not be properly scoped.`
+      `[IDENTITY OWNERSHIP WARNING] Context: ${context}${field ? ` (${field})` : ""} - ` +
+        `Missing ownerId. Identity data may not be properly scoped.`,
     );
     return;
   }
 
-  // Normalize IDs to strings for comparison
-  const ownerIdStr = String(ownerId);
-  const authUserIdStr = String(authUserId);
-
-  // For 'profile' context, when viewing your own profile, ownerId === authUserId is fine
-  // The violation is when you're viewing SOMEONE ELSE's content but the avatar comes from authUser
-  // This check is for rendering - we want to ensure the avatar SOURCE is from the entity, not authUser
-  
-  // NOTE: This invariant is informational - the real fix is ensuring avatar data
-  // comes from the entity (story.author, post.author, etc.) NOT from authUser
+  // NOTE: This function validates that ownerId is present and context is valid.
+  // The actual source validation is done by assertIdentitySource.
 }
 
 /**
- * Validate that avatar source is from the entity, not authUser.
- * This is the critical check - avatar must come from entity.author, not global state.
- * 
- * @throws Error in development if avatar appears to come from wrong source
+ * Validate that identity data source is from the entity, not authUser.
+ * This is the critical check - identity MUST come from entity.author, not global state.
+ *
+ * @throws Error in development if identity appears to come from wrong source
  */
-export function assertAvatarSource(params: {
-  context: AvatarContext;
+export function assertIdentitySource(params: {
+  context: IdentityContext;
   entityOwnerId: string | number | null | undefined;
   authUserId: string | number | null | undefined;
-  avatarSource: 'entity' | 'authUser';
+  identitySource: "entity" | "authUser";
+  field?: string;
 }): void {
   if (__DEV__ !== true) return;
 
-  const { context, entityOwnerId, authUserId, avatarSource } = params;
+  const { context, entityOwnerId, authUserId, identitySource, field } = params;
 
-  // Settings is the ONLY place allowed to use authUser avatar
-  if (context === 'settings') return;
+  // Settings is the ONLY place allowed to use authUser identity
+  if (context === "settings") return;
 
-  // If avatar comes from authUser but this is not the authUser's content, VIOLATION
-  if (avatarSource === 'authUser') {
+  // If identity comes from authUser but this is not the authUser's content, VIOLATION
+  if (identitySource === "authUser") {
     const entityIdStr = entityOwnerId ? String(entityOwnerId) : null;
     const authIdStr = authUserId ? String(authUserId) : null;
 
     // If entity owner is different from auth user, this is a violation
     if (entityIdStr && authIdStr && entityIdStr !== authIdStr) {
       throw new Error(
-        `[AVATAR OWNERSHIP VIOLATION]
-Context: ${context}
+        `[IDENTITY OWNERSHIP VIOLATION]
+Context: ${context}${field ? ` (field: ${field})` : ""}
 Entity ownerId: ${entityIdStr}
 Auth userId: ${authIdStr}
-Avatar source: ${avatarSource}
+Identity source: ${identitySource}
 
-A non-auth entity is rendering an avatar from authUser data.
-This is FORBIDDEN and causes cross-user avatar leaks.
+A non-auth entity is rendering identity data from authUser.
+This is FORBIDDEN and causes cross-user data leaks.
 
-FIX: Use entity.author.avatar, NOT authUser.avatar`
+FIX: Use entity.author.${field || "data"}, NOT authUser.${field || "data"}`,
       );
     }
   }
 }
 
+// Legacy alias for backwards compatibility
+export const assertAvatarOwnership = assertIdentityOwnership;
+
 /**
- * Get the correct avatar URL for an entity, with validation.
- * 
- * @param entityAvatar - Avatar from the entity (story.author.avatar, post.author.avatar, etc.)
+ * Validate that avatar source is from the entity, not authUser.
+ * Alias for assertIdentitySource with avatar-specific messaging.
+ */
+export function assertAvatarSource(params: {
+  context: IdentityContext;
+  entityOwnerId: string | number | null | undefined;
+  authUserId: string | number | null | undefined;
+  avatarSource: "entity" | "authUser";
+}): void {
+  return assertIdentitySource({
+    ...params,
+    identitySource: params.avatarSource,
+    field: "avatar",
+  });
+}
+
+/**
+ * Get the correct identity field value for an entity, with validation.
+ *
+ * @param entityValue - Value from the entity (story.author.*, post.author.*, etc.)
  * @param entityOwnerId - The entity owner's ID
  * @param context - The rendering context
- * @returns The entity's avatar URL (never authUser's)
+ * @param field - The field name for logging
+ * @returns The entity's value (never authUser's)
  */
-export function getSafeAvatarUrl(
-  entityAvatar: string | null | undefined,
+export function getSafeIdentityValue<T>(
+  entityValue: T | null | undefined,
   entityOwnerId: string | number | null | undefined,
-  context: AvatarContext
-): string | undefined {
-  if (__DEV__ && !entityAvatar && context !== 'settings') {
+  context: IdentityContext,
+  field: string,
+): T | undefined {
+  if (__DEV__ && entityValue === undefined && context !== "settings") {
     console.warn(
-      `[AVATAR] Missing avatar for ${context} entity ${entityOwnerId}. ` +
-      `Ensure entity data includes author.avatar.`
+      `[IDENTITY] Missing ${field} for ${context} entity ${entityOwnerId}. ` +
+        `Ensure entity data includes author.${field}.`,
     );
   }
-  
-  return entityAvatar || undefined;
+
+  return entityValue ?? undefined;
 }
+
+// Legacy alias
+export const getSafeAvatarUrl = (
+  entityAvatar: string | null | undefined,
+  entityOwnerId: string | number | null | undefined,
+  context: IdentityContext,
+) => getSafeIdentityValue(entityAvatar, entityOwnerId, context, "avatar");
