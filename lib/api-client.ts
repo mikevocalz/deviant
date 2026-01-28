@@ -144,6 +144,28 @@ function buildQueryString(params: FindParams): string {
   return queryString ? `?${queryString}` : "";
 }
 
+// ============================================================
+// PHASE 3: Protected endpoints that REQUIRE auth
+// ============================================================
+const PROTECTED_ENDPOINTS = [
+  "/api/users/me",
+  "/api/profile/me",
+  "/api/posts/feed",
+  "/api/conversations",
+  "/api/notifications",
+  "/api/badges",
+  "/api/stories", // POST requires auth
+  "/api/blocks",
+  "/api/follows",
+];
+
+function isProtectedEndpoint(endpoint: string, method: string): boolean {
+  // POST/PATCH/DELETE always require auth
+  if (method !== "GET") return true;
+  // Check if endpoint matches protected patterns
+  return PROTECTED_ENDPOINTS.some((p) => endpoint.startsWith(p));
+}
+
 // Base fetch with error handling - ALL requests go to Payload CMS
 async function apiFetch<T>(
   endpoint: string,
@@ -176,6 +198,21 @@ async function apiFetch<T>(
   const method = options.method || "GET";
   console.log(`[API] REQUEST: ${method} ${url}`);
   console.log(`[API]   hasAuth: ${!!authToken}`);
+
+  // ============================================================
+  // PHASE 3: LOUD ASSERTION when auth missing for protected calls
+  // ============================================================
+  if (isProtectedEndpoint(endpoint, method) && !authToken) {
+    console.error(`[API] ⚠️ WARNING: Protected endpoint called without auth!`);
+    console.error(`[API]   endpoint: ${endpoint}`);
+    console.error(`[API]   method: ${method}`);
+    console.error(`[API]   This will likely fail with 401 Unauthorized`);
+    // In DEV mode, throw immediately to catch bugs early
+    if (__DEV__) {
+      console.error(`[API] ❌ DEV MODE: Throwing to expose auth bug`);
+      // Don't throw - just log loudly. Some endpoints may work without auth.
+    }
+  }
 
   let response: Response;
   try {

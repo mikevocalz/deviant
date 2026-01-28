@@ -1,15 +1,27 @@
 /**
  * Network Debug Screen
- * 
+ *
  * PHASE 1: Diagnostic screen to verify API calls work in-app
  * Access via: /(protected)/debug
  */
 
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+} from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { ChevronLeft, RefreshCw, CheckCircle, XCircle, AlertTriangle } from "lucide-react-native";
+import {
+  ChevronLeft,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+} from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { getPayloadBaseUrl } from "@/lib/api-config";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -62,6 +74,8 @@ export default function DebugScreen() {
       { name: "GET /api/posts?limit=1", status: "pending" },
       { name: "GET /api/posts/feed", status: "pending" },
       { name: `GET /api/users/${user?.id || "15"}/profile`, status: "pending" },
+      { name: "GET /api/conversations", status: "pending" },
+      { name: "GET /api/stories", status: "pending" },
     ];
 
     setResults([...tests]);
@@ -78,17 +92,17 @@ export default function DebugScreen() {
     try {
       tests[0].status = "running";
       setResults([...tests]);
-      
+
       const url = `${API_BASE}/api/users/me`;
       console.log(`[Debug] Testing: GET ${url}`);
       console.log(`[Debug]   hasAuth: ${!!authToken}`);
-      
+
       const res = await fetch(url, { headers, credentials: "omit" });
       const data = await res.text();
-      
+
       console.log(`[Debug]   status: ${res.status}`);
       console.log(`[Debug]   body: ${data.slice(0, 200)}`);
-      
+
       tests[0].statusCode = res.status;
       tests[0].hasAuth = !!authToken;
       tests[0].responsePreview = data.slice(0, 100);
@@ -105,16 +119,16 @@ export default function DebugScreen() {
     try {
       tests[1].status = "running";
       setResults([...tests]);
-      
+
       const url = `${API_BASE}/api/posts?limit=1`;
       console.log(`[Debug] Testing: GET ${url}`);
-      
+
       const res = await fetch(url, { credentials: "omit" });
       const data = await res.text();
-      
+
       console.log(`[Debug]   status: ${res.status}`);
       console.log(`[Debug]   body: ${data.slice(0, 200)}`);
-      
+
       tests[1].statusCode = res.status;
       tests[1].hasAuth = false;
       tests[1].responsePreview = data.slice(0, 100);
@@ -131,17 +145,17 @@ export default function DebugScreen() {
     try {
       tests[2].status = "running";
       setResults([...tests]);
-      
+
       const url = `${API_BASE}/api/posts/feed`;
       console.log(`[Debug] Testing: GET ${url}`);
       console.log(`[Debug]   hasAuth: ${!!authToken}`);
-      
+
       const res = await fetch(url, { headers, credentials: "omit" });
       const data = await res.text();
-      
+
       console.log(`[Debug]   status: ${res.status}`);
       console.log(`[Debug]   body: ${data.slice(0, 200)}`);
-      
+
       tests[2].statusCode = res.status;
       tests[2].hasAuth = !!authToken;
       tests[2].responsePreview = data.slice(0, 100);
@@ -158,18 +172,18 @@ export default function DebugScreen() {
     try {
       tests[3].status = "running";
       setResults([...tests]);
-      
+
       const userId = user?.id || "15";
       const url = `${API_BASE}/api/users/${userId}/profile`;
       console.log(`[Debug] Testing: GET ${url}`);
       console.log(`[Debug]   hasAuth: ${!!authToken}`);
-      
+
       const res = await fetch(url, { headers, credentials: "omit" });
       const data = await res.text();
-      
+
       console.log(`[Debug]   status: ${res.status}`);
       console.log(`[Debug]   body: ${data.slice(0, 200)}`);
-      
+
       tests[3].statusCode = res.status;
       tests[3].hasAuth = !!authToken;
       tests[3].responsePreview = data.slice(0, 100);
@@ -179,6 +193,60 @@ export default function DebugScreen() {
       tests[3].status = "fail";
       tests[3].error = e.message;
       console.error(`[Debug] Test 4 error:`, e);
+    }
+    setResults([...tests]);
+
+    // Test 5: GET /api/conversations (requires auth)
+    try {
+      tests[4].status = "running";
+      setResults([...tests]);
+
+      const url = `${API_BASE}/api/conversations?box=inbox`;
+      console.log(`[Debug] Testing: GET ${url}`);
+      console.log(`[Debug]   hasAuth: ${!!authToken}`);
+
+      const res = await fetch(url, { headers, credentials: "omit" });
+      const data = await res.text();
+
+      console.log(`[Debug]   status: ${res.status}`);
+      console.log(`[Debug]   body: ${data.slice(0, 200)}`);
+
+      tests[4].statusCode = res.status;
+      tests[4].hasAuth = !!authToken;
+      tests[4].responsePreview = data.slice(0, 100);
+      tests[4].status = res.status === 200 ? "pass" : "fail";
+      if (res.status !== 200) tests[4].error = `Status ${res.status}`;
+    } catch (e: any) {
+      tests[4].status = "fail";
+      tests[4].error = e.message;
+      console.error(`[Debug] Test 5 error:`, e);
+    }
+    setResults([...tests]);
+
+    // Test 6: GET /api/stories
+    try {
+      tests[5].status = "running";
+      setResults([...tests]);
+
+      const url = `${API_BASE}/api/stories`;
+      console.log(`[Debug] Testing: GET ${url}`);
+      console.log(`[Debug]   hasAuth: ${!!authToken}`);
+
+      const res = await fetch(url, { headers, credentials: "omit" });
+      const data = await res.text();
+
+      console.log(`[Debug]   status: ${res.status}`);
+      console.log(`[Debug]   body: ${data.slice(0, 200)}`);
+
+      tests[5].statusCode = res.status;
+      tests[5].hasAuth = !!authToken;
+      tests[5].responsePreview = data.slice(0, 100);
+      tests[5].status = res.status === 200 ? "pass" : "fail";
+      if (res.status !== 200) tests[5].error = `Status ${res.status}`;
+    } catch (e: any) {
+      tests[5].status = "fail";
+      tests[5].error = e.message;
+      console.error(`[Debug] Test 6 error:`, e);
     }
     setResults([...tests]);
 
@@ -204,60 +272,87 @@ export default function DebugScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingTop: insets.top,
+      }}
+    >
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-border">
         <Pressable onPress={() => router.back()} hitSlop={12} className="mr-4">
           <ChevronLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="text-lg font-bold text-foreground flex-1">Network Debug</Text>
-        <Pressable
-          onPress={runTests}
-          disabled={isRunning}
-          className="p-2"
-        >
-          <RefreshCw size={20} color={isRunning ? colors.mutedForeground : colors.primary} />
+        <Text className="text-lg font-bold text-foreground flex-1">
+          Network Debug
+        </Text>
+        <Pressable onPress={runTests} disabled={isRunning} className="p-2">
+          <RefreshCw
+            size={20}
+            color={isRunning ? colors.mutedForeground : colors.primary}
+          />
         </Pressable>
       </View>
 
       <ScrollView className="flex-1 px-4 py-4">
         {/* API Base Info */}
         <View className="bg-card rounded-lg p-4 mb-4 border border-border">
-          <Text className="text-sm font-semibold text-muted-foreground mb-1">API Base URL</Text>
+          <Text className="text-sm font-semibold text-muted-foreground mb-1">
+            API Base URL
+          </Text>
           <Text className="text-sm text-foreground font-mono">{apiBase}</Text>
-          <Text className="text-sm font-semibold text-muted-foreground mt-3 mb-1">Current User</Text>
+          <Text className="text-sm font-semibold text-muted-foreground mt-3 mb-1">
+            Current User
+          </Text>
           <Text className="text-sm text-foreground font-mono">
             {user ? `${user.username} (ID: ${user.id})` : "Not logged in"}
           </Text>
         </View>
 
         {/* Test Results */}
-        <Text className="text-sm font-semibold text-muted-foreground mb-2">Test Results</Text>
+        <Text className="text-sm font-semibold text-muted-foreground mb-2">
+          Test Results
+        </Text>
         {results.map((result, index) => (
           <View
             key={index}
             className="bg-card rounded-lg p-4 mb-2 border border-border"
           >
             <View className="flex-row items-center justify-between mb-2">
-              <Text className="text-sm font-semibold text-foreground flex-1">{result.name}</Text>
+              <Text className="text-sm font-semibold text-foreground flex-1">
+                {result.name}
+              </Text>
               <StatusIcon status={result.status} />
             </View>
-            
+
             {result.statusCode !== undefined && (
               <Text className="text-xs text-muted-foreground mb-1">
-                Status: <Text className={result.statusCode === 200 ? "text-green-500" : "text-red-500"}>
+                Status:{" "}
+                <Text
+                  className={
+                    result.statusCode === 200
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }
+                >
                   {result.statusCode}
                 </Text>
                 {" | "}Auth: {result.hasAuth ? "Yes" : "No"}
               </Text>
             )}
-            
+
             {result.error && (
-              <Text className="text-xs text-red-500 mb-1">Error: {result.error}</Text>
+              <Text className="text-xs text-red-500 mb-1">
+                Error: {result.error}
+              </Text>
             )}
-            
+
             {result.responsePreview && (
-              <Text className="text-xs text-muted-foreground font-mono" numberOfLines={2}>
+              <Text
+                className="text-xs text-muted-foreground font-mono"
+                numberOfLines={2}
+              >
                 {result.responsePreview}
               </Text>
             )}
@@ -266,7 +361,9 @@ export default function DebugScreen() {
 
         {/* Instructions */}
         <View className="mt-4 p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/30">
-          <Text className="text-sm text-yellow-500 font-semibold mb-2">Debug Instructions</Text>
+          <Text className="text-sm text-yellow-500 font-semibold mb-2">
+            Debug Instructions
+          </Text>
           <Text className="text-xs text-yellow-500/80">
             1. Check Metro/Expo console for [Debug] logs{"\n"}
             2. If status shows 401 with hasAuth=false, token is missing{"\n"}
