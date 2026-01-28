@@ -213,7 +213,8 @@ export function useLikeComment() {
 
       // Invalidate to ensure sync with server
       queryClient.invalidateQueries({ queryKey: commentKeys.all });
-      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
+      // CRITICAL: Only invalidate auth user, not broad ["users"] key
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
   });
 }

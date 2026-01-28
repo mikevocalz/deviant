@@ -180,9 +180,10 @@ export function useLikePost() {
         };
       });
 
-      // Invalidate user data to sync liked posts list
-      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
-      queryClient.invalidateQueries({ queryKey: ["users", "likedPosts"] });
+      // CRITICAL: Only invalidate the current user's liked posts cache
+      // DO NOT use broad keys like ["users"] as this affects ALL user caches
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      queryClient.invalidateQueries({ queryKey: ["likedPosts"] });
     },
   });
 
@@ -224,7 +225,7 @@ export function useLikePost() {
 // Sync liked posts from server to Zustand store
 export function useSyncLikedPosts() {
   return useQuery({
-    queryKey: ["users", "likedPosts"],
+    queryKey: ["likedPosts"],
     queryFn: async () => {
       const { users } = await import("@/lib/api-client");
       const likedPosts = await users.getLikedPosts();
