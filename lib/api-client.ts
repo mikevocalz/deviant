@@ -882,23 +882,21 @@ export const messaging = {
 };
 
 /**
- * Comments API
+ * Comments API - uses Payload custom endpoints
  */
 export const comments = {
   findByPost: <T = Record<string, unknown>>(
     postId: string,
     params: FindParams = {},
   ) => {
-    // Use Payload CMS where clause format for filtering by post
-    // Also filter for top-level comments only (no parent)
+    // Use Payload custom endpoint: GET /api/posts/:id/comments
+    // This returns comments with nested replies already attached
     const searchParams = new URLSearchParams();
-    searchParams.set("where[post][equals]", postId);
-    searchParams.set("where[parent][exists]", "false");
     if (params.limit) searchParams.set("limit", String(params.limit));
-    if (params.depth) searchParams.set("depth", String(params.depth));
-    searchParams.set("sort", "-createdAt");
+    if (params.page) searchParams.set("page", String(params.page));
+    const queryString = searchParams.toString();
     return apiFetch<PaginatedResponse<T>>(
-      `/api/comments?${searchParams.toString()}`,
+      `/api/posts/${postId}/comments${queryString ? `?${queryString}` : ""}`,
     );
   },
 
@@ -907,16 +905,24 @@ export const comments = {
     postId: string,
     params: FindParams = {},
   ) => {
-    // Use Payload CMS where clause format for filtering replies
-    const searchParams = new URLSearchParams();
-    searchParams.set("where[post][equals]", postId);
-    searchParams.set("where[parent][equals]", parentId);
-    if (params.limit) searchParams.set("limit", String(params.limit));
-    if (params.depth) searchParams.set("depth", String(params.depth));
-    searchParams.set("sort", "createdAt");
-    return apiFetch<PaginatedResponse<T>>(
-      `/api/comments?${searchParams.toString()}`,
+    // Replies are already included in findByPost response
+    // This is kept for backwards compatibility but returns empty
+    // The custom endpoint nests replies under each comment
+    console.log(
+      "[API] findByParent called - replies are nested in findByPost response",
     );
+    return Promise.resolve({
+      docs: [],
+      totalDocs: 0,
+      limit: 0,
+      totalPages: 0,
+      page: 1,
+      pagingCounter: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+      nextPage: null,
+      prevPage: null,
+    } as PaginatedResponse<T>);
   },
 
   create: <T = Record<string, unknown>>(data: {
@@ -927,23 +933,18 @@ export const comments = {
     authorId?: string; // Payload CMS user ID
     clientMutationId?: string; // For idempotency
   }) => {
-    // Transform client field names to backend field names
-    // Backend expects: content (not text), author (not authorId)
+    // Use Payload custom endpoint: POST /api/posts/:id/comments
+    // Backend expects: content, parentCommentId (optional), clientMutationId (optional)
     const payload = {
       content: data.text,
-      post: data.post,
-      author: data.authorId,
-      parent: data.parent,
+      parentCommentId: data.parent,
       clientMutationId: data.clientMutationId,
     };
-    console.log("[API] comments.create payload:", JSON.stringify(payload));
-    if (!payload.author) {
-      console.error(
-        "[API] comments.create: author is missing! authorId was:",
-        data.authorId,
-      );
-    }
-    return apiFetch<T>("/api/comments", {
+    console.log(
+      "[API] comments.create to /api/posts/" + data.post + "/comments:",
+      JSON.stringify(payload),
+    );
+    return apiFetch<T>(`/api/posts/${data.post}/comments`, {
       method: "POST",
       body: JSON.stringify(payload),
     });

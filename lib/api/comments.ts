@@ -69,45 +69,23 @@ export const commentsApiClient = {
   // Fetch comments for a post with threaded replies
   async getComments(postId: string, limit: number = 50): Promise<Comment[]> {
     try {
-      // Fetch top-level comments (parent: null)
+      // Payload custom endpoint returns comments with replies already nested
       const response = await commentsApi.findByPost(postId, {
         limit,
-        depth: 2,
       });
 
-      // Transform top-level comments
-      const topLevelComments = response.docs.map(transformComment);
-
-      // For each top-level comment, fetch its replies and nest them
-      const commentsWithReplies = await Promise.all(
-        topLevelComments.map(async (comment) => {
-          try {
-            // Pass postId along with parentId for reply fetching
-            const repliesResponse = await commentsApi.findByParent(
-              comment.id,
-              postId,
-              {
-                limit: 50,
-                depth: 1,
-              },
-            );
-
-            // Transform and attach replies
-            const replies = repliesResponse.docs.map(transformComment);
-            return {
-              ...comment,
-              replies: replies.length > 0 ? replies : [],
-            };
-          } catch (replyError) {
-            console.warn(
-              "[commentsApi] Error fetching replies for comment:",
-              comment.id,
-              replyError,
-            );
-            return { ...comment, replies: [] };
-          }
-        }),
-      );
+      // Transform comments - replies are already attached by the endpoint
+      const commentsWithReplies = response.docs.map((doc: any) => {
+        const comment = transformComment(doc);
+        // Transform nested replies if present
+        const replies = (doc.replies || []).map((reply: any) =>
+          transformComment(reply),
+        );
+        return {
+          ...comment,
+          replies,
+        };
+      });
 
       console.log(
         "[commentsApi] Fetched",
