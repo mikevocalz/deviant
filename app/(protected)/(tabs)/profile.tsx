@@ -46,6 +46,11 @@ import BottomSheet, {
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
+import {
+  useMyProfile,
+  useUpdateProfile,
+  profileKeys,
+} from "@/lib/hooks/use-profile";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { TextInput, Alert } from "react-native";
@@ -65,13 +70,14 @@ function EditProfileContent({ onClose }: { onClose: () => void }) {
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
-  const [isSaving, setIsSaving] = useState(false);
   const [newAvatarUri, setNewAvatarUri] = useState<string | null>(null);
   const { uploadSingle, isUploading, progress } = useMediaUpload({
     folder: "avatars",
     userId: user?.id,
   });
+
+  // CRITICAL: Use mutation hook for proper cache sync
+  const updateProfileMutation = useUpdateProfile();
   const {
     editBio,
     editWebsite,
@@ -128,7 +134,6 @@ function EditProfileContent({ onClose }: { onClose: () => void }) {
 
   const handleSave = async () => {
     if (!user) return;
-    setIsSaving(true);
 
     const showToast = useUIStore.getState().showToast;
 
@@ -164,58 +169,22 @@ function EditProfileContent({ onClose }: { onClose: () => void }) {
         "[EditProfile] Updating profile with:",
         JSON.stringify(updateData),
       );
-      console.log("[EditProfile] User ID:", user.id);
 
-      await users.updateMe(updateData);
+      // CRITICAL: Use mutation for proper cache sync
+      await updateProfileMutation.mutateAsync(updateData);
       console.log("[EditProfile] Profile updated successfully");
-
-      setUser({
-        ...user,
-        bio: editBio,
-        website: editWebsite,
-        avatar: avatarUrl,
-        location: editLocation,
-        hashtags: editHashtags,
-      });
-
-      // CRITICAL: Only invalidate the current user's profile cache
-      // DO NOT use broad keys like ["users"] as this could affect other users' cached data
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
-      if (user?.username) {
-        queryClient.invalidateQueries({
-          queryKey: ["profile", "username", user.username],
-        });
-      }
-
-      // Force image cache refresh by updating timestamp
-      if (avatarUrl && avatarUrl !== user.avatar) {
-        // The Image component will pick up the new URL automatically
-        // But we can force a refresh by ensuring the URL is different
-        console.log(
-          "[EditProfile] Avatar updated from",
-          user.avatar,
-          "to",
-          avatarUrl,
-        );
-      }
 
       setNewAvatarUri(null);
       onClose();
       showToast("success", "Saved", "Profile updated successfully");
     } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
-      console.error(
-        "[EditProfile] Error details:",
-        JSON.stringify(error, null, 2),
-      );
+      // DO NOT close popover on error - show error toast
       showToast(
         "error",
         "Error",
         error?.message || "Failed to save profile. Please try again.",
       );
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -264,13 +233,17 @@ function EditProfileContent({ onClose }: { onClose: () => void }) {
         <Text className="text-xl font-bold text-foreground">Edit Profile</Text>
         <Pressable
           onPress={handleSave}
-          disabled={isSaving || !hasChanges}
+          disabled={
+            updateProfileMutation.isPending || isUploading || !hasChanges
+          }
           hitSlop={12}
           className={`px-4 py-2 rounded-full ${
-            hasChanges && !isSaving ? "bg-primary" : "bg-muted"
+            hasChanges && !updateProfileMutation.isPending
+              ? "bg-primary"
+              : "bg-muted"
           }`}
         >
-          {isSaving ? (
+          {updateProfileMutation.isPending || isUploading ? (
             <Text className="text-sm font-semibold text-muted-foreground">
               Saving...
             </Text>
@@ -515,6 +488,14 @@ function ProfileScreenContent() {
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+
+  // CRITICAL: Fetch profile data with counts from backend
+  // This is the canonical source for followersCount, followingCount, postsCount
+  const {
+    data: profileData,
+    isLoading: isLoadingProfile,
+    refetch: refetchProfile,
+  } = useMyProfile();
   const { uploadSingle } = useMediaUpload({
     folder: "avatars",
     userId: user?.id,
@@ -904,7 +885,7 @@ function ProfileScreenContent() {
               <View className="flex-row gap-8">
                 <View className="items-center">
                   <Text className="text-xl font-bold text-foreground">
-                    {userPostsData?.length || 0}
+                    {profileData?.postsCount ?? userPostsData?.length ?? 0}
                   </Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
@@ -919,7 +900,9 @@ function ProfileScreenContent() {
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(user?.followersCount || 0)}
+                    {formatCount(
+                      profileData?.followersCount ?? user?.followersCount ?? 0,
+                    )}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Followers
@@ -936,7 +919,9 @@ function ProfileScreenContent() {
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(user?.followingCount || 0)}
+                    {formatCount(
+                      profileData?.followingCount ?? user?.followingCount ?? 0,
+                    )}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Following
