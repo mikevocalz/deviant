@@ -1,19 +1,20 @@
 import { Hono } from "hono";
-import {
-  payloadClient,
-  getCookiesFromRequest,
-} from "../lib/payload";
+import { payloadClient, getCookiesFromRequest } from "../lib/payload";
 
 export const commentsRoutes = new Hono();
 
-// GET /api/comments?postId=xxx&limit=20&page=1&depth=2
+// GET /api/comments?postId=xxx OR ?where[post][equals]=xxx
 commentsRoutes.get("/", async (c) => {
   try {
     const cookies = getCookiesFromRequest(c.req.raw);
-    const postId = c.req.query("postId");
+    // Support both simple postId param and Payload where clause format
+    const postId = c.req.query("postId") || c.req.query("where[post][equals]");
     const limit = Math.min(parseInt(c.req.query("limit") || "20", 10), 100);
     const page = parseInt(c.req.query("page") || "1", 10);
     const depth = parseInt(c.req.query("depth") || "2", 10);
+    // Support parent filter from where clause
+    const parentExists = c.req.query("where[parent][exists]");
+    const parentEquals = c.req.query("where[parent][equals]");
 
     if (!postId) {
       return c.json({ error: "postId is required" }, 400);
@@ -21,8 +22,17 @@ commentsRoutes.get("/", async (c) => {
 
     const where: Record<string, unknown> = {
       post: { equals: postId },
-      parent: { exists: false },
     };
+
+    // Handle parent filtering
+    if (parentEquals) {
+      where.parent = { equals: parentEquals };
+    } else if (parentExists === "false") {
+      where.parent = { exists: false };
+    } else {
+      // Default: top-level comments only
+      where.parent = { exists: false };
+    }
 
     const result = await payloadClient.find(
       {
@@ -57,10 +67,7 @@ commentsRoutes.post("/", async (c) => {
     }
 
     if (!body.post || !body.text) {
-      return c.json(
-        { error: "post and text are required" },
-        400,
-      );
+      return c.json({ error: "post and text are required" }, 400);
     }
 
     const postId = String(body.post).trim();
@@ -136,7 +143,8 @@ commentsRoutes.post("/", async (c) => {
     }
 
     if (!authorId) {
-      const lookupUsername = (body.authorUsername as string) || currentUser?.username;
+      const lookupUsername =
+        (body.authorUsername as string) || currentUser?.username;
       return c.json(
         {
           error: `User '${lookupUsername || "unknown"}' not found in Payload CMS`,
@@ -181,14 +189,19 @@ commentsRoutes.post("/", async (c) => {
     console.log("[API] Comment created:", result.id);
     return c.json(result, 201);
   } catch (error: unknown) {
-    const err = error as { status?: number; message?: string; errors?: unknown[] };
+    const err = error as {
+      status?: number;
+      message?: string;
+      errors?: unknown[];
+    };
     console.error("[API] POST /api/comments error:", err?.message ?? error);
-    const status = (typeof err?.status === "number" && err.status >= 400 && err.status < 600)
-      ? err.status
-      : 500;
+    const status =
+      typeof err?.status === "number" && err.status >= 400 && err.status < 600
+        ? err.status
+        : 500;
     return c.json(
-      { 
-        error: err?.message || "Failed to create comment", 
+      {
+        error: err?.message || "Failed to create comment",
         errors: err?.errors,
         hint: "Check that user exists in Payload CMS and post ID is valid",
       },
