@@ -34,12 +34,19 @@ export function useFollow() {
     },
     // Optimistic update - instant UI feedback
     onMutate: async ({ userId, action, username }) => {
-      // Cancel any outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["users"] });
-
-      const queryKey = username
+      // CRITICAL: Only cancel specific user queries, NOT broad ["users"]
+      // Canceling ["users"] would affect ALL user caches causing regressions
+      const userQueryKey = username
         ? ["users", "username", username]
         : ["users", "id", userId];
+      await queryClient.cancelQueries({ queryKey: userQueryKey });
+
+      // Also cancel profile queries for this user
+      if (userId) {
+        await queryClient.cancelQueries({ queryKey: ["profile", userId] });
+      }
+
+      const queryKey = userQueryKey;
 
       // Snapshot previous value
       const previousUserData = queryClient.getQueryData(queryKey);

@@ -2,13 +2,17 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
-// Query keys
+// Query keys - scoped by viewerId for cache isolation
 export const messageKeys = {
   all: ["messages"] as const,
-  unreadCount: () => [...messageKeys.all, "unreadCount"] as const,
-  spamUnreadCount: () => [...messageKeys.all, "spamUnreadCount"] as const,
-  conversations: () => [...messageKeys.all, "conversations"] as const,
+  unreadCount: (viewerId?: string) =>
+    [...messageKeys.all, "unreadCount", viewerId || "__no_user__"] as const,
+  spamUnreadCount: (viewerId?: string) =>
+    [...messageKeys.all, "spamUnreadCount", viewerId || "__no_user__"] as const,
+  conversations: (viewerId?: string) =>
+    [...messageKeys.all, "conversations", viewerId || "__no_user__"] as const,
 };
 
 /**
@@ -21,9 +25,11 @@ export const messageKeys = {
 export function useUnreadMessageCount() {
   const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
   const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
 
   const query = useQuery({
-    queryKey: messageKeys.unreadCount(),
+    queryKey: messageKeys.unreadCount(viewerId),
     queryFn: async () => {
       // Get inbox unread count (from followed users only)
       const inboxCount = await messagesApiClient.getUnreadCount();
@@ -59,9 +65,13 @@ export function useUnreadMessageCount() {
 
 // Hook to get conversations
 export function useConversations() {
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
+
   return useQuery({
-    queryKey: messageKeys.conversations(),
+    queryKey: messageKeys.conversations(viewerId),
     queryFn: messagesApiClient.getConversations,
+    enabled: !!viewerId,
   });
 }
 
@@ -74,12 +84,16 @@ export function useRefreshMessageCounts() {
   const refreshMessagesUnread = useUnreadCountsStore(
     (s) => s.refreshMessagesUnread,
   );
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
 
   return async () => {
-    // Invalidate query cache
-    await queryClient.invalidateQueries({
-      queryKey: messageKeys.unreadCount(),
-    });
+    // Invalidate query cache - use scoped key
+    if (viewerId) {
+      await queryClient.invalidateQueries({
+        queryKey: messageKeys.unreadCount(viewerId),
+      });
+    }
     // Also refresh store
     await refreshMessagesUnread();
   };

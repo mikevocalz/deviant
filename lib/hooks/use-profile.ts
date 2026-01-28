@@ -2,7 +2,7 @@
  * Profile Hooks
  *
  * CRITICAL: These hooks provide the canonical read path for profile data.
- * 
+ *
  * useMyProfile - Fetches current user's profile with counts
  * useUpdateProfile - Mutation to update profile with proper cache sync
  */
@@ -40,7 +40,7 @@ export interface ProfileData {
 
 /**
  * useMyProfile - Fetches current user's profile with computed counts
- * 
+ *
  * CRITICAL: This is the canonical source for profile data on my profile screen.
  * Uses query key: ['profile', myUserId]
  * Fetches via: GET /api/users/:id/profile
@@ -50,9 +50,14 @@ export function useMyProfile() {
   const userId = authUser?.id;
 
   return useQuery({
-    queryKey: profileKeys.byId(userId || ""),
+    // CRITICAL: Use empty string fallback to prevent undefined key
+    // The enabled flag below ensures we only fetch when userId exists
+    queryKey: profileKeys.byId(userId || "__no_user__"),
     queryFn: async (): Promise<ProfileData | null> => {
-      if (!userId) return null;
+      if (!userId) {
+        console.log("[useMyProfile] No userId, returning null");
+        return null;
+      }
 
       console.log("[useMyProfile] Fetching profile for userId:", userId);
 
@@ -110,7 +115,7 @@ export function useMyProfile() {
 
 /**
  * useUpdateProfile - Mutation to update profile with proper cache sync
- * 
+ *
  * CRITICAL: On success, updates BOTH:
  * - ['authUser'] (Zustand store via setUser)
  * - ['profile', myUserId] (React Query cache)
@@ -152,23 +157,20 @@ export function useUpdateProfile() {
       setUser(updatedUser);
 
       // 2. Update React Query profile cache (immutable)
-      queryClient.setQueryData<ProfileData>(
-        profileKeys.byId(userId),
-        (old) => {
-          if (!old) return old;
-          return {
-            ...old,
-            bio: variables.bio ?? old.bio,
-            website: variables.website ?? old.website,
-            avatar: variables.avatar ?? old.avatar,
-            avatarUrl: variables.avatar ?? old.avatarUrl,
-            location: variables.location ?? old.location,
-            hashtags: variables.hashtags ?? old.hashtags,
-            name: variables.name ?? old.name,
-            displayName: variables.name ?? old.displayName,
-          };
-        }
-      );
+      queryClient.setQueryData<ProfileData>(profileKeys.byId(userId), (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          bio: variables.bio ?? old.bio,
+          website: variables.website ?? old.website,
+          avatar: variables.avatar ?? old.avatar,
+          avatarUrl: variables.avatar ?? old.avatarUrl,
+          location: variables.location ?? old.location,
+          hashtags: variables.hashtags ?? old.hashtags,
+          name: variables.name ?? old.name,
+          displayName: variables.name ?? old.displayName,
+        };
+      });
 
       // 3. Also invalidate username-based queries if username exists
       if (authUser.username) {

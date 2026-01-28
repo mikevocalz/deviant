@@ -54,7 +54,8 @@ export function useNotificationPrefs() {
     queryKey: ["notification-prefs", user?.id],
     queryFn: async () => {
       try {
-        const response = await userSettings.getNotificationPrefs<NotificationPrefs>();
+        const response =
+          await userSettings.getNotificationPrefs<NotificationPrefs>();
         return { ...DEFAULT_NOTIFICATION_PREFS, ...response };
       } catch (error) {
         // Return defaults if endpoint doesn't exist yet
@@ -78,21 +79,31 @@ export function useUpdateNotificationPrefs() {
 
   return useMutation({
     mutationFn: async (prefs: Partial<NotificationPrefs>) => {
-      return await userSettings.updateNotificationPrefs<NotificationPrefs>(prefs);
+      return await userSettings.updateNotificationPrefs<NotificationPrefs>(
+        prefs,
+      );
     },
     onMutate: async (newPrefs) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["notification-prefs", user?.id] });
+      await queryClient.cancelQueries({
+        queryKey: ["notification-prefs", user?.id],
+      });
 
       // Snapshot previous value
-      const previousPrefs = queryClient.getQueryData<NotificationPrefs>(["notification-prefs", user?.id]);
+      const previousPrefs = queryClient.getQueryData<NotificationPrefs>([
+        "notification-prefs",
+        user?.id,
+      ]);
 
       // Optimistically update
       if (previousPrefs) {
-        queryClient.setQueryData<NotificationPrefs>(["notification-prefs", user?.id], {
-          ...previousPrefs,
-          ...newPrefs,
-        });
+        queryClient.setQueryData<NotificationPrefs>(
+          ["notification-prefs", user?.id],
+          {
+            ...previousPrefs,
+            ...newPrefs,
+          },
+        );
       }
 
       return { previousPrefs };
@@ -100,16 +111,27 @@ export function useUpdateNotificationPrefs() {
     onError: (error: any, variables, context) => {
       // Rollback on error
       if (context?.previousPrefs) {
-        queryClient.setQueryData(["notification-prefs", user?.id], context.previousPrefs);
+        queryClient.setQueryData(
+          ["notification-prefs", user?.id],
+          context.previousPrefs,
+        );
       }
-      showToast("error", "Error", error?.message || "Failed to update notification settings");
+      showToast(
+        "error",
+        "Error",
+        error?.message || "Failed to update notification settings",
+      );
     },
     onSuccess: () => {
       // Silent success - no toast needed for toggles
     },
     onSettled: () => {
-      // Refetch to ensure sync
-      queryClient.invalidateQueries({ queryKey: ["notification-prefs"] });
+      // Refetch to ensure sync - use scoped key with userId
+      if (user?.id) {
+        queryClient.invalidateQueries({
+          queryKey: ["notification-prefs", user.id],
+        });
+      }
     },
   });
 }
@@ -124,7 +146,8 @@ export function usePrivacySettings() {
     queryKey: ["privacy-settings", user?.id],
     queryFn: async () => {
       try {
-        const response = await userSettings.getPrivacySettings<PrivacySettings>();
+        const response =
+          await userSettings.getPrivacySettings<PrivacySettings>();
         return { ...DEFAULT_PRIVACY_SETTINGS, ...response };
       } catch (error) {
         // Return defaults if endpoint doesn't exist yet
@@ -148,21 +171,31 @@ export function useUpdatePrivacySettings() {
 
   return useMutation({
     mutationFn: async (settings: Partial<PrivacySettings>) => {
-      return await userSettings.updatePrivacySettings<PrivacySettings>(settings);
+      return await userSettings.updatePrivacySettings<PrivacySettings>(
+        settings,
+      );
     },
     onMutate: async (newSettings) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ["privacy-settings", user?.id] });
+      await queryClient.cancelQueries({
+        queryKey: ["privacy-settings", user?.id],
+      });
 
       // Snapshot previous value
-      const previousSettings = queryClient.getQueryData<PrivacySettings>(["privacy-settings", user?.id]);
+      const previousSettings = queryClient.getQueryData<PrivacySettings>([
+        "privacy-settings",
+        user?.id,
+      ]);
 
       // Optimistically update
       if (previousSettings) {
-        queryClient.setQueryData<PrivacySettings>(["privacy-settings", user?.id], {
-          ...previousSettings,
-          ...newSettings,
-        });
+        queryClient.setQueryData<PrivacySettings>(
+          ["privacy-settings", user?.id],
+          {
+            ...previousSettings,
+            ...newSettings,
+          },
+        );
       }
 
       return { previousSettings };
@@ -170,16 +203,27 @@ export function useUpdatePrivacySettings() {
     onError: (error: any, variables, context) => {
       // Rollback on error
       if (context?.previousSettings) {
-        queryClient.setQueryData(["privacy-settings", user?.id], context.previousSettings);
+        queryClient.setQueryData(
+          ["privacy-settings", user?.id],
+          context.previousSettings,
+        );
       }
-      showToast("error", "Error", error?.message || "Failed to update privacy settings");
+      showToast(
+        "error",
+        "Error",
+        error?.message || "Failed to update privacy settings",
+      );
     },
     onSuccess: () => {
       // Silent success - no toast needed for toggles
     },
     onSettled: () => {
-      // Refetch to ensure sync
-      queryClient.invalidateQueries({ queryKey: ["privacy-settings"] });
+      // Refetch to ensure sync - use scoped key with userId
+      if (user?.id) {
+        queryClient.invalidateQueries({
+          queryKey: ["privacy-settings", user.id],
+        });
+      }
     },
   });
 }

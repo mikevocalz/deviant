@@ -10,17 +10,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { bookmarksApi } from "@/lib/api/bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
-// Query keys
+// Query keys - scoped by viewerId for cache isolation
 export const bookmarkKeys = {
   all: ["bookmarks"] as const,
-  list: () => [...bookmarkKeys.all, "list"] as const,
+  list: (viewerId?: string) =>
+    [...bookmarkKeys.all, "list", viewerId || "__no_user__"] as const,
 };
 
 // Fetch bookmarked posts and sync to store
 export function useBookmarks() {
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
+
   return useQuery({
-    queryKey: bookmarkKeys.list(),
+    queryKey: bookmarkKeys.list(viewerId),
     queryFn: async () => {
       const bookmarks = await bookmarksApi.getBookmarkedPosts();
 
@@ -47,6 +52,8 @@ export function useBookmarks() {
 export function useToggleBookmark() {
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
 
   return useMutation({
     mutationFn: ({
@@ -66,16 +73,19 @@ export function useToggleBookmark() {
       // Update Zustand store with server state
       useBookmarkStore.getState().setBookmarked(postId, data.bookmarked);
 
-      // Update React Query cache with server state
-      queryClient.setQueryData<string[]>(bookmarkKeys.list(), (old = []) => {
-        if (data.bookmarked) {
-          // Add to list if not present
-          return old.includes(postId) ? old : [...old, postId];
-        } else {
-          // Remove from list
-          return old.filter((id) => id !== postId);
-        }
-      });
+      // Update React Query cache with server state - use scoped key
+      queryClient.setQueryData<string[]>(
+        bookmarkKeys.list(viewerId),
+        (old = []) => {
+          if (data.bookmarked) {
+            // Add to list if not present
+            return old.includes(postId) ? old : [...old, postId];
+          } else {
+            // Remove from list
+            return old.filter((id) => id !== postId);
+          }
+        },
+      );
 
       showToast(
         "success",
@@ -85,8 +95,12 @@ export function useToggleBookmark() {
           : "Post removed from bookmarks",
       );
 
-      // Invalidate to ensure sync with server
-      queryClient.invalidateQueries({ queryKey: bookmarkKeys.all });
+      // Invalidate to ensure sync with server - use scoped key
+      if (viewerId) {
+        queryClient.invalidateQueries({
+          queryKey: bookmarkKeys.list(viewerId),
+        });
+      }
     },
   });
 }
