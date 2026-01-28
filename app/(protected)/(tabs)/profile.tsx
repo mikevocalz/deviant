@@ -178,13 +178,13 @@ function EditProfileContent({ onClose }: { onClose: () => void }) {
         hashtags: editHashtags,
       });
 
-      // Invalidate user queries to refresh profile data everywhere
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
-      queryClient.invalidateQueries({ queryKey: ["users", "username"] });
+      // CRITICAL: Only invalidate the current user's profile cache
+      // DO NOT use broad keys like ["users"] as this could affect other users' cached data
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
       if (user?.username) {
         queryClient.invalidateQueries({
-          queryKey: ["users", "username", user.username],
+          queryKey: ["profile", "username", user.username],
         });
       }
 
@@ -568,8 +568,18 @@ function ProfileScreenContent() {
         setUser({ ...user, avatar: uploadResult.url });
       }
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+      // CRITICAL: Only invalidate the current user's profile cache
+      // DO NOT use broad keys like ["users"] as this affects ALL user caches
+      // and can cause cross-user avatar data leaks
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+      }
+      if (user?.username) {
+        queryClient.invalidateQueries({
+          queryKey: ["profile", "username", user.username],
+        });
+      }
 
       showToast("success", "Updated", "Profile photo updated!");
     } catch (error: any) {

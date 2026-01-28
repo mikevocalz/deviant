@@ -82,9 +82,21 @@ export function useFollow() {
         data.message,
       );
     },
-    onSettled: () => {
-      // Always refetch to ensure sync with server
-      queryClient.invalidateQueries({ queryKey: ["users"] });
+    onSettled: (_data, _error, variables) => {
+      // Invalidate only the specific user's profile cache
+      // CRITICAL: DO NOT use broad keys like ["users"] as this affects ALL user caches
+      if (variables.username) {
+        queryClient.invalidateQueries({
+          queryKey: ["profile", "username", variables.username],
+        });
+      }
+      if (variables.userId) {
+        queryClient.invalidateQueries({
+          queryKey: ["profile", variables.userId],
+        });
+      }
+      // Also invalidate follower/following counts for auth user
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
   });
 }

@@ -161,8 +161,8 @@ export default function FollowingScreen() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     await refetch();
-    // Also invalidate user queries to sync counts
-    queryClient.invalidateQueries({ queryKey: ["users"] });
+    // CRITICAL: Only invalidate specific profile queries, NOT broad ["users"]
+    queryClient.invalidateQueries({ queryKey: ["authUser"] });
     setIsRefreshing(false);
   }, [refetch, queryClient]);
 

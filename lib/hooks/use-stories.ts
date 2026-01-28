@@ -34,17 +34,20 @@ export function useCreateStory() {
       const currentUser = useAuthStore.getState().user;
 
       // Snapshot previous data
-      const previousData = queryClient.getQueryData<Story[]>(
-        storyKeys.list(),
-      );
+      const previousData = queryClient.getQueryData<Story[]>(storyKeys.list());
 
       // Optimistically add the new story
+      // CRITICAL: For optimistic update, we use currentUser.avatar since this IS the user's own story
+      // This is allowed because the story being created belongs to the current user
+      // The avatar will be replaced with the server's response which comes from entity data
       queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
         if (!old) return old;
         const optimisticStory: Story = {
           id: `temp-${Date.now()}`,
           userId: currentUser?.id || "",
           username: currentUser?.username || "You",
+          // Using currentUser avatar for optimistic update of OWN story only
+          // Server response will replace this with entity-sourced avatar
           avatar: currentUser?.avatar || "",
           isViewed: false,
           items: (newStoryData.items || []).map((item, index) => ({

@@ -8,6 +8,7 @@ import { StoryRing } from "./story-ring";
 import { Motion } from "@legendapp/motion";
 import { useStories } from "@/lib/hooks/use-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { assertAvatarSource } from "@/lib/invariants/assertAvatarOwnership";
 
 export function StoriesBar() {
   const router = useRouter();
@@ -96,9 +97,11 @@ export function StoriesBar() {
               <View className="relative">
                 {/* Tap story ring to view story */}
                 <Pressable onPress={() => handleStoryPress(myStory.id)}>
+                  {/* CRITICAL: Avatar MUST come from story.avatar (entity data), NOT user.avatar (authUser) */}
+                  {/* Using authUser.avatar here causes cross-user avatar leaks when avatar is updated */}
                   <StoryRing
-                    src={user?.avatar || myStory.avatar}
-                    alt={user?.username || "Your story"}
+                    src={myStory.avatar}
+                    alt={myStory.username || "Your story"}
                     hasStory={true}
                     isViewed={myStory.isViewed}
                     storyThumbnail={myStory.items?.[0]?.url}
@@ -139,7 +142,7 @@ export function StoriesBar() {
         <FlatList
           horizontal
           data={otherStories}
-          keyExtractor={(item) => `story-${item.id}`}
+          keyExtractor={(item) => `story-${item.id}-${item.userId}`}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{
             paddingVertical: 6,
@@ -147,39 +150,52 @@ export function StoriesBar() {
             paddingRight: 40,
           }}
           style={{ paddingLeft: 10, paddingRight: 40 }}
-          renderItem={({ item, index }) => (
-            <Motion.View
-              initial={{ opacity: 0, x: -100, scale: 0.9 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              transition={{
-                type: "spring",
-                damping: 20,
-                stiffness: 90,
-                delay: index * 0.15,
-              }}
-            >
-              <Pressable
-                onPress={() => handleStoryPress(item.id)}
-                className="items-center gap-1.5"
+          renderItem={({ item, index }) => {
+            // DEV INVARIANT: Ensure avatar comes from entity, not authUser
+            if (__DEV__) {
+              assertAvatarSource({
+                context: "story",
+                entityOwnerId: item.userId,
+                authUserId: user?.id,
+                avatarSource: "entity",
+              });
+            }
+
+            return (
+              <Motion.View
+                initial={{ opacity: 0, x: -100, scale: 0.9 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                transition={{
+                  type: "spring",
+                  damping: 20,
+                  stiffness: 90,
+                  delay: index * 0.15,
+                }}
               >
-                <StoryRing
-                  src={item.avatar}
-                  alt={item.username}
-                  hasStory={true}
-                  isViewed={item.isViewed}
-                  storyThumbnail={item.items?.[0]?.url}
-                />
-                <Pressable onPress={() => handleProfilePress(item.username)}>
-                  <Text
-                    className="max-w-[64px] text-xs text-muted-foreground"
-                    numberOfLines={1}
-                  >
-                    {item.username}
-                  </Text>
+                <Pressable
+                  onPress={() => handleStoryPress(item.id)}
+                  className="items-center gap-1.5"
+                >
+                  {/* CRITICAL: Avatar MUST come from item.avatar (story author), NOT authUser */}
+                  <StoryRing
+                    src={item.avatar}
+                    alt={item.username}
+                    hasStory={true}
+                    isViewed={item.isViewed}
+                    storyThumbnail={item.items?.[0]?.url}
+                  />
+                  <Pressable onPress={() => handleProfilePress(item.username)}>
+                    <Text
+                      className="max-w-[64px] text-xs text-muted-foreground"
+                      numberOfLines={1}
+                    >
+                      {item.username}
+                    </Text>
+                  </Pressable>
                 </Pressable>
-              </Pressable>
-            </Motion.View>
-          )}
+              </Motion.View>
+            );
+          }}
         />
       </View>
     </Section>

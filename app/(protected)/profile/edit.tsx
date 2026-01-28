@@ -45,9 +45,14 @@ export default function EditProfileScreen() {
 
   const handlePickAvatar = async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        showToast("error", "Permission Required", "Please grant media library access to change your photo.");
+        showToast(
+          "error",
+          "Permission Required",
+          "Please grant media library access to change your photo.",
+        );
         return;
       }
 
@@ -75,9 +80,9 @@ export default function EditProfileScreen() {
       showToast("error", "Error", "User not found");
       return;
     }
-    
+
     setIsSaving(true);
-    
+
     try {
       let avatarUrl = user.avatar;
 
@@ -87,17 +92,31 @@ export default function EditProfileScreen() {
         try {
           const uploadResult = await uploadSingle(newAvatarUri);
           console.log("[EditProfile] Upload result:", uploadResult);
-          
+
           if (uploadResult.success && uploadResult.url) {
             avatarUrl = uploadResult.url;
-            console.log("[EditProfile] Avatar uploaded successfully:", avatarUrl);
+            console.log(
+              "[EditProfile] Avatar uploaded successfully:",
+              avatarUrl,
+            );
           } else {
-            console.error("[EditProfile] Avatar upload failed:", uploadResult.error);
-            showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
+            console.error(
+              "[EditProfile] Avatar upload failed:",
+              uploadResult.error,
+            );
+            showToast(
+              "warning",
+              "Upload Issue",
+              "Avatar upload failed. Other changes will be saved.",
+            );
           }
         } catch (uploadError) {
           console.error("[EditProfile] Avatar upload exception:", uploadError);
-          showToast("warning", "Upload Issue", "Avatar upload failed. Other changes will be saved.");
+          showToast(
+            "warning",
+            "Upload Issue",
+            "Avatar upload failed. Other changes will be saved.",
+          );
         }
       }
 
@@ -121,9 +140,12 @@ export default function EditProfileScreen() {
         }
       });
 
-      console.log("[EditProfile] Updating profile with:", JSON.stringify(updateData));
+      console.log(
+        "[EditProfile] Updating profile with:",
+        JSON.stringify(updateData),
+      );
       console.log("[EditProfile] User ID:", user.id);
-      
+
       const updatedUser = await users.updateMe(updateData);
       console.log("[EditProfile] Profile updated successfully:", updatedUser);
 
@@ -135,20 +157,32 @@ export default function EditProfileScreen() {
         website: editWebsite.trim() || user.website,
         avatar: avatarUrl || user.avatar,
       });
-      
-      // Invalidate user queries to refresh profile data everywhere
-      queryClient.invalidateQueries({ queryKey: ["users"] });
-      queryClient.invalidateQueries({ queryKey: ["users", "me"] });
-      if (user?.username) {
-        queryClient.invalidateQueries({ queryKey: ["user", user.username] });
+
+      // CRITICAL: Only invalidate the current user's profile cache
+      // DO NOT use broad keys like ["users"] as this affects ALL user caches
+      // and can cause cross-user avatar data leaks
+      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      if (user?.id) {
+        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
       }
-      
+      if (user?.username) {
+        queryClient.invalidateQueries({
+          queryKey: ["profile", "username", user.username],
+        });
+      }
+
       showToast("success", "Saved", "Profile updated successfully");
       router.back();
     } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
-      console.error("[EditProfile] Error details:", JSON.stringify(error, null, 2));
-      const errorMessage = error?.message || error?.error || "Failed to save profile. Please try again.";
+      console.error(
+        "[EditProfile] Error details:",
+        JSON.stringify(error, null, 2),
+      );
+      const errorMessage =
+        error?.message ||
+        error?.error ||
+        "Failed to save profile. Please try again.";
       showToast("error", "Error", errorMessage);
     } finally {
       setIsSaving(false);
@@ -172,7 +206,12 @@ export default function EditProfileScreen() {
           <Pressable
             onPress={() => router.back()}
             hitSlop={8}
-            style={{ width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+            style={{
+              width: 44,
+              height: 44,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
           >
             <X size={24} color={colors.foreground} />
           </Pressable>
@@ -209,7 +248,9 @@ export default function EditProfileScreen() {
               {isUploading ? (
                 <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
                   <ActivityIndicator color="#fff" />
-                  <Text className="text-white text-xs mt-1">{Math.round(progress)}%</Text>
+                  <Text className="text-white text-xs mt-1">
+                    {Math.round(progress)}%
+                  </Text>
                 </View>
               ) : (
                 <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">
@@ -217,7 +258,11 @@ export default function EditProfileScreen() {
                 </View>
               )}
             </Pressable>
-            <Pressable onPress={handlePickAvatar} className="mt-3" disabled={isUploading}>
+            <Pressable
+              onPress={handlePickAvatar}
+              className="mt-3"
+              disabled={isUploading}
+            >
               <Text className="text-sm font-semibold text-primary">
                 Change Photo
               </Text>
