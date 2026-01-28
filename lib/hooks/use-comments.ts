@@ -152,13 +152,13 @@ export function useCreateComment() {
 }
 
 /**
- * STABILIZED Like Comment Mutation
+ * OPTIMISTIC Like Comment Mutation
  *
- * CRITICAL CHANGES:
- * 1. NO optimistic updates - wait for server confirmation
- * 2. Server response is the ONLY source of truth
- * 3. Update Zustand store with server data
- * 4. Invalidate queries to refresh from server
+ * CRITICAL: Optimistic updates for instant UI feedback
+ * 1. Update Zustand store IMMEDIATELY (optimistic)
+ * 2. Update React Query cache IMMEDIATELY (optimistic)
+ * 3. On error: rollback both stores
+ * 4. On success: confirm with server data
  */
 export function useLikeComment() {
   const queryClient = useQueryClient();
@@ -171,22 +171,99 @@ export function useLikeComment() {
       commentId: string;
       isLiked: boolean;
     }) => commentsApiClient.likeComment(commentId, isLiked),
-    // NO onMutate - no optimistic updates
-    onError: (err, variables) => {
+
+    // OPTIMISTIC: Update UI immediately before server responds
+    onMutate: async ({ commentId, isLiked }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: commentKeys.all });
+
+      // Snapshot previous state for rollback
+      const previousComments = queryClient.getQueriesData<Comment[]>({
+        queryKey: commentKeys.all,
+      });
+
+      // Get previous Zustand state
+      const { usePostStore } = await import("@/lib/stores/post-store");
+      const previousLikedState = usePostStore
+        .getState()
+        .isCommentLiked(commentId);
+
+      // OPTIMISTIC: Update Zustand store immediately
+      // isLiked means "currently liked" so we want to toggle it
+      const newLikedState = !isLiked;
+      usePostStore.getState().setCommentLiked(commentId, newLikedState);
+
+      // OPTIMISTIC: Update React Query cache immediately
+      queryClient.setQueriesData<Comment[]>(
+        { queryKey: commentKeys.all },
+        (old) => {
+          if (!old) return old;
+          return old.map((comment) => {
+            if (comment.id === commentId) {
+              // Toggle like count optimistically
+              const newLikes = isLiked
+                ? Math.max((comment.likes || 0) - 1, 0)
+                : (comment.likes || 0) + 1;
+              return { ...comment, likes: newLikes };
+            }
+            // Also update in replies
+            if (comment.replies && comment.replies.length > 0) {
+              return {
+                ...comment,
+                replies: comment.replies.map((reply) => {
+                  if (reply.id === commentId) {
+                    const newLikes = isLiked
+                      ? Math.max((reply.likes || 0) - 1, 0)
+                      : (reply.likes || 0) + 1;
+                    return { ...reply, likes: newLikes };
+                  }
+                  return reply;
+                }),
+              };
+            }
+            return comment;
+          });
+        },
+      );
+
+      // Return context for rollback
+      return { previousComments, previousLikedState, commentId };
+    },
+
+    // ROLLBACK on error
+    onError: (err, variables, context) => {
       console.error(
         `[useLikeComment] Error liking comment ${variables.commentId}:`,
         err,
       );
+
+      // Rollback React Query cache
+      if (context?.previousComments) {
+        context.previousComments.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+
+      // Rollback Zustand store
+      if (context?.previousLikedState !== undefined) {
+        import("@/lib/stores/post-store").then(({ usePostStore }) => {
+          usePostStore
+            .getState()
+            .setCommentLiked(context.commentId, context.previousLikedState);
+        });
+      }
     },
+
+    // CONFIRM with server data on success
     onSuccess: (data, variables) => {
       const { commentId } = variables;
 
-      // CRITICAL: Update Zustand store with SERVER state
+      // Sync Zustand store with server truth
       import("@/lib/stores/post-store").then(({ usePostStore }) => {
         usePostStore.getState().setCommentLiked(commentId, data.liked);
       });
 
-      // Update React Query cache with server data
+      // Sync React Query cache with server truth
       queryClient.setQueriesData<Comment[]>(
         { queryKey: commentKeys.all },
         (old) => {
@@ -210,11 +287,11 @@ export function useLikeComment() {
           });
         },
       );
+    },
 
-      // Invalidate to ensure sync with server
-      queryClient.invalidateQueries({ queryKey: commentKeys.all });
-      // CRITICAL: Only invalidate auth user, not broad ["users"] key
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+    // Don't invalidate - we've already updated the cache
+    onSettled: () => {
+      // No broad invalidation needed - cache is synced
     },
   });
 }
