@@ -30,19 +30,44 @@ export interface Comment {
   replies?: Comment[];
 }
 
+// Extract avatar URL from various possible formats
+function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=3EA4E5&color=fff`;
+
+  if (!avatar) return fallback;
+
+  // If it's already a valid URL string
+  if (
+    typeof avatar === "string" &&
+    (avatar.startsWith("http://") || avatar.startsWith("https://"))
+  ) {
+    return avatar;
+  }
+
+  // If it's a media object with url property (from Payload upload field with depth)
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      return avatarObj.url;
+    }
+  }
+
+  return fallback;
+}
+
 // Transform API response to match Comment type
 function transformComment(doc: Record<string, unknown>): Comment {
   const author = doc.author as Record<string, unknown> | undefined;
+  const authorName =
+    (author?.name as string) || (author?.username as string) || "User";
 
   return {
     id: doc.id as string,
     username: (author?.username as string) || "user",
-    avatar:
-      (author?.avatar as string) ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent((author?.name as string) || "User")}`,
+    avatar: extractAvatarUrl(author?.avatar, authorName),
     text: (doc.content as string) || (doc.text as string) || "", // CMS uses 'content', transform uses 'text'
     timeAgo: formatTimeAgo(doc.createdAt as string),
-    likes: (doc.likes as number) || 0,
+    likes: (doc.likesCount as number) || (doc.likes as number) || 0,
     replies: ((doc.replies as Array<Record<string, unknown>>) || []).map(
       transformComment,
     ),

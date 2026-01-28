@@ -3,6 +3,31 @@ import type { Post } from "@/lib/types";
 
 const PAGE_SIZE = 10;
 
+// Extract avatar URL from various possible formats (upload field returns object with url)
+function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=3EA4E5&color=fff`;
+
+  if (!avatar) return fallback;
+
+  // If it's already a valid URL string
+  if (
+    typeof avatar === "string" &&
+    (avatar.startsWith("http://") || avatar.startsWith("https://"))
+  ) {
+    return avatar;
+  }
+
+  // If it's a media object with url property (from Payload upload field with depth)
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      return avatarObj.url;
+    }
+  }
+
+  return fallback;
+}
+
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
 
@@ -63,17 +88,17 @@ function transformPost(doc: Record<string, unknown>): Post {
     });
   }
 
+  const author = doc.author as Record<string, unknown> | undefined;
+  const authorName =
+    (author?.name as string) || (author?.username as string) || "User";
+
   return {
     id: doc.id as string,
     author: {
-      username:
-        ((doc.author as Record<string, unknown>)?.username as string) ||
-        "unknown",
-      avatar: (doc.author as Record<string, unknown>)?.avatar as string,
-      verified:
-        ((doc.author as Record<string, unknown>)?.isVerified as boolean) ||
-        false,
-      name: (doc.author as Record<string, unknown>)?.name as string,
+      username: (author?.username as string) || "unknown",
+      avatar: extractAvatarUrl(author?.avatar, authorName),
+      verified: (author?.isVerified as boolean) || false,
+      name: authorName,
     },
     media,
     caption: (doc.content || doc.caption) as string,

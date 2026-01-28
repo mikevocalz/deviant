@@ -8,6 +8,31 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
 
+// Extract avatar URL from various possible formats (upload field returns object with url)
+function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
+  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=3EA4E5&color=fff`;
+
+  if (!avatar) return fallback;
+
+  // If it's already a valid URL string
+  if (
+    typeof avatar === "string" &&
+    (avatar.startsWith("http://") || avatar.startsWith("https://"))
+  ) {
+    return avatar;
+  }
+
+  // If it's a media object with url property (from Payload upload field with depth)
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      return avatarObj.url;
+    }
+  }
+
+  return fallback;
+}
+
 export interface Story {
   id: string;
   userId: string;
@@ -33,7 +58,7 @@ function transformStory(doc: Record<string, unknown>): Story {
   let authorId = "";
   let authorUsername = "user";
   let authorName = "User";
-  let authorAvatar = "";
+  let authorAvatar = ""; // Will be set properly below
 
   if (typeof authorRaw === "object" && authorRaw !== null) {
     // Author is a populated object
@@ -42,7 +67,8 @@ function transformStory(doc: Record<string, unknown>): Story {
     authorUsername = (author.username as string) || "user";
     authorName =
       (author.name as string) || (author.username as string) || "User";
-    authorAvatar = (author.avatar as string) || "";
+    // CRITICAL: Avatar might be a media object with url, not a string
+    authorAvatar = extractAvatarUrl(author.avatar, authorName);
   } else if (typeof authorRaw === "string" && authorRaw) {
     // Author is just an ID string (not populated)
     authorId = authorRaw;
@@ -57,6 +83,11 @@ function transformStory(doc: Record<string, unknown>): Story {
   if (!authorId && doc.externalAuthorId) {
     authorId = String(doc.externalAuthorId);
     console.log("[storiesApi] Using externalAuthorId:", authorId);
+  }
+
+  // Ensure authorAvatar has a proper fallback
+  if (!authorAvatar || authorAvatar === "") {
+    authorAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(authorName)}&background=3EA4E5&color=fff`;
   }
 
   const rawItems = (doc.items as Array<Record<string, unknown>>) || [];
