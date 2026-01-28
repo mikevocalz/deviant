@@ -1001,6 +1001,84 @@ export const eventReviews = {
 };
 
 /**
+ * Blocks API - User blocking functionality
+ */
+export const blocks = {
+  // Get all users blocked by the current user
+  getBlocked: <T = Record<string, unknown>>(params: FindParams = {}) => {
+    const searchParams = new URLSearchParams();
+    if (params.limit) searchParams.set("limit", String(params.limit));
+    if (params.page) searchParams.set("page", String(params.page));
+    searchParams.set("depth", "2");
+    searchParams.set("sort", "-createdAt");
+    const queryString = searchParams.toString();
+    return apiFetch<PaginatedResponse<T>>(
+      `/api/blocks/me${queryString ? `?${queryString}` : ""}`,
+    );
+  },
+
+  // Block a user
+  block: <T = Record<string, unknown>>(userId: string, reason?: string) =>
+    apiFetch<T>("/api/blocks", {
+      method: "POST",
+      body: JSON.stringify({ blocked: userId, reason }),
+    }),
+
+  // Unblock a user
+  unblock: (blockId: string) =>
+    apiFetch<{ success: boolean }>(`/api/blocks/${blockId}`, {
+      method: "DELETE",
+    }),
+
+  // Check if a user is blocked
+  isBlocked: (userId: string) =>
+    apiFetch<{ blocked: boolean; blockId?: string }>(
+      `/api/blocks/check/${userId}`,
+    ),
+};
+
+/**
+ * User Settings/Preferences API
+ */
+export const userSettings = {
+  // Get notification preferences
+  getNotificationPrefs: <T = Record<string, unknown>>() =>
+    apiFetch<T>("/api/users/me/notification-prefs"),
+
+  // Update notification preferences
+  updateNotificationPrefs: <T = Record<string, unknown>>(prefs: {
+    pauseAll?: boolean;
+    likes?: boolean;
+    comments?: boolean;
+    follows?: boolean;
+    mentions?: boolean;
+    messages?: boolean;
+    liveVideos?: boolean;
+    emailNotifications?: boolean;
+  }) =>
+    apiFetch<T>("/api/users/me/notification-prefs", {
+      method: "PATCH",
+      body: JSON.stringify(prefs),
+    }),
+
+  // Get privacy settings
+  getPrivacySettings: <T = Record<string, unknown>>() =>
+    apiFetch<T>("/api/users/me/privacy"),
+
+  // Update privacy settings
+  updatePrivacySettings: <T = Record<string, unknown>>(settings: {
+    privateAccount?: boolean;
+    activityStatus?: boolean;
+    readReceipts?: boolean;
+    showLikes?: boolean;
+  }) =>
+    apiFetch<T>("/api/users/me/privacy", {
+      method: "PATCH",
+      body: JSON.stringify(settings),
+    }),
+};
+
+/**
  * Event Comments API
  */
 export const eventComments = {
