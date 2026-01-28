@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useEffect } from "react";
+import { useCallback, useMemo, useEffect, useState } from "react";
+import { Motion } from "@legendapp/motion";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -23,8 +24,11 @@ import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostCaption } from "@/components/post-caption";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 
-const { width } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+// CRITICAL: Match FeedItem's 4:5 aspect ratio for portrait-friendly display
+const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * 1.25);
 
 function PostDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -50,6 +54,16 @@ function PostDetailScreenContent() {
   const isBookmarked = useMemo(() => {
     return bookmarkedPostIds.includes(postId);
   }, [postId, bookmarkedPostIds]);
+
+  // Carousel state - track current slide for multi-image posts
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const handleScroll = useCallback((event: any) => {
+    const slideIndex = Math.round(
+      event.nativeEvent.contentOffset.x / SCREEN_WIDTH,
+    );
+    setCurrentSlide(slideIndex);
+  }, []);
 
   // Validate video URL - must be valid HTTP/HTTPS URL
   // CRITICAL: Only create a valid URL if we actually have video content
@@ -226,6 +240,7 @@ function PostDetailScreenContent() {
   const isVideo = post?.media?.[0]?.type === "video";
   const hasMedia =
     post?.media && Array.isArray(post.media) && post.media.length > 0;
+  const hasMultipleMedia = hasMedia && post.media.length > 1 && !isVideo;
   const postIdString = post?.id ? String(post.id) : postId;
   const isLiked = postIdString ? isPostLiked(postIdString) : false;
   const isSaved = isBookmarked;
@@ -249,13 +264,11 @@ function PostDetailScreenContent() {
           <View className="flex-row items-center justify-between p-4">
             <View className="flex-row items-center gap-3">
               <Pressable onPress={handleProfilePress}>
-                <Image
-                  source={{
-                    uri:
-                      post.author?.avatar ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(post.author?.username || "User")}`,
-                  }}
-                  className="h-10 w-10 rounded-full"
+                <Avatar
+                  uri={post.author?.avatar}
+                  username={post.author?.username || "User"}
+                  size="md"
+                  variant="roundedSquare"
                 />
               </Pressable>
               <View>
@@ -275,12 +288,14 @@ function PostDetailScreenContent() {
             </View>
           </View>
 
-          {/* Media */}
+          {/* Media - CRITICAL: Uses same dimensions as FeedItem (4:5 ratio) */}
           {hasMedia ? (
-            <View style={{ width, height: width }} className="bg-muted">
+            <View
+              style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
+              className="bg-muted"
+            >
               {isVideo && videoUrl && player ? (
-                // CRITICAL: Wrap VideoView in error boundary style check
-                // Only render if player is valid
+                // Video - same dimensions as feed
                 <View style={{ width: "100%", height: "100%" }}>
                   <VideoView
                     player={player}
@@ -290,23 +305,110 @@ function PostDetailScreenContent() {
                   />
                 </View>
               ) : isVideo && !videoUrl ? (
-                // Video post but invalid URL - show placeholder, NOT crash
-                <View className="flex-1 items-center justify-center">
+                // Video post but invalid URL - show placeholder
+                <View
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <Text className="text-muted-foreground">
                     Video unavailable
                   </Text>
                 </View>
+              ) : hasMultipleMedia ? (
+                // Carousel - SAME pattern as FeedItem
+                <>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
+                  >
+                    {post.media.map((medium, index) => {
+                      const isValidUrl =
+                        medium.url &&
+                        (medium.url.startsWith("http://") ||
+                          medium.url.startsWith("https://"));
+                      return (
+                        <View key={index}>
+                          {isValidUrl ? (
+                            <Image
+                              source={{ uri: medium.url }}
+                              style={{
+                                width: SCREEN_WIDTH,
+                                height: PORTRAIT_HEIGHT,
+                              }}
+                              contentFit="cover"
+                              contentPosition="top"
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: SCREEN_WIDTH,
+                                height: PORTRAIT_HEIGHT,
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                              className="bg-muted"
+                            >
+                              <Text className="text-muted-foreground text-xs">
+                                No image
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })}
+                  </ScrollView>
+                  {/* Pagination dots - SAME as FeedItem */}
+                  <View
+                    className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
+                    pointerEvents="none"
+                  >
+                    {post.media.map((_, index) => (
+                      <Motion.View
+                        key={index}
+                        animate={{
+                          width: index === currentSlide ? 12 : 6,
+                          opacity: index === currentSlide ? 1 : 0.5,
+                        }}
+                        transition={{
+                          type: "spring",
+                          damping: 15,
+                          stiffness: 300,
+                        }}
+                        className={`h-1.5 rounded-full ${
+                          index === currentSlide
+                            ? "bg-primary"
+                            : "bg-foreground/50"
+                        }`}
+                      />
+                    ))}
+                  </View>
+                </>
               ) : post.media?.[0]?.url &&
                 (post.media[0].url.startsWith("http://") ||
                   post.media[0].url.startsWith("https://")) ? (
-                <SharedImage
+                // Single image
+                <Image
                   source={{ uri: post.media[0].url }}
-                  style={{ width: "100%", height: "100%" }}
+                  style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
                   contentFit="cover"
-                  sharedTag={`post-image-${postIdString}`}
+                  contentPosition="top"
                 />
               ) : (
-                <View className="flex-1 items-center justify-center">
+                <View
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
                   <Text className="text-muted-foreground">
                     No media available
                   </Text>
@@ -315,7 +417,7 @@ function PostDetailScreenContent() {
             </View>
           ) : (
             <View
-              style={{ width, height: width }}
+              style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
               className="bg-muted items-center justify-center"
             >
               <Text className="text-muted-foreground">No media</Text>
@@ -431,13 +533,11 @@ function PostDetailScreenContent() {
                         router.push(`/(protected)/profile/${comment.username}`);
                       }}
                     >
-                      <Image
-                        source={{
-                          uri:
-                            comment.avatar ||
-                            `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username || "User")}`,
-                        }}
-                        style={{ width: 32, height: 32, borderRadius: 16 }}
+                      <Avatar
+                        uri={comment.avatar}
+                        username={comment.username || "User"}
+                        size="sm"
+                        variant="roundedSquare"
                       />
                     </Pressable>
                     <View className="flex-1">
@@ -531,17 +631,11 @@ function PostDetailScreenContent() {
                                   );
                                 }}
                               >
-                                <Image
-                                  source={{
-                                    uri:
-                                      reply.avatar ||
-                                      `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username || "User")}`,
-                                  }}
-                                  style={{
-                                    width: 24,
-                                    height: 24,
-                                    borderRadius: 12,
-                                  }}
+                                <Avatar
+                                  uri={reply.avatar}
+                                  username={reply.username || "User"}
+                                  size="xs"
+                                  variant="roundedSquare"
                                 />
                               </Pressable>
                               <View className="flex-1">

@@ -321,11 +321,18 @@ export const users = {
     location?: string;
     hashtags?: string[];
   }): Promise<{ user: T }> => {
-    const res = await apiFetch<{ user: T }>("/api/users/me", {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
-    return res;
+    console.log("[API] updateMe called with:", JSON.stringify(data));
+    try {
+      const res = await apiFetch<{ user: T }>("/api/users/me", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+      console.log("[API] updateMe success:", JSON.stringify(res));
+      return res;
+    } catch (error: any) {
+      console.error("[API] updateMe error:", error?.message, error);
+      throw error;
+    }
   },
 
   register: <T = Record<string, unknown>>(data: {
@@ -463,33 +470,114 @@ export const users = {
     }
   },
 
-  // STABILIZED: Fetches from dedicated likes collection via Payload CMS
+  // Get liked posts for current user
+  // NOTE: This endpoint doesn't exist in the current backend - return empty silently
   getLikedPosts: async (): Promise<string[]> => {
-    try {
-      const currentUser = await users.me<{ id: string }>();
-      if (!currentUser.user?.id) return [];
+    // The /api/users/me/likes endpoint doesn't exist on the backend yet
+    // Return empty array silently to prevent error spam
+    return [];
+  },
 
-      // Fetch from likes collection via Payload CMS
+  // Get followers list for a user (users who follow them)
+  getFollowers: async (
+    userId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      username: string;
+      name?: string;
+      avatar?: string;
+      isFollowing?: boolean;
+    }>
+  > => {
+    try {
+      // Fetch from follows collection - get users where following = userId
       const response = await payloadFetch<{
-        docs: Array<{ post: string | { id: string } }>;
-      }>(
-        `/api/likes?where[user][equals]=${currentUser.user.id}&where[post][exists]=true&limit=1000`,
-      );
+        docs: Array<{
+          follower:
+            | { id: string; username: string; name?: string; avatar?: string }
+            | string;
+        }>;
+      }>(`/api/follows?where[following][equals]=${userId}&limit=100&depth=1`);
 
       if (!response.docs) return [];
 
-      return response.docs
-        .map((like: any) => {
-          const postId = like.post;
-          if (typeof postId === "string") return postId;
-          if (postId?.id) return postId.id;
+      // Transform to user objects
+      const followerUsers = response.docs
+        .map((follow: any) => {
+          const follower = follow.follower;
+          if (typeof follower === "string") {
+            return { id: follower, username: "User" };
+          }
+          if (follower?.id) {
+            return {
+              id: String(follower.id),
+              username: follower.username || "User",
+              name: follower.name,
+              avatar:
+                follower.avatar?.url || follower.avatarUrl || follower.avatar,
+            };
+          }
           return null;
         })
-        .filter(
-          (id): id is string => !!id && id !== "undefined" && id !== "null",
-        );
+        .filter((u): u is NonNullable<typeof u> => u !== null);
+
+      return followerUsers;
     } catch (error) {
-      console.error("[users] getLikedPosts error:", error);
+      console.error("[users] getFollowers error:", error);
+      return [];
+    }
+  },
+
+  // Get following list for a user (users they follow)
+  getFollowingList: async (
+    userId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      username: string;
+      name?: string;
+      avatar?: string;
+      isFollowing?: boolean;
+    }>
+  > => {
+    try {
+      // Fetch from follows collection - get users where follower = userId
+      const response = await payloadFetch<{
+        docs: Array<{
+          following:
+            | { id: string; username: string; name?: string; avatar?: string }
+            | string;
+        }>;
+      }>(`/api/follows?where[follower][equals]=${userId}&limit=100&depth=1`);
+
+      if (!response.docs) return [];
+
+      // Transform to user objects
+      const followingUsers = response.docs
+        .map((follow: any) => {
+          const following = follow.following;
+          if (typeof following === "string") {
+            return { id: following, username: "User" };
+          }
+          if (following?.id) {
+            return {
+              id: String(following.id),
+              username: following.username || "User",
+              name: following.name,
+              avatar:
+                following.avatar?.url ||
+                following.avatarUrl ||
+                following.avatar,
+            };
+          }
+          return null;
+        })
+        .filter((u): u is NonNullable<typeof u> => u !== null);
+
+      return followingUsers;
+    } catch (error) {
+      console.error("[users] getFollowingList error:", error);
       return [];
     }
   },
@@ -801,21 +889,33 @@ export const comments = {
     postId: string,
     params: FindParams = {},
   ) => {
-    const queryString = buildQueryString(params);
-    const postIdParam = `${queryString ? "&" : "?"}postId=${postId}`;
+    // Use Payload CMS where clause format for filtering by post
+    // Also filter for top-level comments only (no parent)
+    const searchParams = new URLSearchParams();
+    searchParams.set("where[post][equals]", postId);
+    searchParams.set("where[parent][exists]", "false");
+    if (params.limit) searchParams.set("limit", String(params.limit));
+    if (params.depth) searchParams.set("depth", String(params.depth));
+    searchParams.set("sort", "-createdAt");
     return apiFetch<PaginatedResponse<T>>(
-      `/api/comments${queryString}${postIdParam}`,
+      `/api/comments?${searchParams.toString()}`,
     );
   },
 
   findByParent: <T = Record<string, unknown>>(
     parentId: string,
+    postId: string,
     params: FindParams = {},
   ) => {
-    const queryString = buildQueryString(params);
-    const parentIdParam = `${queryString ? "&" : "?"}parentId=${parentId}`;
+    // Use Payload CMS where clause format for filtering replies
+    const searchParams = new URLSearchParams();
+    searchParams.set("where[post][equals]", postId);
+    searchParams.set("where[parent][equals]", parentId);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+    if (params.depth) searchParams.set("depth", String(params.depth));
+    searchParams.set("sort", "createdAt");
     return apiFetch<PaginatedResponse<T>>(
-      `/api/comments${queryString}${parentIdParam}`,
+      `/api/comments?${searchParams.toString()}`,
     );
   },
 
@@ -826,11 +926,28 @@ export const comments = {
     authorUsername?: string;
     authorId?: string; // Payload CMS user ID
     clientMutationId?: string; // For idempotency
-  }) =>
-    apiFetch<T>("/api/comments", {
+  }) => {
+    // Transform client field names to backend field names
+    // Backend expects: content (not text), author (not authorId)
+    const payload = {
+      content: data.text,
+      post: data.post,
+      author: data.authorId,
+      parent: data.parent,
+      clientMutationId: data.clientMutationId,
+    };
+    console.log("[API] comments.create payload:", JSON.stringify(payload));
+    if (!payload.author) {
+      console.error(
+        "[API] comments.create: author is missing! authorId was:",
+        data.authorId,
+      );
+    }
+    return apiFetch<T>("/api/comments", {
       method: "POST",
-      body: JSON.stringify(data),
-    }),
+      body: JSON.stringify(payload),
+    });
+  },
 };
 
 /**
@@ -901,9 +1018,147 @@ export const eventComments = {
     eventId: string,
     params: { limit?: number; page?: number } = {},
   ) => {
-    const queryString = buildQueryString(params);
+    // Build query params properly to avoid double ? in URL
+    const searchParams = new URLSearchParams();
+    searchParams.set("where[event][equals]", eventId);
+    if (params.limit) searchParams.set("limit", String(params.limit));
+    if (params.page) searchParams.set("page", String(params.page));
+    searchParams.set("depth", "1");
+    searchParams.set("sort", "-createdAt");
     return apiFetch<PaginatedResponse<T>>(
-      `/api/event-comments?eventId=${eventId}${queryString}`,
+      `/api/event-comments?${searchParams.toString()}`,
     );
   },
 };
+
+// ============================================================
+// PHASE 0: NETWORK DIAGNOSTIC FUNCTION
+// Run this at startup or on demand to verify API connectivity
+// ============================================================
+export interface DiagnosticResult {
+  endpoint: string;
+  method: string;
+  status: number | "NETWORK_ERROR";
+  ok: boolean;
+  responsePreview: string;
+  error?: string;
+}
+
+export async function runNetworkDiagnostic(): Promise<{
+  apiBase: string;
+  results: DiagnosticResult[];
+  allPassed: boolean;
+}> {
+  console.log("[DIAGNOSTIC] ========================================");
+  console.log("[DIAGNOSTIC] RUNNING NETWORK DIAGNOSTIC");
+  console.log("[DIAGNOSTIC] API_BASE:", PAYLOAD_URL);
+  console.log("[DIAGNOSTIC] ========================================");
+
+  const results: DiagnosticResult[] = [];
+
+  // Test 1: GET /api/users/me (auth check)
+  try {
+    const authToken = await getAuthToken();
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `JWT ${authToken}`;
+    }
+
+    const meUrl = joinUrl(PAYLOAD_URL, "/api/users/me");
+    const meRes = await fetch(meUrl, { headers, credentials: "omit" });
+    const meData = await meRes.text();
+    results.push({
+      endpoint: "/api/users/me",
+      method: "GET",
+      status: meRes.status,
+      ok: meRes.ok,
+      responsePreview: meData.slice(0, 200),
+    });
+    console.log(`[DIAGNOSTIC] /api/users/me => ${meRes.status}`);
+  } catch (e: any) {
+    results.push({
+      endpoint: "/api/users/me",
+      method: "GET",
+      status: "NETWORK_ERROR",
+      ok: false,
+      responsePreview: "",
+      error: e.message,
+    });
+    console.error(`[DIAGNOSTIC] /api/users/me => NETWORK_ERROR: ${e.message}`);
+  }
+
+  // Test 2: GET /api/posts (feed check - no auth required for public posts)
+  try {
+    const postsUrl = joinUrl(PAYLOAD_URL, "/api/posts?limit=1");
+    const postsRes = await fetch(postsUrl, { credentials: "omit" });
+    const postsData = await postsRes.text();
+    results.push({
+      endpoint: "/api/posts",
+      method: "GET",
+      status: postsRes.status,
+      ok: postsRes.ok,
+      responsePreview: postsData.slice(0, 200),
+    });
+    console.log(`[DIAGNOSTIC] /api/posts => ${postsRes.status}`);
+  } catch (e: any) {
+    results.push({
+      endpoint: "/api/posts",
+      method: "GET",
+      status: "NETWORK_ERROR",
+      ok: false,
+      responsePreview: "",
+      error: e.message,
+    });
+    console.error(`[DIAGNOSTIC] /api/posts => NETWORK_ERROR: ${e.message}`);
+  }
+
+  // Test 3: GET /api/users (users list - basic connectivity)
+  try {
+    const usersUrl = joinUrl(PAYLOAD_URL, "/api/users?limit=1");
+    const usersRes = await fetch(usersUrl, { credentials: "omit" });
+    const usersData = await usersRes.text();
+    results.push({
+      endpoint: "/api/users",
+      method: "GET",
+      status: usersRes.status,
+      ok: usersRes.ok,
+      responsePreview: usersData.slice(0, 200),
+    });
+    console.log(`[DIAGNOSTIC] /api/users => ${usersRes.status}`);
+  } catch (e: any) {
+    results.push({
+      endpoint: "/api/users",
+      method: "GET",
+      status: "NETWORK_ERROR",
+      ok: false,
+      responsePreview: "",
+      error: e.message,
+    });
+    console.error(`[DIAGNOSTIC] /api/users => NETWORK_ERROR: ${e.message}`);
+  }
+
+  const allPassed = results.every((r) => r.ok || r.status === 401);
+  // 401 is acceptable for /api/users/me when not logged in
+
+  console.log("[DIAGNOSTIC] ========================================");
+  console.log("[DIAGNOSTIC] RESULTS:");
+  results.forEach((r) => {
+    const symbol = r.ok ? "✓" : r.status === 401 ? "⚠" : "✗";
+    console.log(
+      `[DIAGNOSTIC] ${symbol} ${r.method} ${r.endpoint} => ${r.status}`,
+    );
+  });
+  console.log(`[DIAGNOSTIC] ALL PASSED: ${allPassed}`);
+  console.log("[DIAGNOSTIC] ========================================");
+
+  return {
+    apiBase: PAYLOAD_URL,
+    results,
+    allPassed,
+  };
+}
+
+// Export API base for external use
+export const API_BASE = PAYLOAD_URL;

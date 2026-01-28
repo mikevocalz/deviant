@@ -64,7 +64,15 @@ export interface UpdateStatus {
   error: string | null;
 }
 
-export function useUpdates() {
+export interface UseUpdatesOptions {
+  /** If false, OTA checks will be deferred until enabled becomes true */
+  enabled?: boolean;
+}
+
+export function useUpdates(options: UseUpdatesOptions = {}) {
+  // Default to enabled if not specified (backwards compatible)
+  const { enabled = true } = options;
+
   const [status, setStatus] = useState<UpdateStatus>({
     isChecking: false,
     isDownloading: false,
@@ -84,6 +92,8 @@ export function useUpdates() {
       UpdatesAvailable,
       "globalInitialized:",
       globalIsInitialized,
+      "enabled:",
+      enabled,
     );
     if (Updates) {
       console.log(
@@ -91,7 +101,7 @@ export function useUpdates() {
         safeGet(() => Updates?.isEnabled, false),
       );
     }
-  }, []);
+  }, [enabled]);
 
   // Safe reload - never throws
   // CRITICAL: Wait for Zustand persist rehydration to complete before reloading
@@ -429,6 +439,7 @@ export function useUpdates() {
   }, [downloadAndApplyUpdate]);
 
   // Initialize update checks - wrapped in error boundary pattern
+  // CRITICAL: Only initialize when enabled (after splash completes in production)
   useEffect(() => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev) {
@@ -437,6 +448,15 @@ export function useUpdates() {
       );
       return;
     }
+
+    // Wait for enabled flag (splash completion) before checking
+    if (!enabled) {
+      console.log(
+        "[Updates] OTA init deferred - waiting for splash to complete",
+      );
+      return;
+    }
+
     if (!Updates || !UpdatesAvailable || globalIsInitialized) {
       return;
     }
@@ -573,7 +593,7 @@ export function useUpdates() {
       );
       globalIsInitialized = false; // Allow retry on next mount
     }
-  }, [checkForUpdates, downloadAndApplyUpdate]);
+  }, [checkForUpdates, downloadAndApplyUpdate, enabled]);
 
   // Safe getter for currently running update info
   const currentlyRunning = safeGet(() => {

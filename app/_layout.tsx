@@ -67,8 +67,10 @@ export default function RootLayout() {
   // The splashAnimationFinished state is initialized to false in the store,
   // and is set to true when the animation completes via onAnimationFinish.
 
-  // Check for OTA updates on app launch and foreground
-  useUpdates();
+  // Check for OTA updates AFTER splash completes (not before)
+  // This prevents update checks from interfering with splash animation
+  // and ensures updates work correctly in production builds
+  useUpdates({ enabled: splashAnimationFinished });
 
   // Initialize push notifications
   useNotifications();

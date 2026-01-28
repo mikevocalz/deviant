@@ -242,14 +242,8 @@ export default function ActivityScreen() {
     [markActivityAsRead, getRouteForActivity, router],
   );
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 bg-background">
-        <ActivitySkeleton />
-      </View>
-    );
-  }
-
+  // CRITICAL: All useCallback hooks MUST be before any early returns
+  // to avoid "Rendered more hooks than during the previous render" error
   const renderItem = useCallback(
     ({ item: activity }: { item: Activity }) => (
       <ActivityItem
@@ -356,6 +350,15 @@ export default function ActivityScreen() {
   );
 
   const keyExtractor = useCallback((item: Activity) => item.id, []);
+
+  // Early return for loading state AFTER all hooks
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background">
+        <ActivitySkeleton />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-background">

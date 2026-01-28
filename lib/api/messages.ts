@@ -197,17 +197,35 @@ export const messagesApiClient = {
         payloadUserId,
       );
 
-      const doc = await messagesApi.create({
+      const messagePayload = {
         conversation: data.conversationId,
         sender: payloadUserId, // Use Payload CMS user ID, not Better Auth ID
         content: data.content || "",
         media: mediaItems,
-      });
+      };
+      console.log(
+        "[messagesApi] Message payload:",
+        JSON.stringify(messagePayload),
+      );
+
+      const doc = await messagesApi.create(messagePayload);
+      console.log("[messagesApi] Message created:", doc?.id || "no id");
+
+      if (!doc || !doc.id) {
+        throw new Error("Message creation failed - no document returned");
+      }
 
       return transformMessage(doc);
-    } catch (error) {
-      console.error("[messagesApi] sendMessage error:", error);
-      return null;
+    } catch (error: any) {
+      console.error("[messagesApi] sendMessage error:", error?.message, error);
+      // Re-throw with cleaner error message for UI
+      if (error?.status === 401 || error?.message?.includes("Unauthorized")) {
+        throw new Error("Please log in to send messages");
+      }
+      if (error?.status === 400) {
+        throw new Error("Invalid message data");
+      }
+      throw new Error(error?.message || "Failed to send message");
     }
   },
 

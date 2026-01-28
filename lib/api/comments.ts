@@ -82,10 +82,15 @@ export const commentsApiClient = {
       const commentsWithReplies = await Promise.all(
         topLevelComments.map(async (comment) => {
           try {
-            const repliesResponse = await commentsApi.findByParent(comment.id, {
-              limit: 50,
-              depth: 1,
-            });
+            // Pass postId along with parentId for reply fetching
+            const repliesResponse = await commentsApi.findByParent(
+              comment.id,
+              postId,
+              {
+                limit: 50,
+                depth: 1,
+              },
+            );
 
             // Transform and attach replies
             const replies = repliesResponse.docs.map(transformComment);
@@ -117,9 +122,13 @@ export const commentsApiClient = {
   },
 
   // Fetch replies to a comment
-  async getReplies(parentId: string, limit: number = 50): Promise<Comment[]> {
+  async getReplies(
+    parentId: string,
+    postId: string,
+    limit: number = 50,
+  ): Promise<Comment[]> {
     try {
-      const response = await commentsApi.findByParent(parentId, {
+      const response = await commentsApi.findByParent(parentId, postId, {
         limit,
         depth: 2,
       });
@@ -151,6 +160,7 @@ export const commentsApiClient = {
         cleanedPost: cleanedPostId,
         text: data.text?.slice(0, 50),
         authorUsername: data.authorUsername,
+        authorId: data.authorId, // CRITICAL: Must have Payload CMS user ID
       });
 
       // Validate post ID - should be a valid MongoDB ObjectID (24 hex chars) or numeric
@@ -169,6 +179,14 @@ export const commentsApiClient = {
 
       if (!data.authorUsername) {
         throw new Error("You must be logged in to comment");
+      }
+
+      // CRITICAL: Ensure authorId exists - backend requires author field
+      if (!data.authorId) {
+        console.error(
+          "[commentsApi] MISSING authorId! User may not have Payload CMS ID",
+        );
+        throw new Error("User ID not found. Please log out and log back in.");
       }
 
       // Send to API - the API route handles author lookup and transformation
@@ -260,60 +278,24 @@ export const commentsApiClient = {
     }
   },
 
-  // Like/unlike a comment
+  // Like/unlike a comment - uses central api-client for consistent auth
   async likeComment(
     commentId: string,
     isLiked: boolean,
   ): Promise<{ commentId: string; likes: number; liked: boolean }> {
     try {
-      const action = isLiked ? "unlike" : "like";
-      // CRITICAL: Use PAYLOAD URL for social actions - NOT auth server
-      const { getPayloadBaseUrl } = await import("@/lib/api-config");
-      const API_BASE_URL = getPayloadBaseUrl();
-      const url = `${API_BASE_URL}/api/comments/${commentId}/like`;
+      // Import likes from central api-client for consistent auth handling
+      const { likes: likesApi } = await import("@/lib/api-client");
 
-      const { getAuthToken, getAuthCookies } =
-        await import("@/lib/auth-client");
-      const authToken = await getAuthToken();
-      const authCookies = getAuthCookies();
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      if (authToken) {
-        headers["Authorization"] = `JWT ${authToken}`;
-      }
-
-      if (authCookies) {
-        headers["Cookie"] = authCookies;
-      }
-
-      const fetchResponse = await fetch(url, {
-        method: "POST",
-        headers,
-        credentials: "omit", // Always cross-origin to Payload CMS
-        body: JSON.stringify({ action }),
-      });
-
-      if (!fetchResponse.ok) {
-        let errorMessage = `API error: ${fetchResponse.status}`;
-        try {
-          const errorData = await fetchResponse.json();
-          errorMessage = errorData?.error || errorMessage;
-        } catch {
-          // Response is not JSON, use status text
-          errorMessage = `API error: ${fetchResponse.status} ${fetchResponse.statusText || ""}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await fetchResponse.json();
+      // Use central api-client's like/unlike for consistent auth
+      const response = isLiked
+        ? await likesApi.unlikeComment(commentId)
+        : await likesApi.likeComment(commentId);
 
       return {
         commentId,
-        likes: data.likes,
-        liked: data.liked,
+        likes: response.likesCount,
+        liked: response.liked,
       };
     } catch (error) {
       console.error("[commentsApi] likeComment error:", error);

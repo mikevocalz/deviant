@@ -30,6 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 8) / 3;
@@ -420,21 +421,14 @@ function UserProfileScreenComponent() {
     setIsFollowing(newFollowingState); // Optimistic update
 
     followMutate(
-      { userId: user.id, action },
+      { userId: user.id, action, username }, // Pass username for optimistic cache update
       {
         onError: () => {
           setIsFollowing(isFollowing); // Revert on error
         },
-        onSuccess: () => {
-          // Invalidate all user queries to refresh data
-          queryClient.invalidateQueries({ queryKey: ["users"] });
-          queryClient.invalidateQueries({
-            queryKey: ["users", "username", username],
-          });
-        },
       },
     );
-  }, [user.id, username, isFollowing, followMutate, queryClient]);
+  }, [user.id, username, isFollowing, followMutate]);
 
   // State for message button loading
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
@@ -521,15 +515,11 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <SharedImage
-                source={{
-                  uri:
-                    user.avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}`,
-                }}
-                style={{ ...styles.avatar, backgroundColor: "#2a2a2a" }}
-                contentFit="cover"
-                sharedTag={`profile-avatar-${user.username}`}
+              <Avatar
+                uri={user.avatar}
+                username={user.username}
+                size="xl"
+                variant="roundedSquare"
               />
               <View className="flex-row gap-8">
                 <View className="items-center">
@@ -538,7 +528,16 @@ function UserProfileScreenComponent() {
                   </Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
-                <View className="items-center">
+                <Pressable
+                  className="items-center"
+                  onPress={() => {
+                    if (userId) {
+                      router.push(
+                        `/(protected)/profile/followers?userId=${userId}&username=${user.username}`,
+                      );
+                    }
+                  }}
+                >
                   <Text className="text-lg font-bold text-foreground">
                     {user.followersCount >= 1000
                       ? `${(user.followersCount / 1000).toFixed(1)}K`
@@ -547,15 +546,24 @@ function UserProfileScreenComponent() {
                   <Text className="text-xs text-muted-foreground">
                     Followers
                   </Text>
-                </View>
-                <View className="items-center">
+                </Pressable>
+                <Pressable
+                  className="items-center"
+                  onPress={() => {
+                    if (userId) {
+                      router.push(
+                        `/(protected)/profile/following?userId=${userId}&username=${user.username}`,
+                      );
+                    }
+                  }}
+                >
                   <Text className="text-lg font-bold text-foreground">
                     {user.followingCount || 0}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Following
                   </Text>
-                </View>
+                </Pressable>
               </View>
             </View>
           </View>

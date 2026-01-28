@@ -1,17 +1,20 @@
 /**
- * STABILIZED Follow/Unfollow Hook
+ * Follow/Unfollow Hook with Optimistic Updates
  *
- * PHASE 0: Optimistic updates DISABLED during stabilization
- *
- * CRITICAL CHANGES:
- * 1. NO optimistic updates - wait for server confirmation
- * 2. Server response is the ONLY source of truth
- * 3. Invalidate queries to refresh from server
+ * Features:
+ * - Instant UI updates (optimistic)
+ * - Automatic rollback on error
+ * - Cache invalidation for sync
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { users } from "@/lib/api-client";
 import { useUIStore } from "@/lib/stores/ui-store";
+
+interface FollowContext {
+  previousUserData: any;
+  username: string | null;
+}
 
 export function useFollow() {
   const queryClient = useQueryClient();
@@ -21,28 +24,66 @@ export function useFollow() {
     mutationFn: async ({
       userId,
       action,
+      username,
     }: {
       userId: string;
       action: "follow" | "unfollow";
+      username?: string;
     }) => {
       return await users.follow(userId, action);
     },
-    // NO onMutate - STABILIZED: no optimistic updates during Phase 0
-    // Server response is the ONLY source of truth
-    onError: (error: any) => {
+    // Optimistic update - instant UI feedback
+    onMutate: async ({ userId, action, username }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["users"] });
+
+      const queryKey = username
+        ? ["users", "username", username]
+        : ["users", "id", userId];
+
+      // Snapshot previous value
+      const previousUserData = queryClient.getQueryData(queryKey);
+
+      // Optimistically update the cache
+      if (previousUserData) {
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old) return old;
+          const isFollowing = action === "follow";
+          const countDelta = isFollowing ? 1 : -1;
+          return {
+            ...old,
+            isFollowing,
+            followersCount: Math.max(0, (old.followersCount || 0) + countDelta),
+          };
+        });
+      }
+
+      return { previousUserData, username } as FollowContext;
+    },
+    onError: (error: any, variables, context) => {
+      // Rollback on error
+      if (context?.previousUserData && context?.username) {
+        queryClient.setQueryData(
+          ["users", "username", context.username],
+          context.previousUserData,
+        );
+      }
       const errorMessage =
         error?.message ||
         error?.error?.message ||
         "Failed to update follow status";
       showToast("error", "Error", errorMessage);
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // Show success toast
       showToast(
         "success",
         data.following ? "Following" : "Unfollowed",
         data.message,
       );
-      // Invalidate to sync with server - this will refetch user data
+    },
+    onSettled: () => {
+      // Always refetch to ensure sync with server
       queryClient.invalidateQueries({ queryKey: ["users"] });
     },
   });

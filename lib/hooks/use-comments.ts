@@ -219,14 +219,18 @@ export function useLikeComment() {
 }
 
 // Fetch replies to a comment
-export function useReplies(parentId: string, limit?: number) {
+export function useReplies(parentId: string, postId: string, limit?: number) {
   return useQuery({
-    queryKey: [...commentKeys.byParent(parentId), limit || "all"],
+    queryKey: [...commentKeys.byParent(parentId), postId, limit || "all"],
     queryFn: async () => {
-      const replies = await commentsApiClient.getReplies(parentId, limit);
+      const replies = await commentsApiClient.getReplies(
+        parentId,
+        postId,
+        limit,
+      );
       return replies;
     },
-    enabled: !!parentId,
+    enabled: !!parentId && !!postId,
   });
 }
 

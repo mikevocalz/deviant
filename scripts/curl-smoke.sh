@@ -5,8 +5,6 @@
 # Usage: ./scripts/curl-smoke.sh [TOKEN]
 # If TOKEN not provided, will test unauthenticated endpoints only
 
-set -e
-
 BASE="https://payload-cms-setup-gray.vercel.app"
 TOKEN="${1:-}"
 FAILED=0
@@ -46,8 +44,8 @@ test_endpoint() {
         RESPONSE=$(curl -s -w "\n%{http_code}" -X "$METHOD" "${HEADERS[@]}" "$URL")
     fi
     
-    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-    BODY_PREVIEW=$(echo "$RESPONSE" | head -n-1 | head -c 100)
+    HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+    BODY_PREVIEW=$(echo "$RESPONSE" | sed '$d' | head -c 100)
     
     if [ "$HTTP_CODE" = "$EXPECTED_STATUS" ]; then
         echo -e "${GREEN}✓ PASS${NC} $METHOD $ENDPOINT => $HTTP_CODE"

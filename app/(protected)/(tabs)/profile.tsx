@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
+import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import {
   Settings,
   Album,
@@ -26,19 +27,24 @@ import {
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useMemo, useEffect, useState, useLayoutEffect, useRef } from "react";
+import {
+  useMemo,
+  useEffect,
+  useState,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { Motion } from "@legendapp/motion";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-  usePopover,
-} from "@/components/ui/popover";
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
@@ -54,7 +60,7 @@ const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
 
 // Edit Profile Content Component
-function EditProfileContent() {
+function EditProfileContent({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
@@ -78,15 +84,18 @@ function EditProfileContent() {
     addEditHashtag,
     removeEditHashtag,
   } = useProfileStore();
-  const { setOpen: setPopoverOpen } = usePopover();
   const [hashtagInput, setHashtagInput] = useState("");
 
   const handlePickAvatar = async () => {
+    const showToast = useUIStore.getState().showToast;
+    console.log("[EditProfile] handlePickAvatar called");
     try {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
+      console.log("[EditProfile] Permission status:", status);
       if (status !== "granted") {
-        Alert.alert(
+        showToast(
+          "error",
           "Permission Required",
           "Please grant media library access to change your photo.",
         );
@@ -100,12 +109,20 @@ function EditProfileContent() {
         quality: 0.8,
       });
 
+      console.log(
+        "[EditProfile] Image picker result:",
+        result.canceled ? "canceled" : "selected",
+      );
       if (!result.canceled && result.assets[0]) {
         setNewAvatarUri(result.assets[0].uri);
+        console.log(
+          "[EditProfile] Avatar URI set:",
+          result.assets[0].uri.substring(0, 50),
+        );
       }
     } catch (error) {
       console.error("[EditProfile] Pick avatar error:", error);
-      Alert.alert("Error", "Failed to pick image. Please try again.");
+      showToast("error", "Error", "Failed to pick image. Please try again.");
     }
   };
 
@@ -184,7 +201,7 @@ function EditProfileContent() {
       }
 
       setNewAvatarUri(null);
-      setPopoverOpen(false);
+      onClose();
       showToast("success", "Saved", "Profile updated successfully");
     } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
@@ -233,7 +250,7 @@ function EditProfileContent() {
       {/* Header - Inside Popover */}
       <View className="flex-row items-center justify-between px-6 pt-4 pb-4 border-b border-border">
         <Pressable
-          onPress={() => setPopoverOpen(false)}
+          onPress={onClose}
           hitSlop={12}
           style={{
             width: 40,
@@ -487,8 +504,118 @@ function ProfileScreenContent() {
   const { colors } = useColorScheme();
   const { activeTab, setActiveTab } = useProfileStore();
   const bookmarkStore = useBookmarkStore();
-  const { data: bookmarkedPostIds = [], isError: bookmarksError } =
-    useBookmarks();
+  const queryClient = useQueryClient();
+  const showToast = useUIStore((s) => s.showToast);
+
+  // Bottom sheet ref for edit profile
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["60%"], []);
+
+  // Avatar update state
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
+  const { uploadSingle } = useMediaUpload({
+    folder: "avatars",
+    userId: user?.id,
+  });
+
+  // Direct avatar update - opens photo picker and updates immediately
+  const handleAvatarPress = useCallback(async () => {
+    if (isUpdatingAvatar) return;
+
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "Permission Required",
+          "Please grant media library access to change your photo.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      setIsUpdatingAvatar(true);
+      const selectedUri = result.assets[0].uri;
+
+      // Upload to Bunny CDN
+      const uploadResult = await uploadSingle(selectedUri);
+      if (!uploadResult.success || !uploadResult.url) {
+        showToast(
+          "error",
+          "Upload Failed",
+          "Failed to upload image. Please try again.",
+        );
+        setIsUpdatingAvatar(false);
+        return;
+      }
+
+      // Update profile with new avatar
+      await users.updateMe({ avatar: uploadResult.url });
+
+      // Update local state
+      if (user) {
+        setUser({ ...user, avatar: uploadResult.url });
+      }
+
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+
+      showToast("success", "Updated", "Profile photo updated!");
+    } catch (error: any) {
+      console.error("[Profile] Avatar update error:", error);
+      showToast("error", "Error", error?.message || "Failed to update photo");
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  }, [isUpdatingAvatar, uploadSingle, user, setUser, queryClient, showToast]);
+
+  // Bottom sheet callbacks
+  const handleOpenEditSheet = useCallback(() => {
+    bottomSheetRef.current?.expand();
+  }, []);
+
+  const handleCloseEditSheet = useCallback(() => {
+    bottomSheetRef.current?.close();
+  }, []);
+
+  const renderBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.6}
+      />
+    ),
+    [],
+  );
+
+  // PHASE 1 INSTRUMENTATION: Log component render
+  console.log("[Profile] ProfileScreenContent rendering");
+
+  const {
+    data: bookmarkedPostIds = [],
+    isError: bookmarksError,
+    error: bookmarksQueryError,
+  } = useBookmarks();
+
+  // Log bookmarks query state
+  console.log("[Profile] Bookmarks:", {
+    count: bookmarkedPostIds?.length || 0,
+    isError: bookmarksError,
+    error: bookmarksQueryError?.message,
+  });
   // Sync API bookmarks to local store - use API bookmarks as source of truth
   // Defensive: ensure bookmarkedPostIds is always an array
   const safeBookmarkedPostIds = Array.isArray(bookmarkedPostIds)
@@ -499,11 +626,19 @@ function ProfileScreenContent() {
       ? safeBookmarkedPostIds
       : bookmarkStore.getBookmarkedPostIds();
   const { loadingScreens, setScreenLoading } = useUIStore();
-  const user = useAuthStore((state) => state.user);
+  // user is already declared above with setUser
   const isLoading = loadingScreens.profile;
+
+  // PHASE 1 INSTRUMENTATION: Log user state
+  console.log("[Profile] User:", {
+    id: user?.id,
+    username: user?.username,
+    hasUser: !!user,
+  });
 
   // Logged-in user ID - safe even if user is null
   const loggedInUserId = String(user?.id || "");
+  console.log("[Profile] loggedInUserId:", loggedInUserId);
 
   // Track previous user ID to detect user switches
   const prevUserIdRef = useRef<string | null>(null);
@@ -512,7 +647,7 @@ function ProfileScreenContent() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerLeft: "Profile",
+      headerLeft: () => null, // No left header button
       headerTitleAlign: "center" as const,
       headerStyle: {
         backgroundColor: colors.background,
@@ -559,8 +694,17 @@ function ProfileScreenContent() {
     data: userPostsData,
     isLoading: isLoadingPosts,
     isError: postsError,
+    error: postsQueryError,
     refetch,
   } = useProfilePosts(loggedInUserId);
+
+  // PHASE 1 INSTRUMENTATION: Log posts query state
+  console.log("[Profile] Posts:", {
+    count: userPostsData?.length || 0,
+    isLoading: isLoadingPosts,
+    isError: postsError,
+    error: postsQueryError?.message,
+  });
 
   // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
   useEffect(() => {
@@ -720,38 +864,33 @@ function ProfileScreenContent() {
           {/* Centered Profile Header */}
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Popover>
-                <PopoverTrigger>
-                  <View className="relative">
-                    <Image
-                      source={{
-                        uri:
-                          user?.avatar ||
-                          "https://ui-avatars.com/api/?name=" +
-                            encodeURIComponent(user?.name || "User"),
-                      }}
-                      className="w-[88px] h-[88px] rounded-full"
-                      contentFit="cover"
-                    />
-                    <View
-                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                      style={{
-                        borderColor: colors.background,
-                        transform: [{ translateX: -14 }],
-                      }}
-                    >
+              {/* Avatar - tap to change photo directly */}
+              <Pressable
+                onPress={handleAvatarPress}
+                disabled={isUpdatingAvatar}
+              >
+                <View className="relative">
+                  <Avatar
+                    uri={user?.avatar}
+                    username={user?.name || user?.username || "User"}
+                    size={88}
+                    variant="roundedSquare"
+                  />
+                  <View
+                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                    style={{
+                      borderColor: colors.background,
+                      transform: [{ translateX: -14 }],
+                    }}
+                  >
+                    {isUpdatingAvatar ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
                       <Camera size={14} color="#fff" />
-                    </View>
+                    )}
                   </View>
-                </PopoverTrigger>
-                <PopoverContent
-                  side="bottom"
-                  align="center"
-                  className="w-[90%] max-w-md max-h-[85%]"
-                >
-                  <EditProfileContent />
-                </PopoverContent>
-              </Popover>
+                </View>
+              </Pressable>
               <View className="flex-row gap-8">
                 <View className="items-center">
                   <Text className="text-xl font-bold text-foreground">
@@ -759,22 +898,40 @@ function ProfileScreenContent() {
                   </Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
-                <View className="items-center">
+                <Pressable
+                  className="items-center"
+                  onPress={() => {
+                    if (user?.id) {
+                      router.push(
+                        `/(protected)/profile/followers?userId=${user.id}&username=${user.username}`,
+                      );
+                    }
+                  }}
+                >
                   <Text className="text-xl font-bold text-foreground">
                     {formatCount(user?.followersCount || 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Followers
                   </Text>
-                </View>
-                <View className="items-center">
+                </Pressable>
+                <Pressable
+                  className="items-center"
+                  onPress={() => {
+                    if (user?.id) {
+                      router.push(
+                        `/(protected)/profile/following?userId=${user.id}&username=${user.username}`,
+                      );
+                    }
+                  }}
+                >
                   <Text className="text-xl font-bold text-foreground">
                     {formatCount(user?.followingCount || 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Following
                   </Text>
-                </View>
+                </Pressable>
               </View>
             </View>
           </View>
@@ -812,22 +969,14 @@ function ProfileScreenContent() {
           </View>
 
           <View className="mt-5 flex-row gap-2 px-4">
-            <Popover>
-              <PopoverTrigger>
-                <View className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4">
-                  <Text className="font-semibold text-secondary-foreground">
-                    Edit profile
-                  </Text>
-                </View>
-              </PopoverTrigger>
-              <PopoverContent
-                side="bottom"
-                align="center"
-                className="w-[90%] max-w-md max-h-[85%]"
-              >
-                <EditProfileContent />
-              </PopoverContent>
-            </Popover>
+            <Pressable
+              onPress={handleOpenEditSheet}
+              className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
+            >
+              <Text className="font-semibold text-secondary-foreground">
+                Edit profile
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -980,6 +1129,21 @@ function ProfileScreenContent() {
           )}
         </View>
       </ScrollView>
+
+      {/* Edit Profile Bottom Sheet */}
+      <BottomSheet
+        ref={bottomSheetRef}
+        index={-1}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        backdropComponent={renderBackdrop}
+        backgroundStyle={{ backgroundColor: "#1a1a1a" }}
+        handleIndicatorStyle={{ backgroundColor: "#666" }}
+      >
+        <BottomSheetView style={{ flex: 1, paddingHorizontal: 16 }}>
+          <EditProfileContent onClose={handleCloseEditSheet} />
+        </BottomSheetView>
+      </BottomSheet>
     </View>
   );
 }

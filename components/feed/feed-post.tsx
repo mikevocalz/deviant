@@ -2,6 +2,7 @@ import { View, Text, Pressable, Dimensions, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { Article } from "@expo/html-elements";
+import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import {
   Heart,
   MessageCircle,
@@ -337,15 +338,11 @@ function FeedPostComponent({
                 whileTap={{ scale: 0.9 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
               >
-                <Image
-                  source={{
-                    uri:
-                      author?.avatar ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(author?.username || "User")}`,
-                  }}
-                  className="h-8 w-8 rounded-full"
-                  transition={200}
-                  cachePolicy="memory-disk"
+                <Avatar
+                  uri={author?.avatar}
+                  username={author?.username || "User"}
+                  size="sm"
+                  variant="roundedSquare"
                 />
               </Motion.View>
             </Pressable>

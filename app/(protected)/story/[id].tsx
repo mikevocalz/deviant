@@ -574,16 +574,11 @@ export default function StoryViewerScreen() {
         content: `${storyReplyPrefix}${replyText.trim()}`,
       });
 
-      if (message) {
-        console.log("[StoryViewer] Reply sent successfully");
-        showToast("success", "Sent", "Reply sent to their messages");
-        setReplyText("");
-      } else {
-        console.error("[StoryViewer] Message send returned null");
-        showToast("error", "Error", "Failed to send reply");
-      }
+      console.log("[StoryViewer] Reply sent successfully");
+      showToast("success", "Sent", "Reply sent to their messages");
+      setReplyText("");
     } catch (error: any) {
-      console.error("[StoryViewer] Reply error:", error);
+      console.error("[StoryViewer] Reply error:", error?.message || error);
       const errorMsg =
         error?.message || error?.error?.message || "Failed to send reply";
       showToast("error", "Error", errorMsg);

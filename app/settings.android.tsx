@@ -1,4 +1,3 @@
-
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
@@ -25,6 +24,7 @@ import {
   CheckCircle,
   ShieldCheck,
   Megaphone,
+  Bug,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -59,7 +59,13 @@ export default function SettingsScreenAndroid() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
-          style={{ marginRight: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            marginRight: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <X size={24} color={colors.foreground} />
         </Pressable>
@@ -215,6 +221,17 @@ export default function SettingsScreenAndroid() {
               onPress={() => router.push("/settings/faq")}
             />
           </SettingsSection>
+
+          {/* Developer */}
+          {__DEV__ && (
+            <SettingsSection title="Developer">
+              <SettingsListItem
+                icon={<Bug size={22} color="#f97316" />}
+                label="Network Debug"
+                onPress={() => router.push("/(protected)/debug" as any)}
+              />
+            </SettingsSection>
+          )}
 
           {/* Logout Button - Material Design Style */}
           <View className="px-4 py-6">

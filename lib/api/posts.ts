@@ -215,61 +215,24 @@ export const postsApi = {
     }
   },
 
-  // Like/unlike a post
+  // Like/unlike a post - uses central api-client for consistent auth
   async likePost(
     postId: string,
     isLiked: boolean,
   ): Promise<{ postId: string; likes: number; liked: boolean }> {
     try {
-      const action = isLiked ? "unlike" : "like";
-      // CRITICAL: Use PAYLOAD URL for social actions - NOT auth server
-      const { getPayloadBaseUrl } = await import("@/lib/api-config");
-      const API_BASE_URL = getPayloadBaseUrl();
-      const url = `${API_BASE_URL}/api/posts/${postId}/like`;
+      // Import likes from central api-client for consistent auth handling
+      const { likes: likesApi } = await import("@/lib/api-client");
 
-      // Get auth token and cookies
-      const { getAuthToken, getAuthCookies } =
-        await import("@/lib/auth-client");
-      const authToken = await getAuthToken();
-      const authCookies = getAuthCookies();
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      if (authToken) {
-        headers["Authorization"] = `JWT ${authToken}`;
-      }
-
-      if (authCookies) {
-        headers["Cookie"] = authCookies;
-      }
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers,
-        credentials: "omit", // Always cross-origin to Payload CMS
-        body: JSON.stringify({ action }),
-      });
-
-      if (!response.ok) {
-        let errorMessage = `API error: ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMessage = errorData?.error || errorMessage;
-        } catch {
-          // Response is not JSON, use status text
-          errorMessage = `API error: ${response.status} ${response.statusText || ""}`;
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
+      // Use central api-client's like/unlike for consistent auth
+      const response = isLiked
+        ? await likesApi.unlikePost(postId)
+        : await likesApi.likePost(postId);
 
       return {
         postId,
-        likes: data.likes,
-        liked: data.liked,
+        likes: response.likesCount,
+        liked: response.liked,
       };
     } catch (error) {
       console.error("[postsApi] likePost error:", error);
