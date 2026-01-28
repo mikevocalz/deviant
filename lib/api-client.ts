@@ -317,13 +317,13 @@ export const users = {
     bio?: string;
     website?: string;
     avatar?: string;
-    username?: string;
     location?: string;
     hashtags?: string[];
   }): Promise<{ user: T }> => {
     console.log("[API] updateMe called with:", JSON.stringify(data));
     try {
-      const res = await apiFetch<{ user: T }>("/api/users/me", {
+      // Use custom endpoint to avoid conflict with Payload's built-in /api/users/me
+      const res = await apiFetch<{ user: T }>("/api/profile/me", {
         method: "PATCH",
         body: JSON.stringify(data),
       });
