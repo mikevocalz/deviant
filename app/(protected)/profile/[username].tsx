@@ -273,8 +273,22 @@ function UserProfileScreenComponent() {
 
   const isOwnProfile = currentUser?.username === safeUsername;
 
-  // Fetch user data from API - DEFENSIVE: Only fetch if we have a valid username
-  const { data: userData, isLoading, isError, error } = useUser(safeUsername);
+  // CRITICAL: Redirect to tabs profile if viewing own profile
+  // This ensures consistent UI/UX when navigating from comments to own profile
+  useEffect(() => {
+    if (isOwnProfile && safeUsername) {
+      console.log("[Profile] Redirecting to tabs profile for own user");
+      router.replace("/(protected)/(tabs)/profile");
+    }
+  }, [isOwnProfile, safeUsername, router]);
+
+  // Fetch user data from API - DEFENSIVE: Only fetch if we have a valid username and NOT own profile
+  const {
+    data: userData,
+    isLoading,
+    isError,
+    error,
+  } = useUser(isOwnProfile ? null : safeUsername);
 
   // DEFENSIVE: Safely extract user ID with multiple fallbacks
   const userId = useMemo(() => {
