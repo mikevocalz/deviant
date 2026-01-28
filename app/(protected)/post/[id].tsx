@@ -12,9 +12,10 @@ import {
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
-import { usePost, useLikePost } from "@/lib/hooks/use-posts";
+import { usePost } from "@/lib/hooks/use-posts";
 import { useComments, useLikeComment } from "@/lib/hooks/use-comments";
 import { usePostStore } from "@/lib/stores/post-store";
+import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
@@ -41,14 +42,21 @@ function PostDetailScreenContent() {
   const { data: post, isLoading, error: postError } = usePost(postId);
   const { data: comments = [], isLoading: commentsLoading } =
     useComments(postId);
-  // STABILIZED: Only use boolean checks from store
-  // Counts come from server via post data, NOT from store
-  const { isPostLiked, isCommentLiked } = usePostStore();
+  // STABILIZED: Only use boolean checks from store for comments
+  const { isCommentLiked } = usePostStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
-  const likePostMutation = useLikePost();
   const likeCommentMutation = useLikeComment();
+
+  // CENTRALIZED: Like state from single source of truth
+  const initialLikes = post?.likes || 0;
+  const {
+    hasLiked,
+    likesCount,
+    toggle: toggleLike,
+    isPending: isLikePending,
+  } = usePostLikeState(postId, initialLikes, false);
 
   // STABILIZED: Bookmark state comes from server ONLY via React Query
   const isBookmarked = useMemo(() => {
@@ -242,11 +250,11 @@ function PostDetailScreenContent() {
     post?.media && Array.isArray(post.media) && post.media.length > 0;
   const hasMultipleMedia = hasMedia && post.media.length > 1 && !isVideo;
   const postIdString = post?.id ? String(post.id) : postId;
-  const isLiked = postIdString ? isPostLiked(postIdString) : false;
+  const isLiked = hasLiked;
   const isSaved = isBookmarked;
 
-  // STABILIZED: Counts come from server via post data ONLY
-  const likeCount = post?.likes || 0;
+  // CENTRALIZED: Like count from single source of truth
+  const likeCount = likesCount;
   const commentCount = comments.length;
 
   return (
@@ -430,22 +438,17 @@ function PostDetailScreenContent() {
               <Pressable
                 onPress={() => {
                   if (!postIdString || !post) return;
-                  // CRITICAL: Block if mutation already pending for this post
-                  if (likePostMutation.isPostPending(postIdString)) {
+                  // CRITICAL: Block if mutation already pending
+                  if (isLikePending) {
                     console.log(
                       `[PostDetail] Like blocked - mutation pending for ${postIdString}`,
                     );
                     return;
                   }
-                  const wasLiked = isLiked;
-                  // NOTE: Don't call toggleLike here - useLikePost mutation handles optimistic updates
-                  // and will rollback on error. Calling toggleLike here would cause double-toggle.
-                  likePostMutation.mutate({
-                    postId: postIdString,
-                    isLiked: wasLiked,
-                  });
+                  // CENTRALIZED: Use toggle from hook - handles optimistic updates internally
+                  toggleLike();
                 }}
-                disabled={likePostMutation.isPostPending(postIdString)}
+                disabled={isLikePending}
               >
                 <Heart
                   size={28}

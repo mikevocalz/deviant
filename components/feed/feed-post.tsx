@@ -14,8 +14,8 @@ import {
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { usePostStore, useFeedSlideStore } from "@/lib/stores/post-store";
-import { useLikePost } from "@/lib/hooks/use-posts";
+import { useFeedSlideStore } from "@/lib/stores/post-store";
+import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { useComments } from "@/lib/hooks/use-comments";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
@@ -69,13 +69,16 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  // STABILIZED: Only use isPostLiked for boolean check
-  // Counts come from server via props, NOT from store
-  const { isPostLiked, getCommentCount, postCommentCounts } = usePostStore();
+  // CENTRALIZED: Like state from single source of truth
+  const {
+    hasLiked,
+    likesCount,
+    toggle: toggleLike,
+    isPending: isLikePending,
+  } = usePostLikeState(id, likes, false);
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
-  const likePostMutation = useLikePost();
 
   // STABILIZED: Bookmark state comes from server ONLY via React Query
   // No local store sync needed - bookmarkedPostIds is the single source of truth
@@ -243,17 +246,14 @@ function FeedPostComponent({
     } catch {}
   }, [player, id, setVideoState]);
 
-  const isLiked = isPostLiked(id);
+  const isLiked = hasLiked;
   const isSaved = isBookmarked; // isBookmarked is already a boolean from line 99
 
-  // STABILIZED: Like count comes from server via props ONLY
-  // No client-side count manipulation
-  const likeCount = likes;
+  // CENTRALIZED: Like count from single source of truth
+  const likeCount = likesCount;
 
-  // Comment counts can be tracked for UI updates
-  const storedCommentCount = postCommentCounts[id];
-  const commentCount =
-    storedCommentCount !== undefined ? storedCommentCount : comments;
+  // Comment count from props
+  const commentCount = comments;
 
   // Refetch comments when comment count changes to ensure we have the latest
   useEffect(() => {
@@ -264,20 +264,17 @@ function FeedPostComponent({
   }, [commentCount, recentComments.length, refetchComments, id]);
 
   const handleLike = useCallback(() => {
-    // CRITICAL: Block if mutation already pending for this post
-    if (likePostMutation.isPostPending(id)) {
+    // CRITICAL: Block if mutation already pending
+    if (isLikePending) {
       console.log(`[FeedPost] Like blocked - mutation pending for ${id}`);
       return;
     }
 
-    const wasLiked = isPostLiked(id);
     setLikeAnimating(id, true);
-
-    // STABILIZED: No optimistic updates - wait for server
-    // Animation clears after delay regardless of result
-    likePostMutation.mutate({ postId: id, isLiked: wasLiked });
+    // CENTRALIZED: Use toggle from hook - handles optimistic updates internally
+    toggleLike();
     setTimeout(() => setLikeAnimating(id, false), 300);
-  }, [id, isPostLiked, setLikeAnimating, likePostMutation]);
+  }, [id, isLikePending, setLikeAnimating, toggleLike]);
 
   const handleSave = useCallback(() => {
     // STABILIZED: No dual state - only call mutation
@@ -529,10 +526,7 @@ function FeedPostComponent({
 
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-4">
-            <Pressable
-              onPress={handleLike}
-              disabled={likePostMutation.isPostPending(id)}
-            >
+            <Pressable onPress={handleLike} disabled={isLikePending}>
               <Motion.View
                 animate={{
                   scale: likeAnimating ? 1.3 : 1,

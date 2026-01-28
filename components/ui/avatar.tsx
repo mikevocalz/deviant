@@ -1,6 +1,7 @@
 import { View } from "react-native";
 import { Image } from "expo-image";
 import { memo } from "react";
+import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 
 // Preset sizes for consistency
 export const AvatarSizes = {
@@ -16,8 +17,8 @@ export type AvatarSize = keyof typeof AvatarSizes | number;
 export type AvatarVariant = "roundedSquare" | "circle";
 
 export interface AvatarProps {
-  /** Image URI - if empty/undefined, shows fallback */
-  uri?: string | null;
+  /** Image URI or media object - resolved internally */
+  uri?: unknown;
   /** Username for generating fallback avatar */
   username?: string;
   /** Size - can be preset name or number */
@@ -63,11 +64,10 @@ function AvatarComponent({
   // Generate fallback URL using UI Avatars API
   const fallbackUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${FALLBACK_BG.replace("#", "")}&color=${FALLBACK_COLOR}&size=${sizeValue * 2}`;
 
-  // Use provided URI if valid, otherwise fallback
-  const imageUri =
-    uri && (uri.startsWith("http://") || uri.startsWith("https://"))
-      ? uri
-      : fallbackUri;
+  // CRITICAL: Use resolveAvatarUrl to handle string OR media object
+  // This ensures expo-image ALWAYS gets a valid URL string
+  const resolvedUri = resolveAvatarUrl(uri);
+  const imageUri = resolvedUri || fallbackUri;
 
   return (
     <View

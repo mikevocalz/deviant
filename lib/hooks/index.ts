@@ -32,3 +32,8 @@ export { useBookmarks, useToggleBookmark } from "./use-bookmarks";
 export { useFollow } from "./use-follow";
 export { useSearchPosts, useSearchUsers } from "./use-search";
 export { useDebounce, useDebouncedCallback } from "./use-debounce";
+export {
+  usePostLikeState,
+  likeStateKeys,
+  seedLikeState,
+} from "./usePostLikeState";
