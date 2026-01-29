@@ -1,0 +1,1051 @@
+
+> dvnt@1.0.0 start /Users/mikevocalz/deviant
+> expo start --clear --dev-client
+
+[32m✔[0m [33mConsole Ninja[0m extension is connected to [33mReact Native / Expo[0m, see [36mhttps://tinyurl.com/2vt8jxzw[0m
+env: load .env
+env: export DATABASE_URI PAYLOAD_SECRET NEXT_PUBLIC_SERVER_URL CRON_SECRET PREVIEW_SECRET BETTER_AUTH_SECRET NEXT_PUBLIC_BETTER_AUTH_URL EXPO_PUBLIC_AUTH_URL PAYLOAD_URL PAYLOAD_API_KEY PAYLOAD_SERVER_URL NEXT_PUBLIC_REALTIME_URL EXPO_PUBLIC_API_URL EXPO_PUBLIC_BUNNY_STORAGE_ZONE EXPO_PUBLIC_BUNNY_STORAGE_API_KEY EXPO_PUBLIC_BUNNY_STORAGE_REGION EXPO_PUBLIC_BUNNY_CDN_URL BUNNY_STORAGE_ZONE BUNNY_STORAGE_API_KEY BUNNY_STORAGE_REGION BUNNY_CDN_URL EXPO_PUBLIC_FORCE_OTA_CHECK ADMIN_EMAIL ADMIN_PASSWORD
+Starting project at /Users/mikevocalz/deviant
+React Compiler enabled
+Experimental React 19 canary is enabled.
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android ./index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android ./index.js ▓▓▓▓░░░░░░░░░░░░ 25.4% (213/436)
+ WARN  Attempted to import the module "/Users/mikevocalz/deviant/node_modules/react-native-animated-glow" which is listed in the "exports" of "/Users/mikevocalz/deviant/node_modules/.pnpm/react-native-animated-glow@3.0.1_bc9b80916a04269f2b3a2410ad6fdb34/node_modules/react-native-animated-glow", however no match was resolved for this request (platform = android). Falling back to file-based resolution. Consider updating the call site or asking the package maintainer(s) to expose this API.
+Android ./index.js ▓▓▓▓▓░░░░░░░░░░░ 34.0% (542/942)
+Android ./index.js ▓▓▓▓▓▓▓▓▓▓░░░░░░ 64.5% (2481/3090)
+Android ./index.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 78.9% (3337/3818)
+Android ./index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 92.4% (4367/4548)
+Android Bundled 19885ms index.js (4831 modules)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/th3rdwave/react-native-safe-area-context
+ LOG  [Auth] State rehydrated, user: 5
+ LOG  [Auth] BASE_URL resolved to: https://payload-cms-setup-gray.vercel.app
+ LOG  [API Config] ========================================
+ LOG  [API Config] OPTION A: Direct-to-Payload Only
+ LOG  [API Config] PAYLOAD_URL: https://payload-cms-setup-gray.vercel.app
+ LOG  [API Config] CDN_URL: https://dvnt.b-cdn.net
+ LOG  [API Config] Platform: android
+ LOG  [API Config] Valid: ✓ OK
+ LOG  [API Config] ========================================
+ LOG  [API] ========================================
+ LOG  [API] STARTUP INSTRUMENTATION
+ LOG  [API] API_BASE: https://payload-cms-setup-gray.vercel.app
+ LOG  [API] /users/me endpoint: https://payload-cms-setup-gray.vercel.app/api/users/me
+ LOG  [API] Platform: android
+ LOG  [API] ========================================
+ LOG  Loading react-native-worklets-core...
+ LOG  Worklets loaded successfully
+ LOG  [Bunny] Config loaded - zone: dvnt region: de cdn: set
+ LOG  [API Config] ========================================
+ LOG  [API Config] OPTION A: Direct-to-Payload Only
+ LOG  [API Config] PAYLOAD_URL: https://payload-cms-setup-gray.vercel.app
+ LOG  [API Config] CDN_URL: https://dvnt.b-cdn.net
+ LOG  [API Config] Platform: android
+ LOG  [API Config] Valid: ✓ OK
+ LOG  [API Config] ========================================
+ LOG  [RootLayout] Splash state: {"appReady": false, "showAnimatedSplash": true, "splashAnimationFinished": false}
+ LOG  [Splash] Waiting for Rive file to load...
+ LOG  [Updates] Hook mounted - __DEV__: true FORCE_OTA: true UpdatesAvailable: true globalInitialized: false enabled: false
+ LOG  [Updates] expo-updates module loaded, isEnabled: true
+ LOG  [Updates] OTA init deferred - waiting for splash to complete
+ LOG  [RootLayout] Checking API health at: https://payload-cms-setup-gray.vercel.app
+ LOG  [Notifications] Firebase not initialized - using Expo push service only
+ LOG  [RootLayout] Splash state: {"appReady": false, "showAnimatedSplash": true, "splashAnimationFinished": false}
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": true, "splashAnimationFinished": false}
+ LOG  [Splash] Rive file loaded, starting 9 second timer
+ LOG  [RootLayout] API Health OK - Status: 200
+ LOG  [Splash] Animation timer completed, calling onAnimationFinish
+ LOG  [AppStore] onAnimationFinish called, isCancelled: false
+ LOG  [AppStore] Setting splashAnimationFinished to true
+ LOG  [AppStore] splashAnimationFinished set to true (permanent)
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [Updates] Hook mounted - __DEV__: true FORCE_OTA: true UpdatesAvailable: true globalInitialized: false enabled: true
+ LOG  [Updates] expo-updates module loaded, isEnabled: true
+ LOG  [Updates] OTA init — channel:  runtimeVersion: 1.0.0 | Publish: eas update --channel 
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=10&page=1&depth=2&sort=-createdAt (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me/bookmarks?limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=10&page=1&depth=2&sort=-createdAt -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":18,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "18", "rawCount": 4, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 4}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "17", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "16", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "15", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "14", "rawCount": 4, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 4}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "13", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "10", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "9", "rawCount": 3, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+Android Bundled 728ms lib/api-client.ts (993 modules)
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: resolved string URL https://ui-avatars.com/api/?name=micah_marquez&bac
+ LOG  [UserAvatar] micah_marquez: raw="https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: resolved string URL https://ui-avatars.com/api/?name=micah_marquez&bac
+ LOG  [UserAvatar] micah_marquez: raw="https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff
+Android Bundled 758ms node_modules/.pnpm/react-native-animated-glow@3.0.1_bc9b80916a04269f2b3a2410ad6fdb34/node_modules/react-native-animated-glow/src/animated-glow/UnifiedSkiaGlow.tsx (1066 modules)
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:sosofla: resolved string URL https://ui-avatars.com/api/?name=sosofla&backgroun
+ LOG  [UserAvatar] sosofla: raw="https://ui-avatars.com/api/?name=sosofla&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=sosofla&background=3EA4E5&color=fff
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: resolved string URL https://ui-avatars.com/api/?name=micah_marquez&bac
+ LOG  [UserAvatar] micah_marquez: raw="https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: resolved string URL https://ui-avatars.com/api/?name=micah_marquez&bac
+ LOG  [UserAvatar] micah_marquez: raw="https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:e2euser1769466049: resolved string URL https://ui-avatars.com/api/?name=e2euser1769466049
+ LOG  [UserAvatar] e2euser1769466049: raw="https://ui-avatars.com/api/?name=e2euser1769466049&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=e2euser1769466049&background=3EA4E5&color=fff
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:e2etest1769461285: resolved string URL https://ui-avatars.com/api/?name=e2etest1769461285
+ LOG  [UserAvatar] e2etest1769461285: raw="https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:mikasa: resolved string URL https://ui-avatars.com/api/?name=mikasa&background
+ LOG  [UserAvatar] mikasa: raw="https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:mikejnnabs: resolved string URL https://ui-avatars.com/api/?name=mikejnnabs&backgr
+ LOG  [UserAvatar] mikejnnabs: raw="https://ui-avatars.com/api/?name=mikejnnabs&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikejnnabs&background=3EA4E5&color=fff
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:mikasa: resolved string URL https://ui-avatars.com/api/?name=mikasa&background
+ LOG  [UserAvatar] mikasa: raw="https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/stories?limit=50&depth=2&sort=-createdAt&where%5BcreatedAt%5D%5Bgreater_than%5D=2026-01-28T18%3A36%3A19.547Z (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/18/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/16/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/15/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/14/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/13/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/12/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=3 (hasAuthHeader: true)
+ LOG  [Updates] Checking — channel:  runtimeVersion: 1.0.0
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/10/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/9/comments?limit=3 (hasAuthHeader: true)
+ ERROR  [Updates] Check failed (non-fatal): [Error: Call to function 'ExpoUpdates.checkForUpdateAsync' has been rejected.
+→ Caused by: Updates.checkForUpdateAsync() is not supported in development builds.]
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+Android Bundled 368ms lib/stores/post-store.ts (703 modules)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&where%5Busername%5D%5Bequals%5D=mikasa (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me/bookmarks?limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"totalDocs":0,"totalPages":1,"page":1,"hasNextPage":false,"hasPrevPage":false}
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [useSyncLikedPosts] Synced liked posts: 0
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/stories?limit=50&depth=2&sort=-createdAt&where%5BcreatedAt%5D%5Bgreater_than%5D=2026-01-28T18%3A36%3A19.547Z -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":50,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [storiesApi] Raw stories response count: 0 | 24h filter: 2026-01-28T18:36:19.547Z
+ LOG  [storiesApi] Transformed stories count: 0
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":3,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [commentsApi] Fetched 0 comments with replies
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/18/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":21,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/15/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":17,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/14/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":3,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [commentsApi] Fetched 0 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/16/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":18,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/13/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":13,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/12/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":14,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/10/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/9/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":7,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":5,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 2 comments with replies
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&where%5Busername%5D%5Bequals%5D=mikasa -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"last
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 1, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [UnreadCounts] setMessagesUnread: 0
+ LOG  [Updates] Second OTA check (retry)
+ LOG  [Updates] Checking — channel:  runtimeVersion: 1.0.0
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ ERROR  [Updates] Check failed (non-fatal): [Error: Call to function 'ExpoUpdates.checkForUpdateAsync' has been rejected.
+→ Caused by: Updates.checkForUpdateAsync() is not supported in development builds.]
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [FeedPost:18] Like state: {"hasLiked": false, "isPending": true, "likesCount": 0}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","18"]
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/posts/18/like (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/posts/18/like -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"hasLiked":true,"liked":true,"likesCount":3,"likes":3}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","18"]
+ LOG  [usePostLikeState] setQueryData: ["posts","detail","18"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed","infinite"]
+ LOG  [usePostLikeState] setQueryData: ["profilePosts","15"]
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [usePost] Fetching post: 17
+ LOG  [postsApi] getPostById called with id: 17
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/17?depth=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=50 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/17?depth=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":17,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"location":"",
+ LOG  [postsApi] getPostById raw response: {"hasMedia": true, "id": 17, "mediaCount": 1, "mediaStructure": "{\"id\":\"697840d30908290004fa457c\",\"type\":\"video\",\"url\":\"https://dvnt.b-cdn.net/posts/2026/01/26/1769488592749-21z6uz.mov\",\"image\":null}", "mediaType": "array"}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "17", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [postsApi] getPostById success: {"hasMedia": true, "id": "17", "mediaTypes": ["video"]}
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: resolved string URL https://ui-avatars.com/api/?name=micah_marquez&bac
+ LOG  [UserAvatar] micah_marquez: raw="https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=micah_marquez&background=3EA4E5&color=fff
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=50 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":50,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [commentsApi] Fetched 0 comments with replies
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","17"]
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/posts/17/like (hasAuthHeader: true)
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 1}
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/posts/17/like -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"hasLiked":true,"liked":true,"likesCount":3,"likes":3}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","17"]
+ LOG  [usePostLikeState] setQueryData: ["posts","detail","17"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed","infinite"]
+ LOG  [usePostLikeState] setQueryData: ["profilePosts","15"]
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": false, "isPending": true, "likesCount": 0}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","16"]
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/posts/16/like (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/posts/16/like -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"hasLiked":true,"liked":true,"likesCount":4,"likes":4}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","16"]
+ LOG  [usePostLikeState] setQueryData: ["posts","detail","16"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed","infinite"]
+ LOG  [usePostLikeState] setQueryData: ["profilePosts","16"]
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 1, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": false, "isPending": true, "likesCount": 0}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","15"]
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/posts/15/like (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": true, "likesCount": 1}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/posts/15/like -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"hasLiked":true,"liked":true,"likesCount":3,"likes":3}
+ LOG  [usePostLikeState] setQueryData: ["likeState","5","15"]
+ LOG  [usePostLikeState] setQueryData: ["posts","detail","15"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed"]
+ LOG  [usePostLikeState] setQueryData: ["posts","feed","infinite"]
+ LOG  [usePostLikeState] setQueryData: ["profilePosts","15"]
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [resolveAvatarUrl] Avatar:sosofla: resolved string URL https://ui-avatars.com/api/?name=sosofla&backgroun
+ LOG  [UserAvatar] sosofla: raw="https://ui-avatars.com/api/?name=sosofla&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=sosofla&background=3EA4E5&color=fff
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=sosofla (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=sosofla -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":16,"username":"sosofla","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/16/profile (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/16/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"16","username":"sosofla","displayName":"sosofla","bio":"","avatar":null,"followersCount":0,"followingCount":0,"postsCount":1,"isFollowing":false,"isFollowedBy":false,"isOwnProfile":false,"verif
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=16 (hasAuthHeader: true)
+ LOG  [Profile] Creating/getting conversation with user: 16
+ LOG  [messagesApi] Looking for conversation between 5 and 16
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=16 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":16,"author":{"id":16,"username":"sosofla","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"","pronouns":null,"location":"","verified":false,"ban
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "16", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [postsApi] getProfilePosts: {"newestCreatedAt": "2026-01-27T00:58:46.809Z", "oldestCreatedAt": "2026-01-27T00:58:46.809Z", "returnedCount": 1, "totalDocs": 1, "userId": "16"}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [messagesApi] Creating new conversation
+ LOG  [messagesApi] Creating conversation participants: ["5", "16"]
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/conversations (hasAuthHeader: true)
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/conversations -> 400 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"errors":[{"name":"n","data":{"collection":"conversations","errors":[{"label":"Participants","message":"This relationship field has the following invalid relationships: 16 0, 5 1","path":"participant
+ ERROR  [messagesApi] getOrCreateConversation error: [Error: The following field is invalid: Participants]
+ ERROR  [Profile] Failed to create conversation - no ID returned
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 0}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": true, "profileDataExists": false, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 0, "error": undefined, "isError": false, "isLoading": true, "newestCreatedAt": null, "oldestCreatedAt": null}
+ LOG  [useMyProfile] Fetching profile for userId: 5
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/5/profile (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=5 (hasAuthHeader: true)
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 0}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": true, "profileDataExists": false, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 0, "error": undefined, "isError": false, "isLoading": true, "newestCreatedAt": null, "oldestCreatedAt": null}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/5/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"5","username":"mikasa","displayName":"mikasa","bio":"Her","avatar":null,"followersCount":0,"followingCount":0,"postsCount":4,"isFollowing":false,"isFollowedBy":false,"isOwnProfile":true,"verifi
+ LOG  [resolveAvatarUrl] useMyProfile: avatar is null/undefined
+ LOG  [resolveAvatarUrl] useMyProfile: avatar is null/undefined
+ LOG  [useMyProfile] Profile response: {"avatarType": "object", "avatarUrlType": "undefined", "followersCount": 0, "followingCount": 0, "id": "5", "postsCount": 4, "resolvedAvatar": undefined}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 0, "error": undefined, "isError": false, "isLoading": true, "newestCreatedAt": null, "oldestCreatedAt": null}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=5 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":11,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ba
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "9", "rawCount": 3, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 3}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "8", "rawCount": 3, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 3}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "7", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [postsApi] getProfilePosts: {"newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z", "returnedCount": 4, "totalDocs": 4, "userId": "5"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [resolveAvatarUrl] Avatar:mikasa: avatar is null/undefined
+ LOG  [UserAvatar] mikasa: raw=undefined resolved=null
+ LOG  [Profile] Navigating to post: 11
+ LOG  [usePost] Fetching post: 11
+ LOG  [postsApi] getPostById called with id: 11
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/11?depth=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=50 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/11?depth=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":11,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":n
+ LOG  [postsApi] getPostById raw response: {"hasMedia": true, "id": 11, "mediaCount": 0, "mediaStructure": "empty", "mediaType": "array"}
+ LOG  [postsApi] getPostById success: {"hasMedia": false, "id": "11", "mediaTypes": []}
+ LOG  [resolveAvatarUrl] Avatar:mikasa: resolved string URL https://ui-avatars.com/api/?name=mikasa&background
+ LOG  [UserAvatar] mikasa: raw="https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=50 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":5,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 2 comments with replies
+ LOG  [resolveAvatarUrl] Avatar:mikasa: resolved string URL https://ui-avatars.com/api/?name=mikasa&background
+ LOG  [UserAvatar] mikasa: raw="https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff
+ LOG  [resolveAvatarUrl] Avatar:mikasa: resolved string URL https://ui-avatars.com/api/?name=mikasa&background
+ LOG  [UserAvatar] mikasa: raw="https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=mikasa&background=3EA4E5&color=fff
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[following][equals]=5&limit=100&depth=1 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[following][equals]=5&limit=100&depth=1 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":100,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=100&depth=1 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=100&depth=1 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [resolveAvatarUrl] Avatar:micah_marquez: avatar is null/undefined
+ LOG  [UserAvatar] micah_marquez: raw=null resolved=null
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 1, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [UnreadCounts] setMessagesUnread: 0
+ LOG  [Messages] Loading filtered conversations...
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [messagesApi] Filtering conversations: {"followingCount": 1, "totalConversations": 1, "type": "inbox"}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":4,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [messagesApi] Filtering conversations: {"followingCount": 1, "totalConversations": 1, "type": "spam"}
+ LOG  [Messages] Loaded: {"inbox": 0, "spam": 1}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [resolveAvatarUrl] Avatar:e2etest1769461285: resolved string URL https://ui-avatars.com/api/?name=e2etest1769461285
+ LOG  [UserAvatar] e2etest1769461285: raw="https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"verified":false,"bannedA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"12","username":"e2etest1769461285","displayName":"e2etest1769461285","bio":"","avatar":null,"followersCount":0,"followingCount":0,"postsCount":1,"isFollowing":false,"isFollowedBy":false,"isOwnP
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=12 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=100&depth=2&sort=-createdAt&where%5Bauthor%5D%5Bequals%5D=12 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":12,"author":{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"verifi
+ LOG  [postsApi] getProfilePosts: {"newestCreatedAt": "2026-01-26T21:02:49.838Z", "oldestCreatedAt": "2026-01-26T21:02:49.838Z", "returnedCount": 1, "totalDocs": 1, "userId": "12"}
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 1, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [users.follow] Calling Payload CMS: {"action": "follow", "userId": "12"}
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/users/follow (hasAuthHeader: true)
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/users/follow -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"following":true,"message":"User followed successfully","followersCount":0}
+ LOG  [useMyProfile] Fetching profile for userId: 5
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/5/profile (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=10&page=1&depth=2&sort=-createdAt (hasAuthHeader: true)
+ LOG  [Profile] Creating/getting conversation with user: 12
+ LOG  [messagesApi] Looking for conversation between 5 and 12
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"verified":false,"bannedA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts?limit=10&page=1&depth=2&sort=-createdAt -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":18,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "18", "rawCount": 4, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 4}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "17", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "16", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "15", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "14", "rawCount": 4, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 4}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "13", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": true, "postId": "10", "rawCount": 1, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "video"}], "transformedCount": 1}
+ LOG  [transformPost] Media transform: {"hasVideo": false, "postId": "9", "rawCount": 3, "thumbnails": [{"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}, {"hasThumbnail": false, "thumbnailUrl": undefined, "type": "image"}], "transformedCount": 3}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [messagesApi] Creating new conversation
+ LOG  [messagesApi] Creating conversation participants: ["5", "12"]
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/5/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"5","username":"mikasa","displayName":"mikasa","bio":"Her","avatar":null,"followersCount":0,"followingCount":0,"postsCount":4,"isFollowing":false,"isFollowedBy":false,"isOwnProfile":true,"verifi
+ LOG  [resolveAvatarUrl] useMyProfile: avatar is null/undefined
+ LOG  [resolveAvatarUrl] useMyProfile: avatar is null/undefined
+ LOG  [useMyProfile] Profile response: {"avatarType": "object", "avatarUrlType": "undefined", "followersCount": 0, "followingCount": 0, "id": "5", "postsCount": 4, "resolvedAvatar": undefined}
+ LOG  [API] REQUEST: POST https://payload-cms-setup-gray.vercel.app/api/conversations (hasAuthHeader: true)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [API] RESPONSE: POST https://payload-cms-setup-gray.vercel.app/api/conversations -> 400 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"errors":[{"name":"n","data":{"collection":"conversations","errors":[{"label":"Participants","message":"This relationship field has the following invalid relationships: 12 0, 5 1","path":"participant
+ ERROR  [messagesApi] getOrCreateConversation error: [Error: The following field is invalid: Participants]
+ ERROR  [Profile] Failed to create conversation - no ID returned
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"12","username":"e2etest1769461285","displayName":"e2etest1769461285","bio":"","avatar":null,"followersCount":0,"followingCount":0,"postsCount":1,"isFollowing":true,"isFollowedBy":false,"isOwnPr
+ LOG  [useFollow] All related caches invalidated for instant updates
+ LOG  [resolveAvatarUrl] Avatar:e2etest1769461285: resolved string URL https://ui-avatars.com/api/?name=e2etest1769461285
+ LOG  [UserAvatar] e2etest1769461285: raw="https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff" resolved=https://ui-avatars.com/api/?name=e2etest1769461285&background=3EA4E5&color=fff
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users?limit=1&depth=1&where%5Busername%5D%5Bequals%5D=e2etest1769461285 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"verified":false,"bannedA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/12/profile -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"id":"12","username":"e2etest1769461285","displayName":"e2etest1769461285","bio":"","avatar":null,"followersCount":0,"followingCount":0,"postsCount":1,"isFollowing":true,"isFollowedBy":false,"isOwnPr
+ LOG  [API Config] ========================================
+ LOG  [API Config] OPTION A: Direct-to-Payload Only
+ LOG  [API Config] PAYLOAD_URL: https://payload-cms-setup-gray.vercel.app
+ LOG  [API Config] CDN_URL: https://dvnt.b-cdn.net
+ LOG  [API Config] Platform: android
+ LOG  [API Config] Valid: ✓ OK
+ LOG  [API Config] ========================================
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [UnreadCounts] setMessagesUnread: 0
+ LOG  [UnreadCounts] setMessagesUnread: 0
+ LOG  [Messages] Loading filtered conversations...
+ LOG  [Updates] Hook mounted - __DEV__: true FORCE_OTA: true UpdatesAvailable: true globalInitialized: true enabled: true
+ LOG  [Updates] expo-updates module loaded, isEnabled: true
+ LOG  [RootLayout] Checking API health at: https://payload-cms-setup-gray.vercel.app
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+Android Bundled 13ms lib/api-client.ts (1 module)
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/18/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/16/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/15/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/14/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/13/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/12/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/10/comments?limit=3 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/posts/9/comments?limit=3 (hasAuthHeader: true)
+ LOG  [Notifications] Firebase not initialized - using Expo push service only
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 (hasAuthHeader: true)
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 (hasAuthHeader: true)
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [RootLayout] API Health OK - Status: 200
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/17/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":3,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [commentsApi] Fetched 0 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/14/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":3,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [commentsApi] Fetched 0 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/15/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":17,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/13/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":13,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/12/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":14,"author":{"id":15,"username":"micah_marquez","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"A bad bitch from the 90s","pronouns":null,"loca
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/16/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":18,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/11/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":5,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 2 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/9/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":7,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 1 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/10/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"author":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"ban
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/conversations?limit=50&depth=2&sort=-lastMessageAt&where%5Bparticipants%5D%5Bcontains%5D=5 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":1,"participants":[{"id":12,"username":"e2etest1769461285","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"location":null,"
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [messagesApi] Filtering conversations: {"followingCount": 2, "totalConversations": 1, "type": "inbox"}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [messagesApi] Filtering conversations: {"followingCount": 2, "totalConversations": 1, "type": "spam"}
+ LOG  [Messages] Loaded: {"inbox": 0, "spam": 1}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/posts/18/comments?limit=3 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":21,"author":{"id":11,"username":"mikevocalz","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Mike","pronouns":null,"location":"","verified":fal
+ LOG  [commentsApi] Fetched 3 comments with replies
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/notifications?limit=50&page=1&depth=2&sort=-createdAt&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/notifications?limit=50&page=1&depth=2&sort=-createdAt&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[],"hasNextPage":false,"hasPrevPage":false,"limit":50,"nextPage":null,"page":1,"pagingCounter":1,"prevPage":null,"totalDocs":0,"totalPages":1}
+ LOG  [notificationsApi] getNotifications: {"count": 0, "page": 1}
+ LOG  [ActivityStore] Fetched from backend: {"count": 0, "unread": 0}
+ LOG  [UnreadCounts] setNotificationsUnread: 0
+ LOG  [ActivityStore] syncUnreadCount: 0
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ WARN  [LocationAutocomplete] Google Places API key not configured. Set EXPO_PUBLIC_GOOGLE_PLACES_API_KEY in your .env file.
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}

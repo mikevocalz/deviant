@@ -276,15 +276,25 @@ export const messagesApiClient = {
       }
 
       // Create new conversation with Payload CMS user IDs
+      // CRITICAL: Payload relationship fields expect numeric IDs, not strings
       console.log("[messagesApi] Creating new conversation");
       const participantsArray = [
-        String(payloadUserId),
-        String(otherPayloadUserId),
-      ].filter(Boolean);
+        Number(payloadUserId),
+        Number(otherPayloadUserId),
+      ].filter((id) => !isNaN(id) && id > 0);
       console.log(
         "[messagesApi] Creating conversation participants:",
         participantsArray,
       );
+
+      if (participantsArray.length !== 2) {
+        console.error("[messagesApi] Invalid participant IDs:", {
+          payloadUserId,
+          otherPayloadUserId,
+        });
+        throw new Error("Invalid participant IDs for conversation");
+      }
+
       const doc = await conversationsApi.create({
         participants: participantsArray,
         isGroup: false,
