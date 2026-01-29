@@ -494,8 +494,13 @@ function ProfileScreenContent() {
               >
                 <View className="relative">
                   <Avatar
-                    uri={user?.avatar}
-                    username={user?.name || user?.username || "User"}
+                    uri={profileData?.avatar || user?.avatar}
+                    username={
+                      profileData?.name ||
+                      user?.name ||
+                      user?.username ||
+                      "User"
+                    }
                     size={88}
                     variant="roundedSquare"
                   />
@@ -565,11 +570,14 @@ function ProfileScreenContent() {
 
           <View className="mt-4">
             <Text className="text-base font-semibold text-foreground">
-              {user?.name || "User"}
+              {profileData?.displayName ||
+                profileData?.name ||
+                user?.name ||
+                "User"}
             </Text>
-            {user?.bio && (
+            {(profileData?.bio || user?.bio) && (
               <Text className="mt-1.5 text-sm leading-5 text-foreground/90">
-                {user.bio}
+                {profileData?.bio || user?.bio}
               </Text>
             )}
             {user?.location && (
