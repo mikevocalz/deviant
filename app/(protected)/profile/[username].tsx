@@ -367,27 +367,23 @@ function UserProfileScreenComponent() {
 
     // Try API data first
     if (userData && typeof userData === "object") {
+      // Cast to access properties safely
+      const data = userData as Record<string, unknown>;
       return {
         id: userId || undefined,
-        username: String(userData.username || displayUsername),
+        username: String(data.username || displayUsername),
         fullName: String(
-          userData.name ||
-            userData.displayName ||
-            userData.username ||
-            displayUsername,
+          data.name || data.displayName || data.username || displayUsername,
         ),
         name: String(
-          userData.name ||
-            userData.displayName ||
-            userData.username ||
-            displayUsername,
+          data.name || data.displayName || data.username || displayUsername,
         ),
-        avatar: String(userData.avatar || userData.avatarUrl || fallbackAvatar),
-        bio: String(userData.bio || ""),
-        postsCount: Number(userData.postsCount) || 0,
-        followersCount: Number(userData.followersCount) || 0,
-        followingCount: Number(userData.followingCount) || 0,
-        isFollowing: Boolean(userData.isFollowing),
+        avatar: String(data.avatar || data.avatarUrl || fallbackAvatar),
+        bio: String(data.bio || ""),
+        postsCount: Number(data.postsCount) || 0,
+        followersCount: Number(data.followersCount) || 0,
+        followingCount: Number(data.followingCount) || 0,
+        isFollowing: Boolean(data.isFollowing),
       };
     }
 

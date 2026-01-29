@@ -149,6 +149,8 @@ export function useLikePost() {
       });
 
       // Update React Query cache with server data
+      // Note: postsApi.likePost returns { postId, likes, liked }
+      // (maps response.likesCount to likes internally)
       // Update the specific post detail
       queryClient.setQueryData<Post>(postKeys.detail(postId), (old) => {
         if (!old) return old;

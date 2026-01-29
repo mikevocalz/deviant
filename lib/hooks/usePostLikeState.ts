@@ -121,32 +121,35 @@ export function usePostLikeState(
       );
 
       // Also update post detail cache if exists
-      queryClient.setQueryData(["post", postId], (old: any) => {
+      // CANONICAL: ['posts', 'detail', postId]
+      queryClient.setQueryData(["posts", "detail", postId], (old: any) => {
         if (!old) return old;
         return { ...old, likes: data.likesCount };
       });
 
-      // Update feed caches
-      queryClient.setQueriesData({ queryKey: ["posts"] }, (old: any) => {
+      // Update feed caches - CANONICAL: ['posts', 'feed']
+      queryClient.setQueryData(["posts", "feed"], (old: any) => {
         if (!old) return old;
         if (Array.isArray(old)) {
           return old.map((post: any) =>
             post.id === postId ? { ...post, likes: data.likesCount } : post,
           );
         }
-        // Handle infinite query structure
-        if (old.pages) {
-          return {
-            ...old,
-            pages: old.pages.map((page: any) => ({
-              ...page,
-              data: page.data?.map((post: any) =>
-                post.id === postId ? { ...post, likes: data.likesCount } : post,
-              ),
-            })),
-          };
-        }
         return old;
+      });
+
+      // Update infinite feed cache - CANONICAL: ['posts', 'feed', 'infinite']
+      queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data?.map((post: any) =>
+              post.id === postId ? { ...post, likes: data.likesCount } : post,
+            ),
+          })),
+        };
       });
     },
   });
