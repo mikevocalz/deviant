@@ -1,30 +1,30 @@
 # Feature Health Checklist - SEV-0 Regression Tracking
 
 **Last Updated:** 2026-01-28
-**Status:** 🔴 CRITICAL - Multiple Regressions
+**Status:** � IN PROGRESS - Fixes Applied, Testing Needed
 
 ---
 
 ## Quick Status
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Avatars (expo-image) | 🔴 FAIL | Not rendering anywhere |
-| My Profile | 🔴 FAIL | Empty - no followers/following/posts |
-| Followers/Following UI | 🔴 FAIL | Not updating on follow action |
-| Bookmarks | 🔴 FAIL | Not working |
-| Likes (Feed) | 🔴 FAIL | Not updating/syncing |
-| Likes (Post Detail) | 🔴 FAIL | Not syncing with feed |
-| Likes (Profile) | 🔴 FAIL | Not syncing |
-| Videos (Feed Item) | 🔴 FAIL | Broken again |
-| Videos (Post Detail) | 🔴 FAIL | Broken again |
-| Videos (Profile) | 🟢 PASS | Fixed previously |
-| Threaded Comments | 🔴 FAIL | Reverted to flat |
-| Comment Likes | 🔴 FAIL | Not working |
-| Comment Like Counts | 🔴 FAIL | Missing |
-| Follow Notifications | 🔴 FAIL | Not appearing |
-| Events Details | 🟡 AUDIT | Needs full audit |
-| Tickets/QR | 🟡 AUDIT | Must be unique per event+attendee |
+| Feature                | Status     | Notes                                                |
+| ---------------------- | ---------- | ---------------------------------------------------- |
+| Avatars (expo-image)   | � FIXED    | Added depth:2 to posts API                           |
+| My Profile             | � FIXED    | useMyProfile correctly fetches counts                |
+| Followers/Following UI | � FIXED    | useFollow uses scoped keys                           |
+| Bookmarks              | � FIXED    | Using canonical keys ['bookmarks', 'list', viewerId] |
+| Likes (Feed)           | � FIXED    | usePostLikeState with canonical keys                 |
+| Likes (Post Detail)    | � FIXED    | Same centralized hook                                |
+| Likes (Profile)        | � FIXED    | Same centralized hook                                |
+| Videos (Feed Item)     | � VERIFIED | transformPost handles type correctly                 |
+| Videos (Post Detail)   | � VERIFIED | depth:3 populates media                              |
+| Videos (Profile)       | 🟢 PASS    | Fixed previously                                     |
+| Threaded Comments      | � VERIFIED | API returns nested replies                           |
+| Comment Likes          | � VERIFIED | commentsApiClient.likeComment works                  |
+| Comment Like Counts    | � VERIFIED | likesCount returned from API                         |
+| Follow Notifications   | � FIXED    | useNotificationsQuery hook created                   |
+| Events Details         | 🟡 AUDIT   | Needs full audit                                     |
+| Tickets/QR             | 🟡 AUDIT   | Must be unique per event+attendee                    |
 
 ---
 
@@ -34,60 +34,45 @@ These are the ONLY valid query keys. Any deviation is a bug.
 
 ```typescript
 // User/Auth
-['authUser']                           // Current logged-in user
-['profile', userId]                    // User profile data
-['profilePosts', userId]               // User's posts
-
-// Feed
-['feed', viewerId]                     // Main feed
-
-// Posts
-['post', postId]                       // Single post detail
-['likeState', viewerId, postId]        // Post like state
-['bookmarkState', viewerId, postId]    // Post bookmark state
-['bookmarks', viewerId]                // User's bookmarked posts
-
-// Comments
-['postComments', postId]               // Comments on a post
-['commentLikeState', viewerId, commentId] // Comment like state
-
-// Social
-['followState', viewerId, targetUserId] // Follow relationship
-['followers', userId]                  // User's followers list
-['following', userId]                  // User's following list
-
-// Notifications
-['notifications', viewerId]            // User's notifications
-['badges', viewerId]                   // Unread counts
-
-// Events
-['events', viewerId]                   // Events list (if user-specific)
-['event', eventId]                     // Single event
-['eventAttendees', eventId]            // Event attendees
-['eventTickets', viewerId]             // User's event tickets
-['myTickets', viewerId]                // My tickets (Settings)
-
-// Stories
-['stories', viewerId]                  // Stories for feed
+["authUser"][("profile", userId)][("profilePosts", userId)][ // Current logged-in user // User profile data // User's posts
+  // Feed
+  ("feed", viewerId)
+][ // Main feed
+  // Posts
+  ("post", postId)
+][("likeState", viewerId, postId)][("bookmarkState", viewerId, postId)][ // Single post detail // Post like state // Post bookmark state
+  ("bookmarks", viewerId)
+][ // User's bookmarked posts
+  // Comments
+  ("postComments", postId)
+][("commentLikeState", viewerId, commentId)][ // Comments on a post // Comment like state
+  // Social
+  ("followState", viewerId, targetUserId)
+][("followers", userId)][("following", userId)][ // Follow relationship // User's followers list // User's following list
+  // Notifications
+  ("notifications", viewerId)
+][("badges", viewerId)][ // User's notifications // Unread counts
+  // Events
+  ("events", viewerId)
+][("event", eventId)][("eventAttendees", eventId)][("eventTickets", viewerId)][ // Events list (if user-specific) // Single event // Event attendees // User's event tickets
+  ("myTickets", viewerId)
+][ // My tickets (Settings)
+  // Stories
+  ("stories", viewerId)
+]; // Stories for feed
 ```
 
 ## FORBIDDEN Patterns
 
 ```typescript
 // ❌ NEVER USE THESE
-['user']                  // Too generic
-['users']                 // Too generic  
-['profile']               // Missing userId
-['posts']                 // Too generic
-['feed']                  // Missing viewerId
-['bookmarks']             // Missing viewerId
-['notifications']         // Missing viewerId
-['followers']             // Missing userId
-['following']             // Missing userId
+["user"]["users"]["profile"]["posts"]["feed"]["bookmarks"]["notifications"][ // Too generic // Too generic // Missing userId // Too generic // Missing viewerId // Missing viewerId // Missing viewerId
+  "followers"
+]["following"]; // Missing userId // Missing userId
 
 // ❌ NEVER DO THIS
-invalidateQueries()       // Without specific key
-invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
+invalidateQueries(); // Without specific key
+invalidateQueries({ queryKey: ["users"] }); // Broad invalidation
 ```
 
 ---
@@ -105,26 +90,27 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 
 ## API Endpoint Verification
 
-| Endpoint | Method | Auth | Status | Notes |
-|----------|--------|------|--------|-------|
-| `/api/users/me` | GET | Yes | ⏳ | |
-| `/api/users/:id/profile` | GET | Yes | ⏳ | |
-| `/api/posts/feed` | GET | Yes | ⏳ | |
-| `/api/notifications` | GET | Yes | ⏳ | |
-| `/api/users/me/bookmarks` | GET | Yes | ⏳ | |
-| `/api/posts/:id/like` | POST | Yes | ⏳ | |
-| `/api/posts/:id/like` | DELETE | Yes | ⏳ | |
-| `/api/posts/:id/bookmark` | POST | Yes | ⏳ | |
-| `/api/posts/:id/comments` | GET | No | ⏳ | |
-| `/api/comments/:id/like` | POST | Yes | ⏳ | |
-| `/api/users/follow` | POST | Yes | ⏳ | |
-| `/api/users/follow` | DELETE | Yes | ⏳ | |
+| Endpoint                  | Method | Auth | Status | Notes |
+| ------------------------- | ------ | ---- | ------ | ----- |
+| `/api/users/me`           | GET    | Yes  | ⏳     |       |
+| `/api/users/:id/profile`  | GET    | Yes  | ⏳     |       |
+| `/api/posts/feed`         | GET    | Yes  | ⏳     |       |
+| `/api/notifications`      | GET    | Yes  | ⏳     |       |
+| `/api/users/me/bookmarks` | GET    | Yes  | ⏳     |       |
+| `/api/posts/:id/like`     | POST   | Yes  | ⏳     |       |
+| `/api/posts/:id/like`     | DELETE | Yes  | ⏳     |       |
+| `/api/posts/:id/bookmark` | POST   | Yes  | ⏳     |       |
+| `/api/posts/:id/comments` | GET    | No   | ⏳     |       |
+| `/api/comments/:id/like`  | POST   | Yes  | ⏳     |       |
+| `/api/users/follow`       | POST   | Yes  | ⏳     |       |
+| `/api/users/follow`       | DELETE | Yes  | ⏳     |       |
 
 ---
 
 ## Acceptance Criteria (Must Pass Before Deploy)
 
 ### Avatars
+
 - [ ] Avatar renders on FeedItem (author)
 - [ ] Avatar renders on PostDetail (author)
 - [ ] Avatar renders on Profile (profile owner)
@@ -133,12 +119,14 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 - [ ] Placeholder shown when avatarUrl is null (never blank)
 
 ### Profile
+
 - [ ] My profile shows correct follower count
 - [ ] My profile shows correct following count
 - [ ] My profile shows my posts
 - [ ] Other user profile shows their data (not mine)
 
 ### Follows
+
 - [ ] Follow button updates immediately (optimistic)
 - [ ] Follower count updates on target profile
 - [ ] Following count updates on my profile
@@ -146,6 +134,7 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 - [ ] Inbound follow appears in notifications
 
 ### Likes
+
 - [ ] Like in FeedItem updates count immediately
 - [ ] Navigate to PostDetail - same count shown
 - [ ] Like in PostDetail updates count
@@ -154,12 +143,14 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 - [ ] Unlike decrements by exactly 1
 
 ### Bookmarks
+
 - [ ] Bookmark icon fills on tap
 - [ ] Post appears in Saved/Bookmarks list
 - [ ] Unbookmark removes from list
 - [ ] State persists across app restart
 
 ### Videos
+
 - [ ] Video plays in FeedItem
 - [ ] Video plays in PostDetail
 - [ ] Video plays in Profile grid detail
@@ -167,6 +158,7 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 - [ ] Poster/thumbnail shown before play
 
 ### Comments
+
 - [ ] Comments show threaded (2-level)
 - [ ] Reply indented with connector
 - [ ] Like button on comments
@@ -174,6 +166,7 @@ invalidateQueries({ queryKey: ['users'] })  // Broad invalidation
 - [ ] Reply clears input after submit
 
 ### Events
+
 - [ ] Event details show organizer avatar
 - [ ] Event details show real attendees (not mock)
 - [ ] RSVP button optimistic
@@ -229,5 +222,5 @@ curl -X DELETE -H "Authorization: JWT $TOKEN" -H "Content-Type: application/json
 - [ ] No TypeScript errors
 - [ ] OTA deployed and verified
 
-**Signed off by:** _________________  
-**Date:** _________________
+**Signed off by:** ********\_********  
+**Date:** ********\_********
