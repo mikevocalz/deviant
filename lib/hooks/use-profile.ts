@@ -248,6 +248,24 @@ export function useUpdateProfile() {
             author: { ...post.author, avatar: variables.avatar },
           }));
         });
+
+        // CRITICAL: Update stories cache for MY stories
+        queryClient.setQueryData(["stories"], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((story: any) => {
+            if (
+              String(story.userId) === String(userId) ||
+              story.username === authUser.username
+            ) {
+              return { ...story, avatar: variables.avatar };
+            }
+            return story;
+          });
+        });
+
+        console.log(
+          "[useUpdateProfile] Avatar synced to feed, profile posts, and stories",
+        );
       }
     },
     onError: (error) => {
