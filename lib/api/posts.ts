@@ -82,6 +82,16 @@ function toNumber(value: unknown): number {
 }
 
 function transformPost(doc: Record<string, unknown>): Post {
+  // PHASE 0 INSTRUMENTATION: Log raw post data for likes debugging
+  if (__DEV__) {
+    const rawLikesCount = doc.likesCount;
+    const rawLikes = doc.likes;
+    const rawViewerHasLiked = doc.viewerHasLiked;
+    console.log(
+      `[transformPost] Post ${doc.id}: likesCount=${rawLikesCount}, likes=${rawLikes}, viewerHasLiked=${rawViewerHasLiked}`,
+    );
+  }
+
   const rawMedia = (doc.media as Array<Record<string, unknown>>) || [];
 
   // Safely transform each media item with proper field extraction
@@ -142,6 +152,8 @@ function transformPost(doc: Record<string, unknown>): Post {
     (author?.name as string) || (author?.username as string) || "User";
 
   const likes = toNumber(doc.likesCount ?? doc.likes);
+  // CRITICAL: Extract viewerHasLiked from API response for proper like state
+  const viewerHasLiked = doc.viewerHasLiked === true;
 
   return {
     id: normalizedId,
@@ -155,6 +167,7 @@ function transformPost(doc: Record<string, unknown>): Post {
     media,
     caption: (doc.content || doc.caption) as string,
     likes,
+    viewerHasLiked, // CRITICAL: Include viewer's like state
     comments: [],
     timeAgo: formatTimeAgo(doc.createdAt as string),
     createdAt: doc.createdAt as string,

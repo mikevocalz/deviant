@@ -21,6 +21,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import type { Post } from "@/lib/types";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { seedLikeState } from "@/lib/hooks/usePostLikeState";
+import { likes as likesApi } from "@/lib/api-client";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -55,6 +59,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
           media={item.media || []}
           caption={item.caption || ""}
           likes={item.likes || 0}
+          viewerHasLiked={item.viewerHasLiked || false}
           comments={0}
           timeAgo={item.timeAgo || ""}
           location={item.location}
@@ -195,6 +200,10 @@ export function Feed() {
     isRefetching,
   } = useInfiniteFeedPosts();
 
+  // CRITICAL: Get queryClient and viewerId for seeding likeState cache
+  const queryClient = useQueryClient();
+  const viewerId = useAuthStore((state) => state.user?.id) || "";
+
   // Sync liked posts from server to Zustand store on mount
   useSyncLikedPosts();
   useBookmarks();
@@ -215,6 +224,55 @@ export function Feed() {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => page.data);
   }, [data]);
+
+  // CRITICAL: Fetch real like state from API for each post
+  // The posts endpoint doesn't return likesCount, so we need to fetch it separately
+  useEffect(() => {
+    if (!viewerId || !allPosts.length) return;
+
+    const fetchLikeStates = async () => {
+      if (__DEV__) {
+        console.log(`[Feed] Fetching like states for ${allPosts.length} posts`);
+      }
+
+      // Fetch like state for each post in parallel (batched)
+      const likeStatePromises = allPosts
+        .filter((post) => post?.id)
+        .map(async (post) => {
+          try {
+            const likeState = await likesApi.getLikeState(post.id);
+            return { postId: post.id, ...likeState };
+          } catch (error) {
+            // Silently fail for individual posts
+            return { postId: post.id, liked: false, likesCount: 0 };
+          }
+        });
+
+      const likeStates = await Promise.all(likeStatePromises);
+
+      // Seed the cache with real like states
+      // NOTE: API may return 'hasLiked' or 'liked' depending on endpoint
+      likeStates.forEach((state: any) => {
+        const isLiked = state.hasLiked ?? state.liked ?? false;
+        seedLikeState(
+          queryClient,
+          viewerId,
+          state.postId,
+          isLiked,
+          state.likesCount || 0,
+        );
+      });
+
+      if (__DEV__) {
+        const withLikes = likeStates.filter((s) => s.likesCount > 0);
+        console.log(
+          `[Feed] Seeded ${likeStates.length} like states, ${withLikes.length} have likes`,
+        );
+      }
+    };
+
+    fetchLikeStates();
+  }, [allPosts, viewerId, queryClient]);
 
   const filteredPosts = useMemo(() => {
     if (nsfwEnabled) return allPosts;

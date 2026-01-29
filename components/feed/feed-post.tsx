@@ -47,6 +47,7 @@ interface FeedPostProps {
   }[];
   caption?: string;
   likes: number;
+  viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
   comments: number;
   timeAgo: string;
   location?: string;
@@ -64,6 +65,7 @@ function FeedPostComponent({
   media,
   caption,
   likes,
+  viewerHasLiked = false,
   comments,
   timeAgo,
   location,
@@ -72,14 +74,14 @@ function FeedPostComponent({
   const router = useRouter();
   const { colors } = useColorScheme();
   // CENTRALIZED: Like state from single source of truth (React Query cache)
-  // CRITICAL: Do NOT use local Zustand store for initial state - it can be stale
+  // CRITICAL: Use viewerHasLiked from API response, NOT hardcoded false
   // The usePostLikeState hook manages cache internally and will sync with server
   const {
     hasLiked,
     likesCount,
     toggle: toggleLike,
     isPending: isLikePending,
-  } = usePostLikeState(id, likes, false, author?.id);
+  } = usePostLikeState(id, likes, viewerHasLiked, author?.id);
 
   // DEV: Log like state for debugging sync issues
   if (__DEV__) {

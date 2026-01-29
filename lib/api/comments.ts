@@ -67,6 +67,14 @@ function transformComment(
   const authorName =
     (author?.name as string) || (author?.username as string) || "User";
 
+  // PHASE 2 INSTRUMENTATION: Log comment author avatar for debugging
+  if (__DEV__) {
+    const rawAvatar = author?.avatar;
+    console.log(
+      `[transformComment] Comment ${doc.id}: author=${author?.username}, rawAvatar=${JSON.stringify(rawAvatar)?.slice(0, 100)}`,
+    );
+  }
+
   const resolvedPostId =
     typeof doc.post === "string"
       ? doc.post
@@ -86,8 +94,7 @@ function transformComment(
         ? doc.liked
         : undefined;
 
-  const likesCount =
-    (doc.likesCount as number) || (doc.likes as number) || 0;
+  const likesCount = (doc.likesCount as number) || (doc.likes as number) || 0;
 
   const replies = ((doc.replies as Array<Record<string, unknown>>) || []).map(
     (reply) =>

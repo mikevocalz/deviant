@@ -23,6 +23,7 @@ export type Post = {
   media: { type: "image" | "video"; url: string; thumbnail?: string }[];
   caption?: string;
   likes: number;
+  viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
   comments: Comment[];
   timeAgo: string;
   createdAt?: string;

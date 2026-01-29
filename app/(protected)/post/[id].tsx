@@ -48,13 +48,15 @@ function PostDetailScreenContent() {
   const { colors } = useColorScheme();
 
   // CENTRALIZED: Like state from single source of truth
+  // CRITICAL: Use viewerHasLiked from API response, NOT hardcoded false
   const initialLikes = post?.likes || 0;
+  const initialHasLiked = post?.viewerHasLiked || false;
   const {
     hasLiked,
     likesCount,
     toggle: toggleLike,
     isPending: isLikePending,
-  } = usePostLikeState(postId, initialLikes, false, post?.author?.id);
+  } = usePostLikeState(postId, initialLikes, initialHasLiked, post?.author?.id);
 
   // STABILIZED: Bookmark state comes from server ONLY via React Query
   const isBookmarked = useMemo(() => {

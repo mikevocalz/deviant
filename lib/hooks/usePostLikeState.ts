@@ -258,6 +258,8 @@ export function usePostLikeState(
 /**
  * Initialize like state for a post from server data
  * Call this when post data is fetched to seed the cache
+ *
+ * CRITICAL: Always updates the cache with server data to ensure correct likes display
  */
 export function seedLikeState(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -275,15 +277,17 @@ export function seedLikeState(
     }
     return;
   }
-  // Only seed if not already cached
-  const existing = queryClient.getQueryData<LikeState>(
+
+  // CRITICAL: Always update with server data - this overwrites initialData from usePostLikeState
+  // This ensures that when we fetch real like states, they take precedence over defaults
+  queryClient.setQueryData<LikeState>(
     likeStateKeys.forPost(viewerId, normalizedPostId),
+    { hasLiked, likesCount },
   );
 
-  if (!existing) {
-    queryClient.setQueryData<LikeState>(
-      likeStateKeys.forPost(viewerId, normalizedPostId),
-      { hasLiked, likesCount },
+  if (__DEV__) {
+    console.log(
+      `[seedLikeState] Post ${normalizedPostId}: hasLiked=${hasLiked}, likesCount=${likesCount}`,
     );
   }
 }

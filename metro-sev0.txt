@@ -1049,3 +1049,1136 @@ Android Bundled 13ms lib/api-client.ts (1 module)
  LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
  LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
  LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"bannedAt":null,"lastA
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Her","pronouns":null,"location":"","verified":false,"b
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [EditProfile] Updating profile with: {"name":"mikasa","bio":"Him"}
+ LOG  [EditProfile] User ID: 5
+ LOG  [API] updateMe called with: {"name":"mikasa","bio":"Him"}
+ LOG  [API] REQUEST: PATCH https://payload-cms-setup-gray.vercel.app/api/profile/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: PATCH https://payload-cms-setup-gray.vercel.app/api/profile/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","name":"mikasa","firstName":"mikasa","lastName":null,"bio":"Him","avatar":null,"location":"","pronouns":null,"verified":false}}
+ LOG  [API] updateMe success: {"user":{"id":5,"username":"mikasa","name":"mikasa","firstName":"mikasa","lastName":null,"bio":"Him","avatar":null,"location":"","pronouns":null,"verified":false}}
+ LOG  [EditProfile] Profile updated successfully: {"user": {"avatar": null, "bio": "Him", "firstName": "mikasa", "id": 5, "lastName": null, "location": "", "name": "mikasa", "pronouns": null, "username": "mikasa", "verified": false}}
+ LOG  [RootLayout] Splash state: {"appReady": true, "showAnimatedSplash": false, "splashAnimationFinished": true}
+ LOG  [RootLayout] Showing main app
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":"mikasa","lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Him","pronouns":null,"location":"","verified":false,"bannedAt":null,"l
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":"mikasa","lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Him","pronouns":null,"location":"","verified":fals
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [messagesApi] getUnreadCount: {"followingCount": 2, "inboxUnread": 0, "totalUnread": 1}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/users/me (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/users/me -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"user":{"id":5,"username":"mikasa","firstName":"mikasa","lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Him","pronouns":null,"location":"","verified":false,"bannedAt":null,"l
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/follows?where[follower][equals]=5&limit=1000 -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":9,"follower":{"id":5,"username":"mikasa","firstName":"mikasa","lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":"Him","pronouns":null,"location":"","verified":fals
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/messages?limit=100&depth=2&where%5Band%5D=%5Bobject%20Object%5D%2C%5Bobject%20Object%5D -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":3,"conversation":2,"sender":{"id":14,"username":"finaluser1769467327","firstName":null,"lastName":null,"userType":"Regular","role":"Basic","avatar":null,"bio":null,"pronouns":null,"loca
+ LOG  [useUnreadMessageCount] Fetched (debounced): {"inbox": 0, "spam": 1}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [API] REQUEST: GET https://payload-cms-setup-gray.vercel.app/api/events?limit=50&depth=2&sort=date (hasAuthHeader: true)
+ LOG  [API] RESPONSE: GET https://payload-cms-setup-gray.vercel.app/api/events?limit=50&depth=2&sort=date -> 200 (hasAuthHeader: true)
+ LOG  [API] RESPONSE BODY PREVIEW: {"docs":[{"id":2,"host":null,"externalAuthorId":null,"title":"Test Event","description":"Testing event creation with CDN image","date":"2026-02-15T00:00:00.000Z","startDate":null,"endDate":null,"time"
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:18] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:17] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:16] Like state: {"hasLiked": true, "isPending": false, "likesCount": 4}
+ LOG  [FeedPost:15] Like state: {"hasLiked": true, "isPending": false, "likesCount": 3}
+ LOG  [FeedPost:14] Like state: {"hasLiked": false, "isPending": false, "likesCount": 1}
+ LOG  [FeedPost:13] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:12] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:11] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:10] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [FeedPost:9] Like state: {"hasLiked": false, "isPending": false, "likesCount": 0}
+ LOG  [Profile] Data sources: {"counts": {"followers": 0, "following": 0, "posts": 4}, "displayAvatar": undefined, "displayName": "mikasa", "displayUsername": "mikasa", "isLoadingProfile": false, "profileDataExists": true, "userId": "5"}
+ LOG  [Profile] Bookmarks: {"count": 0, "error": undefined, "isError": false}
+ LOG  [Profile] User: {"hasUser": true, "id": "5", "username": "mikasa"}
+ LOG  [Profile] loggedInUserId: 5
+ LOG  [Profile] Posts: {"count": 4, "error": undefined, "isError": false, "isLoading": false, "newestCreatedAt": "2026-01-25T17:23:41.855Z", "oldestCreatedAt": "2026-01-22T19:54:06.831Z"}
