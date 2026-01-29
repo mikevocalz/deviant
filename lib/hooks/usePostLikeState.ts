@@ -45,12 +45,31 @@ export function usePostLikeState(
   const queryClient = useQueryClient();
   const viewerId = useAuthStore((state) => state.user?.id) || "";
 
-  // Query for like state - seeded with initial values
+  // CRITICAL: Check if we already have cached data BEFORE using initialData
+  // This ensures we use server-synced values over stale props on re-mount
+  const existingCache = queryClient.getQueryData<LikeState>(
+    likeStateKeys.forPost(viewerId, postId),
+  );
+
+  // DEV logging to track like state sync
+  if (__DEV__ && postId) {
+    console.log(`[usePostLikeState] postId=${postId.slice(0, 8)}`, {
+      viewerId: viewerId.slice(0, 8),
+      cached: existingCache
+        ? {
+            hasLiked: existingCache.hasLiked,
+            likesCount: existingCache.likesCount,
+          }
+        : null,
+      initial: { hasLiked: initialHasLiked, likesCount: initialLikesCount },
+    });
+  }
+
+  // Query for like state - use cached data if available, otherwise seed with initial
   const { data: likeState } = useQuery<LikeState>({
     queryKey: likeStateKeys.forPost(viewerId, postId),
     queryFn: async () => {
       // Return the current cached value or initial values
-      // The actual sync happens via useSyncLikedPosts
       const cached = queryClient.getQueryData<LikeState>(
         likeStateKeys.forPost(viewerId, postId),
       );
@@ -58,7 +77,11 @@ export function usePostLikeState(
         cached || { hasLiked: initialHasLiked, likesCount: initialLikesCount }
       );
     },
-    initialData: { hasLiked: initialHasLiked, likesCount: initialLikesCount },
+    // CRITICAL: Use existing cache if available, otherwise use initial props
+    initialData: existingCache || {
+      hasLiked: initialHasLiked,
+      likesCount: initialLikesCount,
+    },
     staleTime: Infinity, // Never stale - we manage updates manually
     gcTime: 30 * 60 * 1000, // 30 minutes
     enabled: !!viewerId && !!postId,
@@ -176,9 +199,16 @@ export function usePostLikeState(
     }
   }, [likeState?.hasLiked, likeMutation.isPending, like, unlike]);
 
+  // CRITICAL: Prioritize cached data over initial props
+  // This ensures likes sync correctly on back navigation
+  const finalHasLiked =
+    likeState?.hasLiked ?? existingCache?.hasLiked ?? initialHasLiked;
+  const finalLikesCount =
+    likeState?.likesCount ?? existingCache?.likesCount ?? initialLikesCount;
+
   return {
-    hasLiked: likeState?.hasLiked ?? initialHasLiked,
-    likesCount: likeState?.likesCount ?? initialLikesCount,
+    hasLiked: finalHasLiked,
+    likesCount: finalLikesCount,
     like,
     unlike,
     toggle,

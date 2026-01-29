@@ -725,6 +725,23 @@ function ProfileScreenContent() {
     loadProfile();
   }, [setScreenLoading]);
 
+  // CRITICAL: Refetch profile on app foreground to get updated follower counts
+  // This ensures counts are updated when someone follows the user while app was backgrounded
+  useEffect(() => {
+    const { AppState } = require("react-native");
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState: string) => {
+        if (nextAppState === "active") {
+          console.log("[Profile] App foregrounded, refetching profile data");
+          refetchProfile();
+          refetch(); // Also refetch posts
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, [refetchProfile, refetch]);
+
   // Transform user posts data - with defensive guards to prevent crashes
   const userPosts = useMemo(() => {
     if (!userPostsData || !Array.isArray(userPostsData)) return [];

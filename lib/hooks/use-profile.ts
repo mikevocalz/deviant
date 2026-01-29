@@ -181,6 +181,61 @@ export function useUpdateProfile() {
 
       // 4. Invalidate authUser query if it exists
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
+
+      // 5. CRITICAL: If avatar was updated, sync across feed caches
+      // This ensures my avatar updates immediately in my posts shown in feed
+      if (variables.avatar) {
+        console.log("[useUpdateProfile] Avatar changed, syncing feed caches");
+
+        // Update regular feed cache
+        queryClient.setQueryData(["posts", "feed"], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((post: any) => {
+            if (
+              String(post.author?.id) === String(userId) ||
+              post.author?.username === authUser.username
+            ) {
+              return {
+                ...post,
+                author: { ...post.author, avatar: variables.avatar },
+              };
+            }
+            return post;
+          });
+        });
+
+        // Update infinite feed cache
+        queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              data: page.data?.map((post: any) => {
+                if (
+                  String(post.author?.id) === String(userId) ||
+                  post.author?.username === authUser.username
+                ) {
+                  return {
+                    ...post,
+                    author: { ...post.author, avatar: variables.avatar },
+                  };
+                }
+                return post;
+              }),
+            })),
+          };
+        });
+
+        // Update profile posts cache
+        queryClient.setQueryData(["posts", "profile", userId], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((post: any) => ({
+            ...post,
+            author: { ...post.author, avatar: variables.avatar },
+          }));
+        });
+      }
     },
     onError: (error) => {
       console.error("[useUpdateProfile] Error:", error);

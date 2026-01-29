@@ -66,8 +66,20 @@ function AvatarComponent({
 
   // CRITICAL: Use resolveAvatarUrl to handle string OR media object
   // This ensures expo-image ALWAYS gets a valid URL string
-  const resolvedUri = resolveAvatarUrl(uri);
+  const resolvedUri = resolveAvatarUrl(
+    uri,
+    __DEV__ ? `Avatar:${username}` : undefined,
+  );
   const imageUri = resolvedUri || fallbackUri;
+
+  // DEV: Log when falling back to placeholder
+  if (__DEV__ && !resolvedUri && uri) {
+    console.log(
+      `[Avatar] ${username}: using fallback, uri was:`,
+      typeof uri,
+      uri,
+    );
+  }
 
   return (
     <View

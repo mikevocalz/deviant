@@ -172,12 +172,26 @@ export const postsApi = {
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
       // CRITICAL: depth: 2 required to populate author.avatar (media object)
+      // CRITICAL: No date filtering - fetch ALL posts for this user
       const response = await posts.find({
-        limit: 50,
+        limit: 100, // Increased from 50 to ensure we get more posts
         sort: "-createdAt",
         where: { author: { equals: userId } },
         depth: 2,
       });
+
+      // DEV logging to verify API returns all posts
+      if (__DEV__) {
+        const docs = response.docs || [];
+        console.log("[postsApi] getProfilePosts:", {
+          userId: userId.slice(0, 8),
+          totalDocs: response.totalDocs,
+          returnedCount: docs.length,
+          firstPostDate: docs[0]?.createdAt,
+          lastPostDate: docs[docs.length - 1]?.createdAt,
+        });
+      }
+
       return response.docs.map(transformPost);
     } catch (error) {
       console.error("[postsApi] getProfilePosts error:", error);
