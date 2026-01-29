@@ -131,7 +131,12 @@ export const postsApi = {
   // Fetch feed posts
   async getFeedPosts(): Promise<Post[]> {
     try {
-      const response = await posts.find({ limit: 20, sort: "-createdAt" });
+      // CRITICAL: depth: 2 required to populate author.avatar (media object)
+      const response = await posts.find({
+        limit: 20,
+        sort: "-createdAt",
+        depth: 2,
+      });
       return response.docs.map(transformPost);
     } catch (error) {
       console.error("[postsApi] getFeedPosts error:", error);
@@ -166,10 +171,12 @@ export const postsApi = {
   // Fetch profile posts
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
+      // CRITICAL: depth: 2 required to populate author.avatar (media object)
       const response = await posts.find({
         limit: 50,
         sort: "-createdAt",
         where: { author: { equals: userId } },
+        depth: 2,
       });
       return response.docs.map(transformPost);
     } catch (error) {
