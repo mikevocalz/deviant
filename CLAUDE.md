@@ -5,6 +5,7 @@
 ## 📍 CMS Location
 
 **All Payload CMS collections live only in:**
+
 ```
 /Users/mikevocalz/Downloads/payload-cms-setup
 ```
@@ -30,6 +31,7 @@
 ### Why This Matters
 
 If you add a new field to a collection (e.g., `isNSFW` to Posts), but the database table doesn't have that column, you'll get errors like:
+
 ```
 column "is_nsfw" of relation "posts" does not exist
 ```
@@ -90,6 +92,7 @@ When making changes that affect data structure, you MUST update THREE places:
 ### Example: Adding a New Field
 
 **Step 1: Update CMS Collection**
+
 ```typescript
 // /Users/mikevocalz/Downloads/payload-cms-setup/collections/Users.ts
 {
@@ -101,12 +104,14 @@ When making changes that affect data structure, you MUST update THREE places:
 ```
 
 **Step 2: Update Database** (if auto-migration doesn't work)
+
 ```sql
 -- Supabase SQL Editor
 ALTER TABLE users ADD COLUMN liked_posts JSONB DEFAULT '[]'::jsonb;
 ```
 
 **Step 3: Update API Endpoints**
+
 ```typescript
 // /Users/mikevocalz/deviant/app/api/posts/[id]/like+api.ts
 const likedPosts = (currentUserData as any)?.likedPosts || [];
@@ -132,15 +137,19 @@ Before pushing any changes that affect data structure:
 ### Common Sync Issues
 
 **Problem:** API uses field that doesn't exist in CMS
+
 - **Solution:** Add field to CMS collection first, then update API
 
 **Problem:** API uses field that doesn't exist in database
+
 - **Solution:** Add column to database, or ensure CMS migration runs
 
 **Problem:** Field name mismatch (camelCase vs snake_case)
+
 - **Solution:** Payload uses camelCase, DB uses snake_case - handle both in API
 
 **Problem:** Field type mismatch (array vs relationship)
+
 - **Solution:** Payload relationships can be arrays of IDs or objects - handle both formats
 
 **Remember:** When in doubt, check all three places (CMS, DB, API) before deploying!
@@ -208,7 +217,51 @@ This is a **React Native/Expo** project using:
 
 ---
 
-## 🔧 Known Platform Fixes
+## �️ SEV-0 Regression Prevention - MANDATORY
+
+**⚠️ READ `PREVENTION.md` before making changes to likes, follows, bookmarks, avatars, or query keys.**
+
+### Key Files
+
+| File                          | Purpose                           |
+| ----------------------------- | --------------------------------- |
+| `PREVENTION.md`               | Complete guardrail documentation  |
+| `lib/contracts/dto.ts`        | Zod schemas for all API responses |
+| `lib/contracts/query-keys.ts` | Canonical query key registry      |
+| `lib/contracts/invariants.ts` | DEV-time fail-fast assertions     |
+
+### Critical Rules
+
+1. **Parse API responses through DTOs** before caching
+2. **Use Query Key Registry** - no ad-hoc arrays
+3. **Scoped keys only** - `['profile', userId]` not `['profile']`
+4. **Entity avatar from entity** - never use authUser for other users' content
+5. **Immutable cache updates** - always spread to new objects
+
+### Banned Patterns
+
+```typescript
+// ❌ FORBIDDEN
+const [isLiked, setIsLiked] = useState(post.hasLiked);
+queryClient.setQueryData(["profile"], data);
+<Avatar uri={authUser.avatar} /> // for other user's content
+
+// ✅ REQUIRED
+const { hasLiked, likesCount } = usePostLikeState(postId);
+queryClient.setQueryData(profileKeys.byId(userId), data);
+<Avatar uri={post.author.avatar} />
+```
+
+### Quick Verification
+
+```bash
+npx tsc --noEmit              # TypeScript check
+./tests/smoke-tests.sh        # API smoke tests
+```
+
+---
+
+## �🔧 Known Platform Fixes
 
 ### Android - react-native-vision-camera-text-recognition
 
@@ -333,11 +386,13 @@ Before running native builds, verify:
 **Location:** `components/center-button.tsx`
 
 **Rules:**
+
 - Use **positive** `bottom` values to push the button UP (above the tabbar)
 - **NEVER** use negative `bottom` values that push the button down into or below the tabbar
 - Current correct values: `bottom: 8` (Android), `bottom: 12` (iOS)
 
 **Example of CORRECT positioning:**
+
 ```tsx
 const containerStyle: ViewStyle = {
   position: "absolute",
@@ -347,9 +402,10 @@ const containerStyle: ViewStyle = {
 ```
 
 **Example of WRONG positioning (NEVER do this):**
+
 ```tsx
-bottom: -34  // WRONG - pushes button below tabbar
-bottom: -4   // WRONG - pushes button into tabbar
+bottom: -34; // WRONG - pushes button below tabbar
+bottom: -4; // WRONG - pushes button into tabbar
 ```
 
 ---
@@ -359,7 +415,9 @@ bottom: -4   // WRONG - pushes button into tabbar
 **⚠️ ALWAYS write code for production, not just development.**
 
 **CRITICAL RULES:**
+
 1. **ALWAYS push code after making changes** - Never leave code uncommitted or unpushed. After completing any task:
+
    ```bash
    git add -A
    git commit -m "Descriptive commit message"
@@ -367,6 +425,7 @@ bottom: -4   // WRONG - pushes button into tabbar
    ```
 
 2. **ALWAYS publish to production after pushing** - After pushing code, immediately publish an EAS update to production:
+
    ```bash
    eas update --channel production --message "Description of changes"
    ```
@@ -387,15 +446,17 @@ bottom: -4   // WRONG - pushes button into tabbar
 6. **Never rely on dev-only features** - Features that only work in `__DEV__` mode must have production equivalents
 
 7. **Test with production builds** - Before pushing EAS updates, test with:
+
    ```bash
    npx expo start --no-dev --minify
    ```
 
 8. **Environment-aware code:**
+
    ```tsx
    // Good - works in production
    const apiUrl = process.env.EXPO_PUBLIC_API_URL || "";
-   
+
    // Better - explicit production handling
    if (__DEV__) {
      // Dev-only behavior
@@ -421,6 +482,7 @@ bottom: -4   // WRONG - pushes button into tabbar
 The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The-Air) updates. This toast **MUST ALWAYS** show when an update is available.
 
 **Rules:**
+
 1. **NEVER** remove the `showUpdateToast()` function
 2. **NEVER** disable or skip the toast notification
 3. **NEVER** remove the toast import or usage
@@ -434,6 +496,7 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 9. The toast can be dismissed with "Update Later" but will show again if update is still pending
 
 **Why this is critical:**
+
 - Users need to know when updates are available
 - Without the toast, users won't restart to get new features/fixes
 - OTA updates are essential for the app's update mechanism
@@ -805,15 +868,17 @@ The `clearAllCachedData()` function in `lib/auth-client.ts` handles this and is 
    - `useBookmarkStore` - bookmarked posts
 
 **Storage keys cleared on user switch:**
+
 ```typescript
 const USER_DATA_STORAGE_KEYS = [
-  "post-storage",      // liked posts, like counts
-  "bookmark-storage",  // bookmarked posts  
-  "chat-storage",      // chat data
+  "post-storage", // liked posts, like counts
+  "bookmark-storage", // bookmarked posts
+  "chat-storage", // chat data
 ];
 ```
 
 **If users report seeing another user's data:**
+
 1. Check that `clearAllCachedData()` is being called in `signIn.email` and `signUp.email`
 2. Verify MMKV storage is being cleared via `clearUserDataFromStorage()`
 3. Ensure Zustand stores are reset synchronously (not async)
@@ -825,10 +890,10 @@ const USER_DATA_STORAGE_KEYS = [
 **⚠️ `queryClient.clear()` alone is NOT enough!** Use ALL of these methods:
 
 ```typescript
-globalQueryClient.cancelQueries();   // Cancel active queries
-globalQueryClient.removeQueries();   // Remove all queries from cache
-globalQueryClient.clear();           // Clear the cache
-globalQueryClient.resetQueries();    // Reset query state
+globalQueryClient.cancelQueries(); // Cancel active queries
+globalQueryClient.removeQueries(); // Remove all queries from cache
+globalQueryClient.clear(); // Clear the cache
+globalQueryClient.resetQueries(); // Reset query state
 ```
 
 ### Profile Page User Switch Detection (CRITICAL)
@@ -841,7 +906,10 @@ const prevUserIdRef = useRef<string | null>(null);
 
 useEffect(() => {
   const currentUserId = user?.id || null;
-  if (prevUserIdRef.current !== null && prevUserIdRef.current !== currentUserId) {
+  if (
+    prevUserIdRef.current !== null &&
+    prevUserIdRef.current !== currentUserId
+  ) {
     console.log("[Profile] User switched, refetching...");
     refetch();
   }
@@ -850,6 +918,7 @@ useEffect(() => {
 ```
 
 This is needed because:
+
 1. React Query's `clear()` doesn't force active queries to re-render
 2. Mounted components may still hold stale data
 3. The ref-based detection catches when user ID changes and forces refetch
