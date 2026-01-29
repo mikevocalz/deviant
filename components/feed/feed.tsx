@@ -20,6 +20,7 @@ import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import type { Post } from "@/lib/types";
+import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -48,7 +49,9 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
       >
         <FeedPost
           id={item.id || ""}
-          author={item.author || { username: "unknown", avatar: "" }}
+          author={
+            item.author || { id: undefined, username: "unknown", avatar: "" }
+          }
           media={item.media || []}
           caption={item.caption || ""}
           likes={item.likes || 0}
@@ -194,6 +197,7 @@ export function Feed() {
 
   // Sync liked posts from server to Zustand store on mount
   useSyncLikedPosts();
+  useBookmarks();
 
   const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
   const { setActivePostId } = useFeedPostUIStore();

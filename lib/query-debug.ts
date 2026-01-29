@@ -33,6 +33,7 @@ const KEYS_REQUIRING_ID = {
   likeState: "viewerId, postId",
   bookmarkState: "viewerId, postId",
   bookmarks: "viewerId",
+  profilePosts: "userId",
   post: "postId",
   postComments: "postId",
   messages: "viewerId, conversationId",

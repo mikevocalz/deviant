@@ -1,4 +1,4 @@
-import { View } from "react-native";
+import { View, Text } from "react-native";
 import { Image } from "expo-image";
 import { memo } from "react";
 import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
@@ -30,7 +30,6 @@ export interface AvatarProps {
 }
 
 const FALLBACK_BG = "#3EA4E5";
-const FALLBACK_COLOR = "fff";
 
 /**
  * Reusable UserAvatar component
@@ -61,23 +60,23 @@ function AvatarComponent({
       ? sizeValue / 2
       : Math.min(Math.round(sizeValue * 0.18), 16); // ~18% of size, max 16
 
-  // Generate fallback URL using UI Avatars API
-  const fallbackUri = `https://ui-avatars.com/api/?name=${encodeURIComponent(username)}&background=${FALLBACK_BG.replace("#", "")}&color=${FALLBACK_COLOR}&size=${sizeValue * 2}`;
-
   // CRITICAL: Use resolveAvatarUrl to handle string OR media object
   // This ensures expo-image ALWAYS gets a valid URL string
   const resolvedUri = resolveAvatarUrl(
     uri,
     __DEV__ ? `Avatar:${username}` : undefined,
   );
-  const imageUri = resolvedUri || fallbackUri;
+  const showImage = Boolean(resolvedUri);
+  const usernameInitial =
+    (username && username.trim().length > 0
+      ? username.trim()[0].toUpperCase()
+      : "U");
 
-  // DEV: Log when falling back to placeholder
-  if (__DEV__ && !resolvedUri && uri) {
+  if (__DEV__) {
     console.log(
-      `[Avatar] ${username}: using fallback, uri was:`,
-      typeof uri,
-      uri,
+      `[UserAvatar] ${username}: raw=${JSON.stringify(
+        uri,
+      )} resolved=${resolvedUri}`,
     );
   }
 
@@ -94,16 +93,38 @@ function AvatarComponent({
         style,
       ]}
     >
-      <Image
-        source={{ uri: imageUri }}
-        style={{
-          width: sizeValue,
-          height: sizeValue,
-        }}
-        contentFit="cover"
-        transition={200}
-        cachePolicy="memory-disk"
-      />
+      {showImage ? (
+        <Image
+          source={{ uri: resolvedUri! }}
+          style={{
+            width: sizeValue,
+            height: sizeValue,
+          }}
+          contentFit="cover"
+          transition={200}
+          cachePolicy="memory-disk"
+        />
+      ) : (
+        <View
+          style={{
+            width: sizeValue,
+            height: sizeValue,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: FALLBACK_BG,
+          }}
+        >
+          <Text
+            style={{
+              color: "#fff",
+              fontWeight: "700",
+              fontSize: Math.round(sizeValue / 2),
+            }}
+          >
+            {usernameInitial}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

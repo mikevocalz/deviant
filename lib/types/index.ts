@@ -5,22 +5,27 @@ export type Comment = {
   text: string;
   timeAgo: string;
   likes: number;
+  hasLiked?: boolean;
+  postId?: string;
+  parentId?: string | null;
   replies?: Comment[];
 };
 
 export type Post = {
   id: string;
   author: {
+    id?: string;
     username: string;
     avatar: string;
     verified?: boolean;
     name?: string;
   };
-  media: { type: "image" | "video"; url: string }[];
+  media: { type: "image" | "video"; url: string; thumbnail?: string }[];
   caption?: string;
   likes: number;
   comments: Comment[];
   timeAgo: string;
+  createdAt?: string;
   location?: string;
   isNSFW?: boolean;
 };

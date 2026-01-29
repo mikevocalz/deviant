@@ -17,8 +17,8 @@ export const postKeys = {
   all: ["posts"] as const,
   feed: () => [...postKeys.all, "feed"] as const,
   feedInfinite: () => [...postKeys.all, "feed", "infinite"] as const,
-  profile: (username: string) =>
-    [...postKeys.all, "profile", username] as const,
+  profilePosts: (userId: string) => ["profilePosts", userId] as const,
+  profile: (userId: string) => postKeys.profilePosts(userId),
   detail: (id: string) => [...postKeys.all, "detail", id] as const,
 };
 
@@ -42,10 +42,12 @@ export function useInfiniteFeedPosts() {
 
 // Fetch profile posts
 export function useProfilePosts(userId: string) {
-  return useQuery({
-    queryKey: postKeys.profile(userId),
+  return useQuery<Post[]>({
+    queryKey: postKeys.profilePosts(userId),
     queryFn: () => postsApi.getProfilePosts(userId),
     enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 

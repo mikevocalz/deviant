@@ -152,22 +152,74 @@ export default function ChatScreen() {
   useEffect(() => {
     if (chatId) {
       console.log("[Chat] Loading messages for conversation:", chatId);
-      loadMessages(chatId);
 
-      // Mark messages as read when opening conversation
-      // This updates the backend and refreshes the Messages badge
-      const markMessagesRead = async () => {
+      // Ensure conversation exists before loading messages
+      const ensureConversationAndLoadMessages = async () => {
         try {
-          console.log("[Chat] Marking messages as read for:", chatId);
-          await messagesApiClient.markAsRead(chatId);
+          let actualConversationId = chatId;
+
+          // Check if chatId is a conversation ID or username
+          // If it contains only letters/numbers and underscores, it might be a username
+          if (/^[a-zA-Z0-9_]+$/.test(chatId) && !chatId.includes("-")) {
+            console.log(
+              "[Chat] chatId appears to be username, creating conversation...",
+            );
+            // Try to create conversation with this username
+            const newConversation =
+              await messagesApiClient.getOrCreateConversation(chatId);
+            if (newConversation) {
+              actualConversationId = newConversation.id;
+              console.log(
+                "[Chat] Created new conversation with ID:",
+                actualConversationId,
+              );
+            }
+          } else {
+            // It's likely a conversation ID, verify it exists
+            const conversations = await messagesApiClient.getConversations();
+            const conversation = conversations.find((c) => c.id === chatId);
+
+            if (!conversation) {
+              console.log(
+                "[Chat] Conversation not found, might be username fallback...",
+              );
+              // Try to create conversation as username fallback
+              const newConversation =
+                await messagesApiClient.getOrCreateConversation(chatId);
+              if (newConversation) {
+                actualConversationId = newConversation.id;
+                console.log(
+                  "[Chat] Created new conversation from fallback:",
+                  actualConversationId,
+                );
+              }
+            }
+          }
+
+          // Load messages for the conversation
+          await loadMessages(actualConversationId);
+
+          // Mark messages as read when opening conversation
+          // This updates the backend and refreshes the Messages badge
+          console.log(
+            "[Chat] Marking messages as read for:",
+            actualConversationId,
+          );
+          await messagesApiClient.markAsRead(actualConversationId);
           // Refresh the message badge count
           await refreshMessageCounts();
           console.log("[Chat] Messages marked as read, badge refreshed");
         } catch (error) {
-          console.error("[Chat] Error marking messages as read:", error);
+          console.error(
+            "[Chat] Error in ensureConversationAndLoadMessages:",
+            error,
+          );
+          // Still try to load messages with original chatId as fallback
+          await loadMessages(chatId);
         }
       };
-      markMessagesRead();
+
+      ensureConversationAndLoadMessages();
     }
   }, [chatId, loadMessages, refreshMessageCounts]);
   const currentUser = useAuthStore((s) => s.user);
@@ -220,15 +272,65 @@ export default function ChatScreen() {
         } else {
           console.warn("[Chat] Conversation not found:", chatId);
           // Fallback - chatId might be a username from old navigation
-          setRecipient({
-            id: chatId,
-            username: chatId,
-            name: chatId,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
-          });
+          // Try to create conversation with this user
+          try {
+            const newConversation =
+              await messagesApiClient.getOrCreateConversation(chatId);
+            if (newConversation) {
+              // Reload conversations to get the updated list
+              const updatedConversations =
+                await messagesApiClient.getConversations();
+              const updatedConversation = updatedConversations.find(
+                (c) => c.id === newConversation.id,
+              );
+
+              if (updatedConversation) {
+                const otherParticipant = updatedConversation.participants.find(
+                  (p) => p.username !== currentUser.username,
+                );
+
+                if (otherParticipant) {
+                  setRecipient({
+                    id: otherParticipant.id,
+                    username: otherParticipant.username,
+                    name: otherParticipant.name || otherParticipant.username,
+                    avatar:
+                      otherParticipant.avatar ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                        otherParticipant.username,
+                      )}&background=3EA4E5&color=fff`,
+                  });
+                }
+              }
+            } else {
+              // Final fallback - treat chatId as username
+              setRecipient({
+                id: chatId,
+                username: chatId,
+                name: chatId,
+                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+              });
+            }
+          } catch (createError) {
+            console.error("[Chat] Error creating conversation:", createError);
+            // Final fallback
+            setRecipient({
+              id: chatId,
+              username: chatId,
+              name: chatId,
+              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+            });
+          }
         }
       } catch (error) {
         console.error("[Chat] Error loading conversation:", error);
+        // Fallback - treat chatId as username
+        setRecipient({
+          id: chatId,
+          username: chatId,
+          name: chatId,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+        });
       } finally {
         setIsLoadingRecipient(false);
       }

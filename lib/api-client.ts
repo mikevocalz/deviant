@@ -193,11 +193,15 @@ async function apiFetch<T>(
   }
 
   // ============================================================
-  // PHASE 1 INSTRUMENTATION: Log EVERY request
+  // PHASE 1 INSTRUMENTATION: Log EVERY request (DEV only)
   // ============================================================
   const method = options.method || "GET";
-  console.log(`[API] REQUEST: ${method} ${url}`);
-  console.log(`[API]   hasAuth: ${!!authToken}`);
+  const hasAuthHeader = Boolean(headers["Authorization"]);
+  if (__DEV__) {
+    console.log(
+      `[API] REQUEST: ${method} ${url} (hasAuthHeader: ${hasAuthHeader})`,
+    );
+  }
 
   // ============================================================
   // PHASE 3: LOUD ASSERTION when auth missing for protected calls
@@ -242,8 +246,12 @@ async function apiFetch<T>(
   }
 
   // Log response status and body preview
-  console.log(`[API]   status: ${response.status}`);
-  console.log(`[API]   body: ${responseText}`);
+  if (__DEV__) {
+    console.log(
+      `[API] RESPONSE: ${method} ${url} -> ${response.status} (hasAuthHeader: ${hasAuthHeader})`,
+    );
+    console.log(`[API] RESPONSE BODY PREVIEW: ${responseText}`);
+  }
 
   if (!response.ok) {
     const error = new Error(

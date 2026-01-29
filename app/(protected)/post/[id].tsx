@@ -13,8 +13,8 @@ import {
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
 import { usePost } from "@/lib/hooks/use-posts";
-import { useComments, useLikeComment } from "@/lib/hooks/use-comments";
-import { usePostStore } from "@/lib/stores/post-store";
+import { useComments } from "@/lib/hooks/use-comments";
+import { CommentLikeButton } from "@/components/comments/threaded-comment";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
@@ -43,11 +43,9 @@ function PostDetailScreenContent() {
   const { data: comments = [], isLoading: commentsLoading } =
     useComments(postId);
   // STABILIZED: Only use boolean checks from store for comments
-  const { isCommentLiked } = usePostStore();
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
-  const likeCommentMutation = useLikeComment();
 
   // CENTRALIZED: Like state from single source of truth
   const initialLikes = post?.likes || 0;
@@ -56,7 +54,7 @@ function PostDetailScreenContent() {
     likesCount,
     toggle: toggleLike,
     isPending: isLikePending,
-  } = usePostLikeState(postId, initialLikes, false);
+  } = usePostLikeState(postId, initialLikes, false, post?.author?.id);
 
   // STABILIZED: Bookmark state comes from server ONLY via React Query
   const isBookmarked = useMemo(() => {
@@ -567,35 +565,12 @@ function PostDetailScreenContent() {
 
                       {/* Like and Reply buttons */}
                       <View className="mt-2 flex-row items-center gap-4">
-                        <Pressable
-                          onPress={() => {
-                            if (!comment.id) return;
-                            const wasLiked = isCommentLiked(comment.id);
-                            // STABILIZED: No optimistic updates - wait for server
-                            likeCommentMutation.mutate({
-                              commentId: comment.id,
-                              isLiked: wasLiked,
-                            });
-                          }}
-                          className="flex-row items-center gap-1"
-                        >
-                          <Heart
-                            size={14}
-                            color={
-                              isCommentLiked(comment.id || "")
-                                ? "#FF5BFC"
-                                : colors.mutedForeground
-                            }
-                            fill={
-                              isCommentLiked(comment.id || "")
-                                ? "#FF5BFC"
-                                : "none"
-                            }
-                          />
-                          <Text className="text-xs text-muted-foreground">
-                            {comment.likes || 0}
-                          </Text>
-                        </Pressable>
+                        <CommentLikeButton
+                          postId={postIdString}
+                          commentId={comment.id}
+                          initialLikes={comment.likes}
+                          initialHasLiked={comment.hasLiked}
+                        />
                         <Pressable
                           onPress={() => {
                             if (!postIdString || !comment.id) return;

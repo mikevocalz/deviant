@@ -1,14 +1,36 @@
 /**
  * React hook for media uploads to Bunny.net CDN
+ *
+ * CRITICAL RULES:
+ * - RAW VIDEO MUST NEVER BE UPLOADED
+ * - ALL VIDEOS MUST BE COMPRESSED LOCALLY BEFORE UPLOAD
+ * - IF COMPRESSION FAILS → UPLOAD MUST BE BLOCKED
+ *
+ * Flow for videos:
+ * 1. Validate video (duration, size, resolution)
+ * 2. Compress using FFmpeg (MANDATORY)
+ * 3. Generate thumbnail from original
+ * 4. Upload compressed video
+ * 5. Upload thumbnail
+ * 6. Clean up temp files
  */
 
 import { useState, useCallback } from "react";
 import {
   uploadToBunny,
-  uploadMultipleToBunny,
   type UploadProgress,
   type UploadResult,
 } from "@/lib/bunny-storage";
+import {
+  generateVideoThumbnail,
+  cleanupThumbnail,
+} from "@/lib/video-thumbnail";
+import {
+  compressVideo,
+  validateVideo,
+  cleanupCompressedVideo,
+  type CompressionProgress,
+} from "@/lib/video-compression";
 
 export interface UseMediaUploadOptions {
   folder?: string;
@@ -22,12 +44,28 @@ export interface MediaFile {
   type: "image" | "video";
 }
 
+export interface MediaUploadResult {
+  type: "image" | "video";
+  url: string;
+  thumbnail?: string;
+  success: boolean;
+  error?: string;
+  compressionStats?: {
+    originalSize: number;
+    compressedSize: number;
+    reductionPercent: number;
+  };
+}
+
 export function useMediaUpload(options: UseMediaUploadOptions = {}) {
   const { folder = "uploads", userId, onSuccess, onError } = options;
 
   const [isUploading, setIsUploading] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [compressionProgress, setCompressionProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const uploadSingle = useCallback(
     async (uri: string): Promise<UploadResult> => {
@@ -59,39 +97,200 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
   );
 
   const uploadMultiple = useCallback(
-    async (
-      files: MediaFile[],
-    ): Promise<
-      Array<{ type: "image" | "video"; url: string; success: boolean }>
-    > => {
+    async (files: MediaFile[]): Promise<MediaUploadResult[]> => {
       setIsUploading(true);
       setProgress(0);
+      setCompressionProgress(0);
       setError(null);
+      setStatusMessage(null);
 
-      const results = await uploadMultipleToBunny(
-        files,
-        folder,
-        (p) => {
-          setProgress(p.percentage);
-        },
-        userId,
-      );
+      const results: MediaUploadResult[] = [];
+      const videoCount = files.filter((f) => f.type === "video").length;
+      const imageCount = files.length - videoCount;
+      // Videos: validate + compress + thumbnail + upload = 4 steps
+      // Images: upload = 1 step
+      const totalSteps = videoCount * 4 + imageCount;
+      let completedSteps = 0;
+
+      const updateProgress = (message?: string) => {
+        completedSteps++;
+        setProgress(Math.round((completedSteps / totalSteps) * 100));
+        if (message) setStatusMessage(message);
+      };
+
+      for (const file of files) {
+        console.log(
+          "[useMediaUpload] Processing file:",
+          file.type,
+          file.uri.substring(0, 50),
+        );
+
+        if (file.type === "video") {
+          // ========== VIDEO PROCESSING (MANDATORY COMPRESSION) ==========
+          console.log(
+            "[useMediaUpload] ========== VIDEO COMPRESSION PIPELINE ==========",
+          );
+
+          // Step 1: Validate video
+          setStatusMessage("Validating video...");
+          const validation = await validateVideo(file.uri);
+          if (!validation.valid) {
+            console.error(
+              "[useMediaUpload] Video validation failed:",
+              validation.errors,
+            );
+            results.push({
+              type: "video",
+              url: "",
+              success: false,
+              error: `Video rejected: ${validation.errors.join(", ")}`,
+            });
+            // Skip remaining steps for this file
+            completedSteps += 4;
+            setProgress(Math.round((completedSteps / totalSteps) * 100));
+            continue;
+          }
+          updateProgress("Video validated");
+
+          // Step 2: MANDATORY compression
+          setIsCompressing(true);
+          setStatusMessage("Compressing video...");
+          console.log("[useMediaUpload] Starting MANDATORY video compression");
+
+          const compressionResult = await compressVideo(file.uri, (p) => {
+            setCompressionProgress(p.percentage);
+          });
+          setIsCompressing(false);
+
+          if (!compressionResult.success || !compressionResult.outputPath) {
+            // CRITICAL: If compression fails, DO NOT upload raw video
+            console.error(
+              "[useMediaUpload] COMPRESSION FAILED - BLOCKING UPLOAD",
+            );
+            console.error("[useMediaUpload] Error:", compressionResult.error);
+            results.push({
+              type: "video",
+              url: "",
+              success: false,
+              error:
+                compressionResult.error ||
+                "Video compression failed. Cannot upload raw video.",
+            });
+            // Skip remaining steps
+            completedSteps += 3;
+            setProgress(Math.round((completedSteps / totalSteps) * 100));
+            continue;
+          }
+
+          console.log("[useMediaUpload] Compression SUCCESS:", {
+            originalMB: Math.round(
+              (compressionResult.originalSize || 0) / 1024 / 1024,
+            ),
+            compressedMB: Math.round(
+              (compressionResult.compressedSize || 0) / 1024 / 1024,
+            ),
+            reduction: compressionResult.compressionRatio + "%",
+          });
+          updateProgress("Video compressed");
+
+          // Step 3: Generate thumbnail from ORIGINAL video (better quality)
+          setStatusMessage("Generating thumbnail...");
+          let thumbnailUrl: string | undefined;
+          const thumbResult = await generateVideoThumbnail(file.uri, 500);
+          if (thumbResult.success && thumbResult.uri) {
+            const thumbUpload = await uploadToBunny(
+              thumbResult.uri,
+              `${folder}/thumbnails`,
+              undefined,
+              userId,
+            );
+            if (thumbUpload.success) {
+              thumbnailUrl = thumbUpload.url;
+              console.log("[useMediaUpload] Thumbnail uploaded:", thumbnailUrl);
+            }
+            await cleanupThumbnail(thumbResult.uri);
+          }
+          updateProgress("Thumbnail generated");
+
+          // Step 4: Upload COMPRESSED video (never raw)
+          setStatusMessage("Uploading video...");
+          const uploadResult = await uploadToBunny(
+            compressionResult.outputPath,
+            folder,
+            undefined,
+            userId,
+          );
+
+          // Clean up compressed file after upload
+          await cleanupCompressedVideo(compressionResult.outputPath);
+
+          if (!uploadResult.success) {
+            console.error(
+              "[useMediaUpload] Upload failed:",
+              uploadResult.error,
+            );
+            results.push({
+              type: "video",
+              url: "",
+              success: false,
+              error: uploadResult.error,
+            });
+          } else {
+            results.push({
+              type: "video",
+              url: uploadResult.url,
+              thumbnail: thumbnailUrl,
+              success: true,
+              compressionStats: {
+                originalSize: compressionResult.originalSize || 0,
+                compressedSize: compressionResult.compressedSize || 0,
+                reductionPercent: compressionResult.compressionRatio || 0,
+              },
+            });
+          }
+          updateProgress("Upload complete");
+          console.log(
+            "[useMediaUpload] ========== VIDEO PIPELINE COMPLETE ==========",
+          );
+        } else {
+          // ========== IMAGE PROCESSING (no compression needed) ==========
+          setStatusMessage("Uploading image...");
+          const uploadResult = await uploadToBunny(
+            file.uri,
+            folder,
+            undefined,
+            userId,
+          );
+
+          if (!uploadResult.success) {
+            results.push({
+              type: "image",
+              url: "",
+              success: false,
+              error: uploadResult.error,
+            });
+          } else {
+            results.push({
+              type: "image",
+              url: uploadResult.url,
+              success: true,
+            });
+          }
+          updateProgress("Image uploaded");
+        }
+      }
 
       setIsUploading(false);
+      setStatusMessage(null);
 
       const successResults = results.filter((r) => r.success);
       const failedResults = results.filter((r) => !r.success);
       const failedCount = failedResults.length;
 
       if (failedCount > 0) {
-        // Log detailed error info for debugging
         console.error("[useMediaUpload] Upload failures:", failedResults);
-        console.error(
-          "[useMediaUpload] Files attempted:",
-          files.map((f) => ({ uri: f.uri.substring(0, 10), type: f.type })),
-        );
-
-        const errorMsg = `${failedCount} file(s) failed to upload`;
+        const errorMsg =
+          failedResults[0]?.error || `${failedCount} file(s) failed to upload`;
         setError(errorMsg);
         onError?.(errorMsg);
       }
@@ -114,14 +313,20 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
 
   const reset = useCallback(() => {
     setIsUploading(false);
+    setIsCompressing(false);
     setProgress(0);
+    setCompressionProgress(0);
     setError(null);
+    setStatusMessage(null);
   }, []);
 
   return {
     isUploading,
+    isCompressing,
     progress,
+    compressionProgress,
     error,
+    statusMessage,
     uploadSingle,
     uploadMultiple,
     reset,

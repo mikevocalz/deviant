@@ -315,14 +315,14 @@ function UserProfileScreenComponent() {
       .map((post) => {
         try {
           const media = Array.isArray(post.media) ? post.media : [];
-          const thumbnailUrl = media[0]?.url;
+          const previewUrl = media[0]?.thumbnail || media[0]?.url;
           const isValidUrl =
-            thumbnailUrl &&
-            (thumbnailUrl.startsWith("http://") ||
-              thumbnailUrl.startsWith("https://"));
+            previewUrl &&
+            (previewUrl.startsWith("http://") ||
+              previewUrl.startsWith("https://"));
           return {
             id: String(post.id),
-            thumbnail: isValidUrl ? thumbnailUrl : undefined,
+            thumbnail: isValidUrl ? previewUrl : undefined,
             type: media[0]?.type === "video" ? "video" : "image",
             mediaCount: media.length,
             hasMultipleImages: media.length > 1 && media[0]?.type === "image",

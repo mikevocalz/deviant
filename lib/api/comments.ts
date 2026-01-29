@@ -27,6 +27,9 @@ export interface Comment {
   text: string;
   timeAgo: string;
   likes: number;
+  hasLiked?: boolean;
+  postId?: string;
+  parentId?: string | null;
   replies?: Comment[];
 }
 
@@ -56,10 +59,43 @@ function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
 }
 
 // Transform API response to match Comment type
-function transformComment(doc: Record<string, unknown>): Comment {
+function transformComment(
+  doc: Record<string, unknown>,
+  options: { postId?: string; parentId?: string | null } = {},
+): Comment {
   const author = doc.author as Record<string, unknown> | undefined;
   const authorName =
     (author?.name as string) || (author?.username as string) || "User";
+
+  const resolvedPostId =
+    typeof doc.post === "string"
+      ? doc.post
+      : typeof doc.postId === "string"
+        ? doc.postId
+        : options.postId;
+
+  const resolvedParentId =
+    options.parentId ??
+    (doc.parentCommentId as string | null) ??
+    (doc.parent as string | null);
+
+  const hasLikedField =
+    typeof doc.hasLiked === "boolean"
+      ? doc.hasLiked
+      : typeof doc.liked === "boolean"
+        ? doc.liked
+        : undefined;
+
+  const likesCount =
+    (doc.likesCount as number) || (doc.likes as number) || 0;
+
+  const replies = ((doc.replies as Array<Record<string, unknown>>) || []).map(
+    (reply) =>
+      transformComment(reply, {
+        postId: resolvedPostId,
+        parentId: doc.id as string,
+      }),
+  );
 
   return {
     id: doc.id as string,
@@ -67,10 +103,11 @@ function transformComment(doc: Record<string, unknown>): Comment {
     avatar: extractAvatarUrl(author?.avatar, authorName),
     text: (doc.content as string) || (doc.text as string) || "", // CMS uses 'content', transform uses 'text'
     timeAgo: formatTimeAgo(doc.createdAt as string),
-    likes: (doc.likesCount as number) || (doc.likes as number) || 0,
-    replies: ((doc.replies as Array<Record<string, unknown>>) || []).map(
-      transformComment,
-    ),
+    likes: likesCount,
+    hasLiked: hasLikedField,
+    postId: resolvedPostId,
+    parentId: resolvedParentId,
+    replies,
   };
 }
 
@@ -101,10 +138,12 @@ export const commentsApiClient = {
 
       // Transform comments - replies are already attached by the endpoint
       const commentsWithReplies = response.docs.map((doc: any) => {
-        const comment = transformComment(doc);
-        // Transform nested replies if present
+        const comment = transformComment(doc, { postId });
         const replies = (doc.replies || []).map((reply: any) =>
-          transformComment(reply),
+          transformComment(reply, {
+            postId,
+            parentId: doc.id as string,
+          }),
         );
         return {
           ...comment,
@@ -135,7 +174,9 @@ export const commentsApiClient = {
         limit,
         depth: 2,
       });
-      return response.docs.map(transformComment);
+      return response.docs.map((doc: any) =>
+        transformComment(doc, { postId, parentId }),
+      );
     } catch (error) {
       console.error("[commentsApi] getReplies error:", error);
       return [];
@@ -231,7 +272,10 @@ export const commentsApiClient = {
         throw apiError;
       }
 
-      const createdComment = transformComment(doc as Record<string, unknown>);
+      const createdComment = transformComment(doc as Record<string, unknown>, {
+        postId: cleanedPostId,
+        parentId: data.parent || null,
+      });
       console.log("[commentsApi] Transformed comment:", createdComment.id);
 
       // Fire-and-forget: Create notifications asynchronously without blocking the response

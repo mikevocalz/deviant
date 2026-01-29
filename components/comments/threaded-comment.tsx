@@ -11,12 +11,13 @@
  */
 
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { Image } from "expo-image";
 import { Heart } from "lucide-react-native";
 import { memo, useCallback } from "react";
+import { UserAvatar } from "@/components/ui/avatar";
+import { useCommentLikeState } from "@/lib/hooks/use-comment-like-state";
 
-// Thread line color - subtle dark gray
-const THREAD_LINE_COLOR = "#333";
+// Thread line color - more visible
+const THREAD_LINE_COLOR = "#555";
 const THREAD_LINE_WIDTH = 2;
 
 // Avatar sizes
@@ -33,14 +34,52 @@ export interface CommentData {
   text: string;
   timeAgo?: string;
   likes?: number;
+  hasLiked?: boolean;
+  postId?: string;
+  parentId?: string | null;
   replies?: CommentData[];
+}
+
+interface CommentLikeButtonProps {
+  postId: string;
+  commentId: string;
+  initialLikes?: number;
+  initialHasLiked?: boolean;
+}
+
+export function CommentLikeButton({
+  postId,
+  commentId,
+  initialLikes = 0,
+  initialHasLiked = false,
+}: CommentLikeButtonProps) {
+  const { hasLiked, likesCount, toggle, isPending } = useCommentLikeState(
+    postId,
+    commentId,
+    initialLikes,
+    initialHasLiked,
+  );
+
+  return (
+    <Pressable onPress={toggle} disabled={isPending} style={styles.likeButton}>
+      <Heart
+        size={16}
+        color={hasLiked ? "#FF5BFC" : "#666"}
+        fill={hasLiked ? "#FF5BFC" : "none"}
+      />
+      {likesCount > 0 && (
+        <Text style={[styles.likeCount, hasLiked && styles.likeCountActive]}>
+          {likesCount}
+        </Text>
+      )}
+    </Pressable>
+  );
 }
 
 interface ThreadedCommentProps {
   comment: CommentData;
+  postId: string;
   isHighlighted?: boolean;
-  isLiked: (commentId: string) => boolean;
-  onLike: (commentId: string, isCurrentlyLiked: boolean) => void;
   onReply: (username: string, commentId: string) => void;
   onViewAllReplies?: (commentId: string) => void;
   onProfilePress: (username: string) => void;
@@ -52,15 +91,13 @@ interface ThreadedCommentProps {
 const ReplyItem = memo(function ReplyItem({
   reply,
   isLast,
-  isLiked,
-  onLike,
   onProfilePress,
+  postId,
 }: {
   reply: CommentData;
   isLast: boolean;
-  isLiked: boolean;
-  onLike: () => void;
   onProfilePress: () => void;
+  postId: string;
 }) {
   return (
     <View style={styles.replyRow}>
@@ -69,13 +106,11 @@ const ReplyItem = memo(function ReplyItem({
 
       {/* Reply content */}
       <Pressable onPress={onProfilePress}>
-        <Image
-          source={{
-            uri:
-              reply.avatar ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(reply.username)}&background=3EA4E5&color=fff`,
-          }}
-          style={styles.replyAvatar}
+        <UserAvatar
+          uri={reply.avatar}
+          username={reply.username}
+          size={REPLY_AVATAR_SIZE}
+          variant="circle"
         />
       </Pressable>
 
@@ -91,16 +126,12 @@ const ReplyItem = memo(function ReplyItem({
 
         {/* Reply actions - Like only, NO reply button (2-level limit) */}
         <View style={styles.replyActions}>
-          <Pressable onPress={onLike} style={styles.likeButton}>
-            <Heart
-              size={14}
-              color={isLiked ? "#FF5BFC" : "#555"}
-              fill={isLiked ? "#FF5BFC" : "none"}
-            />
-            <Text style={[styles.likeCount, isLiked && styles.likeCountActive]}>
-              {reply.likes || 0}
-            </Text>
-          </Pressable>
+          <CommentLikeButton
+            postId={postId}
+            commentId={reply.id}
+            initialLikes={reply.likes}
+            initialHasLiked={reply.hasLiked}
+          />
         </View>
       </View>
     </View>
@@ -110,22 +141,20 @@ const ReplyItem = memo(function ReplyItem({
 // Reply Container with vertical thread line
 const ReplyContainer = memo(function ReplyContainer({
   replies,
-  isLiked,
-  onLike,
   onProfilePress,
   maxVisible,
   showAll,
   onViewAll,
   parentId,
+  postId,
 }: {
   replies: CommentData[];
-  isLiked: (commentId: string) => boolean;
-  onLike: (commentId: string, isCurrentlyLiked: boolean) => void;
   onProfilePress: (username: string) => void;
   maxVisible: number;
   showAll: boolean;
   onViewAll?: (commentId: string) => void;
   parentId: string;
+  postId: string;
 }) {
   const visibleReplies = showAll ? replies : replies.slice(0, maxVisible);
   const hasMoreReplies = !showAll && replies.length > maxVisible;
@@ -141,9 +170,8 @@ const ReplyContainer = memo(function ReplyContainer({
           <ReplyItem
             key={reply.id}
             reply={reply}
+            postId={postId}
             isLast={index === visibleReplies.length - 1 && !hasMoreReplies}
-            isLiked={isLiked(reply.id)}
-            onLike={() => onLike(reply.id, isLiked(reply.id))}
             onProfilePress={() => onProfilePress(reply.username)}
           />
         ))}
@@ -167,10 +195,9 @@ const ReplyContainer = memo(function ReplyContainer({
 
 // Main ThreadedComment Component
 function ThreadedCommentComponent({
+  postId,
   comment,
   isHighlighted = false,
-  isLiked,
-  onLike,
   onReply,
   onViewAllReplies,
   onProfilePress,
@@ -181,10 +208,6 @@ function ThreadedCommentComponent({
     comment.replies &&
     Array.isArray(comment.replies) &&
     comment.replies.length > 0;
-
-  const handleLikeParent = useCallback(() => {
-    onLike(comment.id, isLiked(comment.id));
-  }, [comment.id, isLiked, onLike]);
 
   const handleReply = useCallback(() => {
     onReply(comment.username, comment.id);
@@ -198,13 +221,11 @@ function ThreadedCommentComponent({
       {/* Parent comment */}
       <View style={styles.parentRow}>
         <Pressable onPress={() => onProfilePress(comment.username)}>
-          <Image
-            source={{
-              uri:
-                comment.avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.username)}&background=3EA4E5&color=fff`,
-            }}
-            style={styles.parentAvatar}
+          <UserAvatar
+            uri={comment.avatar}
+            username={comment.username}
+            size={PARENT_AVATAR_SIZE}
+            variant="circle"
           />
         </Pressable>
 
@@ -220,21 +241,12 @@ function ThreadedCommentComponent({
 
           {/* Parent actions - Like AND Reply */}
           <View style={styles.parentActions}>
-            <Pressable onPress={handleLikeParent} style={styles.likeButton}>
-              <Heart
-                size={16}
-                color={isLiked(comment.id) ? "#FF5BFC" : "#666"}
-                fill={isLiked(comment.id) ? "#FF5BFC" : "none"}
-              />
-              <Text
-                style={[
-                  styles.parentLikeCount,
-                  isLiked(comment.id) && styles.likeCountActive,
-                ]}
-              >
-                {comment.likes || 0}
-              </Text>
-            </Pressable>
+            <CommentLikeButton
+              postId={postId}
+              commentId={comment.id}
+              initialLikes={comment.likes}
+              initialHasLiked={comment.hasLiked}
+            />
 
             <Pressable onPress={handleReply}>
               <Text style={styles.replyButtonText}>Reply</Text>
@@ -247,8 +259,7 @@ function ThreadedCommentComponent({
       {hasReplies && (
         <ReplyContainer
           replies={comment.replies!}
-          isLiked={isLiked}
-          onLike={onLike}
+          postId={postId}
           onProfilePress={onProfilePress}
           maxVisible={maxVisibleReplies}
           showAll={showAllReplies}
@@ -324,6 +335,10 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginLeft: PARENT_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2, // Align line under avatar center
     position: "relative",
+    backgroundColor: "rgba(85, 85, 85, 0.1)", // Subtle background to show threading
+    borderRadius: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   verticalThreadLine: {
     position: "absolute",

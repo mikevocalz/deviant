@@ -1,7 +1,24 @@
 import { posts, notifications, users } from "@/lib/api-client";
 import type { Post } from "@/lib/types";
+import { getPayloadBaseUrl } from "@/lib/api-config";
 
 const PAGE_SIZE = 10;
+
+const PAYLOAD_BASE_URL = getPayloadBaseUrl();
+
+// Ensure media URLs are absolute, defaulting to the configured Payload base
+function resolveMediaUrl(rawUrl: string): string | null {
+  if (!rawUrl) return null;
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/")) {
+    return `${PAYLOAD_BASE_URL}${trimmed}`;
+  }
+  return `${PAYLOAD_BASE_URL}/${trimmed}`;
+}
 
 // Extract avatar URL from various possible formats (upload field returns object with url)
 function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
@@ -51,6 +68,19 @@ export interface PaginatedResponse<T> {
 
 // Transform API response to match Post type
 // CRITICAL: Properly extract media fields - video posts may have different structure
+function toNumber(value: unknown): number {
+  if (typeof value === "number" && !Number.isNaN(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
 function transformPost(doc: Record<string, unknown>): Post {
   const rawMedia = (doc.media as Array<Record<string, unknown>>) || [];
 
@@ -62,7 +92,10 @@ function transformPost(doc: Record<string, unknown>): Post {
 
       // Extract URL - could be in 'url' field or 'filename' for uploaded media
       // Payload CMS may store media as relationship objects with nested data
-      const url = String(m.url || m.filename || "");
+      const rawUrl = String(m.url || m.filename || "");
+      const url = resolveMediaUrl(rawUrl);
+      const rawThumb = m.thumbnail as string | undefined;
+      const thumbnail = rawThumb ? resolveMediaUrl(rawThumb) : undefined;
 
       // Extract type - default to 'image' if not specified
       // Video posts should have type: 'video' set
@@ -74,17 +107,33 @@ function transformPost(doc: Record<string, unknown>): Post {
         return null;
       }
 
-      return { type, url };
+      return { type, url, ...(thumbnail && { thumbnail }) };
     })
-    .filter((m): m is { type: "image" | "video"; url: string } => m !== null);
+    .filter(
+      (m): m is { type: "image" | "video"; url: string; thumbnail?: string } =>
+        m !== null && typeof m.url === "string",
+    );
 
   // Log media transformation for debugging
+  const rawId = doc.id;
+  const normalizedId =
+    typeof rawId === "string" ? rawId : rawId != null ? String(rawId) : "";
+
+  if (__DEV__ && !normalizedId) {
+    console.warn("[transformPost] Missing post ID:", doc);
+  }
+
   if (rawMedia.length > 0) {
     console.log("[transformPost] Media transform:", {
-      postId: doc.id,
+      postId: normalizedId,
       rawCount: rawMedia.length,
       transformedCount: media.length,
       hasVideo: media.some((m) => m.type === "video"),
+      thumbnails: media.map((m) => ({
+        type: m.type,
+        hasThumbnail: !!m.thumbnail,
+        thumbnailUrl: m.thumbnail?.substring(0, 60),
+      })),
     });
   }
 
@@ -92,9 +141,12 @@ function transformPost(doc: Record<string, unknown>): Post {
   const authorName =
     (author?.name as string) || (author?.username as string) || "User";
 
+  const likes = toNumber(doc.likesCount ?? doc.likes);
+
   return {
-    id: doc.id as string,
+    id: normalizedId,
     author: {
+      id: author?.id ? String(author.id) : undefined,
       username: (author?.username as string) || "unknown",
       avatar: extractAvatarUrl(author?.avatar, authorName),
       verified: (author?.isVerified as boolean) || false,
@@ -102,9 +154,10 @@ function transformPost(doc: Record<string, unknown>): Post {
     },
     media,
     caption: (doc.content || doc.caption) as string,
-    likes: (doc.likes as number) || 0,
+    likes,
     comments: [],
     timeAgo: formatTimeAgo(doc.createdAt as string),
+    createdAt: doc.createdAt as string,
     location: doc.location as string,
     isNSFW: doc.isNSFW as boolean,
   };
@@ -180,22 +233,41 @@ export const postsApi = {
         depth: 2,
       });
 
-      // DEV logging to verify API returns all posts
+      const transformedPosts = response.docs.map((doc) =>
+        transformPost(doc as Record<string, unknown>),
+      );
+
+      // DEV logging to verify API returns all posts and date range
       if (__DEV__) {
-        const docs = response.docs || [];
+        const createdTimestamps = transformedPosts
+          .map((post) =>
+            post.createdAt ? new Date(post.createdAt).getTime() : NaN,
+          )
+          .filter((timestamp) => !Number.isNaN(timestamp));
+        const sortedTimestamps = [...createdTimestamps].sort((a, b) => a - b);
+        const oldest =
+          sortedTimestamps.length > 0
+            ? new Date(sortedTimestamps[0]).toISOString()
+            : null;
+        const newest =
+          sortedTimestamps.length > 0
+            ? new Date(
+                sortedTimestamps[sortedTimestamps.length - 1],
+              ).toISOString()
+            : null;
         console.log("[postsApi] getProfilePosts:", {
           userId: userId.slice(0, 8),
           totalDocs: response.totalDocs,
-          returnedCount: docs.length,
-          firstPostDate: docs[0]?.createdAt,
-          lastPostDate: docs[docs.length - 1]?.createdAt,
+          returnedCount: transformedPosts.length,
+          oldestCreatedAt: oldest,
+          newestCreatedAt: newest,
         });
       }
 
-      return response.docs.map(transformPost);
+      return transformedPosts;
     } catch (error) {
       console.error("[postsApi] getProfilePosts error:", error);
-      return [];
+      throw error;
     }
   },
 
@@ -290,7 +362,7 @@ export const postsApi = {
   async createPost(data: {
     author?: string;
     authorUsername?: string;
-    media?: Array<{ type: string; url: string }>;
+    media?: Array<{ type: string; url: string; thumbnail?: string }>;
     caption?: string;
     location?: string;
     isNSFW?: boolean;
@@ -331,6 +403,19 @@ export const postsApi = {
             console.error("[postsApi] User lookup error:", lookupError);
           }
         }
+      }
+
+      // Log media with thumbnails for debugging
+      if (data.media && data.media.length > 0) {
+        console.log(
+          "[postsApi] Creating post with media:",
+          data.media.map((m) => ({
+            type: m.type,
+            url: m.url?.substring(0, 50),
+            hasThumbnail: !!m.thumbnail,
+            thumbnail: m.thumbnail?.substring(0, 50),
+          })),
+        );
       }
 
       const doc = await posts.create({

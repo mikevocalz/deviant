@@ -21,9 +21,9 @@ const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
   process.env?.EXPO_PUBLIC_FORCE_OTA_CHECK === "true";
 
-// Storage keys for update deduplication
-const STORAGE_KEY_LAST_SHOWN_UPDATE = "@dvnt_last_shown_update_id";
-const STORAGE_KEY_DISMISSED_UPDATE = "@dvnt_dismissed_update_id";
+// Storage key - no longer used for dismissal tracking
+// Toast will show again each session to ensure users don't miss updates
+const STORAGE_KEY_LAST_SHOWN_UPDATE = "@dvnt_last_shown_update_id"; // kept for potential future use
 
 // SINGLETON: Module-level state to prevent multiple hook instances from racing
 let globalHasShownToastThisSession = false;
@@ -171,41 +171,13 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           updateId || safeGet(() => Updates?.updateId, null);
         console.log("[Updates] Checking update ID:", currentUpdateId);
 
+        // Note: We no longer persist dismissals - toast will show again each session
+        // This ensures users who accidentally dismiss can still get the update
         if (currentUpdateId) {
-          // Check if this update was already shown or dismissed
-          const [lastShownId, dismissedId] = await Promise.all([
-            AsyncStorage.getItem(STORAGE_KEY_LAST_SHOWN_UPDATE).catch(
-              () => null,
-            ),
-            AsyncStorage.getItem(STORAGE_KEY_DISMISSED_UPDATE).catch(
-              () => null,
-            ),
-          ]);
-
           console.log(
-            "[Updates] Last shown:",
-            lastShownId,
-            "Dismissed:",
-            dismissedId,
-          );
-
-          // Skip if already shown for this update ID
-          if (lastShownId === currentUpdateId) {
-            console.log("[Updates] Already shown for this update ID, skipping");
-            return;
-          }
-
-          // Skip if user dismissed this specific update
-          if (dismissedId === currentUpdateId) {
-            console.log("[Updates] User dismissed this update ID, skipping");
-            return;
-          }
-
-          // Persist that we're showing this update ID
-          await AsyncStorage.setItem(
-            STORAGE_KEY_LAST_SHOWN_UPDATE,
+            "[Updates] Showing toast for update ID:",
             currentUpdateId,
-          ).catch(() => {});
+          );
         }
 
         // LOCK: Mark all flags BEFORE showing toast
@@ -240,15 +212,13 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
             cancel: {
               label: "Later",
               onClick: async () => {
-                console.log("[Updates] User chose to update later");
+                console.log(
+                  "[Updates] User chose to update later - will show again next session",
+                );
                 dismissToast();
-                // Persist dismissal for this specific update ID
-                if (currentUpdateId) {
-                  await AsyncStorage.setItem(
-                    STORAGE_KEY_DISMISSED_UPDATE,
-                    currentUpdateId,
-                  ).catch(() => {});
-                }
+                // DO NOT persist dismissal - allow toast to show again on next app open
+                // Reset session flag so it can show again if user backgrounds and foregrounds
+                globalHasShownToastThisSession = false;
               },
             },
           });

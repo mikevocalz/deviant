@@ -24,14 +24,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import {
-  useComments,
-  useCreateComment,
-  useLikeComment,
-} from "@/lib/hooks/use-comments";
+import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { usePostStore } from "@/lib/stores/post-store";
 import {
   ThreadedComment,
   type CommentData,
@@ -56,10 +51,6 @@ export default function CommentsScreen() {
     setNewComment: setComment,
     setReplyingTo,
   } = useCommentsStore();
-  // STABILIZED: Only use boolean check from store
-  // Counts come from server via comment data, NOT from store
-  const { isCommentLiked } = usePostStore();
-  const likeCommentMutation = useLikeComment();
   const insets = useSafeAreaInsets();
 
   // PHASE 1 FIX: Robust submit lock to prevent duplicates
@@ -296,15 +287,9 @@ export default function CommentsScreen() {
               return (
                 <ThreadedComment
                   key={item.id}
+                  postId={postId || ""}
                   comment={commentData}
                   isHighlighted={isHighlightedComment}
-                  isLiked={isCommentLiked}
-                  onLike={(cid, isCurrentlyLiked) => {
-                    likeCommentMutation.mutate({
-                      commentId: cid,
-                      isLiked: isCurrentlyLiked,
-                    });
-                  }}
                   onReply={handleReply}
                   onViewAllReplies={handleViewReplies}
                   onProfilePress={handleProfilePress}

@@ -38,16 +38,18 @@ export function useBookmarks() {
     gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnMount: true,
     refetchOnWindowFocus: false,
+    enabled: !!viewerId,
   });
 }
 
 /**
- * STABILIZED Toggle Bookmark Mutation
+ * INSTANT Bookmark Toggle Mutation with Optimistic Updates
  *
- * CRITICAL CHANGES:
- * 1. NO optimistic updates - wait for server confirmation
- * 2. Server response updates React Query cache AND Zustand store
- * 3. Invalidate queries to refresh from server
+ * FEATURES:
+ * - Instant UI feedback (optimistic updates)
+ * - Automatic rollback on error
+ * - Updates across all screens and profiles immediately
+ * - Shows in user profiles instantly
  */
 export function useToggleBookmark() {
   const queryClient = useQueryClient();
@@ -63,29 +65,82 @@ export function useToggleBookmark() {
       postId: string;
       isBookmarked: boolean;
     }) => bookmarksApi.toggleBookmark(postId, isBookmarked),
-    // NO onMutate - no optimistic updates
-    onError: (_err) => {
+    // Optimistic update - instant UI feedback
+    onMutate: async ({ postId, isBookmarked }) => {
+      // Cancel any outgoing refetches
+      if (viewerId) {
+        await queryClient.cancelQueries({
+          queryKey: bookmarkKeys.list(viewerId),
+        });
+      }
+
+      // Snapshot the previous value
+      const previousBookmarks = viewerId
+        ? queryClient.getQueryData<string[]>(bookmarkKeys.list(viewerId))
+        : [];
+
+      // Optimistically update to the new value
+      if (viewerId) {
+        queryClient.setQueryData<string[]>(
+          bookmarkKeys.list(viewerId),
+          (old = []) => {
+            if (!isBookmarked) {
+              // Add to bookmarks
+              return old.includes(postId) ? old : [...old, postId];
+            } else {
+              // Remove from bookmarks
+              return old.filter((id) => id !== postId);
+            }
+          },
+        );
+      }
+
+      // Update Zustand store instantly
+      useBookmarkStore.getState().setBookmarked(postId, !isBookmarked);
+
+      // Invalidate post-related queries to update bookmark status everywhere
+      const invalidations = [
+        queryClient.invalidateQueries({ queryKey: ["posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["feed"] }),
+        queryClient.invalidateQueries({ queryKey: ["post", postId] }),
+      ];
+
+      // Also invalidate user profile if it might show bookmarks
+      if (viewerId) {
+        invalidations.push(
+          queryClient.invalidateQueries({ queryKey: ["profile", viewerId] }),
+          queryClient.invalidateQueries({ queryKey: ["authUser"] }),
+        );
+      }
+
+      // Execute invalidations in parallel
+      await Promise.all(invalidations);
+
+      return { previousBookmarks, postId, isBookmarked };
+    },
+    onError: (_err, variables, context) => {
+      // Rollback on error
+      if (context?.previousBookmarks && viewerId) {
+        queryClient.setQueryData(
+          bookmarkKeys.list(viewerId),
+          context.previousBookmarks,
+        );
+      }
+
+      // Rollback Zustand store
+      if (context?.postId) {
+        useBookmarkStore
+          .getState()
+          .setBookmarked(context.postId, context.isBookmarked);
+      }
+
       showToast("error", "Error", "Failed to update bookmark");
     },
     onSuccess: (data, variables) => {
-      const { postId } = variables;
-
-      // Update Zustand store with server state
-      useBookmarkStore.getState().setBookmarked(postId, data.bookmarked);
-
-      // Update React Query cache with server state - use scoped key
-      queryClient.setQueryData<string[]>(
-        bookmarkKeys.list(viewerId),
-        (old = []) => {
-          if (data.bookmarked) {
-            // Add to list if not present
-            return old.includes(postId) ? old : [...old, postId];
-          } else {
-            // Remove from list
-            return old.filter((id) => id !== postId);
-          }
-        },
-      );
+      // Ensure final state matches server response
+      useBookmarkStore
+        .getState()
+        .setBookmarked(variables.postId, data.bookmarked);
 
       showToast(
         "success",
@@ -95,7 +150,7 @@ export function useToggleBookmark() {
           : "Post removed from bookmarks",
       );
 
-      // Invalidate to ensure sync with server - use scoped key
+      // Final sync with server - invalidate to ensure consistency
       if (viewerId) {
         queryClient.invalidateQueries({
           queryKey: bookmarkKeys.list(viewerId),

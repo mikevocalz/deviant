@@ -8,8 +8,9 @@
  * Messages are handled separately via messagesApiClient.
  */
 
-import { createCollectionAPI, users } from "@/lib/api-client";
+import { createCollectionAPI } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { getPayloadUserId } from "@/lib/api/payload-user-id";
 
 // Notification types for Activity feed (excludes 'message')
 export type NotificationType = 
@@ -47,36 +48,7 @@ export interface Notification {
   createdAt: string;
 }
 
-// Cache for Payload CMS user ID lookups
-const payloadUserIdCache: Record<string, string> = {};
-
 const notificationsApi = createCollectionAPI<Record<string, unknown>>("notifications");
-
-// Helper to get Payload CMS user ID by username
-async function getPayloadUserId(username: string): Promise<string | null> {
-  if (!username) return null;
-
-  if (payloadUserIdCache[username]) {
-    return payloadUserIdCache[username];
-  }
-
-  try {
-    const result = await users.find({
-      where: { username: { equals: username } },
-      limit: 1,
-    });
-
-    if (result.docs && result.docs.length > 0) {
-      const payloadId = (result.docs[0] as { id: string }).id;
-      payloadUserIdCache[username] = payloadId;
-      return payloadId;
-    }
-  } catch (error) {
-    console.error("[notificationsApi] Error looking up Payload user ID:", error);
-  }
-
-  return null;
-}
 
 // Transform API response to Notification type
 function transformNotification(doc: Record<string, unknown>): Notification {

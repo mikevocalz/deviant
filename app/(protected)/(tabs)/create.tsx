@@ -46,8 +46,15 @@ const MIN_CAPTION_LENGTH = 50;
 export default function CreateScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { caption, location, isNSFW, setCaption, setLocationData, setIsNSFW, reset } =
-    useCreatePostStore();
+  const {
+    caption,
+    location,
+    isNSFW,
+    setCaption,
+    setLocationData,
+    setIsNSFW,
+    reset,
+  } = useCreatePostStore();
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
     useMediaPicker();
@@ -58,7 +65,10 @@ export default function CreateScreen() {
   const {
     uploadMultiple,
     isUploading,
+    isCompressing,
     progress: uploadProgress,
+    compressionProgress,
+    statusMessage,
   } = useMediaUpload({ folder: "posts" });
 
   useEffect(() => {
@@ -299,10 +309,11 @@ export default function CreateScreen() {
         return;
       }
 
-      // Create post with CDN URLs
+      // Create post with CDN URLs (include thumbnail for videos)
       const postMedia = uploadResults.map((r) => ({
         type: r.type,
         url: r.url,
+        ...(r.thumbnail && { thumbnail: r.thumbnail }),
       }));
 
       console.log("[Create] Creating post with CDN URLs:", postMedia);
@@ -326,8 +337,14 @@ export default function CreateScreen() {
           },
           onError: (error: any) => {
             console.error("[Create] Failed to create post:", error);
-            console.error("[Create] Error details:", JSON.stringify(error, null, 2));
-            const errorMessage = error?.message || error?.error?.message || "Failed to create post. Please try again.";
+            console.error(
+              "[Create] Error details:",
+              JSON.stringify(error, null, 2),
+            );
+            const errorMessage =
+              error?.message ||
+              error?.error?.message ||
+              "Failed to create post. Please try again.";
             showToast("error", "Error", errorMessage);
           },
         },
@@ -378,7 +395,13 @@ export default function CreateScreen() {
         <Pressable
           onPress={handleClose}
           hitSlop={12}
-          style={{ marginLeft: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            marginLeft: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
@@ -423,7 +446,10 @@ export default function CreateScreen() {
             style={{
               fontSize: 14,
               fontWeight: "600",
-              color: isValid && !isUploading && !isCreating ? colors.primary : colors.mutedForeground,
+              color:
+                isValid && !isUploading && !isCreating
+                  ? colors.primary
+                  : colors.mutedForeground,
             }}
           >
             {isUploading ? "Uploading..." : isCreating ? "Posting..." : "Share"}
@@ -431,11 +457,21 @@ export default function CreateScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, colors, isValid, isUploading, isCreating, selectedMedia.length, caption, handlePost, showToast, handleClose]);
+  }, [
+    navigation,
+    colors,
+    isValid,
+    isUploading,
+    isCreating,
+    selectedMedia.length,
+    caption,
+    handlePost,
+    showToast,
+    handleClose,
+  ]);
 
   return (
     <View className="flex-1 bg-background">
-
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}
@@ -487,7 +523,9 @@ export default function CreateScreen() {
               paddingHorizontal: 16,
               paddingVertical: 12,
               marginBottom: 16,
-              backgroundColor: isNSFW ? "rgba(239, 68, 68, 0.1)" : "transparent",
+              backgroundColor: isNSFW
+                ? "rgba(239, 68, 68, 0.1)"
+                : "transparent",
               borderRadius: 12,
               marginHorizontal: 16,
               borderWidth: 1,
@@ -495,7 +533,13 @@ export default function CreateScreen() {
             }}
           >
             <View style={{ flex: 1 }}>
-              <Text style={{ color: isNSFW ? "#ef4444" : "#fff", fontWeight: "600", fontSize: 15 }}>
+              <Text
+                style={{
+                  color: isNSFW ? "#ef4444" : "#fff",
+                  fontWeight: "600",
+                  fontSize: 15,
+                }}
+              >
                 NSFW Content
               </Text>
               <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>
@@ -749,17 +793,36 @@ export default function CreateScreen() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="bg-card rounded-3xl p-8 items-center gap-4"
+            className="bg-card rounded-3xl p-8 items-center gap-4 min-w-[280px]"
           >
-            <View className="w-48 mb-2">
-              <Progress value={uploadProgress} />
-            </View>
-            <Text className="text-lg font-semibold text-foreground">
-              Posting...
-            </Text>
-            <Text className="text-sm text-muted-foreground text-center">
-              Sharing your post with the world
-            </Text>
+            {/* Show compression progress when compressing */}
+            {isCompressing && (
+              <>
+                <View className="w-48 mb-2">
+                  <Progress value={compressionProgress} />
+                </View>
+                <Text className="text-lg font-semibold text-foreground">
+                  Compressing Video...
+                </Text>
+                <Text className="text-sm text-muted-foreground text-center">
+                  {compressionProgress}% complete
+                </Text>
+              </>
+            )}
+            {/* Show upload progress when not compressing */}
+            {!isCompressing && (
+              <>
+                <View className="w-48 mb-2">
+                  <Progress value={uploadProgress} />
+                </View>
+                <Text className="text-lg font-semibold text-foreground">
+                  {statusMessage || "Posting..."}
+                </Text>
+                <Text className="text-sm text-muted-foreground text-center">
+                  {uploadProgress}% complete
+                </Text>
+              </>
+            )}
           </Motion.View>
         </View>
       )}

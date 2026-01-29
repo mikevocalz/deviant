@@ -16,9 +16,9 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useFeedSlideStore } from "@/lib/stores/post-store";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
+// Note: usePostStore import removed - like state is managed by usePostLikeState via React Query
 import { useComments } from "@/lib/hooks/use-comments";
-// STABILIZED: Bookmark state comes from server via useBookmarks hook only
-import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
+import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useRef, useCallback, useEffect, memo, useMemo, useState } from "react";
@@ -29,6 +29,7 @@ import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostCaption } from "@/components/post-caption";
+import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -38,6 +39,7 @@ interface FeedPostProps {
     username: string;
     avatar: string;
     verified?: boolean;
+    id?: string;
   };
   media: {
     type: "image" | "video";
@@ -69,20 +71,29 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  // CENTRALIZED: Like state from single source of truth
+  // CENTRALIZED: Like state from single source of truth (React Query cache)
+  // CRITICAL: Do NOT use local Zustand store for initial state - it can be stale
+  // The usePostLikeState hook manages cache internally and will sync with server
   const {
     hasLiked,
     likesCount,
     toggle: toggleLike,
     isPending: isLikePending,
-  } = usePostLikeState(id, likes, false);
-  const { data: bookmarkedPostIds = [] } = useBookmarks();
+  } = usePostLikeState(id, likes, false, author?.id);
+
+  // DEV: Log like state for debugging sync issues
+  if (__DEV__) {
+    console.log(`[FeedPost:${id?.slice(0, 8)}] Like state:`, {
+      hasLiked,
+      likesCount,
+      isPending: isLikePending,
+    });
+  }
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
 
-  // STABILIZED: Bookmark state comes from server ONLY via React Query
-  // No local store sync needed - bookmarkedPostIds is the single source of truth
-  const isBookmarked = bookmarkedPostIds.includes(id);
+  // STABILIZED: Bookmark state is derived from the persisted bookmark store (synced via useBookmarks).
+  const isBookmarked = useBookmarkStore((state) => state.isBookmarked(id));
   // Fetch last 3 comments for feed display
   const { data: recentCommentsData = [], refetch: refetchComments } =
     useComments(id, 3);

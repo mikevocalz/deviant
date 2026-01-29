@@ -10,6 +10,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { users } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { postKeys } from "@/lib/hooks/use-posts";
+import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 
 // Query keys - MUST be scoped by userId
 export const profileKeys = {
@@ -63,12 +65,23 @@ export function useMyProfile() {
 
       try {
         const profile = await users.getProfile(userId);
-        console.log("[useMyProfile] Profile response:", {
-          id: profile.id,
-          followersCount: profile.followersCount,
-          followingCount: profile.followingCount,
-          postsCount: profile.postsCount,
-        });
+
+        // CRITICAL: Resolve avatar URL properly - it may be string or media object
+        const resolvedAvatar =
+          resolveAvatarUrl(profile.avatarUrl, "useMyProfile") ||
+          resolveAvatarUrl(profile.avatar, "useMyProfile");
+
+        if (__DEV__) {
+          console.log("[useMyProfile] Profile response:", {
+            id: profile.id,
+            followersCount: profile.followersCount,
+            followingCount: profile.followingCount,
+            postsCount: profile.postsCount,
+            avatarUrlType: typeof profile.avatarUrl,
+            avatarType: typeof profile.avatar,
+            resolvedAvatar: resolvedAvatar?.slice(0, 50),
+          });
+        }
 
         return {
           id: String(profile.id),
@@ -76,8 +89,8 @@ export function useMyProfile() {
           name: profile.displayName,
           displayName: profile.displayName,
           bio: profile.bio,
-          avatar: profile.avatarUrl || profile.avatar,
-          avatarUrl: profile.avatarUrl,
+          avatar: resolvedAvatar || undefined,
+          avatarUrl: resolvedAvatar || undefined,
           followersCount: profile.followersCount || 0,
           followingCount: profile.followingCount || 0,
           postsCount: profile.postsCount || 0,
@@ -228,7 +241,7 @@ export function useUpdateProfile() {
         });
 
         // Update profile posts cache
-        queryClient.setQueryData(["posts", "profile", userId], (old: any) => {
+        queryClient.setQueryData(postKeys.profilePosts(userId), (old: any) => {
           if (!old || !Array.isArray(old)) return old;
           return old.map((post: any) => ({
             ...post,

@@ -10,15 +10,21 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { users } from "@/lib/api-client";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 interface FollowContext {
   previousUserData: any;
   username: string | null;
+  previousViewerData?: any;
+  previousAuthUser?: any;
 }
 
 export function useFollow() {
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+  const authUser = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
+  const viewerId = authUser?.id;
 
   return useMutation({
     mutationFn: async ({
@@ -35,25 +41,28 @@ export function useFollow() {
     // Optimistic update - instant UI feedback
     onMutate: async ({ userId, action, username }) => {
       // CRITICAL: Only cancel specific user queries, NOT broad ["users"]
-      // Canceling ["users"] would affect ALL user caches causing regressions
       const userQueryKey = username
         ? ["users", "username", username]
         : ["users", "id", userId];
       await queryClient.cancelQueries({ queryKey: userQueryKey });
 
-      // Also cancel profile queries for this user
       if (userId) {
         await queryClient.cancelQueries({ queryKey: ["profile", userId] });
       }
 
-      const queryKey = userQueryKey;
+      const viewerProfileKey = viewerId ? ["profile", viewerId] : null;
+      if (viewerProfileKey) {
+        await queryClient.cancelQueries({ queryKey: viewerProfileKey });
+      }
 
-      // Snapshot previous value
-      const previousUserData = queryClient.getQueryData(queryKey);
+      const previousUserData = queryClient.getQueryData(userQueryKey);
+      const previousViewerData = viewerProfileKey
+        ? queryClient.getQueryData(viewerProfileKey)
+        : undefined;
+      const previousAuthUser = authUser;
 
-      // Optimistically update the cache
       if (previousUserData) {
-        queryClient.setQueryData(queryKey, (old: any) => {
+        queryClient.setQueryData(userQueryKey, (old: any) => {
           if (!old) return old;
           const isFollowing = action === "follow";
           const countDelta = isFollowing ? 1 : -1;
@@ -65,16 +74,55 @@ export function useFollow() {
         });
       }
 
-      return { previousUserData, username } as FollowContext;
+      if (viewerProfileKey && previousViewerData) {
+        const delta = action === "follow" ? 1 : -1;
+        queryClient.setQueryData(viewerProfileKey, (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            followingCount: Math.max(0, (old.followingCount || 0) + delta),
+          };
+        });
+      }
+
+      if (authUser) {
+        const delta = action === "follow" ? 1 : -1;
+        setUser({
+          ...authUser,
+          followingCount: Math.max(0, (authUser.followingCount || 0) + delta),
+        });
+      }
+
+      return {
+        previousUserData,
+        username: username || null,
+        previousViewerData,
+        previousAuthUser,
+      } as FollowContext;
     },
     onError: (error: any, variables, context) => {
       // Rollback on error
-      if (context?.previousUserData && context?.username) {
+      let targetKey: readonly unknown[] | null = null;
+      if (variables.username) {
+        targetKey = ["users", "username", variables.username];
+      } else if (variables.userId) {
+        targetKey = ["users", "id", variables.userId];
+      }
+      if (context?.previousUserData && targetKey) {
+        queryClient.setQueryData(targetKey, context.previousUserData);
+      }
+
+      if (viewerId && context?.previousViewerData) {
         queryClient.setQueryData(
-          ["users", "username", context.username],
-          context.previousUserData,
+          ["profile", viewerId],
+          context.previousViewerData,
         );
       }
+
+      if (context?.previousAuthUser) {
+        setUser(context.previousAuthUser);
+      }
+
       const errorMessage =
         error?.message ||
         error?.error?.message ||
@@ -90,20 +138,53 @@ export function useFollow() {
       );
     },
     onSettled: (_data, _error, variables) => {
-      // Invalidate only the specific user's profile cache
-      // CRITICAL: DO NOT use broad keys like ["users"] as this affects ALL user caches
+      // Invalidate multiple related caches to ensure instant updates across all profiles
+      const invalidations: Promise<unknown>[] = [];
+
+      // Invalidate the target user's profile (by username and ID)
       if (variables.username) {
-        queryClient.invalidateQueries({
-          queryKey: ["profile", "username", variables.username],
-        });
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: ["profile", "username", variables.username],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["users", "username", variables.username],
+          }),
+        );
       }
       if (variables.userId) {
-        queryClient.invalidateQueries({
-          queryKey: ["profile", variables.userId],
-        });
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: ["profile", variables.userId],
+          }),
+          queryClient.invalidateQueries({
+            queryKey: ["users", "id", variables.userId],
+          }),
+        );
       }
-      // Also invalidate follower/following counts for auth user
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+
+      // Invalidate current user's following/followers data
+      if (viewerId) {
+        invalidations.push(
+          queryClient.invalidateQueries({ queryKey: ["authUser"] }),
+          queryClient.invalidateQueries({ queryKey: ["profile", viewerId] }),
+          queryClient.invalidateQueries({ queryKey: ["following", viewerId] }),
+          queryClient.invalidateQueries({ queryKey: ["followers", viewerId] }),
+        );
+      }
+
+      // Invalidate feed queries that might show follow status
+      invalidations.push(
+        queryClient.invalidateQueries({ queryKey: ["feed"] }),
+        queryClient.invalidateQueries({ queryKey: ["posts"] }),
+      );
+
+      // Execute all invalidations in parallel for instant updates
+      Promise.all(invalidations).then(() => {
+        console.log(
+          "[useFollow] All related caches invalidated for instant updates",
+        );
+      });
     },
   });
 }

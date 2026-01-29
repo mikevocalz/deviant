@@ -18,6 +18,39 @@ interface User {
   followingCount: number;
 }
 
+/**
+ * Extract avatar URL from various formats
+ * Payload CMS can return avatar as:
+ * - Direct URL string
+ * - Media object with url property
+ * - null/undefined
+ */
+function extractAvatarUrl(avatar: unknown): string | undefined {
+  if (!avatar) return undefined;
+
+  // Direct string URL
+  if (typeof avatar === "string") {
+    if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
+      return avatar;
+    }
+    // Invalid string format
+    return undefined;
+  }
+
+  // Media object with url property
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      const url = avatarObj.url;
+      if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 interface AuthStore {
   user: User | null;
   hasSeenOnboarding: boolean;
@@ -74,15 +107,29 @@ export const useAuthStore = create<AuthStore>()(
               if (result?.user) {
                 console.log("[Auth] User restored from API:", result.user.id);
                 const userData = result.user as Record<string, any>;
+                // CRITICAL: Extract avatar URL properly - it may be a string or media object
+                const avatarUrl =
+                  extractAvatarUrl(userData.avatar) ||
+                  extractAvatarUrl(userData.avatarUrl);
+
+                if (__DEV__) {
+                  console.log("[Auth] User data from API:", {
+                    id: userData.id,
+                    avatar: typeof userData.avatar,
+                    avatarUrl: avatarUrl?.slice(0, 50),
+                    followersCount: userData.followersCount,
+                    followingCount: userData.followingCount,
+                    postsCount: userData.postsCount,
+                  });
+                }
+
                 set({
                   user: {
                     id: String(userData.id),
                     email: String(userData.email || ""),
                     username: String(userData.username || ""),
                     name: String(userData.name || userData.username || ""),
-                    avatar: userData.avatar
-                      ? String(userData.avatar)
-                      : undefined,
+                    avatar: avatarUrl,
                     bio: userData.bio ? String(userData.bio) : undefined,
                     website: userData.website
                       ? String(userData.website)

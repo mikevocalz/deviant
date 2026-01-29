@@ -5,9 +5,7 @@
 import { createCollectionAPI, users } from "@/lib/api-client";
 import { uploadToBunny } from "@/lib/bunny-storage";
 import { useAuthStore } from "@/lib/stores/auth-store";
-
-// Cache for Payload CMS user ID lookups
-const payloadUserIdCache: Record<string, string> = {};
+import { getPayloadUserId } from "@/lib/api/payload-user-id";
 
 export interface MessageMedia {
   type: "image" | "video";
@@ -85,39 +83,6 @@ function transformConversation(doc: Record<string, unknown>): Conversation {
     lastMessageAt: doc.lastMessageAt as string | undefined,
     createdAt: String(doc.createdAt || new Date().toISOString()),
   };
-}
-
-// Helper to get Payload CMS user ID by username
-async function getPayloadUserId(username: string): Promise<string | null> {
-  if (!username) return null;
-
-  // Check cache first
-  if (payloadUserIdCache[username]) {
-    return payloadUserIdCache[username];
-  }
-
-  try {
-    const result = await users.find({
-      where: { username: { equals: username } },
-      limit: 1,
-    });
-
-    if (result.docs && result.docs.length > 0) {
-      const payloadId = (result.docs[0] as { id: string }).id;
-      payloadUserIdCache[username] = payloadId;
-      console.log(
-        "[messagesApi] Found Payload user ID for",
-        username,
-        "->",
-        payloadId,
-      );
-      return payloadId;
-    }
-  } catch (error) {
-    console.error("[messagesApi] Error looking up Payload user ID:", error);
-  }
-
-  return null;
 }
 
 export const messagesApiClient = {
@@ -249,11 +214,33 @@ export const messagesApiClient = {
         throw new Error("User not found in system");
       }
 
+      // Check if otherUserId is a username or Payload ID
+      // If it looks like a username (contains letters), convert to Payload ID
+      let otherPayloadUserId = otherUserId;
+      if (/^[a-zA-Z]/.test(otherUserId)) {
+        // It's a username, convert to Payload ID
+        const otherUserPayloadId = await getPayloadUserId(otherUserId);
+        if (!otherUserPayloadId) {
+          console.error(
+            "[messagesApi] Could not find Payload user ID for other user:",
+            otherUserId,
+          );
+          throw new Error("Other user not found in system");
+        }
+        otherPayloadUserId = otherUserPayloadId;
+        console.log(
+          "[messagesApi] Converted username",
+          otherUserId,
+          "to Payload ID:",
+          otherPayloadUserId,
+        );
+      }
+
       console.log(
         "[messagesApi] Looking for conversation between",
         payloadUserId,
         "and",
-        otherUserId,
+        otherPayloadUserId,
       );
 
       // Try to find existing conversation using Payload CMS user IDs
@@ -261,25 +248,45 @@ export const messagesApiClient = {
         where: {
           and: [
             { participants: { contains: payloadUserId } },
-            { participants: { contains: otherUserId } },
+            { participants: { contains: otherPayloadUserId } },
             { isGroup: { equals: false } },
           ],
         },
         depth: 2,
       });
 
-      if (existing.docs.length > 0) {
-        console.log(
-          "[messagesApi] Found existing conversation:",
-          existing.docs[0].id,
+      const directConversation = existing.docs.find((doc) => {
+        const participants = (
+          (doc.participants as Array<Record<string, unknown>>) || []
+        ).map((p) => String(p.id || p));
+        const normalizedIds = new Set(participants);
+        return (
+          normalizedIds.size === 2 &&
+          normalizedIds.has(payloadUserId) &&
+          normalizedIds.has(otherPayloadUserId)
         );
-        return transformConversation(existing.docs[0]);
+      });
+
+      if (directConversation) {
+        console.log(
+          "[messagesApi] Found existing direct conversation:",
+          directConversation.id,
+        );
+        return transformConversation(directConversation);
       }
 
       // Create new conversation with Payload CMS user IDs
       console.log("[messagesApi] Creating new conversation");
+      const participantsArray = [
+        String(payloadUserId),
+        String(otherPayloadUserId),
+      ].filter(Boolean);
+      console.log(
+        "[messagesApi] Creating conversation participants:",
+        participantsArray,
+      );
       const doc = await conversationsApi.create({
-        participants: [payloadUserId, otherUserId],
+        participants: participantsArray,
         isGroup: false,
       });
 

@@ -42,3 +42,7 @@ export {
   useNotificationsQuery,
   useBadges,
 } from "./use-notifications-query";
+export {
+  commentLikeStateKeys,
+  useCommentLikeState,
+} from "./use-comment-like-state";

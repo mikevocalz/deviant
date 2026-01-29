@@ -25,8 +25,8 @@ import {
   useEffect,
   useState,
   useLayoutEffect,
-  useCallback,
   useRef,
+  useCallback,
 } from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
@@ -58,6 +58,8 @@ function ProfileScreenContent() {
   const bookmarkStore = useBookmarkStore();
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+
+  // Edit profile now uses modal navigation for stability
 
   // Avatar update state
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
@@ -151,22 +153,8 @@ function ProfileScreenContent() {
     router.push("/(protected)/profile/edit");
   }, [router]);
 
-  // PHASE 1 INSTRUMENTATION: Log component render with profile data
-  if (__DEV__) {
-    console.log("[Profile] ProfileScreenContent rendering", {
-      userId: user?.id,
-      profileData: profileData
-        ? {
-            id: profileData.id,
-            followersCount: profileData.followersCount,
-            followingCount: profileData.followingCount,
-            postsCount: profileData.postsCount,
-            avatarUrl: profileData.avatar?.slice(0, 50),
-          }
-        : null,
-      isLoadingProfile,
-    });
-  }
+  // PHASE 1 INSTRUMENTATION: Log component render
+  console.log("[Profile] ProfileScreenContent rendering");
 
   // DEFENSIVE: Wrap useBookmarks in try-catch pattern via safe defaults
   const bookmarksQuery = useBookmarks();
@@ -269,22 +257,13 @@ function ProfileScreenContent() {
     refetch,
   } = useProfilePosts(loggedInUserId);
 
-  // PHASE 1 INSTRUMENTATION: Log posts query state with date range
-  if (__DEV__) {
-    const postDates =
-      userPostsData
-        ?.map((p) => p.createdAt)
-        .filter(Boolean)
-        .sort() || [];
-    console.log("[Profile] Posts:", {
-      count: userPostsData?.length || 0,
-      isLoading: isLoadingPosts,
-      isError: postsError,
-      error: postsQueryError?.message,
-      oldestCreatedAt: postDates[0] || null,
-      newestCreatedAt: postDates[postDates.length - 1] || null,
-    });
-  }
+  // PHASE 1 INSTRUMENTATION: Log posts query state
+  console.log("[Profile] Posts:", {
+    count: userPostsData?.length || 0,
+    isLoading: isLoadingPosts,
+    isError: postsError,
+    error: postsQueryError?.message,
+  });
 
   // CRITICAL: When user ID changes (user switched), force refetch and clear stale data
   useEffect(() => {

@@ -1,219 +1,84 @@
 # TanStack Query Map
 
-**Generated:** 2026-01-28  
-**Purpose:** Audit of all queries and mutations in the app
+**Generated:** 2026-01-29  
+**Purpose:** Surface every TanStack Query hook, canonical key, and cache mutation so we can quickly audit collisions, forbidden keys, and DTO degradation risks.
 
 ## Canonical Key Schema
-
-| Category               | Key Pattern                               | Required Params        | Status             |
-| ---------------------- | ----------------------------------------- | ---------------------- | ------------------ |
-| **Auth**               | `['authUser']`                            | none                   | ✅ OK              |
-| **Profile**            | `['profile', userId]`                     | userId                 | ✅ OK              |
-| **Profile Posts**      | `['posts', 'profile', userId]`            | userId                 | ✅ OK              |
-| **User Lookup**        | `['users', 'username', username]`         | username               | ✅ OK              |
-| **Followers**          | `['followers', userId]`                   | userId                 | ⚠️ NEEDS AUDIT     |
-| **Following**          | `['following', userId]`                   | userId                 | ⚠️ NEEDS AUDIT     |
-| **Follow State**       | `['followState', viewerId, targetUserId]` | viewerId, targetUserId | ⚠️ NEEDS AUDIT     |
-| **Feed**               | `['posts', 'feed']`                       | none                   | ✅ OK              |
-| **Feed Infinite**      | `['posts', 'feed', 'infinite']`           | none                   | ✅ OK              |
-| **Post Detail**        | `['posts', 'detail', postId]`             | postId                 | ✅ OK              |
-| **Comments**           | `['comments', postId]`                    | postId                 | ✅ OK              |
-| **Like State**         | `['likeState', viewerId, postId]`         | viewerId, postId       | ⚠️ NOT IMPLEMENTED |
-| **Bookmarks**          | `['bookmarks']`                           | none                   | ⚠️ NEEDS viewerId  |
-| **Bookmark State**     | `['bookmarkState', viewerId, postId]`     | viewerId, postId       | ⚠️ NOT IMPLEMENTED |
-| **Stories**            | `['stories', 'list']`                     | none                   | ✅ OK              |
-| **Conversations**      | `['conversations']`                       | none                   | ⚠️ NEEDS viewerId  |
-| **Messages**           | `['messages', conversationId]`            | conversationId         | ⚠️ NEEDS viewerId  |
-| **Blocked Users**      | `['blocked-users', userId]`               | userId                 | ✅ OK              |
-| **Notification Prefs** | `['notification-prefs', userId]`          | userId                 | ✅ OK              |
-| **Privacy Settings**   | `['privacy-settings', userId]`            | userId                 | ✅ OK              |
-
----
+| Category | Key Pattern | Required Params | Status |
+| --- | --- | --- | --- |
+| **Auth** | `['authUser']` | none | ✅ Scoped singleton |
+| **Profile** | `['profile', userId]` | userId | ✅ Profile summary |
+| **Profile Posts** | `['profilePosts', userId]` | userId | ✅ Profile grid, keeps post ordering |
+| **Users by username** | `['users', 'username', username]` | username | ✅ Lookup by handle |
+| **Feed** | `['posts', 'feed']` | none | ✅ Home feed cache |
+| **Infinite feed** | `['posts', 'feed', 'infinite']` | none | ✅ Cursor paginated feed |
+| **Post  Detail** | `['posts', 'detail', postId]` | postId | ✅ Post detail cache |
+| **Like State (Post)** | `['likeState', viewerId, postId]` | viewerId, postId | ✅ Single source of truth for post likes |
+| **Like State (Comment)** | `['commentLikeState', viewerId, commentId]` | viewerId, commentId | ✅ Single source of truth for comment likes |
+| **Bookmark List** | `['bookmarks', 'list', viewerId]` | viewerId | ✅ Saved posts for current user |
+| **Bookmark State** | `['bookmarkState', viewerId, postId]` | viewerId, postId | ⚠️ Not yet used (planned) |
+| **Notifications** | `['notifications', viewerId]` | viewerId | ✅ Notification feed |
+| **Badges** | `['badges', viewerId]` | viewerId | ✅ Badge counts |
+| **Stories** | `['stories', 'feed']` | none | ✅ Stories cache |
 
 ## Query Inventory
-
 ### use-profile.ts
-
-| Hook           | Query Key             | Endpoint                     | Status |
-| -------------- | --------------------- | ---------------------------- | ------ |
-| `useMyProfile` | `['profile', userId]` | `GET /api/users/:id/profile` | ✅ OK  |
-
-**Mutation:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useUpdateProfile` | none | `PATCH /api/profile/me` | `['profile', userId]`, authStore | ✅ OK |
-
----
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useMyProfile` | `['profile', userId]` | `GET /api/users/:id/profile` | ✅ Returns follower/following/posts counts and avatar |
+| `useUpdateProfile` | mutation | `PATCH /api/profile/me` | ✅ Invalidates `['profile', userId]`, `['authUser']`, feed caches, `['profilePosts', userId]` when avatar or bio changes |
 
 ### use-posts.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useFeedPosts` | `['posts', 'feed']` | `GET /api/posts?depth=2` | ✅ Legacy feed, derived from `postsApi.getFeedPosts` |
+| `useInfiniteFeedPosts` | `['posts', 'feed', 'infinite']` | `GET /api/posts?page=X&depth=2` | ✅ Cursored feed with pagination helpers |
+| `useProfilePosts` | `['profilePosts', userId]` | `GET /api/posts?author=userId&sort=-createdAt&depth=2` | ✅ Profile grid, keeps oldest/newest logging and no silent degrade |
+| `usePost` | `['posts', 'detail', postId]` | `GET /api/posts/:id&depth=3` | ✅ Detail fetch with error bubbling |
+| `usePostsByIds` | `['posts', 'byIds', ids]` | `GET /api/posts/:id` (multiple) | ✅ For saved posts grid |
+| `usePostLikeState` | `['likeState', viewerId, postId]` (query) / `['likePost', postId]` (mutation) | `POST/DELETE /api/posts/:id/like` | ✅ Updates like counts across detail, feed, profile posts, and comment threads |
 
-| Hook                   | Query Key                       | Endpoint                       | Status              |
-| ---------------------- | ------------------------------- | ------------------------------ | ------------------- |
-| `useFeedPosts`         | `['posts', 'feed']`             | `GET /api/posts`               | ✅ OK               |
-| `useInfiniteFeedPosts` | `['posts', 'feed', 'infinite']` | `GET /api/posts?page=X`        | ✅ OK               |
-| `useProfilePosts`      | `['posts', 'profile', userId]`  | `GET /api/posts?author=userId` | ✅ OK               |
-| `usePost`              | `['posts', 'detail', postId]`   | `GET /api/posts/:id`           | ✅ OK               |
-| `usePostsByIds`        | `['posts', 'byIds', ids]`       | Multiple `GET /api/posts/:id`  | ✅ OK               |
-| `useSyncLikedPosts`    | `['likedPosts']`                | `GET /api/users/me/likes`      | ⚠️ Endpoint missing |
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useLikePost` | `['likePost']` | `POST/DELETE /api/posts/:id/like` | `['posts', 'detail', postId]`, feed caches | ✅ OK |
-| `useCreatePost` | none | `POST /api/posts` | `['posts']` all | ✅ OK |
-| `useDeletePost` | none | `DELETE /api/posts/:id` | `['posts']` all | ✅ OK |
-
----
-
-### use-blocks.ts
-
-| Hook               | Query Key                   | Endpoint                    | Status |
-| ------------------ | --------------------------- | --------------------------- | ------ |
-| `useBlockedUsers`  | `['blocked-users', userId]` | `GET /api/blocks`           | ✅ OK  |
-| `useIsUserBlocked` | `['is-blocked', userId]`    | `GET /api/blocks/check/:id` | ✅ OK  |
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useBlockUser` | none | `POST /api/blocks` | `['blocked-users', userId]` | ✅ OK |
-| `useUnblockUser` | none | `DELETE /api/blocks/:id` | `['blocked-users', userId]` | ✅ OK |
-
----
-
-### use-bookmarks.ts
-
-| Hook           | Query Key       | Endpoint                      | Status                    |
-| -------------- | --------------- | ----------------------------- | ------------------------- |
-| `useBookmarks` | `['bookmarks']` | `GET /api/users/me/bookmarks` | ⚠️ NEEDS viewerId scoping |
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useToggleBookmark` | none | `POST/DELETE /api/posts/:id/bookmark` | `['bookmarks']`, store | ✅ OK |
-
----
-
-### use-stories.ts
-
-| Hook         | Query Key             | Endpoint           | Status |
-| ------------ | --------------------- | ------------------ | ------ |
-| `useStories` | `['stories', 'list']` | `GET /api/stories` | ✅ OK  |
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useCreateStory` | none | `POST /api/stories` | `['stories']` all | ✅ OK |
-
----
-
-### use-user.ts
-
-| Hook      | Query Key                         | Endpoint                              | Status |
-| --------- | --------------------------------- | ------------------------------------- | ------ |
-| `useUser` | `['users', 'username', username]` | `GET /api/users?username=X` + profile | ✅ OK  |
-
----
-
-### use-follow.ts
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useFollow` | none | `POST/DELETE /api/users/follow` | `['profile', username]`, `['profile', userId]`, `['authUser']` | ⚠️ Uses broad `['users']` cancel |
-
----
+### use-comment-like-state.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useCommentLikeState` | `['commentLikeState', viewerId, commentId]` | (client-only) | ✅ Stores { hasLiked, likesCount } per viewer/comment |
+| Mutation | `['commentLike', commentId, viewerId]` | `POST/DELETE /api/comments/:id/like` | ✅ Optimistically patches `['comments', 'post', postId]` tree and rolls back on error |
 
 ### use-comments.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useComments` | `['comments', 'post', postId, limit]` | `GET /api/posts/:postId/comments` | ✅ Keeps threaded structure and updates `usePostStore` comment counts |
+| `useCreateComment` | mutation | `POST /api/posts/:postId/comments` | ✅ Pushes new comment into every active `['comments', 'post', postId]` query and increments counts |
 
-| Hook          | Query Key              | Endpoint                      | Status |
-| ------------- | ---------------------- | ----------------------------- | ------ |
-| `useComments` | `['comments', postId]` | `GET /api/posts/:id/comments` | ✅ OK  |
+### use-bookmarks.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useBookmarks` | `['bookmarks', 'list', viewerId]` | `GET /api/users/me/bookmarks` | ✅ Enabled only when viewerId exists |
+| `useToggleBookmark` | mutation | `POST/DELETE /api/posts/:id/bookmark` | ✅ Updates scoped cache and Zustand store, invalidates the same key |
 
-**Mutations:**
+### use-follow.ts
 | Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useCreateComment` | none | `POST /api/posts/:id/comments` | `['comments', postId]` | ✅ OK |
+| --- | --- | --- | --- | --- |
+| `useFollow` | `['follow']` (no canonical key) | `POST/DELETE /api/users/follow` | `['users', 'username', username]`, `['users', 'id', userId]`, `['profile', userId]`, `['profile', viewerId]`, `['authUser']` | ✅ Optimistically updates follower/following counts and rollbacks on error |
 
----
+### use-notifications-query.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useNotificationsQuery` | `['notifications', viewerId]` | `GET /api/notifications` | ✅ Prefetches notifications with `enabled` safeguarding |
+| `useBadges` | `['badges', viewerId]` | `GET /api/badges` | ✅ Badge counts refreshed periodically |
 
-### use-user-settings.ts
-
-| Hook                   | Query Key                        | Endpoint                               | Status |
-| ---------------------- | -------------------------------- | -------------------------------------- | ------ |
-| `useNotificationPrefs` | `['notification-prefs', userId]` | `GET /api/users/me/notification-prefs` | ✅ OK  |
-| `usePrivacySettings`   | `['privacy-settings', userId]`   | `GET /api/users/me/privacy`            | ✅ OK  |
-
-**Mutations:**
-| Hook | Mutation Key | Endpoint | Cache Updates | Status |
-|------|--------------|----------|---------------|--------|
-| `useUpdateNotificationPrefs` | none | `PATCH /api/users/me/notification-prefs` | `['notification-prefs', userId]` | ⚠️ Broad invalidation |
-| `useUpdatePrivacySettings` | none | `PATCH /api/users/me/privacy` | `['privacy-settings', userId]` | ⚠️ Broad invalidation |
-
----
-
-### use-messages.ts
-
-| Hook               | Query Key                | Endpoint                                | Status            |
-| ------------------ | ------------------------ | --------------------------------------- | ----------------- |
-| `useUnreadCount`   | `['messages', 'unread']` | `GET /api/conversations?box=inbox/spam` | ⚠️ NEEDS viewerId |
-| `useConversations` | `['conversations']`      | `GET /api/conversations`                | ⚠️ NEEDS viewerId |
-
----
-
-### use-events.ts
-
-| Hook                | Query Key                                             | Endpoint                        | Status |
-| ------------------- | ----------------------------------------------------- | ------------------------------- | ------ |
-| `useEvents`         | `['events', 'list']` or `['events', 'category', cat]` | `GET /api/events`               | ✅ OK  |
-| `useUpcomingEvents` | `['events', 'upcoming']`                              | `GET /api/events?upcoming=true` | ✅ OK  |
-| `usePastEvents`     | `['events', 'past']`                                  | `GET /api/events?past=true`     | ✅ OK  |
-| `useEvent`          | `['events', 'detail', eventId]`                       | `GET /api/events/:id`           | ✅ OK  |
-
----
-
-### use-search.ts
-
-| Hook             | Query Key                    | Endpoint                  | Status |
-| ---------------- | ---------------------------- | ------------------------- | ------ |
-| `useSearchPosts` | `['search', 'posts', query]` | `GET /api/posts?search=X` | ✅ OK  |
-| `useSearchUsers` | `['search', 'users', query]` | `GET /api/users?search=X` | ✅ OK  |
-
----
+### use-events.ts / use-search.ts / use-user.ts
+| Hook | Query Key | Endpoint | Status |
+| --- | --- | --- | --- |
+| `useEvents` | `['events', 'list']` etc. | `GET /api/events` | ✅ Standard event listing hooks |
+| `useSearchPosts` | `['search', 'posts', query]` | `GET /api/posts?search=X` | ✅ Scoped search |
+| `useUser` | `['users', 'username', username]` | `GET /api/users?username=X` | ✅ User lookup for profile landing |
 
 ## Issues Found & Fixed
-
-### � All Critical Issues FIXED
-
-1. ✅ **Profile not showing data** - `useMyProfile` properly scoped with `['profile', userId]`
-2. ✅ **Edit profile failing** - `useUpdateProfile` syncs both authStore and `['profile', userId]` cache
-3. ✅ **Broad key cancellation** in `use-follow.ts` - now cancels only specific user query
-4. ✅ **Missing viewerId scoping** - Added to bookmarks, conversations, messages
-5. ✅ **Broad invalidation** - Fixed in notification/privacy settings
-
-### 🟢 Already OK
-
-1. Posts queries properly scoped
-2. Blocked users properly scoped with userId
-3. Stories properly scoped
-4. Events properly scoped
-5. Search properly scoped
-
----
-
-## Fixes Applied (2026-01-28)
-
-1. [x] `useMyProfile` uses `['profile', userId]` with proper enabled flag
-2. [x] `useUpdateProfile` syncs both authStore and `['profile', userId]` cache immutably
-3. [x] `use-follow.ts` now cancels only `['users', 'username', username]` or `['users', 'id', userId]`
-4. [x] `use-bookmarks.ts` now uses `['bookmarks', 'list', viewerId]`
-5. [x] `use-messages.ts` now uses `['messages', 'unreadCount', viewerId]` and `['messages', 'conversations', viewerId]`
-6. [x] `use-user-settings.ts` now invalidates `['notification-prefs', userId]` and `['privacy-settings', userId]`
-
----
-
-## Debug Utilities Added
-
-- `lib/query-debug.ts` - Query instrumentation and runtime asserts (DEV only)
-  - Logs all queries/mutations with keys, URLs, status
-  - Validates query keys for forbidden patterns
-  - Warns on broad invalidation without specific keys
+1. **Profile posts disappearing** – `useProfilePosts` now uses `['profilePosts', userId]`, logs count/oldest/newest, and rethrows errors instead of returning empty lists, so the cache only blanks when the API fails.  
+2. **Avatar rendering broke** – introduced `UserAvatar` with safe source resolution, placeholder fallback, and live logging of raw/resolved URLs; avatar updates now patch `['authUser']`, `['profile', myId]`, feed caches, and profile posts so my new photo appears everywhere.  
+3. **Likes out of sync** – `usePostLikeState` now takes `authorId`, updates `['likeState', viewerId, postId]`, `['posts', 'detail', postId]`, feed caches, and any cached `['profilePosts', authorId]` entry, with DEV logging for every cache mutation.  
+4. **Followers/following counts empty** – `useFollow` optimistically adjusts the viewer’s `['profile', viewerId]` (and persisted auth user) counts, plus we refetch `['profile', myId]` and `['notifications', myId]` whenever the profile tab regains focus or the app foregrounds.  
+5. **Comment threading & likes dropped** – added `UseCommentLikeState` + `CommentLikeButton` so every comment and reply references `['commentLikeState', viewerId, commentId]`, `['comments', 'post', postId]`, and the like mutation syncs counts with the server while preserving thread structure via `ThreadedComment`.  
+6. **Bookmarks unreliable** – `useBookmarks` is now disabled until `viewerId` exists, and `useToggleBookmark` only touches caches when the viewer is known, preventing stale “empty” saved lists.  
+7. **Media/video handling** – media URLs are forced to absolute Payload URLs, so video/image posts coming through relative filenames render consistently across feed, detail, and profile lists without crashes.

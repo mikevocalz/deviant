@@ -17,10 +17,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { likes as likesApi } from "@/lib/api-client";
+import { postKeys } from "@/lib/hooks/use-posts";
+import type { Post } from "@/lib/types";
 
 interface LikeState {
   hasLiked: boolean;
   likesCount: number;
+}
+
+function logCacheMutation(
+  action: "setQueryData" | "invalidateQueries",
+  key: readonly unknown[],
+) {
+  if (!__DEV__) return;
+  console.log(`[usePostLikeState] ${action}: ${JSON.stringify(key)}`);
 }
 
 // Query keys for like state
@@ -41,38 +51,25 @@ export function usePostLikeState(
   postId: string,
   initialLikesCount: number = 0,
   initialHasLiked: boolean = false,
+  authorId?: string,
 ) {
   const queryClient = useQueryClient();
   const viewerId = useAuthStore((state) => state.user?.id) || "";
+  const normalizedPostId =
+    typeof postId === "string" ? postId : postId != null ? String(postId) : "";
+  const likeStateQueryKey = likeStateKeys.forPost(viewerId, normalizedPostId);
 
   // CRITICAL: Check if we already have cached data BEFORE using initialData
   // This ensures we use server-synced values over stale props on re-mount
-  const existingCache = queryClient.getQueryData<LikeState>(
-    likeStateKeys.forPost(viewerId, postId),
-  );
+  const existingCache = queryClient.getQueryData<LikeState>(likeStateQueryKey);
 
-  // DEV logging to track like state sync
-  if (__DEV__ && postId) {
-    console.log(`[usePostLikeState] postId=${postId.slice(0, 8)}`, {
-      viewerId: viewerId.slice(0, 8),
-      cached: existingCache
-        ? {
-            hasLiked: existingCache.hasLiked,
-            likesCount: existingCache.likesCount,
-          }
-        : null,
-      initial: { hasLiked: initialHasLiked, likesCount: initialLikesCount },
-    });
-  }
-
-  // Query for like state - use cached data if available, otherwise seed with initial
+  // Query for like state - use cached data or seed with initial values
+  // NOTE: We use cache-first approach to prevent crashes from missing backend endpoints
   const { data: likeState } = useQuery<LikeState>({
-    queryKey: likeStateKeys.forPost(viewerId, postId),
+    queryKey: likeStateQueryKey,
     queryFn: async () => {
-      // Return the current cached value or initial values
-      const cached = queryClient.getQueryData<LikeState>(
-        likeStateKeys.forPost(viewerId, postId),
-      );
+      // Return cached value or initial values - no server fetch to prevent crashes
+      const cached = queryClient.getQueryData<LikeState>(likeStateQueryKey);
       return (
         cached || { hasLiked: initialHasLiked, likesCount: initialLikesCount }
       );
@@ -82,31 +79,30 @@ export function usePostLikeState(
       hasLiked: initialHasLiked,
       likesCount: initialLikesCount,
     },
-    staleTime: Infinity, // Never stale - we manage updates manually
+    staleTime: Infinity, // Never stale - we manage updates via mutations
     gcTime: 30 * 60 * 1000, // 30 minutes
-    enabled: !!viewerId && !!postId,
+    enabled: !!viewerId && !!normalizedPostId,
   });
 
   // Like mutation with optimistic updates
   const likeMutation = useMutation({
-    mutationKey: ["likePost", postId],
+    mutationKey: ["likePost", normalizedPostId],
     mutationFn: async ({ action }: { action: "like" | "unlike" }) => {
       if (action === "like") {
-        return likesApi.likePost(postId);
+        return likesApi.likePost(normalizedPostId);
       } else {
-        return likesApi.unlikePost(postId);
+        return likesApi.unlikePost(normalizedPostId);
       }
     },
     onMutate: async ({ action }) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({
-        queryKey: likeStateKeys.forPost(viewerId, postId),
+        queryKey: likeStateQueryKey,
       });
 
       // Snapshot previous state
-      const previousState = queryClient.getQueryData<LikeState>(
-        likeStateKeys.forPost(viewerId, postId),
-      );
+      const previousState =
+        queryClient.getQueryData<LikeState>(likeStateQueryKey);
 
       // Optimistic update
       const newState: LikeState = {
@@ -117,51 +113,52 @@ export function usePostLikeState(
             : Math.max((previousState?.likesCount || 0) - 1, 0),
       };
 
-      queryClient.setQueryData(
-        likeStateKeys.forPost(viewerId, postId),
-        newState,
-      );
+      logCacheMutation("setQueryData", likeStateQueryKey);
+      queryClient.setQueryData(likeStateQueryKey, newState);
 
       return { previousState };
     },
     onError: (_err, _variables, context) => {
       // Rollback on error
       if (context?.previousState) {
-        queryClient.setQueryData(
-          likeStateKeys.forPost(viewerId, postId),
-          context.previousState,
-        );
+        queryClient.setQueryData(likeStateQueryKey, context.previousState);
       }
     },
     onSuccess: (data) => {
       // Sync with server truth
-      queryClient.setQueryData<LikeState>(
-        likeStateKeys.forPost(viewerId, postId),
-        {
-          hasLiked: data.liked,
-          likesCount: data.likesCount,
-        },
-      );
+      logCacheMutation("setQueryData", likeStateQueryKey);
+      queryClient.setQueryData<LikeState>(likeStateQueryKey, {
+        hasLiked: data.liked,
+        likesCount: data.likesCount,
+      });
 
       // Also update post detail cache if exists
       // CANONICAL: ['posts', 'detail', postId]
-      queryClient.setQueryData(["posts", "detail", postId], (old: any) => {
-        if (!old) return old;
-        return { ...old, likes: data.likesCount };
-      });
+      logCacheMutation("setQueryData", ["posts", "detail", normalizedPostId]);
+      queryClient.setQueryData(
+        ["posts", "detail", normalizedPostId],
+        (old: any) => {
+          if (!old) return old;
+          return { ...old, likes: data.likesCount };
+        },
+      );
 
       // Update feed caches - CANONICAL: ['posts', 'feed']
+      logCacheMutation("setQueryData", ["posts", "feed"]);
       queryClient.setQueryData(["posts", "feed"], (old: any) => {
         if (!old) return old;
         if (Array.isArray(old)) {
           return old.map((post: any) =>
-            post.id === postId ? { ...post, likes: data.likesCount } : post,
+            post.id === normalizedPostId
+              ? { ...post, likes: data.likesCount }
+              : post,
           );
         }
         return old;
       });
 
       // Update infinite feed cache - CANONICAL: ['posts', 'feed', 'infinite']
+      logCacheMutation("setQueryData", ["posts", "feed", "infinite"]);
       queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
         if (!old?.pages) return old;
         return {
@@ -169,25 +166,67 @@ export function usePostLikeState(
           pages: old.pages.map((page: any) => ({
             ...page,
             data: page.data?.map((post: any) =>
-              post.id === postId ? { ...post, likes: data.likesCount } : post,
+              post.id === normalizedPostId
+                ? { ...post, likes: data.likesCount }
+                : post,
             ),
           })),
         };
       });
+
+      if (authorId) {
+        logCacheMutation("setQueryData", postKeys.profilePosts(authorId));
+        queryClient.setQueryData(
+          postKeys.profilePosts(authorId),
+          (old: any) => {
+            if (!old || !Array.isArray(old)) return old;
+            return old.map((post: any) =>
+              post.id === normalizedPostId
+                ? { ...post, likes: data.likesCount }
+                : post,
+            );
+          },
+        );
+      }
+
+      // Update any saved-posts cache (`usePostsByIds`) that contains this post
+      queryClient.setQueriesData<Post[]>(
+        {
+          predicate: (query) => {
+            const key = query.queryKey;
+            if (!Array.isArray(key) || key.length < 3) return false;
+            if (key[0] !== "posts" || key[1] !== "byIds") return false;
+            const idsArg = key[2];
+            if (typeof idsArg !== "string" || !normalizedPostId) return false;
+            const ids = idsArg.split(",");
+            return ids.includes(normalizedPostId);
+          },
+        },
+        (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((post) =>
+            post?.id === normalizedPostId
+              ? { ...post, likes: data.likesCount }
+              : post,
+          );
+        },
+      );
     },
   });
 
   // Like action - only if not already liked
   const like = useCallback(() => {
-    if (likeState?.hasLiked || likeMutation.isPending) return;
+    if (!normalizedPostId || likeState?.hasLiked || likeMutation.isPending)
+      return;
     likeMutation.mutate({ action: "like" });
-  }, [likeState?.hasLiked, likeMutation]);
+  }, [likeState?.hasLiked, likeMutation, normalizedPostId]);
 
   // Unlike action - only if currently liked
   const unlike = useCallback(() => {
-    if (!likeState?.hasLiked || likeMutation.isPending) return;
+    if (!normalizedPostId || !likeState?.hasLiked || likeMutation.isPending)
+      return;
     likeMutation.mutate({ action: "unlike" });
-  }, [likeState?.hasLiked, likeMutation]);
+  }, [likeState?.hasLiked, likeMutation, normalizedPostId]);
 
   // Toggle action for convenience
   const toggle = useCallback(() => {
@@ -227,14 +266,23 @@ export function seedLikeState(
   hasLiked: boolean,
   likesCount: number,
 ) {
+  const normalizedPostId =
+    typeof postId === "string" ? postId : postId != null ? String(postId) : "";
+
+  if (!normalizedPostId) {
+    if (__DEV__) {
+      console.warn("[seedLikeState] skipping seed for empty postId", postId);
+    }
+    return;
+  }
   // Only seed if not already cached
   const existing = queryClient.getQueryData<LikeState>(
-    likeStateKeys.forPost(viewerId, postId),
+    likeStateKeys.forPost(viewerId, normalizedPostId),
   );
 
   if (!existing) {
     queryClient.setQueryData<LikeState>(
-      likeStateKeys.forPost(viewerId, postId),
+      likeStateKeys.forPost(viewerId, normalizedPostId),
       { hasLiked, likesCount },
     );
   }
