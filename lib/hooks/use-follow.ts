@@ -130,6 +130,49 @@ export function useFollow() {
       showToast("error", "Error", errorMessage);
     },
     onSuccess: (data, variables) => {
+      // CRITICAL: Use server response counts to reconcile cache
+      console.log("[useFollow] Server response:", {
+        following: data.following,
+        followersCount: data.followersCount,
+        followingCount: data.followingCount,
+        targetUserId: variables.userId,
+        viewerId,
+      });
+
+      // Update target user's profile with server-confirmed follower count
+      if (typeof data.followersCount === "number") {
+        const targetQueryKey = variables.username
+          ? ["users", "username", variables.username]
+          : ["users", "id", variables.userId];
+
+        queryClient.setQueryData(targetQueryKey, (old: any) => {
+          if (!old) return old;
+          return { ...old, followersCount: data.followersCount };
+        });
+
+        if (variables.userId) {
+          queryClient.setQueryData(
+            ["profile", variables.userId],
+            (old: any) => {
+              if (!old) return old;
+              return { ...old, followersCount: data.followersCount };
+            },
+          );
+        }
+      }
+
+      // Update viewer's following count with server-confirmed count
+      if (typeof data.followingCount === "number" && viewerId) {
+        queryClient.setQueryData(["profile", viewerId], (old: any) => {
+          if (!old) return old;
+          return { ...old, followingCount: data.followingCount };
+        });
+
+        if (authUser) {
+          setUser({ ...authUser, followingCount: data.followingCount });
+        }
+      }
+
       // Show success toast
       showToast(
         "success",

@@ -1,11 +1,11 @@
 /**
  * Error Boundary Component
- * 
+ *
  * PHASE 0: Stop the bleeding
- * 
+ *
  * Catches JavaScript errors anywhere in the child component tree,
  * logs them, and displays a fallback UI instead of crashing.
- * 
+ *
  * Usage:
  * - Wrap entire app in _layout.tsx
  * - Wrap individual screens that are crash-prone (Profile, PostDetail)
@@ -24,6 +24,12 @@ interface Props {
   // Allow navigation back
   onGoBack?: () => void;
   onGoHome?: () => void;
+  // Debug context for crash logging
+  debugContext?: {
+    userId?: string;
+    routeParams?: Record<string, any>;
+    queryKeys?: string[];
+  };
 }
 
 interface State {
@@ -48,13 +54,34 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log the error
+    // Log the error with full debug context
     const screenName = this.props.screenName || "Unknown";
-    console.error(`[ErrorBoundary] Crash caught on ${screenName}:`, {
-      error: error.message,
-      stack: error.stack,
-      componentStack: errorInfo.componentStack,
-    });
+    const debugContext = this.props.debugContext || {};
+
+    // CRITICAL: Log comprehensive crash data for debugging
+    console.error(`[ErrorBoundary] ========== CRASH CAUGHT ==========`);
+    console.error(`[ErrorBoundary] Screen: ${screenName}`);
+    console.error(`[ErrorBoundary] Error: ${error.message}`);
+    console.error(`[ErrorBoundary] Stack:`, error.stack);
+    console.error(`[ErrorBoundary] Component Stack:`, errorInfo.componentStack);
+
+    // Log debug context if available
+    if (debugContext.userId) {
+      console.error(`[ErrorBoundary] User ID: ${debugContext.userId}`);
+    }
+    if (debugContext.routeParams) {
+      console.error(
+        `[ErrorBoundary] Route Params:`,
+        JSON.stringify(debugContext.routeParams),
+      );
+    }
+    if (debugContext.queryKeys) {
+      console.error(
+        `[ErrorBoundary] Query Keys:`,
+        debugContext.queryKeys.join(", "),
+      );
+    }
+    console.error(`[ErrorBoundary] ================================`);
 
     this.setState({ errorInfo });
 
@@ -96,9 +123,7 @@ export class ErrorBoundary extends Component<Props, State> {
             {/* Error details (dev only) */}
             {__DEV__ && this.state.error && (
               <View style={styles.errorBox}>
-                <Text style={styles.errorText}>
-                  {this.state.error.message}
-                </Text>
+                <Text style={styles.errorText}>{this.state.error.message}</Text>
               </View>
             )}
 
@@ -134,7 +159,7 @@ export class ErrorBoundary extends Component<Props, State> {
  */
 export function withErrorBoundary<P extends object>(
   WrappedComponent: React.ComponentType<P>,
-  screenName: string
+  screenName: string,
 ) {
   return function WithErrorBoundary(props: P) {
     return (
@@ -156,11 +181,7 @@ export function SafeRender({
   children: ReactNode;
   fallback?: ReactNode;
 }) {
-  return (
-    <ErrorBoundary fallback={fallback}>
-      {children}
-    </ErrorBoundary>
-  );
+  return <ErrorBoundary fallback={fallback}>{children}</ErrorBoundary>;
 }
 
 const styles = StyleSheet.create({

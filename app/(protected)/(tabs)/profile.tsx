@@ -44,83 +44,51 @@ import { users } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
+import {
+  safeProfile,
+  safeGridTiles,
+  safeBookmarkIds,
+  formatCountSafe,
+  type SafeProfileData,
+  type SafeGridTile,
+} from "@/lib/utils/safe-profile-mappers";
+import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 6) / 3;
 
 // Edit Profile is now handled by /(protected)/profile/edit.tsx modal
 
-/**
- * mapPostToGridTile - Shared mapper for profile grid tiles
- * Handles carousel/video indicators and safe thumbnail extraction
- */
-function mapPostToGridTile(post: any): {
-  id: string;
-  kind: "image" | "carousel" | "video";
-  coverUrl: string | undefined;
-  mediaCount: number;
-} {
-  if (!post || !post.id) {
-    return { id: "", kind: "image", coverUrl: undefined, mediaCount: 0 };
-  }
-
-  const media = Array.isArray(post.media) ? post.media : [];
-  const mediaCount = media.length;
-
-  // Determine kind
-  let kind: "image" | "carousel" | "video" = "image";
-  if (mediaCount > 1) {
-    kind = "carousel";
-  } else if (media[0]?.type === "video") {
-    kind = "video";
-  }
-
-  // Extract cover URL with fallbacks for video
-  let coverUrl: string | undefined;
-  if (kind === "video") {
-    // Video: prefer posterUrl > thumbnail > first frame
-    coverUrl = media[0]?.posterUrl || media[0]?.thumbnail || media[0]?.url;
-  } else {
-    // Image/carousel: first image thumbnail or url
-    coverUrl = media[0]?.thumbnail || media[0]?.url;
-  }
-
-  // Validate URL
-  if (
-    coverUrl &&
-    !coverUrl.startsWith("http://") &&
-    !coverUrl.startsWith("https://")
-  ) {
-    coverUrl = undefined;
-  }
-
-  return {
-    id: String(post.id),
-    kind,
-    coverUrl,
-    mediaCount,
-  };
-}
+// mapPostToGridTile is now replaced by safeGridTiles from safe-profile-mappers.ts
 
 function ProfileScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
-  const { activeTab, setActiveTab } = useProfileStore();
-  const bookmarkStore = useBookmarkStore();
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+
+  // DEFENSIVE: Get stores safely
+  const { activeTab, setActiveTab } = useProfileStore();
+  const bookmarkStore = useBookmarkStore();
 
   // Avatar update state
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
 
+  // CRITICAL: userId must exist before any queries run
+  // This is the KEY guard that prevents crashes
+  const userId = user?.id ? String(user.id) : "";
+  const hasUser = Boolean(userId);
+
   // CRITICAL: Fetch profile data with counts from backend
-  // This is the canonical source for followersCount, followingCount, postsCount
+  // ONLY enabled when we have a valid userId
   const {
     data: profileData,
     isLoading: isLoadingProfile,
+    isError: isProfileError,
+    error: profileError,
     refetch: refetchProfile,
   } = useMyProfile();
   const { uploadSingle } = useMediaUpload({
@@ -329,12 +297,10 @@ function ProfileScreenContent() {
     : [];
 
   // DEFENSIVE: Safely get bookmarks from store with fallback
-  let storeBookmarks: string[] = [];
-  try {
-    storeBookmarks = bookmarkStore.getBookmarkedPostIds() || [];
-  } catch (e) {
-    console.error("[Profile] Error getting bookmarks from store:", e);
-  }
+  const storeBookmarks = safeBookmarkIds(
+    null,
+    () => bookmarkStore.getBookmarkedPostIds() || [],
+  );
 
   const bookmarkedPosts =
     safeBookmarkedPostIds.length > 0 ? safeBookmarkedPostIds : storeBookmarks;
@@ -478,78 +444,41 @@ function ProfileScreenContent() {
     return () => subscription.remove();
   }, [refetchProfile, refetch, loggedInUserId, queryClient]);
 
-  // Transform user posts data using shared mapper - with defensive guards
-  const userPosts = useMemo(() => {
-    try {
-      if (!userPostsData || !Array.isArray(userPostsData)) return [];
-      return userPostsData
-        .filter((post) => post && post.id)
-        .map(mapPostToGridTile);
-    } catch (e) {
-      console.error("[Profile] Error transforming user posts:", e);
-      return [];
-    }
+  // Transform user posts data using SAFE mapper - NEVER throws
+  const userPosts: SafeGridTile[] = useMemo(() => {
+    return safeGridTiles(userPostsData);
   }, [userPostsData]);
 
   // Fetch bookmarked posts
   const { data: bookmarkedPostsData = [] } = usePostsByIds(bookmarkedPosts);
 
-  const savedPosts = useMemo(() => {
-    try {
-      if (
-        !bookmarkedPostsData ||
-        !Array.isArray(bookmarkedPostsData) ||
-        bookmarkedPostsData.length === 0
-      ) {
-        return [];
-      }
-      return bookmarkedPostsData
-        .filter((post) => post && post.id)
-        .map(mapPostToGridTile);
-    } catch (e) {
-      console.error("[Profile] Error transforming saved posts:", e);
-      return [];
-    }
+  // Transform saved posts using SAFE mapper - NEVER throws
+  const savedPosts: SafeGridTile[] = useMemo(() => {
+    return safeGridTiles(bookmarkedPostsData);
   }, [bookmarkedPostsData]);
 
-  const videoPosts = useMemo(() => {
-    try {
-      return Array.isArray(userPosts)
-        ? userPosts.filter((p) => p?.kind === "video")
-        : [];
-    } catch (e) {
-      console.error("[Profile] Error filtering video posts:", e);
-      return [];
-    }
+  // Filter video posts - safe with typed array
+  const videoPosts: SafeGridTile[] = useMemo(() => {
+    return userPosts.filter((p) => p.kind === "video");
   }, [userPosts]);
-  const taggedPosts: typeof userPosts = []; // Placeholder for tagged posts
 
-  const displayPosts = useMemo(() => {
-    try {
-      switch (activeTab) {
-        case "posts":
-          return Array.isArray(userPosts) ? userPosts : [];
-        case "video":
-          return Array.isArray(videoPosts) ? videoPosts : [];
-        case "saved":
-          return Array.isArray(savedPosts) ? savedPosts : [];
-        case "tagged":
-          return Array.isArray(taggedPosts) ? taggedPosts : [];
-        default:
-          return Array.isArray(userPosts) ? userPosts : [];
-      }
-    } catch (e) {
-      console.error("[Profile] Error getting display posts:", e);
-      return [];
+  const taggedPosts: SafeGridTile[] = []; // Placeholder for tagged posts
+
+  // Select display posts based on active tab - fully typed
+  const displayPosts: SafeGridTile[] = useMemo(() => {
+    switch (activeTab) {
+      case "posts":
+        return userPosts;
+      case "video":
+        return videoPosts;
+      case "saved":
+        return savedPosts;
+      case "tagged":
+        return taggedPosts;
+      default:
+        return userPosts;
     }
   }, [activeTab, savedPosts, videoPosts, userPosts]);
-
-  // Format follower count (e.g., 24800 -> "24.8K")
-  const formatCount = (count: number) => {
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return count.toString();
-  };
 
   // CRITICAL: Early return if no user - MUST come AFTER all hooks
   // This ensures hooks are called in same order every render (React rules)
@@ -629,7 +558,7 @@ function ProfileScreenContent() {
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(displayFollowersCount)}
+                    {formatCountSafe(displayFollowersCount)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Followers
@@ -647,7 +576,7 @@ function ProfileScreenContent() {
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(displayFollowingCount)}
+                    {formatCountSafe(displayFollowingCount)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Following
@@ -793,9 +722,9 @@ function ProfileScreenContent() {
         >
           {displayPosts.length > 0 ? (
             <View className="flex-row flex-wrap">
-              {displayPosts.map((item, index) => (
+              {displayPosts.map((item: SafeGridTile, index: number) => (
                 <Motion.View
-                  key={`${activeTab}-${item.id}`}
+                  key={`${activeTab}-${item.id}-${index}`}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{
@@ -873,14 +802,24 @@ function ProfileScreenContent() {
   );
 }
 
-// PHASE 5: Wrap with ErrorBoundary for crash protection
+// PHASE 5: Wrap with ErrorBoundary for crash protection + debug context
 export default function ProfileScreen() {
   const router = useRouter();
+  const user = useAuthStore((state) => state.user);
 
   return (
     <ErrorBoundary
       screenName="Profile"
       onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+      debugContext={{
+        userId: user?.id ? String(user.id) : undefined,
+        queryKeys: [
+          "authUser",
+          `profile-${user?.id || "unknown"}`,
+          `profilePosts-${user?.id || "unknown"}`,
+          "bookmarks",
+        ],
+      }}
     >
       <ProfileScreenContent />
     </ErrorBoundary>

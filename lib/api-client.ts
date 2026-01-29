@@ -419,6 +419,7 @@ export const users = {
       message: string;
       following: boolean;
       followersCount: number;
+      followingCount: number;
     }>("/api/users/follow", {
       method: action === "follow" ? "POST" : "DELETE",
       body: JSON.stringify({ followingId: userId }),

@@ -82,13 +82,15 @@ function toNumber(value: unknown): number {
 }
 
 function transformPost(doc: Record<string, unknown>): Post {
-  // PHASE 0 INSTRUMENTATION: Log raw post data for likes debugging
+  // PHASE 0 INSTRUMENTATION: Log raw post data for likes/avatar debugging
   if (__DEV__) {
     const rawLikesCount = doc.likesCount;
     const rawLikes = doc.likes;
-    const rawViewerHasLiked = doc.viewerHasLiked;
+    const rawViewerHasLiked = doc.viewerHasLiked ?? doc.isLiked;
+    const author = doc.author as Record<string, unknown> | undefined;
+    const authorAvatarUrl = author?.avatarUrl || author?.avatar;
     console.log(
-      `[transformPost] Post ${doc.id}: likesCount=${rawLikesCount}, likes=${rawLikes}, viewerHasLiked=${rawViewerHasLiked}`,
+      `[transformPost] Post ${String(doc.id).slice(0, 8)}: likesCount=${rawLikesCount}, viewerHasLiked=${rawViewerHasLiked}, author.avatarUrl=${authorAvatarUrl ? "present" : "MISSING"}`,
     );
   }
 
@@ -194,39 +196,92 @@ function formatTimeAgo(dateString: string): string {
 
 // Real API functions
 export const postsApi = {
-  // Fetch feed posts
+  // Fetch feed posts using CUSTOM feed endpoint (includes likesCount, isLiked, isBookmarked)
   async getFeedPosts(): Promise<Post[]> {
     try {
-      // CRITICAL: depth: 2 required to populate author.avatar (media object)
-      const response = await posts.find({
-        limit: 20,
-        sort: "-createdAt",
-        depth: 2,
+      // CRITICAL: Use custom /api/posts/feed endpoint which includes:
+      // - likesCount from post document
+      // - isLiked (viewer's like state)
+      // - isBookmarked (viewer's bookmark state)
+      const response = await fetch(
+        `${PAYLOAD_BASE_URL}/api/posts/feed?limit=20`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: (await import("@/lib/auth-client")).getAuthCookies() || "",
+          },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        console.error("[postsApi] getFeedPosts error:", response.status);
+        return [];
+      }
+
+      const data = await response.json();
+
+      // Transform posts and include viewerHasLiked from isLiked field
+      return (data.docs || []).map((doc: any) => {
+        // CRITICAL: Map isLiked to viewerHasLiked for proper like state
+        const post = transformPost({
+          ...doc,
+          viewerHasLiked: doc.isLiked === true,
+        });
+        return post;
       });
-      return response.docs.map(transformPost);
     } catch (error) {
       console.error("[postsApi] getFeedPosts error:", error);
       return [];
     }
   },
 
-  // Fetch feed posts with pagination (infinite scroll)
+  // Fetch feed posts with pagination (infinite scroll) using CUSTOM feed endpoint
   async getFeedPostsPaginated(
     cursor: number = 0,
   ): Promise<PaginatedResponse<Post>> {
     try {
       const page = Math.floor(cursor / PAGE_SIZE) + 1;
-      const response = await posts.find({
-        limit: PAGE_SIZE,
-        page,
-        sort: "-createdAt",
-        depth: 2,
+
+      // CRITICAL: Use custom /api/posts/feed endpoint which includes:
+      // - likesCount from post document
+      // - isLiked (viewer's like state)
+      // - isBookmarked (viewer's bookmark state)
+      const response = await fetch(
+        `${PAYLOAD_BASE_URL}/api/posts/feed?limit=${PAGE_SIZE}&page=${page}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: (await import("@/lib/auth-client")).getAuthCookies() || "",
+          },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        console.error(
+          "[postsApi] getFeedPostsPaginated error:",
+          response.status,
+        );
+        return { data: [], nextCursor: null, hasMore: false };
+      }
+
+      const data = await response.json();
+
+      // Transform posts and include viewerHasLiked from isLiked field
+      const transformedPosts = (data.docs || []).map((doc: any) => {
+        // CRITICAL: Map isLiked to viewerHasLiked for proper like state
+        const post = transformPost({
+          ...doc,
+          viewerHasLiked: doc.isLiked === true,
+        });
+        return post;
       });
 
       return {
-        data: response.docs.map(transformPost),
-        nextCursor: response.hasNextPage ? cursor + PAGE_SIZE : null,
-        hasMore: response.hasNextPage,
+        data: transformedPosts,
+        nextCursor: data.hasNextPage ? cursor + PAGE_SIZE : null,
+        hasMore: data.hasNextPage,
       };
     } catch (error) {
       console.error("[postsApi] getFeedPostsPaginated error:", error);

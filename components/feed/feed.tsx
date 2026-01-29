@@ -24,7 +24,6 @@ import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
-import { likes as likesApi } from "@/lib/api-client";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -225,53 +224,36 @@ export function Feed() {
     return data.pages.flatMap((page) => page.data);
   }, [data]);
 
-  // CRITICAL: Fetch real like state from API for each post
-  // The posts endpoint doesn't return likesCount, so we need to fetch it separately
+  // CRITICAL: Seed like states from feed data
+  // The custom /api/posts/feed endpoint now returns isLiked and likesCount per post
+  // No need for separate API calls - just seed the cache from the feed data
   useEffect(() => {
     if (!viewerId || !allPosts.length) return;
 
-    const fetchLikeStates = async () => {
-      if (__DEV__) {
-        console.log(`[Feed] Fetching like states for ${allPosts.length} posts`);
-      }
+    if (__DEV__) {
+      console.log(
+        `[Feed] Seeding like states for ${allPosts.length} posts from feed data`,
+      );
+    }
 
-      // Fetch like state for each post in parallel (batched)
-      const likeStatePromises = allPosts
-        .filter((post) => post?.id)
-        .map(async (post) => {
-          try {
-            const likeState = await likesApi.getLikeState(post.id);
-            return { postId: post.id, ...likeState };
-          } catch (error) {
-            // Silently fail for individual posts
-            return { postId: post.id, liked: false, likesCount: 0 };
-          }
-        });
+    // Seed the cache with like states from the feed response
+    allPosts
+      .filter((post) => post?.id)
+      .forEach((post) => {
+        // viewerHasLiked comes from isLiked in the feed response
+        const hasLiked = post.viewerHasLiked === true;
+        const likesCount = post.likes || 0;
 
-      const likeStates = await Promise.all(likeStatePromises);
-
-      // Seed the cache with real like states
-      // NOTE: API may return 'hasLiked' or 'liked' depending on endpoint
-      likeStates.forEach((state: any) => {
-        const isLiked = state.hasLiked ?? state.liked ?? false;
-        seedLikeState(
-          queryClient,
-          viewerId,
-          state.postId,
-          isLiked,
-          state.likesCount || 0,
-        );
+        seedLikeState(queryClient, viewerId, post.id, hasLiked, likesCount);
       });
 
-      if (__DEV__) {
-        const withLikes = likeStates.filter((s) => s.likesCount > 0);
-        console.log(
-          `[Feed] Seeded ${likeStates.length} like states, ${withLikes.length} have likes`,
-        );
-      }
-    };
-
-    fetchLikeStates();
+    if (__DEV__) {
+      const withLikes = allPosts.filter((p) => (p.likes || 0) > 0);
+      const withViewerLiked = allPosts.filter((p) => p.viewerHasLiked);
+      console.log(
+        `[Feed] Seeded ${allPosts.length} like states: ${withLikes.length} have likes, ${withViewerLiked.length} viewer liked`,
+      );
+    }
   }, [allPosts, viewerId, queryClient]);
 
   const filteredPosts = useMemo(() => {

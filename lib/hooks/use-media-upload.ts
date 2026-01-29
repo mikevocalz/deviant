@@ -22,6 +22,10 @@ import {
   type UploadResult,
 } from "@/lib/bunny-storage";
 import {
+  uploadToServer as serverUpload,
+  type ServerUploadResult,
+} from "@/lib/server-upload";
+import {
   generateVideoThumbnail,
   cleanupThumbnail,
 } from "@/lib/video-thumbnail";
@@ -31,6 +35,10 @@ import {
   cleanupCompressedVideo,
   type CompressionProgress,
 } from "@/lib/video-compression";
+
+// CRITICAL: Use server-side uploads by default to avoid 401 errors
+// Direct Bunny uploads expose AccessKey in client which causes failures on Android
+const USE_SERVER_UPLOAD = true;
 
 export interface UseMediaUploadOptions {
   folder?: string;
@@ -73,14 +81,33 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       setProgress(0);
       setError(null);
 
-      const result = await uploadToBunny(
-        uri,
-        folder,
-        (p) => {
+      let result: UploadResult;
+
+      if (USE_SERVER_UPLOAD) {
+        // Use server-side upload (recommended - no 401 errors)
+        console.log("[useMediaUpload] Using server-side upload");
+        const serverResult = await serverUpload(uri, folder, (p) => {
           setProgress(p.percentage);
-        },
-        userId,
-      );
+        });
+        result = {
+          success: serverResult.success,
+          url: serverResult.url,
+          path: serverResult.path,
+          filename: serverResult.filename,
+          error: serverResult.error,
+        };
+      } else {
+        // Direct Bunny upload (may fail with 401 on Android)
+        console.log("[useMediaUpload] Using direct Bunny upload");
+        result = await uploadToBunny(
+          uri,
+          folder,
+          (p) => {
+            setProgress(p.percentage);
+          },
+          userId,
+        );
+      }
 
       setIsUploading(false);
 
@@ -198,12 +225,25 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           let thumbnailUrl: string | undefined;
           const thumbResult = await generateVideoThumbnail(file.uri, 500);
           if (thumbResult.success && thumbResult.uri) {
-            const thumbUpload = await uploadToBunny(
-              thumbResult.uri,
-              `${folder}/thumbnails`,
-              undefined,
-              userId,
-            );
+            let thumbUpload: { success: boolean; url: string; error?: string };
+            if (USE_SERVER_UPLOAD) {
+              const serverResult = await serverUpload(
+                thumbResult.uri,
+                `${folder}/thumbnails`,
+              );
+              thumbUpload = {
+                success: serverResult.success,
+                url: serverResult.url,
+                error: serverResult.error,
+              };
+            } else {
+              thumbUpload = await uploadToBunny(
+                thumbResult.uri,
+                `${folder}/thumbnails`,
+                undefined,
+                userId,
+              );
+            }
             if (thumbUpload.success) {
               thumbnailUrl = thumbUpload.url;
               console.log("[useMediaUpload] Thumbnail uploaded:", thumbnailUrl);
@@ -214,12 +254,25 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
 
           // Step 4: Upload COMPRESSED video (never raw)
           setStatusMessage("Uploading video...");
-          const uploadResult = await uploadToBunny(
-            compressionResult.outputPath,
-            folder,
-            undefined,
-            userId,
-          );
+          let uploadResult: { success: boolean; url: string; error?: string };
+          if (USE_SERVER_UPLOAD) {
+            const serverResult = await serverUpload(
+              compressionResult.outputPath,
+              folder,
+            );
+            uploadResult = {
+              success: serverResult.success,
+              url: serverResult.url,
+              error: serverResult.error,
+            };
+          } else {
+            uploadResult = await uploadToBunny(
+              compressionResult.outputPath,
+              folder,
+              undefined,
+              userId,
+            );
+          }
 
           // Clean up compressed file after upload
           await cleanupCompressedVideo(compressionResult.outputPath);
@@ -255,12 +308,22 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
         } else {
           // ========== IMAGE PROCESSING (no compression needed) ==========
           setStatusMessage("Uploading image...");
-          const uploadResult = await uploadToBunny(
-            file.uri,
-            folder,
-            undefined,
-            userId,
-          );
+          let uploadResult: { success: boolean; url: string; error?: string };
+          if (USE_SERVER_UPLOAD) {
+            const serverResult = await serverUpload(file.uri, folder);
+            uploadResult = {
+              success: serverResult.success,
+              url: serverResult.url,
+              error: serverResult.error,
+            };
+          } else {
+            uploadResult = await uploadToBunny(
+              file.uri,
+              folder,
+              undefined,
+              userId,
+            );
+          }
 
           if (!uploadResult.success) {
             results.push({

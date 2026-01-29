@@ -71,17 +71,16 @@ export function useMyProfile() {
           resolveAvatarUrl(profile.avatarUrl, "useMyProfile") ||
           resolveAvatarUrl(profile.avatar, "useMyProfile");
 
-        if (__DEV__) {
-          console.log("[useMyProfile] Profile response:", {
-            id: profile.id,
-            followersCount: profile.followersCount,
-            followingCount: profile.followingCount,
-            postsCount: profile.postsCount,
-            avatarUrlType: typeof profile.avatarUrl,
-            avatarType: typeof profile.avatar,
-            resolvedAvatar: resolvedAvatar?.slice(0, 50),
-          });
-        }
+        // CRITICAL: Always log profile counts for debugging SEV-0
+        console.log("[useMyProfile] Profile response:", {
+          id: profile.id,
+          followersCount: profile.followersCount,
+          followingCount: profile.followingCount,
+          postsCount: profile.postsCount,
+          avatarUrlType: typeof profile.avatarUrl,
+          avatarType: typeof profile.avatar,
+          resolvedAvatar: resolvedAvatar?.slice(0, 50),
+        });
 
         return {
           id: String(profile.id),
