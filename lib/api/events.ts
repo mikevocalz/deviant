@@ -69,10 +69,12 @@ export const eventsApiClient = {
   // Fetch all events
   async getEvents(category?: string): Promise<Event[]> {
     try {
+      // depth: 2 to populate attendee relationships
       const response = await eventsApi.find({
         limit: 50,
         sort: "date",
         category: category === "all" ? undefined : category,
+        depth: 2,
       });
       return response.docs.map(transformEvent);
     } catch (error) {
@@ -84,9 +86,11 @@ export const eventsApiClient = {
   // Fetch upcoming events
   async getUpcomingEvents(): Promise<Event[]> {
     try {
+      // depth: 2 to populate attendee relationships
       const response = await eventsApi.find({
         limit: 50,
         sort: "date",
+        depth: 2,
         where: {
           date: { greater_than: new Date().toISOString() },
         },
@@ -101,9 +105,11 @@ export const eventsApiClient = {
   // Fetch past events
   async getPastEvents(): Promise<Event[]> {
     try {
+      // depth: 2 to populate attendee relationships
       const response = await eventsApi.find({
         limit: 50,
         sort: "-date",
+        depth: 2,
         where: {
           date: { less_than: new Date().toISOString() },
         },
