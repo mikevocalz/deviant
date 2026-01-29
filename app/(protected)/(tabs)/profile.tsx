@@ -50,6 +50,58 @@ const columnWidth = (width - 6) / 3;
 
 // Edit Profile is now handled by /(protected)/profile/edit.tsx modal
 
+/**
+ * mapPostToGridTile - Shared mapper for profile grid tiles
+ * Handles carousel/video indicators and safe thumbnail extraction
+ */
+function mapPostToGridTile(post: any): {
+  id: string;
+  kind: "image" | "carousel" | "video";
+  coverUrl: string | undefined;
+  mediaCount: number;
+} {
+  if (!post || !post.id) {
+    return { id: "", kind: "image", coverUrl: undefined, mediaCount: 0 };
+  }
+
+  const media = Array.isArray(post.media) ? post.media : [];
+  const mediaCount = media.length;
+
+  // Determine kind
+  let kind: "image" | "carousel" | "video" = "image";
+  if (mediaCount > 1) {
+    kind = "carousel";
+  } else if (media[0]?.type === "video") {
+    kind = "video";
+  }
+
+  // Extract cover URL with fallbacks for video
+  let coverUrl: string | undefined;
+  if (kind === "video") {
+    // Video: prefer posterUrl > thumbnail > first frame
+    coverUrl = media[0]?.posterUrl || media[0]?.thumbnail || media[0]?.url;
+  } else {
+    // Image/carousel: first image thumbnail or url
+    coverUrl = media[0]?.thumbnail || media[0]?.url;
+  }
+
+  // Validate URL
+  if (
+    coverUrl &&
+    !coverUrl.startsWith("http://") &&
+    !coverUrl.startsWith("https://")
+  ) {
+    coverUrl = undefined;
+  }
+
+  return {
+    id: String(post.id),
+    kind,
+    coverUrl,
+    mediaCount,
+  };
+}
+
 function ProfileScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -119,24 +171,97 @@ function ProfileScreenContent() {
       // Update profile with new avatar
       await users.updateMe({ avatar: uploadResult.url });
 
-      // Update local state
+      const newAvatarUrl = uploadResult.url;
+
+      // Update local auth store
       if (user) {
-        setUser({ ...user, avatar: uploadResult.url });
+        setUser({ ...user, avatar: newAvatarUrl });
       }
 
-      // CRITICAL: Only invalidate the current user's profile cache
-      // DO NOT use broad keys like ["users"] as this affects ALL user caches
-      // and can cause cross-user avatar data leaks
+      // CRITICAL: Patch all caches where MY avatar appears
+      // This ensures instant UI sync across the entire app
+      const userId = user?.id;
+      const username = user?.username;
+
+      // 1. Invalidate profile caches (will refetch with new avatar)
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
+      if (userId) {
+        queryClient.invalidateQueries({ queryKey: ["profile", userId] });
       }
-      if (user?.username) {
+      if (username) {
         queryClient.invalidateQueries({
-          queryKey: ["profile", "username", user.username],
+          queryKey: ["profile", "username", username],
         });
       }
 
+      // 2. Patch feed cache - update my posts' author avatar
+      queryClient.setQueryData(["posts", "feed"], (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((post: any) => {
+          if (
+            String(post.author?.id) === String(userId) ||
+            post.author?.username === username
+          ) {
+            return {
+              ...post,
+              author: { ...post.author, avatar: newAvatarUrl },
+            };
+          }
+          return post;
+        });
+      });
+
+      // 3. Patch infinite feed cache
+      queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data?.map((post: any) => {
+              if (
+                String(post.author?.id) === String(userId) ||
+                post.author?.username === username
+              ) {
+                return {
+                  ...post,
+                  author: { ...post.author, avatar: newAvatarUrl },
+                };
+              }
+              return post;
+            }),
+          })),
+        };
+      });
+
+      // 4. Patch profile posts cache
+      if (userId) {
+        queryClient.setQueryData(["profilePosts", userId], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((post: any) => ({
+            ...post,
+            author: { ...post.author, avatar: newAvatarUrl },
+          }));
+        });
+      }
+
+      // 5. Patch stories cache - update MY stories' avatar
+      queryClient.setQueryData(["stories"], (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((story: any) => {
+          if (
+            String(story.userId) === String(userId) ||
+            story.username === username
+          ) {
+            return { ...story, avatar: newAvatarUrl };
+          }
+          return story;
+        });
+      });
+
+      console.log(
+        "[Profile] Avatar synced to auth store, feed, profile posts, and stories",
+      );
       showToast("success", "Updated", "Profile photo updated!");
     } catch (error: any) {
       console.error("[Profile] Avatar update error:", error);
@@ -151,19 +276,36 @@ function ProfileScreenContent() {
     router.push("/(protected)/profile/edit");
   }, [router]);
 
-  // PHASE 1 INSTRUMENTATION: Log component render with profile data
+  // PHASE 0: Compute display values from profileData (API) with user (auth store) fallback
+  // CRITICAL: profileData is the canonical source, user is fallback only
+  const displayAvatar =
+    profileData?.avatar || profileData?.avatarUrl || user?.avatar;
+  const displayName =
+    profileData?.displayName || profileData?.name || user?.name || "User";
+  const displayUsername = profileData?.username || user?.username || "";
+  const displayBio = profileData?.bio || user?.bio;
+  const displayLocation = user?.location; // Only in auth store
+  const displayWebsite = user?.website; // Only in auth store
+  const displayHashtags = user?.hashtags; // Only in auth store
+  const displayFollowersCount =
+    profileData?.followersCount ?? user?.followersCount ?? 0;
+  const displayFollowingCount =
+    profileData?.followingCount ?? user?.followingCount ?? 0;
+  const displayPostsCount = profileData?.postsCount ?? user?.postsCount ?? 0;
+
+  // PHASE 0 INSTRUMENTATION: Log profile data sources
   if (__DEV__) {
-    console.log("[Profile] ProfileScreenContent rendering", {
+    console.log("[Profile] Data sources:", {
       userId: user?.id,
-      profileData: profileData
-        ? {
-            id: profileData.id,
-            followersCount: profileData.followersCount,
-            followingCount: profileData.followingCount,
-            postsCount: profileData.postsCount,
-            avatarUrl: profileData.avatar?.slice(0, 50),
-          }
-        : null,
+      profileDataExists: !!profileData,
+      displayAvatar: displayAvatar?.slice(0, 50),
+      displayName,
+      displayUsername,
+      counts: {
+        followers: displayFollowersCount,
+        following: displayFollowingCount,
+        posts: displayPostsCount,
+      },
       isLoadingProfile,
     });
   }
@@ -336,39 +478,13 @@ function ProfileScreenContent() {
     return () => subscription.remove();
   }, [refetchProfile, refetch, loggedInUserId, queryClient]);
 
-  // Transform user posts data - with defensive guards to prevent crashes
+  // Transform user posts data using shared mapper - with defensive guards
   const userPosts = useMemo(() => {
     try {
       if (!userPostsData || !Array.isArray(userPostsData)) return [];
       return userPostsData
-        .filter((post) => post && post.id) // Filter out invalid posts
-        .map((post) => {
-          try {
-            const media = Array.isArray(post.media) ? post.media : [];
-            const previewUrl = media[0]?.thumbnail || media[0]?.url;
-            // Only use valid HTTP/HTTPS URLs, skip relative paths
-            const isValidUrl =
-              previewUrl &&
-              (previewUrl.startsWith("http://") ||
-                previewUrl.startsWith("https://"));
-            return {
-              id: String(post.id),
-              thumbnail: isValidUrl ? previewUrl : undefined,
-              type: media[0]?.type === "video" ? "video" : "image",
-              mediaCount: media.length,
-              hasMultipleImages: media.length > 1 && media[0]?.type === "image",
-            };
-          } catch {
-            // If any post transformation fails, return a safe fallback
-            return {
-              id: String(post.id),
-              thumbnail: undefined,
-              type: "image" as const,
-              mediaCount: 0,
-              hasMultipleImages: false,
-            };
-          }
-        });
+        .filter((post) => post && post.id)
+        .map(mapPostToGridTile);
     } catch (e) {
       console.error("[Profile] Error transforming user posts:", e);
       return [];
@@ -384,36 +500,12 @@ function ProfileScreenContent() {
         !bookmarkedPostsData ||
         !Array.isArray(bookmarkedPostsData) ||
         bookmarkedPostsData.length === 0
-      )
+      ) {
         return [];
+      }
       return bookmarkedPostsData
-        .filter((post) => post && post.id) // Filter out invalid posts
-        .map((post) => {
-          try {
-            const media = Array.isArray(post.media) ? post.media : [];
-            const previewUrl = media[0]?.thumbnail || media[0]?.url;
-            // Only use valid HTTP/HTTPS URLs, skip relative paths
-            const isValidUrl =
-              previewUrl &&
-              (previewUrl.startsWith("http://") ||
-                previewUrl.startsWith("https://"));
-            return {
-              id: String(post.id),
-              thumbnail: isValidUrl ? previewUrl : undefined,
-              type: media[0]?.type === "video" ? "video" : "image",
-              mediaCount: media.length,
-              hasMultipleImages: media.length > 1 && media[0]?.type === "image",
-            };
-          } catch {
-            return {
-              id: String(post.id),
-              thumbnail: undefined,
-              type: "image" as const,
-              mediaCount: 0,
-              hasMultipleImages: false,
-            };
-          }
-        });
+        .filter((post) => post && post.id)
+        .map(mapPostToGridTile);
     } catch (e) {
       console.error("[Profile] Error transforming saved posts:", e);
       return [];
@@ -423,7 +515,7 @@ function ProfileScreenContent() {
   const videoPosts = useMemo(() => {
     try {
       return Array.isArray(userPosts)
-        ? userPosts.filter((p) => p?.type === "video")
+        ? userPosts.filter((p) => p?.kind === "video")
         : [];
     } catch (e) {
       console.error("[Profile] Error filtering video posts:", e);
@@ -478,7 +570,7 @@ function ProfileScreenContent() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background" testID="screen.profile">
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-5"
@@ -491,16 +583,12 @@ function ProfileScreenContent() {
               <Pressable
                 onPress={handleAvatarPress}
                 disabled={isUpdatingAvatar}
+                testID={`profile.${user?.id}.avatar`}
               >
                 <View className="relative">
                   <Avatar
-                    uri={profileData?.avatar || user?.avatar}
-                    username={
-                      profileData?.name ||
-                      user?.name ||
-                      user?.username ||
-                      "User"
-                    }
+                    uri={displayAvatar}
+                    username={displayName}
                     size={88}
                     variant="roundedSquare"
                   />
@@ -520,26 +608,28 @@ function ProfileScreenContent() {
                 </View>
               </Pressable>
               <View className="flex-row gap-8">
-                <View className="items-center">
+                <View
+                  className="items-center"
+                  testID={`profile.${user?.id}.postsCount`}
+                >
                   <Text className="text-xl font-bold text-foreground">
-                    {profileData?.postsCount ?? userPostsData?.length ?? 0}
+                    {displayPostsCount}
                   </Text>
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
                 <Pressable
                   className="items-center"
+                  testID={`profile.${user?.id}.followersCount`}
                   onPress={() => {
                     if (user?.id) {
                       router.push(
-                        `/(protected)/profile/followers?userId=${user.id}&username=${user.username}`,
+                        `/(protected)/profile/followers?userId=${user.id}&username=${displayUsername}`,
                       );
                     }
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(
-                      profileData?.followersCount ?? user?.followersCount ?? 0,
-                    )}
+                    {formatCount(displayFollowersCount)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Followers
@@ -547,18 +637,17 @@ function ProfileScreenContent() {
                 </Pressable>
                 <Pressable
                   className="items-center"
+                  testID={`profile.${user?.id}.followingCount`}
                   onPress={() => {
                     if (user?.id) {
                       router.push(
-                        `/(protected)/profile/following?userId=${user.id}&username=${user.username}`,
+                        `/(protected)/profile/following?userId=${user.id}&username=${displayUsername}`,
                       );
                     }
                   }}
                 >
                   <Text className="text-xl font-bold text-foreground">
-                    {formatCount(
-                      profileData?.followingCount ?? user?.followingCount ?? 0,
-                    )}
+                    {formatCount(displayFollowingCount)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Following
@@ -570,29 +659,26 @@ function ProfileScreenContent() {
 
           <View className="mt-4">
             <Text className="text-base font-semibold text-foreground">
-              {profileData?.displayName ||
-                profileData?.name ||
-                user?.name ||
-                "User"}
+              {displayName}
             </Text>
-            {(profileData?.bio || user?.bio) && (
+            {displayBio && (
               <Text className="mt-1.5 text-sm leading-5 text-foreground/90">
-                {profileData?.bio || user?.bio}
+                {displayBio}
               </Text>
             )}
-            {user?.location && (
+            {displayLocation && (
               <Text className="mt-1.5 text-sm text-muted-foreground">
-                {user.location}
+                {displayLocation}
               </Text>
             )}
-            {user?.website && (
+            {displayWebsite && (
               <Text className="mt-1.5 text-sm font-medium text-primary">
-                {user.website}
+                {displayWebsite}
               </Text>
             )}
-            {Array.isArray(user?.hashtags) && user.hashtags.length > 0 && (
+            {Array.isArray(displayHashtags) && displayHashtags.length > 0 && (
               <View className="mt-2 flex-row flex-wrap gap-2">
-                {user.hashtags.map((tag, index) => (
+                {displayHashtags.map((tag, index) => (
                   <Badge key={tag + index} variant="secondary">
                     <Text className="text-xs font-medium text-secondary-foreground">
                       #{tag}
@@ -606,6 +692,7 @@ function ProfileScreenContent() {
           <View className="mt-5 flex-row gap-2 px-4">
             <Pressable
               onPress={handleOpenEditSheet}
+              testID="settings.editProfile.open"
               className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
             >
               <Text className="font-semibold text-secondary-foreground">
@@ -700,7 +787,10 @@ function ProfileScreenContent() {
         </View>
 
         {/* Post Grid - min height prevents jumping */}
-        <View style={{ minHeight: columnWidth * 2 }}>
+        <View
+          style={{ minHeight: columnWidth * 2 }}
+          testID={`profile.${user?.id}.grid`}
+        >
           {displayPosts.length > 0 ? (
             <View className="flex-row flex-wrap">
               {displayPosts.map((item, index) => (
@@ -723,14 +813,16 @@ function ProfileScreenContent() {
                   <Pressable
                     onPress={() => {
                       if (item?.id) {
+                        console.log("[Profile] Navigating to post:", item.id);
                         router.push(`/(protected)/post/${item.id}`);
                       }
                     }}
+                    testID={`profile.${user?.id}.gridTile.${item.id}`}
                     className="flex-1 rounded-sm overflow-hidden"
                   >
-                    {item.thumbnail ? (
+                    {item.coverUrl ? (
                       <SharedImage
-                        source={{ uri: item.thumbnail }}
+                        source={{ uri: item.coverUrl }}
                         style={{ width: "100%", height: "100%" }}
                         contentFit="cover"
                         sharedTag={`post-image-${item.id}`}
@@ -745,12 +837,12 @@ function ProfileScreenContent() {
                         </Text>
                       </View>
                     )}
-                    {item.type === "video" && (
+                    {item.kind === "video" && (
                       <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
                         <Play size={16} color="#fff" fill="#fff" />
                       </View>
                     )}
-                    {item.hasMultipleImages && (
+                    {item.kind === "carousel" && (
                       <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
                         <Grid3x3 size={16} color="#fff" />
                       </View>

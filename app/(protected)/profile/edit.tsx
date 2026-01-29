@@ -218,7 +218,11 @@ export default function EditProfileScreen() {
           <Text className="text-lg font-semibold text-foreground">
             Edit Profile
           </Text>
-          <Pressable onPress={handleSave} disabled={isSaving}>
+          <Pressable
+            onPress={handleSave}
+            disabled={isSaving}
+            testID="editProfile.save"
+          >
             <Text className="text-base font-semibold text-primary">
               {isSaving ? "Saving..." : "Done"}
             </Text>
@@ -233,7 +237,11 @@ export default function EditProfileScreen() {
         >
           {/* Avatar Section */}
           <View className="items-center py-6">
-            <Pressable onPress={handlePickAvatar} className="relative">
+            <Pressable
+              onPress={handlePickAvatar}
+              testID="editProfile.avatar.pick"
+              className="relative"
+            >
               <Image
                 source={{
                   uri:
