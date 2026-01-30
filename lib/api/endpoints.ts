@@ -131,6 +131,53 @@ export const BADGES = {
 } as const;
 
 // ============================================================
+// EVENTS ENDPOINTS
+// ============================================================
+export const EVENTS = {
+  CREATE: "/api/events", // POST - Create event
+  LIST: "/api/events", // GET - List events
+  BY_ID: (id: string) => `/api/events/${id}`, // GET - Single event
+  RSVP: (id: string) => `/api/events/${id}/rsvp`, // POST - RSVP to event
+  PARTICIPANTS: (id: string) => `/api/events/${id}/participants`, // GET - Participants
+  COMMENTS: (id: string) => `/api/events/${id}/comments`, // GET/POST - Event comments
+  TICKET: (id: string) => `/api/events/${id}/ticket`, // GET - User's ticket
+} as const;
+
+// ============================================================
+// TICKETS ENDPOINTS
+// ============================================================
+export const TICKETS = {
+  MY_TICKETS: "/api/tickets/me", // GET - My tickets
+  CHECK_IN: "/api/tickets/check-in", // POST - Check in with ticket
+} as const;
+
+// ============================================================
+// MEDIA ENDPOINTS
+// ============================================================
+export const MEDIA = {
+  UPLOAD: "/api/media/upload", // POST - Server-side upload to Bunny
+  CONFIG: "/api/media/upload-config", // GET - Get upload config
+} as const;
+
+// ============================================================
+// BLOCKS ENDPOINTS
+// ============================================================
+export const BLOCKS = {
+  LIST: "/api/blocks/me", // GET - My blocked users
+  BLOCK: "/api/blocks", // POST - Block user
+  UNBLOCK: (blockId: string) => `/api/blocks/${blockId}`, // DELETE - Unblock
+  CHECK: (userId: string) => `/api/blocks/check/${userId}`, // GET - Check if blocked
+} as const;
+
+// ============================================================
+// SETTINGS ENDPOINTS
+// ============================================================
+export const SETTINGS = {
+  NOTIFICATION_PREFS: "/api/users/me/notification-prefs", // GET/PATCH
+  PRIVACY: "/api/users/me/privacy", // GET/PATCH
+} as const;
+
+// ============================================================
 // ALL ENDPOINTS (for validation)
 // ============================================================
 export const ALL_ENDPOINTS = {
@@ -146,6 +193,11 @@ export const ALL_ENDPOINTS = {
   NOTIFICATIONS,
   DEVICES,
   BADGES,
+  EVENTS,
+  TICKETS,
+  MEDIA,
+  BLOCKS,
+  SETTINGS,
 } as const;
 
 // ============================================================

@@ -1,56 +1,77 @@
-import { View, Pressable, Modal, Dimensions, StyleSheet, StatusBar } from "react-native"
-import { Image } from "expo-image"
-import { VideoView, useVideoPlayer } from "expo-video"
-import { X } from "lucide-react-native"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { useEffect, useCallback } from "react"
+import {
+  View,
+  Pressable,
+  Modal,
+  Dimensions,
+  StyleSheet,
+  StatusBar,
+} from "react-native";
+import { Image } from "expo-image";
+import { VideoView, useVideoPlayer } from "expo-video";
+import { X } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEffect, useCallback } from "react";
+import {
+  useVideoLifecycle,
+  safePlay,
+  safePause,
+  cleanupPlayer,
+  logVideoHealth,
+} from "@/lib/video-lifecycle";
 
 interface MediaPreviewModalProps {
-  visible: boolean
-  onClose: () => void
+  visible: boolean;
+  onClose: () => void;
   media: {
-    type: "image" | "video"
-    uri: string
-  } | null
+    type: "image" | "video";
+    uri: string;
+  } | null;
 }
 
-const { width, height } = Dimensions.get("window")
+const { width, height } = Dimensions.get("window");
 
-export function MediaPreviewModal({ visible, onClose, media }: MediaPreviewModalProps) {
-  const insets = useSafeAreaInsets()
-  
+export function MediaPreviewModal({
+  visible,
+  onClose,
+  media,
+}: MediaPreviewModalProps) {
+  const insets = useSafeAreaInsets();
+
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
+    "MediaPreviewModal",
+    media?.uri,
+  );
+
   const player = useVideoPlayer(
     media?.type === "video" ? media.uri : "",
     (p) => {
-      p.loop = true
-    }
-  )
+      if (isMountedRef.current) {
+        p.loop = true;
+        logVideoHealth("MediaPreviewModal", "player configured");
+      }
+    },
+  );
 
   useEffect(() => {
-    if (visible && media?.type === "video" && player) {
-      try {
-        player.play()
-      } catch {}
+    if (visible && media?.type === "video" && player && isSafeToOperate()) {
+      safePlay(player, isMountedRef, "MediaPreviewModal");
     }
     return () => {
       if (player) {
-        try {
-          player.pause()
-        } catch {}
+        cleanupPlayer(player, "MediaPreviewModal");
       }
-    }
-  }, [visible, media, player])
+    };
+  }, [visible, media, player, isSafeToOperate, isMountedRef]);
 
   const handleClose = useCallback(() => {
-    if (player) {
-      try {
-        player.pause()
-      } catch {}
+    if (player && isSafeToOperate()) {
+      safePause(player, isMountedRef, "MediaPreviewModal");
     }
-    onClose()
-  }, [player, onClose])
+    onClose();
+  }, [player, onClose, isSafeToOperate, isMountedRef]);
 
-  if (!media) return null
+  if (!media) return null;
 
   return (
     <Modal
@@ -62,8 +83,8 @@ export function MediaPreviewModal({ visible, onClose, media }: MediaPreviewModal
     >
       <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
       <View style={styles.container}>
-        <Pressable 
-          style={[styles.closeButton, { top: insets.top + 16 }]} 
+        <Pressable
+          style={[styles.closeButton, { top: insets.top + 16 }]}
           onPress={handleClose}
           hitSlop={16}
         >
@@ -90,7 +111,7 @@ export function MediaPreviewModal({ visible, onClose, media }: MediaPreviewModal
         </View>
       </View>
     </Modal>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -123,4 +144,4 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
   },
-})
+});

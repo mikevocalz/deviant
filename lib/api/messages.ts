@@ -300,7 +300,16 @@ export const messagesApiClient = {
         isGroup: false,
       });
 
-      return transformConversation(doc);
+      console.log(
+        "[messagesApi] Created conversation response:",
+        JSON.stringify(doc),
+      );
+
+      // Payload CMS create returns { doc: {...} } wrapper in some cases
+      const conversationDoc = (doc as any).doc || doc;
+      console.log("[messagesApi] Conversation doc id:", conversationDoc?.id);
+
+      return transformConversation(conversationDoc);
     } catch (error) {
       console.error("[messagesApi] getOrCreateConversation error:", error);
       return null;

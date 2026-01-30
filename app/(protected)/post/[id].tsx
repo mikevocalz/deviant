@@ -21,6 +21,12 @@ import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
+import {
+  useVideoLifecycle,
+  safePause,
+  cleanupPlayer,
+  logVideoHealth,
+} from "@/lib/video-lifecycle";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostCaption } from "@/components/post-caption";
@@ -63,6 +69,12 @@ function PostDetailScreenContent() {
     return bookmarkedPostIds.includes(postId);
   }, [postId, bookmarkedPostIds]);
 
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
+    "PostDetail",
+    postId,
+  );
+
   // Carousel state - track current slide for multi-image posts
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -97,11 +109,15 @@ function PostDetailScreenContent() {
   // CRITICAL: Only create player if we have a valid video URL
   // This prevents crashes when videoUrl is empty or invalid
   const player = useVideoPlayer(videoUrl || null, (player) => {
-    if (player && videoUrl) {
+    if (player && videoUrl && isMountedRef.current) {
       try {
         player.loop = false;
+        logVideoHealth("PostDetail", "player configured", {
+          postId,
+          videoUrl: videoUrl.slice(0, 50),
+        });
       } catch (error) {
-        console.log("[PostDetail] Error configuring player:", error);
+        logVideoHealth("PostDetail", "config error", { error: String(error) });
       }
     }
   });
@@ -110,22 +126,12 @@ function PostDetailScreenContent() {
     useCallback(() => {
       return () => {
         if (!player || !videoUrl) return;
-        try {
-          if (typeof player.pause === "function") {
-            player.pause();
-          }
-        } catch (error) {
-          if (
-            error &&
-            typeof error === "object" &&
-            "code" in error &&
-            error.code !== "ERR_USING_RELEASED_SHARED_OBJECT"
-          ) {
-            console.log("[PostDetail] Error pausing player:", error);
-          }
+        // Use safe cleanup on blur
+        if (isSafeToOperate()) {
+          safePause(player, isMountedRef, "PostDetail");
         }
       };
-    }, [player, videoUrl]),
+    }, [player, videoUrl, isSafeToOperate, isMountedRef]),
   );
 
   // Navigate to user profile

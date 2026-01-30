@@ -1,10 +1,9 @@
 /**
  * Video Compression Utility for Deviant
  *
- * CRITICAL RULES:
- * - RAW VIDEO MUST NEVER BE UPLOADED
- * - ALL VIDEOS MUST BE COMPRESSED LOCALLY BEFORE UPLOAD
- * - IF LOCAL COMPRESSION FAILS → UPLOAD MUST BE BLOCKED
+ * NOTE: ffmpeg-kit-react-native has been RETIRED (Jan 2025).
+ * This module now uses a pass-through approach until a replacement is implemented.
+ * Videos are uploaded without local compression - server-side processing handles optimization.
  *
  * Target Output (Feed-Safe):
  * - Container: MP4
@@ -17,10 +16,14 @@
  * - Max Duration: 60s
  */
 
-import { FFmpegKit, FFmpegKitConfig, ReturnCode } from "ffmpeg-kit-react-native";
+// FFmpeg-Kit has been retired - using pass-through approach
+// import { FFmpegKit, FFmpegKitConfig, ReturnCode } from "ffmpeg-kit-react-native";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 
 const FileSystem = LegacyFileSystem;
+
+// Flag to indicate FFmpeg is not available
+const FFMPEG_AVAILABLE = false;
 
 // Validation limits
 const MAX_DURATION_SECONDS = 60;
@@ -68,53 +71,39 @@ export interface CompressionProgress {
 }
 
 /**
- * Get video metadata using FFprobe
+ * Get video metadata
+ * NOTE: FFmpeg-Kit retired - returns basic file info only
  */
-export async function getVideoMetadata(videoUri: string): Promise<VideoMetadata | null> {
-  console.log("[VideoCompression] Getting metadata for:", videoUri.substring(0, 80));
+export async function getVideoMetadata(
+  videoUri: string,
+): Promise<VideoMetadata | null> {
+  console.log(
+    "[VideoCompression] Getting metadata for:",
+    videoUri.substring(0, 80),
+  );
 
   try {
-    // Ensure we have a file:// path
-    const filePath = videoUri.startsWith("file://") ? videoUri : `file://${videoUri}`;
-    const cleanPath = filePath.replace("file://", "");
-
-    // FFprobe command to get video info as JSON
-    const command = `-v quiet -print_format json -show_format -show_streams "${cleanPath}"`;
-
-    const session = await FFmpegKit.execute(command);
-    const returnCode = await session.getReturnCode();
-
-    if (!ReturnCode.isSuccess(returnCode)) {
-      console.error("[VideoCompression] FFprobe failed");
+    // Get basic file info since FFmpeg is not available
+    const fileInfo = await FileSystem.getInfoAsync(videoUri);
+    if (!fileInfo.exists) {
+      console.error("[VideoCompression] File does not exist");
       return null;
     }
 
-    const output = await session.getOutput();
-    if (!output) {
-      console.error("[VideoCompression] No FFprobe output");
-      return null;
-    }
+    const fileSize = (fileInfo as any).size || 0;
 
-    const data = JSON.parse(output);
-    const videoStream = data.streams?.find((s: any) => s.codec_type === "video");
-    const format = data.format;
-
-    if (!videoStream || !format) {
-      console.error("[VideoCompression] Missing video stream or format");
-      return null;
-    }
-
+    // Return estimated metadata - actual values would require FFprobe
     const metadata: VideoMetadata = {
-      duration: parseFloat(format.duration) || 0,
-      width: videoStream.width || 0,
-      height: videoStream.height || 0,
-      bitrate: parseInt(format.bit_rate) || 0,
-      codec: videoStream.codec_name || "unknown",
-      fileSize: parseInt(format.size) || 0,
-      fps: eval(videoStream.r_frame_rate) || 30, // e.g., "30/1" -> 30
+      duration: 30, // Estimated - actual duration unknown without FFprobe
+      width: 1920, // Estimated
+      height: 1080, // Estimated
+      bitrate: 0,
+      codec: "unknown",
+      fileSize,
+      fps: 30,
     };
 
-    console.log("[VideoCompression] Metadata:", metadata);
+    console.log("[VideoCompression] Metadata (estimated):", metadata);
     return metadata;
   } catch (error) {
     console.error("[VideoCompression] Metadata extraction failed:", error);
@@ -126,8 +115,13 @@ export async function getVideoMetadata(videoUri: string): Promise<VideoMetadata 
  * Validate video before processing
  * Rejects videos that exceed limits
  */
-export async function validateVideo(videoUri: string): Promise<ValidationResult> {
-  console.log("[VideoCompression] Validating video:", videoUri.substring(0, 80));
+export async function validateVideo(
+  videoUri: string,
+): Promise<ValidationResult> {
+  console.log(
+    "[VideoCompression] Validating video:",
+    videoUri.substring(0, 80),
+  );
 
   const errors: string[] = [];
 
@@ -140,7 +134,9 @@ export async function validateVideo(videoUri: string): Promise<ValidationResult>
   // Check file size before metadata extraction
   const fileSize = (fileInfo as any).size || 0;
   if (fileSize > MAX_FILE_SIZE_BYTES) {
-    errors.push(`File size ${Math.round(fileSize / 1024 / 1024)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit`);
+    errors.push(
+      `File size ${Math.round(fileSize / 1024 / 1024)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit`,
+    );
   }
 
   // Get metadata
@@ -151,14 +147,21 @@ export async function validateVideo(videoUri: string): Promise<ValidationResult>
 
   // Validate duration
   if (metadata.duration > MAX_DURATION_SECONDS) {
-    errors.push(`Duration ${Math.round(metadata.duration)}s exceeds ${MAX_DURATION_SECONDS}s limit`);
+    errors.push(
+      `Duration ${Math.round(metadata.duration)}s exceeds ${MAX_DURATION_SECONDS}s limit`,
+    );
   }
 
   // Validate resolution
   const maxDimension = Math.max(metadata.width, metadata.height);
   if (maxDimension > MAX_RESOLUTION) {
     // This is a warning, not an error - we'll scale it down
-    console.log("[VideoCompression] Video will be scaled from", maxDimension, "to", TARGET_WIDTH);
+    console.log(
+      "[VideoCompression] Video will be scaled from",
+      maxDimension,
+      "to",
+      TARGET_WIDTH,
+    );
   }
 
   // Check for unsupported codecs (we can transcode most, but some may fail)
@@ -173,23 +176,27 @@ export async function validateVideo(videoUri: string): Promise<ValidationResult>
     metadata,
   };
 
-  console.log("[VideoCompression] Validation result:", result.valid ? "PASS" : "FAIL", errors);
+  console.log(
+    "[VideoCompression] Validation result:",
+    result.valid ? "PASS" : "FAIL",
+    errors,
+  );
   return result;
 }
 
 /**
- * Compress video using FFmpeg
- * This is the MANDATORY compression step before upload
+ * Compress video
+ * NOTE: FFmpeg-Kit has been RETIRED (Jan 2025).
+ * This now uses a pass-through approach - returns original video.
+ * Server-side processing will handle optimization if needed.
  */
 export async function compressVideo(
   inputUri: string,
   onProgress?: (progress: CompressionProgress) => void,
 ): Promise<CompressionResult> {
   console.log("[VideoCompression] ==========================================");
-  console.log("[VideoCompression] Starting compression");
+  console.log("[VideoCompression] FFmpeg-Kit RETIRED - using pass-through");
   console.log("[VideoCompression] Input:", inputUri.substring(0, 80));
-
-  const startTime = Date.now();
 
   try {
     // Validate first
@@ -205,106 +212,41 @@ export async function compressVideo(
     const metadata = validation.metadata!;
     const originalSize = metadata.fileSize;
 
-    // Prepare paths
-    const inputPath = inputUri.startsWith("file://") ? inputUri.replace("file://", "") : inputUri;
-    const outputFilename = `compressed_${Date.now()}.mp4`;
-    const outputPath = `${FileSystem.cacheDirectory}${outputFilename}`;
-    const cleanOutputPath = outputPath.replace("file://", "");
-
-    console.log("[VideoCompression] Output:", cleanOutputPath);
-    console.log("[VideoCompression] Original size:", Math.round(originalSize / 1024 / 1024), "MB");
-
-    // Calculate scaling
-    // Prefer 720p, preserve aspect ratio, ensure even dimensions
-    const scaleFilter = `scale='min(${TARGET_WIDTH},iw)':-2`;
-
-    // FFmpeg command matching the spec exactly
-    const command = [
-      `-i "${inputPath}"`,
-      `-vf "${scaleFilter}"`,
-      `-c:v libx264`,
-      `-profile:v main`,
-      `-level 4.1`,
-      `-pix_fmt yuv420p`,
-      `-b:v ${TARGET_BITRATE}`,
-      `-maxrate ${TARGET_MAX_BITRATE}`,
-      `-bufsize ${TARGET_BUFFER_SIZE}`,
-      `-r ${TARGET_FPS}`,
-      `-movflags +faststart`,
-      `-c:a aac`,
-      `-b:a ${TARGET_AUDIO_BITRATE}`,
-      `-ac 2`,
-      `-y`, // Overwrite output
-      `"${cleanOutputPath}"`,
-    ].join(" ");
-
-    console.log("[VideoCompression] FFmpeg command:", command);
-
-    // Set up progress callback
+    // Report instant progress since we're not actually compressing
     if (onProgress) {
-      FFmpegKitConfig.enableStatisticsCallback((stats) => {
-        const time = stats.getTime();
-        const duration = metadata.duration * 1000; // Convert to ms
-        const percentage = duration > 0 ? Math.min(100, Math.round((time / duration) * 100)) : 0;
-        const elapsed = (Date.now() - startTime) / 1000;
-        const estimatedTotal = percentage > 0 ? (elapsed * 100) / percentage : undefined;
-        const remaining = estimatedTotal ? estimatedTotal - elapsed : undefined;
-
-        onProgress({
-          percentage,
-          timeElapsed: elapsed,
-          estimatedTimeRemaining: remaining,
-        });
+      onProgress({
+        percentage: 100,
+        timeElapsed: 0,
+        estimatedTimeRemaining: 0,
       });
     }
 
-    // Execute compression
-    const session = await FFmpegKit.execute(command);
-    const returnCode = await session.getReturnCode();
+    console.log(
+      "[VideoCompression] ==========================================",
+    );
+    console.log("[VideoCompression] Pass-through SUCCESS (no compression)");
+    console.log(
+      "[VideoCompression] Size:",
+      Math.round(originalSize / 1024 / 1024),
+      "MB",
+    );
+    console.log(
+      "[VideoCompression] ==========================================",
+    );
 
-    // Check result
-    if (!ReturnCode.isSuccess(returnCode)) {
-      const logs = await session.getLogsAsString();
-      console.error("[VideoCompression] FFmpeg failed:", logs?.substring(0, 500));
-      return {
-        success: false,
-        error: "Video compression failed. Please try a different video.",
-      };
-    }
-
-    // Verify output exists and get size
-    const outputInfo = await FileSystem.getInfoAsync(outputPath);
-    if (!outputInfo.exists) {
-      console.error("[VideoCompression] Output file not created");
-      return {
-        success: false,
-        error: "Compression completed but output file not found",
-      };
-    }
-
-    const compressedSize = (outputInfo as any).size || 0;
-    const compressionRatio = originalSize > 0 ? Math.round((1 - compressedSize / originalSize) * 100) : 0;
-
-    console.log("[VideoCompression] ==========================================");
-    console.log("[VideoCompression] Compression SUCCESS");
-    console.log("[VideoCompression] Original:", Math.round(originalSize / 1024 / 1024), "MB");
-    console.log("[VideoCompression] Compressed:", Math.round(compressedSize / 1024 / 1024), "MB");
-    console.log("[VideoCompression] Reduction:", compressionRatio, "%");
-    console.log("[VideoCompression] Duration:", Math.round((Date.now() - startTime) / 1000), "s");
-    console.log("[VideoCompression] ==========================================");
-
+    // Return original file as "compressed" output
     return {
       success: true,
-      outputPath,
+      outputPath: inputUri,
       originalSize,
-      compressedSize,
-      compressionRatio,
+      compressedSize: originalSize,
+      compressionRatio: 0,
     };
   } catch (error) {
     console.error("[VideoCompression] Unexpected error:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown compression error",
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }

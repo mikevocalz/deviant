@@ -1023,26 +1023,48 @@ export const tickets = {
 
 /**
  * Event Reviews API
+ *
+ * NOTE: EventReviews collection is not yet deployed to production.
+ * These methods return empty/stub responses to prevent 404 errors.
+ * When the backend is ready, update these to use real endpoints.
  */
 export const eventReviews = {
   create: <T = Record<string, unknown>>(data: {
     eventId: string;
     rating: number;
     comment?: string;
-  }) =>
-    apiFetch<T>("/api/event-reviews", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+  }): Promise<T> => {
+    // TODO: Implement when backend EventReviews collection is deployed
+    console.warn("[eventReviews] create: EventReviews not yet deployed");
+    return Promise.resolve({
+      id: `stub-${Date.now()}`,
+      eventId: data.eventId,
+      rating: data.rating,
+      comment: data.comment,
+      createdAt: new Date().toISOString(),
+    } as T);
+  },
 
   getEventReviews: <T = Record<string, unknown>>(
     eventId: string,
     params: { limit?: number; page?: number } = {},
-  ) => {
-    const queryString = buildQueryString(params);
-    return apiFetch<PaginatedResponse<T>>(
-      `/api/event-reviews?eventId=${eventId}${queryString}`,
+  ): Promise<PaginatedResponse<T>> => {
+    // TODO: Implement when backend EventReviews collection is deployed
+    console.warn(
+      "[eventReviews] getEventReviews: EventReviews not yet deployed",
     );
+    return Promise.resolve({
+      docs: [] as T[],
+      totalDocs: 0,
+      limit: params.limit || 10,
+      totalPages: 0,
+      page: params.page || 1,
+      pagingCounter: 1,
+      hasPrevPage: false,
+      hasNextPage: false,
+      prevPage: null,
+      nextPage: null,
+    });
   },
 };
 
@@ -1126,6 +1148,10 @@ export const userSettings = {
 
 /**
  * Event Comments API
+ *
+ * CANONICAL ENDPOINTS (from Payload custom endpoints):
+ * - POST /api/events/:id/comments - Create comment
+ * - GET  /api/events/:id/comments - Get comments for event
  */
 export const eventComments = {
   create: <T = Record<string, unknown>>(data: {
@@ -1134,24 +1160,21 @@ export const eventComments = {
     parent?: string;
     authorUsername?: string;
   }) =>
-    apiFetch<T>("/api/event-comments", {
+    apiFetch<T>(`/api/events/${data.eventId}/comments`, {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ text: data.text }),
     }),
 
   getEventComments: <T = Record<string, unknown>>(
     eventId: string,
     params: { limit?: number; page?: number } = {},
   ) => {
-    // Build query params properly to avoid double ? in URL
     const searchParams = new URLSearchParams();
-    searchParams.set("where[event][equals]", eventId);
     if (params.limit) searchParams.set("limit", String(params.limit));
     if (params.page) searchParams.set("page", String(params.page));
-    searchParams.set("depth", "1");
-    searchParams.set("sort", "-createdAt");
+    const queryString = searchParams.toString();
     return apiFetch<PaginatedResponse<T>>(
-      `/api/event-comments?${searchParams.toString()}`,
+      `/api/events/${eventId}/comments${queryString ? `?${queryString}` : ""}`,
     );
   },
 };

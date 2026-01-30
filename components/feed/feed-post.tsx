@@ -21,8 +21,19 @@ import { useComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useRef, useCallback, useEffect, memo, useMemo, useState } from "react";
+import { useCallback, useEffect, memo, useMemo } from "react";
 import { useIsFocused } from "@react-navigation/native";
+import {
+  useVideoLifecycle,
+  safePlay,
+  safePause,
+  safeMute,
+  safeSeek,
+  safeGetCurrentTime,
+  safeGetDuration,
+  cleanupPlayer,
+  logVideoHealth,
+} from "@/lib/video-lifecycle";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
@@ -130,6 +141,15 @@ function FeedPostComponent({
   const isPressed = pressedPosts[id] || false;
   const likeAnimating = likeAnimatingPosts[id] || false;
 
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const {
+    isMountedRef,
+    safeTimeout,
+    safeInterval,
+    clearSafeInterval,
+    isSafeToOperate,
+  } = useVideoLifecycle("FeedPost", id);
+
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
     if (isVideo && media[0]?.url) {
@@ -143,121 +163,127 @@ function FeedPostComponent({
   }, [isVideo, media]);
 
   const player = useVideoPlayer(videoUrl, (player) => {
-    if (player && videoUrl) {
+    // CRITICAL: Check mount state before configuring
+    if (player && videoUrl && isMountedRef.current) {
       try {
         player.loop = false;
         player.muted = isMuted;
+        logVideoHealth("FeedPost", "player configured", {
+          id,
+          videoUrl: videoUrl.slice(0, 50),
+        });
       } catch (error) {
-        console.log("[FeedPost] Error configuring player:", error);
+        logVideoHealth("FeedPost", "config error", { error: String(error) });
       }
     }
   });
 
+  // Sync mute state with player
   useEffect(() => {
     if (isVideo && player && videoUrl) {
-      try {
-        player.muted = isMuted;
-      } catch (error) {
-        // Player may have been released - this is expected
-        if (
-          error &&
-          typeof error === "object" &&
-          "code" in error &&
-          error.code !== "ERR_USING_RELEASED_SHARED_OBJECT"
-        ) {
-          console.log("[FeedPost] Error setting mute:", error);
-        }
-      }
+      safeMute(player, isMountedRef, isMuted, "FeedPost");
     }
-  }, [isVideo, player, isMuted, videoUrl]);
+  }, [isVideo, player, isMuted, videoUrl, isMountedRef]);
 
+  // Play/pause based on focus and active state
   useEffect(() => {
-    if (isVideo && player) {
-      try {
-        if (isFocused && isActivePost && !showSeekBar) {
-          player.play();
-        } else {
-          player.pause();
-        }
-      } catch {
-        // Player may have been released
+    if (!isVideo || !player) return;
+
+    if (isSafeToOperate()) {
+      if (isFocused && isActivePost && !showSeekBar) {
+        safePlay(player, isMountedRef, "FeedPost");
+      } else {
+        safePause(player, isMountedRef, "FeedPost");
       }
     }
 
     // Cleanup: pause video when component unmounts or dependencies change
     return () => {
       if (isVideo && player) {
-        try {
-          player.pause();
-        } catch {
-          // Player may have been released
-        }
+        cleanupPlayer(player, "FeedPost");
       }
     };
-  }, [isFocused, isVideo, player, showSeekBar, isActivePost, id]);
+  }, [
+    isFocused,
+    isVideo,
+    player,
+    showSeekBar,
+    isActivePost,
+    id,
+    isMountedRef,
+    isSafeToOperate,
+  ]);
 
+  // Track video time for seek bar
   useEffect(() => {
     if (!isVideo || !player) return;
 
-    const interval = setInterval(() => {
-      try {
-        // Only update if seek bar is visible to reduce re-renders
-        if (showSeekBar) {
-          setVideoState(id, {
-            currentTime: player.currentTime,
-            duration: player.duration || 0,
-          });
-        }
-      } catch {
-        // Player may have been released
+    const interval = safeInterval(() => {
+      // Only update if seek bar is visible to reduce re-renders
+      if (showSeekBar && isSafeToOperate()) {
+        const currentTime = safeGetCurrentTime(
+          player,
+          isMountedRef,
+          "FeedPost",
+        );
+        const duration = safeGetDuration(player, isMountedRef, "FeedPost");
+        setVideoState(id, { currentTime, duration });
       }
     }, 250);
 
-    return () => clearInterval(interval);
-  }, [isVideo, player, id, setVideoState, showSeekBar]);
+    return () => clearSafeInterval(interval);
+  }, [
+    isVideo,
+    player,
+    id,
+    setVideoState,
+    showSeekBar,
+    safeInterval,
+    clearSafeInterval,
+    isMountedRef,
+    isSafeToOperate,
+  ]);
 
   const handleLongPress = useCallback(() => {
-    if (!isVideo) return;
+    if (!isVideo || !isSafeToOperate()) return;
     setVideoState(id, { showSeekBar: true });
-    try {
-      player?.pause();
-    } catch {}
-  }, [isVideo, player, id, setVideoState]);
+    safePause(player, isMountedRef, "FeedPost");
+  }, [isVideo, player, id, setVideoState, isSafeToOperate, isMountedRef]);
 
   const handleVideoPress = useCallback(() => {
+    if (!isSafeToOperate()) return;
     if (showSeekBar) {
       // Tap to hide seek bar and resume
       setVideoState(id, { showSeekBar: false });
-      try {
-        player?.play();
-      } catch {}
+      safePlay(player, isMountedRef, "FeedPost");
     } else {
       // Normal tap - navigate to post
       if (id) {
         router.push(`/(protected)/post/${id}`);
       }
     }
-  }, [showSeekBar, player, id, setVideoState, router]);
+  }, [
+    showSeekBar,
+    player,
+    id,
+    setVideoState,
+    router,
+    isSafeToOperate,
+    isMountedRef,
+  ]);
 
   const handleVideoSeek = useCallback(
     (time: number) => {
-      try {
-        if (player) {
-          player.currentTime = time;
-        }
-      } catch (e) {
-        console.log("Seek error:", e);
-      }
+      safeSeek(player, isMountedRef, time, "FeedPost");
     },
-    [player],
+    [player, isMountedRef],
   );
 
   const handleSeekEnd = useCallback(() => {
+    if (!isSafeToOperate()) return;
     setVideoState(id, { showSeekBar: false });
-    try {
-      player?.play();
-    } catch {}
-  }, [player, id, setVideoState]);
+    safePlay(player, isMountedRef, "FeedPost");
+  }, [player, id, setVideoState, isSafeToOperate, isMountedRef]);
 
   const isLiked = hasLiked;
   const isSaved = isBookmarked; // isBookmarked is already a boolean from line 99

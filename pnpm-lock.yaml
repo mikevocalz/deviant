@@ -182,9 +182,6 @@ importers:
       expo-web-browser:
         specifier: ^15.0.10
         version: 15.0.10(expo@54.0.31)(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))
-      ffmpeg-kit-react-native:
-        specifier: ^6.0.2
-        version: 6.0.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       lucide-react-native:
         specifier: ^0.562.0
         version: 0.562.0(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -3453,13 +3450,6 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
-
-  ffmpeg-kit-react-native@6.0.2:
-    resolution: {integrity: sha512-r9uSmahq8TeyIb7fXf3ft+uUXyoeWRFa99+khjo0TAzWO9y0z9wU7eGnab9JLw1MmCB9v64o4yojNluJhVm9nQ==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    peerDependencies:
-      react: '*'
-      react-native: '*'
 
   file-type@19.3.0:
     resolution: {integrity: sha512-mROwiKLZf/Kwa/2Rol+OOZQn1eyTkPB3ZTwC0ExY6OLFCbgxHYZvBm7xI77NvfZFMKBsmuXfmLJnD4eEftEhrA==}
@@ -9178,11 +9168,6 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.3):
     optionalDependencies:
       picomatch: 4.0.3
-
-  ffmpeg-kit-react-native@6.0.2(react-native@0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
-    dependencies:
-      react: 19.1.0
-      react-native: 0.81.5(@babel/core@7.28.5)(@react-native/metro-config@0.83.1(@babel/core@7.28.5))(@types/react@19.1.17)(react@19.1.0)
 
   file-type@19.3.0:
     dependencies:

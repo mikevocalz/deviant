@@ -38,6 +38,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 
 // Empty array - messages will come from backend
 const emptyMessages: Message[] = [];
@@ -71,10 +72,16 @@ interface MediaMessageProps {
 }
 
 function MediaMessage({ media, onPress }: MediaMessageProps) {
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const { isMountedRef } = useVideoLifecycle("MediaMessage", media.uri);
+
   const player = useVideoPlayer(
     media.type === "video" ? media.uri : "",
     (p) => {
-      p.loop = false;
+      if (isMountedRef.current) {
+        p.loop = false;
+        logVideoHealth("MediaMessage", "player configured");
+      }
     },
   );
 

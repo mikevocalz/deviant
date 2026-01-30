@@ -11,6 +11,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
+import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -18,14 +19,20 @@ export default function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { setUser } = useAuthStore();
 
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const { isMountedRef } = useVideoLifecycle("LoginScreen", "background");
+
   // Background video player
   const backgroundVideo = useVideoPlayer(
     require("@/assets/dvntappbackground.mp4"),
     (player) => {
-      player.loop = true;
-      player.muted = true;
-      player.play();
-    }
+      if (isMountedRef.current) {
+        player.loop = true;
+        player.muted = true;
+        player.play();
+        logVideoHealth("LoginScreen", "background video started");
+      }
+    },
   );
 
   const form = useForm({
@@ -83,10 +90,16 @@ export default function LoginScreen() {
         contentFit="cover"
         nativeControls={false}
       />
-      
+
       {/* Gradient overlay - transparent at top, black at bottom (starts at 47%) */}
       <LinearGradient
-        colors={["transparent", "transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)", "#000"]}
+        colors={[
+          "transparent",
+          "transparent",
+          "rgba(0,0,0,0.3)",
+          "rgba(0,0,0,0.7)",
+          "#000",
+        ]}
         locations={[0, 0.47, 0.6, 0.8, 1]}
         style={styles.overlay}
       />
@@ -102,79 +115,79 @@ export default function LoginScreen() {
         bottomOffset={20}
       >
         <View className="gap-6">
-        <View className="items-center gap-8">
-          {/* <Logo width={200} height={80} /> */}
-          <View className="items-center my-8">
-            <Text className="text-3xl font-bold text-foreground">
-              Welcome back
-            </Text>
-            <Text className="text-muted-foreground mt-4">
-              Sign in to your account to continue
-            </Text>
-          </View>
-        </View>
-
-        <View className="gap-4">
-          <FormInput
-            form={form}
-            name="email"
-            label="Email"
-            labelClassName="text-white"
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            validators={{
-              onChange: ({ value }: any) => {
-                if (!value) return "Email is required";
-                if (!value.includes("@")) return "Please enter a valid email";
-                return undefined;
-              },
-            }}
-          />
-
-          <FormInput
-            form={form}
-            name="password"
-            label="Password"
-            labelClassName="text-white"
-            placeholder="Enter your password"
-            secureTextEntry
-            validators={{
-              onChange: ({ value }: any) => {
-                if (!value) return "Password is required";
-                if (value.length < 8)
-                  return "Password must be at least 8 characters";
-                return undefined;
-              },
-            }}
-          />
-
-          <Button
-            onPress={form.handleSubmit}
-            disabled={isSubmitting}
-            loading={isSubmitting}
-          >
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </Button>
-        </View>
-
-        <View className="items-center gap-2">
-          <View className="flex-row items-center gap-2 w-full">
-            <View className="flex-1 h-px bg-border" />
-            <Text className="text-muted-foreground text-xs">Or</Text>
-            <View className="flex-1 h-px bg-border" />
+          <View className="items-center gap-8">
+            {/* <Logo width={200} height={80} /> */}
+            <View className="items-center my-8">
+              <Text className="text-3xl font-bold text-foreground">
+                Welcome back
+              </Text>
+              <Text className="text-muted-foreground mt-4">
+                Sign in to your account to continue
+              </Text>
+            </View>
           </View>
 
-          <View className="flex-row items-center gap-1">
-            <Text className="text-muted-foreground">
-              Don't have an account?
-            </Text>
-            <Pressable onPress={() => router.push("/(auth)/signup" as any)}>
-              <Text className="text-primary font-medium">Sign up</Text>
-            </Pressable>
+          <View className="gap-4">
+            <FormInput
+              form={form}
+              name="email"
+              label="Email"
+              labelClassName="text-white"
+              placeholder="you@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              validators={{
+                onChange: ({ value }: any) => {
+                  if (!value) return "Email is required";
+                  if (!value.includes("@")) return "Please enter a valid email";
+                  return undefined;
+                },
+              }}
+            />
+
+            <FormInput
+              form={form}
+              name="password"
+              label="Password"
+              labelClassName="text-white"
+              placeholder="Enter your password"
+              secureTextEntry
+              validators={{
+                onChange: ({ value }: any) => {
+                  if (!value) return "Password is required";
+                  if (value.length < 8)
+                    return "Password must be at least 8 characters";
+                  return undefined;
+                },
+              }}
+            />
+
+            <Button
+              onPress={form.handleSubmit}
+              disabled={isSubmitting}
+              loading={isSubmitting}
+            >
+              {isSubmitting ? "Signing in..." : "Sign in"}
+            </Button>
+          </View>
+
+          <View className="items-center gap-2">
+            <View className="flex-row items-center gap-2 w-full">
+              <View className="flex-1 h-px bg-border" />
+              <Text className="text-muted-foreground text-xs">Or</Text>
+              <View className="flex-1 h-px bg-border" />
+            </View>
+
+            <View className="flex-row items-center gap-1">
+              <Text className="text-muted-foreground">
+                Don't have an account?
+              </Text>
+              <Pressable onPress={() => router.push("/(auth)/signup" as any)}>
+                <Text className="text-primary font-medium">Sign up</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </View>
       </KeyboardAwareScrollView>
     </View>
   );

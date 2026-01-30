@@ -72,7 +72,6 @@
     "expo-video": "~3.0.15",
     "expo-video-thumbnails": "~10.0.8",
     "expo-web-browser": "^15.0.10",
-    "ffmpeg-kit-react-native": "^6.0.2",
     "lucide-react-native": "^0.562.0",
     "nativewind": "^4.2.1",
     "payload": "^3.72.0",

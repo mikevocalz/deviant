@@ -20,6 +20,16 @@ import Animated, {
   SharedValue,
   cancelAnimation,
 } from "react-native-reanimated";
+import {
+  useVideoLifecycle,
+  safePlay,
+  safePause,
+  safeSeek,
+  safeGetCurrentTime,
+  safeGetDuration,
+  cleanupPlayer,
+  logVideoHealth,
+} from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
@@ -64,9 +74,16 @@ export default function StoryViewerScreen() {
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPaused = useRef(false);
   const hasAdvanced = useRef(false);
-  const isExiting = useRef(false);
-  const hasNavigatedAway = useRef(false);
   const handleNextRef = useRef<() => void>(() => {});
+
+  // CRITICAL: Video lifecycle management to prevent crashes
+  const {
+    isMountedRef,
+    isExitingRef,
+    markExiting,
+    safeTimeout,
+    isSafeToOperate,
+  } = useVideoLifecycle("StoryViewer", currentStoryId);
 
   // Auth and utilities
   const { user: currentUser } = useAuthStore();
@@ -200,119 +217,85 @@ export default function StoryViewerScreen() {
   // Play video when it's ready and VideoView is mounted
   useEffect(() => {
     if (!isVideo || !player || !videoUrl) return;
-    if (isExiting.current || hasNavigatedAway.current) return;
+    if (!isSafeToOperate()) return;
     if (isPaused.current) return;
 
     // Small delay to ensure VideoView is mounted
-    const playTimer = setTimeout(() => {
-      try {
-        if (
-          player &&
-          !isExiting.current &&
-          !hasNavigatedAway.current &&
-          !isPaused.current
-        ) {
-          console.log("[StoryViewer] Playing video:", videoUrl.slice(0, 50));
-          player.currentTime = 0;
-          player.play();
-        }
-      } catch (error) {
-        console.error("[StoryViewer] Error playing video:", error);
-        // If player fails, try to advance to next item
-        if (!hasAdvanced.current) {
-          hasAdvanced.current = true;
-          setTimeout(() => {
-            callHandleNext();
-          }, 500);
-        }
+    const playTimer = safeTimeout(() => {
+      if (isSafeToOperate() && !isPaused.current) {
+        logVideoHealth("StoryViewer", "Playing video", {
+          videoUrl: videoUrl.slice(0, 50),
+        });
+        safeSeek(player, isMountedRef, 0, "StoryViewer");
+        safePlay(player, isMountedRef, "StoryViewer");
       }
     }, 100);
 
     return () => clearTimeout(playTimer);
-  }, [videoUrl, isVideo, player, callHandleNext]);
+  }, [videoUrl, isVideo, player, isSafeToOperate, safeTimeout, isMountedRef]);
 
   useEffect(() => {
     if (!isVideo || !player || !videoUrl) return;
 
     const interval = setInterval(() => {
-      try {
-        if (player && !isExiting.current && !hasNavigatedAway.current) {
-          const currentTime = player.currentTime || 0;
-          const duration = player.duration || 0;
-          setVideoCurrentTime(currentTime);
-          setVideoDuration(duration);
+      if (isSafeToOperate()) {
+        const currentTime = safeGetCurrentTime(
+          player,
+          isMountedRef,
+          "StoryViewer",
+        );
+        const duration = safeGetDuration(player, isMountedRef, "StoryViewer");
+        setVideoCurrentTime(currentTime);
+        setVideoDuration(duration);
 
-          // Update progress bar based on video playback
-          if (duration > 0) {
-            const progressValue = Math.min(currentTime / duration, 1);
-            progress.value = progressValue;
-          }
+        // Update progress bar based on video playback
+        if (duration > 0) {
+          const progressValue = Math.min(currentTime / duration, 1);
+          progress.value = progressValue;
         }
-      } catch (error) {
-        // Player may have been released or is invalid
-        console.warn("[StoryViewer] Error reading video player state:", error);
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isVideo, player, videoUrl, progress]);
+  }, [isVideo, player, videoUrl, progress, isSafeToOperate, isMountedRef]);
 
   const handleLongPressStart = useCallback(() => {
-    if (!isVideo) return;
+    if (!isVideo || !isSafeToOperate()) return;
     longPressTimer.current = setTimeout(() => {
       setShowSeekBar(true);
       isPaused.current = true;
       progress.value = progress.value; // Pause the animation
-      try {
-        player?.pause();
-      } catch {}
+      safePause(player, isMountedRef, "StoryViewer");
     }, LONG_PRESS_DELAY);
-  }, [isVideo, player, progress]);
+  }, [isVideo, player, progress, isSafeToOperate, isMountedRef]);
 
   const handleLongPressEnd = useCallback(() => {
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current);
       longPressTimer.current = null;
     }
-    if (showSeekBar) {
+    if (showSeekBar && isSafeToOperate()) {
       setShowSeekBar(false);
       isPaused.current = false;
-      try {
-        player?.play();
-      } catch {}
+      safePlay(player, isMountedRef, "StoryViewer");
     }
-  }, [showSeekBar, player]);
+  }, [showSeekBar, player, isSafeToOperate, isMountedRef]);
 
   const handleSeek = useCallback(
     (time: number) => {
-      try {
-        if (player) {
-          player.currentTime = time;
-        }
-      } catch (e) {
-        console.log("Seek error:", e);
-      }
+      safeSeek(player, isMountedRef, time, "StoryViewer");
     },
-    [player],
+    [player, isMountedRef],
   );
 
   // Cleanup on unmount or navigation away
   useEffect(() => {
     return () => {
-      isExiting.current = true;
-      hasNavigatedAway.current = true;
+      markExiting();
       cancelAnimation(progress);
-      try {
-        if (player) {
-          player.pause();
-          player.currentTime = 0;
-        }
-      } catch (error) {
-        // Player may have been released
-        console.warn("[StoryViewer] Error cleaning up player:", error);
-      }
+      cleanupPlayer(player, "StoryViewer");
     };
-  }, [player, progress]);
+  }, [player, progress, markExiting]);
 
   useFocusEffect(
     useCallback(() => {
@@ -321,50 +304,40 @@ export default function StoryViewerScreen() {
         isVideo &&
         player &&
         videoUrl &&
-        !isExiting.current &&
-        !hasNavigatedAway.current &&
+        isSafeToOperate() &&
         !isPaused.current
       ) {
         const focusTimer = setTimeout(() => {
-          try {
-            if (player && !isExiting.current && !hasNavigatedAway.current) {
-              player.play();
-            }
-          } catch (error) {
-            console.warn("[StoryViewer] Error playing on focus:", error);
+          if (isSafeToOperate()) {
+            safePlay(player, isMountedRef, "StoryViewer");
           }
         }, 150);
         return () => clearTimeout(focusTimer);
       }
 
       return () => {
-        try {
-          if (player && isVideo && !isExiting.current) {
-            player.pause();
-          }
-        } catch {
-          // Player may have been released
+        if (isVideo && isSafeToOperate()) {
+          safePause(player, isMountedRef, "StoryViewer");
         }
       };
-    }, [player, isVideo, videoUrl]),
+    }, [player, isVideo, videoUrl, isSafeToOperate, isMountedRef]),
   );
 
   useEffect(() => {
     if (!currentItem || !currentStoryId) return;
 
     // Don't start animation if already navigating away
-    if (isExiting.current || hasNavigatedAway.current) return;
+    if (!isSafeToOperate()) return;
 
     // Reset progress for new item
     progress.value = 0;
     hasAdvanced.current = false;
 
-    console.log(
-      "[StoryViewer] Starting animation for item:",
+    logVideoHealth("StoryViewer", "Starting animation", {
       currentItemIndex,
-      "story:",
       currentStoryId,
-    );
+      isVideo,
+    });
 
     // For images, use the item duration or default 5 seconds
     // For videos, the video end detection will handle advancement
@@ -373,7 +346,7 @@ export default function StoryViewerScreen() {
     // Small delay to ensure component is mounted
     const timer = setTimeout(() => {
       // Don't start if already exiting
-      if (isExiting.current || hasNavigatedAway.current) return;
+      if (!isSafeToOperate()) return;
 
       // Animate progress bar - use callHandleNext which reads from ref to avoid stale closures
       if (!isVideo) {
@@ -382,8 +355,8 @@ export default function StoryViewerScreen() {
           if (
             finished &&
             !hasAdvanced.current &&
-            !isExiting.current &&
-            !hasNavigatedAway.current
+            isMountedRef.current &&
+            !isExitingRef.current
           ) {
             hasAdvanced.current = true;
             runOnJS(callHandleNext)();
@@ -402,7 +375,15 @@ export default function StoryViewerScreen() {
       progress.value = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex, currentStoryId, isVideo, callHandleNext]);
+  }, [
+    currentItemIndex,
+    currentStoryId,
+    isVideo,
+    callHandleNext,
+    isSafeToOperate,
+    isMountedRef,
+    isExitingRef,
+  ]);
 
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
@@ -446,21 +427,23 @@ export default function StoryViewerScreen() {
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
-    if (isExiting.current || hasNavigatedAway.current) return; // Prevent multiple calls
+    if (!isSafeToOperate()) return; // Prevent multiple calls
 
     // Prevent double calls - set flag immediately
     if (hasAdvanced.current) {
-      console.log("[StoryViewer] Already advanced, ignoring duplicate call");
+      logVideoHealth(
+        "StoryViewer",
+        "Already advanced, ignoring duplicate call",
+      );
       return;
     }
     hasAdvanced.current = true;
 
-    console.log("[StoryViewer] handleNext called:", {
+    logVideoHealth("StoryViewer", "handleNext called", {
       currentItemIndex,
       storyItemsLength: story.items.length,
       currentStoryIndex,
       availableStoriesLength: availableStories.length,
-      isOwnStory,
     });
 
     // Cancel any ongoing animations
@@ -468,19 +451,18 @@ export default function StoryViewerScreen() {
 
     if (currentItemIndex < story.items.length - 1) {
       // Next story item for current user
-      console.log("[StoryViewer] Moving to next item");
+      logVideoHealth("StoryViewer", "Moving to next item");
       setCurrentItemIndex(currentItemIndex + 1);
       // Flag will be reset in useEffect when item changes
     } else if (currentStoryIndex < availableStories.length - 1) {
       // Move to next user's stories
-      console.log("[StoryViewer] Moving to next user");
+      logVideoHealth("StoryViewer", "Moving to next user");
       goToNextUser();
       // Flag will be reset in goToNextUser
     } else {
       // No more stories, exit
-      console.log("[StoryViewer] No more stories, exiting");
-      isExiting.current = true;
-      hasNavigatedAway.current = true;
+      logVideoHealth("StoryViewer", "No more stories, exiting");
+      markExiting();
       cancelAnimation(progress);
       router.back();
     }
@@ -493,7 +475,8 @@ export default function StoryViewerScreen() {
     goToNextUser,
     router,
     progress,
-    isOwnStory,
+    isSafeToOperate,
+    markExiting,
   ]);
 
   // Keep ref updated with latest handleNext
@@ -526,16 +509,14 @@ export default function StoryViewerScreen() {
     if (isInputFocused) {
       isPaused.current = true;
       cancelAnimation(progress);
-      try {
-        player?.pause();
-      } catch {}
+      safePause(player, isMountedRef, "StoryViewer");
     } else {
       isPaused.current = false;
-      try {
-        player?.play();
-      } catch {}
+      if (isSafeToOperate()) {
+        safePlay(player, isMountedRef, "StoryViewer");
+      }
     }
-  }, [isInputFocused, player, progress]);
+  }, [isInputFocused, player, progress, isMountedRef, isSafeToOperate]);
 
   // Send story reply as DM
   const handleSendReply = useCallback(async () => {
@@ -589,25 +570,23 @@ export default function StoryViewerScreen() {
   }, [replyText, story, isSendingReply, isOwnStory, showToast, resolvedUserId]);
 
   // Video end detection - auto-advance when video finishes
-  // Video end detection - auto-advance when video finishes
   useEffect(() => {
     if (!isVideo || !player || videoDuration === 0) return;
-    if (isExiting.current || hasNavigatedAway.current) return;
+    if (!isSafeToOperate()) return;
     if (isPaused.current) return;
     if (hasAdvanced.current) return; // Already advanced
 
     // Check if video has ended (within 0.2s of end) and we haven't already advanced
     if (videoCurrentTime >= videoDuration - 0.2 && videoDuration > 0) {
-      console.log("[StoryViewer] Video ended, advancing...", {
+      logVideoHealth("StoryViewer", "Video ended, advancing", {
         videoCurrentTime,
         videoDuration,
-        hasAdvanced: hasAdvanced.current,
       });
       hasAdvanced.current = true;
       // Cancel the progress animation since video ended naturally
       cancelAnimation(progress);
       // Small delay to ensure state is consistent
-      setTimeout(() => {
+      safeTimeout(() => {
         callHandleNext();
       }, 50);
     }
@@ -618,6 +597,8 @@ export default function StoryViewerScreen() {
     videoDuration,
     callHandleNext,
     progress,
+    isSafeToOperate,
+    safeTimeout,
   ]);
 
   if (isLoading) {
@@ -742,9 +723,8 @@ export default function StoryViewerScreen() {
         </Pressable>
         <Pressable
           onPress={() => {
-            if (isExiting.current) return; // Prevent multiple presses
-            isExiting.current = true;
-            hasNavigatedAway.current = true;
+            if (isExitingRef.current) return; // Prevent multiple presses
+            markExiting();
             cancelAnimation(progress);
             router.back();
           }}

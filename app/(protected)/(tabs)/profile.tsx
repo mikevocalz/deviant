@@ -802,10 +802,16 @@ function ProfileScreenContent() {
   );
 }
 
-// PHASE 5: Wrap with ErrorBoundary for crash protection + debug context
+// PHASE 5: Wrap with ErrorBoundary + ProfileScreenGuard for crash protection
 export default function ProfileScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const {
+    isLoading: isLoadingProfile,
+    isError: isProfileError,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useMyProfile();
 
   return (
     <ErrorBoundary
@@ -821,7 +827,14 @@ export default function ProfileScreen() {
         ],
       }}
     >
-      <ProfileScreenContent />
+      <ProfileScreenGuard
+        isLoading={isLoadingProfile}
+        isError={isProfileError}
+        error={profileError}
+        onRetry={refetchProfile}
+      >
+        <ProfileScreenContent />
+      </ProfileScreenGuard>
     </ErrorBoundary>
   );
 }
