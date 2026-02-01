@@ -3,7 +3,7 @@
  */
 
 import { createCollectionAPI, users } from "@/lib/api-client";
-import { uploadToBunny } from "@/lib/bunny-storage";
+import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { getPayloadUserId } from "@/lib/api/payload-user-id";
 
@@ -135,24 +135,20 @@ export const messagesApiClient = {
         throw new Error("User not found in system");
       }
 
-      // Upload media to Bunny CDN if present
+      // Upload media via server-side endpoint (NEVER direct to Bunny)
       let mediaItems: MessageMedia[] = [];
       if (data.media && data.media.length > 0) {
-        console.log("[messagesApi] Uploading media to Bunny CDN...");
+        console.log("[messagesApi] Uploading media via server...");
         for (const item of data.media) {
-          const result = await uploadToBunny(
-            item.uri,
-            "messages",
-            undefined,
-            user.id,
-          );
-          if (result.success) {
+          const result = await uploadToServer(item.uri, "messages");
+          if (result.success && result.url) {
             mediaItems.push({
               type: item.type,
               url: result.url,
             });
           } else {
             console.error("[messagesApi] Media upload failed:", result.error);
+            throw new Error(result.error || "Media upload failed");
           }
         }
       }

@@ -746,8 +746,6 @@ export default function StoryViewerScreen() {
                   style={{ width: "100%", height: "100%" }}
                   contentFit="contain"
                   nativeControls={false}
-                  allowsFullscreen={false}
-                  allowsPictureInPicture={false}
                 />
                 <VideoSeekBar
                   currentTime={videoCurrentTime}

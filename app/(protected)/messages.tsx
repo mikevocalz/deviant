@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Inbox,
   ShieldAlert,
+  Users,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useState } from "react";
@@ -272,12 +273,20 @@ export default function MessagesScreen() {
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
         <Text className="text-lg font-bold text-foreground">Messages</Text>
-        <Pressable
-          onPress={() => router.push("/(protected)/messages/new")}
-          hitSlop={12}
-        >
-          <Edit size={24} color="#fff" />
-        </Pressable>
+        <View className="flex-row items-center gap-4">
+          <Pressable
+            onPress={() => router.push("/(protected)/messages/new-group")}
+            hitSlop={12}
+          >
+            <Users size={24} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/(protected)/messages/new")}
+            hitSlop={12}
+          >
+            <Edit size={24} color="#fff" />
+          </Pressable>
+        </View>
       </View>
 
       {/* Tab Bar */}

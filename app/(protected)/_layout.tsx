@@ -47,6 +47,7 @@ export default function ProtectedLayout() {
       <Stack.Screen name="search" />
       <Stack.Screen name="messages" />
       <Stack.Screen name="messages/new" options={modalTransitionConfig} />
+      <Stack.Screen name="messages/new-group" options={modalTransitionConfig} />
       <Stack.Screen
         name="post/[id]"
         options={{
@@ -63,11 +64,21 @@ export default function ProtectedLayout() {
         }}
       />
       <Stack.Screen name="profile/edit" options={modalTransitionConfig} />
-      <Stack.Screen name="events/create" options={{ ...fullScreenModalConfig, headerShown: true }} />
+      <Stack.Screen
+        name="events/create"
+        options={{ ...fullScreenModalConfig, headerShown: true }}
+      />
       <Stack.Screen name="events/[id]" />
       <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
-      <Stack.Screen name="story/create" options={{ ...fullScreenModalConfig, headerShown: true }} />
+      <Stack.Screen
+        name="story/create"
+        options={{ ...fullScreenModalConfig, headerShown: true }}
+      />
       <Stack.Screen name="chat" />
+      <Stack.Screen
+        name="call/[roomId]"
+        options={{ presentation: "fullScreenModal", animation: "fade" }}
+      />
       <Stack.Screen name="comments" options={modalTransitionConfig} />
     </Stack>
   );

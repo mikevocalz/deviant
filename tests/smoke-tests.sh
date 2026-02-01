@@ -336,6 +336,28 @@ else
   warn "No valid EVENT_ID found - skipping event-dependent tests"
 fi
 
+# --- MEDIA UPLOAD ---
+section "MEDIA UPLOAD ENDPOINTS"
+
+# GET /api/media/upload (config check)
+MEDIA_CONFIG_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/media/upload" -H "$AUTH_HEADER")
+if [ "$MEDIA_CONFIG_CODE" = "200" ]; then
+  pass "GET /api/media/upload (config) (HTTP $MEDIA_CONFIG_CODE)"
+else
+  warn "GET /api/media/upload (config) (HTTP $MEDIA_CONFIG_CODE)"
+fi
+
+# --- GROUP CHAT ---
+section "GROUP CHAT ENDPOINTS"
+
+# GET /api/conversations
+CONVOS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/conversations" -H "$AUTH_HEADER")
+if [ "$CONVOS_CODE" = "200" ]; then
+  pass "GET /api/conversations (HTTP $CONVOS_CODE)"
+else
+  fail "GET /api/conversations (HTTP $CONVOS_CODE)"
+fi
+
 # --- BLOCKS ---
 section "BLOCKS ENDPOINTS"
 

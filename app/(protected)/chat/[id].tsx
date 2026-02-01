@@ -17,6 +17,8 @@ import {
   X,
   Play,
   MessageCircle,
+  Video,
+  Phone,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -565,6 +567,25 @@ export default function ChatScreen() {
               </Text>
               <Text className="text-xs text-muted-foreground">Active now</Text>
             </View>
+          </Pressable>
+          {/* Video Call Button */}
+          <Pressable
+            onPress={() => {
+              if (recipient?.id) {
+                router.push({
+                  pathname: "/(protected)/call/[roomId]",
+                  params: {
+                    roomId: `call-${Date.now()}`,
+                    isOutgoing: "true",
+                    participantIds: recipient.id,
+                  },
+                });
+              }
+            }}
+            className="p-2 rounded-full bg-primary/20"
+            hitSlop={8}
+          >
+            <Video size={22} color="#3EA4E5" />
           </Pressable>
         </View>
 

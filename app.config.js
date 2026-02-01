@@ -25,7 +25,9 @@ export default {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
       fallbackToCacheTimeout: 0,
       checkAutomatically: "ON_LOAD",
+      enableBsdiffPatchSupport: true,
     },
+    buildCacheProvider: "eas",
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.dvnt.app",
@@ -77,6 +79,9 @@ export default {
       output: webOutput,
     },
     plugins: [
+      "expo-font",
+      "expo-web-browser",
+      "@config-plugins/react-native-webrtc",
       [
         "expo-router",
         {
@@ -86,6 +91,8 @@ export default {
       [
         "expo-build-properties",
         {
+          buildReactNativeFromSource: true,
+          useHermesV1: true,
           ios: {
             deploymentTarget: "16.0",
           },
