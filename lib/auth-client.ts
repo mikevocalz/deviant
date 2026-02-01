@@ -181,14 +181,15 @@ export const signUp = {
   }) => {
     console.log("[Auth] Starting signup for:", params.email);
     try {
-      // Use server's public registration endpoint
-      const response = await fetch(`${BASE_URL}/api/register`, {
+      // Use Payload CMS register endpoint
+      const response = await fetch(`${BASE_URL}/api/users/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: params.email,
           password: params.password,
           username: params.username || params.email.split("@")[0],
+          name: params.name,
         }),
       });
 
