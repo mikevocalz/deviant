@@ -41,6 +41,8 @@ import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostCaption } from "@/components/post-caption";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { routeToProfile } from "@/lib/utils/route-to-profile";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -348,10 +350,18 @@ function FeedPostComponent({
     router.push(`/(protected)/post/${id}`);
   }, [router, id]);
 
+  // Get current user for profile routing
+  const currentUserId = useAuthStore((state) => state.user?.id);
+
   const handleProfilePress = useCallback(() => {
     if (!author?.username) return;
-    router.push(`/(protected)/profile/${author.username}`);
-  }, [router, author?.username]);
+    routeToProfile({
+      targetUserId: author?.id,
+      targetUsername: author?.username,
+      viewerId: currentUserId,
+      router,
+    });
+  }, [router, author?.username, author?.id, currentUserId]);
 
   return (
     <Motion.View
