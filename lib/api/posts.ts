@@ -61,47 +61,6 @@ async function getUserIdByUsername(username: string): Promise<string | null> {
   return null;
 }
 
-// Helper function to lookup user ID by username using Payload custom endpoint
-async function getUserIdByUsername(username: string): Promise<string | null> {
-  if (!username) return null;
-  
-  // Check cache first
-  if (userIdCache[username]) {
-    return userIdCache[username];
-  }
-  
-  try {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (!apiUrl) return null;
-
-    const token = await getAuthToken();
-    
-    // Use custom profile endpoint (returns JSON)
-    const response = await fetch(
-      `${apiUrl}/api/users/${username}/profile`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-      }
-    );
-    
-    if (!response.ok) return null;
-    
-    const profile = await response.json();
-    if (profile && profile.id) {
-      const userId = String(profile.id);
-      userIdCache[username] = userId;
-      return userId;
-    }
-  } catch (error) {
-    console.error("[postsApi] getUserIdByUsername error:", error);
-  }
-  
-  return null;
-}
-
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
   if (!text) return [];
