@@ -1,10 +1,106 @@
-import { posts, notifications, users } from "@/lib/api-client";
 import type { Post } from "@/lib/types";
+import { Platform } from "react-native";
 
 const PAGE_SIZE = 10;
 
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
+
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
+
+// Helper function to lookup user ID by username using Payload custom endpoint
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  if (!username) return null;
+  
+  // Check cache first
+  if (userIdCache[username]) {
+    return userIdCache[username];
+  }
+  
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) return null;
+
+    const token = await getAuthToken();
+    
+    // Use custom profile endpoint (returns JSON)
+    const response = await fetch(
+      `${apiUrl}/api/users/${username}/profile`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      }
+    );
+    
+    if (!response.ok) return null;
+    
+    const profile = await response.json();
+    if (profile && profile.id) {
+      const userId = String(profile.id);
+      userIdCache[username] = userId;
+      return userId;
+    }
+  } catch (error) {
+    console.error("[postsApi] getUserIdByUsername error:", error);
+  }
+  
+  return null;
+}
+
+// Helper function to lookup user ID by username using Payload custom endpoint
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  if (!username) return null;
+  
+  // Check cache first
+  if (userIdCache[username]) {
+    return userIdCache[username];
+  }
+  
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) return null;
+
+    const token = await getAuthToken();
+    
+    // Use custom profile endpoint (returns JSON)
+    const response = await fetch(
+      `${apiUrl}/api/users/${username}/profile`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      }
+    );
+    
+    if (!response.ok) return null;
+    
+    const profile = await response.json();
+    if (profile && profile.id) {
+      const userId = String(profile.id);
+      userIdCache[username] = userId;
+      return userId;
+    }
+  } catch (error) {
+    console.error("[postsApi] getUserIdByUsername error:", error);
+  }
+  
+  return null;
+}
 
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
@@ -69,11 +165,32 @@ function formatTimeAgo(dateString: string): string {
 
 // Real API functions
 export const postsApi = {
-  // Fetch feed posts
+  // Fetch feed posts (use getFeedPostsPaginated instead for infinite scroll)
   async getFeedPosts(): Promise<Post[]> {
     try {
-      const response = await posts.find({ limit: 20, sort: "-createdAt" });
-      return response.docs.map(transformPost);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+
+      // Use custom feed endpoint (returns JSON)
+      const response = await fetch(
+        `${apiUrl}/api/posts/feed?limit=20`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[postsApi] getFeedPosts failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      return (result.docs || []).map(transformPost);
     } catch (error) {
       console.error("[postsApi] getFeedPosts error:", error);
       return [];
@@ -85,18 +202,39 @@ export const postsApi = {
     cursor: number = 0,
   ): Promise<PaginatedResponse<Post>> {
     try {
+      // Use Payload's custom /api/posts/feed endpoint (returns JSON)
       const page = Math.floor(cursor / PAGE_SIZE) + 1;
-      const response = await posts.find({
-        limit: PAGE_SIZE,
-        page,
-        sort: "-createdAt",
-        depth: 2,
-      });
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      
+      if (!apiUrl) {
+        console.error("[postsApi] EXPO_PUBLIC_API_URL not configured");
+        return { data: [], nextCursor: null, hasMore: false };
+      }
+
+      // Get auth token
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(
+        `${apiUrl}/api/posts/feed?page=${page}&limit=${PAGE_SIZE}`,
+        { headers }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
 
       return {
-        data: response.docs.map(transformPost),
-        nextCursor: response.hasNextPage ? cursor + PAGE_SIZE : null,
-        hasMore: response.hasNextPage,
+        data: (result.docs || []).map(transformPost),
+        nextCursor: result.hasNextPage ? cursor + PAGE_SIZE : null,
+        hasMore: result.hasNextPage || false,
       };
     } catch (error) {
       console.error("[postsApi] getFeedPostsPaginated error:", error);
@@ -104,25 +242,65 @@ export const postsApi = {
     }
   },
 
-  // Fetch profile posts
+  // Fetch profile posts (uses custom endpoint)
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
-      const response = await posts.find({
-        limit: 50,
-        sort: "-createdAt",
-        where: { author: { equals: userId } },
-      });
-      return response.docs.map(transformPost);
+      if (!userId || userId === "skip") return [];
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+
+      // Use custom profile posts endpoint (returns JSON)
+      const response = await fetch(
+        `${apiUrl}/api/users/${userId}/posts?limit=50`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[postsApi] getProfilePosts failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      return (result.docs || []).map(transformPost);
     } catch (error) {
       console.error("[postsApi] getProfilePosts error:", error);
       return [];
     }
   },
 
-  // Fetch single post by ID
+  // Fetch single post by ID (uses custom endpoint)
   async getPostById(id: string): Promise<Post | null> {
     try {
-      const doc = await posts.findByID(id, 2);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return null;
+
+      const token = await getAuthToken();
+
+      // Use custom post endpoint (returns JSON)
+      const response = await fetch(
+        `${apiUrl}/api/posts/${id}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[postsApi] getPostById failed:", response.status);
+        return null;
+      }
+
+      const doc = await response.json();
       return transformPost(doc as Record<string, unknown>);
     } catch (error) {
       console.error("[postsApi] getPostById error:", error);
@@ -213,62 +391,52 @@ export const postsApi = {
           authorId = userIdCache[data.authorUsername];
           console.log("[postsApi] Using cached author ID:", authorId);
         } else {
-          // Look up user in Payload CMS
-          try {
-            const userResult = await users.find({
-              where: { username: { equals: data.authorUsername } },
-              limit: 1,
-            });
-            
-            if (userResult.docs && userResult.docs.length > 0) {
-              authorId = (userResult.docs[0] as { id: string }).id;
-              userIdCache[data.authorUsername] = authorId;
-              console.log("[postsApi] Found author ID:", authorId);
-            } else {
-              console.warn("[postsApi] User not found in CMS:", data.authorUsername);
-            }
-          } catch (lookupError) {
-            console.error("[postsApi] User lookup error:", lookupError);
+          // Look up user via custom profile endpoint
+          authorId = await getUserIdByUsername(data.authorUsername) || undefined;
+          if (authorId) {
+            console.log("[postsApi] Found author ID:", authorId);
+          } else {
+            console.warn("[postsApi] User not found in CMS:", data.authorUsername);
           }
         }
       }
       
-      const doc = await posts.create({
-        author: authorId, // Use the looked-up Payload CMS user ID
-        content: data.caption,
-        caption: data.caption,
-        location: data.location,
-        media: data.media || [],
-        isNSFW: data.isNSFW || false,
-      });
+      // Create post via custom endpoint
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/posts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: data.caption,
+            caption: data.caption,
+            location: data.location,
+            media: data.media || [],
+            isNSFW: data.isNSFW || false,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create post: ${response.status}`);
+      }
+
+      const doc = await response.json();
       console.log("[postsApi] createPost success:", JSON.stringify(doc));
       
       const newPost = transformPost(doc as Record<string, unknown>);
       
-      // Extract mentions and send notifications
-      if (data.caption && data.authorUsername) {
-        const mentions = extractMentions(data.caption);
-        console.log("[postsApi] Extracted mentions:", mentions);
-        
-        // Send notification to each mentioned user (except self)
-        for (const mentionedUsername of mentions) {
-          if (mentionedUsername.toLowerCase() !== data.authorUsername.toLowerCase()) {
-            try {
-              await notifications.create({
-                type: "mention",
-                recipientUsername: mentionedUsername,
-                senderUsername: data.authorUsername,
-                postId: newPost.id,
-                content: data.caption.slice(0, 100), // First 100 chars
-              });
-              console.log("[postsApi] Sent mention notification to:", mentionedUsername);
-            } catch (notifError) {
-              // Don't fail post creation if notification fails
-              console.error("[postsApi] Failed to send mention notification:", notifError);
-            }
-          }
-        }
-      }
+      // Note: Mentions notifications should be handled server-side in Payload endpoint
+      // If needed, you can add a separate notification endpoint call here
       
       return newPost;
     } catch (error: any) {
@@ -279,10 +447,30 @@ export const postsApi = {
     }
   },
 
-  // Delete a post
+  // Delete a post (uses custom endpoint)
   async deletePost(postId: string): Promise<string> {
     try {
-      await posts.delete(postId);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/posts/${postId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to delete post: ${response.status}`);
+      }
+
       return postId;
     } catch (error) {
       console.error("[postsApi] deletePost error:", error);

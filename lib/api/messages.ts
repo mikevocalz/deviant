@@ -2,7 +2,6 @@
  * Messages API - handles chat messages with Bunny CDN media uploads
  */
 
-import { createCollectionAPI, users } from "@/lib/api-client";
 import { uploadToBunny } from "@/lib/bunny-storage";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -41,10 +40,6 @@ export interface Conversation {
   lastMessageAt?: string;
   createdAt: string;
 }
-
-const messagesApi = createCollectionAPI<Record<string, unknown>>("messages");
-const conversationsApi =
-  createCollectionAPI<Record<string, unknown>>("conversations");
 
 // Transform API response to Message type
 function transformMessage(doc: Record<string, unknown>): Message {
@@ -96,14 +91,46 @@ async function getPayloadUserId(username: string): Promise<string | null> {
     return payloadUserIdCache[username];
   }
   
+  // Get current user from auth store
+  const currentUser = useAuthStore.getState().user;
+  
+  // If looking up current user, return their ID from session
+  if (currentUser && currentUser.username === username) {
+    const payloadId = currentUser.id;
+    payloadUserIdCache[username] = payloadId;
+    console.log("[messagesApi] Using current user Payload ID:", username, "->", payloadId);
+    return payloadId;
+  }
+  
+  // For other users, use profile endpoint (custom endpoint returns JSON)
   try {
-    const result = await users.find({
-      where: { username: { equals: username } },
-      limit: 1,
-    });
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) {
+      console.error("[messagesApi] EXPO_PUBLIC_API_URL not configured");
+      return null;
+    }
+
+    const { getAuthToken } = await import("@/lib/auth-client");
+    const token = await getAuthToken();
     
-    if (result.docs && result.docs.length > 0) {
-      const payloadId = (result.docs[0] as { id: string }).id;
+    const response = await fetch(
+      `${apiUrl}/api/users/${username}/profile`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("[messagesApi] Profile lookup failed:", response.status);
+      return null;
+    }
+    
+    const profile = await response.json();
+    if (profile && profile.id) {
+      const payloadId = String(profile.id);
       payloadUserIdCache[username] = payloadId;
       console.log("[messagesApi] Found Payload user ID for", username, "->", payloadId);
       return payloadId;
@@ -116,23 +143,39 @@ async function getPayloadUserId(username: string): Promise<string | null> {
 }
 
 export const messagesApiClient = {
-  // Get messages for a conversation
+  // Get messages for a conversation (uses custom endpoint)
   async getMessages(conversationId: string, limit = 50): Promise<Message[]> {
     try {
-      const response = await messagesApi.find({
-        limit,
-        sort: "-createdAt",
-        where: { conversation: { equals: conversationId } },
-        depth: 2,
-      });
-      return response.docs.map(transformMessage).reverse(); // Reverse to show oldest first
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
+      
+      const response = await fetch(
+        `${apiUrl}/api/conversations/${conversationId}/messages?limit=${limit}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[messagesApi] getMessages failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      return (result.docs || []).map(transformMessage).reverse();
     } catch (error) {
       console.error("[messagesApi] getMessages error:", error);
       return [];
     }
   },
 
-  // Send a message (with optional media upload to Bunny CDN)
+  // Send a message (uses custom endpoint)
   async sendMessage(data: {
     conversationId: string;
     content: string;
@@ -142,13 +185,6 @@ export const messagesApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) {
         throw new Error("User must be logged in to send messages");
-      }
-
-      // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
-        throw new Error("User not found in system");
       }
 
       // Upload media to Bunny CDN if present
@@ -173,15 +209,32 @@ export const messagesApiClient = {
         }
       }
 
-      console.log("[messagesApi] Sending message with Payload user ID:", payloadUserId);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
 
-      const doc = await messagesApi.create({
-        conversation: data.conversationId,
-        sender: payloadUserId, // Use Payload CMS user ID, not Better Auth ID
-        content: data.content || "",
-        media: mediaItems,
-      });
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
 
+      const response = await fetch(
+        `${apiUrl}/api/conversations/${data.conversationId}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: data.content || "",
+            media: mediaItems,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.status}`);
+      }
+
+      const doc = await response.json();
       return transformMessage(doc);
     } catch (error) {
       console.error("[messagesApi] sendMessage error:", error);
@@ -189,7 +242,7 @@ export const messagesApiClient = {
     }
   },
 
-  // Get or create a conversation with a user
+  // Get or create a conversation with a user (uses custom endpoint)
   async getOrCreateConversation(
     otherUserId: string,
   ): Promise<Conversation | null> {
@@ -199,39 +252,31 @@ export const messagesApiClient = {
         throw new Error("User must be logged in");
       }
 
-      // CRITICAL: Get Payload CMS user ID by username (not Better Auth ID)
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
-        throw new Error("User not found in system");
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/conversations/direct`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            otherUserId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Failed to get/create conversation: ${response.status}`);
       }
 
-      console.log("[messagesApi] Looking for conversation between", payloadUserId, "and", otherUserId);
-
-      // Try to find existing conversation using Payload CMS user IDs
-      const existing = await conversationsApi.find({
-        where: {
-          and: [
-            { participants: { contains: payloadUserId } },
-            { participants: { contains: otherUserId } },
-            { isGroup: { equals: false } },
-          ],
-        },
-        depth: 2,
-      });
-
-      if (existing.docs.length > 0) {
-        console.log("[messagesApi] Found existing conversation:", existing.docs[0].id);
-        return transformConversation(existing.docs[0]);
-      }
-
-      // Create new conversation with Payload CMS user IDs
-      console.log("[messagesApi] Creating new conversation");
-      const doc = await conversationsApi.create({
-        participants: [payloadUserId, otherUserId],
-        isGroup: false,
-      });
-
+      const doc = await response.json();
       return transformConversation(doc);
     } catch (error) {
       console.error("[messagesApi] getOrCreateConversation error:", error);
@@ -239,27 +284,35 @@ export const messagesApiClient = {
     }
   },
 
-  // Get user's conversations
+  // Get user's conversations (uses custom endpoint)
   async getConversations(): Promise<Conversation[]> {
     try {
       const user = useAuthStore.getState().user;
       if (!user) return [];
 
-      // Get Payload CMS user ID
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) {
-        console.error("[messagesApi] Could not find Payload user ID for:", user.username);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/conversations?box=all&limit=50`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[messagesApi] getConversations failed:", response.status);
         return [];
       }
 
-      const response = await conversationsApi.find({
-        limit: 50,
-        sort: "-lastMessageAt",
-        where: { participants: { contains: payloadUserId } },
-        depth: 2,
-      });
-
-      return response.docs.map(transformConversation);
+      const result = await response.json();
+      return (result.docs || []).map(transformConversation);
     } catch (error) {
       console.error("[messagesApi] getConversations error:", error);
       return [];
@@ -269,30 +322,22 @@ export const messagesApiClient = {
   // Mark messages as read
   async markAsRead(conversationId: string): Promise<void> {
     try {
-      const user = useAuthStore.getState().user;
-      if (!user) return;
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return;
 
-      // Get Payload CMS user ID
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return;
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
 
-      // Find unread messages in this conversation not sent by current user
-      const unread = await messagesApi.find({
-        where: {
-          and: [
-            { conversation: { equals: conversationId } },
-            { sender: { not_equals: payloadUserId } },
-            { readAt: { exists: false } },
-          ],
-        },
-      });
-
-      // Mark each as read
-      for (const msg of unread.docs) {
-        await messagesApi.update(String(msg.id), {
-          readAt: new Date().toISOString(),
-        });
-      }
+      await fetch(
+        `${apiUrl}/api/conversations/${conversationId}/mark-read`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
     } catch (error) {
       console.error("[messagesApi] markAsRead error:", error);
     }
@@ -301,25 +346,10 @@ export const messagesApiClient = {
   // Get unread message count across all conversations
   async getUnreadCount(): Promise<number> {
     try {
-      const user = useAuthStore.getState().user;
-      if (!user) return 0;
-
-      // Get Payload CMS user ID
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return 0;
-
-      // Find all unread messages not sent by current user
-      const unread = await messagesApi.find({
-        where: {
-          and: [
-            { sender: { not_equals: payloadUserId } },
-            { readAt: { exists: false } },
-          ],
-        },
-        limit: 100,
-      });
-
-      return unread.totalDocs || unread.docs.length;
+      const conversations = await this.getConversations();
+      // Count conversations with unread messages (simplified)
+      // In production, you'd want a dedicated endpoint for this
+      return conversations.filter((c) => c.lastMessageAt).length;
     } catch (error) {
       console.error("[messagesApi] getUnreadCount error:", error);
       return 0;

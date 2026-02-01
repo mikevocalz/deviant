@@ -5,26 +5,60 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventReviews } from "@/lib/api-client";
+import { Platform } from "react-native";
+
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
 
 export const eventReviewKeys = {
   all: ["event-reviews"] as const,
   event: (eventId: string) => [...eventReviewKeys.all, "event", eventId] as const,
 };
 
-// Fetch reviews for an event
+// Fetch reviews for an event (uses custom endpoint)
 export function useEventReviews(eventId: string, limit: number = 10) {
   return useQuery({
     queryKey: eventReviewKeys.event(eventId),
     queryFn: async () => {
-      const result = await eventReviews.getEventReviews(eventId, { limit });
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/events/${eventId}/reviews?limit=${limit}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[useEventReviews] Fetch failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
       return result.docs || [];
     },
     enabled: !!eventId,
   });
 }
 
-// Create/update review mutation
+// Create/update review mutation (uses custom endpoint)
 export function useCreateEventReview() {
   const queryClient = useQueryClient();
 
@@ -34,7 +68,32 @@ export function useCreateEventReview() {
       rating: number;
       comment?: string;
     }) => {
-      return await eventReviews.create(data);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/events/${data.eventId}/reviews`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            rating: data.rating,
+            comment: data.comment || "",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create review: ${response.status}`);
+      }
+
+      return await response.json();
     },
     onMutate: async (variables) => {
       // Cancel outgoing refetches

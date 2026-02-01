@@ -1,54 +1,62 @@
 /**
- * Hono API Server Client for Expo App
+ * Payload CMS Direct API Client for Expo App
  *
- * ARCHITECTURE (PRODUCTION):
- * Mobile App → Hono API Server (https://server-zeta-lovat.vercel.app/api/*)
- *           → Payload CMS (https://payload-cms-setup-gray.vercel.app)
+ * ARCHITECTURE (PRODUCTION - LOCKED):
+ * Mobile App → Payload CMS (https://payload-cms-setup-gray.vercel.app/api/*)
  *           → PostgreSQL Database
  *
- * This client calls the deployed Hono server which has all /api/* routes.
- * The Hono server handles authentication, user lookup, and proxies to Payload CMS.
+ * This client communicates DIRECTLY with Payload CMS.
+ * Authentication is handled via JWT tokens stored securely on device.
  * 
  * CRITICAL: 
- * - Mobile app → Hono server → Payload CMS (CORRECT)
- * - Mobile app → Payload CMS directly (WRONG - returns HTML)
- * - Mobile app → Expo Router API routes (WRONG - only work in dev)
+ * - Mobile app → Payload CMS directly (CORRECT - ONLY OPTION)
+ * - Mobile app → Hono server (REMOVED - NO LONGER USED)
+ * - Mobile app → Expo Router API routes (FORBIDDEN - only work in dev)
  */
 
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// PAYLOAD CMS BASE URL - Direct REST API access
+// PAYLOAD CMS BASE URL - ONLY source of truth
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
 
-// SAFETY: Fail fast if localhost detected in production
+// ========================================================
+// SAFETY GUARDS - PREVENT REGRESSIONS
+// ========================================================
+
+// GUARD 1: No Hono server references allowed
+if (API_BASE_URL.includes('server-zeta-lovat')) {
+  throw new Error(`[API] FATAL: Hono server URL detected. Architecture is DIRECT to Payload only: ${API_BASE_URL}`);
+}
+
+// GUARD 2: Fail fast if localhost detected in production
 if (!__DEV__ && API_BASE_URL && (API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.includes('192.168'))) {
   throw new Error(`[API] FATAL: localhost URL detected in production build: ${API_BASE_URL}`);
 }
 
-// SAFETY: Fail fast if no URL set on native platform
+// GUARD 3: Fail fast if no URL set on native platform
 if (Platform.OS !== "web" && !API_BASE_URL) {
   throw new Error('[API] FATAL: EXPO_PUBLIC_API_URL must be set for native builds. Point to Payload CMS.');
 }
 
-// SAFETY: Ensure HTTPS in production
+// GUARD 4: Ensure HTTPS in production
 if (!__DEV__ && API_BASE_URL && !API_BASE_URL.startsWith('https://')) {
   throw new Error(`[API] FATAL: Production API must use HTTPS, got: ${API_BASE_URL}`);
 }
 
-// SAFETY: Ensure NOT using Expo Router API routes
+// GUARD 5: Ensure NOT using Expo dev server
 if (API_BASE_URL.includes('8081') || API_BASE_URL.includes('expo')) {
-  console.warn('[API] WARNING: Detected dev server URL. Ensure this points to Payload CMS in production.');
+  throw new Error('[API] FATAL: Expo dev server URL detected. Must be Payload CMS URL.');
 }
 
 // Log the API URL for debugging
 console.log("[API] ========================================");
-console.log("[API] Payload CMS API Client Initialized");
+console.log("[API] Payload CMS Direct API Client");
 console.log("[API] Base URL:", API_BASE_URL);
 console.log("[API] Platform:", Platform.OS);
 console.log("[API] Is HTTPS:", API_BASE_URL.startsWith('https://'));
 console.log("[API] Is DEV:", __DEV__);
-console.log("[API] Using Expo Router API routes:", false);
+console.log("[API] Architecture: Direct to Payload (NO Hono)");
 console.log("[API] ========================================");
 
 // Get JWT token from storage
@@ -114,6 +122,11 @@ async function apiFetch<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  // DEV GUARD: Prevent relative URLs (Expo Router API routes)
+  if (endpoint.startsWith('/') && !endpoint.startsWith('/api/')) {
+    throw new Error(`[API] FATAL: Relative URL detected: ${endpoint}. Must use absolute Payload CMS URLs.`);
+  }
+  
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get auth token and cookies for authenticated requests
@@ -149,11 +162,36 @@ async function apiFetch<T>(
   let data: any;
   const contentType = response.headers.get("content-type");
   
+  // PHASE 5 — FORCE JSON GUARANTEE (DEV SAFETY)
+  // Payload CMS must NEVER return HTML for API requests
+  // EXCEPTION: /api/users/me is a Payload built-in that may need special handling
+  const isUsersMe = url.includes("/api/users/me");
+  
+  if (__DEV__ && contentType?.includes("text/html") && !isUsersMe) {
+    const htmlPreview = await response.text();
+    console.error("[API] FATAL: HTML response detected!");
+    console.error("[API] URL:", url);
+    console.error("[API] Status:", response.status);
+    console.error("[API] Preview:", htmlPreview.slice(0, 300));
+    throw new Error(
+      `REGRESSION: Payload returned HTML instead of JSON!\n` +
+      `URL: ${url}\n` +
+      `This indicates Payload routing is broken or admin middleware is intercepting API calls.`
+    );
+  }
+  
   if (contentType?.includes("application/json")) {
     data = await response.json();
   } else {
     // Handle non-JSON responses (HTML error pages, etc)
     const text = await response.text();
+    
+    // If HTML and users/me, this might be expected redirect - try to handle gracefully
+    if (isUsersMe && contentType?.includes("text/html")) {
+      console.warn("[API] /users/me returned HTML - user may not be authenticated");
+      return { user: null } as T;
+    }
+    
     console.error("[API] Non-JSON response:", text.slice(0, 200));
     data = { error: `Server returned non-JSON response (${response.status})` };
   }

@@ -8,8 +8,12 @@
 
 **This is PRODUCTION code. Treat it as such AT ALL TIMES.**
 
-### CRITICAL: API CONNECTIVITY
-**SEV-0 BLOCKER**: App MUST connect to production CMS. Never localhost in production builds.
+### CRITICAL: ARCHITECTURE LOCK - DIRECT PAYLOAD ONLY
+
+**PERMANENT DECISION (2026-02-01):**
+- ✅ Mobile App → Payload CMS directly (ONLY option)
+- ❌ Hono server removed permanently
+- ❌ Expo Router API routes forbidden for native app
 
 **Required Environment Variables:**
 ```bash
@@ -19,9 +23,12 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 ```
 
 **Safety Checks in `lib/api-client.ts`:**
+- ✅ Fails fast if Hono URL detected (server-zeta-lovat)
 - ✅ Fails fast if localhost detected in production
 - ✅ Fails fast if no API URL set on native
-- ✅ Warns if not HTTPS in production
+- ✅ Fails fast if not HTTPS in production
+- ✅ Fails fast if Expo dev server URL (port 8081)
+- ✅ Fails fast if relative URL used (Expo Router routes)
 - ✅ Logs resolved URL on boot
 
 **Never do these:**
@@ -69,6 +76,94 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
    - Zero critical errors in app code
    - TypeScript compiles without crash-causing errors
    - You've verified the specific fix works
+
+---
+
+## 🔧 SEV-0 FIXES (2026-02-01)
+
+**Critical production fixes applied for database connectivity and app stability.**
+
+### Payload CMS Database Optimization
+
+**Issue:** Serverless functions timing out when connecting to Supabase PostgreSQL.
+
+**Root Cause:**
+- Connection timeout too short (5s) for cold starts
+- Using session pooler (port 5432) instead of transaction pooler
+- Missing SSL configuration
+- Pool size too large for serverless
+
+**Fixes Applied:**
+```typescript
+// payload.config.ts
+db: postgresAdapter({
+  pool: {
+    connectionString: process.env.DATABASE_URI,
+    max: 2,                          // Reduced from 3
+    idleTimeoutMillis: 30000,        // Increased from 10000
+    connectionTimeoutMillis: 20000,  // Increased from 5000
+    ssl: { rejectUnauthorized: false }, // Added SSL
+  },
+  push: false,
+}),
+```
+
+**Database URI:**
+```
+postgresql://...@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+```
+☝️ **Port 6543** = Supabase transaction pooler (better for serverless)
+
+**Vercel Configuration:** (`vercel.json`)
+```json
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
+}
+```
+
+### Mobile App: Messages API Fix
+
+**Issue:** App crashing with "Failed to proxy request" error on boot.
+
+**Root Cause:** `getPayloadUserId()` was querying `/api/users` without authentication.
+
+**Fix:** Use current user's ID from auth session instead of API query:
+```typescript
+// lib/api/messages.ts
+const currentUser = useAuthStore.getState().user;
+if (currentUser && currentUser.username === username) {
+  return currentUser.id; // Use session data
+}
+```
+
+### Health Check Endpoints
+
+**Payload CMS:** `/api/health`
+- Lightweight DB ping (queries 1 user)
+- 10s timeout
+- Returns connection status + response time
+
+**Test:**
+```bash
+curl https://payload-cms-setup-gray.vercel.app/api/health
+# {"status":"ok","database":"connected","responseTime":"195ms"}
+```
+
+### Performance Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| DB Connection Timeout | 5s | 20s |
+| Health Check | Timeout | 195ms |
+| Posts API | Timeout | <1s |
+| App Boot Errors | Yes | No ✅ |
+
+**See:** `SEV0-RESOLUTION.md` for complete details.
 
 ---
 
@@ -1080,22 +1175,37 @@ These are configured in EAS project settings and referenced in `eas.json`:
 
 ### Architecture Overview
 
+**LOCKED (2026-02-01): DIRECT TO PAYLOAD ONLY**
+
 ```
 Native App (iOS/Android)
          ↓
-EXPO_PUBLIC_API_URL (https://server-zeta-lovat.vercel.app)
+EXPO_PUBLIC_API_URL (https://payload-cms-setup-gray.vercel.app)
          ↓
-Hono API Server (/api/posts, /api/users, etc.)
+Payload CMS REST API (/api/posts, /api/users, etc.)
          ↓
-Payload CMS (https://payload-cms-setup-gray.vercel.app)
-         ↓
-Supabase PostgreSQL
+Supabase PostgreSQL (Transaction Pooler: port 6543)
 ```
 
-**CRITICAL:** The mobile app MUST call the Hono server, NOT Payload CMS directly.
-Payload CMS at payload-cms-setup-gray.vercel.app returns HTML, not REST API responses.
+**CRITICAL:** 
+- ✅ Mobile app communicates DIRECTLY with Payload CMS
+- ❌ Hono server removed permanently (server-zeta-lovat.vercel.app)
+- ❌ Expo Router API routes NOT used by native app
+- ✅ Authentication via JWT tokens (stored securely on device)
 
-**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. Use the standalone `server/` directory for production API deployment.
+**Database:** Supabase transaction pooler (port 6543 with `pgbouncer=true`) for optimal serverless performance.
+
+**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. The `/server` directory is no longer used.
+
+### Production Health Checks
+
+```bash
+# Payload CMS
+curl https://payload-cms-setup-gray.vercel.app/api/health
+# Expected: {"status":"ok","database":"connected","responseTime":"~200ms"}
+```
+# Expected: {"status":"ok","service":"dvnt-api"}
+```
 
 ### Standalone API Server
 

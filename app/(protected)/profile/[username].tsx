@@ -269,9 +269,9 @@ function UserProfileScreenComponent() {
                 </View>
                 <View className="items-center">
                   <Text className="text-lg font-bold text-foreground">
-                    {user.followersCount >= 1000 
-                      ? `${(user.followersCount / 1000).toFixed(1)}K` 
-                      : user.followersCount || 0}
+                    {(user.followersCount ?? 0) >= 1000 
+                      ? `${((user.followersCount ?? 0) / 1000).toFixed(1)}K` 
+                      : (user.followersCount ?? 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">Followers</Text>
                 </View>
@@ -284,7 +284,7 @@ function UserProfileScreenComponent() {
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold text-foreground">{user.name}</Text>
+            <Text className="font-semibold text-foreground">{user.name || user.fullName || user.username}</Text>
             {user.bio && <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>}
           </View>
 
@@ -301,7 +301,7 @@ function UserProfileScreenComponent() {
                     <Text className="font-semibold text-secondary-foreground">Edit Profile</Text>
                   </Motion.View>
                 </Pressable>
-                <Pressable onPress={() => shareProfile(user.username, user.fullName)} style={styles.shareButton}>
+                <Pressable onPress={() => shareProfile(user.username, user.fullName || user.name)} style={styles.shareButton}>
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}

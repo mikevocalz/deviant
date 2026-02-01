@@ -468,8 +468,17 @@ export default function ProfileScreen() {
     });
   }, [navigation, user?.username, colors, router]);
   
-  // Fetch real user posts
-  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "");
+  // Fetch real user posts - only if user exists
+  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "skip");
+  
+  // Don't render if no user
+  if (!user) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">Loading profile...</Text>
+      </View>
+    );
+  }
 
   // Format follower count (e.g., 24800 -> "24.8K")
   const formatCount = (count: number) => {

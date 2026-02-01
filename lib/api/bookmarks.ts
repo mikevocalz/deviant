@@ -2,8 +2,6 @@
  * Bookmarks API - manages post bookmarks
  */
 
-import { users } from "@/lib/api-client";
-
 const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
 
 async function bookmarkFetch<T>(
@@ -80,7 +78,12 @@ export const bookmarksApi = {
   // Get all bookmarked post IDs for current user
   async getBookmarkedPosts(): Promise<string[]> {
     try {
-      return await users.getBookmarks();
+      // Use Payload custom endpoint /users/me/bookmarks
+      const response = await bookmarkFetch<{
+        docs: Array<{ id: string }>;
+      }>("/api/users/me/bookmarks?limit=1000");
+      
+      return response.docs.map((post) => post.id);
     } catch (error) {
       console.error("[bookmarksApi] getBookmarkedPosts error:", error);
       return [];

@@ -2,7 +2,21 @@
  * Comments API - fetches real comment data from Payload CMS
  */
 
-import { comments as commentsApi, notifications, posts } from "@/lib/api-client";
+import { Platform } from "react-native";
+
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
 
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
@@ -62,30 +76,51 @@ function formatTimeAgo(dateString: string): string {
 }
 
 export const commentsApiClient = {
-  // Fetch comments for a post
+  // Fetch comments for a post (uses custom endpoint)
   async getComments(postId: string, limit: number = 50): Promise<Comment[]> {
     try {
-      const response = await commentsApi.findByPost(postId, { limit, depth: 2 });
-      // Transform comments - replies should be populated by Payload CMS with depth: 2
-      return response.docs.map(transformComment);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/posts/${postId}/comments?limit=${limit}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error("[commentsApi] getComments failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      return (result.docs || []).map(transformComment);
     } catch (error) {
       console.error("[commentsApi] getComments error:", error);
       return [];
     }
   },
 
-  // Fetch replies to a comment
+  // Fetch replies to a comment (not implemented - usually comments have replies nested)
   async getReplies(parentId: string, limit: number = 50): Promise<Comment[]> {
     try {
-      const response = await commentsApi.findByParent(parentId, { limit, depth: 2 });
-      return response.docs.map(transformComment);
+      // NOTE: Replies should be nested in the comment object with depth: 2
+      // If you need a separate endpoint for replies, implement it in Payload
+      console.warn("[commentsApi] getReplies not yet implemented with custom endpoint");
+      return [];
     } catch (error) {
       console.error("[commentsApi] getReplies error:", error);
       return [];
     }
   },
 
-  // Create a new comment
+  // Create a new comment (uses custom endpoint)
   async createComment(data: {
     post: string;
     text: string;
@@ -96,7 +131,6 @@ export const commentsApiClient = {
     try {
       // Clean and validate post ID
       const rawPostId = data.post;
-      // Remove any spaces or invalid characters
       const cleanedPostId = String(rawPostId).trim().replace(/\s+/g, '');
       const numericPostId = parseInt(cleanedPostId, 10);
       
@@ -107,7 +141,7 @@ export const commentsApiClient = {
         authorUsername: data.authorUsername 
       });
       
-      // Validate post ID - should be a valid MongoDB ObjectID (24 hex chars) or numeric
+      // Validate post ID
       const isValidObjectId = /^[a-fA-F0-9]{24}$/.test(cleanedPostId);
       const isNumericId = !isNaN(numericPostId);
       
@@ -125,92 +159,39 @@ export const commentsApiClient = {
         throw new Error("You must be logged in to comment");
       }
       
-      // Send to API - the API route handles author lookup and transformation
-      // Include both authorId (from Zustand) and authorUsername for fallback
-      const commentPayload = {
-        post: cleanedPostId,
-        text: data.text.trim(), // API route expects 'text', it transforms to 'content'
-        authorUsername: data.authorUsername,
-        authorId: data.authorId, // Payload CMS user ID from Zustand store
-        parent: data.parent || undefined,
-      };
-      console.log("[commentsApi] Sending to API:", JSON.stringify(commentPayload, null, 2));
-      console.log("[commentsApi] Payload details:", {
-        post: cleanedPostId,
-        textLength: data.text.trim().length,
-        authorUsername: data.authorUsername,
-        hasParent: !!data.parent,
-      });
-      
-      let doc;
-      try {
-        doc = await commentsApi.create(commentPayload);
-        console.log("[commentsApi] ✓ Comment created successfully:", doc?.id || "unknown");
-      } catch (apiError: any) {
-        console.error("[commentsApi] API call failed:", {
-          message: apiError?.message,
-          error: apiError?.error,
-          errors: apiError?.errors,
-          status: apiError?.status,
-          response: apiError?.response,
-        });
-        throw apiError;
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const token = await getAuthToken();
+
+      // Use custom comment creation endpoint
+      const response = await fetch(
+        `${apiUrl}/api/posts/${cleanedPostId}/comments`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: data.text.trim(), // Payload expects 'content'
+            parent: data.parent || undefined,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create comment: ${response.status}`);
       }
+
+      const doc = await response.json();
+      console.log("[commentsApi] ✓ Comment created successfully:", doc?.id || "unknown");
       
       const createdComment = transformComment(doc as Record<string, unknown>);
-      console.log("[commentsApi] Transformed comment:", createdComment.id);
       
-      // Fire-and-forget: Create notifications asynchronously without blocking the response
-      // This makes comments post instantly while notifications happen in the background
-      const createNotificationsAsync = async () => {
-        try {
-          const commentText = data.text.trim();
-          const mentions = extractMentions(commentText);
-          const senderUsername = data.authorUsername || "";
-          
-          // Get post details to notify the author
-          let postAuthorUsername: string | undefined;
-          try {
-            const postDoc = await posts.findByID(cleanedPostId);
-            const postAuthor = (postDoc as Record<string, unknown>)?.author;
-            if (typeof postAuthor === 'object' && postAuthor !== null) {
-              postAuthorUsername = (postAuthor as Record<string, unknown>).username as string;
-            }
-          } catch (postError) {
-            console.log("[commentsApi] Could not fetch post for notification:", postError);
-          }
-          
-          // Notify post author if it's not the commenter
-          if (postAuthorUsername && postAuthorUsername.toLowerCase() !== senderUsername.toLowerCase()) {
-            notifications.create({
-              type: "comment",
-              recipientUsername: postAuthorUsername,
-              senderUsername: senderUsername,
-              postId: cleanedPostId,
-              content: commentText.slice(0, 100),
-            }).catch(e => console.log("[commentsApi] Post author notification failed:", e));
-          }
-          
-          // Create notifications for mentioned users
-          for (const mentionedUsername of mentions) {
-            if (mentionedUsername.toLowerCase() === senderUsername.toLowerCase()) continue;
-            if (mentionedUsername.toLowerCase() === postAuthorUsername?.toLowerCase()) continue;
-            
-            notifications.create({
-              type: "mention",
-              recipientUsername: mentionedUsername,
-              senderUsername: senderUsername,
-              postId: cleanedPostId,
-              content: commentText.slice(0, 100),
-            }).catch(e => console.log("[commentsApi] Mention notification failed:", e));
-          }
-        } catch (notificationError) {
-          console.error("[commentsApi] Notification setup error:", notificationError);
-        }
-      };
-      
-      // Start notification creation without awaiting
-      createNotificationsAsync();
+      // NOTE: Notifications are typically handled server-side in Payload endpoints
+      // If needed, you can implement a separate notification endpoint call here
       
       return createdComment;
     } catch (error) {

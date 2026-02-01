@@ -130,7 +130,13 @@ export async function savePushTokenToBackend(
   username?: string,
 ): Promise<boolean> {
   try {
-    const response = await fetch("/api/push-token", {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) {
+      console.error("[Notifications] EXPO_PUBLIC_API_URL not configured");
+      return false;
+    }
+
+    const response = await fetch(`${apiUrl}/api/push-token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
