@@ -43,6 +43,7 @@ export async function POST(request: Request) {
     if (!currentUser || !currentUser.id) {
       return Response.json({ error: "Not authenticated" }, { status: 401 });
     }
+    const currentUserId = String(currentUser.id);
 
     // Get target user
     const targetUser = await payloadClient.findByID(
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     const currentUserData = await payloadClient.findByID(
       {
         collection: "users",
-        id: currentUser.id,
+        id: currentUserId,
       },
       cookies,
     );
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
       await payloadClient.update(
         {
           collection: "users",
-          id: currentUser.id,
+          id: currentUserId,
           data: {
             following: updatedFollowing,
             followingCount: updatedFollowing.length,
@@ -133,7 +134,7 @@ export async function POST(request: Request) {
       await payloadClient.update(
         {
           collection: "users",
-          id: currentUser.id,
+          id: currentUserId,
           data: {
             following: updatedFollowing,
             followingCount: updatedFollowing.length,

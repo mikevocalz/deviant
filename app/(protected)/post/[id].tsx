@@ -176,7 +176,7 @@ export default function PostDetailScreen() {
   const hasMedia = post?.media && Array.isArray(post.media) && post.media.length > 0;
   const postIdString = post?.id ? String(post.id) : postId;
   const isLiked = postIdString ? isPostLiked(postIdString) : false;
-  const isSaved = postIdString ? isBookmarked(postIdString) : false;
+  const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
   const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
   const commentCount = postIdString ? getCommentCount(postIdString, comments.length) : 0;
 

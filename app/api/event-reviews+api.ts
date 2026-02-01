@@ -60,11 +60,11 @@ export async function POST(request: Request) {
 
     if (existingReview.docs && existingReview.docs.length > 0) {
       // Update existing review
-      const review = existingReview.docs[0];
+      const review = existingReview.docs[0] as Record<string, any>;
       const updated = await payloadClient.update(
         {
           collection: "event-reviews",
-          id: review.id,
+          id: String(review.id),
           data: {
             rating: body.rating,
             comment: body.comment || undefined,

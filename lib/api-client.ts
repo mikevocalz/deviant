@@ -1,33 +1,55 @@
 /**
- * Client-side API utilities for Expo app
+ * Hono API Server Client for Expo App
  *
- * These functions call the Expo Router API routes, NOT Payload CMS directly.
- * API keys are never exposed to the client.
+ * ARCHITECTURE (PRODUCTION):
+ * Mobile App → Hono API Server (https://server-zeta-lovat.vercel.app/api/*)
+ *           → Payload CMS (https://payload-cms-setup-gray.vercel.app)
+ *           → PostgreSQL Database
  *
- * Architecture:
- * This Client → Expo API Route (+api.ts) → Payload CMS
- *
- * In production, set EXPO_PUBLIC_API_URL to your deployed API server URL.
- * In development, leave it empty to use relative URLs with the Expo dev server.
+ * This client calls the deployed Hono server which has all /api/* routes.
+ * The Hono server handles authentication, user lookup, and proxies to Payload CMS.
+ * 
+ * CRITICAL: 
+ * - Mobile app → Hono server → Payload CMS (CORRECT)
+ * - Mobile app → Payload CMS directly (WRONG - returns HTML)
+ * - Mobile app → Expo Router API routes (WRONG - only work in dev)
  */
 
 import { getAuthCookies } from "@/lib/auth-client";
 import { Platform } from "react-native";
 
-// API base URL - Uses the Hono server for all API calls
-// The Hono server (EXPO_PUBLIC_AUTH_URL) has all API routes with proper user lookup
-// EXPO_PUBLIC_API_URL points to Payload CMS directly, which doesn't have the user lookup logic
-// Priority: EXPO_PUBLIC_AUTH_URL (Hono server with API routes) > EXPO_PUBLIC_API_URL (Payload CMS)
-const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+// PAYLOAD CMS BASE URL - Direct REST API access
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || "";
+
+// SAFETY: Fail fast if localhost detected in production
+if (!__DEV__ && API_BASE_URL && (API_BASE_URL.includes('localhost') || API_BASE_URL.includes('127.0.0.1') || API_BASE_URL.includes('192.168'))) {
+  throw new Error(`[API] FATAL: localhost URL detected in production build: ${API_BASE_URL}`);
+}
+
+// SAFETY: Fail fast if no URL set on native platform
+if (Platform.OS !== "web" && !API_BASE_URL) {
+  throw new Error('[API] FATAL: EXPO_PUBLIC_API_URL must be set for native builds. Point to Payload CMS.');
+}
+
+// SAFETY: Ensure HTTPS in production
+if (!__DEV__ && API_BASE_URL && !API_BASE_URL.startsWith('https://')) {
+  throw new Error(`[API] FATAL: Production API must use HTTPS, got: ${API_BASE_URL}`);
+}
+
+// SAFETY: Ensure NOT using Expo Router API routes
+if (API_BASE_URL.includes('8081') || API_BASE_URL.includes('expo')) {
+  console.warn('[API] WARNING: Detected dev server URL. Ensure this points to Payload CMS in production.');
+}
 
 // Log the API URL for debugging
-console.log("[API] Using base URL:", API_BASE_URL || "(relative - web only)");
-console.log("[API] EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL || "(not set)");
-console.log("[API] EXPO_PUBLIC_AUTH_URL:", process.env.EXPO_PUBLIC_AUTH_URL || "(not set)");
-
-if (Platform.OS !== "web" && !API_BASE_URL) {
-  console.warn("[API] Warning: No API_URL set for native. API calls will fail.");
-}
+console.log("[API] ========================================");
+console.log("[API] Payload CMS API Client Initialized");
+console.log("[API] Base URL:", API_BASE_URL);
+console.log("[API] Platform:", Platform.OS);
+console.log("[API] Is HTTPS:", API_BASE_URL.startsWith('https://'));
+console.log("[API] Is DEV:", __DEV__);
+console.log("[API] Using Expo Router API routes:", false);
+console.log("[API] ========================================");
 
 // Get JWT token from storage
 async function getAuthToken(): Promise<string | null> {

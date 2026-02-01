@@ -16,7 +16,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { StarRating } from "react-native-star-rating-widget";
+import StarRating from "react-native-star-rating-widget";
 import { X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";

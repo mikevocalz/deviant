@@ -285,7 +285,7 @@ export async function POST(request: Request) {
       console.log("[API] Creating comment - cookies present:", !!cookies);
       console.log("[API] Comment data being sent:", {
         post: commentData.post,
-        content: commentData.content?.substring(0, 30),
+        content: String(commentData.content || "").substring(0, 30),
         hasAuthor: !!commentData.author,
         author: commentData.author,
       });

@@ -165,13 +165,24 @@ function UserProfileScreenComponent() {
   
   // Update local follow state when user data loads
   useEffect(() => {
-    if (userData?.isFollowing !== undefined) {
-      setIsFollowing(userData.isFollowing)
+    const isFollowingValue = (userData as any)?.isFollowing
+    if (typeof isFollowingValue === 'boolean') {
+      setIsFollowing(isFollowingValue)
     }
-  }, [userData?.isFollowing])
+  }, [(userData as any)?.isFollowing])
 
-  // Use API data or fallback to mock data
-  const user = userData || mockUsers[username || ""] || {
+  // Use API data or fallback to mock data - cast to any for flexibility with API response
+  const user: {
+    id?: string;
+    username: string;
+    fullName?: string;
+    name?: string;
+    avatar?: string;
+    bio?: string;
+    postsCount?: number;
+    followersCount?: number;
+    followingCount?: number;
+  } = (userData as any) || mockUsers[username || ""] || {
     id: undefined,
     username: username || "unknown",
     fullName: "Unknown User",

@@ -241,6 +241,20 @@ export function getAuthCookies(): string | null {
   return authClient.getCookie();
 }
 
+// Get auth token from storage
+export async function getAuthToken(): Promise<string | null> {
+  try {
+    const storage = getStorage();
+    if (Platform.OS === "web") {
+      return storage.getItem("dvnt_auth_token");
+    }
+    return await storage.getItem("dvnt_auth_token");
+  } catch (error) {
+    console.error("[Auth] Error getting auth token:", error);
+    return null;
+  }
+}
+
 // Helper to make authenticated fetch requests
 export async function authenticatedFetch(
   url: string,

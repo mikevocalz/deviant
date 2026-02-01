@@ -65,22 +65,22 @@ export const useAuthStore = create<AuthStore>()(
               const result = await users.me();
               if (result?.user) {
                 console.log("[Auth] User restored from API:", result.user.id);
-                const userData = result.user;
+                const userData = result.user as Record<string, any>;
                 set({
                   user: {
-                    id: String(userData.id),
-                    email: userData.email,
-                    username: userData.username,
-                    name: userData.name || userData.username,
-                    avatar: userData.avatar,
-                    bio: userData.bio,
-                    website: userData.website,
-                    location: userData.location,
+                    id: String(userData.id || ""),
+                    email: String(userData.email || ""),
+                    username: String(userData.username || ""),
+                    name: String(userData.name || userData.username || ""),
+                    avatar: userData.avatar ? String(userData.avatar) : undefined,
+                    bio: userData.bio ? String(userData.bio) : undefined,
+                    website: userData.website ? String(userData.website) : undefined,
+                    location: userData.location ? String(userData.location) : undefined,
                     hashtags: Array.isArray(userData.hashtags) ? userData.hashtags : [],
-                    isVerified: userData.isVerified || false,
-                    postsCount: userData.postsCount || 0,
-                    followersCount: userData.followersCount || 0,
-                    followingCount: userData.followingCount || 0,
+                    isVerified: Boolean(userData.isVerified),
+                    postsCount: Number(userData.postsCount) || 0,
+                    followersCount: Number(userData.followersCount) || 0,
+                    followingCount: Number(userData.followingCount) || 0,
                   },
                   isAuthenticated: true,
                 });
