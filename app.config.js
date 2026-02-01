@@ -91,8 +91,6 @@ export default {
       [
         "expo-build-properties",
         {
-          buildReactNativeFromSource: true,
-          useHermesV1: true,
           ios: {
             deploymentTarget: "16.0",
           },
