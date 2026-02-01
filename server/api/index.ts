@@ -335,6 +335,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const apiPath = reqUrl.replace(/^\/api/, "");
   const targetUrl = `${PAYLOAD_URL}/api${apiPath}`;
 
+  console.log("[Proxy] Forwarding:", req.method, reqUrl, "→", targetUrl);
+
   try {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -365,9 +367,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res.setHeader("Set-Cookie", setCookie);
     }
 
+    console.log("[Proxy] Response:", response.status, "from", targetUrl);
     return res.status(response.status).json(data);
   } catch (error) {
-    console.error("[Proxy] Error:", error);
+    console.error("[Proxy] Error forwarding to", targetUrl, ":", error);
     return res.status(500).json({ error: "Failed to proxy request" });
   }
 }
