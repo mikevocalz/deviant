@@ -125,7 +125,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // Health check
   if (reqUrl === "/" || reqUrl === "/health") {
-    return res.json({ status: "ok", service: "dvnt-api", payload_url: PAYLOAD_URL ? "configured" : "missing" });
+    return res.json({ 
+      status: "ok", 
+      service: "dvnt-api", 
+      payload_url: PAYLOAD_URL ? "configured" : "missing",
+      payload_api_key: PAYLOAD_API_KEY ? "configured" : "missing",
+      admin_email: ADMIN_EMAIL ? "configured" : "missing",
+    });
   }
 
   // ============== COMMENTS ENDPOINT (with user lookup) ==============
