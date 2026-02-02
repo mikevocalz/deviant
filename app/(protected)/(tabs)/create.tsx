@@ -41,7 +41,7 @@ const ASPECT_RATIO = 5 / 4;
 
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
-const MIN_CAPTION_LENGTH = 50;
+const MIN_CAPTION_LENGTH = 20;
 
 export default function CreateScreen() {
   const router = useRouter();
