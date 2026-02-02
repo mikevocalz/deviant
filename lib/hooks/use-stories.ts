@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { storiesApiClient, type Story } from "@/lib/api/stories";
+import { storiesApi as storiesApiClient } from "@/lib/api/supabase-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 // Query keys
@@ -36,6 +36,9 @@ export function useCreateStory() {
       // Snapshot previous data
       const previousData = queryClient.getQueryData<Story[]>(storyKeys.list());
 
+      // Get current user for optimistic update
+      const currentUser = useAuthStore.getState().user;
+
       // Optimistically add the new story
       // CRITICAL: For optimistic update, we use currentUser.avatar since this IS the user's own story
       // This is allowed because the story being created belongs to the current user
@@ -46,8 +49,6 @@ export function useCreateStory() {
           id: `temp-${Date.now()}`,
           userId: currentUser?.id || "",
           username: currentUser?.username || "You",
-          // Using currentUser avatar for optimistic update of OWN story only
-          // Server response will replace this with entity-sourced avatar
           avatar: currentUser?.avatar || "",
           isViewed: false,
           items: (newStoryData.items || []).map((item, index) => ({
@@ -76,5 +77,3 @@ export function useCreateStory() {
     },
   });
 }
-
-export type { Story };

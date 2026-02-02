@@ -5,45 +5,51 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { posts, users } from "@/lib/api-client";
+import { Platform } from "react-native";
+
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
 
 export function useSearchPosts(query: string) {
-  const isHashtag = query.startsWith("#");
-  const searchTerm = isHashtag ? query.slice(1) : query;
-
   return useQuery({
     queryKey: ["search", "posts", query],
     queryFn: async () => {
       if (!query || query.length < 1) return { docs: [], totalDocs: 0 };
 
       try {
-        // If it's a hashtag, search in caption for the hashtag
-        if (isHashtag) {
-          const result = await posts.find({
-            where: {
-              caption: {
-                contains: `#${searchTerm}`,
-              },
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) return { docs: [], totalDocs: 0 };
+
+        const token = await getAuthToken();
+
+        // Use custom search endpoint (returns JSON)
+        const response = await fetch(
+          `${apiUrl}/api/search/posts?q=${encodeURIComponent(query)}&limit=50`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { "Authorization": `Bearer ${token}` } : {}),
             },
-            limit: 50,
-            sort: "-createdAt",
-            depth: 2,
-          });
-          return result;
-        } else {
-          // Regular search - search in caption
-          const result = await posts.find({
-            where: {
-              caption: {
-                contains: searchTerm,
-              },
-            },
-            limit: 50,
-            sort: "-createdAt",
-            depth: 2,
-          });
-          return result;
+          }
+        );
+
+        if (!response.ok) {
+          console.error("[useSearchPosts] Search failed:", response.status);
+          return { docs: [], totalDocs: 0 };
         }
+
+        return await response.json();
       } catch (error) {
         console.error("[useSearchPosts] Error:", error);
         return { docs: [], totalDocs: 0 };
@@ -60,16 +66,28 @@ export function useSearchUsers(query: string) {
       if (!query || query.length < 1) return { docs: [], totalDocs: 0 };
 
       try {
-        const result = await users.find({
-          where: {
-            or: [
-              { username: { contains: query.toLowerCase() } },
-              { name: { contains: query } },
-            ],
-          },
-          limit: 20,
-        });
-        return result;
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) return { docs: [], totalDocs: 0 };
+
+        const token = await getAuthToken();
+
+        // Use custom search endpoint (returns JSON)
+        const response = await fetch(
+          `${apiUrl}/api/search/users?q=${encodeURIComponent(query)}&limit=20`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+            },
+          }
+        );
+
+        if (!response.ok) {
+          console.error("[useSearchUsers] Search failed:", response.status);
+          return { docs: [], totalDocs: 0 };
+        }
+
+        return await response.json();
       } catch (error) {
         console.error("[useSearchUsers] Error:", error);
         return { docs: [], totalDocs: 0 };

@@ -40,8 +40,24 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { users } from "@/lib/api-client";
 
-const { width, height } = Dimensions.get("window");
-const LONG_PRESS_DELAY = 300;
+import { View, Text, Pressable, Dimensions, TextInput, Keyboard, Platform } from "react-native"
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router"
+import { Image } from "expo-image"
+import { VideoView, useVideoPlayer } from "expo-video"
+import { X, Send } from "lucide-react-native"
+import { useEffect, useCallback, useRef, useState, useMemo } from "react"
+import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue, cancelAnimation } from "react-native-reanimated"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
+import { useStoryViewerStore } from "@/lib/stores/comments-store"
+import { VideoSeekBar } from "@/components/video-seek-bar"
+import { useStories } from "@/lib/hooks/use-stories"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages"
+import { useUIStore } from "@/lib/stores/ui-store"
+
+const { width, height } = Dimensions.get("window")
+const LONG_PRESS_DELAY = 300
 
 function ProgressBar({ progress }: { progress: SharedValue<number> }) {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -103,12 +119,14 @@ export default function StoryViewerScreen() {
     (s) => s.items && s.items.length > 0,
   );
   // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
-  const currentStoryIndex = availableStories.findIndex(
-    (s) => String(s.id) === String(currentStoryId),
-  );
-  const story = availableStories[currentStoryIndex];
-  const currentItem = story?.items?.[currentItemIndex];
-
+  const currentStoryIndex = availableStories.findIndex((s) => String(s.id) === String(currentStoryId))
+  const story = availableStories[currentStoryIndex]
+  const currentItem = story?.items?.[currentItemIndex]
+  
+  // Check if viewing own story (don't show reply input for own story)
+  // Compare by username (case-insensitive) since IDs may not match between auth systems
+  const isOwnStory = story?.username?.toLowerCase() === currentUser?.username?.toLowerCase()
+  
   // Debug story lookup
   useEffect(() => {
     console.log("[StoryViewer] Story lookup:", {
@@ -207,13 +225,14 @@ export default function StoryViewerScreen() {
         console.error("[StoryViewer] Error configuring player:", error);
       }
     }
-  });
+  })
 
   // Wrapper function that calls the ref - this ensures we always use the latest handleNext
+  // Defined early so it can be used in useEffect below
   const callHandleNext = useCallback(() => {
-    handleNextRef.current();
-  }, []);
-
+    handleNextRef.current()
+  }, [])
+  
   // Play video when it's ready and VideoView is mounted
   useEffect(() => {
     if (!isVideo || !player || !videoUrl) return;
@@ -314,14 +333,6 @@ export default function StoryViewerScreen() {
         }, 150);
         return () => clearTimeout(focusTimer);
       }
-
-      return () => {
-        if (isVideo && isSafeToOperate()) {
-          safePause(player, isMountedRef, "StoryViewer");
-        }
-      };
-    }, [player, isVideo, videoUrl, isSafeToOperate, isMountedRef]),
-  );
 
   useEffect(() => {
     if (!currentItem || !currentStoryId) return;
@@ -501,9 +512,9 @@ export default function StoryViewerScreen() {
       hasAdvanced.current = false;
     }, 100);
     // Don't reset isExiting or hasNavigatedAway here - those are permanent for the session
-    return () => clearTimeout(timer);
-  }, [currentItemIndex, currentStoryId]);
-
+    return () => clearTimeout(timer)
+  }, [currentItemIndex, currentStoryId])
+  
   // Pause animation when input is focused
   useEffect(() => {
     if (isInputFocused) {
@@ -647,24 +658,46 @@ export default function StoryViewerScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
       {/* Progress bars */}
-      <View
-        style={{
-          flexDirection: "row",
-          paddingHorizontal: 8,
-          paddingTop: 8,
-          gap: 4,
-        }}
-      >
-        {story.items?.map((_, index) => (
-          <View
-            key={index}
-            style={{
-              flex: 1,
-              height: 2,
-              backgroundColor: "rgba(255,255,255,0.6)",
-              borderRadius: 1,
-              overflow: "hidden",
-            }}
+      <View style={{ flexDirection: "row", paddingHorizontal: 8, paddingTop: 8, gap: 4 }}>
+          {story.items?.map((_, index) => (
+            <View
+              key={index}
+              style={{
+                flex: 1,
+                height: 2,
+                backgroundColor: "rgba(255,255,255,0.6)",
+                borderRadius: 1,
+                overflow: "hidden",
+              }}
+            >
+              {index < currentItemIndex ? (
+                <View style={{ flex: 1, backgroundColor: "#fff" }} />
+              ) : index === currentItemIndex ? (
+                <ProgressBar progress={progress} />
+              ) : null}
+            </View>
+          ))}
+        </View>
+
+        {/* Header */}
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Image source={{ uri: story.avatar }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+            <View>
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>{story.username}</Text>
+              <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>{(currentItem as any).header?.subheading || ""}</Text>
+            </View>
+          </View>
+          <Pressable 
+            onPress={() => {
+              if (isExiting.current) return; // Prevent multiple presses
+              isExiting.current = true
+              hasNavigatedAway.current = true
+              cancelAnimation(progress)
+              router.back()
+            }} 
+            style={{ padding: 12, zIndex: 1000 }}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
           >
             {index < currentItemIndex ? (
               <View style={{ flex: 1, backgroundColor: "#fff" }} />

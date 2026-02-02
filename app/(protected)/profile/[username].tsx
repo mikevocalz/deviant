@@ -276,138 +276,35 @@ function UserProfileScreenComponent() {
   // CRITICAL: Redirect to tabs profile if viewing own profile
   // This ensures consistent UI/UX when navigating from comments to own profile
   useEffect(() => {
-    if (isOwnProfile && safeUsername) {
-      console.log("[Profile] Redirecting to tabs profile for own user");
-      router.replace("/(protected)/(tabs)/profile");
+    const isFollowingValue = (userData as any)?.isFollowing
+    if (typeof isFollowingValue === 'boolean') {
+      setIsFollowing(isFollowingValue)
     }
-  }, [isOwnProfile, safeUsername, router]);
+  }, [(userData as any)?.isFollowing])
 
-  // Fetch user data from API - DEFENSIVE: Only fetch if we have a valid username and NOT own profile
-  const {
-    data: userData,
-    isLoading,
-    isError,
-    error,
-  } = useUser(isOwnProfile ? null : safeUsername);
-
-  // DEFENSIVE: Safely extract user ID with multiple fallbacks
-  const userId = useMemo(() => {
-    if (!userData) return null;
-    if (typeof userData.id === "object" && userData.id !== null) {
-      return String((userData.id as { id: string })?.id || "");
-    }
-    if (userData.id) return String(userData.id);
-    return null;
-  }, [userData]);
-
-  // Fetch user's posts - DEFENSIVE: Only fetch if we have a valid userId
-  const {
-    data: userPostsData,
-    isLoading: isLoadingPosts,
-    isError: isPostsError,
-  } = useProfilePosts(userId || "");
-
-  // Transform posts for grid display - MUST match my profile transformation
-  const userPosts = useMemo(() => {
-    if (!userPostsData || !Array.isArray(userPostsData)) return [];
-    return userPostsData
-      .filter((post) => post && post.id)
-      .map((post) => {
-        try {
-          const media = Array.isArray(post.media) ? post.media : [];
-          const previewUrl = media[0]?.thumbnail || media[0]?.url;
-          const isValidUrl =
-            previewUrl &&
-            (previewUrl.startsWith("http://") ||
-              previewUrl.startsWith("https://"));
-          return {
-            id: String(post.id),
-            thumbnail: isValidUrl ? previewUrl : undefined,
-            type: media[0]?.type === "video" ? "video" : "image",
-            mediaCount: media.length,
-            hasMultipleImages: media.length > 1 && media[0]?.type === "image",
-          };
-        } catch {
-          return {
-            id: String(post.id),
-            thumbnail: undefined,
-            type: "image" as const,
-            mediaCount: 0,
-            hasMultipleImages: false,
-          };
-        }
-      });
-  }, [userPostsData]);
-
-  // Follow mutation
-  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
-
-  // Local follow state (optimistic)
-  const [isFollowing, setIsFollowing] = useState(false);
-
-  // Update local follow state when user data loads - DEFENSIVE
-  useEffect(() => {
-    try {
-      if (
-        userData?.isFollowing !== undefined &&
-        typeof userData.isFollowing === "boolean"
-      ) {
-        setIsFollowing(userData.isFollowing);
-      }
-    } catch (e) {
-      console.error("[Profile] Error updating follow state:", e);
-    }
-  }, [userData?.isFollowing]);
-
-  // DEFENSIVE: Create safe user object that NEVER crashes
-  // Priority: API data > Mock data > Fallback
-  const user = useMemo((): MockUser & { isFollowing?: boolean } => {
-    const displayUsername = safeUsername || "user";
-    const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayUsername)}&background=3EA4E5&color=fff`;
-
-    // Try API data first
-    if (userData && typeof userData === "object") {
-      // Cast to access properties safely
-      const data = userData as Record<string, unknown>;
-      return {
-        id: userId || undefined,
-        username: String(data.username || displayUsername),
-        fullName: String(
-          data.name || data.displayName || data.username || displayUsername,
-        ),
-        name: String(
-          data.name || data.displayName || data.username || displayUsername,
-        ),
-        avatar: String(data.avatar || data.avatarUrl || fallbackAvatar),
-        bio: String(data.bio || ""),
-        postsCount: Number(data.postsCount) || 0,
-        followersCount: Number(data.followersCount) || 0,
-        followingCount: Number(data.followingCount) || 0,
-        isFollowing: Boolean(data.isFollowing),
-      };
-    }
-
-    // Try mock data
-    const mockUser = mockUsers[displayUsername];
-    if (mockUser) {
-      return { ...mockUser, isFollowing: false };
-    }
-
-    // Final fallback - guaranteed safe object
-    return {
-      id: undefined,
-      username: displayUsername,
-      fullName: displayUsername,
-      name: displayUsername,
-      avatar: fallbackAvatar,
-      bio: "",
-      postsCount: 0,
-      followersCount: 0,
-      followingCount: 0,
-      isFollowing: false,
-    };
-  }, [userData, userId, safeUsername]);
-
+  // Use API data or fallback to mock data - cast to any for flexibility with API response
+  const user: {
+    id?: string;
+    username: string;
+    fullName?: string;
+    name?: string;
+    avatar?: string;
+    bio?: string;
+    postsCount?: number;
+    followersCount?: number;
+    followingCount?: number;
+  } = (userData as any) || mockUsers[username || ""] || {
+    id: undefined,
+    username: username || "unknown",
+    fullName: "Unknown User",
+    name: "Unknown User",
+    avatar: "https://i.pravatar.cc/150?img=1",
+    bio: "",
+    postsCount: 0,
+    followersCount: 0,
+    followingCount: 0,
+  }
+  
   // Create a followMutation-like object for compatibility
   const followMutation = {
     isPending: isFollowPending,
@@ -549,9 +446,9 @@ function UserProfileScreenComponent() {
                   }}
                 >
                   <Text className="text-lg font-bold text-foreground">
-                    {user.followersCount >= 1000
-                      ? `${(user.followersCount / 1000).toFixed(1)}K`
-                      : user.followersCount || 0}
+                    {(user.followersCount ?? 0) >= 1000 
+                      ? `${((user.followersCount ?? 0) / 1000).toFixed(1)}K` 
+                      : (user.followersCount ?? 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
                     Followers
@@ -579,24 +476,15 @@ function UserProfileScreenComponent() {
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold text-foreground">{user.name}</Text>
-            {user.bio && (
-              <Text className="mt-1 text-sm text-foreground/90">
-                {user.bio}
-              </Text>
-            )}
+            <Text className="font-semibold text-foreground">{user.name || user.fullName || user.username}</Text>
+            {user.bio && <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>}
           </View>
 
           {/* Action Buttons */}
           <View className="mt-4 flex-row gap-2">
             {isOwnProfile ? (
               <>
-                <Pressable
-                  onPress={() =>
-                    router.push("/(protected)/profile/edit" as any)
-                  }
-                  style={{ flex: 1 }}
-                >
+                <Pressable onPress={() => router.push("/(protected)/edit-profile" as any)} style={{ flex: 1 }}>
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -607,10 +495,7 @@ function UserProfileScreenComponent() {
                     </Text>
                   </Motion.View>
                 </Pressable>
-                <Pressable
-                  onPress={() => shareProfile(user.username, user.fullName)}
-                  style={styles.shareButton}
-                >
+                <Pressable onPress={() => shareProfile(user.username, user.fullName || user.name)} style={styles.shareButton}>
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}

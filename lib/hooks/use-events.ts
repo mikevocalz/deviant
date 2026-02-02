@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventsApiClient, type Event } from "@/lib/api/events";
+import { eventsApi as eventsApiClient } from "@/lib/api/supabase-events";
 
 // Query keys
 export const eventKeys = {
@@ -65,11 +65,11 @@ export function useCreateEvent() {
       });
 
       // Optimistically add the new event to all event lists
-      queryClient.setQueriesData<Event[]>(
+      queryClient.setQueriesData<any[]>(
         { queryKey: eventKeys.all },
         (old) => {
           if (!old) return old;
-          const optimisticEvent: Event = {
+          const optimisticEvent: any = {
             id: `temp-${Date.now()}`,
             title: newEventData.title || "New Event",
             description: newEventData.description,
@@ -112,5 +112,3 @@ export function useCreateEvent() {
     },
   });
 }
-
-export type { Event };

@@ -2,35 +2,65 @@
  * Stories API - fetches real story data from Payload CMS
  */
 
-import { stories as storiesApi, users } from "@/lib/api-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { Platform } from "react-native";
 
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
 
-// Extract avatar URL from various possible formats (upload field returns object with url)
-function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
-  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=3EA4E5&color=fff`;
-
-  if (!avatar) return fallback;
-
-  // If it's already a valid URL string
-  if (
-    typeof avatar === "string" &&
-    (avatar.startsWith("http://") || avatar.startsWith("https://"))
-  ) {
-    return avatar;
-  }
-
-  // If it's a media object with url property (from Payload upload field with depth)
-  if (typeof avatar === "object" && avatar !== null) {
-    const avatarObj = avatar as Record<string, unknown>;
-    if (avatarObj.url && typeof avatarObj.url === "string") {
-      return avatarObj.url;
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
     }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
   }
+}
 
-  return fallback;
+// Helper function to lookup user ID by username using Payload custom endpoint
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  if (!username) return null;
+  
+  // Check cache first
+  if (userIdCache[username]) {
+    return userIdCache[username];
+  }
+  
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) return null;
+
+    const token = await getAuthToken();
+    
+    // Use custom profile endpoint (returns JSON)
+    const response = await fetch(
+      `${apiUrl}/api/users/${username}/profile`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      }
+    );
+    
+    if (!response.ok) return null;
+    
+    const profile = await response.json();
+    if (profile && profile.id) {
+      const userId = String(profile.id);
+      userIdCache[username] = userId;
+      return userId;
+    }
+  } catch (error) {
+    console.error("[storiesApi] getUserIdByUsername error:", error);
+  }
+  
+  return null;
 }
 
 export interface Story {
@@ -165,35 +195,35 @@ function transformStory(doc: Record<string, unknown>): Story {
 }
 
 export const storiesApiClient = {
-  // Fetch all active stories (not expired - within 24 hours)
+  // Fetch all active stories (uses custom endpoint)
   async getStories(): Promise<Story[]> {
     try {
-      // Calculate 24 hours ago for expiry filter
-      const twentyFourHoursAgo = new Date(
-        Date.now() - 24 * 60 * 60 * 1000,
-      ).toISOString();
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
 
-      const response = await storiesApi.find({
-        limit: 50,
-        depth: 2,
-        sort: "-createdAt", // Newest first
-        where: {
-          // Only fetch stories created within the last 24 hours
-          createdAt: {
-            greater_than: twentyFourHoursAgo,
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/stories?limit=30`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
           },
-        },
-      });
-      console.log(
-        "[storiesApi] Raw stories response count:",
-        response.docs?.length || 0,
-        "| 24h filter:",
-        twentyFourHoursAgo,
+        }
       );
 
+      if (!response.ok) {
+        console.error("[storiesApi] getStories failed:", response.status);
+        return [];
+      }
+
+      const result = await response.json();
+      console.log("[storiesApi] Raw stories response count:", result.docs?.length || 0);
+      
       // Log first story structure for debugging
-      if (response.docs?.[0]) {
-        const first = response.docs[0] as Record<string, unknown>;
+      if (result.docs?.[0]) {
+        const first = result.docs[0] as Record<string, unknown>;
         console.log("[storiesApi] First story structure:", {
           id: first.id,
           hasItems: Array.isArray(first.items),
@@ -205,24 +235,15 @@ export const storiesApiClient = {
               : first.author,
         });
       }
-
-      // Filter and transform - ensure each story has valid items
-      const transformed = response.docs
-        .map(transformStory)
-        .filter((story) => story.items && story.items.length > 0);
-
-      console.log(
-        "[storiesApi] Transformed stories count:",
-        transformed.length,
-      );
-      return transformed;
+      
+      return (result.docs || []).map(transformStory);
     } catch (error) {
       console.error("[storiesApi] getStories error:", error);
       return [];
     }
   },
 
-  // Create a new story
+  // Create a new story (uses custom endpoint)
   async createStory(data: {
     items: Array<{
       type: string;
@@ -239,55 +260,35 @@ export const storiesApiClient = {
       }
 
       console.log("[storiesApi] Creating story with items:", data.items);
-      console.log("[storiesApi] User:", {
-        id: user.id,
-        username: user.username,
-      });
+      console.log("[storiesApi] User:", { id: user.id, username: user.username });
+      
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
 
-      // Look up the Payload CMS user ID by username
-      let authorId: string | undefined;
+      const token = await getAuthToken();
 
-      if (user.username) {
-        // Check cache first
-        if (userIdCache[user.username]) {
-          authorId = userIdCache[user.username];
-          console.log("[storiesApi] Using cached author ID:", authorId);
-        } else {
-          // Look up user in Payload CMS
-          try {
-            const userResult = await users.find({
-              where: { username: { equals: user.username } },
-              limit: 1,
-            });
-
-            if (userResult.docs && userResult.docs.length > 0) {
-              authorId = (userResult.docs[0] as { id: string }).id;
-              userIdCache[user.username] = authorId;
-              console.log("[storiesApi] Found author ID:", authorId);
-            } else {
-              console.warn(
-                "[storiesApi] User not found in CMS:",
-                user.username,
-              );
-            }
-          } catch (lookupError) {
-            console.error("[storiesApi] User lookup error:", lookupError);
-          }
+      const response = await fetch(
+        `${apiUrl}/api/stories`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            media: data.items[0], // Endpoint expects single media object
+            items: data.items, // Also send full items array
+            clientMutationId: `story-${Date.now()}-${Math.random()}`,
+          }),
         }
-      }
-
-      const storyData = {
-        caption: `Story by ${user.username}`,
-        items: data.items,
-        author: authorId, // Use the looked-up Payload CMS user ID
-      };
-
-      console.log(
-        "[storiesApi] Story data being sent:",
-        JSON.stringify(storyData, null, 2),
       );
 
-      const doc = await storiesApi.create(storyData);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create story: ${response.status}`);
+      }
+
+      const doc = await response.json();
       console.log("[storiesApi] Story created successfully:", doc);
       return transformStory(doc as Record<string, unknown>);
     } catch (error: any) {

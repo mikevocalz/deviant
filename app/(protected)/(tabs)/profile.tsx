@@ -366,6 +366,18 @@ function ProfileScreenContent() {
       ),
     });
   }, [navigation, user?.username, colors, router]);
+  
+  // Fetch real user posts - only if user exists
+  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "skip");
+  
+  // Don't render if no user
+  if (!user) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <Text className="text-muted-foreground">Loading profile...</Text>
+      </View>
+    );
+  }
 
   // Fetch real user posts - ONLY for logged-in user
   // Must be called unconditionally (React hooks rule)
@@ -508,31 +520,23 @@ function ProfileScreenContent() {
           {/* Centered Profile Header */}
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              {/* Avatar - tap to change photo directly */}
-              <Pressable
-                onPress={handleAvatarPress}
-                disabled={isUpdatingAvatar}
-                testID={`profile.${user?.id}.avatar`}
-              >
+              <Pressable onPress={() => router.push("/(protected)/edit-profile")}>
                 <View className="relative">
-                  <Avatar
-                    uri={displayAvatar}
-                    username={displayName}
-                    size={88}
-                    variant="roundedSquare"
+                  <Image
+                    source={{
+                      uri:
+                        user?.avatar ||
+                        "https://ui-avatars.com/api/?name=" +
+                          encodeURIComponent(user?.name || "User"),
+                    }}
+                    className="w-[88px] h-[88px] rounded-full"
+                    contentFit="cover"
                   />
                   <View
                     className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                    style={{
-                      borderColor: colors.background,
-                      transform: [{ translateX: -14 }],
-                    }}
+                    style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
                   >
-                    {isUpdatingAvatar ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Camera size={14} color="#fff" />
-                    )}
+                    <Camera size={14} color="#fff" />
                   </View>
                 </View>
               </Pressable>
@@ -619,9 +623,8 @@ function ProfileScreenContent() {
           </View>
 
           <View className="mt-5 flex-row gap-2 px-4">
-            <Pressable
-              onPress={handleOpenEditSheet}
-              testID="settings.editProfile.open"
+            <Pressable 
+              onPress={() => router.push("/(protected)/edit-profile")}
               className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
             >
               <Text className="font-semibold text-secondary-foreground">

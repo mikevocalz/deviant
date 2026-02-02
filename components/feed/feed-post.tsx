@@ -39,10 +39,11 @@ import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
-import { PostCaption } from "@/components/post-caption";
-import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { routeToProfile } from "@/lib/utils/route-to-profile";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { postsApi } from "@/lib/api/supabase-posts";
+import { Alert } from "react-native";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -106,9 +107,38 @@ function FeedPostComponent({
   }
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
-
-  // STABILIZED: Bookmark state is derived from the persisted bookmark store (synced via useBookmarks).
-  const isBookmarked = useBookmarkStore((state) => state.isBookmarked(id));
+  const likePostMutation = useLikePost();
+  const currentUser = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  
+  const isOwner = currentUser?.username === author.username;
+  
+  // Sync bookmarks from API to local store on mount
+  useEffect(() => {
+    if (bookmarkedPostIds.length > 0) {
+      // Update local store to match API state
+      const currentBookmarks = bookmarkStore.getBookmarkedPostIds();
+      const missingBookmarks = bookmarkedPostIds.filter(id => !currentBookmarks.includes(id));
+      const extraBookmarks = currentBookmarks.filter(id => !bookmarkedPostIds.includes(id));
+      
+      // Add missing bookmarks
+      missingBookmarks.forEach(id => {
+        if (!bookmarkStore.isBookmarked(id)) {
+          bookmarkStore.toggleBookmark(id);
+        }
+      });
+      
+      // Remove extra bookmarks
+      extraBookmarks.forEach(id => {
+        if (bookmarkStore.isBookmarked(id)) {
+          bookmarkStore.toggleBookmark(id);
+        }
+      });
+    }
+  }, [bookmarkedPostIds]);
+  
+  const isBookmarked = bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
   // Fetch last 3 comments for feed display
   const { data: recentCommentsData = [], refetch: refetchComments } =
     useComments(id, 3);
@@ -260,8 +290,11 @@ function FeedPostComponent({
       safePlay(player, isMountedRef, "FeedPost");
     } else {
       // Normal tap - navigate to post
+      console.log("[FeedPost] handleVideoPress, id:", id);
       if (id) {
         router.push(`/(protected)/post/${id}`);
+      } else {
+        console.error("[FeedPost] No ID for video press!");
       }
     }
   }, [
@@ -331,6 +364,34 @@ function FeedPostComponent({
     }
   }, [id, caption]);
 
+  const handleEdit = useCallback(() => {
+    router.push(`/(protected)/edit-post/${id}`);
+  }, [id, router]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postsApi.deletePost(id);
+              showToast("success", "Deleted", "Post deleted successfully");
+              // The feed will auto-refresh via React Query
+            } catch (error) {
+              console.error("[FeedPost] Delete error:", error);
+              showToast("error", "Error", "Failed to delete post");
+            }
+          },
+        },
+      ]
+    );
+  }, [id, showToast]);
+
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(
       event.nativeEvent.contentOffset.x / mediaSize,
@@ -347,6 +408,11 @@ function FeedPostComponent({
   }, [id, setPressedPost]);
 
   const handlePostPress = useCallback(() => {
+    console.log("[FeedPost] handlePostPress called, id:", id);
+    if (!id) {
+      console.error("[FeedPost] Cannot navigate - no post ID!");
+      return;
+    }
     router.push(`/(protected)/post/${id}`);
   }, [router, id]);
 
@@ -414,7 +480,7 @@ function FeedPostComponent({
               )}
             </View>
           </View>
-          <Pressable className="p-2">
+          <Pressable className="p-2" onPress={() => setShowActionSheet(true)}>
             <MoreHorizontal size={20} color={colors.foreground} />
           </Pressable>
         </View>
@@ -636,14 +702,11 @@ function FeedPostComponent({
           <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
             {likeCount.toLocaleString()} likes
           </Text>
-          {/* CRITICAL: Caption renders only if content exists, no empty gaps */}
-          {caption && caption.trim().length > 0 && author?.username && (
-            <View style={{ marginTop: 4 }}>
-              <PostCaption
-                username={author.username}
-                caption={caption}
-                fontSize={14}
-                onUsernamePress={handleProfilePress}
+          {caption && (
+            <View className="mt-1">
+              <HashtagText
+                text={`${author?.username || "Unknown User"} ${caption}`}
+                textStyle={{ fontSize: 14, color: colors.foreground }}
               />
             </View>
           )}
@@ -696,6 +759,14 @@ function FeedPostComponent({
           </Text>
         </View>
       </Article>
+
+      <PostActionSheet
+        visible={showActionSheet}
+        onClose={() => setShowActionSheet(false)}
+        isOwner={isOwner}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
     </Motion.View>
   );
 }

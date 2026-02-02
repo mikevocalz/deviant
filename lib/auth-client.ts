@@ -229,14 +229,23 @@ function syncUserToStore(
   }
 }
 
-// Wrapped sign in using Payload CMS auth
+// Wrapped sign in - use Better Auth explicit endpoint
 export const signIn = {
   email: async (params: { email: string; password: string }) => {
     console.log("[Auth] Starting login for:", params.email);
+    console.log("[Auth] Using Better Auth explicit endpoint");
     console.log("[Auth] BASE_URL:", BASE_URL);
+    console.log("[Auth] Request body:", JSON.stringify({
+      email: params.email,
+      password: params.password,
+    }));
+    
     try {
-      // Use Payload CMS login endpoint
-      const response = await fetch(`${BASE_URL}/api/users/login`, {
+      // Use explicit Better Auth endpoint (catch-all route doesn't work on Vercel)
+      const url = `${BASE_URL}/api/auth/sign-in-email`;
+      console.log("[Auth] Full URL:", url);
+      
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -245,38 +254,109 @@ export const signIn = {
         }),
       });
 
-      const data = await response.json();
+      console.log("[Auth] Response status:", response.status);
+      console.log("[Auth] Response ok:", response.ok);
+      console.log("[Auth] Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
+      
+      const responseText = await response.text();
+      console.log("[Auth] Raw response:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("[Auth] Failed to parse response as JSON:", e);
+        return { error: { message: "Invalid response from server" }, data: null };
+      }
+      
       console.log("[Auth] Login response:", JSON.stringify(data, null, 2));
 
       if (!response.ok) {
         const errorMsg =
-          data.errors?.[0]?.message || data.message || "Login failed";
+          data.errors?.[0]?.message || data.error || data.message || "Login failed";
         console.error("[Auth] Login error:", errorMsg);
         return { error: { message: errorMsg }, data: null };
       }
 
       if (data.user) {
         console.log("[Auth] User logged in:", data.user.id);
-        // Clear cached data from previous user before setting new user
-        clearAllCachedData();
-        syncUserToStore({
-          id: String(data.user.id),
-          email: data.user.email,
-          name: data.user.firstName || data.user.username,
-          username: data.user.username,
-          emailVerified: data.user.verified || false,
-          image: data.user.avatar,
-          bio: data.user.bio,
-          postsCount: data.user.postsCount,
-          followersCount: data.user.followersCount,
-          followingCount: data.user.followingCount,
-        });
-
-        // Store the JWT token
-        const storage = getStorage();
-        if (data.token) {
-          await storage.setItem("dvnt_auth_token", data.token);
+        
+        // Sync Better Auth user with Payload CMS user
+        try {
+          console.log("[Auth] Syncing with Payload CMS...");
+          const syncResponse = await fetch(`${BASE_URL}/api/users/sync-better-auth`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: data.user.email,
+              name: data.user.name,
+              username: data.user.username,
+              avatar: data.user.image,
+              betterAuthId: data.user.id,
+            }),
+          });
+          
+          if (syncResponse.ok) {
+            const syncData = await syncResponse.json();
+            console.log("[Auth] Sync successful, Payload user ID:", syncData.payloadUserId);
+            console.log("[Auth] Storing Payload JWT token");
+            
+            // Store the Payload JWT token (not Better Auth token)
+            const storage = getStorage();
+            if (syncData.payloadToken) {
+              await storage.setItem("dvnt_auth_token", syncData.payloadToken);
+            }
+            
+            // Use the Payload user data instead of Better Auth data
+            syncUserToStore({
+              id: String(syncData.payloadUserId), // Use Payload ID, not Better Auth ID
+              email: syncData.user.email,
+              name: syncData.user.name,
+              username: syncData.user.username,
+              emailVerified: data.user.emailVerified || false,
+              image: syncData.user.avatar,
+              bio: syncData.user.bio,
+              postsCount: syncData.user.postsCount,
+              followersCount: syncData.user.followersCount,
+              followingCount: syncData.user.followingCount,
+            });
+          } else {
+            const errorText = await syncResponse.text();
+            console.error("[Auth] Sync failed:", errorText);
+            // Fallback to Better Auth data
+            syncUserToStore({
+              id: String(data.user.id),
+              email: data.user.email,
+              name: data.user.firstName || data.user.username || data.user.name,
+              username: data.user.username,
+              emailVerified: data.user.verified || false,
+              image: data.user.avatar,
+              bio: data.user.bio,
+              postsCount: data.user.postsCount,
+              followersCount: data.user.followersCount,
+              followingCount: data.user.followingCount,
+            });
+          }
+        } catch (syncError) {
+          console.error("[Auth] Sync error:", syncError);
+          // Fallback to Better Auth data
+          syncUserToStore({
+            id: String(data.user.id),
+            email: data.user.email,
+            name: data.user.firstName || data.user.username || data.user.name,
+            username: data.user.username,
+            emailVerified: data.user.verified || false,
+            image: data.user.avatar,
+            bio: data.user.bio,
+            postsCount: data.user.postsCount,
+            followersCount: data.user.followersCount,
+            followingCount: data.user.followingCount,
+          });
         }
+
+        // Don't store Better Auth token - we already stored Payload token above
       }
 
       return { error: null, data: { user: data.user, token: data.token } };
@@ -299,7 +379,7 @@ export const signIn = {
   },
 };
 
-// Wrapped sign up using server registration endpoint
+// Wrapped sign up - use Better Auth explicit endpoint
 export const signUp = {
   email: async (params: {
     email: string;
@@ -309,64 +389,90 @@ export const signUp = {
     dateOfBirth?: string;
   }) => {
     console.log("[Auth] Starting signup for:", params.email);
-
-    // CRITICAL: Client-side age verification before sending to server
-    // This is a defense-in-depth measure - server also validates
-    if (params.dateOfBirth) {
-      const ageCheck = validateDateOfBirth(params.dateOfBirth);
-      if (!ageCheck.isValid || ageCheck.isOver18 === false) {
-        console.error("[Auth] BLOCKED: Underage user attempted signup");
-        return {
-          error: { message: UNDERAGE_ERROR_MESSAGE },
-          data: null,
-        };
-      }
-    }
-
+    console.log("[Auth] Using Better Auth explicit endpoint");
     try {
-      // Use server's public registration endpoint
-      const response = await fetch(`${BASE_URL}/api/register`, {
+      // Use explicit Better Auth endpoint
+      const response = await fetch(`${BASE_URL}/api/auth/sign-up-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: params.email,
           password: params.password,
+          name: params.name,
           username: params.username || params.email.split("@")[0],
           dateOfBirth: params.dateOfBirth, // Send DOB to server for validation
         }),
       });
 
       const data = await response.json();
-      console.log("[Auth] Signup response:", JSON.stringify(data, null, 2));
+      console.log("[Auth] Signup result:", data);
 
       if (!response.ok) {
-        const errorMsg =
-          data.error || data.errors?.[0]?.message || "Registration failed";
+        const errorMsg = data.error || data.message || "Registration failed";
         console.error("[Auth] Signup error:", errorMsg);
         return { error: { message: errorMsg }, data: null };
       }
 
       if (data.user) {
         console.log("[Auth] User created:", data.user.id);
-        // Clear cached data from previous user before setting new user
-        clearAllCachedData();
-        syncUserToStore({
-          id: String(data.user.id),
-          email: data.user.email,
-          name: params.name || data.user.username,
-          username: data.user.username,
-          emailVerified: data.user.verified || false,
-          image: data.user.avatar,
-        });
-
-        // Store the JWT token
-        const storage = getStorage();
-        if (data.token) {
-          await storage.setItem("dvnt_auth_token", data.token);
+        
+        // Sync Better Auth user with Payload CMS user
+        try {
+          console.log("[Auth] Syncing new user with Payload CMS...");
+          const syncResponse = await fetch(`${BASE_URL}/api/users/sync-better-auth`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email: data.user.email,
+              name: data.user.name,
+              username: data.user.username,
+              avatar: data.user.image,
+              betterAuthId: data.user.id,
+            }),
+          });
+          
+          if (syncResponse.ok) {
+            const syncData = await syncResponse.json();
+            console.log("[Auth] Sync successful, Payload user ID:", syncData.payloadUserId);
+            console.log("[Auth] Storing Payload JWT token");
+            
+            // Store the Payload JWT token (not Better Auth token)
+            const storage = getStorage();
+            if (syncData.payloadToken) {
+              await storage.setItem("dvnt_auth_token", syncData.payloadToken);
+            }
+            
+            // Use the Payload user data instead of Better Auth data
+            syncUserToStore({
+              id: String(syncData.payloadUserId), // Use Payload ID, not Better Auth ID
+              email: syncData.user.email,
+              name: syncData.user.name,
+              username: syncData.user.username,
+              emailVerified: data.user.emailVerified || false,
+              image: syncData.user.avatar,
+              bio: syncData.user.bio,
+              postsCount: syncData.user.postsCount,
+              followersCount: syncData.user.followersCount,
+              followingCount: syncData.user.followingCount,
+            });
+          } else {
+            const errorText = await syncResponse.text();
+            console.error("[Auth] Sync failed:", errorText);
+            // Fallback to Better Auth data
+            syncUserToStore(data.user);
+          }
+        } catch (syncError) {
+          console.error("[Auth] Sync error:", syncError);
+          // Fallback to Better Auth data
+          syncUserToStore(data.user);
         }
+        
+        return { error: null, data };
       }
 
-      return { error: null, data: { user: data.user, token: data.token } };
+      return { error: { message: "No user data returned" }, data: null };
     } catch (error: any) {
       console.error("[Auth] Signup exception:", error?.message || error);
       throw error;
@@ -376,44 +482,23 @@ export const signUp = {
 
 // Wrapped sign out that clears ALL user data and store
 export const signOut = async () => {
-  console.log("[Auth] === SIGNING OUT ===");
-
-  // CRITICAL: Clear ALL cached data FIRST before signing out
-  // This ensures no data leakage between users
-  clearAllCachedData();
-
-  // Also clear auth storage specifically
-  try {
-    const { clearAuthStorage } = require("@/lib/utils/storage");
-    clearAuthStorage();
-    console.log("[Auth] ✓ Auth storage cleared");
-  } catch (e) {
-    console.error("[Auth] ✗ Failed to clear auth storage:", e);
-  }
-
-  // Clear the JWT token from secure store
-  try {
-    const storage = getStorage();
-    await storage.deleteItem("dvnt_auth_token");
-    console.log("[Auth] ✓ JWT token cleared");
-  } catch (e) {
-    console.error("[Auth] ✗ Failed to clear JWT token:", e);
-  }
-
-  // Logout from auth store (sets user to null)
+  // Clear Better Auth session
+  const result = await rawSignOut();
+  
+  // Clear Zustand store
   const { logout } = useAuthStore.getState();
   logout();
-  console.log("[Auth] ✓ Auth store logged out");
-
-  // Finally call the raw signOut
+  
+  // Clear stored JWT token
   try {
-    const result = await rawSignOut();
-    console.log("[Auth] ✓ Raw signOut completed");
-    return result;
-  } catch (e) {
-    console.error("[Auth] ✗ Raw signOut error (non-fatal):", e);
-    return { error: null, data: null };
+    const storage = getStorage();
+    await storage.removeItem("dvnt_auth_token");
+    console.log("[Auth] Token cleared on logout");
+  } catch (error) {
+    console.error("[Auth] Failed to clear token:", error);
   }
+  
+  return result;
 };
 
 // Helper to get cookies for authenticated requests
@@ -421,13 +506,16 @@ export function getAuthCookies(): string | null {
   return authClient.getCookie();
 }
 
-// Helper to get auth token for authenticated requests
+// Get auth token from storage
 export async function getAuthToken(): Promise<string | null> {
   try {
     const storage = getStorage();
-    const token = await storage.getItem("dvnt_auth_token");
-    return token || null;
-  } catch {
+    if (Platform.OS === "web") {
+      return storage.getItem("dvnt_auth_token");
+    }
+    return await storage.getItem("dvnt_auth_token");
+  } catch (error) {
+    console.error("[Auth] Error getting auth token:", error);
     return null;
   }
 }

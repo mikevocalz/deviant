@@ -1,52 +1,65 @@
-import { posts, notifications, users } from "@/lib/api-client";
 import type { Post } from "@/lib/types";
-import { getPayloadBaseUrl } from "@/lib/api-config";
+import { Platform } from "react-native";
 
 const PAGE_SIZE = 10;
 
-const PAYLOAD_BASE_URL = getPayloadBaseUrl();
-
-// Ensure media URLs are absolute, defaulting to the configured Payload base
-function resolveMediaUrl(rawUrl: string): string | null {
-  if (!rawUrl) return null;
-  const trimmed = rawUrl.trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-    return trimmed;
-  }
-  if (trimmed.startsWith("/")) {
-    return `${PAYLOAD_BASE_URL}${trimmed}`;
-  }
-  return `${PAYLOAD_BASE_URL}/${trimmed}`;
-}
-
-// Extract avatar URL from various possible formats (upload field returns object with url)
-function extractAvatarUrl(avatar: unknown, fallbackName: string): string {
-  const fallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=3EA4E5&color=fff`;
-
-  if (!avatar) return fallback;
-
-  // If it's already a valid URL string
-  if (
-    typeof avatar === "string" &&
-    (avatar.startsWith("http://") || avatar.startsWith("https://"))
-  ) {
-    return avatar;
-  }
-
-  // If it's a media object with url property (from Payload upload field with depth)
-  if (typeof avatar === "object" && avatar !== null) {
-    const avatarObj = avatar as Record<string, unknown>;
-    if (avatarObj.url && typeof avatarObj.url === "string") {
-      return avatarObj.url;
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
     }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
   }
-
-  return fallback;
 }
 
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
+
+// Helper function to lookup user ID by username using Payload custom endpoint
+async function getUserIdByUsername(username: string): Promise<string | null> {
+  if (!username) return null;
+  
+  // Check cache first
+  if (userIdCache[username]) {
+    return userIdCache[username];
+  }
+  
+  try {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) return null;
+
+    const token = await getAuthToken();
+    
+    // Use custom profile endpoint (returns JSON)
+    const response = await fetch(
+      `${apiUrl}/api/users/${username}/profile`,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      }
+    );
+    
+    if (!response.ok) return null;
+    
+    const profile = await response.json();
+    if (profile && profile.id) {
+      const userId = String(profile.id);
+      userIdCache[username] = userId;
+      return userId;
+    }
+  } catch (error) {
+    console.error("[postsApi] getUserIdByUsername error:", error);
+  }
+  
+  return null;
+}
 
 // Extract @mentions from text
 function extractMentions(text: string): string[] {
@@ -196,40 +209,32 @@ function formatTimeAgo(dateString: string): string {
 
 // Real API functions
 export const postsApi = {
-  // Fetch feed posts using CUSTOM feed endpoint (includes likesCount, isLiked, isBookmarked)
+  // Fetch feed posts (use getFeedPostsPaginated instead for infinite scroll)
   async getFeedPosts(): Promise<Post[]> {
     try {
-      // CRITICAL: Use custom /api/posts/feed endpoint which includes:
-      // - likesCount from post document
-      // - isLiked (viewer's like state)
-      // - isBookmarked (viewer's bookmark state)
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+
+      // Use custom feed endpoint (returns JSON)
       const response = await fetch(
-        `${PAYLOAD_BASE_URL}/api/posts/feed?limit=20`,
+        `${apiUrl}/api/posts/feed?limit=20`,
         {
           headers: {
             "Content-Type": "application/json",
-            Cookie: (await import("@/lib/auth-client")).getAuthCookies() || "",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
           },
-          credentials: "include",
-        },
+        }
       );
 
       if (!response.ok) {
-        console.error("[postsApi] getFeedPosts error:", response.status);
+        console.error("[postsApi] getFeedPosts failed:", response.status);
         return [];
       }
 
-      const data = await response.json();
-
-      // Transform posts and include viewerHasLiked from isLiked field
-      return (data.docs || []).map((doc: any) => {
-        // CRITICAL: Map isLiked to viewerHasLiked for proper like state
-        const post = transformPost({
-          ...doc,
-          viewerHasLiked: doc.isLiked === true,
-        });
-        return post;
-      });
+      const result = await response.json();
+      return (result.docs || []).map(transformPost);
     } catch (error) {
       console.error("[postsApi] getFeedPosts error:", error);
       return [];
@@ -241,47 +246,46 @@ export const postsApi = {
     cursor: number = 0,
   ): Promise<PaginatedResponse<Post>> {
     try {
+      // Use Payload's custom /api/posts/feed endpoint (returns JSON)
       const page = Math.floor(cursor / PAGE_SIZE) + 1;
-
-      // CRITICAL: Use custom /api/posts/feed endpoint which includes:
-      // - likesCount from post document
-      // - isLiked (viewer's like state)
-      // - isBookmarked (viewer's bookmark state)
-      const response = await fetch(
-        `${PAYLOAD_BASE_URL}/api/posts/feed?limit=${PAGE_SIZE}&page=${page}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Cookie: (await import("@/lib/auth-client")).getAuthCookies() || "",
-          },
-          credentials: "include",
-        },
-      );
-
-      if (!response.ok) {
-        console.error(
-          "[postsApi] getFeedPostsPaginated error:",
-          response.status,
-        );
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      
+      if (!apiUrl) {
+        console.error("[postsApi] EXPO_PUBLIC_API_URL not configured");
         return { data: [], nextCursor: null, hasMore: false };
       }
 
-      const data = await response.json();
+      // Get auth token
+      const token = await getAuthToken();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
 
-      // Transform posts and include viewerHasLiked from isLiked field
-      const transformedPosts = (data.docs || []).map((doc: any) => {
-        // CRITICAL: Map isLiked to viewerHasLiked for proper like state
-        const post = transformPost({
-          ...doc,
-          viewerHasLiked: doc.isLiked === true,
-        });
-        return post;
-      });
+      const url = `${apiUrl}/api/posts/feed?page=${page}&limit=${PAGE_SIZE}`;
+      console.log("[postsApi] getFeedPostsPaginated fetching:", url);
+      
+      const response = await fetch(url, { headers });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log("[postsApi] getFeedPostsPaginated raw result:", JSON.stringify(result).substring(0, 500));
+      
+      const posts = (result.docs || []).map(transformPost);
+      console.log("[postsApi] getFeedPostsPaginated posts count:", posts.length);
+      if (posts.length > 0) {
+        console.log("[postsApi] First post ID:", posts[0].id, "caption:", posts[0].caption?.substring(0, 30));
+      }
 
       return {
-        data: transformedPosts,
-        nextCursor: data.hasNextPage ? cursor + PAGE_SIZE : null,
-        hasMore: data.hasNextPage,
+        data: (result.docs || []).map(transformPost),
+        nextCursor: result.hasNextPage ? cursor + PAGE_SIZE : null,
+        hasMore: result.hasNextPage || false,
       };
     } catch (error) {
       console.error("[postsApi] getFeedPostsPaginated error:", error);
@@ -289,115 +293,76 @@ export const postsApi = {
     }
   },
 
-  // Fetch profile posts
+  // Fetch profile posts (uses custom endpoint)
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
-      // CRITICAL: depth: 2 required to populate author.avatar (media object)
-      // CRITICAL: No date filtering - fetch ALL posts for this user
-      const response = await posts.find({
-        limit: 100, // Increased from 50 to ensure we get more posts
-        sort: "-createdAt",
-        where: { author: { equals: userId } },
-        depth: 2,
+      console.log("[postsApi] getProfilePosts called with userId:", userId);
+      
+      if (!userId || userId === "skip") return [];
+
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return [];
+
+      const token = await getAuthToken();
+      console.log("[postsApi] Has auth token:", !!token);
+
+      // Use custom profile posts endpoint (returns JSON)
+      const url = `${apiUrl}/api/users/${userId}/posts?limit=50`;
+      console.log("[postsApi] Fetching from URL:", url);
+      
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
       });
 
-      const transformedPosts = response.docs.map((doc) =>
-        transformPost(doc as Record<string, unknown>),
-      );
-
-      // DEV logging to verify API returns all posts and date range
-      if (__DEV__) {
-        const createdTimestamps = transformedPosts
-          .map((post) =>
-            post.createdAt ? new Date(post.createdAt).getTime() : NaN,
-          )
-          .filter((timestamp) => !Number.isNaN(timestamp));
-        const sortedTimestamps = [...createdTimestamps].sort((a, b) => a - b);
-        const oldest =
-          sortedTimestamps.length > 0
-            ? new Date(sortedTimestamps[0]).toISOString()
-            : null;
-        const newest =
-          sortedTimestamps.length > 0
-            ? new Date(
-                sortedTimestamps[sortedTimestamps.length - 1],
-              ).toISOString()
-            : null;
-        console.log("[postsApi] getProfilePosts:", {
-          userId: userId.slice(0, 8),
-          totalDocs: response.totalDocs,
-          returnedCount: transformedPosts.length,
-          oldestCreatedAt: oldest,
-          newestCreatedAt: newest,
-        });
+      console.log("[postsApi] Response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[postsApi] getProfilePosts failed:", response.status, errorText);
+        return [];
       }
 
-      return transformedPosts;
+      const result = await response.json();
+      console.log("[postsApi] Got posts count:", result.docs?.length || 0);
+      return (result.docs || []).map(transformPost);
     } catch (error) {
       console.error("[postsApi] getProfilePosts error:", error);
       throw error;
     }
   },
 
-  // Fetch single post by ID
-  // CRITICAL: Throws on error instead of returning null
-  // This allows React Query to properly distinguish loading/error/success states
-  async getPostById(id: string): Promise<Post> {
-    if (!id) {
-      throw new Error("Post ID is required");
-    }
-
-    console.log("[postsApi] getPostById called with id:", id);
-
+  // Fetch single post by ID (uses custom endpoint)
+  async getPostById(id: string): Promise<Post | null> {
     try {
-      // Use depth=3 to ensure nested media relationships are fully populated
-      const doc = await posts.findByID(id, 3);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) return null;
 
-      if (!doc || !doc.id) {
-        console.error(
-          "[postsApi] getPostById: No document returned for id:",
-          id,
-        );
-        throw new Error("Post not found");
-      }
+      const token = await getAuthToken();
 
-      // Log raw media structure for debugging video issues
-      const rawMedia = (doc as Record<string, unknown>).media;
-      console.log("[postsApi] getPostById raw response:", {
-        id: doc.id,
-        hasMedia: !!rawMedia,
-        mediaType: Array.isArray(rawMedia) ? "array" : typeof rawMedia,
-        mediaCount: Array.isArray(rawMedia) ? rawMedia.length : 0,
-        mediaStructure:
-          Array.isArray(rawMedia) && rawMedia.length > 0
-            ? JSON.stringify(rawMedia[0]).slice(0, 200)
-            : "empty",
-      });
-
-      const post = transformPost(doc as Record<string, unknown>);
-      console.log("[postsApi] getPostById success:", {
-        id: post.id,
-        hasMedia: !!post.media?.length,
-        mediaTypes: post.media?.map((m) => m.type),
-      });
-      return post;
-    } catch (error: any) {
-      console.error(
-        "[postsApi] getPostById error for id:",
-        id,
-        error?.message || error,
+      // Use custom post endpoint (returns JSON)
+      const response = await fetch(
+        `${apiUrl}/api/posts/${id}`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
       );
 
-      // Re-throw with proper error message
-      if (error?.status === 404) {
-        throw new Error("Post not found");
-      } else if (error?.status === 403) {
-        throw new Error("You don't have permission to view this post");
-      } else if (error?.message) {
-        throw error;
-      } else {
-        throw new Error("Failed to load post");
+      if (!response.ok) {
+        console.error("[postsApi] getPostById failed:", response.status);
+        return null;
       }
+
+      const doc = await response.json();
+      return transformPost(doc as Record<string, unknown>);
+    } catch (error) {
+      console.error("[postsApi] getPostById error:", error);
+      return null;
     }
   },
 
@@ -450,70 +415,53 @@ export const postsApi = {
           authorId = userIdCache[data.authorUsername];
           console.log("[postsApi] Using cached author ID:", authorId);
         } else {
-          // Look up user in Payload CMS
-          try {
-            const userResult = await users.find({
-              where: { username: { equals: data.authorUsername } },
-              limit: 1,
-            });
-
-            if (userResult.docs && userResult.docs.length > 0) {
-              authorId = (userResult.docs[0] as { id: string }).id;
-              userIdCache[data.authorUsername] = authorId;
-              console.log("[postsApi] Found author ID:", authorId);
-            } else {
-              console.warn(
-                "[postsApi] User not found in CMS:",
-                data.authorUsername,
-              );
-            }
-          } catch (lookupError) {
-            console.error("[postsApi] User lookup error:", lookupError);
+          // Look up user via custom profile endpoint
+          authorId = await getUserIdByUsername(data.authorUsername) || undefined;
+          if (authorId) {
+            console.log("[postsApi] Found author ID:", authorId);
+          } else {
+            console.warn("[postsApi] User not found in CMS:", data.authorUsername);
           }
         }
       }
+      
+      // Create post via custom endpoint
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
 
-      // Log media with thumbnails for debugging
-      if (data.media && data.media.length > 0) {
-        console.log(
-          "[postsApi] Creating post with media:",
-          data.media.map((m) => ({
-            type: m.type,
-            url: m.url?.substring(0, 50),
-            hasThumbnail: !!m.thumbnail,
-            thumbnail: m.thumbnail?.substring(0, 50),
-          })),
-        );
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/posts`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: data.caption,
+            caption: data.caption,
+            location: data.location,
+            media: data.media || [],
+            isNSFW: data.isNSFW || false,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to create post: ${response.status}`);
       }
 
-      const doc = await posts.create({
-        author: authorId, // Use the looked-up Payload CMS user ID
-        content: data.caption,
-        caption: data.caption,
-        location: data.location,
-        media: data.media || [],
-        isNSFW: data.isNSFW || false,
-      });
+      const doc = await response.json();
       console.log("[postsApi] createPost success:", JSON.stringify(doc));
 
       const newPost = transformPost(doc as Record<string, unknown>);
-
-      // Extract mentions and send notifications
-      if (data.caption && data.authorUsername) {
-        const mentions = extractMentions(data.caption);
-        console.log("[postsApi] Extracted mentions:", mentions);
-
-        // Send notification to each mentioned user (except self)
-        // NOTE: Mention notifications are now created server-side in Payload hooks
-        // when posts are created. No client-side notification creation needed.
-        if (mentions.length > 0) {
-          console.log(
-            "[postsApi] Post created with mentions, notifications handled server-side:",
-            mentions,
-          );
-        }
-      }
-
+      
+      // Note: Mentions notifications should be handled server-side in Payload endpoint
+      // If needed, you can add a separate notification endpoint call here
+      
       return newPost;
     } catch (error: any) {
       console.error("[postsApi] createPost error:", error);
@@ -523,10 +471,30 @@ export const postsApi = {
     }
   },
 
-  // Delete a post
+  // Delete a post (uses custom endpoint)
   async deletePost(postId: string): Promise<string> {
     try {
-      await posts.delete(postId);
+      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiUrl) throw new Error("API URL not configured");
+
+      const token = await getAuthToken();
+
+      const response = await fetch(
+        `${apiUrl}/api/posts/${postId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to delete post: ${response.status}`);
+      }
+
       return postId;
     } catch (error) {
       console.error("[postsApi] deletePost error:", error);

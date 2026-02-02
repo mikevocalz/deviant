@@ -185,22 +185,15 @@ export async function uploadToBunny(
   onProgress?: (progress: UploadProgress) => void,
   userId?: string,
 ): Promise<UploadResult> {
-  const BUNDLE_VERSION = "v8-filesystem-upload";
-  console.log("[Bunny] =========================================");
-  console.log("[Bunny] Starting upload (", BUNDLE_VERSION, ")");
-  console.log("[Bunny] Platform:", Platform.OS);
-  console.log("[Bunny] URI:", uri.substring(0, 100));
-  console.log("[Bunny] Folder:", folder);
-  console.log("[Bunny] UserId:", userId || "none");
+  console.log("[Bunny] uploadToBunny called", { uri, folder, userId });
+  console.log("[Bunny] Config:", {
+    zone: BUNNY_STORAGE_ZONE ? "SET" : "MISSING",
+    apiKey: BUNNY_STORAGE_API_KEY ? `${BUNNY_STORAGE_API_KEY.substring(0, 8)}...` : "MISSING",
+    region: BUNNY_STORAGE_REGION,
+  });
 
-  // Check configuration
   if (!BUNNY_STORAGE_ZONE || !BUNNY_STORAGE_API_KEY) {
-    console.error(
-      "[Bunny] Missing config - zone:",
-      !!BUNNY_STORAGE_ZONE,
-      "key:",
-      !!BUNNY_STORAGE_API_KEY,
-    );
+    console.error("[Bunny] Storage not configured!");
     return {
       success: false,
       url: "",
@@ -226,10 +219,17 @@ export async function uploadToBunny(
     // Bunny Storage API endpoint
     const endpoint = getStorageEndpoint();
     const uploadUrl = `https://${endpoint}/${BUNNY_STORAGE_ZONE}/${path}`;
-
+    
     console.log("[Bunny] Upload URL:", uploadUrl);
-    console.log("[Bunny] Filename:", filename);
+    console.log("[Bunny] Endpoint:", endpoint);
     console.log("[Bunny] Path:", path);
+
+    // Read file as blob
+    console.log("[Bunny] Reading file as blob...");
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    const totalSize = blob.size;
+    console.log("[Bunny] Blob size:", totalSize, "bytes");
 
     // Ensure file is accessible (copy ph:// or content:// to cache if needed)
     let accessibleUri: string;
@@ -253,9 +253,38 @@ export async function uploadToBunny(
       fileInfo = await FileSystem.getInfoAsync(accessibleUri);
       console.log("[Bunny] File info:", JSON.stringify(fileInfo));
 
-      if (!fileInfo.exists) {
-        console.error("[Bunny] File does not exist:", accessibleUri);
-        return {
+      xhr.addEventListener("load", () => {
+        console.log("[Bunny] Upload complete, status:", xhr.status);
+        console.log("[Bunny] Response:", xhr.responseText?.substring(0, 200));
+        
+        if (xhr.status === 201 || xhr.status === 200) {
+          // Construct CDN URL
+          const cdnUrl = BUNNY_CDN_URL
+            ? `${BUNNY_CDN_URL}/${path}`
+            : `https://${BUNNY_STORAGE_ZONE}.b-cdn.net/${path}`;
+
+          resolve({
+            success: true,
+            url: cdnUrl,
+            path,
+            filename,
+          });
+        } else {
+          resolve({
+            success: false,
+            url: "",
+            path: "",
+            filename: "",
+            error: `Upload failed: ${xhr.status} - ${xhr.responseText}`,
+          });
+        }
+      });
+
+      xhr.addEventListener("error", () => {
+        console.error("[Bunny] Upload network error");
+        console.error("[Bunny] XHR status:", xhr.status);
+        console.error("[Bunny] XHR response:", xhr.responseText);
+        resolve({
           success: false,
           url: "",
           path: "",
@@ -268,112 +297,12 @@ export async function uploadToBunny(
       // Continue anyway - some URIs may not report info correctly but still work
     }
 
-    // Report initial progress
-    onProgress?.({ loaded: 0, total: 100, percentage: 0 });
-
-    // Method 1: FileSystem.uploadAsync (native, most reliable for React Native)
-    console.log("[Bunny] Method 1: Using FileSystem.uploadAsync...");
-    let uploadSuccess = false;
-    let uploadError = "";
-
-    try {
-      const uploadResult = await FileSystem.uploadAsync(
-        uploadUrl,
-        accessibleUri,
-        {
-          httpMethod: "PUT",
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: {
-            AccessKey: BUNNY_STORAGE_API_KEY,
-            "Content-Type": "application/octet-stream",
-          },
-        },
-      );
-
-      console.log("[Bunny] Upload response status:", uploadResult.status);
-      console.log(
-        "[Bunny] Upload response body:",
-        uploadResult.body?.substring(0, 200),
-      );
-
-      if (uploadResult.status === 201 || uploadResult.status === 200) {
-        uploadSuccess = true;
-        onProgress?.({ loaded: 100, total: 100, percentage: 100 });
-      } else {
-        uploadError = `Upload failed with status ${uploadResult.status}: ${uploadResult.body}`;
-        console.error("[Bunny] Upload failed:", uploadError);
-      }
-    } catch (nativeError) {
-      console.error("[Bunny] Method 1 failed:", nativeError);
-      uploadError =
-        nativeError instanceof Error
-          ? nativeError.message
-          : String(nativeError);
-
-      // Method 2: Fallback to base64 + fetch (works on some platforms)
-      console.log("[Bunny] Method 2: Falling back to base64+fetch...");
-      try {
-        const base64 = await FileSystem.readAsStringAsync(accessibleUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        console.log("[Bunny] Base64 length:", base64.length);
-
-        // Convert base64 to binary
-        const binaryString = atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-
-        const fetchResponse = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            AccessKey: BUNNY_STORAGE_API_KEY,
-            "Content-Type": "application/octet-stream",
-          },
-          body: bytes,
-        });
-
-        console.log("[Bunny] Fetch response status:", fetchResponse.status);
-
-        if (fetchResponse.status === 201 || fetchResponse.status === 200) {
-          uploadSuccess = true;
-          onProgress?.({ loaded: 100, total: 100, percentage: 100 });
-        } else {
-          const responseText = await fetchResponse.text();
-          uploadError = `Fetch upload failed: ${fetchResponse.status} - ${responseText}`;
-          console.error("[Bunny] Fetch upload failed:", uploadError);
-        }
-      } catch (fetchError) {
-        console.error("[Bunny] Method 2 also failed:", fetchError);
-        uploadError = `Both upload methods failed. Native: ${uploadError}, Fetch: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`;
-      }
-    }
-
-    if (uploadSuccess) {
-      // Construct CDN URL
-      const cdnUrl = BUNNY_CDN_URL
-        ? `${BUNNY_CDN_URL}/${path}`
-        : `https://${BUNNY_STORAGE_ZONE}.b-cdn.net/${path}`;
-
-      console.log("[Bunny] ✓ Upload SUCCESS! CDN URL:", cdnUrl);
-      return {
-        success: true,
-        url: cdnUrl,
-        path,
-        filename,
-      };
-    } else {
-      console.error("[Bunny] ✗ Upload FAILED:", uploadError);
-      return {
-        success: false,
-        url: "",
-        path: "",
-        filename: "",
-        error: uploadError || "Upload failed",
-      };
-    }
+      xhr.open("PUT", uploadUrl);
+      xhr.setRequestHeader("AccessKey", BUNNY_STORAGE_API_KEY);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      console.log("[Bunny] Starting XHR upload...");
+      xhr.send(blob);
+    });
   } catch (error) {
     console.error("[Bunny] Unexpected error:", error);
     return {

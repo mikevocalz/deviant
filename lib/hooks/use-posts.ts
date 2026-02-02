@@ -4,8 +4,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { debounce } from "@tanstack/pacer";
-import { postsApi } from "@/lib/api/posts";
+import { postsApi } from "@/lib/api/supabase-posts";
 import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
 
@@ -294,12 +293,28 @@ export function useCreatePost() {
                 ...firstPage,
                 data: [optimisticPost, ...firstPage.data],
               },
-              ...old.pages.slice(1),
-            ],
-          };
-        }
-        return old;
-      });
+              media: (newPostData.media || []) as Array<{ type: "image" | "video"; url: string }>,
+              caption: newPostData.caption || "",
+              likes: 0,
+              comments: [],
+              timeAgo: "Just now",
+              location: newPostData.location,
+              isNSFW: newPostData.isNSFW || false,
+            };
+            return {
+              ...old,
+              pages: [
+                {
+                  ...firstPage,
+                  data: [optimisticPost, ...firstPage.data],
+                },
+                ...old.pages.slice(1),
+              ],
+            };
+          }
+          return old;
+        },
+      );
 
       // Also update legacy feed query if it exists
       queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
@@ -311,10 +326,7 @@ export function useCreatePost() {
             avatar: "",
             verified: false,
           },
-          media: (newPostData.media || []).map((m) => ({
-            ...m,
-            type: m.type as "image" | "video",
-          })),
+          media: (newPostData.media || []) as Array<{ type: "image" | "video"; url: string }>,
           caption: newPostData.caption || "",
           likes: 0,
           comments: [],

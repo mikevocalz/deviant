@@ -1,24 +1,16 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  Keyboard,
-  Platform,
-} from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Send } from "lucide-react-native";
-import { useEffect } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useReplies, useCreateComment } from "@/lib/hooks/use-comments";
-import { useCommentsStore } from "@/lib/stores/comments-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { useUIStore } from "@/lib/stores/ui-store";
-import type { Comment } from "@/lib/api/comments";
-import { UserAvatar } from "@/components/ui/avatar";
-import { CommentLikeButton } from "@/components/comments/threaded-comment";
+
+import { View, Text, TextInput, Pressable, ScrollView, Keyboard, Platform } from "react-native"
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
+import { useLocalSearchParams, useRouter } from "expo-router"
+import { Image } from "expo-image"
+import { ArrowLeft, Send, Heart } from "lucide-react-native"
+import { useEffect } from "react"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
+import { useReplies, useCreateComment } from "@/lib/hooks/use-comments"
+import { useCommentsStore } from "@/lib/stores/comments-store"
+import { useAuthStore } from "@/lib/stores/auth-store"
+import { useUIStore } from "@/lib/stores/ui-store"
+import type { Comment } from "@/lib/types"
 
 export const unstable_settings = {
   options: {

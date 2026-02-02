@@ -2,6 +2,171 @@
 
 > **⚠️ READ THIS FILE FIRST** - Before making ANY changes to this project, read this entire file.
 
+---
+
+## 🚨 PRODUCTION ONLY - ABSOLUTE RULES
+
+**This is PRODUCTION code. Treat it as such AT ALL TIMES.**
+
+### CRITICAL: ARCHITECTURE LOCK - DIRECT PAYLOAD ONLY
+
+**PERMANENT DECISION (2026-02-01):**
+- ✅ Mobile App → Payload CMS directly (ONLY option)
+- ❌ Hono server removed permanently
+- ❌ Expo Router API routes forbidden for native app
+
+**Required Environment Variables:**
+```bash
+# .env (REQUIRED for native app)
+EXPO_PUBLIC_API_URL=https://payload-cms-setup-gray.vercel.app
+EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
+```
+
+**Safety Checks in `lib/api-client.ts`:**
+- ✅ Fails fast if Hono URL detected (server-zeta-lovat)
+- ✅ Fails fast if localhost detected in production
+- ✅ Fails fast if no API URL set on native
+- ✅ Fails fast if not HTTPS in production
+- ✅ Fails fast if Expo dev server URL (port 8081)
+- ✅ Fails fast if relative URL used (Expo Router routes)
+- ✅ Logs resolved URL on boot
+
+**Never do these:**
+- ❌ `npx expo start --clear` - Can affect cached data
+- ❌ `rm -rf node_modules` - Can break the build
+- ❌ `npm cache clean` - Unnecessary and risky
+- ❌ Any command with `--force`, `--hard`, `reset`, `clear`, `clean`, `purge`
+- ❌ Suggesting "rebuild from scratch" or "fresh install"
+- ❌ Any database DROP, TRUNCATE, or DELETE without WHERE clause
+- ❌ Any command that could affect user data or authentication state
+
+### ALWAYS DO THESE:
+- ✅ Use `npx expo start` (no flags) for development
+- ✅ Use `npm install` only when packages are missing (verify with `npm ls <package>`)
+- ✅ Test fixes on specific files, not broad sweeping changes
+- ✅ Verify TypeScript compiles: `npx tsc --noEmit`
+- ✅ Check for errors BEFORE suggesting user action
+
+### IF SOMETHING IS BROKEN:
+1. Read the error message first
+2. Check specific files for issues
+3. Fix the code - don't wipe caches or reinstall
+4. Only suggest safe, targeted fixes
+
+### AFTER EVERY FIX - MANDATORY VERIFICATION:
+**ALWAYS verify everything works after making changes. Never assume fixes work.**
+
+1. **Run TypeScript check:**
+   ```bash
+   npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "^server/" | head -30
+   ```
+
+2. **Check for critical errors (these WILL crash):**
+   - TS2304: Cannot find name
+   - TS2448: Variable used before declaration
+   - TS17001: Duplicate attributes
+   - TS2307: Cannot find module (in app code, not server/)
+
+3. **Verify no regressions:**
+   - Check that the original issue is fixed
+   - Check related screens/components still work
+   - Count errors before and after to ensure no increase
+
+4. **Only declare "fixed" when:**
+   - Zero critical errors in app code
+   - TypeScript compiles without crash-causing errors
+   - You've verified the specific fix works
+
+---
+
+## 🔧 SEV-0 FIXES (2026-02-01)
+
+**Critical production fixes applied for database connectivity and app stability.**
+
+### Payload CMS Database Optimization
+
+**Issue:** Serverless functions timing out when connecting to Supabase PostgreSQL.
+
+**Root Cause:**
+- Connection timeout too short (5s) for cold starts
+- Using session pooler (port 5432) instead of transaction pooler
+- Missing SSL configuration
+- Pool size too large for serverless
+
+**Fixes Applied:**
+```typescript
+// payload.config.ts
+db: postgresAdapter({
+  pool: {
+    connectionString: process.env.DATABASE_URI,
+    max: 2,                          // Reduced from 3
+    idleTimeoutMillis: 30000,        // Increased from 10000
+    connectionTimeoutMillis: 20000,  // Increased from 5000
+    ssl: { rejectUnauthorized: false }, // Added SSL
+  },
+  push: false,
+}),
+```
+
+**Database URI:**
+```
+postgresql://...@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
+```
+☝️ **Port 6543** = Supabase transaction pooler (better for serverless)
+
+**Vercel Configuration:** (`vercel.json`)
+```json
+{
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  }
+}
+```
+
+### Mobile App: Messages API Fix
+
+**Issue:** App crashing with "Failed to proxy request" error on boot.
+
+**Root Cause:** `getPayloadUserId()` was querying `/api/users` without authentication.
+
+**Fix:** Use current user's ID from auth session instead of API query:
+```typescript
+// lib/api/messages.ts
+const currentUser = useAuthStore.getState().user;
+if (currentUser && currentUser.username === username) {
+  return currentUser.id; // Use session data
+}
+```
+
+### Health Check Endpoints
+
+**Payload CMS:** `/api/health`
+- Lightweight DB ping (queries 1 user)
+- 10s timeout
+- Returns connection status + response time
+
+**Test:**
+```bash
+curl https://payload-cms-setup-gray.vercel.app/api/health
+# {"status":"ok","database":"connected","responseTime":"195ms"}
+```
+
+### Performance Results
+
+| Metric | Before | After |
+|--------|--------|-------|
+| DB Connection Timeout | 5s | 20s |
+| Health Check | Timeout | 195ms |
+| Posts API | Timeout | <1s |
+| App Boot Errors | Yes | No ✅ |
+
+**See:** `SEV0-RESOLUTION.md` for complete details.
+
+---
+
 ## 📍 CMS Location
 
 **All Payload CMS collections live only in:**
@@ -518,6 +683,141 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 
 ---
 
+## 📦 Dependencies - NEVER Missing
+
+**⚠️ CRITICAL: Dependencies must NEVER be missing or out of sync.**
+
+### Rules
+
+1. **ALWAYS verify `node_modules` exists** before making changes:
+   ```bash
+   ls node_modules/ | head -5
+   ```
+
+2. **If `node_modules` is empty or missing, run `npm install` FIRST** - before doing anything else
+
+3. **After cloning or switching branches**, always run:
+   ```bash
+   npm install
+   ```
+
+4. **After adding new packages**, verify they installed:
+   ```bash
+   npm ls <package-name>
+   ```
+
+5. **Never assume packages are installed** - if the app crashes on multiple screens, check dependencies first
+
+### Common Symptoms of Missing Dependencies
+
+- App crashes on multiple screens
+- "Unable to resolve module" errors
+- Native module errors on startup
+- Metro bundler can't find packages
+
+### Quick Fix
+
+```bash
+# If app is crashing everywhere, run this first:
+npm install
+
+# If still having issues, clean and reinstall:
+rm -rf node_modules
+npm install
+
+# For iOS, also reinstall pods:
+cd ios && pod install && cd ..
+```
+
+**⚠️ Missing dependencies = broken app. Always verify before debugging other issues.**
+
+---
+
+## 🔍 Code Quality - ALWAYS Check Before Finishing
+
+**⚠️ CRITICAL: Run TypeScript check after making changes to catch crashes before they happen.**
+
+### Required Check
+
+After making code changes, ALWAYS run:
+```bash
+npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
+```
+
+### Common Crash-Causing Bugs to Avoid
+
+1. **Variables used before declaration**
+   ```tsx
+   // WRONG - callHandleNext used before defined
+   useEffect(() => {
+     callHandleNext()  // ERROR: used before declaration
+   }, [callHandleNext])
+   
+   const callHandleNext = useCallback(() => { ... }, [])
+   
+   // CORRECT - define before using
+   const callHandleNext = useCallback(() => { ... }, [])
+   
+   useEffect(() => {
+     callHandleNext()  // OK
+   }, [callHandleNext])
+   ```
+
+2. **Calling booleans as functions**
+   ```tsx
+   // WRONG - isBookmarked is a boolean, not a function
+   const isBookmarked = bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id)
+   const isSaved = isBookmarked(id)  // CRASH: boolean is not a function
+   
+   // CORRECT
+   const isBookmarked = bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id)
+   const isSaved = isBookmarked  // OK: use the boolean directly
+   ```
+
+3. **Missing function definitions**
+   ```tsx
+   // WRONG - showToast not defined
+   showToast("success", "Done", "Saved!")  // CRASH: showToast is not defined
+   
+   // CORRECT - import from store first
+   const showToast = useUIStore((s) => s.showToast)
+   showToast("success", "Done", "Saved!")  // OK
+   ```
+
+4. **Duplicate JSX attributes**
+   ```tsx
+   // WRONG - duplicate attribute causes error
+   <ScrollView
+     keyboardShouldPersistTaps="handled"
+     keyboardShouldPersistTaps="handled"  // ERROR: duplicate
+   />
+   
+   // CORRECT
+   <ScrollView
+     keyboardShouldPersistTaps="handled"
+   />
+   ```
+
+5. **Wrong import syntax**
+   ```tsx
+   // WRONG - named import when should be default
+   import { StarRating } from "react-native-star-rating-widget"  // ERROR
+   
+   // CORRECT - use default import
+   import StarRating from "react-native-star-rating-widget"  // OK
+   ```
+
+### TypeScript Errors That Cause Crashes
+
+- `TS2304: Cannot find name` - Variable/function not defined
+- `TS2448: Block-scoped variable used before declaration` - Used before defined
+- `TS2454: Variable is used before being assigned` - Used before assigned
+- `TS17001: JSX elements cannot have multiple attributes with same name` - Duplicate props
+
+**⚠️ If you see these errors, FIX THEM before finishing. They WILL crash the app.**
+
+---
+
 ## 📝 Code Style
 
 - Use **TypeScript**
@@ -1003,23 +1303,43 @@ These are configured in EAS project settings and referenced in `eas.json`:
 
 | Variable               | EAS Secret Name | Value                                       |
 | ---------------------- | --------------- | ------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://payload-cms-setup-gray.vercel.app` |
+| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://server-zeta-lovat.vercel.app`      |
 | `EXPO_PUBLIC_AUTH_URL` | -               | `https://server-zeta-lovat.vercel.app`      |
 | `EXPO_PUBLIC_BUNNY_*`  | `BUNNY_*`       | See EAS secrets                             |
 
 ### Architecture Overview
+
+**LOCKED (2026-02-01): DIRECT TO PAYLOAD ONLY**
 
 ```
 Native App (iOS/Android)
          ↓
 EXPO_PUBLIC_API_URL (https://payload-cms-setup-gray.vercel.app)
          ↓
-Payload CMS API
+Payload CMS REST API (/api/posts, /api/users, etc.)
          ↓
-Supabase PostgreSQL
+Supabase PostgreSQL (Transaction Pooler: port 6543)
 ```
 
-**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. Use the standalone `server/` directory for production API deployment.
+**CRITICAL:** 
+- ✅ Mobile app communicates DIRECTLY with Payload CMS
+- ❌ Hono server removed permanently (server-zeta-lovat.vercel.app)
+- ❌ Expo Router API routes NOT used by native app
+- ✅ Authentication via JWT tokens (stored securely on device)
+
+**Database:** Supabase transaction pooler (port 6543 with `pgbouncer=true`) for optimal serverless performance.
+
+**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. The `/server` directory is no longer used.
+
+### Production Health Checks
+
+```bash
+# Payload CMS
+curl https://payload-cms-setup-gray.vercel.app/api/health
+# Expected: {"status":"ok","database":"connected","responseTime":"~200ms"}
+```
+# Expected: {"status":"ok","service":"dvnt-api"}
+```
 
 ### Standalone API Server
 

@@ -135,11 +135,13 @@ export async function savePushTokenToBackend(
   username?: string,
 ): Promise<boolean> {
   try {
-    // CRITICAL: Use canonical API URL - NEVER relative URLs on mobile
-    const { getApiBaseUrl } = await import("@/lib/api-config");
-    const API_BASE_URL = getApiBaseUrl();
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    if (!apiUrl) {
+      console.error("[Notifications] EXPO_PUBLIC_API_URL not configured");
+      return false;
+    }
 
-    const response = await fetch(`${API_BASE_URL}/api/push-token`, {
+    const response = await fetch(`${apiUrl}/api/push-token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

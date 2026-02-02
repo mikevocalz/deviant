@@ -8,7 +8,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { users } from "@/lib/api-client";
+import { followsApi } from "@/lib/api/supabase-follows";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -36,7 +36,8 @@ export function useFollow() {
       action: "follow" | "unfollow";
       username?: string;
     }) => {
-      return await users.follow(userId, action);
+      const isFollowing = action === "unfollow";
+      return await followsApi.toggleFollow(userId, isFollowing);
     },
     // Optimistic update - instant UI feedback
     onMutate: async ({ userId, action, username }) => {

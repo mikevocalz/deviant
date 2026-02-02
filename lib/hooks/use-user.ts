@@ -6,35 +6,54 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { users } from "@/lib/api-client";
+import { Platform } from "react-native";
+
+// Get JWT token from storage
+async function getAuthToken(): Promise<string | null> {
+  try {
+    if (Platform.OS === "web") {
+      if (typeof window === "undefined") return null;
+      return localStorage.getItem("dvnt_auth_token");
+    }
+    const SecureStore = require("expo-secure-store");
+    return await SecureStore.getItemAsync("dvnt_auth_token");
+  } catch {
+    return null;
+  }
+}
 
 export function useUser(username: string | null | undefined) {
   return useQuery({
     queryKey: ["users", "username", username],
     queryFn: async () => {
       if (!username) return null;
-
-      // First find the user by username to get their ID
-      const user = await users.findByUsername(username, 1);
-      if (!user || !user.id) return null;
-
-      // Then fetch their full profile with computed counts (followersCount, etc)
+      
       try {
-        const profile = await users.getProfile(String(user.id));
-        // Merge basic user data with profile data
-        return {
-          ...user,
-          ...profile,
-          // Ensure we have the username from the original query
-          username: user.username || profile.username,
-        };
-      } catch (profileError) {
-        console.warn(
-          "[useUser] Profile fetch failed, using basic user data:",
-          profileError,
+        const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+        if (!apiUrl) return null;
+
+        const token = await getAuthToken();
+
+        // Use custom profile endpoint (returns JSON)
+        const response = await fetch(
+          `${apiUrl}/api/users/${username}/profile`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+            },
+          }
         );
-        // Fall back to basic user data if profile endpoint fails
-        return user;
+
+        if (!response.ok) {
+          console.error("[useUser] Profile fetch failed:", response.status);
+          return null;
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error("[useUser] Error:", error);
+        return null;
       }
     },
     enabled: !!username,

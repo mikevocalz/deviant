@@ -9,6 +9,7 @@ import {
   MessageCircle,
   Share2,
   Bookmark,
+  MoreHorizontal,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
@@ -29,9 +30,11 @@ import {
 } from "@/lib/video-lifecycle";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
-import { PostCaption } from "@/components/post-caption";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { PostActionSheet } from "@/components/post-action-sheet";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { postsApi } from "@/lib/api/supabase-posts";
+import { Alert } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for portrait-friendly display
@@ -52,19 +55,27 @@ function PostDetailScreenContent() {
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
-
-  // CENTRALIZED: Like state from single source of truth
-  // CRITICAL: Use viewerHasLiked from API response, NOT hardcoded false
-  const initialLikes = post?.likes || 0;
-  const initialHasLiked = post?.viewerHasLiked || false;
-  const {
-    hasLiked,
-    likesCount,
-    toggle: toggleLike,
-    isPending: isLikePending,
-  } = usePostLikeState(postId, initialLikes, initialHasLiked, post?.author?.id);
-
-  // STABILIZED: Bookmark state comes from server ONLY via React Query
+  const likePostMutation = useLikePost();
+  const likeCommentMutation = useLikeComment();
+  const currentUser = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
+  const showActionSheet = useUIStore((state) => state.showActionSheet);
+  const setShowActionSheet = useUIStore((state) => state.setShowActionSheet);
+  
+  const isOwner = currentUser?.username === post?.author?.username;
+  
+  // Sync bookmarks from API to local store
+  useEffect(() => {
+    if (bookmarkedPostIds.length > 0 && postId) {
+      const isBookmarkedInAPI = bookmarkedPostIds.includes(postId);
+      const isBookmarkedLocally = bookmarkStore.isBookmarked(postId);
+      
+      if (isBookmarkedInAPI !== isBookmarkedLocally) {
+        bookmarkStore.toggleBookmark(postId);
+      }
+    }
+  }, [postId, bookmarkedPostIds, bookmarkStore]);
+  
   const isBookmarked = useMemo(() => {
     return bookmarkedPostIds.includes(postId);
   }, [postId, bookmarkedPostIds]);
@@ -256,12 +267,10 @@ function PostDetailScreenContent() {
     post?.media && Array.isArray(post.media) && post.media.length > 0;
   const hasMultipleMedia = hasMedia && post.media.length > 1 && !isVideo;
   const postIdString = post?.id ? String(post.id) : postId;
-  const isLiked = hasLiked;
-  const isSaved = isBookmarked;
-
-  // CENTRALIZED: Like count from single source of truth
-  const likeCount = likesCount;
-  const commentCount = comments.length;
+  const isLiked = postIdString ? isPostLiked(postIdString) : false;
+  const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
+  const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
+  const commentCount = postIdString ? getCommentCount(postIdString, comments.length) : 0;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -497,27 +506,15 @@ function PostDetailScreenContent() {
             <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
               {likeCount.toLocaleString()} likes
             </Text>
-            {/* CRITICAL: Caption renders only if content exists, no empty gaps */}
-            {post.caption &&
-              post.caption.trim().length > 0 &&
-              post.author?.username && (
-                <View style={{ marginTop: 8 }}>
-                  <PostCaption
-                    username={post.author.username}
-                    caption={post.caption}
-                    fontSize={16}
-                    onUsernamePress={handleProfilePress}
-                  />
-                </View>
-              )}
-            <Text
-              style={{
-                marginTop: 8,
-                fontSize: 12,
-                textTransform: "uppercase",
-                color: "#A3A3A3",
-              }}
-            >
+            {post.caption && (
+              <View className="mt-2">
+                <HashtagText
+                  text={`${post.author?.username || "Unknown User"} ${post.caption}`}
+                  textStyle={{ fontSize: 16, color: colors.foreground }}
+                />
+              </View>
+            )}
+            <Text className="mt-2 text-xs uppercase text-muted-foreground">
               {post.timeAgo}
             </Text>
           </View>

@@ -1,8 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
-import { messagesApiClient } from "@/lib/api/messages";
-import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { useQuery } from "@tanstack/react-query";
+import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages";
 
 // Query keys - scoped by viewerId for cache isolation
 export const messageKeys = {

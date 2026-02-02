@@ -7,7 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bookmarksApi } from "@/lib/api/bookmarks";
+import { bookmarksApi } from "@/lib/api/supabase-bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -25,15 +25,8 @@ export function useBookmarks() {
   const viewerId = user?.id;
 
   return useQuery({
-    queryKey: bookmarkKeys.list(viewerId),
-    queryFn: async () => {
-      const bookmarks = await bookmarksApi.getBookmarkedPosts();
-
-      // Sync to Zustand store
-      useBookmarkStore.getState().syncBookmarks(bookmarks);
-
-      return bookmarks;
-    },
+    queryKey: bookmarkKeys.list(),
+    queryFn: () => bookmarksApi.getBookmarks(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnMount: true,
