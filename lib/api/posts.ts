@@ -179,16 +179,23 @@ export const postsApi = {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch(
-        `${apiUrl}/api/posts/feed?page=${page}&limit=${PAGE_SIZE}`,
-        { headers }
-      );
+      const url = `${apiUrl}/api/posts/feed?page=${page}&limit=${PAGE_SIZE}`;
+      console.log("[postsApi] getFeedPostsPaginated fetching:", url);
+      
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const result = await response.json();
+      console.log("[postsApi] getFeedPostsPaginated raw result:", JSON.stringify(result).substring(0, 500));
+      
+      const posts = (result.docs || []).map(transformPost);
+      console.log("[postsApi] getFeedPostsPaginated posts count:", posts.length);
+      if (posts.length > 0) {
+        console.log("[postsApi] First post ID:", posts[0].id, "caption:", posts[0].caption?.substring(0, 30));
+      }
 
       return {
         data: (result.docs || []).map(transformPost),
@@ -204,30 +211,37 @@ export const postsApi = {
   // Fetch profile posts (uses custom endpoint)
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
+      console.log("[postsApi] getProfilePosts called with userId:", userId);
+      
       if (!userId || userId === "skip") return [];
 
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
       if (!apiUrl) return [];
 
       const token = await getAuthToken();
+      console.log("[postsApi] Has auth token:", !!token);
 
       // Use custom profile posts endpoint (returns JSON)
-      const response = await fetch(
-        `${apiUrl}/api/users/${userId}/posts?limit=50`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const url = `${apiUrl}/api/users/${userId}/posts?limit=50`;
+      console.log("[postsApi] Fetching from URL:", url);
+      
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
+      });
 
+      console.log("[postsApi] Response status:", response.status);
+      
       if (!response.ok) {
-        console.error("[postsApi] getProfilePosts failed:", response.status);
+        const errorText = await response.text();
+        console.error("[postsApi] getProfilePosts failed:", response.status, errorText);
         return [];
       }
 
       const result = await response.json();
+      console.log("[postsApi] Got posts count:", result.docs?.length || 0);
       return (result.docs || []).map(transformPost);
     } catch (error) {
       console.error("[postsApi] getProfilePosts error:", error);

@@ -10,7 +10,7 @@ import { useReplies, useCreateComment } from "@/lib/hooks/use-comments"
 import { useCommentsStore } from "@/lib/stores/comments-store"
 import { useAuthStore } from "@/lib/stores/auth-store"
 import { useUIStore } from "@/lib/stores/ui-store"
-import type { Comment } from "@/lib/api/comments"
+import type { Comment } from "@/lib/types"
 
 export const unstable_settings = {
   options: {

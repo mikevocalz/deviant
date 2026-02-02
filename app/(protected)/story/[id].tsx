@@ -12,7 +12,7 @@ import { useStoryViewerStore } from "@/lib/stores/comments-store"
 import { VideoSeekBar } from "@/components/video-seek-bar"
 import { useStories } from "@/lib/hooks/use-stories"
 import { useAuthStore } from "@/lib/stores/auth-store"
-import { messagesApiClient } from "@/lib/api/messages"
+import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages"
 import { useUIStore } from "@/lib/stores/ui-store"
 
 const { width, height } = Dimensions.get("window")

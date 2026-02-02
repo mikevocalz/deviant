@@ -3,7 +3,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { commentsApiClient, type Comment } from "@/lib/api/comments";
+import { commentsApi as commentsApiClient } from "@/lib/api/supabase-comments";
+import type { Comment } from "@/lib/types";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { usePostStore } from "@/lib/stores/post-store";
 

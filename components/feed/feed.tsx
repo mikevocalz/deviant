@@ -40,8 +40,11 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
     >
       <Pressable
         onPress={() => {
+          console.log("[Feed] Post pressed, item:", { id: item?.id, caption: item?.caption?.substring(0, 20) });
           if (item?.id) {
             router.push(`/(protected)/post/${item.id}`);
+          } else {
+            console.error("[Feed] Post has no ID!", item);
           }
         }}
         className="rounded-2xl"

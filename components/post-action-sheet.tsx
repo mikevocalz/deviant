@@ -1,0 +1,164 @@
+import { View, Text, Pressable, Modal } from "react-native";
+import { Edit, Trash2, Flag, X } from "lucide-react-native";
+import { useColorScheme } from "@/lib/hooks";
+import { Motion } from "@legendapp/motion";
+
+interface PostActionSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  isOwner: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onReport?: () => void;
+}
+
+export function PostActionSheet({
+  visible,
+  onClose,
+  isOwner,
+  onEdit,
+  onDelete,
+  onReport,
+}: PostActionSheetProps) {
+  const { colors } = useColorScheme();
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable
+        onPress={onClose}
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.5)",
+          justifyContent: "flex-end",
+        }}
+      >
+        <Pressable onPress={(e) => e.stopPropagation()}>
+          <Motion.View
+            initial={{ translateY: 400 }}
+            animate={{ translateY: 0 }}
+            exit={{ translateY: 400 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            style={{
+              backgroundColor: colors.card,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              paddingBottom: 40,
+            }}
+          >
+            {/* Header */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "600",
+                  color: colors.foreground,
+                }}
+              >
+                Post Options
+              </Text>
+              <Pressable onPress={onClose} hitSlop={8}>
+                <X size={24} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+
+            {/* Actions */}
+            <View style={{ paddingTop: 8 }}>
+              {isOwner && (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      onEdit();
+                      onClose();
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 20,
+                      paddingVertical: 16,
+                    }}
+                  >
+                    <Edit size={22} color={colors.foreground} />
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: colors.foreground,
+                        marginLeft: 16,
+                      }}
+                    >
+                      Edit Post
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => {
+                      onDelete();
+                      onClose();
+                    }}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      paddingHorizontal: 20,
+                      paddingVertical: 16,
+                    }}
+                  >
+                    <Trash2 size={22} color="#ef4444" />
+                    <Text
+                      style={{
+                        fontSize: 16,
+                        color: "#ef4444",
+                        marginLeft: 16,
+                      }}
+                    >
+                      Delete Post
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+
+              {!isOwner && onReport && (
+                <Pressable
+                  onPress={() => {
+                    onReport();
+                    onClose();
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
+                  }}
+                >
+                  <Flag size={22} color="#ef4444" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#ef4444",
+                      marginLeft: 16,
+                    }}
+                  >
+                    Report Post
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </Motion.View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}

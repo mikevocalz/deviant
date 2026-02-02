@@ -5,7 +5,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bookmarksApi } from "@/lib/api/bookmarks";
+import { bookmarksApi } from "@/lib/api/supabase-bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 // Query keys
@@ -18,7 +18,7 @@ export const bookmarkKeys = {
 export function useBookmarks() {
   return useQuery({
     queryKey: bookmarkKeys.list(),
-    queryFn: () => bookmarksApi.getBookmarkedPosts(),
+    queryFn: () => bookmarksApi.getBookmarks(),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }

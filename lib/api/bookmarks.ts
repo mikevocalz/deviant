@@ -21,7 +21,7 @@ async function bookmarkFetch<T>(
   };
 
   if (authToken) {
-    headers["Authorization"] = `JWT ${authToken}`;
+    headers["Authorization"] = `Bearer ${authToken}`;
   }
 
   if (authCookies) {

@@ -5,22 +5,8 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { followsApi } from "@/lib/api/supabase-follows";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { Platform } from "react-native";
-
-// Get JWT token from storage
-async function getAuthToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === "web") {
-      if (typeof window === "undefined") return null;
-      return localStorage.getItem("dvnt_auth_token");
-    }
-    const SecureStore = require("expo-secure-store");
-    return await SecureStore.getItemAsync("dvnt_auth_token");
-  } catch {
-    return null;
-  }
-}
 
 export function useFollow() {
   const queryClient = useQueryClient();
@@ -34,33 +20,8 @@ export function useFollow() {
       userId: string;
       action: "follow" | "unfollow";
     }) => {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
-
-      const token = await getAuthToken();
-
-      // Use custom follow endpoint (returns JSON)
-      const response = await fetch(
-        `${apiUrl}/api/users/follow`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            targetUserId: userId,
-            action,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to ${action}: ${response.status}`);
-      }
-
-      return await response.json();
+      const isFollowing = action === "unfollow";
+      return await followsApi.toggleFollow(userId, isFollowing);
     },
     onMutate: async ({ userId, action }) => {
       // Cancel outgoing refetches

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { messagesApiClient } from "@/lib/api/messages";
+import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages";
 import { uploadToBunny } from "@/lib/bunny-storage";
 import { useAuthStore } from "@/lib/stores/auth-store";
 

@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { storiesApiClient, type Story } from "@/lib/api/stories";
+import { storiesApi as storiesApiClient } from "@/lib/api/supabase-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 // Query keys
@@ -73,5 +73,3 @@ export function useCreateStory() {
     },
   });
 }
-
-export type { Story };

@@ -10,7 +10,7 @@ import { useUIStore } from "@/lib/stores/ui-store"
 import { useEffect, useState } from "react"
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons"
 import { useSearchPosts, useSearchUsers } from "@/lib/hooks/use-search"
-import { postsApi } from "@/lib/api/posts"
+import { postsApi } from "@/lib/api/supabase-posts"
 import { users } from "@/lib/api-client"
 
 const { width } = Dimensions.get("window")

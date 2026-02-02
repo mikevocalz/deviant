@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { messagesApiClient } from "@/lib/api/messages";
+import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages";
 
 // Query keys
 export const messageKeys = {

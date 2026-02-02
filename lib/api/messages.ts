@@ -346,7 +346,7 @@ export const messagesApiClient = {
   // Get unread message count across all conversations
   async getUnreadCount(): Promise<number> {
     try {
-      const conversations = await this.getConversations();
+      const conversations = await messagesApiClient.getConversations();
       // Count conversations with unread messages (simplified)
       // In production, you'd want a dedicated endpoint for this
       return conversations.filter((c) => c.lastMessageAt).length;

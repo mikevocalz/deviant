@@ -1,36 +1,18 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { storage } from "@/lib/utils/storage";
-
-interface User {
-  id: string;
-  email: string;
-  username: string;
-  name: string;
-  avatar?: string;
-  bio?: string;
-  website?: string;
-  location?: string;
-  hashtags?: string[];
-  isVerified: boolean;
-  postsCount: number;
-  followersCount: number;
-  followingCount: number;
-}
+import { supabase } from "@/lib/supabase/client";
+import { auth, type AppUser } from "@/lib/api/auth";
 
 interface AuthStore {
-  user: User | null;
+  user: AppUser | null;
   hasSeenOnboarding: boolean;
   isAuthenticated: boolean;
-  setUser: (user: User | null) => void;
+  setUser: (user: AppUser | null) => void;
   setHasSeenOnboarding: (seen: boolean) => void;
   logout: () => void;
   loadAuthState: () => Promise<void>;
 }
-
-// Track rehydration state to prevent reload during rehydration
-let isRehydrating = true;
-let rehydrationPromise: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -38,89 +20,76 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       hasSeenOnboarding: false,
       isAuthenticated: false,
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      
+      setUser: (user) => {
+        console.log('[AuthStore] setUser:', user?.id || 'null');
+        set({ user, isAuthenticated: !!user });
+      },
+      
       setHasSeenOnboarding: (seen) => set({ hasSeenOnboarding: seen }),
-      logout: () => set({ user: null, isAuthenticated: false }),
-      loadAuthState: async () => {
-        // Wait for rehydration to complete first
-        if (rehydrationPromise) {
-          await rehydrationPromise;
+      
+      logout: async () => {
+        console.log('[AuthStore] logout');
+        try {
+          await auth.signOut();
+        } catch (error) {
+          console.error('[AuthStore] logout error:', error);
         }
-        
-        // State is automatically loaded from storage by Zustand persist
-        // If user is null but we have a token, try to restore from API
-        const state = get();
-        if (!state.user && !state.isAuthenticated) {
-          try {
-            const { Platform } = require("react-native");
-            const storage = Platform.OS === "web"
-              ? { getItem: (key: string) => (typeof window !== "undefined" ? localStorage.getItem(key) : null) }
-              : require("expo-secure-store");
-            
-            const token = await storage.getItem("dvnt_auth_token");
-            if (token) {
-              console.log("[Auth] Token found, restoring user from API...");
-              // Try to fetch current user from API
-              const { users } = await import("@/lib/api-client");
-              const result = await users.me();
-              if (result?.user) {
-                console.log("[Auth] User restored from API:", result.user.id);
-                const userData = result.user as Record<string, any>;
-                set({
-                  user: {
-                    id: String(userData.id || ""),
-                    email: String(userData.email || ""),
-                    username: String(userData.username || ""),
-                    name: String(userData.name || userData.username || ""),
-                    avatar: userData.avatar ? String(userData.avatar) : undefined,
-                    bio: userData.bio ? String(userData.bio) : undefined,
-                    website: userData.website ? String(userData.website) : undefined,
-                    location: userData.location ? String(userData.location) : undefined,
-                    hashtags: Array.isArray(userData.hashtags) ? userData.hashtags : [],
-                    isVerified: Boolean(userData.isVerified),
-                    postsCount: Number(userData.postsCount) || 0,
-                    followersCount: Number(userData.followersCount) || 0,
-                    followingCount: Number(userData.followingCount) || 0,
-                  },
-                  isAuthenticated: true,
-                });
-              } else {
-                console.log("[Auth] Token invalid, clearing...");
-                await storage.removeItem("dvnt_auth_token");
-              }
-            }
-          } catch (error) {
-            console.error("[Auth] Failed to restore user:", error);
-            // Don't throw - app should still work
+        set({ user: null, isAuthenticated: false });
+      },
+      
+      loadAuthState: async () => {
+        console.log('[AuthStore] loadAuthState');
+        try {
+          // First, check for stored session
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error('[AuthStore] Session error:', sessionError);
+            set({ user: null, isAuthenticated: false });
+            return;
           }
+          
+          if (session?.user) {
+            console.log('[AuthStore] Found session for user:', session.user.id);
+            
+            // Load user profile
+            const profile = await auth.getProfile(session.user.id);
+            
+            if (profile) {
+              console.log('[AuthStore] Profile loaded:', profile.id);
+              set({
+                user: profile,
+                isAuthenticated: true,
+              });
+            } else {
+              console.log('[AuthStore] No profile found for session user');
+              // Don't sign out immediately - give the user a chance
+              // In case profile just hasn't been created yet
+              set({ user: null, isAuthenticated: false });
+            }
+          } else {
+            console.log('[AuthStore] No active session found');
+            set({ user: null, isAuthenticated: false });
+          }
+        } catch (error) {
+          console.error('[AuthStore] loadAuthState error:', error);
+          set({ user: null, isAuthenticated: false });
         }
       },
     }),
     {
       name: "auth-storage",
       storage: createJSONStorage(() => storage),
-      version: 1,
+      version: 2, // Increment version to force re-hydration
       onRehydrateStorage: () => {
-        // Mark that rehydration is starting
-        isRehydrating = true;
-        rehydrationPromise = new Promise<void>((resolve) => {
-          // This callback runs after rehydration completes
-          setTimeout(() => {
-            isRehydrating = false;
-            resolve();
-          }, 100); // Small delay to ensure all stores are rehydrated
-        });
+        console.log('[AuthStore] Starting rehydration');
         
         return (state, error) => {
           if (error) {
-            console.error("[Auth] Rehydration error:", error);
-            isRehydrating = false;
-            if (rehydrationPromise) {
-              rehydrationPromise = null;
-            }
+            console.error("[AuthStore] Rehydration error:", error);
           } else if (state) {
-            console.log("[Auth] State rehydrated, user:", state.user?.id || "none");
-            // Rehydration complete - will be marked in setTimeout above
+            console.log("[AuthStore] State rehydrated, user:", state.user?.id || "none");
           }
         };
       },
@@ -128,39 +97,34 @@ export const useAuthStore = create<AuthStore>()(
   ),
 );
 
-// Export helper to check if rehydration is complete
+// Setup auth state listener
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('[AuthStore] Auth state change:', event);
+  
+  if (event === 'SIGNED_IN' && session?.user) {
+    // Load profile when user signs in
+    auth.getProfile(session.user.id).then((profile) => {
+      if (profile) {
+        useAuthStore.getState().setUser(profile);
+      }
+    });
+  } else if (event === 'SIGNED_OUT') {
+    useAuthStore.getState().setUser(null);
+  } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+    // Refresh profile on token refresh
+    auth.getProfile(session.user.id).then((profile) => {
+      if (profile) {
+        useAuthStore.getState().setUser(profile);
+      }
+    });
+  }
+});
+
 export const waitForRehydration = async (): Promise<void> => {
-  if (rehydrationPromise) {
-    await rehydrationPromise;
-  }
-  // Additional check - wait until isRehydrating is false
-  while (isRehydrating) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
+  // Simple wait - Zustand handles this automatically
+  await new Promise((resolve) => setTimeout(resolve, 100));
 };
 
-// Export helper to flush storage before reload
 export const flushAuthStorage = async (): Promise<void> => {
-  try {
-    // Wait for any pending rehydration
-    await waitForRehydration();
-    
-    // Force Zustand to persist current state by triggering a state update
-    // This ensures the persist middleware runs and writes to storage
-    const state = useAuthStore.getState();
-    if (state.user) {
-      // Small state update to trigger persist middleware
-      useAuthStore.setState({ user: state.user });
-      // Give Zustand persist middleware time to write
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    }
-    
-    // MMKV is synchronous and immediately persisted, but we add a small delay
-    // to ensure any pending async operations complete
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    
-    console.log("[Auth] Storage flushed, ready for reload");
-  } catch (error) {
-    console.error("[Auth] Error flushing storage:", error);
-  }
+  await new Promise((resolve) => setTimeout(resolve, 100));
 };

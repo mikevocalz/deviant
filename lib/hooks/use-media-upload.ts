@@ -1,14 +1,14 @@
 /**
- * React hook for media uploads to Bunny.net CDN
+ * React hook for media uploads to Payload CMS (temporary - will migrate to Bunny.net later)
  */
 
 import { useState, useCallback } from "react";
 import {
-  uploadToBunny,
-  uploadMultipleToBunny,
+  uploadToPayload,
+  uploadMultipleToPayload,
   type UploadProgress,
   type UploadResult,
-} from "@/lib/bunny-storage";
+} from "@/lib/payload-media";
 
 export interface UseMediaUploadOptions {
   folder?: string;
@@ -35,7 +35,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       setProgress(0);
       setError(null);
 
-      const result = await uploadToBunny(
+      const result = await uploadToPayload(
         uri,
         folder,
         (p) => {
@@ -68,7 +68,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       setProgress(0);
       setError(null);
 
-      const results = await uploadMultipleToBunny(
+      const results = await uploadMultipleToPayload(
         files,
         folder,
         (p) => {

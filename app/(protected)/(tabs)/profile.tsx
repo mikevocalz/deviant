@@ -573,31 +573,26 @@ export default function ProfileScreen() {
           {/* Centered Profile Header */}
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Popover>
-                <PopoverTrigger>
-                  <View className="relative">
-                    <Image
-                      source={{
-                        uri:
-                          user?.avatar ||
-                          "https://ui-avatars.com/api/?name=" +
-                            encodeURIComponent(user?.name || "User"),
-                      }}
-                      className="w-[88px] h-[88px] rounded-full"
-                      contentFit="cover"
-                    />
-                    <View
-                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                      style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
-                    >
-                      <Camera size={14} color="#fff" />
-                    </View>
+              <Pressable onPress={() => router.push("/(protected)/edit-profile")}>
+                <View className="relative">
+                  <Image
+                    source={{
+                      uri:
+                        user?.avatar ||
+                        "https://ui-avatars.com/api/?name=" +
+                          encodeURIComponent(user?.name || "User"),
+                    }}
+                    className="w-[88px] h-[88px] rounded-full"
+                    contentFit="cover"
+                  />
+                  <View
+                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                    style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
+                  >
+                    <Camera size={14} color="#fff" />
                   </View>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
-                  <EditProfileContent />
-                </PopoverContent>
-              </Popover>
+                </View>
+              </Pressable>
               <View className="flex-row gap-8">
                 <View className="items-center">
                   <Text className="text-xl font-bold text-foreground">
@@ -652,18 +647,14 @@ export default function ProfileScreen() {
           </View>
 
           <View className="mt-5 flex-row gap-2 px-4">
-            <Popover>
-              <PopoverTrigger>
-                <View className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4">
-                  <Text className="font-semibold text-secondary-foreground">
-                    Edit profile
-                  </Text>
-                </View>
-              </PopoverTrigger>
-              <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md max-h-[85%]">
-                <EditProfileContent />
-              </PopoverContent>
-            </Popover>
+            <Pressable 
+              onPress={() => router.push("/(protected)/edit-profile")}
+              className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
+            >
+              <Text className="font-semibold text-secondary-foreground">
+                Edit profile
+              </Text>
+            </Pressable>
           </View>
         </View>
 

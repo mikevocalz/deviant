@@ -31,7 +31,8 @@ import { IdScanTab, FaceScanTab } from "@/components/verification/tabs";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
-import { signUp } from "@/lib/auth-client";
+import { supabase } from "@/lib/supabase/client";
+import { DB } from "@/lib/supabase/db-map";
 import { toast } from "sonner-native";
 
 export function SignUpStep2() {
@@ -91,74 +92,101 @@ export function SignUpStep2() {
   const createAccount = async () => {
     setIsSubmitting(true);
 
-    console.log("[SignUp] Creating account after verification...");
+    console.log("[SignUp] Creating account with Supabase...");
     console.log("[SignUp] Email:", formData.email);
     console.log("[SignUp] Username:", formData.username);
 
     try {
-      const result = await signUp.email({
+      // Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        name: `${formData.firstName} ${formData.lastName}`,
-        username: formData.username || formData.email.split("@")[0],
+        options: {
+          data: {
+            username: formData.username,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+          },
+        },
       });
 
-      console.log("[SignUp] Result:", JSON.stringify(result, null, 2));
-
-      if (result.error) {
-        console.error("[SignUp] Registration error:", result.error);
+      if (authError) {
+        console.error("[SignUp] Supabase auth error:", authError);
         toast.error("Registration Failed", {
-          description: result.error.message || "Could not create account",
+          description: authError.message || "Could not create account",
         });
         setIsSubmitting(false);
         return;
       }
 
-      const user = result.data?.user || (result as any).user;
-
-      if (user) {
-        console.log("[SignUp] User created:", user.id);
-
-        setUser({
-          id: String(user.id),
-          email: user.email || formData.email,
-          username: user.username || formData.username,
-          name: `${formData.firstName} ${formData.lastName}`,
-          avatar: user.avatar,
-          bio: "",
-          website: "",
-          location: "",
-          hashtags: [],
-          isVerified: true, // They just verified
-          postsCount: 0,
-          followersCount: 0,
-          followingCount: 0,
-        });
-
-        recordTermsAcceptance(user.id, formData.email).catch(() => {});
-
-        toast.success("Welcome to DVNT!", {
-          description: "Your account has been created and verified.",
-        });
-
-        resetSignup();
-        resetVerification();
-        router.replace("/(protected)/(tabs)" as any);
-      } else {
-        console.error("[SignUp] No user in result:", result);
-        toast.error("Registration issue", {
-          description: "Account may have been created. Try signing in.",
+      if (!authData.user) {
+        console.error("[SignUp] No user returned from Supabase");
+        toast.error("Registration Failed", {
+          description: "Could not create account",
         });
         setIsSubmitting(false);
+        return;
       }
+
+      console.log("[SignUp] Supabase user created:", authData.user.id);
+
+      // Create user profile in users table
+      const { error: profileError } = await supabase
+        .from(DB.users.table)
+        .insert({
+          [DB.users.id]: authData.user.id,
+          [DB.users.email]: formData.email,
+          [DB.users.username]: formData.username,
+          [DB.users.firstName]: formData.firstName,
+          [DB.users.lastName]: formData.lastName,
+          [DB.users.name]: `${formData.firstName} ${formData.lastName}`,
+          [DB.users.phone]: formData.phone,
+          [DB.users.dateOfBirth]: formData.dateOfBirth,
+          [DB.users.isVerified]: true,
+          [DB.users.createdAt]: new Date().toISOString(),
+          [DB.users.updatedAt]: new Date().toISOString(),
+        });
+
+      if (profileError) {
+        console.error("[SignUp] Profile creation error:", profileError);
+        // Continue anyway - profile might already exist
+      }
+
+      // Set user in auth store
+      setUser({
+        id: authData.user.id,
+        email: formData.email,
+        username: formData.username,
+        name: `${formData.firstName} ${formData.lastName}`,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        avatar: "",
+        bio: "",
+        website: "",
+        location: "",
+        hashtags: [],
+        isVerified: true,
+        postsCount: 0,
+        followersCount: 0,
+        followingCount: 0,
+      });
+
+      // Record terms acceptance
+      recordTermsAcceptance(authData.user.id, formData.email).catch(() => {});
+
+      toast.success("Welcome to DVNT!", {
+        description: "Your account has been created and verified.",
+      });
+
+      resetSignup();
+      resetVerification();
+      router.replace("/(protected)/(tabs)" as any);
     } catch (error: any) {
       console.error("[Signup] Error:", error);
 
       let errorMsg = "Please try again";
       if (error?.message) {
         errorMsg = error.message;
-      } else if (error?.error?.message) {
-        errorMsg = error.error.message;
       }
 
       if (errorMsg.includes("already exists") || errorMsg.includes("duplicate")) {

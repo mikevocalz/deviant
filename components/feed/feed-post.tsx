@@ -27,6 +27,11 @@ import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { PostActionSheet } from "@/components/post-action-sheet";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { postsApi } from "@/lib/api/supabase-posts";
+import { Alert } from "react-native";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -71,6 +76,11 @@ function FeedPostComponent({
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const likePostMutation = useLikePost();
+  const currentUser = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  
+  const isOwner = currentUser?.username === author.username;
   
   // Sync bookmarks from API to local store on mount
   useEffect(() => {
@@ -231,8 +241,11 @@ function FeedPostComponent({
       } catch {}
     } else {
       // Normal tap - navigate to post
+      console.log("[FeedPost] handleVideoPress, id:", id);
       if (id) {
         router.push(`/(protected)/post/${id}`);
+      } else {
+        console.error("[FeedPost] No ID for video press!");
       }
     }
   }, [showSeekBar, player, id, setVideoState, router]);
@@ -316,6 +329,34 @@ function FeedPostComponent({
     }
   }, [id, caption]);
 
+  const handleEdit = useCallback(() => {
+    router.push(`/(protected)/edit-post/${id}`);
+  }, [id, router]);
+
+  const handleDelete = useCallback(() => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await postsApi.deletePost(id);
+              showToast("success", "Deleted", "Post deleted successfully");
+              // The feed will auto-refresh via React Query
+            } catch (error) {
+              console.error("[FeedPost] Delete error:", error);
+              showToast("error", "Error", "Failed to delete post");
+            }
+          },
+        },
+      ]
+    );
+  }, [id, showToast]);
+
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(
       event.nativeEvent.contentOffset.x / mediaSize,
@@ -332,6 +373,11 @@ function FeedPostComponent({
   }, [id, setPressedPost]);
 
   const handlePostPress = useCallback(() => {
+    console.log("[FeedPost] handlePostPress called, id:", id);
+    if (!id) {
+      console.error("[FeedPost] Cannot navigate - no post ID!");
+      return;
+    }
     router.push(`/(protected)/post/${id}`);
   }, [router, id]);
 
@@ -389,7 +435,7 @@ function FeedPostComponent({
               )}
             </View>
           </View>
-          <Pressable className="p-2">
+          <Pressable className="p-2" onPress={() => setShowActionSheet(true)}>
             <MoreHorizontal size={20} color={colors.foreground} />
           </Pressable>
         </View>
@@ -591,7 +637,7 @@ function FeedPostComponent({
             <View className="mt-1">
               <HashtagText
                 text={`${author?.username || "Unknown User"} ${caption}`}
-                textStyle={{ fontSize: 14 }}
+                textStyle={{ fontSize: 14, color: colors.foreground }}
               />
             </View>
           )}
@@ -644,6 +690,14 @@ function FeedPostComponent({
           </Text>
         </View>
       </Article>
+
+      <PostActionSheet
+        visible={showActionSheet}
+        onClose={() => setShowActionSheet(false)}
+        isOwner={isOwner}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
     </Motion.View>
   );
 }

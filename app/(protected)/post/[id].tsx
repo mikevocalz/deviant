@@ -8,6 +8,7 @@ import {
   MessageCircle,
   Share2,
   Bookmark,
+  MoreHorizontal,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
@@ -21,6 +22,11 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { PostActionSheet } from "@/components/post-action-sheet";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { postsApi } from "@/lib/api/supabase-posts";
+import { Alert } from "react-native";
 
 const { width } = Dimensions.get("window");
 
@@ -41,6 +47,12 @@ export default function PostDetailScreen() {
   const { colors } = useColorScheme();
   const likePostMutation = useLikePost();
   const likeCommentMutation = useLikeComment();
+  const currentUser = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
+  const showActionSheet = useUIStore((state) => state.showActionSheet);
+  const setShowActionSheet = useUIStore((state) => state.setShowActionSheet);
+  
+  const isOwner = currentUser?.username === post?.author?.username;
   
   // Sync bookmarks from API to local store
   useEffect(() => {
@@ -310,7 +322,7 @@ export default function PostDetailScreen() {
               <View className="mt-2">
                 <HashtagText
                   text={`${post.author?.username || "Unknown User"} ${post.caption}`}
-                  textStyle={{ fontSize: 16 }}
+                  textStyle={{ fontSize: 16, color: colors.foreground }}
                 />
               </View>
             )}

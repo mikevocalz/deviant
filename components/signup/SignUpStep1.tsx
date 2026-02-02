@@ -11,7 +11,8 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { Button, Input } from "@/components/ui";
 import { FormInput } from "@/components/form";
 import { useSignupStore } from "@/lib/stores/signup-store";
-import { users } from "@/lib/api-client";
+import { supabase } from "@/lib/supabase/client";
+import { DB } from "@/lib/supabase/db-map";
 import { CheckCircle2, XCircle } from "lucide-react-native";
 
 function getPasswordStrength(password: string) {
@@ -54,15 +55,38 @@ export function SignUpStep1() {
 
     setUsernameStatus("checking");
     try {
-      const result = await users.checkUsername(username);
-      if (result.available) {
+      // Check if username exists in Supabase
+      const { data, error } = await supabase
+        .from(DB.users.table)
+        .select(DB.users.username)
+        .eq(DB.users.username, username)
+        .single();
+
+      if (error && error.code !== "PGRST116") {
+        // PGRST116 = no rows returned, which means available
+        console.error("[SignUpStep1] Username check error:", error);
+        setUsernameStatus("idle");
+        return;
+      }
+
+      if (data) {
+        // Username is taken
+        setUsernameStatus("taken");
+        
+        // Generate suggestions
+        const suggestions = [
+          `${username}_${Math.floor(Math.random() * 100)}`,
+          `${username}${Math.floor(Math.random() * 1000)}`,
+          `${username}_official`,
+        ];
+        setUsernameSuggestions(suggestions);
+      } else {
+        // Username is available
         setUsernameStatus("available");
         setUsernameSuggestions([]);
-      } else {
-        setUsernameStatus("taken");
-        setUsernameSuggestions(result.suggestions);
       }
-    } catch {
+    } catch (error) {
+      console.error("[SignUpStep1] Username check error:", error);
       setUsernameStatus("idle");
     }
   }, []);

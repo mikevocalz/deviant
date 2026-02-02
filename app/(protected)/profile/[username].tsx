@@ -292,7 +292,7 @@ function UserProfileScreenComponent() {
           <View className="mt-4 flex-row gap-2">
             {isOwnProfile ? (
               <>
-                <Pressable onPress={() => router.push("/(protected)/profile/edit" as any)} style={{ flex: 1 }}>
+                <Pressable onPress={() => router.push("/(protected)/edit-profile" as any)} style={{ flex: 1 }}>
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}

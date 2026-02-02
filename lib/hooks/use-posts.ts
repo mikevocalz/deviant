@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
-import { postsApi } from "@/lib/api/posts";
+import { postsApi } from "@/lib/api/supabase-posts";
 import type { Post } from "@/lib/types";
 
 // Query keys

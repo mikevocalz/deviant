@@ -36,6 +36,7 @@
     "@rork-ai/toolkit-sdk": "0.2.54",
     "@shopify/flash-list": "^2.0.2",
     "@shopify/react-native-skia": "2.2.12",
+    "@supabase/supabase-js": "^2.93.3",
     "@tanstack/pacer": "^0.17.3",
     "@tanstack/react-form": "^1.27.7",
     "@tanstack/react-query": "^5.90.16",
