@@ -35,7 +35,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-ventura-13.6-xcode-15.2"
+        "image": "macos-sonoma-14.6-xcode-16.1"
       },
       "node": "22.14.0",
       "pnpm": "10.28.0",
