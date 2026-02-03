@@ -37,6 +37,8 @@
       "ios": {
         "image": "macos-ventura-13.6-xcode-15.2"
       },
+      "node": "22.14.0",
+      "pnpm": "10.28.0",
       "env": {
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
