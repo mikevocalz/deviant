@@ -1,3 +1,6 @@
+packages:
+  - "."
+
 onlyBuiltDependencies:
   - "@fishjam-cloud/react-native-webrtc"
   - "@shopify/react-native-skia"
