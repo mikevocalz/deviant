@@ -1,7 +1,6 @@
 {
   "name": "dvnt",
   "version": "1.0.0",
-  "packageManager": "pnpm@10.28.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start --clear --dev-client",
@@ -25,6 +24,7 @@
     "@legendapp/list": "beta",
     "@legendapp/motion": "^2.5.3",
     "@lodev09/react-native-true-sheet": "^3.7.3",
+    "@microblink/blinkid-react-native": "^7.6.2",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/native": "^7.1.8",
