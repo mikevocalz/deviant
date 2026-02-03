@@ -3,15 +3,20 @@
  * Production-grade with deduplication, retry, and progress tracking
  */
 
-import { supabase } from '@/lib/supabase/client';
-import { DB } from '@/lib/supabase/db-map';
-import * as FileSystem from 'expo-file-system';
-import { ProcessedMedia, UploadedMedia, BucketName, MediaUseCase } from './types';
+import { supabase } from "@/lib/supabase/client";
+import { DB } from "@/lib/supabase/db-map";
+import * as FileSystem from "expo-file-system";
+import {
+  ProcessedMedia,
+  UploadedMedia,
+  BucketName,
+  MediaUseCase,
+} from "./types";
 
 /**
  * Generate storage path with proper structure
  * Format: {userId}/yyyy/mm/{uuid}.{ext}
- * 
+ *
  * Benefits:
  * - Partitioned by date (easier cleanup/analytics)
  * - Scoped to user (security + organization)
@@ -20,11 +25,11 @@ import { ProcessedMedia, UploadedMedia, BucketName, MediaUseCase } from './types
 function generateStoragePath(
   userId: number,
   extension: string,
-  bucketName: BucketName
+  bucketName: BucketName,
 ): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, "0");
   const uuid = crypto.randomUUID();
 
   return `${userId}/${year}/${month}/${uuid}.${extension}`;
@@ -33,29 +38,29 @@ function generateStoragePath(
 /**
  * Check if media already exists (deduplication)
  * Saves bandwidth + storage if file was previously uploaded
- * 
+ *
  * @returns Existing media record if hash matches
  */
 async function checkDuplicate(
   hash: string,
-  userId: number
+  userId: number,
 ): Promise<UploadedMedia | null> {
-  console.log('[MediaUpload] Checking for duplicate:', hash.substring(0, 16));
+  console.log("[MediaUpload] Checking for duplicate:", hash.substring(0, 16));
 
   const { data, error } = await supabase
     .from(DB.media.table)
-    .select('*')
-    .eq('hash', hash)
-    .eq('owner_id', userId)
+    .select("*")
+    .eq("hash", hash)
+    .eq("owner_id", userId)
     .maybeSingle();
 
   if (error) {
-    console.error('[MediaUpload] Duplicate check error:', error);
+    console.error("[MediaUpload] Duplicate check error:", error);
     return null;
   }
 
   if (data) {
-    console.log('[MediaUpload] ✅ Duplicate found, reusing:', data.public_url);
+    console.log("[MediaUpload] ✅ Duplicate found, reusing:", data.public_url);
     return {
       id: data.id,
       publicUrl: data.public_url,
@@ -74,23 +79,25 @@ async function checkDuplicate(
 /**
  * Upload media to Supabase Storage
  * Uses binary upload (NO base64)
- * 
+ *
  * @param onProgress Callback for upload progress (0-1)
  */
 export async function uploadMedia(
   media: ProcessedMedia,
   useCase: MediaUseCase,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ): Promise<UploadedMedia> {
-  console.log('[MediaUpload] Starting:', {
+  console.log("[MediaUpload] Starting:", {
     type: media.type,
     size: `${(media.sizeBytes / 1024 / 1024).toFixed(2)}MB`,
     useCase,
   });
 
   // Step 1: Get user ID
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Not authenticated');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
 
   const { data: userData } = await supabase
     .from(DB.users.table)
@@ -98,7 +105,7 @@ export async function uploadMedia(
     .eq(DB.users.email, user.email)
     .single();
 
-  if (!userData) throw new Error('User not found');
+  if (!userData) throw new Error("User not found");
   const userId = userData[DB.users.id];
 
   // Step 2: Check for duplicate (save bandwidth!)
@@ -110,13 +117,13 @@ export async function uploadMedia(
 
   // Step 3: Determine bucket and path
   const bucket = getBucketForUseCase(useCase);
-  const extension = media.type === 'video' ? 'mp4' : 'webp';
+  const extension = media.type === "video" ? "mp4" : "webp";
   const storagePath = generateStoragePath(userId, extension, bucket);
 
   // Step 4: Read file as binary (ArrayBuffer)
   const fileUri = media.uri;
   const fileContent = await FileSystem.readAsStringAsync(fileUri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: "base64" as any,
   });
 
   // Convert base64 to ArrayBuffer for binary upload
@@ -126,7 +133,7 @@ export async function uploadMedia(
     bytes[i] = binaryString.charCodeAt(i);
   }
 
-  console.log('[MediaUpload] Uploading to storage:', { bucket, storagePath });
+  console.log("[MediaUpload] Uploading to storage:", { bucket, storagePath });
   onProgress?.(0.1);
 
   // Step 5: Upload to Supabase Storage
@@ -134,12 +141,12 @@ export async function uploadMedia(
     .from(bucket)
     .upload(storagePath, bytes.buffer, {
       contentType: media.mimeType,
-      cacheControl: '31536000', // 1 year (immutable files)
+      cacheControl: "31536000", // 1 year (immutable files)
       upsert: false, // Never overwrite (security)
     });
 
   if (uploadError) {
-    console.error('[MediaUpload] Upload error:', uploadError);
+    console.error("[MediaUpload] Upload error:", uploadError);
     throw new Error(`Upload failed: ${uploadError.message}`);
   }
 
@@ -175,7 +182,7 @@ export async function uploadMedia(
     .single();
 
   if (dbError) {
-    console.error('[MediaUpload] DB insert error:', dbError);
+    console.error("[MediaUpload] DB insert error:", dbError);
     // Rollback: delete uploaded file
     await supabase.storage.from(bucket).remove([storagePath]);
     throw new Error(`Database error: ${dbError.message}`);
@@ -183,7 +190,7 @@ export async function uploadMedia(
 
   onProgress?.(1);
 
-  console.log('[MediaUpload] ✅ Complete:', {
+  console.log("[MediaUpload] ✅ Complete:", {
     id: mediaRecord.id,
     url: publicUrl,
   });
@@ -205,17 +212,17 @@ export async function uploadMedia(
  * Removes from storage + database
  */
 export async function deleteMedia(mediaId: number): Promise<void> {
-  console.log('[MediaUpload] Deleting media:', mediaId);
+  console.log("[MediaUpload] Deleting media:", mediaId);
 
   // Get media record
   const { data: media, error: fetchError } = await supabase
     .from(DB.media.table)
-    .select('*')
-    .eq('id', mediaId)
+    .select("*")
+    .eq("id", mediaId)
     .single();
 
   if (fetchError || !media) {
-    throw new Error('Media not found');
+    throw new Error("Media not found");
   }
 
   // Delete from storage
@@ -224,7 +231,7 @@ export async function deleteMedia(mediaId: number): Promise<void> {
     .remove([media.storage_path]);
 
   if (storageError) {
-    console.error('[MediaUpload] Storage delete error:', storageError);
+    console.error("[MediaUpload] Storage delete error:", storageError);
     // Continue to delete DB record even if storage fails
   }
 
@@ -232,13 +239,13 @@ export async function deleteMedia(mediaId: number): Promise<void> {
   const { error: dbError } = await supabase
     .from(DB.media.table)
     .delete()
-    .eq('id', mediaId);
+    .eq("id", mediaId);
 
   if (dbError) {
     throw new Error(`Failed to delete media: ${dbError.message}`);
   }
 
-  console.log('[MediaUpload] ✅ Deleted:', mediaId);
+  console.log("[MediaUpload] ✅ Deleted:", mediaId);
 }
 
 /**
@@ -246,16 +253,16 @@ export async function deleteMedia(mediaId: number): Promise<void> {
  */
 function getBucketForUseCase(useCase: MediaUseCase): BucketName {
   switch (useCase) {
-    case 'avatar':
-      return 'avatars';
-    case 'story':
-      return 'stories';
-    case 'feed':
-      return 'images';
-    case 'message':
-      return 'temp'; // Messages use temp bucket (1h expiry)
+    case "avatar":
+      return "avatars";
+    case "story":
+      return "stories";
+    case "feed":
+      return "images";
+    case "message":
+      return "temp"; // Messages use temp bucket (1h expiry)
     default:
-      return 'temp';
+      return "temp";
   }
 }
 
@@ -266,16 +273,16 @@ function getExpirationDate(bucket: BucketName): string | null {
   const now = new Date();
 
   switch (bucket) {
-    case 'stories':
+    case "stories":
       // Stories expire after 24 hours
       now.setHours(now.getHours() + 24);
       return now.toISOString();
-    
-    case 'temp':
+
+    case "temp":
       // Temp files expire after 1 hour
       now.setHours(now.getHours() + 1);
       return now.toISOString();
-    
+
     default:
       // Permanent files (avatars, images, videos)
       return null;
@@ -285,24 +292,24 @@ function getExpirationDate(bucket: BucketName): string | null {
 /**
  * Batch upload multiple media files
  * Useful for posts with multiple images
- * 
+ *
  * @returns Array of uploaded media IDs
  */
 export async function uploadMediaBatch(
   mediaList: ProcessedMedia[],
   useCase: MediaUseCase,
-  onProgress?: (index: number, progress: number) => void
+  onProgress?: (index: number, progress: number) => void,
 ): Promise<UploadedMedia[]> {
   const results: UploadedMedia[] = [];
 
   for (let i = 0; i < mediaList.length; i++) {
     const media = mediaList[i];
-    
+
     try {
       const uploaded = await uploadMedia(media, useCase, (progress) => {
         onProgress?.(i, progress);
       });
-      
+
       results.push(uploaded);
     } catch (error) {
       console.error(`[MediaUpload] Failed to upload item ${i}:`, error);

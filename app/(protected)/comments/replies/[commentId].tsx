@@ -1,16 +1,25 @@
-
-import { View, Text, TextInput, Pressable, ScrollView, Keyboard, Platform } from "react-native"
-import { KeyboardAvoidingView } from "react-native-keyboard-controller"
-import { useLocalSearchParams, useRouter } from "expo-router"
-import { Image } from "expo-image"
-import { ArrowLeft, Send, Heart } from "lucide-react-native"
-import { useEffect } from "react"
-import { useSafeAreaInsets } from "react-native-safe-area-context"
-import { useReplies, useCreateComment } from "@/lib/hooks/use-comments"
-import { useCommentsStore } from "@/lib/stores/comments-store"
-import { useAuthStore } from "@/lib/stores/auth-store"
-import { useUIStore } from "@/lib/stores/ui-store"
-import type { Comment } from "@/lib/types"
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  Keyboard,
+  Platform,
+} from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Image } from "expo-image";
+import { ArrowLeft, Send, Heart } from "lucide-react-native";
+import { useEffect } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useReplies, useCreateComment } from "@/lib/hooks/use-comments";
+import { useCommentsStore } from "@/lib/stores/comments-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import type { Comment } from "@/lib/types";
+import { Avatar as UserAvatar } from "@/components/ui/avatar";
+import { CommentLikeButton } from "@/components/comments/threaded-comment";
 
 export const unstable_settings = {
   options: {
@@ -114,57 +123,57 @@ export default function RepliesScreen() {
         ) : (
           replies.map((item: Comment) => (
             <View key={item.id} style={{ marginBottom: 20 }}>
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <UserAvatar
-              uri={item.avatar}
-              username={item.username}
-              size={36}
-              variant="circle"
-            />
-            <View style={{ flex: 1 }}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                <Text
-                  style={{ fontWeight: "600", fontSize: 14, color: "#fff" }}
-                >
-                  {item.username}
-                </Text>
-                <Text style={{ color: "#999", fontSize: 12 }}>
-                  {item.timeAgo}
-                </Text>
-              </View>
-              <Text
-                style={{
-                  fontSize: 14,
-                  marginTop: 4,
-                  lineHeight: 20,
-                  color: "#fff",
-                }}
-              >
-                {item.text}
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 16,
-                  marginTop: 8,
-                }}
-              >
-                <CommentLikeButton
-                  postId={postId || ""}
-                  commentId={item.id}
-                  initialLikes={item.likes}
-                  initialHasLiked={item.hasLiked}
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <UserAvatar
+                  uri={item.avatar}
+                  username={item.username}
+                  size={36}
+                  variant="circle"
                 />
+                <View style={{ flex: 1 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <Text
+                      style={{ fontWeight: "600", fontSize: 14, color: "#fff" }}
+                    >
+                      {item.username}
+                    </Text>
+                    <Text style={{ color: "#999", fontSize: 12 }}>
+                      {item.timeAgo}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      fontSize: 14,
+                      marginTop: 4,
+                      lineHeight: 20,
+                      color: "#fff",
+                    }}
+                  >
+                    {item.text}
+                  </Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 16,
+                      marginTop: 8,
+                    }}
+                  >
+                    <CommentLikeButton
+                      postId={postId || ""}
+                      commentId={item.id}
+                      initialLikes={item.likes}
+                      initialHasLiked={item.hasLiked}
+                    />
+                  </View>
+                </View>
               </View>
-            </View>
-          </View>
             </View>
           ))
         )}

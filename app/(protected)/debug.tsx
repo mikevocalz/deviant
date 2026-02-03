@@ -23,7 +23,8 @@ import {
   AlertTriangle,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { getPayloadBaseUrl } from "@/lib/api-config";
+// Supabase URL for debugging
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Platform } from "react-native";
 
@@ -61,13 +62,13 @@ export default function DebugScreen() {
   const [results, setResults] = useState<TestResult[]>([]);
 
   useEffect(() => {
-    setApiBase(getPayloadBaseUrl());
+    setApiBase(SUPABASE_URL);
   }, []);
 
   const runTests = async () => {
     setIsRunning(true);
     const authToken = await getAuthToken();
-    const API_BASE = getPayloadBaseUrl();
+    const API_BASE = SUPABASE_URL;
 
     const tests: TestResult[] = [
       { name: "GET /api/users/me", status: "pending" },

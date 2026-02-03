@@ -1,7 +1,24 @@
-import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Switch } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Switch,
+} from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, Eye, EyeOff, Check, AlertCircle } from "lucide-react-native";
+import {
+  ArrowLeft,
+  MapPin,
+  Eye,
+  EyeOff,
+  Check,
+  AlertCircle,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useState, useCallback, useEffect } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -28,11 +45,11 @@ export default function EditPostScreen() {
   useEffect(() => {
     const fetchPost = async () => {
       if (!postId) return;
-      
+
       try {
         setIsFetching(true);
         const post = await postsApi.getPostById(postId);
-        
+
         if (post) {
           setCaption(post.caption || "");
           setLocation(post.location || "");
@@ -40,7 +57,7 @@ export default function EditPostScreen() {
         }
       } catch (error) {
         console.error("Error fetching post:", error);
-        showToast("Failed to load post", "error");
+        showToast("error", "Failed to load post");
       } finally {
         setIsFetching(false);
       }
@@ -51,12 +68,12 @@ export default function EditPostScreen() {
 
   const handleSave = useCallback(async () => {
     if (!postId) {
-      showToast("Post ID not found", "error");
+      showToast("error", "Post ID not found");
       return;
     }
 
     if (!caption.trim()) {
-      showToast("Caption cannot be empty", "error");
+      showToast("error", "Caption cannot be empty");
       return;
     }
 
@@ -72,11 +89,11 @@ export default function EditPostScreen() {
       queryClient.invalidateQueries({ queryKey: ["post", postId] });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
 
-      showToast("Post updated successfully", "success");
+      showToast("success", "Post updated successfully");
       router.back();
     } catch (error: any) {
       console.error("Error updating post:", error);
-      showToast(error.message || "Failed to update post", "error");
+      showToast("error", error.message || "Failed to update post");
     } finally {
       setIsLoading(false);
     }
@@ -84,7 +101,14 @@ export default function EditPostScreen() {
 
   if (isFetching) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.background,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -105,16 +129,19 @@ export default function EditPostScreen() {
           <Pressable onPress={() => router.back()} hitSlop={8}>
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="text-lg font-semibold" style={{ color: colors.foreground }}>
+          <Text
+            className="text-lg font-semibold"
+            style={{ color: colors.foreground }}
+          >
             Edit Post
           </Text>
           <Pressable
             onPress={handleSave}
             disabled={isLoading || !caption.trim()}
             className="px-4 py-2 rounded-full"
-            style={{ 
+            style={{
               backgroundColor: !caption.trim() ? colors.muted : colors.primary,
-              opacity: isLoading ? 0.6 : 1 
+              opacity: isLoading ? 0.6 : 1,
             }}
           >
             {isLoading ? (
@@ -138,7 +165,10 @@ export default function EditPostScreen() {
         >
           {/* Caption */}
           <View className="mb-6">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Caption
             </Text>
             <TextInput
@@ -158,13 +188,19 @@ export default function EditPostScreen() {
               }}
             />
             <View className="flex-row items-center justify-between mt-2">
-              <Text className="text-xs" style={{ color: colors.mutedForeground }}>
+              <Text
+                className="text-xs"
+                style={{ color: colors.mutedForeground }}
+              >
                 {caption.length}/2200 characters
               </Text>
               {caption.length > 2200 && (
                 <View className="flex-row items-center gap-1">
                   <AlertCircle size={12} color={colors.destructive} />
-                  <Text className="text-xs" style={{ color: colors.destructive }}>
+                  <Text
+                    className="text-xs"
+                    style={{ color: colors.destructive }}
+                  >
                     Caption too long
                   </Text>
                 </View>
@@ -174,12 +210,18 @@ export default function EditPostScreen() {
 
           {/* Location */}
           <View className="mb-6">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Location (Optional)
             </Text>
-            <View 
-              className="flex-row items-center px-4 py-3 rounded-xl border" 
-              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+            <View
+              className="flex-row items-center px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
             >
               <MapPin size={18} color={colors.mutedForeground} />
               <TextInput
@@ -194,15 +236,25 @@ export default function EditPostScreen() {
           </View>
 
           {/* NSFW Toggle */}
-          <View 
+          <View
             className="flex-row items-center justify-between p-4 rounded-xl"
-            style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            style={{
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
           >
             <View className="flex-1">
-              <Text className="text-sm font-medium mb-1" style={{ color: colors.foreground }}>
+              <Text
+                className="text-sm font-medium mb-1"
+                style={{ color: colors.foreground }}
+              >
                 Mark as NSFW
               </Text>
-              <Text className="text-xs" style={{ color: colors.mutedForeground }}>
+              <Text
+                className="text-xs"
+                style={{ color: colors.mutedForeground }}
+              >
                 Sensitive content that requires age verification
               </Text>
             </View>
@@ -225,8 +277,12 @@ export default function EditPostScreen() {
           >
             <AlertCircle size={20} color={colors.mutedForeground} />
             <View className="flex-1">
-              <Text className="text-xs" style={{ color: colors.mutedForeground }}>
-                Changes to your post will be visible immediately to all followers. Media cannot be edited.
+              <Text
+                className="text-xs"
+                style={{ color: colors.mutedForeground }}
+              >
+                Changes to your post will be visible immediately to all
+                followers. Media cannot be edited.
               </Text>
             </View>
           </Motion.View>

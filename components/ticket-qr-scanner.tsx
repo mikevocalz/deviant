@@ -5,12 +5,22 @@
  */
 
 import React, { useRef, useState, useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
-import { Camera, useCameraDevice, useCodeScanner } from "react-native-vision-camera";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  ActivityIndicator,
+} from "react-native";
+import {
+  Camera,
+  useCameraDevice,
+  useCodeScanner,
+} from "react-native-vision-camera";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, ScanLine } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { tickets } from "@/lib/api-client";
+import { tickets } from "@/lib/api/supabase-tickets";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 interface TicketQRScannerProps {
@@ -52,7 +62,11 @@ export function TicketQRScanner({
       const result = await tickets.checkIn({ qrToken });
 
       if ((result as any).alreadyCheckedIn) {
-        showToast("info", "Already Checked In", "This ticket was already checked in.");
+        showToast(
+          "info",
+          "Already Checked In",
+          "This ticket was already checked in.",
+        );
       } else if ((result as any).success) {
         showToast("success", "Checked In", "Ticket successfully checked in!");
         onCheckInSuccess?.();
@@ -66,7 +80,8 @@ export function TicketQRScanner({
       }
     } catch (error: any) {
       console.error("[QRScanner] Check-in error:", error);
-      const errorMessage = error?.error || error?.message || "Failed to check in ticket";
+      const errorMessage =
+        error?.error || error?.message || "Failed to check in ticket";
       showToast("error", "Check-In Failed", errorMessage);
       setScannedCode(null);
       setIsCheckingIn(false);
@@ -154,12 +169,16 @@ export function TicketQRScanner({
             {isCheckingIn ? (
               <View style={styles.checkingInContainer}>
                 <ActivityIndicator size="large" color="#8A40CF" />
-                <Text style={[styles.checkingInText, { color: colors.foreground }]}>
+                <Text
+                  style={[styles.checkingInText, { color: colors.foreground }]}
+                >
                   Checking in...
                 </Text>
               </View>
             ) : (
-              <Text style={[styles.instructionText, { color: colors.foreground }]}>
+              <Text
+                style={[styles.instructionText, { color: colors.foreground }]}
+              >
                 Position the QR code within the frame
               </Text>
             )}

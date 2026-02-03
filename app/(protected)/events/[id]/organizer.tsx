@@ -27,7 +27,8 @@ import {
   User,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { tickets } from "@/lib/api-client";
+import { tickets } from "@/lib/api/supabase-tickets";
+// import { ticketsApi } from "@/lib/api/supabase-tickets";
 import { TicketQRScanner } from "@/components/ticket-qr-scanner";
 import { useUIStore } from "@/lib/stores/ui-store";
 

@@ -20,7 +20,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { RTCView } from "react-native-webrtc";
+import { RTCView } from "@fishjam-cloud/react-native-client";
 import {
   Phone,
   PhoneOff,
@@ -137,7 +137,7 @@ export default function VideoCallScreen() {
         >
           {localStream && !isVideoOff ? (
             <RTCView
-              streamURL={localStream.toURL()}
+              mediaStream={localStream}
               style={styles.video}
               objectFit="cover"
               mirror={true}
@@ -177,7 +177,7 @@ export default function VideoCallScreen() {
           >
             {participant.stream && !participant.isVideoOff ? (
               <RTCView
-                streamURL={participant.stream.toURL()}
+                mediaStream={participant.stream}
                 style={styles.video}
                 objectFit="cover"
               />

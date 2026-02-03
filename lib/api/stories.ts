@@ -5,6 +5,24 @@
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Platform } from "react-native";
 
+// Helper to extract avatar URL from various formats
+function extractAvatarUrl(avatar: unknown, fallbackName?: string): string {
+  if (!avatar) {
+    // Generate fallback avatar
+    return fallbackName
+      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=random`
+      : "";
+  }
+  if (typeof avatar === "string") return avatar;
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      return avatarObj.url;
+    }
+  }
+  return "";
+}
+
 // Cache for user ID lookups to avoid repeated API calls
 const userIdCache: Record<string, string> = {};
 
@@ -25,31 +43,28 @@ async function getAuthToken(): Promise<string | null> {
 // Helper function to lookup user ID by username using Payload custom endpoint
 async function getUserIdByUsername(username: string): Promise<string | null> {
   if (!username) return null;
-  
+
   // Check cache first
   if (userIdCache[username]) {
     return userIdCache[username];
   }
-  
+
   try {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (!apiUrl) return null;
 
     const token = await getAuthToken();
-    
+
     // Use custom profile endpoint (returns JSON)
-    const response = await fetch(
-      `${apiUrl}/api/users/${username}/profile`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-      }
-    );
-    
+    const response = await fetch(`${apiUrl}/api/users/${username}/profile`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
     if (!response.ok) return null;
-    
+
     const profile = await response.json();
     if (profile && profile.id) {
       const userId = String(profile.id);
@@ -59,7 +74,7 @@ async function getUserIdByUsername(username: string): Promise<string | null> {
   } catch (error) {
     console.error("[storiesApi] getUserIdByUsername error:", error);
   }
-  
+
   return null;
 }
 
@@ -203,15 +218,12 @@ export const storiesApiClient = {
 
       const token = await getAuthToken();
 
-      const response = await fetch(
-        `${apiUrl}/api/stories?limit=30`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/stories?limit=30`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (!response.ok) {
         console.error("[storiesApi] getStories failed:", response.status);
@@ -219,8 +231,11 @@ export const storiesApiClient = {
       }
 
       const result = await response.json();
-      console.log("[storiesApi] Raw stories response count:", result.docs?.length || 0);
-      
+      console.log(
+        "[storiesApi] Raw stories response count:",
+        result.docs?.length || 0,
+      );
+
       // Log first story structure for debugging
       if (result.docs?.[0]) {
         const first = result.docs[0] as Record<string, unknown>;
@@ -235,7 +250,7 @@ export const storiesApiClient = {
               : first.author,
         });
       }
-      
+
       return (result.docs || []).map(transformStory);
     } catch (error) {
       console.error("[storiesApi] getStories error:", error);
@@ -260,32 +275,34 @@ export const storiesApiClient = {
       }
 
       console.log("[storiesApi] Creating story with items:", data.items);
-      console.log("[storiesApi] User:", { id: user.id, username: user.username });
-      
+      console.log("[storiesApi] User:", {
+        id: user.id,
+        username: user.username,
+      });
+
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
       if (!apiUrl) throw new Error("API URL not configured");
 
       const token = await getAuthToken();
 
-      const response = await fetch(
-        `${apiUrl}/api/stories`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            media: data.items[0], // Endpoint expects single media object
-            items: data.items, // Also send full items array
-            clientMutationId: `story-${Date.now()}-${Math.random()}`,
-          }),
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/stories`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          media: data.items[0], // Endpoint expects single media object
+          items: data.items, // Also send full items array
+          clientMutationId: `story-${Date.now()}-${Math.random()}`,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to create story: ${response.status}`);
+        throw new Error(
+          errorData.error || `Failed to create story: ${response.status}`,
+        );
       }
 
       const doc = await response.json();

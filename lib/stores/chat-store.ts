@@ -96,16 +96,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await messagesApiClient.getMessages(conversationId);
 
       // Transform to local message format
-      const localMessages: Message[] = backendMessages.map((msg) => ({
-        id: msg.id,
-        text: msg.content,
-        sender: msg.sender.id === user?.id ? "me" : "them",
-        time: new Date(msg.createdAt).toLocaleTimeString([], {
+      const localMessages: Message[] = backendMessages.map((msg: any) => ({
+        id: String(msg.id),
+        text: msg.content || msg.text || "",
+        sender: (msg.sender?.id || msg.sender) === user?.id ? "me" : "them",
+        time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
         }),
         media:
-          msg.media.length > 0
+          msg.media && msg.media.length > 0
             ? {
                 type: msg.media[0].type,
                 uri: msg.media[0].url,

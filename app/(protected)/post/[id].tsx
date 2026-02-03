@@ -33,7 +33,10 @@ import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/supabase-posts";
+import { Avatar } from "@/components/ui/avatar";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Alert } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -55,30 +58,41 @@ function PostDetailScreenContent() {
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const { colors } = useColorScheme();
-  const likePostMutation = useLikePost();
-  const likeCommentMutation = useLikeComment();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const showActionSheet = useUIStore((state) => state.showActionSheet);
   const setShowActionSheet = useUIStore((state) => state.setShowActionSheet);
-  
+  const bookmarkStore = useBookmarkStore();
+
+  // Like state from centralized hook
+  const {
+    hasLiked: isPostLiked,
+    likes: likeCount,
+    toggle: toggleLike,
+    isPending: isLikePending,
+  } = usePostLikeState(
+    postId,
+    post?.likes || 0,
+    post?.viewerHasLiked || false,
+    post?.author?.id,
+  );
+
   const isOwner = currentUser?.username === post?.author?.username;
-  
-  // Sync bookmarks from API to local store
-  useEffect(() => {
-    if (bookmarkedPostIds.length > 0 && postId) {
-      const isBookmarkedInAPI = bookmarkedPostIds.includes(postId);
-      const isBookmarkedLocally = bookmarkStore.isBookmarked(postId);
-      
-      if (isBookmarkedInAPI !== isBookmarkedLocally) {
-        bookmarkStore.toggleBookmark(postId);
-      }
-    }
-  }, [postId, bookmarkedPostIds, bookmarkStore]);
-  
+
+  // Debug ownership check
+  if (__DEV__) {
+    console.log(`[PostDetail:${postId}] Owner check:`, {
+      currentUsername: currentUser?.username,
+      authorUsername: post?.author?.username,
+      isOwner,
+    });
+  }
+
   const isBookmarked = useMemo(() => {
-    return bookmarkedPostIds.includes(postId);
-  }, [postId, bookmarkedPostIds]);
+    return (
+      bookmarkedPostIds.includes(postId) || bookmarkStore.isBookmarked(postId)
+    );
+  }, [postId, bookmarkedPostIds, bookmarkStore]);
 
   // CRITICAL: Video lifecycle management to prevent crashes
   const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
@@ -267,10 +281,9 @@ function PostDetailScreenContent() {
     post?.media && Array.isArray(post.media) && post.media.length > 0;
   const hasMultipleMedia = hasMedia && post.media.length > 1 && !isVideo;
   const postIdString = post?.id ? String(post.id) : postId;
-  const isLiked = postIdString ? isPostLiked(postIdString) : false;
+  const isLiked = isPostLiked; // From usePostLikeState hook
   const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
-  const likeCount = postIdString && post ? getLikeCount(postIdString, post.likes || 0) : 0;
-  const commentCount = postIdString ? getCommentCount(postIdString, comments.length) : 0;
+  const commentCount = comments.length;
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">

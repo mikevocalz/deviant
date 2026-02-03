@@ -3,21 +3,24 @@
  * Production-ready with proper cleanup and error handling
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { supabase } from '@/lib/supabase/client';
-import type { RealtimeChannel, RealtimePresenceState } from '@supabase/supabase-js';
+import { useEffect, useRef, useCallback, useState } from "react";
+import { supabase } from "@/lib/supabase/client";
+import type {
+  RealtimeChannel,
+  RealtimePresenceState,
+} from "@supabase/supabase-js";
 import {
   Message,
   MessageReaction,
   TypingIndicator,
   RealtimeMessagePayload,
   RealtimeReactionPayload,
-} from './types';
+} from "./types";
 
 /**
  * Subscribe to new messages in a conversation
  * Receives INSERT events in real-time
- * 
+ *
  * @example
  * useMessagesSubscription(conversationId, (message) => {
  *   setMessages(prev => [...prev, message]);
@@ -26,7 +29,7 @@ import {
 export function useMessagesSubscription(
   conversationId: number | null,
   onMessage: (message: Message) => void,
-  onReaction: (reaction: MessageReaction, type: 'added' | 'removed') => void
+  onReaction: (reaction: MessageReaction, type: "added" | "removed") => void,
 ) {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -34,29 +37,31 @@ export function useMessagesSubscription(
     if (!conversationId) return;
 
     const channelName = `conversation:${conversationId}`;
-    console.log('[Realtime] Subscribing to:', channelName);
+    console.log("[Realtime] Subscribing to:", channelName);
 
     const channel = supabase
       .channel(channelName)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          console.log('[Realtime] New message:', payload);
-          
+          console.log("[Realtime] New message:", payload);
+
           // Fetch full message with sender info
           supabase
-            .from('messages')
-            .select(`
+            .from("messages")
+            .select(
+              `
               *,
               sender:users(id, username, first_name, avatar_id)
-            `)
-            .eq('id', payload.new.id)
+            `,
+            )
+            .eq("id", payload.new.id)
             .single()
             .then(({ data }) => {
               if (data) {
@@ -74,28 +79,30 @@ export function useMessagesSubscription(
                   deletedAt: data.deleted_at,
                   createdAt: data.created_at,
                   updatedAt: data.updated_at,
-                  sender: data.sender ? {
-                    id: data.sender.id,
-                    username: data.sender.username,
-                    firstName: data.sender.first_name,
-                    avatar: data.sender.avatar_id?.url || null,
-                  } : undefined,
+                  sender: data.sender
+                    ? {
+                        id: data.sender.id,
+                        username: data.sender.username,
+                        firstName: data.sender.first_name,
+                        avatar: data.sender.avatar_id?.url || null,
+                      }
+                    : undefined,
                   reactions: [],
                   reactionCounts: {},
                 });
               }
             });
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'message_reactions',
+          event: "INSERT",
+          schema: "public",
+          table: "message_reactions",
         },
         (payload) => {
-          console.log('[Realtime] New reaction:', payload);
+          console.log("[Realtime] New reaction:", payload);
           onReaction(
             {
               id: payload.new.id,
@@ -104,19 +111,19 @@ export function useMessagesSubscription(
               emoji: payload.new.emoji,
               createdAt: payload.new.created_at,
             },
-            'added'
+            "added",
           );
-        }
+        },
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'message_reactions',
+          event: "DELETE",
+          schema: "public",
+          table: "message_reactions",
         },
         (payload) => {
-          console.log('[Realtime] Reaction removed:', payload);
+          console.log("[Realtime] Reaction removed:", payload);
           onReaction(
             {
               id: payload.old.id,
@@ -125,18 +132,18 @@ export function useMessagesSubscription(
               emoji: payload.old.emoji,
               createdAt: payload.old.created_at,
             },
-            'removed'
+            "removed",
           );
-        }
+        },
       )
       .subscribe((status) => {
-        console.log('[Realtime] Subscription status:', status);
+        console.log("[Realtime] Subscription status:", status);
       });
 
     channelRef.current = channel;
 
     return () => {
-      console.log('[Realtime] Unsubscribing from:', channelName);
+      console.log("[Realtime] Unsubscribing from:", channelName);
       channel.unsubscribe();
     };
   }, [conversationId, onMessage, onReaction]);
@@ -145,10 +152,10 @@ export function useMessagesSubscription(
 /**
  * Typing indicator system using Realtime broadcast
  * Broadcasts typing status and receives others' typing status
- * 
+ *
  * @example
  * const { sendTyping, typingUsers } = useTypingIndicators(conversationId, currentUserId);
- * 
+ *
  * // Call on input change
  * onChangeText={(text) => {
  *   setText(text);
@@ -158,11 +165,11 @@ export function useMessagesSubscription(
 export function useTypingIndicators(
   conversationId: number | null,
   currentUserId: number | null,
-  currentUsername: string | null
+  currentUsername: string | null,
 ) {
   const [typingUsers, setTypingUsers] = useState<TypingIndicator[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Send typing indicator (debounced)
   const sendTyping = useCallback(() => {
@@ -175,8 +182,8 @@ export function useTypingIndicators(
 
     // Broadcast typing event
     channelRef.current.send({
-      type: 'broadcast',
-      event: 'typing',
+      type: "broadcast",
+      event: "typing",
       payload: {
         userId: currentUserId,
         username: currentUsername,
@@ -189,8 +196,8 @@ export function useTypingIndicators(
     timeoutRef.current = setTimeout(() => {
       if (channelRef.current) {
         channelRef.current.send({
-          type: 'broadcast',
-          event: 'typing_stopped',
+          type: "broadcast",
+          event: "typing_stopped",
           payload: {
             userId: currentUserId,
             conversationId,
@@ -204,36 +211,44 @@ export function useTypingIndicators(
     if (!conversationId) return;
 
     const channelName = `typing:${conversationId}`;
-    console.log('[Realtime] Setting up typing channel:', channelName);
+    console.log("[Realtime] Setting up typing channel:", channelName);
 
     const channel = supabase
       .channel(channelName)
-      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
         // Ignore own typing events
         if (payload.userId === currentUserId) return;
 
         setTypingUsers((prev) => {
           // Remove existing entry for this user
           const filtered = prev.filter((u) => u.userId !== payload.userId);
-          
+
           // Add new entry
-          return [...filtered, {
-            userId: payload.userId,
-            username: payload.username,
-            conversationId: payload.conversationId,
-            timestamp: payload.timestamp,
-          }];
+          return [
+            ...filtered,
+            {
+              userId: payload.userId,
+              username: payload.username,
+              conversationId: payload.conversationId,
+              timestamp: payload.timestamp,
+            },
+          ];
         });
 
         // Auto-remove after 5 seconds (fallback)
         setTimeout(() => {
-          setTypingUsers((prev) => 
-            prev.filter((u) => u.userId !== payload.userId || Date.now() - u.timestamp < 5000)
+          setTypingUsers((prev) =>
+            prev.filter(
+              (u) =>
+                u.userId !== payload.userId || Date.now() - u.timestamp < 5000,
+            ),
           );
         }, 5000);
       })
-      .on('broadcast', { event: 'typing_stopped' }, ({ payload }) => {
-        setTypingUsers((prev) => prev.filter((u) => u.userId !== payload.userId));
+      .on("broadcast", { event: "typing_stopped" }, ({ payload }) => {
+        setTypingUsers((prev) =>
+          prev.filter((u) => u.userId !== payload.userId),
+        );
       })
       .subscribe();
 
@@ -268,14 +283,14 @@ export function useTypingIndicators(
 /**
  * User presence system using Supabase Presence API
  * Tracks who's online in the conversation
- * 
+ *
  * @example
  * const { onlineUsers } = usePresence(conversationId, currentUserId);
  */
 export function usePresence(
   conversationId: number | null,
   currentUserId: number | null,
-  currentUsername: string | null
+  currentUsername: string | null,
 ) {
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -284,18 +299,18 @@ export function usePresence(
     if (!conversationId || !currentUserId) return;
 
     const channelName = `presence:${conversationId}`;
-    console.log('[Realtime] Setting up presence:', channelName);
+    console.log("[Realtime] Setting up presence:", channelName);
 
     const channel = supabase
       .channel(channelName)
-      .on('presence', { event: 'sync' }, () => {
+      .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<{
           user_id: number;
           username: string;
           online_at: string;
         }>();
 
-        console.log('[Realtime] Presence sync:', state);
+        console.log("[Realtime] Presence sync:", state);
 
         // Extract online user IDs
         const online = new Set<number>();
@@ -307,28 +322,28 @@ export function usePresence(
 
         setOnlineUsers(online);
       })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        console.log('[Realtime] User joined:', key, newPresences);
+      .on("presence", { event: "join" }, ({ key, newPresences }) => {
+        console.log("[Realtime] User joined:", key, newPresences);
       })
-      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-        console.log('[Realtime] User left:', key, leftPresences);
+      .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+        console.log("[Realtime] User left:", key, leftPresences);
       })
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
+        if (status === "SUBSCRIBED") {
           // Track presence
           const presenceStatus = await channel.track({
             user_id: currentUserId,
             username: currentUsername,
             online_at: new Date().toISOString(),
           });
-          console.log('[Realtime] Presence tracked:', presenceStatus);
+          console.log("[Realtime] Presence tracked:", presenceStatus);
         }
       });
 
     channelRef.current = channel;
 
     return () => {
-      console.log('[Realtime] Untracking presence');
+      console.log("[Realtime] Untracking presence");
       channel.untrack();
       channel.unsubscribe();
     };
@@ -343,7 +358,7 @@ export function usePresence(
 /**
  * Combined hook for complete chat realtime functionality
  * Handles messages, reactions, typing, and presence
- * 
+ *
  * @example
  * const {
  *   sendTyping,
@@ -361,13 +376,17 @@ export function useChatRealtime(
   currentUserId: number | null,
   currentUsername: string | null,
   onMessage: (message: Message) => void,
-  onReaction: (reaction: MessageReaction, type: 'added' | 'removed') => void
+  onReaction: (reaction: MessageReaction, type: "added" | "removed") => void,
 ) {
   // Subscribe to messages
   useMessagesSubscription(conversationId, onMessage, onReaction);
 
   // Typing indicators
-  const typing = useTypingIndicators(conversationId, currentUserId, currentUsername);
+  const typing = useTypingIndicators(
+    conversationId,
+    currentUserId,
+    currentUsername,
+  );
 
   // Presence
   const presence = usePresence(conversationId, currentUserId, currentUsername);

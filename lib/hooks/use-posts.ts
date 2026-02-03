@@ -4,6 +4,7 @@ import {
   useQueryClient,
   useInfiniteQuery,
 } from "@tanstack/react-query";
+import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/supabase-posts";
 import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
@@ -45,8 +46,9 @@ export function useProfilePosts(userId: string) {
     queryKey: postKeys.profilePosts(userId),
     queryFn: () => postsApi.getProfilePosts(userId),
     enabled: !!userId,
-    staleTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false,
+    staleTime: 0, // Always refetch to ensure fresh data
+    refetchOnMount: "always", // Force refetch when component mounts
+    refetchOnWindowFocus: true, // Refetch when app comes to foreground
   });
 }
 
@@ -230,8 +232,8 @@ export function useSyncLikedPosts() {
   return useQuery({
     queryKey: ["likedPosts"],
     queryFn: async () => {
-      const { users } = await import("@/lib/api-client");
-      const likedPosts = await users.getLikedPosts();
+      const { usersApi } = await import("@/lib/api/supabase-users");
+      const likedPosts = await usersApi.getLikedPosts();
 
       // Sync to Zustand store
       const { usePostStore } = await import("@/lib/stores/post-store");
@@ -271,7 +273,7 @@ export function useCreatePost() {
           const optimisticPost: Post = {
             id: `temp-${Date.now()}`,
             author: {
-              username: newPostData.authorUsername || "You",
+              username: "You",
               avatar: "",
               verified: false,
             },
@@ -279,7 +281,7 @@ export function useCreatePost() {
               ...m,
               type: m.type as "image" | "video",
             })),
-            caption: newPostData.caption || "",
+            caption: newPostData.content || "",
             likes: 0,
             comments: [],
             timeAgo: "Just now",
@@ -293,28 +295,12 @@ export function useCreatePost() {
                 ...firstPage,
                 data: [optimisticPost, ...firstPage.data],
               },
-              media: (newPostData.media || []) as Array<{ type: "image" | "video"; url: string }>,
-              caption: newPostData.caption || "",
-              likes: 0,
-              comments: [],
-              timeAgo: "Just now",
-              location: newPostData.location,
-              isNSFW: newPostData.isNSFW || false,
-            };
-            return {
-              ...old,
-              pages: [
-                {
-                  ...firstPage,
-                  data: [optimisticPost, ...firstPage.data],
-                },
-                ...old.pages.slice(1),
-              ],
-            };
-          }
-          return old;
-        },
-      );
+              ...old.pages.slice(1),
+            ],
+          };
+        }
+        return old;
+      });
 
       // Also update legacy feed query if it exists
       queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
@@ -322,12 +308,15 @@ export function useCreatePost() {
         const optimisticPost: Post = {
           id: `temp-${Date.now()}`,
           author: {
-            username: newPostData.authorUsername || "You",
+            username: "You",
             avatar: "",
             verified: false,
           },
-          media: (newPostData.media || []) as Array<{ type: "image" | "video"; url: string }>,
-          caption: newPostData.caption || "",
+          media: (newPostData.media || []).map((m) => ({
+            ...m,
+            type: m.type as "image" | "video",
+          })),
+          caption: newPostData.content || "",
           likes: 0,
           comments: [],
           timeAgo: "Just now",
@@ -348,32 +337,130 @@ export function useCreatePost() {
       }
     },
     onSuccess: (newPost) => {
-      console.log("[useCreatePost] Post created successfully:", newPost.id);
-      // Invalidate to get real data with correct ID
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+      console.log("[useCreatePost] Post created successfully:", newPost?.id);
+
+      // Replace the optimistic post with the real one instead of invalidating
+      // This prevents double posts from appearing
+      if (newPost?.id) {
+        // Update infinite feed - replace temp post with real one
+        queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any, pageIndex: number) => {
+              if (pageIndex === 0 && page.data) {
+                // Remove temp posts and add real post at the beginning
+                const filteredData = page.data.filter(
+                  (p: Post) => !p.id.startsWith("temp-"),
+                );
+                return {
+                  ...page,
+                  data: [newPost, ...filteredData],
+                };
+              }
+              return page;
+            }),
+          };
+        });
+
+        // Update legacy feed
+        queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
+          if (!old) return old;
+          const filteredData = old.filter((p) => !p.id.startsWith("temp-"));
+          return [newPost, ...filteredData];
+        });
+      }
     },
   });
 }
 
-// Delete post mutation
+// Update post mutation
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      postId,
+      updates,
+    }: {
+      postId: string;
+      updates: { content?: string; location?: string };
+    }) => postsApi.updatePost(postId, updates),
+    onSuccess: (updatedPost, { postId }) => {
+      // Update the specific post in cache
+      if (updatedPost) {
+        queryClient.setQueryData<Post>(postKeys.detail(postId), updatedPost);
+      }
+      // Invalidate feed to show updated content
+      queryClient.invalidateQueries({ queryKey: postKeys.feed() });
+      queryClient.invalidateQueries({ queryKey: postKeys.feedInfinite() });
+    },
+  });
+}
+
+// Delete post mutation with optimistic update
 export function useDeletePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: postsApi.deletePost,
-    onSuccess: (deletedPostId) => {
-      // Remove deleted post from all caches
-      queryClient.setQueriesData<Post[] | Post | null>(
-        { queryKey: postKeys.all },
+    onMutate: async (deletedPostId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: postKeys.all });
+
+      // Snapshot previous data for rollback
+      const previousInfinite = queryClient.getQueryData(
+        postKeys.feedInfinite(),
+      );
+      const previousFeed = queryClient.getQueryData(postKeys.feed());
+
+      // Optimistically remove from infinite feed
+      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data?.filter((post: Post) => post.id !== deletedPostId),
+          })),
+        };
+      });
+
+      // Optimistically remove from legacy feed
+      queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
+        if (!old) return old;
+        return old.filter((post) => post.id !== deletedPostId);
+      });
+
+      // Optimistically remove from profile posts (all users)
+      queryClient.setQueriesData<Post[]>(
+        { queryKey: ["profilePosts"] },
         (old) => {
-          if (Array.isArray(old)) {
-            return old.filter((post) => post.id !== deletedPostId);
-          }
-          return old;
+          if (!old) return old;
+          return old.filter((post) => post.id !== deletedPostId);
         },
       );
-      // Invalidate to refetch
-      queryClient.invalidateQueries({ queryKey: postKeys.all });
+
+      // Remove from detail cache
+      queryClient.removeQueries({ queryKey: postKeys.detail(deletedPostId) });
+
+      return { previousInfinite, previousFeed };
+    },
+    onError: (_err, _deletedPostId, context) => {
+      // Rollback on error
+      if (context?.previousInfinite) {
+        queryClient.setQueryData(
+          postKeys.feedInfinite(),
+          context.previousInfinite,
+        );
+      }
+      if (context?.previousFeed) {
+        queryClient.setQueryData(postKeys.feed(), context.previousFeed);
+      }
+    },
+    onSuccess: (_result, deletedPostId) => {
+      console.log("[useDeletePost] Post deleted successfully:", deletedPostId);
+      // No need to invalidate - optimistic update already removed the post
     },
   });
 }

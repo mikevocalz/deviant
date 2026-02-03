@@ -1,8 +1,30 @@
-import { View, Text, TextInput, Pressable, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Switch, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  ActivityIndicator,
+  Switch,
+  Alert,
+} from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowLeft, MapPin, Calendar, DollarSign, Users, Globe, Check, AlertCircle, Camera, Clock } from "lucide-react-native";
+import {
+  ArrowLeft,
+  MapPin,
+  Calendar,
+  DollarSign,
+  Users,
+  Globe,
+  Check,
+  AlertCircle,
+  Camera,
+  Clock,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useState, useCallback, useEffect } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -41,7 +63,7 @@ export default function EditEventScreen() {
   useEffect(() => {
     const fetchEvent = async () => {
       if (!eventId) return;
-      
+
       try {
         setIsFetching(true);
         const { data, error } = await supabase
@@ -51,7 +73,7 @@ export default function EditEventScreen() {
           .single();
 
         if (error) throw error;
-        
+
         if (data) {
           setTitle(data[DB.events.title] || "");
           setDescription(data[DB.events.description] || "");
@@ -65,7 +87,7 @@ export default function EditEventScreen() {
         }
       } catch (error) {
         console.error("Error fetching event:", error);
-        showToast("Failed to load event", "error");
+        showToast("error", "Failed to load event");
       } finally {
         setIsFetching(false);
       }
@@ -76,7 +98,8 @@ export default function EditEventScreen() {
 
   const pickCoverImage = useCallback(async () => {
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
         Alert.alert("Permission needed", "Please grant photo library access");
         return;
@@ -94,33 +117,33 @@ export default function EditEventScreen() {
         // TODO: Upload to Supabase Storage
         setCoverImageUrl(result.assets[0].uri);
         setIsUploadingCover(false);
-        showToast("Cover image updated! Save to confirm", "success");
+        showToast("success", "Cover image updated! Save to confirm");
       }
     } catch (error) {
       console.error("Error picking image:", error);
-      showToast("Failed to pick image", "error");
+      showToast("error", "Failed to pick image");
       setIsUploadingCover(false);
     }
   }, [showToast]);
 
   const handleSave = useCallback(async () => {
     if (!eventId) {
-      showToast("Event ID not found", "error");
+      showToast("error", "Event ID not found");
       return;
     }
 
     if (!title.trim()) {
-      showToast("Event title is required", "error");
+      showToast("error", "Event title is required");
       return;
     }
 
     if (!description.trim()) {
-      showToast("Event description is required", "error");
+      showToast("error", "Event description is required");
       return;
     }
 
     if (endDate < startDate) {
-      showToast("End date must be after start date", "error");
+      showToast("error", "End date must be after start date");
       return;
     }
 
@@ -136,7 +159,9 @@ export default function EditEventScreen() {
           [DB.events.startDate]: startDate.toISOString(),
           [DB.events.endDate]: endDate.toISOString(),
           [DB.events.price]: price ? parseFloat(price) : 0,
-          [DB.events.maxAttendees]: maxAttendees ? parseInt(maxAttendees) : null,
+          [DB.events.maxAttendees]: maxAttendees
+            ? parseInt(maxAttendees)
+            : null,
           [DB.events.isOnline]: isOnline,
           [DB.events.coverImageUrl]: coverImageUrl || null,
         })
@@ -148,15 +173,29 @@ export default function EditEventScreen() {
       queryClient.invalidateQueries({ queryKey: ["event", eventId] });
       queryClient.invalidateQueries({ queryKey: ["events"] });
 
-      showToast("Event updated successfully", "success");
+      showToast("success", "Event updated successfully");
       router.back();
     } catch (error: any) {
       console.error("Error updating event:", error);
-      showToast(error.message || "Failed to update event", "error");
+      showToast("error", error.message || "Failed to update event");
     } finally {
       setIsLoading(false);
     }
-  }, [eventId, title, description, location, startDate, endDate, price, maxAttendees, isOnline, coverImageUrl, showToast, router, queryClient]);
+  }, [
+    eventId,
+    title,
+    description,
+    location,
+    startDate,
+    endDate,
+    price,
+    maxAttendees,
+    isOnline,
+    coverImageUrl,
+    showToast,
+    router,
+    queryClient,
+  ]);
 
   const formatDateTime = (date: Date) => {
     return date.toLocaleDateString("en-US", {
@@ -170,7 +209,14 @@ export default function EditEventScreen() {
 
   if (isFetching) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.background,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
@@ -191,16 +237,22 @@ export default function EditEventScreen() {
           <Pressable onPress={() => router.back()} hitSlop={8}>
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="text-lg font-semibold" style={{ color: colors.foreground }}>
+          <Text
+            className="text-lg font-semibold"
+            style={{ color: colors.foreground }}
+          >
             Edit Event
           </Text>
           <Pressable
             onPress={handleSave}
             disabled={isLoading || !title.trim() || !description.trim()}
             className="px-4 py-2 rounded-full"
-            style={{ 
-              backgroundColor: (!title.trim() || !description.trim()) ? colors.muted : colors.primary,
-              opacity: isLoading ? 0.6 : 1 
+            style={{
+              backgroundColor:
+                !title.trim() || !description.trim()
+                  ? colors.muted
+                  : colors.primary,
+              opacity: isLoading ? 0.6 : 1,
             }}
           >
             {isLoading ? (
@@ -224,7 +276,10 @@ export default function EditEventScreen() {
         >
           {/* Cover Image */}
           <View className="mb-6">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Cover Image
             </Text>
             <Pressable onPress={pickCoverImage} disabled={isUploadingCover}>
@@ -232,8 +287,8 @@ export default function EditEventScreen() {
                 whileTap={{ scale: 0.98 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
                 className="rounded-xl overflow-hidden"
-                style={{ 
-                  height: 180, 
+                style={{
+                  height: 180,
                   backgroundColor: colors.muted,
                   borderWidth: 1,
                   borderColor: colors.border,
@@ -249,7 +304,10 @@ export default function EditEventScreen() {
                 ) : (
                   <View className="flex-1 items-center justify-center">
                     <Camera size={32} color={colors.mutedForeground} />
-                    <Text className="mt-2 text-sm" style={{ color: colors.mutedForeground }}>
+                    <Text
+                      className="mt-2 text-sm"
+                      style={{ color: colors.mutedForeground }}
+                    >
                       Add cover image
                     </Text>
                   </View>
@@ -265,7 +323,10 @@ export default function EditEventScreen() {
 
           {/* Title */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Event Title *
             </Text>
             <TextInput
@@ -284,7 +345,10 @@ export default function EditEventScreen() {
 
           {/* Description */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Description *
             </Text>
             <TextInput
@@ -307,13 +371,19 @@ export default function EditEventScreen() {
 
           {/* Start Date */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Start Date & Time
             </Text>
-            <Pressable 
+            <Pressable
               onPress={() => setShowStartDatePicker(true)}
               className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
             >
               <Calendar size={18} color={colors.mutedForeground} />
               <Text className="ml-2" style={{ color: colors.foreground }}>
@@ -324,13 +394,19 @@ export default function EditEventScreen() {
 
           {/* End Date */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               End Date & Time
             </Text>
-            <Pressable 
+            <Pressable
               onPress={() => setShowEndDatePicker(true)}
               className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{ backgroundColor: colors.card, borderColor: colors.border }}
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
             >
               <Clock size={18} color={colors.mutedForeground} />
               <Text className="ml-2" style={{ color: colors.foreground }}>
@@ -341,15 +417,26 @@ export default function EditEventScreen() {
 
           {/* Location */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Location
             </Text>
-            <View className="flex-row items-center px-4 py-3 rounded-xl border" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <View
+              className="flex-row items-center px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+            >
               <MapPin size={18} color={colors.mutedForeground} />
               <TextInput
                 value={location}
                 onChangeText={setLocation}
-                placeholder={isOnline ? "Add meeting link" : "Add venue address"}
+                placeholder={
+                  isOnline ? "Add meeting link" : "Add venue address"
+                }
                 placeholderTextColor={colors.mutedForeground}
                 className="flex-1 ml-2"
                 style={{ color: colors.foreground }}
@@ -359,17 +446,27 @@ export default function EditEventScreen() {
           </View>
 
           {/* Online Event Toggle */}
-          <View 
+          <View
             className="flex-row items-center justify-between p-4 rounded-xl mb-5"
-            style={{ backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border }}
+            style={{
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+            }}
           >
             <View className="flex-row items-center gap-2 flex-1">
               <Globe size={20} color={colors.foreground} />
               <View className="flex-1">
-                <Text className="text-sm font-medium" style={{ color: colors.foreground }}>
+                <Text
+                  className="text-sm font-medium"
+                  style={{ color: colors.foreground }}
+                >
                   Online Event
                 </Text>
-                <Text className="text-xs" style={{ color: colors.mutedForeground }}>
+                <Text
+                  className="text-xs"
+                  style={{ color: colors.mutedForeground }}
+                >
                   Event will be hosted virtually
                 </Text>
               </View>
@@ -384,10 +481,19 @@ export default function EditEventScreen() {
 
           {/* Price */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Price (Optional)
             </Text>
-            <View className="flex-row items-center px-4 py-3 rounded-xl border" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <View
+              className="flex-row items-center px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+            >
               <DollarSign size={18} color={colors.mutedForeground} />
               <TextInput
                 value={price}
@@ -399,17 +505,29 @@ export default function EditEventScreen() {
                 style={{ color: colors.foreground }}
               />
             </View>
-            <Text className="text-xs mt-1" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-xs mt-1"
+              style={{ color: colors.mutedForeground }}
+            >
               Leave empty for free events
             </Text>
           </View>
 
           {/* Max Attendees */}
           <View className="mb-5">
-            <Text className="text-sm font-medium mb-2" style={{ color: colors.mutedForeground }}>
+            <Text
+              className="text-sm font-medium mb-2"
+              style={{ color: colors.mutedForeground }}
+            >
               Max Attendees (Optional)
             </Text>
-            <View className="flex-row items-center px-4 py-3 rounded-xl border" style={{ backgroundColor: colors.card, borderColor: colors.border }}>
+            <View
+              className="flex-row items-center px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+              }}
+            >
               <Users size={18} color={colors.mutedForeground} />
               <TextInput
                 value={maxAttendees}
@@ -433,8 +551,12 @@ export default function EditEventScreen() {
           >
             <AlertCircle size={20} color={colors.mutedForeground} />
             <View className="flex-1">
-              <Text className="text-xs" style={{ color: colors.mutedForeground }}>
-                All attendees will be notified of any changes to the event details.
+              <Text
+                className="text-xs"
+                style={{ color: colors.mutedForeground }}
+              >
+                All attendees will be notified of any changes to the event
+                details.
               </Text>
             </View>
           </Motion.View>

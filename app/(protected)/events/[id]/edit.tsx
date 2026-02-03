@@ -37,7 +37,7 @@ import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { events } from "@/lib/api-client";
+import { eventsApi } from "@/lib/api/supabase-events";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LocationAutocomplete,
@@ -81,7 +81,7 @@ export default function EditEventScreen() {
       if (!id) return;
 
       try {
-        const event = await events.findByID(id, 2);
+        const event = await eventsApi.getEventById(id);
         if (!event) {
           showToast("error", "Error", "Event not found");
           router.back();
@@ -89,12 +89,10 @@ export default function EditEventScreen() {
         }
 
         // Check ownership
-        const organizerId =
-          typeof event.organizer === "object"
-            ? (event.organizer as any).id
-            : event.organizer;
+        const hostId =
+          typeof event.host === "object" ? (event.host as any).id : event.host;
         const isEventOwner = !!(
-          currentUser?.id && String(organizerId) === String(currentUser.id)
+          currentUser?.id && String(hostId) === String(currentUser.id)
         );
         setIsOwner(isEventOwner);
 
@@ -282,7 +280,7 @@ export default function EditEventScreen() {
       }
 
       // PATCH /api/events/:id
-      await events.update(id, updateData);
+      await eventsApi.updateEvent(id, updateData);
 
       // Invalidate caches
       queryClient.invalidateQueries({ queryKey: ["events"] });

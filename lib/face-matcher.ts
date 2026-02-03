@@ -7,7 +7,7 @@ import FaceSDK, {
   MatchFacesResponse,
   ImageType,
 } from "@regulaforensics/react-native-face-api";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 
 // Convert file URI to base64
 async function fileToBase64(uri: string): Promise<string> {

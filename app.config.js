@@ -148,6 +148,7 @@ export default {
         },
       ],
       "expo-secure-store",
+      "react-native-compressor",
       [
         "expo-location",
         {

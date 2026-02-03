@@ -29,6 +29,9 @@ export type Post = {
   createdAt?: string;
   location?: string;
   isNSFW?: boolean;
+  thumbnail?: string; // First media thumbnail for grid display
+  type?: "image" | "video"; // Primary media type
+  hasMultipleImages?: boolean; // Has carousel/multiple media
 };
 
 export type StoryItem = {
@@ -47,12 +50,22 @@ export type StoryItem = {
 
 export type Story = {
   id: string;
+  userId?: string;
   username: string;
   avatar: string;
-  hasStory: boolean;
+  hasStory?: boolean;
   isViewed: boolean;
   isYou?: boolean;
-  stories: StoryItem[];
+  stories?: StoryItem[];
+  items?: Array<{
+    id?: string;
+    type: "image" | "video" | "text";
+    url?: string;
+    text?: string;
+    textColor?: string;
+    backgroundColor?: string;
+    duration?: number;
+  }>;
 };
 
 export type Conversation = {

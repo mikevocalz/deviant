@@ -10,7 +10,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { getPayloadBaseUrl } from "@/lib/api-config";
+// Video call signaling server URL (TODO: implement with Supabase Realtime)
+const SIGNALING_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
 
 // Dynamic imports for WebRTC and Socket.IO to handle missing dependencies gracefully
 let RTCPeerConnection: any;
@@ -92,7 +93,7 @@ export function useVideoCall() {
   const connect = useCallback(async () => {
     if (socketRef.current?.connected) return;
 
-    const API_URL = getPayloadBaseUrl();
+    const API_URL = SIGNALING_URL;
     console.log("[VideoCall] Connecting to socket server:", API_URL);
 
     // Get JWT token for authentication

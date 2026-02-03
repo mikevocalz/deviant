@@ -4,7 +4,7 @@
  * SINGLE SOURCE OF TRUTH for like state across all screens.
  *
  * Query Key: ['likeState', viewerId, postId]
- * Shape: { hasLiked: boolean, likesCount: number }
+ * Shape: { hasLiked: boolean, likes: number }
  *
  * Rules:
  * - UI reads ONLY from this hook
@@ -16,13 +16,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { likes as likesApi } from "@/lib/api-client";
+import { likesApi } from "@/lib/api/supabase-likes";
 import { postKeys } from "@/lib/hooks/use-posts";
 import type { Post } from "@/lib/types";
 
 interface LikeState {
   hasLiked: boolean;
-  likesCount: number;
+  likes: number;
 }
 
 function logCacheMutation(
@@ -70,14 +70,12 @@ export function usePostLikeState(
     queryFn: async () => {
       // Return cached value or initial values - no server fetch to prevent crashes
       const cached = queryClient.getQueryData<LikeState>(likeStateQueryKey);
-      return (
-        cached || { hasLiked: initialHasLiked, likesCount: initialLikesCount }
-      );
+      return cached || { hasLiked: initialHasLiked, likes: initialLikesCount };
     },
     // CRITICAL: Use existing cache if available, otherwise use initial props
     initialData: existingCache || {
       hasLiked: initialHasLiked,
-      likesCount: initialLikesCount,
+      likes: initialLikesCount,
     },
     staleTime: Infinity, // Never stale - we manage updates via mutations
     gcTime: 30 * 60 * 1000, // 30 minutes
@@ -107,10 +105,10 @@ export function usePostLikeState(
       // Optimistic update
       const newState: LikeState = {
         hasLiked: action === "like",
-        likesCount:
+        likes:
           action === "like"
-            ? (previousState?.likesCount || 0) + 1
-            : Math.max((previousState?.likesCount || 0) - 1, 0),
+            ? (previousState?.likes || 0) + 1
+            : Math.max((previousState?.likes || 0) - 1, 0),
       };
 
       logCacheMutation("setQueryData", likeStateQueryKey);
@@ -129,8 +127,24 @@ export function usePostLikeState(
       logCacheMutation("setQueryData", likeStateQueryKey);
       queryClient.setQueryData<LikeState>(likeStateQueryKey, {
         hasLiked: data.liked,
-        likesCount: data.likesCount,
+        likes: data.likes,
       });
+
+      // CRITICAL: Update ALL like state caches for this post across all viewers
+      // This ensures the feed shows correct like count when returning from detail
+      queryClient.setQueriesData<LikeState>(
+        {
+          predicate: (query) => {
+            const key = query.queryKey;
+            return (
+              Array.isArray(key) &&
+              key[0] === "likeState" &&
+              key[2] === normalizedPostId
+            );
+          },
+        },
+        { hasLiked: data.liked, likes: data.likes },
+      );
 
       // Also update post detail cache if exists
       // CANONICAL: ['posts', 'detail', postId]
@@ -139,7 +153,7 @@ export function usePostLikeState(
         ["posts", "detail", normalizedPostId],
         (old: any) => {
           if (!old) return old;
-          return { ...old, likes: data.likesCount };
+          return { ...old, likes: data.likes };
         },
       );
 
@@ -150,7 +164,7 @@ export function usePostLikeState(
         if (Array.isArray(old)) {
           return old.map((post: any) =>
             post.id === normalizedPostId
-              ? { ...post, likes: data.likesCount }
+              ? { ...post, likes: data.likes }
               : post,
           );
         }
@@ -167,7 +181,7 @@ export function usePostLikeState(
             ...page,
             data: page.data?.map((post: any) =>
               post.id === normalizedPostId
-                ? { ...post, likes: data.likesCount }
+                ? { ...post, likes: data.likes }
                 : post,
             ),
           })),
@@ -182,7 +196,7 @@ export function usePostLikeState(
             if (!old || !Array.isArray(old)) return old;
             return old.map((post: any) =>
               post.id === normalizedPostId
-                ? { ...post, likes: data.likesCount }
+                ? { ...post, likes: data.likes }
                 : post,
             );
           },
@@ -206,7 +220,7 @@ export function usePostLikeState(
           if (!old || !Array.isArray(old)) return old;
           return old.map((post) =>
             post?.id === normalizedPostId
-              ? { ...post, likes: data.likesCount }
+              ? { ...post, likes: data.likes }
               : post,
           );
         },
@@ -243,11 +257,11 @@ export function usePostLikeState(
   const finalHasLiked =
     likeState?.hasLiked ?? existingCache?.hasLiked ?? initialHasLiked;
   const finalLikesCount =
-    likeState?.likesCount ?? existingCache?.likesCount ?? initialLikesCount;
+    likeState?.likes ?? existingCache?.likes ?? initialLikesCount;
 
   return {
     hasLiked: finalHasLiked,
-    likesCount: finalLikesCount,
+    likes: finalLikesCount,
     like,
     unlike,
     toggle,
@@ -266,7 +280,7 @@ export function seedLikeState(
   viewerId: string,
   postId: string,
   hasLiked: boolean,
-  likesCount: number,
+  likes: number,
 ) {
   const normalizedPostId =
     typeof postId === "string" ? postId : postId != null ? String(postId) : "";
@@ -282,12 +296,12 @@ export function seedLikeState(
   // This ensures that when we fetch real like states, they take precedence over defaults
   queryClient.setQueryData<LikeState>(
     likeStateKeys.forPost(viewerId, normalizedPostId),
-    { hasLiked, likesCount },
+    { hasLiked, likes },
   );
 
   if (__DEV__) {
     console.log(
-      `[seedLikeState] Post ${normalizedPostId}: hasLiked=${hasLiked}, likesCount=${likesCount}`,
+      `[seedLikeState] Post ${normalizedPostId}: hasLiked=${hasLiked}, likes=${likes}`,
     );
   }
 }

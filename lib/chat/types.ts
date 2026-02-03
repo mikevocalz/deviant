@@ -3,8 +3,8 @@
  * Production-grade TypeScript definitions
  */
 
-export type MessageType = 'text' | 'image' | 'video' | 'system';
-export type MemberRole = 'admin' | 'member';
+export type MessageType = "text" | "image" | "video" | "system";
+export type MemberRole = "admin" | "member";
 
 export interface Conversation {
   id: number;
@@ -15,7 +15,7 @@ export interface Conversation {
   lastMessageAt: string | null;
   createdAt: string;
   updatedAt: string;
-  
+
   // Computed fields (from joins)
   members?: ConversationMember[];
   lastMessage?: Message;
@@ -30,7 +30,7 @@ export interface ConversationMember {
   joinedAt: string;
   lastReadAt: string | null;
   notificationsEnabled: boolean;
-  
+
   // User info (from join)
   user?: {
     id: number;
@@ -54,7 +54,7 @@ export interface Message {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
-  
+
   // Computed fields
   sender?: {
     id: number;
@@ -65,8 +65,8 @@ export interface Message {
   replyToMessage?: Message;
   reactions?: MessageReaction[];
   reactionCounts?: Record<string, number>;
-  isOptimistic?: boolean;   // For optimistic updates
-  optimisticId?: string;     // Temp ID before server confirmation
+  isOptimistic?: boolean; // For optimistic updates
+  optimisticId?: string; // Temp ID before server confirmation
 }
 
 export interface MessageReaction {
@@ -75,7 +75,7 @@ export interface MessageReaction {
   userId: number;
   emoji: string;
   createdAt: string;
-  
+
   // User info
   user?: {
     id: number;
@@ -99,13 +99,13 @@ export interface UserPresence {
 
 // Realtime payload types
 export interface RealtimeMessagePayload {
-  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  eventType: "INSERT" | "UPDATE" | "DELETE";
   new: Message;
   old: Message | null;
 }
 
 export interface RealtimeReactionPayload {
-  eventType: 'INSERT' | 'DELETE';
+  eventType: "INSERT" | "DELETE";
   new: MessageReaction;
   old: MessageReaction | null;
 }
@@ -120,7 +120,10 @@ export interface ChatState {
 }
 
 // API Response types
-export interface ConversationWithDetails extends Conversation {
+export interface ConversationWithDetails extends Omit<
+  Conversation,
+  "members" | "lastMessage" | "unreadCount"
+> {
   members: ConversationMember[];
   lastMessage: Message | null;
   unreadCount: number;

@@ -1,5 +1,6 @@
-import { supabase } from '../supabase/client';
-import { DB } from '../supabase/db-map';
+import { supabase } from "../supabase/client";
+import { DB } from "../supabase/db-map";
+import type { Comment } from "@/lib/types";
 
 export const commentsApi = {
   /**
@@ -7,11 +8,12 @@ export const commentsApi = {
    */
   async getComments(postId: string, limit: number = 50) {
     try {
-      console.log('[Comments] getComments, postId:', postId);
-      
+      console.log("[Comments] getComments, postId:", postId);
+
       const { data, error } = await supabase
         .from(DB.comments.table)
-        .select(`
+        .select(
+          `
           *,
           author:${DB.comments.authorId}(
             ${DB.users.id},
@@ -19,23 +21,28 @@ export const commentsApi = {
             ${DB.users.firstName},
             avatar:${DB.users.avatarId}(url)
           )
-        `)
+        `,
+        )
         .eq(DB.comments.postId, parseInt(postId))
         .order(DB.comments.createdAt, { ascending: false })
         .limit(limit);
 
       if (error) throw error;
 
-      return (data || []).map((c: any) => ({
-        id: String(c[DB.comments.id]),
-        username: c.author?.[DB.users.username] || 'unknown',
-        avatar: c.author?.avatar?.url || '',
-        text: c[DB.comments.content] || '',
-        timeAgo: formatTimeAgo(c[DB.comments.createdAt]),
-        likes: Number(c[DB.comments.likesCount]) || 0,
-      }));
+      return (data || []).map(
+        (c: any): Comment => ({
+          id: String(c[DB.comments.id]),
+          username: c.author?.[DB.users.username] || "unknown",
+          avatar: c.author?.avatar?.url || "",
+          text: c[DB.comments.content] || "",
+          timeAgo: formatTimeAgo(c[DB.comments.createdAt]),
+          likes: Number(c[DB.comments.likesCount]) || 0,
+          hasLiked: false, // TODO: implement viewer like state
+          replies: [] as Comment[], // TODO: implement nested replies
+        }),
+      );
     } catch (error) {
-      console.error('[Comments] getComments error:', error);
+      console.error("[Comments] getComments error:", error);
       return [];
     }
   },
@@ -45,18 +52,20 @@ export const commentsApi = {
    */
   async addComment(postId: string, content: string) {
     try {
-      console.log('[Comments] addComment, postId:', postId);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      console.log("[Comments] addComment, postId:", postId);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
-      if (!userData) throw new Error('User not found');
+      if (!userData) throw new Error("User not found");
 
       const { data, error } = await supabase
         .from(DB.comments.table)
@@ -72,11 +81,80 @@ export const commentsApi = {
       if (error) throw error;
 
       // Increment post comments count
-      await supabase.rpc('increment_post_comments', { post_id: parseInt(postId) });
+      await supabase.rpc("increment_post_comments", {
+        post_id: parseInt(postId),
+      });
 
       return data;
     } catch (error) {
-      console.error('[Comments] addComment error:', error);
+      console.error("[Comments] addComment error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create comment (wrapper for addComment with object parameter)
+   */
+  async createComment(data: {
+    post: string;
+    text: string;
+    parent?: string;
+    authorUsername?: string;
+    authorId?: string;
+    clientMutationId?: string;
+  }) {
+    return this.addComment(data.post, data.text);
+  },
+
+  /**
+   * Like/unlike comment
+   */
+  async likeComment(
+    commentId: string,
+    isLiked: boolean,
+  ): Promise<{ liked: boolean; likes: number }> {
+    try {
+      console.log("[Comments] likeComment:", commentId, "isLiked:", isLiked);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: userData } = await supabase
+        .from(DB.users.table)
+        .select(DB.users.id)
+        .eq(DB.users.authId, user.id)
+        .single();
+
+      if (!userData) throw new Error("User not found");
+
+      const newLikedState = !isLiked;
+
+      if (newLikedState) {
+        // Add like - using comment_likes table if it exists, otherwise update count directly
+        await supabase.rpc("increment_comment_likes", {
+          comment_id: parseInt(commentId),
+        });
+      } else {
+        await supabase.rpc("decrement_comment_likes", {
+          comment_id: parseInt(commentId),
+        });
+      }
+
+      // Get updated likes count
+      const { data: commentData } = await supabase
+        .from(DB.comments.table)
+        .select(DB.comments.likesCount)
+        .eq(DB.comments.id, commentId)
+        .single();
+
+      return {
+        liked: newLikedState,
+        likes: commentData?.[DB.comments.likesCount] || 0,
+      };
+    } catch (error) {
+      console.error("[Comments] likeComment error:", error);
       throw error;
     }
   },
@@ -94,18 +172,38 @@ export const commentsApi = {
       if (error) throw error;
 
       // Decrement post comments count
-      await supabase.rpc('decrement_post_comments', { post_id: parseInt(postId) });
+      await supabase.rpc("decrement_post_comments", {
+        post_id: parseInt(postId),
+      });
 
       return { success: true };
     } catch (error) {
-      console.error('[Comments] deleteComment error:', error);
+      console.error("[Comments] deleteComment error:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Get replies to a comment
+   */
+  async getReplies(
+    parentId: string,
+    postId: string,
+    limit: number = 50,
+  ): Promise<Comment[]> {
+    try {
+      console.log("[Comments] getReplies, parentId:", parentId);
+      // TODO: Implement when nested comments are supported
+      return [];
+    } catch (error) {
+      console.error("[Comments] getReplies error:", error);
+      return [];
     }
   },
 };
 
 function formatTimeAgo(dateString: string): string {
-  if (!dateString) return 'Just now';
+  if (!dateString) return "Just now";
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -114,7 +212,7 @@ function formatTimeAgo(dateString: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffSecs < 60) return 'Just now';
+  if (diffSecs < 60) return "Just now";
   if (diffMins < 60) return `${diffMins}m`;
   if (diffHours < 24) return `${diffHours}h`;
   if (diffDays < 7) return `${diffDays}d`;

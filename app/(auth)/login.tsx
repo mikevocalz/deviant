@@ -6,8 +6,8 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { router } from "expo-router";
-import { auth } from "@/lib/api/auth";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { auth } from "@/lib/api/auth";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
@@ -41,66 +41,51 @@ export default function LoginScreen() {
       setIsSubmitting(true);
 
       try {
-        console.log("[Login] Attempting Supabase sign in for:", value.email);
         const result = await auth.signIn(value.email, value.password);
-        
-        console.log("[Login] Sign in result:", {
-          hasUser: !!result.user,
-          hasSession: !!result.session,
-          hasProfile: !!result.profile,
-          userId: result.user?.id,
-        });
 
-        if (!result.session || !result.user) {
-          console.error("[Login] Missing session or user in result");
-          toast.error("Login Failed", {
-            description: "Invalid credentials",
+        if (result.user && result.profile) {
+          console.log("[Login] Success, navigating to home...");
+          // Set user in auth store
+          setUser({
+            id: result.profile.id,
+            email: result.profile.email,
+            username: result.profile.username,
+            name: result.profile.name,
+            avatar: result.profile.avatar || "",
+            bio: result.profile.bio || "",
+            website: result.profile.website || "",
+            location: result.profile.location || "",
+            hashtags: result.profile.hashtags || [],
+            isVerified: result.profile.isVerified,
+            postsCount: result.profile.postsCount,
+            followersCount: result.profile.followersCount,
+            followingCount: result.profile.followingCount,
           });
-          setIsSubmitting(false);
-          return;
-        }
-
-        console.log("[Login] Sign in successful, user:", result.user.id);
-        
-        // Update auth store with profile
-        if (result.profile) {
-          console.log("[Login] Setting user in store:", result.profile.id);
-          setUser(result.profile);
+          // Small delay to let auth state sync before navigation
+          setTimeout(() => {
+            router.replace("/(protected)/(tabs)" as any);
+          }, 100);
         } else {
-          console.warn("[Login] No profile found for user");
+          toast.error("Login Failed", {
+            description: "Could not load user profile",
+          });
         }
-
-        toast.success("Welcome back!", {
-          description: "Signed in successfully",
-        });
-
-        // Navigate to app
-        console.log("[Login] Navigating to protected tabs");
-        setTimeout(() => {
-          router.replace("/(protected)/(tabs)" as any);
-        }, 100);
       } catch (error: any) {
         console.error("[Login] Error:", error);
-        console.error("[Login] Error message:", error?.message);
-        console.error("[Login] Error details:", JSON.stringify(error, null, 2));
 
-        let errorMessage = "Invalid credentials";
-        if (error?.message) {
-          errorMessage = error.message;
-        }
-
-        // Network error
+        // Network error - auth server not available
         if (
-          errorMessage.includes("fetch") ||
-          errorMessage.includes("network") ||
-          errorMessage.includes("Failed to fetch")
+          error?.message?.includes("fetch") ||
+          error?.message?.includes("network")
         ) {
           toast.error("Connection Error", {
-            description: "Unable to connect to server. Please try again later.",
+            description:
+              "Unable to connect to auth server. Please try again later.",
           });
         } else {
           toast.error("Login Failed", {
-            description: errorMessage,
+            description:
+              error?.message || "Something went wrong. Please try again.",
           });
         }
       }
@@ -143,71 +128,16 @@ export default function LoginScreen() {
         bottomOffset={20}
       >
         <View className="gap-6">
-        <View className="items-center gap-8">
-          {/* <Logo width={200} height={80} /> */}
-          <View className="items-center my-8">
-            <Text className="text-3xl font-bold text-foreground">
-              Welcome back
-            </Text>
-            <Text className="text-muted-foreground mt-4">
-              Sign in to your account to continue
-            </Text>
-          </View>
-        </View>
-
-        <View className="gap-4">
-          <FormInput
-            form={form}
-            name="email"
-            label="Email"
-            labelClassName="text-white"
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            validators={{
-              onChange: ({ value }: any) => {
-                if (!value) return "Email is required";
-                if (!value.includes("@")) return "Please enter a valid email";
-                return undefined;
-              },
-            }}
-          />
-
-          <FormInput
-            form={form}
-            name="password"
-            label="Password"
-            labelClassName="text-white"
-            placeholder="Enter your password"
-            secureTextEntry
-            validators={{
-              onChange: ({ value }: any) => {
-                if (!value) return "Password is required";
-                if (value.length < 8)
-                  return "Password must be at least 8 characters";
-                return undefined;
-              },
-            }}
-          />
-
-          <Button
-            onPress={form.handleSubmit}
-            disabled={isSubmitting}
-            loading={isSubmitting}
-          >
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </Button>
-
-          <Pressable onPress={() => router.push("/(auth)/forgot-password")} className="self-center">
-            <Text className="text-sm text-primary">Forgot Password?</Text>
-          </Pressable>
-        </View>
-
-        <View className="items-center gap-2">
-          <View className="flex-row items-center gap-2 w-full">
-            <View className="flex-1 h-px bg-border" />
-            <Text className="text-muted-foreground text-xs">Or</Text>
-            <View className="flex-1 h-px bg-border" />
+          <View className="items-center gap-8">
+            {/* <Logo width={200} height={80} /> */}
+            <View className="items-center my-8">
+              <Text className="text-3xl font-bold text-foreground">
+                Welcome back
+              </Text>
+              <Text className="text-muted-foreground mt-4">
+                Sign in to your account to continue
+              </Text>
+            </View>
           </View>
 
           <View className="gap-4">

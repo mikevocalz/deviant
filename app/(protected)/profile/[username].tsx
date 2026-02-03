@@ -273,14 +273,34 @@ function UserProfileScreenComponent() {
 
   const isOwnProfile = currentUser?.username === safeUsername;
 
+  // Fetch user data
+  const {
+    data: userData,
+    isLoading,
+    isError,
+    error,
+  } = useUser(safeUsername || "");
+
+  // Fetch user posts
+  const { data: userPosts = [], isLoading: isLoadingPosts } = useProfilePosts(
+    safeUsername || "",
+  );
+
+  // Follow state
+  const [isFollowing, setIsFollowing] = useState(false);
+  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
+
+  // Get userId for follow queries
+  const userId = (userData as any)?.id;
+
   // CRITICAL: Redirect to tabs profile if viewing own profile
   // This ensures consistent UI/UX when navigating from comments to own profile
   useEffect(() => {
-    const isFollowingValue = (userData as any)?.isFollowing
-    if (typeof isFollowingValue === 'boolean') {
-      setIsFollowing(isFollowingValue)
+    const isFollowingValue = (userData as any)?.isFollowing;
+    if (typeof isFollowingValue === "boolean") {
+      setIsFollowing(isFollowingValue);
     }
-  }, [(userData as any)?.isFollowing])
+  }, [(userData as any)?.isFollowing]);
 
   // Use API data or fallback to mock data - cast to any for flexibility with API response
   const user: {
@@ -293,18 +313,19 @@ function UserProfileScreenComponent() {
     postsCount?: number;
     followersCount?: number;
     followingCount?: number;
-  } = (userData as any) || mockUsers[username || ""] || {
-    id: undefined,
-    username: username || "unknown",
-    fullName: "Unknown User",
-    name: "Unknown User",
-    avatar: "https://i.pravatar.cc/150?img=1",
-    bio: "",
-    postsCount: 0,
-    followersCount: 0,
-    followingCount: 0,
-  }
-  
+  } = (userData as any) ||
+    mockUsers[username || ""] || {
+      id: undefined,
+      username: username || "unknown",
+      fullName: "Unknown User",
+      name: "Unknown User",
+      avatar: "https://i.pravatar.cc/150?img=1",
+      bio: "",
+      postsCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+    };
+
   // Create a followMutation-like object for compatibility
   const followMutation = {
     isPending: isFollowPending,
@@ -446,8 +467,8 @@ function UserProfileScreenComponent() {
                   }}
                 >
                   <Text className="text-lg font-bold text-foreground">
-                    {(user.followersCount ?? 0) >= 1000 
-                      ? `${((user.followersCount ?? 0) / 1000).toFixed(1)}K` 
+                    {(user.followersCount ?? 0) >= 1000
+                      ? `${((user.followersCount ?? 0) / 1000).toFixed(1)}K`
                       : (user.followersCount ?? 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">
@@ -476,15 +497,26 @@ function UserProfileScreenComponent() {
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold text-foreground">{user.name || user.fullName || user.username}</Text>
-            {user.bio && <Text className="mt-1 text-sm text-foreground/90">{user.bio}</Text>}
+            <Text className="font-semibold text-foreground">
+              {user.name || user.fullName || user.username}
+            </Text>
+            {user.bio && (
+              <Text className="mt-1 text-sm text-foreground/90">
+                {user.bio}
+              </Text>
+            )}
           </View>
 
           {/* Action Buttons */}
           <View className="mt-4 flex-row gap-2">
             {isOwnProfile ? (
               <>
-                <Pressable onPress={() => router.push("/(protected)/edit-profile" as any)} style={{ flex: 1 }}>
+                <Pressable
+                  onPress={() =>
+                    router.push("/(protected)/edit-profile" as any)
+                  }
+                  style={{ flex: 1 }}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -495,7 +527,12 @@ function UserProfileScreenComponent() {
                     </Text>
                   </Motion.View>
                 </Pressable>
-                <Pressable onPress={() => shareProfile(user.username, user.fullName || user.name)} style={styles.shareButton}>
+                <Pressable
+                  onPress={() =>
+                    shareProfile(user.username, user.fullName || user.name)
+                  }
+                  style={styles.shareButton}
+                >
                   <Motion.View
                     whileTap={{ scale: 0.95 }}
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}

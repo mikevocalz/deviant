@@ -3,6 +3,33 @@ import { Platform } from "react-native";
 
 const PAGE_SIZE = 10;
 
+// Helper to resolve media URLs (handles relative paths and CDN URLs)
+function resolveMediaUrl(url: string | undefined | null): string {
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  // Assume Bunny CDN base URL for relative paths
+  const cdnBase =
+    process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
+  return `${cdnBase}/${url}`;
+}
+
+// Helper to extract avatar URL from various formats
+function extractAvatarUrl(avatar: unknown, fallbackName?: string): string {
+  if (!avatar) {
+    return fallbackName
+      ? `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName)}&background=random`
+      : "";
+  }
+  if (typeof avatar === "string") return avatar;
+  if (typeof avatar === "object" && avatar !== null) {
+    const avatarObj = avatar as Record<string, unknown>;
+    if (avatarObj.url && typeof avatarObj.url === "string") {
+      return avatarObj.url;
+    }
+  }
+  return "";
+}
+
 // Get JWT token from storage
 async function getAuthToken(): Promise<string | null> {
   try {
@@ -23,31 +50,28 @@ const userIdCache: Record<string, string> = {};
 // Helper function to lookup user ID by username using Payload custom endpoint
 async function getUserIdByUsername(username: string): Promise<string | null> {
   if (!username) return null;
-  
+
   // Check cache first
   if (userIdCache[username]) {
     return userIdCache[username];
   }
-  
+
   try {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     if (!apiUrl) return null;
 
     const token = await getAuthToken();
-    
+
     // Use custom profile endpoint (returns JSON)
-    const response = await fetch(
-      `${apiUrl}/api/users/${username}/profile`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-      }
-    );
-    
+    const response = await fetch(`${apiUrl}/api/users/${username}/profile`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+
     if (!response.ok) return null;
-    
+
     const profile = await response.json();
     if (profile && profile.id) {
       const userId = String(profile.id);
@@ -57,7 +81,7 @@ async function getUserIdByUsername(username: string): Promise<string | null> {
   } catch (error) {
     console.error("[postsApi] getUserIdByUsername error:", error);
   }
-  
+
   return null;
 }
 
@@ -218,15 +242,12 @@ export const postsApi = {
       const token = await getAuthToken();
 
       // Use custom feed endpoint (returns JSON)
-      const response = await fetch(
-        `${apiUrl}/api/posts/feed?limit=20`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/posts/feed?limit=20`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (!response.ok) {
         console.error("[postsApi] getFeedPosts failed:", response.status);
@@ -249,7 +270,7 @@ export const postsApi = {
       // Use Payload's custom /api/posts/feed endpoint (returns JSON)
       const page = Math.floor(cursor / PAGE_SIZE) + 1;
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      
+
       if (!apiUrl) {
         console.error("[postsApi] EXPO_PUBLIC_API_URL not configured");
         return { data: [], nextCursor: null, hasMore: false };
@@ -266,7 +287,7 @@ export const postsApi = {
 
       const url = `${apiUrl}/api/posts/feed?page=${page}&limit=${PAGE_SIZE}`;
       console.log("[postsApi] getFeedPostsPaginated fetching:", url);
-      
+
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
@@ -274,12 +295,23 @@ export const postsApi = {
       }
 
       const result = await response.json();
-      console.log("[postsApi] getFeedPostsPaginated raw result:", JSON.stringify(result).substring(0, 500));
-      
+      console.log(
+        "[postsApi] getFeedPostsPaginated raw result:",
+        JSON.stringify(result).substring(0, 500),
+      );
+
       const posts = (result.docs || []).map(transformPost);
-      console.log("[postsApi] getFeedPostsPaginated posts count:", posts.length);
+      console.log(
+        "[postsApi] getFeedPostsPaginated posts count:",
+        posts.length,
+      );
       if (posts.length > 0) {
-        console.log("[postsApi] First post ID:", posts[0].id, "caption:", posts[0].caption?.substring(0, 30));
+        console.log(
+          "[postsApi] First post ID:",
+          posts[0].id,
+          "caption:",
+          posts[0].caption?.substring(0, 30),
+        );
       }
 
       return {
@@ -297,7 +329,7 @@ export const postsApi = {
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
       console.log("[postsApi] getProfilePosts called with userId:", userId);
-      
+
       if (!userId || userId === "skip") return [];
 
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
@@ -309,19 +341,23 @@ export const postsApi = {
       // Use custom profile posts endpoint (returns JSON)
       const url = `${apiUrl}/api/users/${userId}/posts?limit=50`;
       console.log("[postsApi] Fetching from URL:", url);
-      
+
       const response = await fetch(url, {
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
 
       console.log("[postsApi] Response status:", response.status);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[postsApi] getProfilePosts failed:", response.status, errorText);
+        console.error(
+          "[postsApi] getProfilePosts failed:",
+          response.status,
+          errorText,
+        );
         return [];
       }
 
@@ -343,15 +379,12 @@ export const postsApi = {
       const token = await getAuthToken();
 
       // Use custom post endpoint (returns JSON)
-      const response = await fetch(
-        `${apiUrl}/api/posts/${id}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/posts/${id}`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (!response.ok) {
         console.error("[postsApi] getPostById failed:", response.status);
@@ -416,52 +449,55 @@ export const postsApi = {
           console.log("[postsApi] Using cached author ID:", authorId);
         } else {
           // Look up user via custom profile endpoint
-          authorId = await getUserIdByUsername(data.authorUsername) || undefined;
+          authorId =
+            (await getUserIdByUsername(data.authorUsername)) || undefined;
           if (authorId) {
             console.log("[postsApi] Found author ID:", authorId);
           } else {
-            console.warn("[postsApi] User not found in CMS:", data.authorUsername);
+            console.warn(
+              "[postsApi] User not found in CMS:",
+              data.authorUsername,
+            );
           }
         }
       }
-      
+
       // Create post via custom endpoint
       const apiUrl = process.env.EXPO_PUBLIC_API_URL;
       if (!apiUrl) throw new Error("API URL not configured");
 
       const token = await getAuthToken();
 
-      const response = await fetch(
-        `${apiUrl}/api/posts`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            content: data.caption,
-            caption: data.caption,
-            location: data.location,
-            media: data.media || [],
-            isNSFW: data.isNSFW || false,
-          }),
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/posts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          content: data.caption,
+          caption: data.caption,
+          location: data.location,
+          media: data.media || [],
+          isNSFW: data.isNSFW || false,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to create post: ${response.status}`);
+        throw new Error(
+          errorData.error || `Failed to create post: ${response.status}`,
+        );
       }
 
       const doc = await response.json();
       console.log("[postsApi] createPost success:", JSON.stringify(doc));
 
       const newPost = transformPost(doc as Record<string, unknown>);
-      
+
       // Note: Mentions notifications should be handled server-side in Payload endpoint
       // If needed, you can add a separate notification endpoint call here
-      
+
       return newPost;
     } catch (error: any) {
       console.error("[postsApi] createPost error:", error);
@@ -479,20 +515,19 @@ export const postsApi = {
 
       const token = await getAuthToken();
 
-      const response = await fetch(
-        `${apiUrl}/api/posts/${postId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/posts/${postId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Failed to delete post: ${response.status}`);
+        throw new Error(
+          errorData.error || `Failed to delete post: ${response.status}`,
+        );
       }
 
       return postId;

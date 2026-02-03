@@ -1,4 +1,3 @@
-
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -92,38 +91,50 @@ function EventCard({
             {/* Attendees */}
             <View className="absolute top-4 left-4 flex-row items-center">
               <View className="flex-row items-center">
-                {event.attendees
-                  .slice(0, 3)
-                  .map((attendee: any, idx: number) => (
-                    <View
-                      key={idx}
-                      className="w-10 h-10 rounded-full border-2 border-background justify-center items-center overflow-hidden"
-                      style={{
-                        marginLeft: idx === 0 ? 0 : -12,
-                        backgroundColor: attendee.initials
-                          ? AVATAR_COLORS[idx % 5]
-                          : "transparent",
-                      }}
-                    >
-                      {attendee.image ? (
-                        <Image
-                          source={{ uri: attendee.image }}
-                          style={{ width: "100%", height: "100%" }}
-                        />
-                      ) : (
-                        <Text className="text-white text-xs font-semibold">
-                          {attendee.initials}
-                        </Text>
-                      )}
-                    </View>
-                  ))}
-                {event.totalAttendees > 3 && (
-                  <View className="ml-2 bg-black/40 px-2 py-1 rounded-xl">
+                {Array.isArray(event.attendees) ? (
+                  event.attendees
+                    .slice(0, 3)
+                    .map((attendee: any, idx: number) => (
+                      <View
+                        key={idx}
+                        className="w-10 h-10 rounded-full border-2 border-background justify-center items-center overflow-hidden"
+                        style={{
+                          marginLeft: idx === 0 ? 0 : -12,
+                          backgroundColor: attendee.initials
+                            ? AVATAR_COLORS[idx % 5]
+                            : "transparent",
+                        }}
+                      >
+                        {attendee.image ? (
+                          <Image
+                            source={{ uri: attendee.image }}
+                            style={{ width: "100%", height: "100%" }}
+                          />
+                        ) : (
+                          <Text className="text-white text-xs font-semibold">
+                            {attendee.initials}
+                          </Text>
+                        )}
+                      </View>
+                    ))
+                ) : (
+                  <View className="bg-black/40 px-3 py-1.5 rounded-xl">
                     <Text className="text-white text-xs font-medium">
-                      +{event.totalAttendees - 3}
+                      {typeof event.attendees === "number"
+                        ? event.attendees
+                        : 0}{" "}
+                      attending
                     </Text>
                   </View>
                 )}
+                {(event.totalAttendees ?? 0) > 3 &&
+                  Array.isArray(event.attendees) && (
+                    <View className="ml-2 bg-black/40 px-2 py-1 rounded-xl">
+                      <Text className="text-white text-xs font-medium">
+                        +{(event.totalAttendees ?? 0) - 3}
+                      </Text>
+                    </View>
+                  )}
               </View>
             </View>
 
@@ -161,7 +172,7 @@ function EventCard({
                   <Pressable className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-full">
                     <Heart size={16} color="#fff" />
                     <Text className="text-white text-sm font-medium">
-                      {formatLikes(event.likes)}
+                      {formatLikes(event.likes ?? 0)}
                     </Text>
                   </Pressable>
                   <Pressable className="bg-white/20 p-2 rounded-full">
@@ -218,11 +229,13 @@ export default function EventsScreen() {
       switch (tabIndex) {
         case 1: // upcoming
           return events.filter(
-            (event: Event) => event.fullDate && event.fullDate >= today,
+            (event: Event) =>
+              event.fullDate && new Date(event.fullDate) >= today,
           );
         case 2: // past_events
           return events.filter(
-            (event: Event) => event.fullDate && event.fullDate < today,
+            (event: Event) =>
+              event.fullDate && new Date(event.fullDate) < today,
           );
         default: // all_events
           return events;

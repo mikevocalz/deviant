@@ -17,7 +17,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -146,7 +146,7 @@ export default function EditProfileScreen() {
       );
       console.log("[EditProfile] User ID:", user.id);
 
-      const updatedUser = await users.updateMe(updateData);
+      const updatedUser = await usersApi.updateProfile(updateData);
       console.log("[EditProfile] Profile updated successfully:", updatedUser);
 
       // Update local auth store

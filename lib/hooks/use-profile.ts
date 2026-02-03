@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
@@ -64,11 +64,14 @@ export function useMyProfile() {
       console.log("[useMyProfile] Fetching profile for userId:", userId);
 
       try {
-        const profile = await users.getProfile(userId);
+        const profile = await usersApi.getProfileById(userId);
+        if (!profile) {
+          throw new Error("Profile not found");
+        }
 
         // CRITICAL: Resolve avatar URL properly - it may be string or media object
         const resolvedAvatar =
-          resolveAvatarUrl(profile.avatarUrl, "useMyProfile") ||
+          resolveAvatarUrl((profile as any).avatarUrl, "useMyProfile") ||
           resolveAvatarUrl(profile.avatar, "useMyProfile");
 
         // CRITICAL: Always log profile counts for debugging SEV-0
@@ -77,7 +80,7 @@ export function useMyProfile() {
           followersCount: profile.followersCount,
           followingCount: profile.followingCount,
           postsCount: profile.postsCount,
-          avatarUrlType: typeof profile.avatarUrl,
+          avatarUrlType: typeof (profile as any).avatarUrl,
           avatarType: typeof profile.avatar,
           resolvedAvatar: resolvedAvatar?.slice(0, 50),
         });
@@ -85,8 +88,8 @@ export function useMyProfile() {
         return {
           id: String(profile.id),
           username: profile.username,
-          name: profile.displayName,
-          displayName: profile.displayName,
+          name: profile.name || profile.username,
+          displayName: profile.name || profile.username,
           bio: profile.bio,
           avatar: resolvedAvatar || undefined,
           avatarUrl: resolvedAvatar || undefined,
@@ -126,11 +129,15 @@ export function useMyProfile() {
 }
 
 /**
- * useUpdateProfile - Mutation to update profile with proper cache sync
+ * useUpdateProfile - Mutation to update profile with OPTIMISTIC updates
  *
- * CRITICAL: On success, updates BOTH:
+ * CRITICAL: Updates happen IMMEDIATELY in onMutate, before server responds.
+ * On error, we rollback to previous state.
+ * Updates BOTH:
  * - ['authUser'] (Zustand store via setUser)
  * - ['profile', myUserId] (React Query cache)
+ * - Feed caches (for avatar updates)
+ * - Stories cache (for avatar updates)
  */
 export function useUpdateProfile() {
   const queryClient = useQueryClient();
@@ -147,16 +154,37 @@ export function useUpdateProfile() {
       hashtags?: string[];
     }) => {
       console.log("[useUpdateProfile] Updating profile:", data);
-      const result = await users.updateMe(data);
+      const result = await usersApi.updateProfile(data);
       return result;
     },
-    onSuccess: (result, variables) => {
+    onMutate: async (variables) => {
       const userId = authUser?.id;
-      if (!userId || !authUser) return;
+      if (!userId || !authUser) return {};
 
-      console.log("[useUpdateProfile] Success, syncing caches");
+      console.log("[useUpdateProfile] Optimistic update starting");
 
-      // 1. Update Zustand auth store (immutable)
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: profileKeys.byId(userId) });
+      await queryClient.cancelQueries({ queryKey: ["posts"] });
+      await queryClient.cancelQueries({ queryKey: ["stories"] });
+
+      // Snapshot previous state for rollback
+      const previousAuthUser = { ...authUser };
+      const previousProfile = queryClient.getQueryData<ProfileData>(
+        profileKeys.byId(userId),
+      );
+      const previousFeed = queryClient.getQueryData(["posts", "feed"]);
+      const previousInfiniteFeed = queryClient.getQueryData([
+        "posts",
+        "feed",
+        "infinite",
+      ]);
+      const previousProfilePosts = queryClient.getQueryData(
+        postKeys.profilePosts(userId),
+      );
+      const previousStories = queryClient.getQueryData(["stories"]);
+
+      // 1. OPTIMISTIC: Update Zustand auth store immediately
       const updatedUser = {
         ...authUser,
         bio: variables.bio ?? authUser.bio,
@@ -168,7 +196,7 @@ export function useUpdateProfile() {
       };
       setUser(updatedUser);
 
-      // 2. Update React Query profile cache (immutable)
+      // 2. OPTIMISTIC: Update React Query profile cache
       queryClient.setQueryData<ProfileData>(profileKeys.byId(userId), (old) => {
         if (!old) return old;
         return {
@@ -184,20 +212,11 @@ export function useUpdateProfile() {
         };
       });
 
-      // 3. Also invalidate username-based queries if username exists
-      if (authUser.username) {
-        queryClient.invalidateQueries({
-          queryKey: profileKeys.byUsername(authUser.username),
-        });
-      }
-
-      // 4. Invalidate authUser query if it exists
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-
-      // 5. CRITICAL: If avatar was updated, sync across feed caches
-      // This ensures my avatar updates immediately in my posts shown in feed
+      // 3. OPTIMISTIC: If avatar was updated, sync across ALL caches immediately
       if (variables.avatar) {
-        console.log("[useUpdateProfile] Avatar changed, syncing feed caches");
+        console.log(
+          "[useUpdateProfile] Avatar changed, optimistic sync to all caches",
+        );
 
         // Update regular feed cache
         queryClient.setQueryData(["posts", "feed"], (old: any) => {
@@ -248,7 +267,7 @@ export function useUpdateProfile() {
           }));
         });
 
-        // CRITICAL: Update stories cache for MY stories
+        // Update stories cache for MY stories
         queryClient.setQueryData(["stories"], (old: any) => {
           if (!old || !Array.isArray(old)) return old;
           return old.map((story: any) => {
@@ -262,14 +281,80 @@ export function useUpdateProfile() {
           });
         });
 
+        // Update stories list cache
+        queryClient.setQueryData(["stories", "list"], (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((story: any) => {
+            if (
+              String(story.userId) === String(userId) ||
+              story.username === authUser.username
+            ) {
+              return { ...story, avatar: variables.avatar };
+            }
+            return story;
+          });
+        });
+
         console.log(
-          "[useUpdateProfile] Avatar synced to feed, profile posts, and stories",
+          "[useUpdateProfile] Avatar optimistically synced to all caches",
         );
       }
+
+      return {
+        previousAuthUser,
+        previousProfile,
+        previousFeed,
+        previousInfiniteFeed,
+        previousProfilePosts,
+        previousStories,
+        userId,
+      };
     },
-    onError: (error) => {
-      console.error("[useUpdateProfile] Error:", error);
-      // Error is propagated to caller - DO NOT swallow
+    onError: (error, variables, context) => {
+      console.error("[useUpdateProfile] Error, rolling back:", error);
+
+      // Rollback all caches on error
+      if (context?.previousAuthUser) {
+        setUser(context.previousAuthUser);
+      }
+      if (context?.userId && context?.previousProfile) {
+        queryClient.setQueryData(
+          profileKeys.byId(context.userId),
+          context.previousProfile,
+        );
+      }
+      if (context?.previousFeed) {
+        queryClient.setQueryData(["posts", "feed"], context.previousFeed);
+      }
+      if (context?.previousInfiniteFeed) {
+        queryClient.setQueryData(
+          ["posts", "feed", "infinite"],
+          context.previousInfiniteFeed,
+        );
+      }
+      if (context?.userId && context?.previousProfilePosts) {
+        queryClient.setQueryData(
+          postKeys.profilePosts(context.userId),
+          context.previousProfilePosts,
+        );
+      }
+      if (context?.previousStories) {
+        queryClient.setQueryData(["stories"], context.previousStories);
+        queryClient.setQueryData(["stories", "list"], context.previousStories);
+      }
+    },
+    onSuccess: (_result, variables) => {
+      const userId = authUser?.id;
+      if (!userId) return;
+
+      console.log("[useUpdateProfile] Server confirmed, update complete");
+
+      // Invalidate username-based queries if username exists (for other users viewing our profile)
+      if (authUser?.username) {
+        queryClient.invalidateQueries({
+          queryKey: profileKeys.byUsername(authUser.username),
+        });
+      }
     },
   });
 }

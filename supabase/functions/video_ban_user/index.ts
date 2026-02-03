@@ -1,0 +1,244 @@
+/**
+ * Edge Function: video_ban_user
+ * Bans a user from a video room (persistent removal)
+ * Revokes tokens, updates membership, and broadcasts eject event
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+const BanUserSchema = z.object({
+  roomId: z.string().uuid(),
+  targetUserId: z.string().uuid(),
+  reason: z.string().max(500).optional(),
+  durationMinutes: z.number().int().min(1).max(525600).optional(), // Max 1 year, null = permanent
+});
+
+type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation_error" | "internal_error";
+
+interface ApiResponse<T = unknown> {
+  ok: boolean;
+  data?: T;
+  error?: { code: ErrorCode; message: string };
+}
+
+function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, status);
+}
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return errorResponse("validation_error", "Method not allowed", 405);
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+    }
+
+    const jwt = authHeader.replace("Bearer ", "");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    if (authError || !user) {
+      return errorResponse("unauthorized", "Invalid token", 401);
+    }
+
+    const actorId = user.id;
+
+    // Parse input
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("validation_error", "Invalid JSON body", 400);
+    }
+
+    const parsed = BanUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+    }
+
+    const { roomId, targetUserId, reason, durationMinutes } = parsed.data;
+
+    // Cannot ban yourself
+    if (actorId === targetUserId) {
+      return errorResponse("validation_error", "Cannot ban yourself", 400);
+    }
+
+    // Check room exists and is open
+    const { data: room, error: roomError } = await supabase
+      .from("video_rooms")
+      .select("*")
+      .eq("id", roomId)
+      .single();
+
+    if (roomError || !room) {
+      return errorResponse("not_found", "Room not found", 404);
+    }
+
+    if (room.status !== "open") {
+      return errorResponse("conflict", "Room is no longer open", 409);
+    }
+
+    // Check actor has permission to ban
+    const { data: canModerate } = await supabase.rpc("can_user_moderate_room", {
+      p_user_id: actorId,
+      p_room_id: roomId,
+    });
+
+    if (!canModerate) {
+      return errorResponse("forbidden", "You do not have permission to ban users", 403);
+    }
+
+    // Check target's role
+    const { data: targetRole } = await supabase.rpc("get_user_room_role", {
+      p_user_id: targetUserId,
+      p_room_id: roomId,
+    });
+
+    // Cannot ban the host
+    if (targetRole === "host") {
+      return errorResponse("forbidden", "Cannot ban the room host", 403);
+    }
+
+    // Get actor's role to check hierarchy
+    const { data: actorRole } = await supabase.rpc("get_user_room_role", {
+      p_user_id: actorId,
+      p_room_id: roomId,
+    });
+
+    // Moderators cannot ban other moderators
+    if (actorRole === "moderator" && targetRole === "moderator") {
+      return errorResponse("forbidden", "Moderators cannot ban other moderators", 403);
+    }
+
+    // Calculate expiry
+    const expiresAt = durationMinutes 
+      ? new Date(Date.now() + durationMinutes * 60 * 1000).toISOString()
+      : null;
+
+    // 1. Create or update ban record
+    const { error: banError } = await supabase
+      .from("video_room_bans")
+      .upsert({
+        room_id: roomId,
+        user_id: targetUserId,
+        banned_by: actorId,
+        reason,
+        expires_at: expiresAt,
+        created_at: new Date().toISOString(),
+      }, {
+        onConflict: "room_id,user_id",
+      });
+
+    if (banError) {
+      console.error("[video_ban_user] Ban insert error:", banError.message);
+      return errorResponse("internal_error", "Failed to ban user", 500);
+    }
+
+    // 2. Update member status to banned
+    const { error: updateError } = await supabase
+      .from("video_room_members")
+      .update({ 
+        status: "banned", 
+        left_at: new Date().toISOString() 
+      })
+      .eq("room_id", roomId)
+      .eq("user_id", targetUserId);
+
+    if (updateError) {
+      console.error("[video_ban_user] Member update error:", updateError.message);
+    }
+
+    // 3. Revoke all active tokens
+    await supabase
+      .from("video_room_tokens")
+      .update({ revoked_at: new Date().toISOString() })
+      .eq("room_id", roomId)
+      .eq("user_id", targetUserId)
+      .is("revoked_at", null);
+
+    // 4. Remove peer from Fishjam room
+    if (room.fishjam_room_id) {
+      try {
+        const peersRes = await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}`, {
+          headers: { "Authorization": `Bearer ${fishjamApiKey}` },
+        });
+
+        if (peersRes.ok) {
+          const roomData = await peersRes.json();
+          const peers = roomData.data.room.peers || [];
+          const targetPeer = peers.find((p: any) => p.metadata?.userId === targetUserId);
+
+          if (targetPeer) {
+            await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}/peer/${targetPeer.id}`, {
+              method: "DELETE",
+              headers: { "Authorization": `Bearer ${fishjamApiKey}` },
+            });
+          }
+        }
+      } catch (err) {
+        console.error("[video_ban_user] Fishjam peer removal error:", err);
+      }
+    }
+
+    // 5. Insert eject event (triggers realtime broadcast)
+    await supabase.from("video_room_events").insert({
+      room_id: roomId,
+      type: "eject",
+      actor_id: actorId,
+      target_id: targetUserId,
+      payload: { action: "ban", reason, expiresAt },
+    });
+
+    // Also insert member_banned for audit
+    await supabase.from("video_room_events").insert({
+      room_id: roomId,
+      type: "member_banned",
+      actor_id: actorId,
+      target_id: targetUserId,
+      payload: { reason, expiresAt },
+    });
+
+    console.log(`[video_ban_user] User ${targetUserId} banned from room ${roomId} by ${actorId}`);
+
+    return jsonResponse({
+      ok: true,
+      data: {
+        banned: true,
+        targetUserId,
+        roomId,
+        expiresAt,
+      },
+    });
+  } catch (err) {
+    console.error("[video_ban_user] Unexpected error:", err);
+    return errorResponse("internal_error", "An unexpected error occurred", 500);
+  }
+});

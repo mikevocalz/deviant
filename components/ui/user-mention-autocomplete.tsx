@@ -1,14 +1,21 @@
 /**
  * User Mention Autocomplete Component
- * 
+ *
  * Provides @ mention functionality for post captions
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { View, Text, TextInput, Pressable, ScrollView, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+} from "react-native";
 import { Image } from "expo-image";
 import { useColorScheme } from "@/lib/hooks";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { useQuery } from "@tanstack/react-query";
 
 interface User {
@@ -28,7 +35,10 @@ interface UserMentionAutocompleteProps {
   onMentionSelect?: (username: string) => void;
 }
 
-function extractMentionQuery(text: string, cursorPosition: number): string | null {
+function extractMentionQuery(
+  text: string,
+  cursorPosition: number,
+): string | null {
   const beforeCursor = text.slice(0, cursorPosition);
   const match = beforeCursor.match(/@(\w*)$/);
   return match ? match[1] : null;
@@ -58,15 +68,10 @@ export function UserMentionAutocomplete({
     queryFn: async () => {
       if (!mentionQuery || mentionQuery.length < 1) return [];
       try {
-        const result = await users.find({
-          where: {
-            or: [
-              { username: { contains: mentionQuery.toLowerCase() } },
-              { name: { contains: mentionQuery } },
-            ],
-          },
-          limit: 10,
-        });
+        const result = await usersApi.searchUsers(
+          mentionQuery.toLowerCase(),
+          10,
+        );
         return (result.docs || []) as unknown as User[];
       } catch (error) {
         console.error("[UserMention] Search error:", error);
@@ -87,12 +92,9 @@ export function UserMentionAutocomplete({
     [onChangeText],
   );
 
-  const handleSelectionChange = useCallback(
-    (event: any) => {
-      setCursorPosition(event.nativeEvent.selection?.start || 0);
-    },
-    [],
-  );
+  const handleSelectionChange = useCallback((event: any) => {
+    setCursorPosition(event.nativeEvent.selection?.start || 0);
+  }, []);
 
   const insertMention = useCallback(
     (username: string) => {
@@ -172,7 +174,9 @@ export function UserMentionAutocomplete({
         >
           {isSearching ? (
             <View style={styles.loadingContainer}>
-              <Text style={{ color: colors.mutedForeground }}>Searching...</Text>
+              <Text style={{ color: colors.mutedForeground }}>
+                Searching...
+              </Text>
             </View>
           ) : searchResults.length > 0 ? (
             <ScrollView

@@ -321,16 +321,14 @@ export default function CreateScreen() {
 
       createPost(
         {
-          caption,
+          content: caption,
           location,
           media: postMedia,
-          author: user?.id,
-          authorUsername: user?.username,
           isNSFW,
         },
         {
           onSuccess: (newPost) => {
-            console.log("[Create] Post created successfully:", newPost.id);
+            console.log("[Create] Post created successfully:", newPost?.id);
             showToast("success", "Posted!", "Your post is now live");
             reset();
             router.back();

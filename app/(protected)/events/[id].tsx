@@ -34,8 +34,11 @@ import Animated, {
 import { useEventViewStore } from "@/lib/stores/event-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { events } from "@/lib/api-client";
-import { useEventReviews, useCreateEventReview } from "@/lib/hooks/use-event-reviews";
+import { eventsApi } from "@/lib/api/supabase-events";
+import {
+  useEventReviews,
+  useCreateEventReview,
+} from "@/lib/hooks/use-event-reviews";
 import { useEventComments } from "@/lib/hooks/use-event-comments";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
@@ -213,27 +216,41 @@ export default function EventDetailScreen() {
   const [eventData, setEventData] = useState<any>(null);
   const [isOrganizer, setIsOrganizer] = useState(false);
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [organizers, setOrganizers] = useState<Array<{ id: string; name?: string; username?: string; avatar?: string }>>([]);
+  const [organizers, setOrganizers] = useState<
+    Array<{ id: string; name?: string; username?: string; avatar?: string }>
+  >([]);
 
   // Fetch reviews and comments
-  const { data: reviews = [], isLoading: isLoadingReviews } = useEventReviews(eventId, 5);
-  const { data: comments = [], isLoading: isLoadingComments } = useEventComments(eventId, 5);
+  const { data: reviews = [], isLoading: isLoadingReviews } = useEventReviews(
+    eventId,
+    5,
+  );
+  const { data: comments = [], isLoading: isLoadingComments } =
+    useEventComments(eventId, 5);
   const createReview = useCreateEventReview();
 
   // Fetch real event data
   useEffect(() => {
     const fetchEvent = async () => {
       try {
-        const fetchedEvent = await events.findByID(eventId, 2);
+        const fetchedEvent = await eventsApi.getEventById(eventId);
         if (fetchedEvent) {
           setEventData(fetchedEvent);
-          
+
           // Collect all organizers (host + coOrganizer)
-          const orgs: Array<{ id: string; name?: string; username?: string; avatar?: string }> = [];
-          
+          const orgs: Array<{
+            id: string;
+            name?: string;
+            username?: string;
+            avatar?: string;
+          }> = [];
+
           // Add host/organizer
           if (fetchedEvent.host) {
-            const host = typeof fetchedEvent.host === "object" ? fetchedEvent.host : { id: fetchedEvent.host };
+            const host =
+              typeof fetchedEvent.host === "object"
+                ? fetchedEvent.host
+                : { id: fetchedEvent.host };
             orgs.push({
               id: (host as any)?.id || host,
               name: (host as any)?.name,
@@ -241,10 +258,13 @@ export default function EventDetailScreen() {
               avatar: (host as any)?.avatar,
             });
           }
-          
+
           // Add co-organizer
           if (fetchedEvent.coOrganizer) {
-            const coOrg = typeof fetchedEvent.coOrganizer === "object" ? fetchedEvent.coOrganizer : { id: fetchedEvent.coOrganizer };
+            const coOrg =
+              typeof fetchedEvent.coOrganizer === "object"
+                ? fetchedEvent.coOrganizer
+                : { id: fetchedEvent.coOrganizer };
             orgs.push({
               id: (coOrg as any)?.id || coOrg,
               name: (coOrg as any)?.name,
@@ -252,11 +272,11 @@ export default function EventDetailScreen() {
               avatar: (coOrg as any)?.avatar,
             });
           }
-          
+
           setOrganizers(orgs);
-          
+
           // Check if current user is organizer (host or co-organizer)
-          const isHost = orgs.some(org => org.id === user?.id);
+          const isHost = orgs.some((org) => org.id === user?.id);
           setIsOrganizer(isHost);
         }
       } catch (error) {
@@ -561,10 +581,18 @@ export default function EventDetailScreen() {
               onPress={async () => {
                 try {
                   await shareEvent(eventId, event?.title || eventData?.title);
-                  showToast("success", "Link Shared", "Event link has been shared!");
+                  showToast(
+                    "success",
+                    "Link Shared",
+                    "Event link has been shared!",
+                  );
                 } catch (error) {
                   console.error("[EventDetail] Share error:", error);
-                  showToast("error", "Share Failed", "Unable to share event link. Please try again.");
+                  showToast(
+                    "error",
+                    "Share Failed",
+                    "Unable to share event link. Please try again.",
+                  );
                 }
               }}
               style={{
@@ -604,61 +632,61 @@ export default function EventDetailScreen() {
 
           {/* Venues */}
           {event.venues && event.venues.length > 0 && (
-          <Animated.View
-            entering={FadeInDown.delay(600)}
-            style={{ marginBottom: 24 }}
-          >
-            <Text
-              style={{
-                fontSize: 24,
-                fontWeight: "bold",
-                color: colors.foreground,
-                marginBottom: 12,
-              }}
+            <Animated.View
+              entering={FadeInDown.delay(600)}
+              style={{ marginBottom: 24 }}
             >
-              Featured Venues
-            </Text>
-            <View style={{ gap: 12 }}>
-              {event.venues.map((venue: string) => (
-                <View
-                  key={venue}
-                  style={{
-                    backgroundColor: colors.card,
-                    borderRadius: 12,
-                    padding: 16,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
+              <Text
+                style={{
+                  fontSize: 24,
+                  fontWeight: "bold",
+                  color: colors.foreground,
+                  marginBottom: 12,
+                }}
+              >
+                Featured Venues
+              </Text>
+              <View style={{ gap: 12 }}>
+                {event.venues.map((venue: string) => (
                   <View
+                    key={venue}
                     style={{
-                      width: 48,
-                      height: 48,
+                      backgroundColor: colors.card,
                       borderRadius: 12,
-                      backgroundColor: colors.muted,
+                      padding: 16,
+                      flexDirection: "row",
                       alignItems: "center",
-                      justifyContent: "center",
+                      gap: 12,
                     }}
                   >
-                    <MapPin size={24} color={colors.mutedForeground} />
-                  </View>
-                  <View>
-                    <Text
-                      style={{ fontWeight: "600", color: colors.foreground }}
+                    <View
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        backgroundColor: colors.muted,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                     >
-                      {venue}
-                    </Text>
-                    <Text
-                      style={{ fontSize: 12, color: colors.mutedForeground }}
-                    >
-                      Participating venue
-                    </Text>
+                      <MapPin size={24} color={colors.mutedForeground} />
+                    </View>
+                    <View>
+                      <Text
+                        style={{ fontWeight: "600", color: colors.foreground }}
+                      >
+                        {venue}
+                      </Text>
+                      <Text
+                        style={{ fontSize: 12, color: colors.mutedForeground }}
+                      >
+                        Participating venue
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))}
-            </View>
-          </Animated.View>
+                ))}
+              </View>
+            </Animated.View>
           )}
 
           {/* Who's Going */}
@@ -957,7 +985,9 @@ export default function EventDetailScreen() {
                   marginBottom: 16,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <Star size={20} color="#FFD700" />
                   <Text
                     style={{
@@ -970,7 +1000,13 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
                 {eventData?.averageRating > 0 && (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
                     <StarRatingDisplay
                       rating={eventData.averageRating || 0}
                       starSize={16}
@@ -1055,7 +1091,13 @@ export default function EventDetailScreen() {
                           marginBottom: 8,
                         }}
                       >
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 8,
+                          }}
+                        >
                           <Text
                             style={{
                               fontSize: 14,
@@ -1063,7 +1105,9 @@ export default function EventDetailScreen() {
                               color: colors.foreground,
                             }}
                           >
-                            {review.user?.username || review.user?.name || "Anonymous"}
+                            {review.user?.username ||
+                              review.user?.name ||
+                              "Anonymous"}
                           </Text>
                           <StarRatingDisplay
                             rating={review.rating || 0}
@@ -1112,7 +1156,9 @@ export default function EventDetailScreen() {
                   marginBottom: 16,
                 }}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                >
                   <MessageCircle size={20} color={colors.primary} />
                   <Text
                     style={{
@@ -1136,7 +1182,9 @@ export default function EventDetailScreen() {
                 </View>
                 {comments.length > 5 && (
                   <Pressable
-                    onPress={() => router.push(`/(protected)/events/${eventId}/comments`)}
+                    onPress={() =>
+                      router.push(`/(protected)/events/${eventId}/comments`)
+                    }
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
@@ -1177,7 +1225,9 @@ export default function EventDetailScreen() {
                           uri:
                             comment.author?.avatar ||
                             `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                              comment.author?.username || comment.author?.name || "User",
+                              comment.author?.username ||
+                                comment.author?.name ||
+                                "User",
                             )}`,
                         }}
                         style={{
@@ -1195,7 +1245,9 @@ export default function EventDetailScreen() {
                             marginBottom: 4,
                           }}
                         >
-                          {comment.author?.username || comment.author?.name || "User"}
+                          {comment.author?.username ||
+                            comment.author?.name ||
+                            "User"}
                         </Text>
                         <Text
                           style={{
@@ -1214,10 +1266,13 @@ export default function EventDetailScreen() {
                           }}
                         >
                           {comment.createdAt
-                            ? new Date(comment.createdAt).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                              })
+                            ? new Date(comment.createdAt).toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                },
+                              )
                             : ""}
                         </Text>
                       </View>
@@ -1232,7 +1287,9 @@ export default function EventDetailScreen() {
 
               {/* Add Comment Button */}
               <Pressable
-                onPress={() => router.push(`/(protected)/events/${eventId}/comments`)}
+                onPress={() =>
+                  router.push(`/(protected)/events/${eventId}/comments`)
+                }
                 style={{
                   marginTop: 16,
                   paddingVertical: 12,

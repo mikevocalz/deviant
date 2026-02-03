@@ -1,12 +1,18 @@
 /**
  * Edit Post Screen
- * 
+ *
  * Instagram parity: Only caption/text is editable, NOT media.
- * 
+ *
  * Route: /(protected)/post/[id]/edit
  */
 
-import { View, Text, Pressable, TextInput, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -15,7 +21,7 @@ import { useState, useEffect, useCallback } from "react";
 import { usePost } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { posts } from "@/lib/api-client";
+import { postsApi } from "@/lib/api/supabase-posts";
 import { useQueryClient } from "@tanstack/react-query";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { Image } from "expo-image";
@@ -51,7 +57,9 @@ export default function EditPostScreen() {
   }, [caption, post?.caption]);
 
   // Check ownership
-  const isOwner = post?.author?.id && currentUser?.id && 
+  const isOwner =
+    post?.author?.id &&
+    currentUser?.id &&
     String(post.author.id) === String(currentUser.id);
 
   const handleSave = useCallback(async () => {
@@ -60,7 +68,7 @@ export default function EditPostScreen() {
     setIsSaving(true);
     try {
       // PATCH /api/posts/:id - only caption is editable
-      const updated = await posts.update(id, { caption });
+      const updated = await postsApi.updatePost(id, { content: caption });
 
       // Optimistic cache updates
       // Update post detail cache
@@ -72,9 +80,7 @@ export default function EditPostScreen() {
       // Update feed caches
       queryClient.setQueryData(["posts", "feed"], (old: any) => {
         if (!old || !Array.isArray(old)) return old;
-        return old.map((p: any) => 
-          p.id === id ? { ...p, caption } : p
-        );
+        return old.map((p: any) => (p.id === id ? { ...p, caption } : p));
       });
 
       queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
@@ -84,7 +90,7 @@ export default function EditPostScreen() {
           pages: old.pages.map((page: any) => ({
             ...page,
             data: page.data?.map((p: any) =>
-              p.id === id ? { ...p, caption } : p
+              p.id === id ? { ...p, caption } : p,
             ),
           })),
         };
@@ -96,10 +102,8 @@ export default function EditPostScreen() {
           postKeys.profilePosts(String(currentUser.id)),
           (old: any) => {
             if (!old || !Array.isArray(old)) return old;
-            return old.map((p: any) =>
-              p.id === id ? { ...p, caption } : p
-            );
-          }
+            return old.map((p: any) => (p.id === id ? { ...p, caption } : p));
+          },
         );
       }
 
@@ -111,7 +115,16 @@ export default function EditPostScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [id, caption, hasChanges, isSaving, queryClient, currentUser?.id, showToast, router]);
+  }, [
+    id,
+    caption,
+    hasChanges,
+    isSaving,
+    queryClient,
+    currentUser?.id,
+    showToast,
+    router,
+  ]);
 
   // Loading state
   if (isLoading) {
@@ -132,7 +145,9 @@ export default function EditPostScreen() {
           <Pressable onPress={() => router.back()}>
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="ml-4 text-lg font-semibold text-foreground">Edit Post</Text>
+          <Text className="ml-4 text-lg font-semibold text-foreground">
+            Edit Post
+          </Text>
         </View>
         <View className="flex-1 items-center justify-center p-4">
           <Text className="text-muted-foreground">Post not found</Text>
@@ -149,10 +164,14 @@ export default function EditPostScreen() {
           <Pressable onPress={() => router.back()}>
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
-          <Text className="ml-4 text-lg font-semibold text-foreground">Edit Post</Text>
+          <Text className="ml-4 text-lg font-semibold text-foreground">
+            Edit Post
+          </Text>
         </View>
         <View className="flex-1 items-center justify-center p-4">
-          <Text className="text-muted-foreground">You can only edit your own posts</Text>
+          <Text className="text-muted-foreground">
+            You can only edit your own posts
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -177,7 +196,10 @@ export default function EditPostScreen() {
           {isSaving ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Check size={24} color={hasChanges ? colors.primary : colors.mutedForeground} />
+            <Check
+              size={24}
+              color={hasChanges ? colors.primary : colors.mutedForeground}
+            />
           )}
         </Pressable>
       </View>
@@ -200,7 +222,9 @@ export default function EditPostScreen() {
 
         {/* Caption Editor */}
         <View className="flex-1">
-          <Text className="text-sm font-medium text-foreground mb-2">Caption</Text>
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Caption
+          </Text>
           <TextInput
             value={caption}
             onChangeText={setCaption}
@@ -227,7 +251,9 @@ export default function EditPostScreen() {
         {/* Hashtag Preview */}
         {caption.includes("#") && (
           <View className="mt-4">
-            <Text className="text-sm font-medium text-foreground mb-2">Hashtags</Text>
+            <Text className="text-sm font-medium text-foreground mb-2">
+              Hashtags
+            </Text>
             <View className="flex-row flex-wrap gap-2">
               {caption.match(/#\w+/g)?.map((tag, index) => (
                 <View

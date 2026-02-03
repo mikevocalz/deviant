@@ -1,21 +1,22 @@
 /**
  * Migrate existing users to Supabase Auth
- * 
+ *
  * This script:
  * 1. Fetches all users from the database
  * 2. Creates corresponding Supabase Auth users
  * 3. Links auth accounts to existing profiles
  * 4. Sends password reset emails
- * 
+ *
  * Run with: npx tsx scripts/migrate-users-to-supabase-auth.ts
  */
 
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import { createClient } from "@supabase/supabase-js";
+// @ts-ignore - dotenv may not have types installed
+import * as dotenv from "dotenv";
+import * as path from "path";
 
 // Load environment variables
-dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
@@ -24,7 +25,7 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables');
+  console.error("❌ Missing Supabase environment variables");
   process.exit(1);
 }
 
@@ -47,8 +48,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const adminSupabase = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
     autoRefreshToken: false,
-    persistSession: false
-  }
+    persistSession: false,
+  },
 });
 
 interface User {
@@ -60,22 +61,22 @@ interface User {
 }
 
 async function migrateUsers() {
-  console.log('🚀 Starting user migration to Supabase Auth...\n');
+  console.log("🚀 Starting user migration to Supabase Auth...\n");
 
   try {
     // Step 1: Fetch all users from database
-    console.log('📋 Fetching users from database...');
+    console.log("📋 Fetching users from database...");
     const { data: users, error: fetchError } = await supabase
-      .from('users')
-      .select('id, email, username, first_name, last_name')
-      .not('email', 'is', null);
+      .from("users")
+      .select("id, email, username, first_name, last_name")
+      .not("email", "is", null);
 
     if (fetchError) {
       throw new Error(`Failed to fetch users: ${fetchError.message}`);
     }
 
     if (!users || users.length === 0) {
-      console.log('ℹ️  No users found to migrate.');
+      console.log("ℹ️  No users found to migrate.");
       return;
     }
 
@@ -91,18 +92,23 @@ async function migrateUsers() {
 
       try {
         // Check if user already exists in Supabase Auth
-        const { data: existingUsers } = await adminSupabase.auth.admin.listUsers();
-        const existingUser = existingUsers?.users?.find(u => u.email === user.email);
+        const { data: existingUsers } =
+          await adminSupabase.auth.admin.listUsers();
+        const existingUser = existingUsers?.users?.find(
+          (u) => u.email === user.email,
+        );
 
         if (existingUser) {
-          console.log(`   ⏭️  User already exists in Supabase Auth (ID: ${existingUser.id})`);
-          
+          console.log(
+            `   ⏭️  User already exists in Supabase Auth (ID: ${existingUser.id})`,
+          );
+
           // Link existing auth user to profile if not already linked
           // Check if the profile has the correct auth user ID
           const { data: profile } = await supabase
-            .from('users')
-            .select('id')
-            .eq('id', user.id)
+            .from("users")
+            .select("id")
+            .eq("id", user.id)
             .single();
 
           if (profile) {
@@ -114,22 +120,27 @@ async function migrateUsers() {
 
         // Create temporary password (user will reset it)
         const tempPassword = `Temp${Math.random().toString(36).slice(2, 10)}!`;
-        const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.username;
+        const displayName =
+          `${user.first_name || ""} ${user.last_name || ""}`.trim() ||
+          user.username;
 
         // Create user in Supabase Auth
         console.log(`   🔐 Creating Supabase Auth user...`);
-        const { data: authUser, error: createError } = await adminSupabase.auth.admin.createUser({
-          email: user.email,
-          password: tempPassword,
-          email_confirm: true, // Auto-confirm email
-          user_metadata: {
-            username: user.username,
-            name: displayName,
-          }
-        });
+        const { data: authUser, error: createError } =
+          await adminSupabase.auth.admin.createUser({
+            email: user.email,
+            password: tempPassword,
+            email_confirm: true, // Auto-confirm email
+            user_metadata: {
+              username: user.username,
+              name: displayName,
+            },
+          });
 
         if (createError) {
-          console.error(`   ❌ Error creating auth user: ${createError.message}`);
+          console.error(
+            `   ❌ Error creating auth user: ${createError.message}`,
+          );
           errorCount++;
           continue;
         }
@@ -144,13 +155,16 @@ async function migrateUsers() {
 
         // Send password reset email
         console.log(`   📧 Sending password reset email...`);
-        const { error: resetError } = await adminSupabase.auth.admin.generateLink({
-          type: 'recovery',
-          email: user.email,
-        });
+        const { error: resetError } =
+          await adminSupabase.auth.admin.generateLink({
+            type: "recovery",
+            email: user.email,
+          });
 
         if (resetError) {
-          console.warn(`   ⚠️  Warning: Could not send reset email: ${resetError.message}`);
+          console.warn(
+            `   ⚠️  Warning: Could not send reset email: ${resetError.message}`,
+          );
           console.log(`   ℹ️  User can use "Forgot Password" on login screen`);
         } else {
           console.log(`   ✅ Password reset email sent`);
@@ -158,7 +172,6 @@ async function migrateUsers() {
 
         successCount++;
         console.log(`   ✅ Migration complete for ${user.email}`);
-
       } catch (error: any) {
         console.error(`   ❌ Error migrating ${user.email}:`, error.message);
         errorCount++;
@@ -166,17 +179,17 @@ async function migrateUsers() {
     }
 
     // Summary
-    console.log('\n' + '='.repeat(60));
-    console.log('📊 Migration Summary');
-    console.log('='.repeat(60));
+    console.log("\n" + "=".repeat(60));
+    console.log("📊 Migration Summary");
+    console.log("=".repeat(60));
     console.log(`✅ Successfully migrated: ${successCount}`);
     console.log(`⏭️  Already existed: ${skipCount}`);
     console.log(`❌ Errors: ${errorCount}`);
     console.log(`📧 Total users: ${users.length}`);
-    console.log('='.repeat(60));
+    console.log("=".repeat(60));
 
     if (successCount > 0) {
-      console.log('\n🎉 Migration complete!');
+      console.log("\n🎉 Migration complete!");
       console.log(`
 📝 Next steps:
 1. Users will receive password reset emails at their registered addresses
@@ -186,9 +199,8 @@ async function migrateUsers() {
 ⚠️  IMPORTANT: Keep your SUPABASE_SERVICE_ROLE_KEY secure and never commit it!
       `);
     }
-
   } catch (error: any) {
-    console.error('\n❌ Migration failed:', error.message);
+    console.error("\n❌ Migration failed:", error.message);
     throw error;
   }
 }
@@ -196,10 +208,10 @@ async function migrateUsers() {
 // Run migration
 migrateUsers()
   .then(() => {
-    console.log('\n✅ Script completed successfully');
+    console.log("\n✅ Script completed successfully");
     process.exit(0);
   })
   .catch((error) => {
-    console.error('\n❌ Script failed:', error);
+    console.error("\n❌ Script failed:", error);
     process.exit(1);
   });

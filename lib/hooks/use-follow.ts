@@ -178,7 +178,9 @@ export function useFollow() {
       showToast(
         "success",
         data.following ? "Following" : "Unfollowed",
-        data.message,
+        data.following
+          ? "You are now following this user"
+          : "You unfollowed this user",
       );
     },
     onSettled: (_data, _error, variables) => {

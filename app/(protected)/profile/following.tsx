@@ -12,7 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useFollow } from "@/lib/hooks/use-follow";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -127,13 +127,16 @@ export default function FollowingScreen() {
     queryKey: ["users", "following", userId],
     queryFn: async ({ pageParam = 1 }) => {
       if (!userId) return { users: [], nextPage: null };
-      const result = await users.getFollowingList(userId);
+      const result = await usersApi.getFollowing(userId, pageParam);
       // Mark all as following since this is the "following" list
-      const usersWithFollowing = (result || []).map((u) => ({
+      const usersWithFollowing = (result.docs || []).map((u: any) => ({
         ...u,
         isFollowing: true,
       }));
-      return { users: usersWithFollowing, nextPage: null };
+      return {
+        users: usersWithFollowing,
+        nextPage: result.hasNextPage ? pageParam + 1 : null,
+      };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 1,

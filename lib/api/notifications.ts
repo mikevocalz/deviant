@@ -1,24 +1,24 @@
 /**
  * Notifications API Client
- * 
+ *
  * Handles fetching and managing notifications from the backend.
  * These notifications are for the Activity feed (likes, follows, comments, mentions).
- * 
+ *
  * CRITICAL: Message notifications are EXCLUDED from this count.
  * Messages are handled separately via messagesApiClient.
  */
 
-import { createCollectionAPI } from "@/lib/api-client";
+import { notificationsApi } from "@/lib/api/supabase-notifications";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { getPayloadUserId } from "@/lib/api/payload-user-id";
 
 // Notification types for Activity feed (excludes 'message')
-export type NotificationType = 
-  | "like" 
-  | "comment" 
-  | "follow" 
-  | "mention" 
-  | "event_invite" 
+export type NotificationType =
+  | "like"
+  | "comment"
+  | "follow"
+  | "mention"
+  | "event_invite"
   | "event_update";
 
 export interface Notification {
@@ -48,7 +48,7 @@ export interface Notification {
   createdAt: string;
 }
 
-const notificationsApi = createCollectionAPI<Record<string, unknown>>("notifications");
+// Using imported notificationsApi from supabase-notifications.ts
 
 // Transform API response to Notification type
 function transformNotification(doc: Record<string, unknown>): Notification {
@@ -66,16 +66,25 @@ function transformNotification(doc: Record<string, unknown>): Notification {
       avatar: sender?.avatar as string | undefined,
       name: sender?.name as string | undefined,
     },
-    entityType: doc.entityType as "post" | "comment" | "user" | "event" | undefined,
+    entityType: doc.entityType as
+      | "post"
+      | "comment"
+      | "user"
+      | "event"
+      | undefined,
     entityId: doc.entityId as string | undefined,
-    post: post ? {
-      id: String(post.id || ""),
-      thumbnail: post.thumbnail as string | undefined,
-    } : undefined,
-    event: event ? {
-      id: String(event.id || ""),
-      title: event.title as string | undefined,
-    } : undefined,
+    post: post
+      ? {
+          id: String(post.id || ""),
+          thumbnail: post.thumbnail as string | undefined,
+        }
+      : undefined,
+    event: event
+      ? {
+          id: String(event.id || ""),
+          title: event.title as string | undefined,
+        }
+      : undefined,
     content: doc.content as string | undefined,
     readAt: doc.readAt as string | undefined,
     createdAt: String(doc.createdAt || new Date().toISOString()),
@@ -103,34 +112,33 @@ export const notificationsApiClient = {
    * Get notifications for current user
    * EXCLUDES 'message' type notifications
    */
-  async getNotifications(limit = 50, page = 1): Promise<Notification[]> {
+  async getNotifications(limit = 50, _page = 1): Promise<Notification[]> {
     try {
       const user = useAuthStore.getState().user;
       if (!user) return [];
 
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return [];
-
-      const response = await notificationsApi.find({
-        limit,
-        page,
-        sort: "-createdAt",
-        where: {
-          and: [
-            { recipient: { equals: payloadUserId } },
-            // CRITICAL: Exclude 'message' type - messages are handled separately
-            { type: { not_equals: "message" } },
-          ],
-        },
-        depth: 2,
-      });
+      const response = await notificationsApi.getNotifications(limit);
 
       console.log("[notificationsApi] getNotifications:", {
         count: response.docs.length,
-        page,
       });
 
-      return response.docs.map(transformNotification);
+      // Transform Supabase response to Notification type
+      return response.docs.map((doc: any) => ({
+        id: doc.id,
+        type: (doc.type as NotificationType) || "like",
+        recipient: user.id,
+        sender: {
+          id: doc.actor?.id || "",
+          username: doc.actor?.username || "user",
+          avatar: doc.actor?.avatar,
+        },
+        entityType: doc.postId ? "post" : doc.commentId ? "comment" : undefined,
+        entityId: doc.postId || doc.commentId,
+        post: doc.postId ? { id: doc.postId } : undefined,
+        readAt: doc.read ? doc.createdAt : undefined,
+        createdAt: doc.createdAt,
+      }));
     } catch (error) {
       console.error("[notificationsApi] getNotifications error:", error);
       return [];
@@ -146,24 +154,11 @@ export const notificationsApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) return 0;
 
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return 0;
+      const response = await notificationsApi.getNotifications(100);
+      const unreadCount = response.docs.filter((doc: any) => !doc.read).length;
 
-      const response = await notificationsApi.find({
-        limit: 100,
-        where: {
-          and: [
-            { recipient: { equals: payloadUserId } },
-            { readAt: { exists: false } },
-            // CRITICAL: Exclude 'message' type
-            { type: { not_equals: "message" } },
-          ],
-        },
-      });
-
-      const count = response.totalDocs || response.docs.length;
-      console.log("[notificationsApi] getUnreadCount:", count);
-      return count;
+      console.log("[notificationsApi] getUnreadCount:", unreadCount);
+      return unreadCount;
     } catch (error) {
       console.error("[notificationsApi] getUnreadCount error:", error);
       return 0;
@@ -175,9 +170,7 @@ export const notificationsApiClient = {
    */
   async markAsRead(notificationId: string): Promise<boolean> {
     try {
-      await notificationsApi.update(notificationId, {
-        readAt: new Date().toISOString(),
-      });
+      await notificationsApi.markAsRead(notificationId);
       console.log("[notificationsApi] markAsRead:", notificationId);
       return true;
     } catch (error) {
@@ -194,28 +187,8 @@ export const notificationsApiClient = {
       const user = useAuthStore.getState().user;
       if (!user) return false;
 
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return false;
-
-      // Get all unread notifications
-      const unread = await notificationsApi.find({
-        limit: 100,
-        where: {
-          and: [
-            { recipient: { equals: payloadUserId } },
-            { readAt: { exists: false } },
-            { type: { not_equals: "message" } },
-          ],
-        },
-      });
-
-      // Mark each as read
-      const now = new Date().toISOString();
-      for (const doc of unread.docs) {
-        await notificationsApi.update(String(doc.id), { readAt: now });
-      }
-
-      console.log("[notificationsApi] markAllAsRead:", unread.docs.length);
+      await notificationsApi.markAllAsRead();
+      console.log("[notificationsApi] markAllAsRead: success");
       return true;
     } catch (error) {
       console.error("[notificationsApi] markAllAsRead error:", error);

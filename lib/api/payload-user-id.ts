@@ -1,6 +1,6 @@
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 
-const payloadUserIdCache: Record<string, string> = {};
+const userIdCache: Record<string, string> = {};
 
 function normalizeUsername(username: string | undefined | null): string | null {
   if (!username) return null;
@@ -9,7 +9,7 @@ function normalizeUsername(username: string | undefined | null): string | null {
 }
 
 /**
- * Resolve the Payload CMS user ID for the given username in a case-insensitive way.
+ * Resolve the user ID for the given username in a case-insensitive way.
  * Caches lookups by the normalized username to avoid repeated network requests.
  */
 export async function getPayloadUserId(
@@ -18,23 +18,19 @@ export async function getPayloadUserId(
   const normalized = normalizeUsername(username);
   if (!normalized) return null;
 
-  if (payloadUserIdCache[normalized]) {
-    return payloadUserIdCache[normalized];
+  if (userIdCache[normalized]) {
+    return userIdCache[normalized];
   }
 
   try {
-    const result = await users.find({
-      where: { username: { equals: normalized } },
-      limit: 1,
-    });
+    const result = await usersApi.getProfileByUsername(normalized);
 
-    if (result.docs && result.docs.length > 0) {
-      const payloadId = (result.docs[0] as { id: string }).id;
-      payloadUserIdCache[normalized] = payloadId;
-      return payloadId;
+    if (result?.id) {
+      userIdCache[normalized] = result.id;
+      return result.id;
     }
   } catch (error) {
-    console.error("[payloadUserId] Error looking up Payload user ID:", error);
+    console.error("[getUserId] Error looking up user ID:", error);
   }
 
   return null;

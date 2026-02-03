@@ -235,16 +235,19 @@ export const signIn = {
     console.log("[Auth] Starting login for:", params.email);
     console.log("[Auth] Using Better Auth explicit endpoint");
     console.log("[Auth] BASE_URL:", BASE_URL);
-    console.log("[Auth] Request body:", JSON.stringify({
-      email: params.email,
-      password: params.password,
-    }));
-    
+    console.log(
+      "[Auth] Request body:",
+      JSON.stringify({
+        email: params.email,
+        password: params.password,
+      }),
+    );
+
     try {
       // Use explicit Better Auth endpoint (catch-all route doesn't work on Vercel)
       const url = `${BASE_URL}/api/auth/sign-in-email`;
       console.log("[Auth] Full URL:", url);
-      
+
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -256,59 +259,74 @@ export const signIn = {
 
       console.log("[Auth] Response status:", response.status);
       console.log("[Auth] Response ok:", response.ok);
-      console.log("[Auth] Response headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
-      
+      console.log(
+        "[Auth] Response headers:",
+        JSON.stringify(Object.fromEntries(response.headers.entries())),
+      );
+
       const responseText = await response.text();
       console.log("[Auth] Raw response:", responseText);
-      
+
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (e) {
         console.error("[Auth] Failed to parse response as JSON:", e);
-        return { error: { message: "Invalid response from server" }, data: null };
+        return {
+          error: { message: "Invalid response from server" },
+          data: null,
+        };
       }
-      
+
       console.log("[Auth] Login response:", JSON.stringify(data, null, 2));
 
       if (!response.ok) {
         const errorMsg =
-          data.errors?.[0]?.message || data.error || data.message || "Login failed";
+          data.errors?.[0]?.message ||
+          data.error ||
+          data.message ||
+          "Login failed";
         console.error("[Auth] Login error:", errorMsg);
         return { error: { message: errorMsg }, data: null };
       }
 
       if (data.user) {
         console.log("[Auth] User logged in:", data.user.id);
-        
+
         // Sync Better Auth user with Payload CMS user
         try {
           console.log("[Auth] Syncing with Payload CMS...");
-          const syncResponse = await fetch(`${BASE_URL}/api/users/sync-better-auth`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
+          const syncResponse = await fetch(
+            `${BASE_URL}/api/users/sync-better-auth`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                email: data.user.email,
+                name: data.user.name,
+                username: data.user.username,
+                avatar: data.user.image,
+                betterAuthId: data.user.id,
+              }),
             },
-            body: JSON.stringify({
-              email: data.user.email,
-              name: data.user.name,
-              username: data.user.username,
-              avatar: data.user.image,
-              betterAuthId: data.user.id,
-            }),
-          });
-          
+          );
+
           if (syncResponse.ok) {
             const syncData = await syncResponse.json();
-            console.log("[Auth] Sync successful, Payload user ID:", syncData.payloadUserId);
+            console.log(
+              "[Auth] Sync successful, Payload user ID:",
+              syncData.payloadUserId,
+            );
             console.log("[Auth] Storing Payload JWT token");
-            
+
             // Store the Payload JWT token (not Better Auth token)
             const storage = getStorage();
             if (syncData.payloadToken) {
               await storage.setItem("dvnt_auth_token", syncData.payloadToken);
             }
-            
+
             // Use the Payload user data instead of Better Auth data
             syncUserToStore({
               id: String(syncData.payloadUserId), // Use Payload ID, not Better Auth ID
@@ -415,35 +433,41 @@ export const signUp = {
 
       if (data.user) {
         console.log("[Auth] User created:", data.user.id);
-        
+
         // Sync Better Auth user with Payload CMS user
         try {
           console.log("[Auth] Syncing new user with Payload CMS...");
-          const syncResponse = await fetch(`${BASE_URL}/api/users/sync-better-auth`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
+          const syncResponse = await fetch(
+            `${BASE_URL}/api/users/sync-better-auth`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                email: data.user.email,
+                name: data.user.name,
+                username: data.user.username,
+                avatar: data.user.image,
+                betterAuthId: data.user.id,
+              }),
             },
-            body: JSON.stringify({
-              email: data.user.email,
-              name: data.user.name,
-              username: data.user.username,
-              avatar: data.user.image,
-              betterAuthId: data.user.id,
-            }),
-          });
-          
+          );
+
           if (syncResponse.ok) {
             const syncData = await syncResponse.json();
-            console.log("[Auth] Sync successful, Payload user ID:", syncData.payloadUserId);
+            console.log(
+              "[Auth] Sync successful, Payload user ID:",
+              syncData.payloadUserId,
+            );
             console.log("[Auth] Storing Payload JWT token");
-            
+
             // Store the Payload JWT token (not Better Auth token)
             const storage = getStorage();
             if (syncData.payloadToken) {
               await storage.setItem("dvnt_auth_token", syncData.payloadToken);
             }
-            
+
             // Use the Payload user data instead of Better Auth data
             syncUserToStore({
               id: String(syncData.payloadUserId), // Use Payload ID, not Better Auth ID
@@ -468,7 +492,7 @@ export const signUp = {
           // Fallback to Better Auth data
           syncUserToStore(data.user);
         }
-        
+
         return { error: null, data };
       }
 
@@ -484,20 +508,20 @@ export const signUp = {
 export const signOut = async () => {
   // Clear Better Auth session
   const result = await rawSignOut();
-  
+
   // Clear Zustand store
   const { logout } = useAuthStore.getState();
   logout();
-  
+
   // Clear stored JWT token
   try {
     const storage = getStorage();
-    await storage.removeItem("dvnt_auth_token");
+    await storage.deleteItem("dvnt_auth_token");
     console.log("[Auth] Token cleared on logout");
   } catch (error) {
     console.error("[Auth] Failed to clear token:", error);
   }
-  
+
   return result;
 };
 

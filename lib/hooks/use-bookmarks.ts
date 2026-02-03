@@ -61,53 +61,30 @@ export function useToggleBookmark() {
     // Optimistic update - instant UI feedback
     onMutate: async ({ postId, isBookmarked }) => {
       // Cancel any outgoing refetches
-      if (viewerId) {
-        await queryClient.cancelQueries({
-          queryKey: bookmarkKeys.list(viewerId),
-        });
-      }
+      await queryClient.cancelQueries({
+        queryKey: bookmarkKeys.list(viewerId),
+      });
 
       // Snapshot the previous value
-      const previousBookmarks = viewerId
-        ? queryClient.getQueryData<string[]>(bookmarkKeys.list(viewerId))
-        : [];
+      const previousBookmarks =
+        queryClient.getQueryData<string[]>(bookmarkKeys.list(viewerId)) || [];
 
       // Optimistically update to the new value
-      if (viewerId) {
-        queryClient.setQueryData<string[]>(
-          bookmarkKeys.list(viewerId),
-          (old = []) => {
-            if (!isBookmarked) {
-              // Add to bookmarks
-              return old.includes(postId) ? old : [...old, postId];
-            } else {
-              // Remove from bookmarks
-              return old.filter((id) => id !== postId);
-            }
-          },
-        );
-      }
+      queryClient.setQueryData<string[]>(
+        bookmarkKeys.list(viewerId),
+        (old = []) => {
+          if (!isBookmarked) {
+            // Add to bookmarks
+            return old.includes(postId) ? old : [...old, postId];
+          } else {
+            // Remove from bookmarks
+            return old.filter((id) => id !== postId);
+          }
+        },
+      );
 
       // Update Zustand store instantly
       useBookmarkStore.getState().setBookmarked(postId, !isBookmarked);
-
-      // Invalidate post-related queries to update bookmark status everywhere
-      const invalidations = [
-        queryClient.invalidateQueries({ queryKey: ["posts"] }),
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        queryClient.invalidateQueries({ queryKey: ["post", postId] }),
-      ];
-
-      // Also invalidate user profile if it might show bookmarks
-      if (viewerId) {
-        invalidations.push(
-          queryClient.invalidateQueries({ queryKey: ["profile", viewerId] }),
-          queryClient.invalidateQueries({ queryKey: ["authUser"] }),
-        );
-      }
-
-      // Execute invalidations in parallel
-      await Promise.all(invalidations);
 
       return { previousBookmarks, postId, isBookmarked };
     },

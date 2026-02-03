@@ -1,10 +1,10 @@
 /**
- * Messages API - handles chat messages with Bunny CDN media uploads
+ * Messages API - Re-exports from Supabase messages API
+ * This file maintains backwards compatibility with existing imports
  */
 
-import { uploadToBunny } from "@/lib/bunny-storage";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { getPayloadUserId } from "@/lib/api/payload-user-id";
+import { messagesApi } from "./supabase-messages";
+import { uploadToServer } from "@/lib/server-upload";
 
 export interface MessageMedia {
   type: "image" | "video";
@@ -80,362 +80,131 @@ function transformConversation(doc: Record<string, unknown>): Conversation {
   };
 }
 
-// Helper to get Payload CMS user ID by username
-async function getPayloadUserId(username: string): Promise<string | null> {
-  if (!username) return null;
-  
-  // Check cache first
-  if (payloadUserIdCache[username]) {
-    return payloadUserIdCache[username];
-  }
-  
-  // Get current user from auth store
-  const currentUser = useAuthStore.getState().user;
-  
-  // If looking up current user, return their ID from session
-  if (currentUser && currentUser.username === username) {
-    const payloadId = currentUser.id;
-    payloadUserIdCache[username] = payloadId;
-    console.log("[messagesApi] Using current user Payload ID:", username, "->", payloadId);
-    return payloadId;
-  }
-  
-  // For other users, use profile endpoint (custom endpoint returns JSON)
-  try {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (!apiUrl) {
-      console.error("[messagesApi] EXPO_PUBLIC_API_URL not configured");
-      return null;
-    }
-
-    const { getAuthToken } = await import("@/lib/auth-client");
-    const token = await getAuthToken();
-    
-    const response = await fetch(
-      `${apiUrl}/api/users/${username}/profile`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-        },
-      }
-    );
-    
-    if (!response.ok) {
-      console.error("[messagesApi] Profile lookup failed:", response.status);
-      return null;
-    }
-    
-    const profile = await response.json();
-    if (profile && profile.id) {
-      const payloadId = String(profile.id);
-      payloadUserIdCache[username] = payloadId;
-      console.log("[messagesApi] Found Payload user ID for", username, "->", payloadId);
-      return payloadId;
-    }
-  } catch (error) {
-    console.error("[messagesApi] Error looking up Payload user ID:", error);
-  }
-  
-  return null;
-}
-
+// Re-export Supabase messages API as messagesApiClient for backwards compatibility
 export const messagesApiClient = {
-  // Get messages for a conversation (uses custom endpoint)
+  // Get messages for a conversation
   async getMessages(conversationId: string, limit = 50): Promise<Message[]> {
-    try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) return [];
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-      
-      const response = await fetch(
-        `${apiUrl}/api/conversations/${conversationId}/messages?limit=${limit}`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
-
-      if (!response.ok) {
-        console.error("[messagesApi] getMessages failed:", response.status);
-        return [];
-      }
-
-      const result = await response.json();
-      return (result.docs || []).map(transformMessage).reverse();
-    } catch (error) {
-      console.error("[messagesApi] getMessages error:", error);
-      return [];
-    }
+    const messages = await messagesApi.getMessages(conversationId, limit);
+    return messages.map((m: any) => ({
+      id: m.id,
+      conversation: conversationId,
+      sender: {
+        id: m.sender === "user" ? "current" : "other",
+        username: "",
+        avatar: "",
+      },
+      content: m.text,
+      media: [],
+      createdAt: m.timestamp,
+    }));
   },
 
-  // Send a message (uses custom endpoint)
+  // Send a message
   async sendMessage(data: {
     conversationId: string;
     content: string;
     media?: Array<{ uri: string; type: "image" | "video" }>;
   }): Promise<Message | null> {
-    try {
-      const user = useAuthStore.getState().user;
-      if (!user) {
-        throw new Error("User must be logged in to send messages");
-      }
-
-      // Upload media to Bunny CDN if present
-      let mediaItems: MessageMedia[] = [];
-      if (data.media && data.media.length > 0) {
-        console.log("[messagesApi] Uploading media via server...");
-        for (const item of data.media) {
-          const result = await uploadToServer(item.uri, "messages");
-          if (result.success && result.url) {
-            mediaItems.push({
-              type: item.type,
-              url: result.url,
-            });
-          } else {
-            console.error("[messagesApi] Media upload failed:", result.error);
-            throw new Error(result.error || "Media upload failed");
-          }
+    // Upload media if present
+    let mediaItems: MessageMedia[] = [];
+    if (data.media && data.media.length > 0) {
+      console.log("[messagesApiClient] Uploading media via server...");
+      for (const item of data.media) {
+        const result = await uploadToServer(item.uri, "messages");
+        if (result.success && result.url) {
+          mediaItems.push({ type: item.type, url: result.url });
         }
       }
-
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-
-      const response = await fetch(
-        `${apiUrl}/api/conversations/${data.conversationId}/messages`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            content: data.content || "",
-            media: mediaItems,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to send message: ${response.status}`);
-      }
-
-      const doc = await response.json();
-      return transformMessage(doc);
-    } catch (error: any) {
-      console.error("[messagesApi] sendMessage error:", error?.message, error);
-      // Re-throw with cleaner error message for UI
-      if (error?.status === 401 || error?.message?.includes("Unauthorized")) {
-        throw new Error("Please log in to send messages");
-      }
-      if (error?.status === 400) {
-        throw new Error("Invalid message data");
-      }
-      throw new Error(error?.message || "Failed to send message");
     }
+
+    const result = await messagesApi.sendMessage({
+      conversationId: data.conversationId,
+      content: data.content,
+    });
+
+    if (!result) return null;
+
+    return {
+      id: String(result.id || Date.now()),
+      conversation: data.conversationId,
+      sender: { id: "current", username: "", avatar: "" },
+      content: data.content,
+      media: mediaItems,
+      createdAt: new Date().toISOString(),
+    };
   },
 
-  // Get or create a conversation with a user (uses custom endpoint)
+  // Get or create a conversation with a user
   async getOrCreateConversation(
     otherUserId: string,
   ): Promise<Conversation | null> {
-    try {
-      const user = useAuthStore.getState().user;
-      if (!user) {
-        throw new Error("User must be logged in");
-      }
+    const conversationId =
+      await messagesApi.getOrCreateConversation(otherUserId);
+    if (!conversationId) return null;
 
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-
-      const response = await fetch(
-        `${apiUrl}/api/conversations/direct`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({
-            otherUserId,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Failed to get/create conversation: ${response.status}`);
-      }
-
-      const doc = await response.json();
-      return transformConversation(doc);
-    } catch (error) {
-      console.error("[messagesApi] getOrCreateConversation error:", error);
-      return null;
-    }
+    return {
+      id: conversationId,
+      participants: [{ id: otherUserId, username: "", avatar: "" }],
+      isGroup: false,
+      createdAt: new Date().toISOString(),
+    };
   },
 
-  // Get user's conversations (uses custom endpoint)
+  // Get user's conversations
   async getConversations(): Promise<Conversation[]> {
-    try {
-      const user = useAuthStore.getState().user;
-      if (!user) return [];
-
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) return [];
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-
-      const response = await fetch(
-        `${apiUrl}/api/conversations?box=all&limit=50`,
+    const conversations = await messagesApi.getConversations();
+    return conversations.map((c: any) => ({
+      id: c.id,
+      participants: [
         {
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
-
-      if (!response.ok) {
-        console.error("[messagesApi] getConversations failed:", response.status);
-        return [];
-      }
-
-      const result = await response.json();
-      return (result.docs || []).map(transformConversation);
-    } catch (error) {
-      console.error("[messagesApi] getConversations error:", error);
-      return [];
-    }
+          id: c.user?.username || "",
+          username: c.user?.username || "",
+          avatar: c.user?.avatar || "",
+          name: c.user?.name || "",
+        },
+      ],
+      isGroup: false,
+      lastMessageAt: c.timestamp,
+      createdAt: c.timestamp || new Date().toISOString(),
+    }));
   },
 
-  // Get conversations filtered by follow status (Inbox = followed, Spam = not followed)
+  // Get following IDs for the current user
+  async getFollowingIds(): Promise<string[]> {
+    return messagesApi.getFollowingIds();
+  },
+
+  // Get conversations filtered by follow status
   async getFilteredConversations(
     type: "inbox" | "spam",
   ): Promise<Conversation[]> {
-    try {
-      const user = useAuthStore.getState().user;
-      if (!user) return [];
+    const [allConversations, followingIds] = await Promise.all([
+      this.getConversations(),
+      this.getFollowingIds(),
+    ]);
 
-      // Get all conversations and following list in parallel
-      const [allConversations, followingIds] = await Promise.all([
-        this.getConversations(),
-        this.getFollowingIds(),
-      ]);
-
-      console.log("[messagesApi] Filtering conversations:", {
-        type,
-        totalConversations: allConversations.length,
-        followingCount: followingIds.length,
-      });
-
-      // Filter based on whether the other participant is followed
-      return allConversations.filter((conv) => {
-        // Find the other participant (not current user)
-        const otherParticipant = conv.participants.find(
-          (p) => p.username !== user.username,
-        );
-
-        if (!otherParticipant) return false;
-
-        const isFollowed = followingIds.includes(otherParticipant.id);
-
-        // Inbox = conversations with users I follow
-        // Spam = conversations with users I don't follow
-        return type === "inbox" ? isFollowed : !isFollowed;
-      });
-    } catch (error) {
-      console.error("[messagesApi] getFilteredConversations error:", error);
-      return [];
-    }
+    return allConversations.filter((conv) => {
+      const otherParticipant = conv.participants[0];
+      if (!otherParticipant) return false;
+      const isFollowed = followingIds.includes(otherParticipant.id);
+      return type === "inbox" ? isFollowed : !isFollowed;
+    });
   },
 
-  // Mark messages as read
-  async markAsRead(conversationId: string): Promise<void> {
-    try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) return;
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-
-      await fetch(
-        `${apiUrl}/api/conversations/${conversationId}/mark-read`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {}),
-          },
-        }
-      );
-    } catch (error) {
-      console.error("[messagesApi] markAsRead error:", error);
-    }
+  // Mark messages as read (placeholder - implement in supabase-messages if needed)
+  async markAsRead(_conversationId: string): Promise<void> {
+    console.log(
+      "[messagesApiClient] markAsRead - not yet implemented in Supabase",
+    );
   },
 
-  // Get unread message count for INBOX ONLY (messages from followed users)
-  // This is the source of truth for the Messages badge
+  // Get unread message count
   async getUnreadCount(): Promise<number> {
-    try {
-      const conversations = await messagesApiClient.getConversations();
-      // Count conversations with unread messages (simplified)
-      // In production, you'd want a dedicated endpoint for this
-      return conversations.filter((c) => c.lastMessageAt).length;
-    } catch (error) {
-      console.error("[messagesApi] getUnreadCount error:", error);
-      return 0;
-    }
+    return messagesApi.getUnreadCount();
   },
 
-  // Get unread count for spam messages (non-followed users) - for UI display only
+  // Get unread count for spam messages
   async getSpamUnreadCount(): Promise<number> {
-    try {
-      const user = useAuthStore.getState().user;
-      if (!user) return 0;
-
-      const payloadUserId = await getPayloadUserId(user.username);
-      if (!payloadUserId) return 0;
-
-      const followingIds = await this.getFollowingIds();
-
-      const unread = await messagesApi.find({
-        where: {
-          and: [
-            { sender: { not_equals: payloadUserId } },
-            { readAt: { exists: false } },
-          ],
-        },
-        limit: 100,
-        depth: 2,
-      });
-
-      // Count only messages from NON-followed users (Spam)
-      let spamUnreadCount = 0;
-      for (const msg of unread.docs) {
-        const sender = msg.sender as Record<string, unknown> | undefined;
-        const senderId = String(sender?.id || "");
-
-        if (!followingIds.includes(senderId)) {
-          spamUnreadCount++;
-        }
-      }
-
-      return spamUnreadCount;
-    } catch (error) {
-      console.error("[messagesApi] getSpamUnreadCount error:", error);
-      return 0;
-    }
+    return messagesApi.getSpamUnreadCount();
   },
 };

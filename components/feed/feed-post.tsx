@@ -21,7 +21,7 @@ import { useComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useCallback, useEffect, memo, useMemo } from "react";
+import { useCallback, useEffect, memo, useMemo, useState } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import {
   useVideoLifecycle,
@@ -42,7 +42,9 @@ import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/supabase-posts";
+import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { Alert } from "react-native";
 
 const LONG_PRESS_DELAY = 300;
@@ -92,7 +94,7 @@ function FeedPostComponent({
   // The usePostLikeState hook manages cache internally and will sync with server
   const {
     hasLiked,
-    likesCount,
+    likes: likesCount,
     toggle: toggleLike,
     isPending: isLikePending,
   } = usePostLikeState(id, likes, viewerHasLiked, author?.id);
@@ -107,38 +109,23 @@ function FeedPostComponent({
   }
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
-  const likePostMutation = useLikePost();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
-  
+  const bookmarkStore = useBookmarkStore();
+
   const isOwner = currentUser?.username === author.username;
-  
-  // Sync bookmarks from API to local store on mount
-  useEffect(() => {
-    if (bookmarkedPostIds.length > 0) {
-      // Update local store to match API state
-      const currentBookmarks = bookmarkStore.getBookmarkedPostIds();
-      const missingBookmarks = bookmarkedPostIds.filter(id => !currentBookmarks.includes(id));
-      const extraBookmarks = currentBookmarks.filter(id => !bookmarkedPostIds.includes(id));
-      
-      // Add missing bookmarks
-      missingBookmarks.forEach(id => {
-        if (!bookmarkStore.isBookmarked(id)) {
-          bookmarkStore.toggleBookmark(id);
-        }
-      });
-      
-      // Remove extra bookmarks
-      extraBookmarks.forEach(id => {
-        if (bookmarkStore.isBookmarked(id)) {
-          bookmarkStore.toggleBookmark(id);
-        }
-      });
-    }
-  }, [bookmarkedPostIds]);
-  
-  const isBookmarked = bookmarkStore.isBookmarked(id) || bookmarkedPostIds.includes(id);
+
+  // Debug ownership check
+  if (__DEV__ && showActionSheet) {
+    console.log(`[FeedPost:${id}] Owner check:`, {
+      currentUsername: currentUser?.username,
+      authorUsername: author.username,
+      isOwner,
+    });
+  }
+
+  const isBookmarked = bookmarkStore.isBookmarked(id);
   // Fetch last 3 comments for feed display
   const { data: recentCommentsData = [], refetch: refetchComments } =
     useComments(id, 3);
@@ -388,7 +375,7 @@ function FeedPostComponent({
             }
           },
         },
-      ]
+      ],
     );
   }, [id, showToast]);
 

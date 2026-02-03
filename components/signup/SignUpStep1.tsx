@@ -13,7 +13,248 @@ import { FormInput } from "@/components/form";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { supabase } from "@/lib/supabase/client";
 import { DB } from "@/lib/supabase/db-map";
-import { CheckCircle2, XCircle } from "lucide-react-native";
+import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react-native";
+
+const UNDERAGE_ERROR_MESSAGE = "You must be 18 or older to use this app.";
+
+// Parse date string (YYYY-MM-DD) to Date object, avoiding timezone issues
+function parseDateString(dateStr: string | undefined): Date {
+  if (!dateStr) {
+    // Default to 18 years ago
+    const defaultDate = new Date();
+    defaultDate.setFullYear(defaultDate.getFullYear() - 18);
+    return defaultDate;
+  }
+
+  // Parse YYYY-MM-DD format and create date in local timezone
+  const parts = dateStr.split("-");
+  if (parts.length === 3) {
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
+    const day = parseInt(parts[2], 10);
+
+    // Create date in local timezone
+    const date = new Date(year, month, day);
+
+    // Validate the date
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
+    ) {
+      return date;
+    }
+  }
+
+  // Fallback to default date if parsing fails
+  const fallbackDate = new Date();
+  fallbackDate.setFullYear(fallbackDate.getFullYear() - 18);
+  return fallbackDate;
+}
+
+function getMinimumBirthDate(): Date {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 100);
+  return date;
+}
+
+function getMaximumBirthDate(): Date {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() - 18);
+  return date;
+}
+
+function validateDateOfBirth(dateString: string): {
+  isValid: boolean;
+  isOver18: boolean;
+} {
+  if (!dateString) return { isValid: false, isOver18: false };
+
+  const birthDate = new Date(dateString);
+  const today = new Date();
+  const age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  let actualAge = age;
+  if (
+    monthDiff < 0 ||
+    (monthDiff === 0 && today.getDate() < birthDate.getDate())
+  ) {
+    actualAge--;
+  }
+
+  return { isValid: true, isOver18: actualAge >= 18 };
+}
+
+// Separate component for DateOfBirth field to properly use hooks
+function DateOfBirthField({
+  field,
+  showDatePicker,
+  setShowDatePicker,
+}: {
+  field: any;
+  showDatePicker: boolean;
+  setShowDatePicker: (show: boolean) => void;
+}) {
+  const dateValue = useMemo(
+    () => parseDateString(field.state.value),
+    [field.state.value],
+  );
+
+  // CRITICAL: Age verification - must be 18+ (NO EXCEPTIONS)
+  const minimumDate = useMemo(() => getMinimumBirthDate(), []);
+  const maximumDate = useMemo(() => getMaximumBirthDate(), []);
+
+  // Validate current DOB selection for age requirement
+  const ageValidation = useMemo(() => {
+    if (!field.state.value) return null;
+    return validateDateOfBirth(field.state.value);
+  }, [field.state.value]);
+
+  const isUnderage = ageValidation && ageValidation.isOver18 === false;
+
+  const handleDateChange = useCallback(
+    (event: any, selectedDate: Date | undefined) => {
+      try {
+        // Handle Android dismissal
+        if (Platform.OS === "android") {
+          if (event.type === "dismissed") {
+            setShowDatePicker(false);
+            return;
+          }
+          // Android closes automatically after selection
+          setShowDatePicker(false);
+        }
+
+        // Only update if a date was actually selected
+        if (selectedDate && event.type !== "dismissed") {
+          // Use local date components to avoid timezone issues
+          const year = selectedDate.getFullYear();
+          const month = String(selectedDate.getMonth() + 1).padStart(2, "0");
+          const day = String(selectedDate.getDate()).padStart(2, "0");
+          const dateString = `${year}-${month}-${day}`;
+          field.handleChange(dateString);
+        }
+      } catch (error) {
+        console.error("[SignUpStep1] Date change error:", error);
+      }
+    },
+    [field, setShowDatePicker],
+  );
+
+  return (
+    <View className="gap-1">
+      <Text className="text-sm font-medium text-foreground">Date of Birth</Text>
+      <Pressable
+        onPress={() => setShowDatePicker(true)}
+        className={`h-12 px-4 rounded-lg border bg-card justify-center ${
+          isUnderage ? "border-destructive" : "border-border"
+        }`}
+      >
+        <Text
+          className={
+            field.state.value
+              ? isUnderage
+                ? "text-destructive"
+                : "text-foreground"
+              : "text-muted-foreground"
+          }
+        >
+          {field.state.value
+            ? parseDateString(field.state.value).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })
+            : "Select date"}
+        </Text>
+      </Pressable>
+
+      {/* CRITICAL: Age restriction warning - hard block for underage users */}
+      {isUnderage && (
+        <View className="bg-destructive/10 rounded-lg p-3 mt-2 flex-row items-start gap-2">
+          <ShieldAlert size={16} color="#ef4444" />
+          <View className="flex-1">
+            <Text className="text-sm font-semibold text-destructive">
+              Age Restriction
+            </Text>
+            <Text className="text-xs text-destructive/80 mt-0.5">
+              {UNDERAGE_ERROR_MESSAGE}
+            </Text>
+          </View>
+        </View>
+      )}
+      {showDatePicker && (
+        <View className="mt-2">
+          {Platform.OS === "ios" ? (
+            <View className="bg-card rounded-xl p-4 border border-border">
+              <DateTimePicker
+                value={dateValue}
+                mode="date"
+                display="spinner"
+                minimumDate={minimumDate}
+                maximumDate={maximumDate}
+                onChange={(event, selectedDate) => {
+                  // On iOS, onChange fires as user scrolls - update immediately
+                  if (selectedDate && event.type !== "dismissed") {
+                    try {
+                      const year = selectedDate.getFullYear();
+                      const month = String(
+                        selectedDate.getMonth() + 1,
+                      ).padStart(2, "0");
+                      const day = String(selectedDate.getDate()).padStart(
+                        2,
+                        "0",
+                      );
+                      const dateString = `${year}-${month}-${day}`;
+                      field.handleChange(dateString);
+                    } catch (error) {
+                      console.error(
+                        "[SignUpStep1] iOS date change error:",
+                        error,
+                      );
+                    }
+                  }
+                }}
+                textColor="#fff"
+                themeVariant="dark"
+                style={{ height: 220, width: "100%" }}
+              />
+              <View className="flex-row gap-2 mt-4">
+                <Button
+                  onPress={() => {
+                    setShowDatePicker(false);
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onPress={() => {
+                    setShowDatePicker(false);
+                  }}
+                  className="flex-1"
+                >
+                  Done
+                </Button>
+              </View>
+            </View>
+          ) : (
+            <DateTimePicker
+              value={dateValue}
+              mode="date"
+              display="default"
+              minimumDate={minimumDate}
+              maximumDate={maximumDate}
+              onChange={handleDateChange}
+            />
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
 
 function getPasswordStrength(password: string) {
   let score = 0;
@@ -47,7 +288,7 @@ export function SignUpStep1() {
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
   const checkUsernameAvailability = useCallback(async (username: string) => {
-    if (username.length < 3 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+    if (username.length < 5 || !/^[a-zA-Z0-9_]+$/.test(username)) {
       setUsernameStatus("idle");
       setUsernameSuggestions([]);
       return;
@@ -72,7 +313,7 @@ export function SignUpStep1() {
       if (data) {
         // Username is taken
         setUsernameStatus("taken");
-        
+
         // Generate suggestions
         const suggestions = [
           `${username}_${Math.floor(Math.random() * 100)}`,
@@ -207,8 +448,8 @@ export function SignUpStep1() {
         validators={{
           onChange: ({ value }: any) => {
             if (!value) return "Username is required";
-            if (value.length < 3)
-              return "Username must be at least 3 characters";
+            if (value.length < 5)
+              return "Username must be at least 5 characters";
             if (value.length > 20)
               return "Username must be 20 characters or less";
             if (!/^[a-z0-9_]+$/.test(value))
@@ -301,210 +542,13 @@ export function SignUpStep1() {
       />
 
       <form.Field name="dateOfBirth">
-        {(field) => {
-          // Parse date string (YYYY-MM-DD) to Date object, avoiding timezone issues
-          const parseDateString = (dateStr: string | undefined): Date => {
-            if (!dateStr) {
-              // Default to 18 years ago
-              const defaultDate = new Date();
-              defaultDate.setFullYear(defaultDate.getFullYear() - 18);
-              return defaultDate;
-            }
-
-            // Parse YYYY-MM-DD format and create date in local timezone
-            const parts = dateStr.split("-");
-            if (parts.length === 3) {
-              const year = parseInt(parts[0], 10);
-              const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-              const day = parseInt(parts[2], 10);
-
-              // Create date in local timezone
-              const date = new Date(year, month, day);
-
-              // Validate the date
-              if (
-                date.getFullYear() === year &&
-                date.getMonth() === month &&
-                date.getDate() === day
-              ) {
-                return date;
-              }
-            }
-
-            // Fallback to default date if parsing fails
-            const fallbackDate = new Date();
-            fallbackDate.setFullYear(fallbackDate.getFullYear() - 18);
-            return fallbackDate;
-          };
-
-          const dateValue = useMemo(
-            () => parseDateString(field.state.value),
-            [field.state.value],
-          );
-
-          // CRITICAL: Age verification - must be 18+ (NO EXCEPTIONS)
-          // minimumDate = oldest allowed (120 years ago)
-          // maximumDate = youngest allowed (18 years ago - user must be AT LEAST 18)
-          const minimumDate = useMemo(() => getMinimumBirthDate(), []);
-          const maximumDate = useMemo(() => getMaximumBirthDate(), []);
-
-          // Validate current DOB selection for age requirement
-          const ageValidation = useMemo(() => {
-            if (!field.state.value) return null;
-            return validateDateOfBirth(field.state.value);
-          }, [field.state.value]);
-
-          const isUnderage = ageValidation && ageValidation.isOver18 === false;
-
-          const handleDateChange = useCallback(
-            (event: any, selectedDate: Date | undefined) => {
-              try {
-                // Handle Android dismissal
-                if (Platform.OS === "android") {
-                  if (event.type === "dismissed") {
-                    setShowDatePicker(false);
-                    return;
-                  }
-                  // Android closes automatically after selection
-                  setShowDatePicker(false);
-                }
-
-                // Only update if a date was actually selected
-                if (selectedDate && event.type !== "dismissed") {
-                  // Use local date components to avoid timezone issues
-                  const year = selectedDate.getFullYear();
-                  const month = String(selectedDate.getMonth() + 1).padStart(
-                    2,
-                    "0",
-                  );
-                  const day = String(selectedDate.getDate()).padStart(2, "0");
-                  const dateString = `${year}-${month}-${day}`;
-                  field.handleChange(dateString);
-                }
-              } catch (error) {
-                console.error("[SignUpStep1] Date change error:", error);
-              }
-            },
-            [field],
-          );
-
-          return (
-            <View className="gap-1">
-              <Text className="text-sm font-medium text-foreground">
-                Date of Birth
-              </Text>
-              <Pressable
-                onPress={() => setShowDatePicker(true)}
-                className={`h-12 px-4 rounded-lg border bg-card justify-center ${
-                  isUnderage ? "border-destructive" : "border-border"
-                }`}
-              >
-                <Text
-                  className={
-                    field.state.value
-                      ? isUnderage
-                        ? "text-destructive"
-                        : "text-foreground"
-                      : "text-muted-foreground"
-                  }
-                >
-                  {field.state.value
-                    ? parseDateString(field.state.value).toLocaleDateString(
-                        "en-US",
-                        {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        },
-                      )
-                    : "Select date"}
-                </Text>
-              </Pressable>
-
-              {/* CRITICAL: Age restriction warning - hard block for underage users */}
-              {isUnderage && (
-                <View className="bg-destructive/10 rounded-lg p-3 mt-2 flex-row items-start gap-2">
-                  <ShieldAlert size={16} color="#ef4444" />
-                  <View className="flex-1">
-                    <Text className="text-sm font-semibold text-destructive">
-                      Age Restriction
-                    </Text>
-                    <Text className="text-xs text-destructive/80 mt-0.5">
-                      {UNDERAGE_ERROR_MESSAGE}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              {showDatePicker && (
-                <View className="mt-2">
-                  {Platform.OS === "ios" ? (
-                    <View className="bg-card rounded-xl p-4 border border-border">
-                      <DateTimePicker
-                        value={dateValue}
-                        mode="date"
-                        display="spinner"
-                        minimumDate={minimumDate}
-                        maximumDate={maximumDate}
-                        onChange={(event, selectedDate) => {
-                          // On iOS, onChange fires as user scrolls - update immediately
-                          if (selectedDate && event.type !== "dismissed") {
-                            try {
-                              const year = selectedDate.getFullYear();
-                              const month = String(
-                                selectedDate.getMonth() + 1,
-                              ).padStart(2, "0");
-                              const day = String(
-                                selectedDate.getDate(),
-                              ).padStart(2, "0");
-                              const dateString = `${year}-${month}-${day}`;
-                              field.handleChange(dateString);
-                            } catch (error) {
-                              console.error(
-                                "[SignUpStep1] iOS date change error:",
-                                error,
-                              );
-                            }
-                          }
-                        }}
-                        textColor="#fff"
-                        themeVariant="dark"
-                        style={{ height: 220, width: "100%" }}
-                      />
-                      <View className="flex-row gap-2 mt-4">
-                        <Button
-                          onPress={() => {
-                            setShowDatePicker(false);
-                          }}
-                          variant="outline"
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onPress={() => {
-                            setShowDatePicker(false);
-                          }}
-                          className="flex-1"
-                        >
-                          Done
-                        </Button>
-                      </View>
-                    </View>
-                  ) : (
-                    <DateTimePicker
-                      value={dateValue}
-                      mode="date"
-                      display="default"
-                      minimumDate={minimumDate}
-                      maximumDate={maximumDate}
-                      onChange={handleDateChange}
-                    />
-                  )}
-                </View>
-              )}
-            </View>
-          );
-        }}
+        {(field) => (
+          <DateOfBirthField
+            field={field}
+            showDatePicker={showDatePicker}
+            setShowDatePicker={setShowDatePicker}
+          />
+        )}
       </form.Field>
 
       <form.Field name="password">

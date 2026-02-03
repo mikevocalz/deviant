@@ -4,7 +4,10 @@
  * Uses central apiFetch from api-client for consistent auth handling
  */
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
+import { useAuthStore } from "@/lib/stores/auth-store";
+
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_AUTH_URL || process.env.EXPO_PUBLIC_API_URL || "";
 
 async function bookmarkFetch<T>(
   endpoint: string,
@@ -52,6 +55,32 @@ async function bookmarkFetch<T>(
 }
 
 export const bookmarksApi = {
+  // Bookmark a post
+  async bookmark(postId: string): Promise<{ bookmarked: boolean }> {
+    try {
+      await bookmarkFetch<any>(`/api/posts/${postId}/bookmark`, {
+        method: "POST",
+      });
+      return { bookmarked: true };
+    } catch (error) {
+      console.error("[bookmarksApi] bookmark error:", error);
+      throw error;
+    }
+  },
+
+  // Unbookmark a post
+  async unbookmark(postId: string): Promise<{ bookmarked: boolean }> {
+    try {
+      await bookmarkFetch<any>(`/api/posts/${postId}/bookmark`, {
+        method: "DELETE",
+      });
+      return { bookmarked: false };
+    } catch (error) {
+      console.error("[bookmarksApi] unbookmark error:", error);
+      throw error;
+    }
+  },
+
   // Bookmark or unbookmark a post - uses central api-client for auth
   async toggleBookmark(
     postId: string,
@@ -64,10 +93,10 @@ export const bookmarksApi = {
         throw new Error("You must be logged in to bookmark posts");
       }
 
-      // Use central api-client's bookmark/unbookmark for consistent auth
+      // Use this API's bookmark/unbookmark for consistent auth
       const response = isBookmarked
-        ? await bookmarks.unbookmark(postId)
-        : await bookmarks.bookmark(postId);
+        ? await this.unbookmark(postId)
+        : await this.bookmark(postId);
 
       return {
         postId,
@@ -93,7 +122,7 @@ export const bookmarksApi = {
       const response = await bookmarkFetch<{
         docs: Array<{ id: string }>;
       }>("/api/users/me/bookmarks?limit=1000");
-      
+
       return response.docs.map((post) => post.id);
     } catch (error) {
       console.error("[bookmarksApi] getBookmarkedPosts error:", error);

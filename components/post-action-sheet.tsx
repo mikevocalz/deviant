@@ -1,5 +1,13 @@
 import { View, Text, Pressable, Modal } from "react-native";
-import { Edit, Trash2, Flag, X } from "lucide-react-native";
+import {
+  Edit,
+  Trash2,
+  Flag,
+  X,
+  Link,
+  Share2,
+  BookmarkPlus,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { Motion } from "@legendapp/motion";
 
@@ -130,10 +138,59 @@ export function PostActionSheet({
                 </>
               )}
 
-              {!isOwner && onReport && (
+              {/* Common options for all users */}
+              <Pressable
+                onPress={() => {
+                  // TODO: Implement copy link
+                  onClose();
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                }}
+              >
+                <Link size={22} color={colors.foreground} />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: colors.foreground,
+                    marginLeft: 16,
+                  }}
+                >
+                  Copy Link
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  // TODO: Implement share
+                  onClose();
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                }}
+              >
+                <Share2 size={22} color={colors.foreground} />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: colors.foreground,
+                    marginLeft: 16,
+                  }}
+                >
+                  Share
+                </Text>
+              </Pressable>
+
+              {!isOwner && (
                 <Pressable
                   onPress={() => {
-                    onReport();
+                    if (onReport) onReport();
                     onClose();
                   }}
                   style={{

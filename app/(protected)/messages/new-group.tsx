@@ -1,8 +1,8 @@
 /**
  * New Group Chat Screen
- * 
+ *
  * Allows selecting multiple users to create a group conversation.
- * 
+ *
  * Route: /(protected)/messages/new-group
  */
 
@@ -20,14 +20,11 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Search, X, Check, Users } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useState } from "react";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { getPayloadBaseUrl } from "@/lib/api-config";
-import { getAuthCookies } from "@/lib/auth-client";
-
-const PAYLOAD_URL = getPayloadBaseUrl();
+import { messagesApi } from "@/lib/api/supabase-messages";
 
 interface SelectedUser {
   id: string;
@@ -40,7 +37,7 @@ export default function NewGroupScreen() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((s) => s.showToast);
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<SelectedUser[]>([]);
   const [groupName, setGroupName] = useState("");
@@ -51,13 +48,7 @@ export default function NewGroupScreen() {
     queryKey: ["users", "all", searchQuery],
     queryFn: async () => {
       try {
-        const result = await users.find({
-          limit: 50,
-          sort: "-createdAt",
-          where: searchQuery
-            ? { username: { contains: searchQuery } }
-            : undefined,
-        });
+        const result = await usersApi.searchUsers(searchQuery || "", 50);
         return result.docs.filter((user: any) => user.id !== currentUser?.id);
       } catch (error) {
         console.error("[NewGroup] Error fetching users:", error);
@@ -91,7 +82,7 @@ export default function NewGroupScreen() {
 
   const isUserSelected = useCallback(
     (userId: string) => selectedUsers.some((u) => u.id === userId),
-    [selectedUsers]
+    [selectedUsers],
   );
 
   const handleCreateGroup = useCallback(async () => {
@@ -107,26 +98,10 @@ export default function NewGroupScreen() {
 
     setIsCreating(true);
     try {
-      const cookies = getAuthCookies();
-      const response = await fetch(`${PAYLOAD_URL}/api/conversations`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Cookie: cookies || "",
-        },
-        body: JSON.stringify({
-          participantIds: selectedUsers.map((u) => u.id),
-          isGroup: true,
-          groupName: groupName.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create group");
-      }
-
-      const conversation = await response.json();
+      const conversation = await messagesApi.createGroupConversation(
+        selectedUsers.map((u) => u.id),
+        groupName.trim(),
+      );
       console.log("[NewGroup] Created group conversation:", conversation.id);
 
       showToast("success", "Success", "Group chat created");

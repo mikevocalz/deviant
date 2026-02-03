@@ -127,7 +127,7 @@ export async function registerForPushNotificationsAsync(): Promise<
 }
 
 /**
- * Send push token to backend for storage
+ * Send push token to Supabase for storage
  */
 export async function savePushTokenToBackend(
   token: string,
@@ -135,30 +135,41 @@ export async function savePushTokenToBackend(
   username?: string,
 ): Promise<boolean> {
   try {
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-    if (!apiUrl) {
-      console.error("[Notifications] EXPO_PUBLIC_API_URL not configured");
+    // Import supabase client dynamically to avoid circular dependencies
+    const { supabase } = await import("@/lib/supabase/client");
+
+    // Get the auth user to use their UUID
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      console.error("[Notifications] No authenticated user");
       return false;
     }
 
-    const response = await fetch(`${apiUrl}/api/push-token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    // Upsert the push token
+    const { error } = await supabase.from("push_tokens").upsert(
+      {
+        user_id: user.id,
         token,
-        userId,
-        username,
         platform: Platform.OS,
-      }),
-    });
+        updated_at: new Date().toISOString(),
+      },
+      {
+        onConflict: "user_id,token",
+      },
+    );
 
-    if (!response.ok) {
-      throw new Error("Failed to save push token");
+    if (error) {
+      // If table doesn't exist yet, log but don't fail
+      if (error.code === "42P01") {
+        console.log("[Notifications] push_tokens table not yet created");
+        return false;
+      }
+      throw error;
     }
 
-    console.log("[Notifications] Push token saved to backend");
+    console.log("[Notifications] Push token saved to Supabase");
     return true;
   } catch (error) {
     console.error("[Notifications] Error saving push token:", error);

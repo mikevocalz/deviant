@@ -4,7 +4,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { userSettings } from "@/lib/api-client";
+// TODO: Create supabase-user-settings.ts API
+// import { userSettingsApi } from "@/lib/api/supabase-user-settings";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
@@ -54,9 +55,9 @@ export function useNotificationPrefs() {
     queryKey: ["notification-prefs", user?.id],
     queryFn: async () => {
       try {
-        const response =
-          await userSettings.getNotificationPrefs<NotificationPrefs>();
-        return { ...DEFAULT_NOTIFICATION_PREFS, ...response };
+        // TODO: Implement Supabase user settings API
+        // const response = await userSettingsApi.getNotificationPrefs();
+        return DEFAULT_NOTIFICATION_PREFS;
       } catch (error) {
         // Return defaults if endpoint doesn't exist yet
         console.log("[useNotificationPrefs] Using defaults:", error);
@@ -79,9 +80,10 @@ export function useUpdateNotificationPrefs() {
 
   return useMutation({
     mutationFn: async (prefs: Partial<NotificationPrefs>) => {
-      return await userSettings.updateNotificationPrefs<NotificationPrefs>(
-        prefs,
-      );
+      // TODO: Implement Supabase user settings API
+      // return await userSettingsApi.updateNotificationPrefs(prefs);
+      console.log("[useUpdateNotificationPrefs] Not yet implemented");
+      return prefs as NotificationPrefs;
     },
     onMutate: async (newPrefs) => {
       // Cancel outgoing refetches
@@ -146,9 +148,9 @@ export function usePrivacySettings() {
     queryKey: ["privacy-settings", user?.id],
     queryFn: async () => {
       try {
-        const response =
-          await userSettings.getPrivacySettings<PrivacySettings>();
-        return { ...DEFAULT_PRIVACY_SETTINGS, ...response };
+        // TODO: Implement Supabase user settings API
+        // const response = await userSettingsApi.getPrivacySettings();
+        return DEFAULT_PRIVACY_SETTINGS;
       } catch (error) {
         // Return defaults if endpoint doesn't exist yet
         console.log("[usePrivacySettings] Using defaults:", error);
@@ -171,9 +173,10 @@ export function useUpdatePrivacySettings() {
 
   return useMutation({
     mutationFn: async (settings: Partial<PrivacySettings>) => {
-      return await userSettings.updatePrivacySettings<PrivacySettings>(
-        settings,
-      );
+      // TODO: Implement Supabase user settings API
+      // return await userSettingsApi.updatePrivacySettings(settings);
+      console.log("[useUpdatePrivacySettings] Not yet implemented");
+      return settings as PrivacySettings;
     },
     onMutate: async (newSettings) => {
       // Cancel outgoing refetches

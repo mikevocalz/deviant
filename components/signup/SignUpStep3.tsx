@@ -42,13 +42,13 @@ export function SignUpStep3() {
   return (
     <View className="gap-6 flex-1">
       <View className="items-center gap-2">
-        <View className="h-12 w-12 rounded-full bg-primary/10 items-center justify-center">
-          <FileText size={24} className="text-primary" />
+        <View className="h-12 w-12 rounded-full bg-primary/60 items-center justify-center">
+          <FileText size={24} className="text-white" />
         </View>
         <Text className="text-xl font-semibold text-foreground">
           DVNT Membership Agreement
         </Text>
-        <Text className="text-sm text-muted text-center">
+        <Text className="text-sm text-zinc-500 text-center">
           Please read and accept our policies to continue
         </Text>
       </View>

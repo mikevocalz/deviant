@@ -139,19 +139,16 @@ export function SignUpStep2() {
 
       console.log("[SignUp] Supabase user created:", authData.user.id);
 
-      // Create user profile in users table
+      // Create user profile in users table - use auth_id for Supabase Auth UUID
       const { error: profileError } = await supabase
         .from(DB.users.table)
         .insert({
-          [DB.users.id]: authData.user.id,
+          [DB.users.authId]: authData.user.id,
           [DB.users.email]: formData.email,
           [DB.users.username]: formData.username,
           [DB.users.firstName]: formData.firstName,
           [DB.users.lastName]: formData.lastName,
-          [DB.users.name]: `${formData.firstName} ${formData.lastName}`,
-          [DB.users.phone]: formData.phone,
-          [DB.users.dateOfBirth]: formData.dateOfBirth,
-          [DB.users.isVerified]: true,
+          [DB.users.verified]: true,
           [DB.users.createdAt]: new Date().toISOString(),
           [DB.users.updatedAt]: new Date().toISOString(),
         });
@@ -167,8 +164,6 @@ export function SignUpStep2() {
         email: formData.email,
         username: formData.username,
         name: `${formData.firstName} ${formData.lastName}`,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
         avatar: "",
         bio: "",
         website: "",

@@ -1,5 +1,5 @@
-import { supabase } from '../supabase/client';
-import { DB } from '../supabase/db-map';
+import { supabase } from "../supabase/client";
+import { DB } from "../supabase/db-map";
 
 export const messagesApi = {
   /**
@@ -7,15 +7,17 @@ export const messagesApi = {
    */
   async getConversations() {
     try {
-      console.log('[Messages] getConversations');
-      
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log("[Messages] getConversations");
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return [];
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
       if (!userData) return [];
@@ -23,14 +25,16 @@ export const messagesApi = {
       // Get conversations where user is a participant
       const { data, error } = await supabase
         .from(DB.conversationsRels.table)
-        .select(`
+        .select(
+          `
           conversation:${DB.conversationsRels.parentId}(
             ${DB.conversations.id},
             ${DB.conversations.lastMessageAt},
             ${DB.conversations.isGroup},
             ${DB.conversations.groupName}
           )
-        `)
+        `,
+        )
         .eq(DB.conversationsRels.usersId, userData[DB.users.id])
         .order(DB.conversationsRels.parentId, { ascending: false });
 
@@ -40,15 +44,17 @@ export const messagesApi = {
       const conversations = await Promise.all(
         (data || []).map(async (conv: any) => {
           const convId = conv.conversation[DB.conversations.id];
-          
+
           // Get last message
           const { data: lastMessage } = await supabase
             .from(DB.messages.table)
-            .select(`
+            .select(
+              `
               ${DB.messages.content},
               ${DB.messages.createdAt},
               sender:${DB.messages.senderId}(${DB.users.username})
-            `)
+            `,
+            )
             .eq(DB.messages.conversationId, convId)
             .order(DB.messages.createdAt, { ascending: false })
             .limit(1)
@@ -57,36 +63,44 @@ export const messagesApi = {
           // Get other participant
           const { data: participants } = await supabase
             .from(DB.conversationsRels.table)
-            .select(`
+            .select(
+              `
               user:${DB.conversationsRels.usersId}(
                 ${DB.users.id},
                 ${DB.users.username},
                 avatar:${DB.users.avatarId}(url)
               )
-            `)
+            `,
+            )
             .eq(DB.conversationsRels.parentId, convId)
             .neq(DB.conversationsRels.usersId, userData[DB.users.id])
             .limit(1);
 
-          const otherUser = participants?.[0]?.user;
+          const otherUserData = participants?.[0]?.user as any;
 
           return {
             id: String(convId),
             user: {
-              name: otherUser?.[DB.users.username] || 'Unknown',
-              username: otherUser?.[DB.users.username] || 'unknown',
-              avatar: otherUser?.avatar?.url || '',
+              name: otherUserData?.[DB.users.username] || "Unknown",
+              username: otherUserData?.[DB.users.username] || "unknown",
+              avatar:
+                otherUserData?.avatar?.[0]?.url ||
+                otherUserData?.avatar?.url ||
+                "",
             },
-            lastMessage: lastMessage?.[DB.messages.content] || '',
-            timestamp: formatTimeAgo(lastMessage?.[DB.messages.createdAt] || conv.conversation[DB.conversations.lastMessageAt]),
+            lastMessage: lastMessage?.[DB.messages.content] || "",
+            timestamp: formatTimeAgo(
+              lastMessage?.[DB.messages.createdAt] ||
+                conv.conversation[DB.conversations.lastMessageAt],
+            ),
             unread: false, // TODO: implement unread logic
           };
-        })
+        }),
       );
 
       return conversations;
     } catch (error) {
-      console.error('[Messages] getConversations error:', error);
+      console.error("[Messages] getConversations error:", error);
       return [];
     }
   },
@@ -96,27 +110,31 @@ export const messagesApi = {
    */
   async getMessages(conversationId: string, limit: number = 50) {
     try {
-      console.log('[Messages] getMessages:', conversationId);
-      
-      const { data: { user } } = await supabase.auth.getUser();
+      console.log("[Messages] getMessages:", conversationId);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return [];
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
       if (!userData) return [];
 
       const { data, error } = await supabase
         .from(DB.messages.table)
-        .select(`
+        .select(
+          `
           ${DB.messages.id},
           ${DB.messages.content},
           ${DB.messages.senderId},
           ${DB.messages.createdAt}
-        `)
+        `,
+        )
         .eq(DB.messages.conversationId, parseInt(conversationId))
         .order(DB.messages.createdAt, { ascending: true })
         .limit(limit);
@@ -126,11 +144,14 @@ export const messagesApi = {
       return (data || []).map((msg: any) => ({
         id: String(msg[DB.messages.id]),
         text: msg[DB.messages.content],
-        sender: msg[DB.messages.senderId] === userData[DB.users.id] ? 'user' : 'other',
+        sender:
+          msg[DB.messages.senderId] === userData[DB.users.id]
+            ? "user"
+            : "other",
         timestamp: formatTimeAgo(msg[DB.messages.createdAt]),
       }));
     } catch (error) {
-      console.error('[Messages] getMessages error:', error);
+      console.error("[Messages] getMessages error:", error);
       return [];
     }
   },
@@ -138,27 +159,33 @@ export const messagesApi = {
   /**
    * Send message
    */
-  async sendMessage(conversationId: string, content: string) {
+  async sendMessage(data: {
+    conversationId: string;
+    content: string;
+    media?: Array<{ uri: string; type: "image" | "video" }>;
+  }) {
     try {
-      console.log('[Messages] sendMessage:', conversationId);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      console.log("[Messages] sendMessage:", data.conversationId);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
-      if (!userData) throw new Error('User not found');
+      if (!userData) throw new Error("User not found");
 
-      const { data, error } = await supabase
+      const { data: result, error } = await supabase
         .from(DB.messages.table)
         .insert({
-          [DB.messages.conversationId]: parseInt(conversationId),
+          [DB.messages.conversationId]: parseInt(data.conversationId),
           [DB.messages.senderId]: userData[DB.users.id],
-          [DB.messages.content]: content,
+          [DB.messages.content]: data.content,
           [DB.messages.read]: false,
         })
         .select()
@@ -170,11 +197,11 @@ export const messagesApi = {
       await supabase
         .from(DB.conversations.table)
         .update({ [DB.conversations.lastMessageAt]: new Date().toISOString() })
-        .eq(DB.conversations.id, parseInt(conversationId));
+        .eq(DB.conversations.id, parseInt(data.conversationId));
 
-      return data;
+      return result;
     } catch (error) {
-      console.error('[Messages] sendMessage error:', error);
+      console.error("[Messages] sendMessage error:", error);
       throw error;
     }
   },
@@ -184,16 +211,18 @@ export const messagesApi = {
    */
   async getOrCreateConversation(otherUserId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
-      if (!userData) throw new Error('User not found');
+      if (!userData) throw new Error("User not found");
 
       // Check if conversation exists between these two users
       const { data: existingConvs } = await supabase
@@ -206,8 +235,11 @@ export const messagesApi = {
         for (const conv of existingConvs) {
           const { data: otherParticipant } = await supabase
             .from(DB.conversationsRels.table)
-            .select('*')
-            .eq(DB.conversationsRels.parentId, conv[DB.conversationsRels.parentId])
+            .select("*")
+            .eq(
+              DB.conversationsRels.parentId,
+              conv[DB.conversationsRels.parentId],
+            )
             .eq(DB.conversationsRels.usersId, parseInt(otherUserId))
             .single();
 
@@ -230,22 +262,20 @@ export const messagesApi = {
       if (error) throw error;
 
       // Add participants
-      await supabase
-        .from(DB.conversationsRels.table)
-        .insert([
-          {
-            [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
-            [DB.conversationsRels.usersId]: userData[DB.users.id],
-          },
-          {
-            [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
-            [DB.conversationsRels.usersId]: parseInt(otherUserId),
-          },
-        ]);
+      await supabase.from(DB.conversationsRels.table).insert([
+        {
+          [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
+          [DB.conversationsRels.usersId]: userData[DB.users.id],
+        },
+        {
+          [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
+          [DB.conversationsRels.usersId]: parseInt(otherUserId),
+        },
+      ]);
 
       return String(newConv[DB.conversations.id]);
     } catch (error) {
-      console.error('[Messages] getOrCreateConversation error:', error);
+      console.error("[Messages] getOrCreateConversation error:", error);
       throw error;
     }
   },
@@ -255,13 +285,15 @@ export const messagesApi = {
    */
   async getUnreadCount() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return 0;
 
       const { data: userData } = await supabase
         .from(DB.users.table)
         .select(DB.users.id)
-        .eq(DB.users.email, user.email)
+        .eq(DB.users.authId, user.id)
         .single();
 
       if (!userData) return 0;
@@ -275,10 +307,10 @@ export const messagesApi = {
       if (!convs || convs.length === 0) return 0;
 
       // Count unread messages in these conversations
-      const convIds = convs.map(c => c[DB.conversationsRels.parentId]);
+      const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
       const { count, error } = await supabase
         .from(DB.messages.table)
-        .select('*', { count: 'exact', head: true })
+        .select("*", { count: "exact", head: true })
         .in(DB.messages.conversationId, convIds)
         .eq(DB.messages.read, false)
         .neq(DB.messages.senderId, userData[DB.users.id]);
@@ -287,14 +319,115 @@ export const messagesApi = {
 
       return count || 0;
     } catch (error) {
-      console.error('[Messages] getUnreadCount error:', error);
+      console.error("[Messages] getUnreadCount error:", error);
       return 0;
+    }
+  },
+
+  /**
+   * Get spam unread message count (from non-followed users)
+   */
+  async getSpamUnreadCount() {
+    try {
+      // TODO: Implement when following table is available
+      console.log(
+        "[Messages] getSpamUnreadCount - returning 0 (not yet implemented)",
+      );
+      return 0;
+    } catch (error) {
+      console.error("[Messages] getSpamUnreadCount error:", error);
+      return 0;
+    }
+  },
+
+  /**
+   * Create a group conversation
+   */
+  async createGroupConversation(participantIds: string[], groupName: string) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: userData } = await supabase
+        .from(DB.users.table)
+        .select(DB.users.id)
+        .eq(DB.users.authId, user.id)
+        .single();
+
+      if (!userData) throw new Error("User not found");
+
+      // Create the conversation
+      const { data: conversation, error: convError } = await supabase
+        .from(DB.conversations.table)
+        .insert({
+          [DB.conversations.isGroup]: true,
+          [DB.conversations.groupName]: groupName,
+        })
+        .select()
+        .single();
+
+      if (convError) throw convError;
+
+      // Add all participants including current user
+      const allParticipants = [
+        ...new Set([...participantIds, String(userData[DB.users.id])]),
+      ];
+
+      const participantInserts = allParticipants.map((userId) => ({
+        [DB.conversationsRels.parentId]: conversation[DB.conversations.id],
+        [DB.conversationsRels.usersId]: parseInt(userId),
+      }));
+
+      const { error: relError } = await supabase
+        .from(DB.conversationsRels.table)
+        .insert(participantInserts);
+
+      if (relError) throw relError;
+
+      return { id: String(conversation[DB.conversations.id]) };
+    } catch (error) {
+      console.error("[Messages] createGroupConversation error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get IDs of users the current user is following
+   */
+  async getFollowingIds(): Promise<string[]> {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const { data: userData } = await supabase
+        .from(DB.users.table)
+        .select(DB.users.id)
+        .eq(DB.users.authId, user.id)
+        .single();
+
+      if (!userData) return [];
+
+      const { data, error } = await supabase
+        .from(DB.follows.table)
+        .select(DB.follows.followingId)
+        .eq(DB.follows.followerId, userData[DB.users.id]);
+
+      if (error) throw error;
+
+      return (data || []).map((f: any) => String(f[DB.follows.followingId]));
+    } catch (error) {
+      console.error("[Messages] getFollowingIds error:", error);
+      return [];
     }
   },
 };
 
 function formatTimeAgo(dateString: string): string {
-  if (!dateString) return 'Just now';
+  if (!dateString) return "Just now";
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -302,9 +435,9 @@ function formatTimeAgo(dateString: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffMins < 1) return 'Just now';
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays === 1) return 'Yesterday';
+  if (diffDays === 1) return "Yesterday";
   return `${diffDays}d ago`;
 }

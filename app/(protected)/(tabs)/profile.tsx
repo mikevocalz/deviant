@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { SharedImage } from "@/components/shared-image";
 import { Avatar } from "@/components/ui/avatar";
+import { Image } from "expo-image";
 import {
   Settings,
   Album,
@@ -40,7 +41,7 @@ import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -137,7 +138,7 @@ function ProfileScreenContent() {
       }
 
       // Update profile with new avatar
-      await users.updateMe({ avatar: uploadResult.url });
+      await usersApi.updateAvatar(uploadResult.url);
 
       const newAvatarUrl = uploadResult.url;
 
@@ -366,10 +367,17 @@ function ProfileScreenContent() {
       ),
     });
   }, [navigation, user?.username, colors, router]);
-  
-  // Fetch real user posts - only if user exists
-  const { data: userPostsData, isLoading: isLoadingPosts } = useProfilePosts(user?.id || "skip");
-  
+
+  // Fetch real user posts - ONLY for logged-in user
+  // Must be called unconditionally (React hooks rule) - BEFORE any early returns
+  const {
+    data: userPostsData,
+    isLoading: isLoadingPosts,
+    isError: postsError,
+    error: postsQueryError,
+    refetch,
+  } = useProfilePosts(loggedInUserId);
+
   // Don't render if no user
   if (!user) {
     return (
@@ -378,16 +386,6 @@ function ProfileScreenContent() {
       </View>
     );
   }
-
-  // Fetch real user posts - ONLY for logged-in user
-  // Must be called unconditionally (React hooks rule)
-  const {
-    data: userPostsData,
-    isLoading: isLoadingPosts,
-    isError: postsError,
-    error: postsQueryError,
-    refetch,
-  } = useProfilePosts(loggedInUserId);
 
   // PHASE 1 INSTRUMENTATION: Log posts query state with date range
   if (__DEV__) {
@@ -520,7 +518,9 @@ function ProfileScreenContent() {
           {/* Centered Profile Header */}
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Pressable onPress={() => router.push("/(protected)/edit-profile")}>
+              <Pressable
+                onPress={() => router.push("/(protected)/edit-profile")}
+              >
                 <View className="relative">
                   <Image
                     source={{
@@ -534,7 +534,10 @@ function ProfileScreenContent() {
                   />
                   <View
                     className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                    style={{ borderColor: colors.background, transform: [{ translateX: -14 }] }}
+                    style={{
+                      borderColor: colors.background,
+                      transform: [{ translateX: -14 }],
+                    }}
                   >
                     <Camera size={14} color="#fff" />
                   </View>
@@ -623,7 +626,7 @@ function ProfileScreenContent() {
           </View>
 
           <View className="mt-5 flex-row gap-2 px-4">
-            <Pressable 
+            <Pressable
               onPress={() => router.push("/(protected)/edit-profile")}
               className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
             >

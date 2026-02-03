@@ -5,6 +5,31 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/supabase-events";
 
+// Event type for components
+export interface Event {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  location: string;
+  image: string;
+  price: number;
+  attendees: number | { image?: string; initials?: string }[];
+  totalAttendees?: number;
+  maxAttendees?: number;
+  host: {
+    id?: string;
+    username: string;
+    avatar: string;
+  };
+  coOrganizer?: any;
+  month?: string;
+  fullDate?: string;
+  time?: string;
+  category?: string;
+  likes?: number;
+}
+
 // Query keys
 export const eventKeys = {
   all: ["events"] as const,
@@ -20,7 +45,7 @@ export const eventKeys = {
 export function useEvents(category?: string) {
   return useQuery({
     queryKey: category ? eventKeys.byCategory(category) : eventKeys.list(),
-    queryFn: () => eventsApiClient.getEvents(category),
+    queryFn: () => eventsApiClient.getEvents(20, category),
   });
 }
 
@@ -65,36 +90,33 @@ export function useCreateEvent() {
       });
 
       // Optimistically add the new event to all event lists
-      queryClient.setQueriesData<any[]>(
-        { queryKey: eventKeys.all },
-        (old) => {
-          if (!old) return old;
-          const optimisticEvent: any = {
-            id: `temp-${Date.now()}`,
-            title: newEventData.title || "New Event",
-            description: newEventData.description,
-            date: new Date(newEventData.date || Date.now())
-              .getDate()
-              .toString()
-              .padStart(2, "0"),
-            month: new Date(newEventData.date || Date.now())
-              .toLocaleString("en-US", { month: "short" })
-              .toUpperCase(),
-            fullDate: new Date(newEventData.date || Date.now()),
-            time: newEventData.time || "",
-            location: newEventData.location || "TBA",
-            price: newEventData.price || 0,
-            image:
-              newEventData.image ||
-              "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
-            category: newEventData.category || "Event",
-            attendees: [],
-            totalAttendees: 0,
-            likes: 0,
-          };
-          return [optimisticEvent, ...old];
-        },
-      );
+      queryClient.setQueriesData<any[]>({ queryKey: eventKeys.all }, (old) => {
+        if (!old) return old;
+        const optimisticEvent: any = {
+          id: `temp-${Date.now()}`,
+          title: newEventData.title || "New Event",
+          description: newEventData.description,
+          date: new Date(newEventData.date || Date.now())
+            .getDate()
+            .toString()
+            .padStart(2, "0"),
+          month: new Date(newEventData.date || Date.now())
+            .toLocaleString("en-US", { month: "short" })
+            .toUpperCase(),
+          fullDate: new Date(newEventData.date || Date.now()),
+          time: newEventData.time || "",
+          location: newEventData.location || "TBA",
+          price: newEventData.price || 0,
+          image:
+            newEventData.image ||
+            "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
+          category: newEventData.category || "Event",
+          attendees: [],
+          totalAttendees: 0,
+          likes: 0,
+        };
+        return [optimisticEvent, ...old];
+      });
 
       return { previousData };
     },
@@ -106,9 +128,105 @@ export function useCreateEvent() {
         });
       }
     },
-    onSuccess: () => {
-      // Invalidate to get real data with correct ID
+    onSuccess: (newEvent) => {
+      console.log("[useCreateEvent] Event created successfully:", newEvent?.id);
+
+      // Replace the optimistic event with the real one instead of invalidating
+      // This prevents double events from appearing
+      if (newEvent?.id) {
+        queryClient.setQueriesData<any[]>(
+          { queryKey: eventKeys.all },
+          (old) => {
+            if (!old) return old;
+            // Remove temp events and add real event at the beginning
+            const filteredData = old.filter(
+              (e) => !String(e.id).startsWith("temp-"),
+            );
+            return [newEvent, ...filteredData];
+          },
+        );
+      }
+    },
+  });
+}
+
+// Update event mutation
+export function useUpdateEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ eventId, updates }: { eventId: string; updates: any }) =>
+      eventsApiClient.updateEvent(eventId, updates),
+    onSuccess: (_result, { eventId }) => {
+      // Invalidate the specific event and all event lists
+      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
       queryClient.invalidateQueries({ queryKey: eventKeys.all });
+    },
+  });
+}
+
+// Delete event mutation with optimistic update
+export function useDeleteEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: eventsApiClient.deleteEvent,
+    onMutate: async (deletedEventId) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: eventKeys.all });
+
+      // Snapshot previous data for rollback
+      const previousData = queryClient.getQueriesData({
+        queryKey: eventKeys.all,
+      });
+
+      // Optimistically remove from all event lists
+      queryClient.setQueriesData<Event[]>(
+        { queryKey: eventKeys.all },
+        (old) => {
+          if (!old) return old;
+          return old.filter((event) => event.id !== deletedEventId);
+        },
+      );
+
+      // Remove from detail cache
+      queryClient.removeQueries({ queryKey: eventKeys.detail(deletedEventId) });
+
+      return { previousData };
+    },
+    onError: (_err, _deletedEventId, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+    onSuccess: (_result, deletedEventId) => {
+      console.log(
+        "[useDeleteEvent] Event deleted successfully:",
+        deletedEventId,
+      );
+      // No need to invalidate - optimistic update already removed the event
+    },
+  });
+}
+
+// RSVP to event mutation
+export function useRsvpEvent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      eventId,
+      status,
+    }: {
+      eventId: string;
+      status: "going" | "interested" | "not_going";
+    }) => eventsApiClient.rsvpEvent(eventId, status),
+    onSuccess: (_result, { eventId }) => {
+      // Invalidate the specific event
+      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
     },
   });
 }

@@ -32,6 +32,15 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 pnpm-debug.log*
+android-build.log
+android-run.log
+
+# Device log dumps (they capture env secrets)
+android-logcat*.txt
+android-crash-logs.txt
+live-logs.txt
+metro-sev0*.txt
+recent-logs.txt
 
 # macOS
 .DS_Store

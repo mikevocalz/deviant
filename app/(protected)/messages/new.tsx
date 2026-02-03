@@ -14,7 +14,7 @@ import { Image } from "expo-image";
 import { useNewMessageStore } from "@/lib/stores/comments-store";
 import { useCallback, useState } from "react";
 import { useSearchUsers } from "@/lib/hooks/use-search";
-import { users } from "@/lib/api-client";
+import { usersApi } from "@/lib/api/supabase-users";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
@@ -32,10 +32,7 @@ export default function NewMessageScreen() {
     queryKey: ["users", "all"],
     queryFn: async () => {
       try {
-        const result = await users.find({
-          limit: 50,
-          sort: "-createdAt",
-        });
+        const result = await usersApi.searchUsers("", 50);
         // Filter out current user
         return result.docs.filter((user: any) => user.id !== currentUser?.id);
       } catch (error) {
