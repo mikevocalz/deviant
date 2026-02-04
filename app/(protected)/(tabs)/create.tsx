@@ -89,19 +89,19 @@ export default function CreateScreen() {
       for (const item of media) {
         if (item.type === "video") {
           if (hasPhotos || selectedMedia.length > 0) {
-            Alert.alert(
+            showToast(
+              "warning",
               "Media Limit",
               "You can either add up to 4 photos OR 1 video per post. Please remove existing media first.",
-              [{ text: "Got it" }],
             );
             continue;
           }
 
           if (item.duration && item.duration > MAX_VIDEO_DURATION) {
-            Alert.alert(
+            showToast(
+              "warning",
               "Video Too Long",
               `Videos must be ${MAX_VIDEO_DURATION} seconds or less. Your video is ${Math.round(item.duration)} seconds.`,
-              [{ text: "Got it" }],
             );
             continue;
           }
@@ -110,19 +110,19 @@ export default function CreateScreen() {
           break;
         } else {
           if (hasVideo) {
-            Alert.alert(
+            showToast(
+              "warning",
               "Media Limit",
               "You already have a video. Posts can have either photos OR video, not both.",
-              [{ text: "Got it" }],
             );
             continue;
           }
 
           if (selectedMedia.length + validMedia.length >= MAX_PHOTOS) {
-            Alert.alert(
+            showToast(
+              "warning",
               "Photo Limit Reached",
               `You can add up to ${MAX_PHOTOS} photos per post.`,
-              [{ text: "Got it" }],
             );
             break;
           }
@@ -138,13 +138,21 @@ export default function CreateScreen() {
 
   const handlePickLibrary = async () => {
     if (!canAddMore && !hasVideo) {
-      Alert.alert("Photo Limit", `Maximum ${MAX_PHOTOS} photos per post.`);
+      showToast(
+        "warning",
+        "Photo Limit",
+        `Maximum ${MAX_PHOTOS} photos per post.`,
+      );
       return;
     }
 
     const remaining = hasVideo ? 0 : MAX_PHOTOS - selectedMedia.length;
     if (remaining === 0) {
-      Alert.alert("Media Limit", "Remove existing media to add new ones.");
+      showToast(
+        "warning",
+        "Media Limit",
+        "Remove existing media to add new ones.",
+      );
       return;
     }
 
@@ -163,11 +171,15 @@ export default function CreateScreen() {
 
   const handleTakePhoto = async () => {
     if (hasVideo) {
-      Alert.alert("Media Limit", "Remove the video to add photos.");
+      showToast("warning", "Media Limit", "Remove the video to add photos.");
       return;
     }
     if (selectedMedia.length >= MAX_PHOTOS) {
-      Alert.alert("Photo Limit", `Maximum ${MAX_PHOTOS} photos per post.`);
+      showToast(
+        "warning",
+        "Photo Limit",
+        `Maximum ${MAX_PHOTOS} photos per post.`,
+      );
       return;
     }
 
@@ -191,7 +203,8 @@ export default function CreateScreen() {
               const media = await recordVideo();
               if (media) {
                 if (media.duration && media.duration > MAX_VIDEO_DURATION) {
-                  Alert.alert(
+                  showToast(
+                    "warning",
                     "Video Too Long",
                     `Videos must be ${MAX_VIDEO_DURATION} seconds or less.`,
                   );
@@ -209,7 +222,8 @@ export default function CreateScreen() {
     const media = await recordVideo();
     if (media) {
       if (media.duration && media.duration > MAX_VIDEO_DURATION) {
-        Alert.alert(
+        showToast(
+          "warning",
           "Video Too Long",
           `Videos must be ${MAX_VIDEO_DURATION} seconds or less.`,
         );

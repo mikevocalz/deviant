@@ -61,6 +61,28 @@ export default function DebugScreen() {
   const [apiBase, setApiBase] = useState("");
   const [results, setResults] = useState<TestResult[]>([]);
 
+  // Gate debug screen to development only
+  if (!__DEV__) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.background,
+          paddingTop: insets.top,
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <Text className="text-foreground text-lg">
+          Debug screen is only available in development
+        </Text>
+        <Pressable onPress={() => router.back()} className="mt-4 p-4">
+          <Text className="text-primary">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   useEffect(() => {
     setApiBase(SUPABASE_URL);
   }, []);

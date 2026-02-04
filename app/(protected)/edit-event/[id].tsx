@@ -101,7 +101,11 @@ export default function EditEventScreen() {
       const { status } =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission needed", "Please grant photo library access");
+        showToast(
+          "warning",
+          "Permission needed",
+          "Please grant photo library access",
+        );
         return;
       }
 

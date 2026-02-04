@@ -5,9 +5,9 @@ import {
   TextInput,
   Dimensions,
   ScrollView,
-  Alert,
   Animated,
   StyleSheet,
+  Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,9 +26,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import { useState, useRef, useEffect, useCallback, useLayoutEffect } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CANVAS_WIDTH = SCREEN_WIDTH - 32;
@@ -81,6 +88,7 @@ export default function CreateStoryScreen() {
   const { pickStoryMedia, recordStoryVideo, requestPermissions } =
     useMediaPicker();
   const createStory = useCreateStory();
+  const showToast = useUIStore((s) => s.showToast);
   const {
     uploadMultiple,
     isUploading: isUploadingMedia,
@@ -117,10 +125,10 @@ export default function CreateStoryScreen() {
       const newItems = media.slice(0, MAX_STORY_ITEMS - currentCount);
 
       if (media.length > MAX_STORY_ITEMS - currentCount) {
-        Alert.alert(
+        showToast(
+          "warning",
           "Story Limit",
           `You can add up to ${MAX_STORY_ITEMS} items per story. ${newItems.length} items added.`,
-          [{ text: "Got it" }],
         );
       }
 
@@ -143,9 +151,11 @@ export default function CreateStoryScreen() {
       }
 
       if (errors.length > 0) {
-        Alert.alert("Some videos couldn't be added", errors.join("\n"), [
-          { text: "Got it" },
-        ]);
+        showToast(
+          "warning",
+          "Some videos couldn't be added",
+          errors.join(", "),
+        );
       }
 
       if (validMedia.length > 0) {
@@ -158,7 +168,12 @@ export default function CreateStoryScreen() {
         // If this is the first media, set to 0, otherwise set to the first new item
         const newIndex = mediaAssets.length === 0 ? 0 : mediaAssets.length;
         setCurrentIndex(newIndex);
-        console.log("[Story] Media selected, updated assets:", updatedAssets.length, "currentIndex:", newIndex);
+        console.log(
+          "[Story] Media selected, updated assets:",
+          updatedAssets.length,
+          "currentIndex:",
+          newIndex,
+        );
         animateTransition();
       }
     },
@@ -169,13 +184,21 @@ export default function CreateStoryScreen() {
     try {
       console.log("[Story] handlePickLibrary called");
       if (mediaAssets.length >= MAX_STORY_ITEMS) {
-        Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+        showToast(
+          "warning",
+          "Story Limit",
+          `Maximum ${MAX_STORY_ITEMS} items per story.`,
+        );
         return;
       }
 
       if (!pickStoryMedia) {
         console.error("[Story] pickStoryMedia is not available");
-        Alert.alert("Error", "Media picker is not available. Please try again.");
+        showToast(
+          "error",
+          "Error",
+          "Media picker is not available. Please try again.",
+        );
         return;
       }
 
@@ -193,7 +216,7 @@ export default function CreateStoryScreen() {
       }
     } catch (error) {
       console.error("[Story] Error picking media:", error);
-      Alert.alert("Error", "Failed to pick media. Please try again.");
+      showToast("error", "Error", "Failed to pick media. Please try again.");
     }
   };
 
@@ -201,13 +224,21 @@ export default function CreateStoryScreen() {
     try {
       console.log("[Story] handleRecordVideo called");
       if (mediaAssets.length >= MAX_STORY_ITEMS) {
-        Alert.alert("Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+        showToast(
+          "warning",
+          "Story Limit",
+          `Maximum ${MAX_STORY_ITEMS} items per story.`,
+        );
         return;
       }
 
       if (!recordStoryVideo) {
         console.error("[Story] recordStoryVideo is not available");
-        Alert.alert("Error", "Video recorder is not available. Please try again.");
+        showToast(
+          "error",
+          "Error",
+          "Video recorder is not available. Please try again.",
+        );
         return;
       }
 
@@ -224,7 +255,7 @@ export default function CreateStoryScreen() {
       }
     } catch (error) {
       console.error("[Story] Error recording video:", error);
-      Alert.alert("Error", "Failed to record video. Please try again.");
+      showToast("error", "Error", "Failed to record video. Please try again.");
     }
   };
 
@@ -278,7 +309,7 @@ export default function CreateStoryScreen() {
     }
 
     if (selectedMedia.length === 0) {
-      Alert.alert("Empty Story", "Please add media to your story");
+      showToast("warning", "Empty Story", "Please add media to your story");
       return;
     }
 
@@ -319,7 +350,8 @@ export default function CreateStoryScreen() {
           setIsSharing(false);
           setUploadProgress(0);
           progressAnim.setValue(0);
-          Alert.alert(
+          showToast(
+            "error",
             "Upload Error",
             "Failed to upload media. Please try again.",
           );
@@ -334,7 +366,7 @@ export default function CreateStoryScreen() {
 
       if (storyItems.length === 0) {
         setIsSharing(false);
-        Alert.alert("Empty Story", "Please add content to your story");
+        showToast("warning", "Empty Story", "Please add content to your story");
         return;
       }
 
@@ -347,7 +379,7 @@ export default function CreateStoryScreen() {
               setIsSharing(false);
               setUploadProgress(0);
               progressAnim.setValue(0);
-              Alert.alert("Success", "Story shared successfully!");
+              showToast("success", "Success", "Story shared successfully!");
               reset();
               setMediaAssets([]);
               router.back();
@@ -358,9 +390,16 @@ export default function CreateStoryScreen() {
             setUploadProgress(0);
             progressAnim.setValue(0);
             console.error("[Story] Error creating story:", error);
-            console.error("[Story] Error details:", JSON.stringify(error, null, 2));
-            const errorMessage = error?.message || error?.error?.message || error?.error || "Failed to share story. Please try again.";
-            Alert.alert("Error", errorMessage);
+            console.error(
+              "[Story] Error details:",
+              JSON.stringify(error, null, 2),
+            );
+            const errorMessage =
+              error?.message ||
+              error?.error?.message ||
+              error?.error ||
+              "Failed to share story. Please try again.";
+            showToast("error", "Error", errorMessage);
           },
         },
       );
@@ -369,7 +408,7 @@ export default function CreateStoryScreen() {
       setIsSharing(false);
       setUploadProgress(0);
       progressAnim.setValue(0);
-      Alert.alert("Error", "Something went wrong. Please try again.");
+      showToast("error", "Error", "Something went wrong. Please try again.");
     }
   };
 
@@ -419,7 +458,13 @@ export default function CreateStoryScreen() {
         <Pressable
           onPress={handleClose}
           hitSlop={12}
-          style={{ marginLeft: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            marginLeft: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
@@ -435,7 +480,8 @@ export default function CreateStoryScreen() {
             style={{
               fontSize: 14,
               fontWeight: "600",
-              color: isValid && !isSharing ? colors.primary : colors.mutedForeground,
+              color:
+                isValid && !isSharing ? colors.primary : colors.mutedForeground,
             }}
           >
             {isSharing ? "Sharing..." : "Share"}
@@ -530,7 +576,14 @@ export default function CreateStoryScreen() {
                 )}
               </View>
             ) : (
-              <View style={{ flex: 1, backgroundColor: "#1a1a1a", alignItems: "center", justifyContent: "center" }}>
+              <View
+                style={{
+                  flex: 1,
+                  backgroundColor: "#1a1a1a",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 <ImageIcon size={48} color="#666" />
                 <Text style={{ color: "#666", marginTop: 12, fontSize: 16 }}>
                   Add media to get started
@@ -696,7 +749,8 @@ export default function CreateStoryScreen() {
               style={{
                 alignItems: "center",
                 gap: 4,
-                opacity: mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
+                opacity:
+                  mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
               }}
             >
               <View
@@ -729,7 +783,8 @@ export default function CreateStoryScreen() {
               style={{
                 alignItems: "center",
                 gap: 4,
-                opacity: mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
+                opacity:
+                  mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
               }}
             >
               <View
@@ -746,9 +801,7 @@ export default function CreateStoryScreen() {
               </View>
               <Text style={{ color: "#999", fontSize: 12 }}>Video (30s)</Text>
             </Pressable>
-
           </View>
-
         </View>
       </SafeAreaView>
     </View>

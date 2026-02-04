@@ -1,4 +1,12 @@
-import { View, Text, ScrollView, Pressable, TextInput, Alert } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  Alert,
+} from "react-native";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2 } from "lucide-react-native";
@@ -12,9 +20,10 @@ export default function EditPostScreen() {
   const { colors } = useColorScheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const postId = id ? String(id) : "";
-  
+
   const { data: post, isLoading } = usePost(postId);
-  
+  const showToast = useUIStore((s) => s.showToast);
+
   const [caption, setCaption] = useState("");
   const [location, setLocation] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -41,7 +50,7 @@ export default function EditPostScreen() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           caption,
@@ -54,11 +63,15 @@ export default function EditPostScreen() {
         throw new Error(error.message || `Update failed: ${response.status}`);
       }
 
-      Alert.alert("Success", "Post updated successfully!");
+      showToast("success", "Success", "Post updated successfully!");
       router.back();
     } catch (error) {
       console.error("[EditPost] Save error:", error);
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to update post");
+      showToast(
+        "error",
+        "Error",
+        error instanceof Error ? error.message : "Failed to update post",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -84,7 +97,7 @@ export default function EditPostScreen() {
               const response = await fetch(`${apiUrl}/api/posts/${postId}`, {
                 method: "DELETE",
                 headers: {
-                  "Authorization": `Bearer ${token}`,
+                  Authorization: `Bearer ${token}`,
                 },
               });
 
@@ -92,15 +105,21 @@ export default function EditPostScreen() {
                 throw new Error(`Delete failed: ${response.status}`);
               }
 
-              Alert.alert("Success", "Post deleted successfully!");
+              showToast("success", "Success", "Post deleted successfully!");
               router.replace("/(protected)/(tabs)/profile");
             } catch (error) {
               console.error("[EditPost] Delete error:", error);
-              Alert.alert("Error", error instanceof Error ? error.message : "Failed to delete post");
+              showToast(
+                "error",
+                "Error",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to delete post",
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -108,7 +127,11 @@ export default function EditPostScreen() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center">
-          <Loader2 size={32} color={colors.foreground} className="animate-spin" />
+          <Loader2
+            size={32}
+            color={colors.foreground}
+            className="animate-spin"
+          />
         </View>
       </SafeAreaView>
     );
@@ -123,7 +146,9 @@ export default function EditPostScreen() {
             onPress={() => router.back()}
             className="mt-4 rounded-lg bg-primary px-4 py-2"
           >
-            <Text className="font-semibold text-primary-foreground">Go Back</Text>
+            <Text className="font-semibold text-primary-foreground">
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -145,7 +170,11 @@ export default function EditPostScreen() {
           className="rounded-lg bg-primary px-4 py-2"
         >
           {isSaving ? (
-            <Loader2 size={16} color={colors.primaryForeground} className="animate-spin" />
+            <Loader2
+              size={16}
+              color={colors.primaryForeground}
+              className="animate-spin"
+            />
           ) : (
             <Text className="font-semibold text-primary-foreground">Save</Text>
           )}
@@ -155,7 +184,9 @@ export default function EditPostScreen() {
       <ScrollView className="flex-1 p-4">
         {/* Caption */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Caption</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Caption
+          </Text>
           <TextInput
             value={caption}
             onChangeText={setCaption}
@@ -170,7 +201,9 @@ export default function EditPostScreen() {
 
         {/* Location */}
         <View className="mb-6">
-          <Text className="mb-2 text-sm font-medium text-foreground">Location</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Location
+          </Text>
           <TextInput
             value={location}
             onChangeText={setLocation}

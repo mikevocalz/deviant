@@ -1,4 +1,13 @@
-import { View, Text, ScrollView, Pressable, TextInput, Alert, Platform } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  TextInput,
+  Alert,
+  Platform,
+} from "react-native";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
@@ -12,11 +21,11 @@ export default function EditEventScreen() {
   const { colors } = useColorScheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const eventId = id ? String(id) : "";
-  
+
   const [event, setEvent] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
@@ -25,6 +34,7 @@ export default function EditEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [ticketPrice, setTicketPrice] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
+  const showToast = useUIStore((s) => s.showToast);
 
   useEffect(() => {
     loadEvent();
@@ -42,7 +52,7 @@ export default function EditEventScreen() {
 
       const token = await getAuthToken();
       const response = await fetch(`${apiUrl}/api/events/${eventId}`, {
-        headers: token ? { "Authorization": `Bearer ${token}` } : {},
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
       if (!response.ok) {
@@ -52,16 +62,22 @@ export default function EditEventScreen() {
       const data = await response.json();
       const eventData = data.doc || data;
       setEvent(eventData);
-      
+
       setTitle(eventData.title || "");
       setDescription(eventData.description || "");
       setLocation(eventData.location || "");
-      setEventDate(eventData.eventDate ? new Date(eventData.eventDate) : new Date());
-      setTicketPrice(eventData.ticketPrice ? String(eventData.ticketPrice) : "");
-      setMaxAttendees(eventData.maxAttendees ? String(eventData.maxAttendees) : "");
+      setEventDate(
+        eventData.eventDate ? new Date(eventData.eventDate) : new Date(),
+      );
+      setTicketPrice(
+        eventData.ticketPrice ? String(eventData.ticketPrice) : "",
+      );
+      setMaxAttendees(
+        eventData.maxAttendees ? String(eventData.maxAttendees) : "",
+      );
     } catch (error) {
       console.error("[EditEvent] Load error:", error);
-      Alert.alert("Error", "Failed to load event");
+      showToast("error", "Error", "Failed to load event");
     } finally {
       setIsLoading(false);
     }
@@ -69,7 +85,7 @@ export default function EditEventScreen() {
 
   const handleSave = async () => {
     if (!eventId || !title.trim()) {
-      Alert.alert("Error", "Event title is required");
+      showToast("error", "Error", "Event title is required");
       return;
     }
 
@@ -85,7 +101,7 @@ export default function EditEventScreen() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           title,
@@ -102,11 +118,15 @@ export default function EditEventScreen() {
         throw new Error(error.message || `Update failed: ${response.status}`);
       }
 
-      Alert.alert("Success", "Event updated successfully!");
+      showToast("success", "Success", "Event updated successfully!");
       router.back();
     } catch (error) {
       console.error("[EditEvent] Save error:", error);
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to update event");
+      showToast(
+        "error",
+        "Error",
+        error instanceof Error ? error.message : "Failed to update event",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +152,7 @@ export default function EditEventScreen() {
               const response = await fetch(`${apiUrl}/api/events/${eventId}`, {
                 method: "DELETE",
                 headers: {
-                  "Authorization": `Bearer ${token}`,
+                  Authorization: `Bearer ${token}`,
                 },
               });
 
@@ -140,15 +160,21 @@ export default function EditEventScreen() {
                 throw new Error(`Delete failed: ${response.status}`);
               }
 
-              Alert.alert("Success", "Event deleted successfully!");
+              showToast("success", "Success", "Event deleted successfully!");
               router.replace("/(protected)/(tabs)/events");
             } catch (error) {
               console.error("[EditEvent] Delete error:", error);
-              Alert.alert("Error", error instanceof Error ? error.message : "Failed to delete event");
+              showToast(
+                "error",
+                "Error",
+                error instanceof Error
+                  ? error.message
+                  : "Failed to delete event",
+              );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -156,7 +182,11 @@ export default function EditEventScreen() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-1 items-center justify-center">
-          <Loader2 size={32} color={colors.foreground} className="animate-spin" />
+          <Loader2
+            size={32}
+            color={colors.foreground}
+            className="animate-spin"
+          />
         </View>
       </SafeAreaView>
     );
@@ -171,7 +201,9 @@ export default function EditEventScreen() {
             onPress={() => router.back()}
             className="mt-4 rounded-lg bg-primary px-4 py-2"
           >
-            <Text className="font-semibold text-primary-foreground">Go Back</Text>
+            <Text className="font-semibold text-primary-foreground">
+              Go Back
+            </Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -193,7 +225,11 @@ export default function EditEventScreen() {
           className="rounded-lg bg-primary px-4 py-2"
         >
           {isSaving ? (
-            <Loader2 size={16} color={colors.primaryForeground} className="animate-spin" />
+            <Loader2
+              size={16}
+              color={colors.primaryForeground}
+              className="animate-spin"
+            />
           ) : (
             <Text className="font-semibold text-primary-foreground">Save</Text>
           )}
@@ -203,7 +239,9 @@ export default function EditEventScreen() {
       <ScrollView className="flex-1 p-4">
         {/* Title */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Event Title *</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Event Title *
+          </Text>
           <TextInput
             value={title}
             onChangeText={setTitle}
@@ -215,7 +253,9 @@ export default function EditEventScreen() {
 
         {/* Description */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Description</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Description
+          </Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -230,7 +270,9 @@ export default function EditEventScreen() {
 
         {/* Location */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Location</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Location
+          </Text>
           <TextInput
             value={location}
             onChangeText={setLocation}
@@ -242,7 +284,9 @@ export default function EditEventScreen() {
 
         {/* Date */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Date & Time</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Date & Time
+          </Text>
           <View className="flex-row gap-2">
             <Pressable
               onPress={() => setShowDatePicker(true)}
@@ -259,7 +303,10 @@ export default function EditEventScreen() {
             >
               <Clock size={16} color={colors.foreground} />
               <Text className="text-foreground">
-                {eventDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {eventDate.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </Text>
             </Pressable>
           </View>
@@ -295,7 +342,9 @@ export default function EditEventScreen() {
 
         {/* Ticket Price */}
         <View className="mb-4">
-          <Text className="mb-2 text-sm font-medium text-foreground">Ticket Price ($)</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Ticket Price ($)
+          </Text>
           <TextInput
             value={ticketPrice}
             onChangeText={setTicketPrice}
@@ -308,7 +357,9 @@ export default function EditEventScreen() {
 
         {/* Max Attendees */}
         <View className="mb-6">
-          <Text className="mb-2 text-sm font-medium text-foreground">Max Attendees</Text>
+          <Text className="mb-2 text-sm font-medium text-foreground">
+            Max Attendees
+          </Text>
           <TextInput
             value={maxAttendees}
             onChangeText={setMaxAttendees}

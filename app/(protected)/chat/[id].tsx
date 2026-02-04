@@ -3,10 +3,10 @@ import {
   Text,
   TextInput,
   Pressable,
-  FlatList,
   Animated,
   Platform,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -366,7 +366,7 @@ export default function ChatScreen() {
   const isRecipientTyping = typingUsers.length > 0;
 
   const inputRef = useRef<TextInput>(null);
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<any>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
   // Auto-scroll to bottom when new messages arrive
@@ -589,13 +589,13 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        <FlatList
+        <FlashList
           ref={flatListRef}
           data={chatMessages}
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
-          contentContainerClassName="p-4 gap-2"
-          inverted={false}
+          contentContainerStyle={{ padding: 16 }}
+          estimatedItemSize={80}
           renderItem={({ item }) => (
             <View
               className={`rounded-2xl mb-2 ${
@@ -631,7 +631,7 @@ export default function ChatScreen() {
               </View>
             </View>
           )}
-        />
+        </FlashList>
 
         {/* Typing Indicator */}
         <TypingIndicator

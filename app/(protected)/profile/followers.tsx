@@ -1,12 +1,12 @@
 import {
   View,
   Text,
-  FlatList,
   Pressable,
   ActivityIndicator,
   TextInput,
   RefreshControl,
 } from "react-native";
+import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
@@ -284,7 +284,7 @@ export default function FollowersScreen() {
           </Pressable>
         </View>
       ) : (
-        <FlatList
+        <FlashList
           data={filteredFollowers}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
@@ -295,6 +295,7 @@ export default function FollowersScreen() {
           showsVerticalScrollIndicator={false}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
+          estimatedItemSize={72}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

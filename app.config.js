@@ -3,8 +3,10 @@
 // Use the standalone server/ directory for production API deployment
 const webOutput = "single";
 
-// Dynamic origin - uses EXPO_PUBLIC_API_URL in production, localhost in development
-const routerOrigin = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8081";
+// Dynamic origin - uses Supabase URL with production fallback
+const routerOrigin =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co";
 
 export default {
   expo: {

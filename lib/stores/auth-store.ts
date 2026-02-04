@@ -5,8 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { auth, type AppUser } from "@/lib/api/auth";
 
 /**
- * Extract avatar URL from various formats
- * Payload CMS can return avatar as:
+ * Extract avatar URL from various formats:
  * - Direct URL string
  * - Media object with url property
  * - null/undefined
@@ -151,20 +150,30 @@ supabase.auth.onAuthStateChange((event, session) => {
 
   if (event === "SIGNED_IN" && session?.user) {
     // Load profile when user signs in
-    auth.getProfile(session.user.id).then((profile) => {
-      if (profile) {
-        useAuthStore.getState().setUser(profile);
-      }
-    });
+    auth
+      .getProfile(session.user.id)
+      .then((profile) => {
+        if (profile) {
+          useAuthStore.getState().setUser(profile);
+        }
+      })
+      .catch((error) => {
+        console.error("[AuthStore] Failed to load profile on sign in:", error);
+      });
   } else if (event === "SIGNED_OUT") {
     useAuthStore.getState().setUser(null);
   } else if (event === "TOKEN_REFRESHED" && session?.user) {
     // Refresh profile on token refresh
-    auth.getProfile(session.user.id).then((profile) => {
-      if (profile) {
-        useAuthStore.getState().setUser(profile);
-      }
-    });
+    auth
+      .getProfile(session.user.id)
+      .then((profile) => {
+        if (profile) {
+          useAuthStore.getState().setUser(profile);
+        }
+      })
+      .catch((error) => {
+        console.error("[AuthStore] Failed to refresh profile:", error);
+      });
   }
 });
 

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, TextInput, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Camera, Loader2 } from "lucide-react-native";
@@ -8,13 +8,14 @@ import { useState } from "react";
 import { Image } from "expo-image";
 import { useMediaPicker } from "@/lib/hooks";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const user = useAuthStore((state) => state.user);
   const updateUser = useAuthStore((state) => state.updateUser);
-  
+
   const [name, setName] = useState(user?.name || "");
   const [username, setUsername] = useState(user?.username || "");
   const [bio, setBio] = useState(user?.bio || "");
@@ -26,24 +27,36 @@ export default function EditProfileScreen() {
 
   const { pickFromLibrary } = useMediaPicker();
   const { uploadSingle } = useMediaUpload({ folder: "avatars" });
+  const showToast = useUIStore((s) => s.showToast);
 
   const handleAvatarPress = async () => {
     try {
-      const result = await pickFromLibrary({ maxSelection: 1, allowsMultipleSelection: false });
+      const result = await pickFromLibrary({
+        maxSelection: 1,
+        allowsMultipleSelection: false,
+      });
       if (!result || result.length === 0) return;
 
       setIsUploading(true);
       const uploadResult = await uploadSingle(result[0].uri);
-      
+
       if (uploadResult.success) {
         setAvatar(uploadResult.url);
-        Alert.alert("Success", "Avatar uploaded! Remember to save changes.");
+        showToast(
+          "success",
+          "Success",
+          "Avatar uploaded! Remember to save changes.",
+        );
       } else {
-        Alert.alert("Upload Failed", uploadResult.error || "Could not upload avatar");
+        showToast(
+          "error",
+          "Upload Failed",
+          uploadResult.error || "Could not upload avatar",
+        );
       }
     } catch (error) {
       console.error("[EditProfile] Avatar upload error:", error);
-      Alert.alert("Error", "Failed to upload avatar");
+      showToast("error", "Error", "Failed to upload avatar");
     } finally {
       setIsUploading(false);
     }
@@ -65,7 +78,7 @@ export default function EditProfileScreen() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name,
@@ -95,11 +108,15 @@ export default function EditProfileScreen() {
         avatar: updatedUser.avatar,
       });
 
-      Alert.alert("Success", "Profile updated successfully!");
+      showToast("success", "Success", "Profile updated successfully!");
       router.back();
     } catch (error) {
       console.error("[EditProfile] Save error:", error);
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to update profile");
+      showToast(
+        "error",
+        "Error",
+        error instanceof Error ? error.message : "Failed to update profile",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -120,7 +137,11 @@ export default function EditProfileScreen() {
           className="rounded-lg bg-primary px-4 py-2"
         >
           {isSaving ? (
-            <Loader2 size={16} color={colors.primaryForeground} className="animate-spin" />
+            <Loader2
+              size={16}
+              color={colors.primaryForeground}
+              className="animate-spin"
+            />
           ) : (
             <Text className="font-semibold text-primary-foreground">Save</Text>
           )}
@@ -137,14 +158,20 @@ export default function EditProfileScreen() {
           >
             <Image
               source={{
-                uri: avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name || username || "User")}`,
+                uri:
+                  avatar ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || username || "User")}`,
               }}
               className="h-24 w-24 rounded-full"
               contentFit="cover"
             />
             <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">
               {isUploading ? (
-                <Loader2 size={16} color={colors.primaryForeground} className="animate-spin" />
+                <Loader2
+                  size={16}
+                  color={colors.primaryForeground}
+                  className="animate-spin"
+                />
               ) : (
                 <Camera size={16} color={colors.primaryForeground} />
               )}
@@ -159,7 +186,9 @@ export default function EditProfileScreen() {
         <View className="gap-4 px-4">
           {/* Name */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Name</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Name
+            </Text>
             <TextInput
               value={name}
               onChangeText={setName}
@@ -171,7 +200,9 @@ export default function EditProfileScreen() {
 
           {/* Username */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Username</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Username
+            </Text>
             <TextInput
               value={username}
               onChangeText={setUsername}
@@ -184,7 +215,9 @@ export default function EditProfileScreen() {
 
           {/* Bio */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Bio</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Bio
+            </Text>
             <TextInput
               value={bio}
               onChangeText={setBio}
@@ -199,7 +232,9 @@ export default function EditProfileScreen() {
 
           {/* Location */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Location</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Location
+            </Text>
             <TextInput
               value={location}
               onChangeText={setLocation}
@@ -211,7 +246,9 @@ export default function EditProfileScreen() {
 
           {/* Website */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Website</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Website
+            </Text>
             <TextInput
               value={website}
               onChangeText={setWebsite}
@@ -225,7 +262,9 @@ export default function EditProfileScreen() {
 
           {/* Email (read-only) */}
           <View>
-            <Text className="mb-2 text-sm font-medium text-foreground">Email</Text>
+            <Text className="mb-2 text-sm font-medium text-foreground">
+              Email
+            </Text>
             <TextInput
               value={user?.email || ""}
               editable={false}
