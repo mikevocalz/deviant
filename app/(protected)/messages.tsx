@@ -171,16 +171,14 @@ export default function MessagesScreen() {
   // Transform backend conversation to UI format
   const transformConversation = useCallback(
     (conv: Conversation): ConversationItem | null => {
-      // Find the other participant (not current user)
-      const otherUser = conv.participants.find(
-        (p) => p.username !== currentUser?.username,
-      );
+      // Use the user object from conversation (the other participant)
+      const otherUser = conv.user;
 
       if (!otherUser) return null;
 
       return {
         id: conv.id,
-        oderpantId: otherUser.id,
+        oderpantId: conv.id,
         user: {
           username: otherUser.username,
           name: otherUser.name || otherUser.username,
@@ -188,9 +186,9 @@ export default function MessagesScreen() {
             otherUser.avatar ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.username)}&background=3EA4E5&color=fff`,
         },
-        lastMessage: "",
-        timeAgo: formatTimeAgo(conv.lastMessageAt),
-        unread: false,
+        lastMessage: conv.lastMessage || "",
+        timeAgo: formatTimeAgo(conv.timestamp),
+        unread: conv.unread || false,
       };
     },
     [currentUser?.username],
@@ -203,8 +201,8 @@ export default function MessagesScreen() {
 
       // Fetch Inbox (followed users) and Spam (non-followed users) in parallel
       const [inboxConvs, spamConvs] = await Promise.all([
-        messagesApiClient.getFilteredConversations("inbox"),
-        messagesApiClient.getFilteredConversations("spam"),
+        messagesApiClient.getFilteredConversations("primary"),
+        messagesApiClient.getFilteredConversations("requests"),
       ]);
 
       console.log("[Messages] Loaded:", {

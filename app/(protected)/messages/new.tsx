@@ -80,16 +80,16 @@ export default function NewMessageScreen() {
         );
 
         // Get or create conversation with selected user
-        const conversation =
+        const conversationId =
           await messagesApiClient.getOrCreateConversation(userId);
 
-        if (conversation) {
+        if (conversationId) {
           console.log(
             "[NewMessage] Navigating to conversation:",
-            conversation.id,
+            conversationId,
           );
           // Navigate with conversation ID, not user ID
-          router.replace(`/(protected)/chat/${conversation.id}`);
+          router.replace(`/(protected)/chat/${conversationId}`);
         } else {
           showToast("error", "Error", "Could not start conversation");
         }

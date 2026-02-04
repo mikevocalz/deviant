@@ -371,13 +371,13 @@ function UserProfileScreenComponent() {
         "[Profile] Creating/getting conversation with user:",
         user.id,
       );
-      const conversation = await messagesApiClient.getOrCreateConversation(
+      const conversationId = await messagesApiClient.getOrCreateConversation(
         user.id,
       );
 
-      if (conversation?.id) {
-        console.log("[Profile] Navigating to chat:", conversation.id);
-        router.push(`/(protected)/chat/${conversation.id}`);
+      if (conversationId) {
+        console.log("[Profile] Navigating to chat:", conversationId);
+        router.push(`/(protected)/chat/${conversationId}`);
       } else {
         console.error(
           "[Profile] Failed to create conversation - no ID returned",

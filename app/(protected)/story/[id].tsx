@@ -534,10 +534,10 @@ export default function StoryViewerScreen() {
     try {
       console.log("[StoryViewer] Sending reply to userId:", resolvedUserId);
       // Get or create conversation with story owner
-      const conversation =
+      const conversationId =
         await messagesApiClient.getOrCreateConversation(resolvedUserId);
 
-      if (!conversation) {
+      if (!conversationId) {
         console.error("[StoryViewer] Failed to get/create conversation");
         showToast("error", "Error", "Could not start conversation");
         setIsSendingReply(false);
@@ -547,7 +547,7 @@ export default function StoryViewerScreen() {
       // Send the reply as a message
       const storyReplyPrefix = `📷 Replied to your story: `;
       const message = await messagesApiClient.sendMessage({
-        conversationId: conversation.id,
+        conversationId: conversationId,
         content: `${storyReplyPrefix}${replyText.trim()}`,
       });
 

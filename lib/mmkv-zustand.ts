@@ -3,9 +3,10 @@
  * Uses AsyncStorage as fallback since MMKV requires native module setup
  */
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { StateStorage } from "zustand/middleware";
+import { createJSONStorage, PersistStorage } from "zustand/middleware";
 
-export const mmkvStorage: StateStorage = {
+// Create a proper Zustand-compatible storage using createJSONStorage
+export const mmkvStorage = createJSONStorage(() => ({
   getItem: async (name: string): Promise<string | null> => {
     try {
       return await AsyncStorage.getItem(name);
@@ -28,4 +29,4 @@ export const mmkvStorage: StateStorage = {
       console.error("[mmkvStorage] removeItem error:", error);
     }
   },
-};
+}));

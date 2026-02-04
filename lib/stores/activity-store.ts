@@ -80,7 +80,12 @@ function notificationToActivity(notif: Notification): Activity | null {
           notif.sender?.avatar ||
           `https://ui-avatars.com/api/?name=${encodeURIComponent(senderUsername)}&background=3EA4E5&color=fff`,
       },
-      entityType: notif.entityType,
+      entityType: notif.entityType as
+        | "post"
+        | "comment"
+        | "user"
+        | "event"
+        | undefined,
       entityId: notif.entityId,
       post: notif.post
         ? {
@@ -193,10 +198,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
     set({ isLoading: true });
     try {
-      const notifications = await notificationsApiClient.getNotifications(50);
+      const result = await notificationsApiClient.getNotifications(50);
       // DEFENSIVE: Filter out null values from failed transformations
-      const activities = notifications
-        .map(notificationToActivity)
+      const activities = (result.docs || [])
+        .map((n: Notification) => notificationToActivity(n))
         .filter((a): a is Activity => a !== null);
 
       console.log("[ActivityStore] Fetched from backend:", {
@@ -255,8 +260,6 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         return `/(protected)/events`;
     }
 
-    // Default fallback
-    return `/(protected)/profile/${user.username}`;
   },
 
   // Sync unread count to the unified store
