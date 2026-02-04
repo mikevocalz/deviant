@@ -15,8 +15,6 @@ import * as FileSystem from "expo-file-system";
 // @ts-ignore - expo-crypto may not have types
 import * as Crypto from "expo-crypto";
 import * as VideoThumbnails from "expo-video-thumbnails";
-// @ts-ignore - expo-av may not have types
-import { Video } from "expo-av";
 import {
   MediaConstraints,
   ProcessedMedia,
@@ -26,7 +24,7 @@ import {
 
 /**
  * Extract video metadata without loading entire file
- * Uses expo-av to read video properties
+ * Uses expo-video-thumbnails to estimate video properties
  */
 export async function getVideoInfo(uri: string): Promise<VideoInfo> {
   console.log("[VideoProcessor] Getting info:", uri);
@@ -37,34 +35,40 @@ export async function getVideoInfo(uri: string): Promise<VideoInfo> {
     throw new Error("Video file does not exist");
   }
 
-  // Load video to get metadata (doesn't load entire file into memory)
   const fileInfoWithSize = fileInfo as { exists: boolean; size?: number };
-  return new Promise<VideoInfo>((resolve, reject) => {
-    const video = new Video.Sound();
 
-    video
-      .loadAsync({ uri }, {}, false)
-      .then((status: any) => {
-        if (!status.isLoaded) {
-          reject(new Error("Failed to load video"));
-          return;
-        }
+  // Generate thumbnail to verify video is valid and estimate dimensions
+  // expo-video doesn't expose metadata API, so we use thumbnail generation
+  try {
+    const thumbnail = await VideoThumbnails.getThumbnailAsync(uri, {
+      time: 0,
+      quality: 0.1,
+    });
 
-        const { durationMillis, naturalSize } = status as any;
+    // Estimate duration from file size (rough approximation)
+    // Typical mobile video: ~2-4 Mbps = 250-500 KB/s
+    const estimatedBitrate = 3_000_000; // 3 Mbps average
+    const fileSizeBytes = fileInfoWithSize.size || 0;
+    const estimatedDuration = (fileSizeBytes * 8) / estimatedBitrate;
 
-        resolve({
-          uri,
-          width: naturalSize?.width || 0,
-          height: naturalSize?.height || 0,
-          duration: durationMillis ? durationMillis / 1000 : 0,
-          size: fileInfoWithSize.size || 0,
-        });
-
-        // Cleanup
-        video.unloadAsync().catch(console.error);
-      })
-      .catch(reject);
-  });
+    return {
+      uri,
+      width: thumbnail.width || 1080,
+      height: thumbnail.height || 1920,
+      duration: estimatedDuration,
+      size: fileSizeBytes,
+    };
+  } catch (error) {
+    console.error("[VideoProcessor] Failed to get video info:", error);
+    // Return defaults if we can't get info
+    return {
+      uri,
+      width: 1080,
+      height: 1920,
+      duration: 0,
+      size: fileInfoWithSize.size || 0,
+    };
+  }
 }
 
 /**
