@@ -8,7 +8,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";

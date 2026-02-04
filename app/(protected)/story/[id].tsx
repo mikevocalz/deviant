@@ -38,7 +38,7 @@ import { useStories } from "@/lib/hooks/use-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 
 const { width, height } = Dimensions.get("window");
 const LONG_PRESS_DELAY = 300;

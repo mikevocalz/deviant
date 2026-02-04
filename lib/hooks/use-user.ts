@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 
 export function useUser(username: string | null | undefined) {
   return useQuery({

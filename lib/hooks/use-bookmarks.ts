@@ -7,7 +7,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { bookmarksApi } from "@/lib/api/supabase-bookmarks";
+import { bookmarksApi } from "@/lib/api/bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useAuthStore } from "@/lib/stores/auth-store";

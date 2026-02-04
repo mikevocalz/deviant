@@ -1,10 +1,7 @@
 /**
- * Messages API - Re-exports from Supabase implementation
+ * Messages API - Re-exports from implementation
  */
-export {
-  messagesApi,
-  messagesApi as messagesApiClient,
-} from "./supabase-messages";
+export { messagesApi, messagesApi as messagesApiClient } from "./messages-impl";
 
 // Conversation type for messages list
 export interface Conversation {

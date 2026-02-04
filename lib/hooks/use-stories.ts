@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { storiesApi as storiesApiClient } from "@/lib/api/supabase-stories";
+import { storiesApi as storiesApiClient } from "@/lib/api/stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { Story } from "@/lib/types";
 

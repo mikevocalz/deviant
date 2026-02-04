@@ -20,11 +20,11 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Search, X, Check, Users } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useState } from "react";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { messagesApi } from "@/lib/api/supabase-messages";
+import { messagesApi } from "@/lib/api/messages-impl";
 
 interface SelectedUser {
   id: string;

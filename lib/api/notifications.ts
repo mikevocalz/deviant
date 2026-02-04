@@ -1,6 +1,48 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 
+// Type exports for activity-store compatibility
+export type NotificationType =
+  | "like"
+  | "comment"
+  | "follow"
+  | "mention"
+  | "event_invite"
+  | "event_update"
+  | "message";
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  message: string;
+  read: boolean;
+  readAt?: string;
+  createdAt: string;
+  content?: string;
+  entityType?: string;
+  entityId?: string;
+  sender?: {
+    id: string;
+    username: string;
+    avatar: string;
+  } | null;
+  actor?: {
+    id: string;
+    username: string;
+    avatar: string;
+  } | null;
+  post?: {
+    id: string;
+    thumbnail?: string;
+  } | null;
+  event?: {
+    id: string;
+    title?: string;
+  } | null;
+  postId: string | null;
+  commentId: string | null;
+}
+
 export const notificationsApi = {
   /**
    * Get notifications for current user
@@ -155,5 +197,31 @@ export const notificationsApi = {
       console.error("[Notifications] getBadges error:", error);
       return { unread: 0, total: 0 };
     }
+  },
+};
+
+// Alias for backward compatibility with activity-store
+export const notificationsApiClient = {
+  get: async (options: { limit?: number } = {}) =>
+    notificationsApi.getNotifications(options.limit || 50),
+  getNotifications: (limit?: number) =>
+    notificationsApi.getNotifications(limit || 50),
+  markAsRead: (id: string) => notificationsApi.markAsRead(id),
+  markAllAsRead: () => notificationsApi.markAllAsRead(),
+  getBadges: () => notificationsApi.getBadges(),
+  formatTimeAgo: (dateString: string): string => {
+    if (!dateString) return "Just now";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 1) return "Yesterday";
+    return `${diffDays}d ago`;
   },
 };

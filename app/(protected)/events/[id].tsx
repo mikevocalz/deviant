@@ -34,7 +34,7 @@ import Animated, {
 import { useEventViewStore } from "@/lib/stores/event-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { eventsApi } from "@/lib/api/supabase-events";
+import { eventsApi } from "@/lib/api/events";
 import {
   useEventReviews,
   useCreateEventReview,

@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useColorScheme } from "@/lib/hooks";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 
 interface User {

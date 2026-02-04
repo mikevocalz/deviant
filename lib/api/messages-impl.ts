@@ -394,6 +394,63 @@ export const messagesApi = {
   },
 
   /**
+   * Mark messages as read in a conversation
+   */
+  async markAsRead(conversationId: string) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: userData } = await supabase
+        .from(DB.users.table)
+        .select(DB.users.id)
+        .eq(DB.users.authId, user.id)
+        .single();
+
+      if (!userData) return;
+
+      // Mark all messages in conversation as read (except own messages)
+      await supabase
+        .from(DB.messages.table)
+        .update({ [DB.messages.read]: true })
+        .eq(DB.messages.conversationId, parseInt(conversationId))
+        .neq(DB.messages.senderId, userData[DB.users.id]);
+    } catch (error) {
+      console.error("[Messages] markAsRead error:", error);
+    }
+  },
+
+  /**
+   * Get filtered conversations (primary = from followed users, requests = from others)
+   */
+  async getFilteredConversations(filter: "primary" | "requests") {
+    try {
+      const conversations = await this.getConversations();
+      const followingIds = await this.getFollowingIds();
+
+      if (filter === "primary") {
+        // Return conversations from followed users
+        return conversations.filter((c) => {
+          // For now, return all conversations as primary
+          // TODO: Implement proper filtering based on user IDs
+          return true;
+        });
+      } else {
+        // Return conversations from non-followed users (message requests)
+        return conversations.filter((c) => {
+          // TODO: Implement proper filtering based on user IDs
+          return false;
+        });
+      }
+    } catch (error) {
+      console.error("[Messages] getFilteredConversations error:", error);
+      return [];
+    }
+  },
+
+  /**
    * Get IDs of users the current user is following
    */
   async getFollowingIds(): Promise<string[]> {

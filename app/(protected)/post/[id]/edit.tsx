@@ -21,7 +21,7 @@ import { useState, useEffect, useCallback } from "react";
 import { usePost } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { postsApi } from "@/lib/api/supabase-posts";
+import { postsApi } from "@/lib/api/posts";
 import { useQueryClient } from "@tanstack/react-query";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { Image } from "expo-image";

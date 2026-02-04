@@ -23,7 +23,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useState, useCallback, useEffect } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Motion } from "@legendapp/motion";
-import { postsApi } from "@/lib/api/supabase-posts";
+import { postsApi } from "@/lib/api/posts";
 import { useQueryClient } from "@tanstack/react-query";
 
 export default function EditPostScreen() {

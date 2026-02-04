@@ -34,7 +34,7 @@ import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
-import { postsApi } from "@/lib/api/supabase-posts";
+import { postsApi } from "@/lib/api/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Alert } from "react-native";

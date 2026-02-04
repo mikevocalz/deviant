@@ -20,7 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, ScanLine } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { tickets } from "@/lib/api/supabase-tickets";
+import { tickets } from "@/lib/api/tickets";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 interface TicketQRScannerProps {

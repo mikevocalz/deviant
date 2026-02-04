@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventsApi as eventsApiClient } from "@/lib/api/supabase-events";
+import { eventsApi as eventsApiClient } from "@/lib/api/events";
 
 // Event type for components
 export interface Event {

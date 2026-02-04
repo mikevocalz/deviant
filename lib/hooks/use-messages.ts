@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useEffect } from "react";
-import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages";
+import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 

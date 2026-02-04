@@ -6,7 +6,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { searchApi } from "@/lib/api/supabase-search";
+import { searchApi } from "@/lib/api/search";
 
 export function useSearchPosts(query: string) {
   return useQuery({

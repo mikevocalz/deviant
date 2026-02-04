@@ -16,7 +16,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { likesApi } from "@/lib/api/supabase-likes";
+import { likesApi } from "@/lib/api/likes";
 import { postKeys } from "@/lib/hooks/use-posts";
 import type { Post } from "@/lib/types";
 

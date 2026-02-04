@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { commentsApi as commentsApiClient } from "@/lib/api/supabase-comments";
+import { commentsApi as commentsApiClient } from "@/lib/api/comments";
 import type { Comment } from "@/lib/types";
 import { commentKeys } from "./use-comments";
 

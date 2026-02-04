@@ -4,8 +4,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// TODO: Create supabase-user-settings.ts API
-// import { userSettingsApi } from "@/lib/api/supabase-user-settings";
+// TODO: Create user-settings.ts API
+// import { userSettingsApi } from "@/lib/api/user-settings";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 

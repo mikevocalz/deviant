@@ -12,7 +12,7 @@ import {
   type ActivityType,
 } from "@/lib/stores/activity-store";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
-import { messagesApi as messagesApiClient } from "@/lib/api/supabase-messages";
+import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,

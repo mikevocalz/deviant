@@ -14,7 +14,7 @@ import { Image } from "expo-image";
 import { useNewMessageStore } from "@/lib/stores/comments-store";
 import { useCallback, useState } from "react";
 import { useSearchUsers } from "@/lib/hooks/use-search";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";

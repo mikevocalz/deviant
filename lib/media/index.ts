@@ -3,17 +3,17 @@
  * Combines processing + upload into simple interface
  */
 
-import * as ImagePicker from 'expo-image-picker';
-import { Camera, CameraView } from 'expo-camera';
-import { processImage } from './image-processor';
-import { processVideo, getOptimalCameraPreset } from './video-processor';
-import { uploadMedia, uploadMediaBatch } from './uploader';
-import { MEDIA_CONSTRAINTS, MediaUseCase, UploadedMedia } from './types';
+import * as ImagePicker from "expo-image-picker";
+import { Camera, CameraView } from "expo-camera";
+import { processImage } from "./image-processor";
+import { processVideo, getOptimalCameraPreset } from "./video-processor";
+import { uploadMedia, uploadMediaBatch } from "./uploader";
+import { MEDIA_CONSTRAINTS, MediaUseCase, UploadedMedia } from "./types";
 
 /**
  * Pick and upload image from library
  * Complete flow: pick → validate → process → dedupe → upload
- * 
+ *
  * @example
  * const media = await pickAndUploadImage('avatar', (progress) => {
  *   console.log(`Upload: ${Math.round(progress * 100)}%`);
@@ -21,24 +21,24 @@ import { MEDIA_CONSTRAINTS, MediaUseCase, UploadedMedia } from './types';
  */
 export async function pickAndUploadImage(
   useCase: MediaUseCase,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ): Promise<UploadedMedia> {
   // Step 1: Request permissions
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Camera roll permission denied');
+  if (status !== "granted") {
+    throw new Error("Camera roll permission denied");
   }
 
   // Step 2: Pick image
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: 'images',
+    mediaTypes: "images",
     allowsEditing: true,
-    aspect: useCase === 'avatar' ? [1, 1] : undefined,
+    aspect: useCase === "avatar" ? [1, 1] : undefined,
     quality: 1, // Max quality (we'll compress ourselves)
   });
 
   if (result.canceled) {
-    throw new Error('Image selection cancelled');
+    throw new Error("Image selection cancelled");
   }
 
   const asset = result.assets[0];
@@ -60,32 +60,32 @@ export async function pickAndUploadImage(
 /**
  * Pick and upload video from library
  * Complete flow: pick → validate → process → dedupe → upload
- * 
+ *
  * @example
  * const media = await pickAndUploadVideo('story', (progress) => {
  *   console.log(`Upload: ${Math.round(progress * 100)}%`);
  * });
  */
 export async function pickAndUploadVideo(
-  useCase: 'story' | 'message',
-  onProgress?: (progress: number) => void
+  useCase: "story" | "message",
+  onProgress?: (progress: number) => void,
 ): Promise<UploadedMedia> {
   // Step 1: Request permissions
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Camera roll permission denied');
+  if (status !== "granted") {
+    throw new Error("Camera roll permission denied");
   }
 
   // Step 2: Pick video
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: 'videos',
+    mediaTypes: "videos",
     allowsEditing: false,
     quality: 1,
     videoMaxDuration: MEDIA_CONSTRAINTS[useCase].maxDurationSeconds,
   });
 
   if (result.canceled) {
-    throw new Error('Video selection cancelled');
+    throw new Error("Video selection cancelled");
   }
 
   const asset = result.assets[0];
@@ -111,10 +111,10 @@ export async function pickAndUploadVideo(
 export async function captureAndUploadPhoto(
   cameraRef: React.RefObject<CameraView>,
   useCase: MediaUseCase,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
 ): Promise<UploadedMedia> {
   if (!cameraRef.current) {
-    throw new Error('Camera not ready');
+    throw new Error("Camera not ready");
   }
 
   // Step 1: Capture photo
@@ -124,7 +124,7 @@ export async function captureAndUploadPhoto(
   });
 
   if (!photo) {
-    throw new Error('Failed to capture photo');
+    throw new Error("Failed to capture photo");
   }
 
   onProgress?.(0.2);
@@ -148,11 +148,11 @@ export async function captureAndUploadPhoto(
  */
 export async function recordAndUploadVideo(
   cameraRef: React.RefObject<CameraView>,
-  useCase: 'story' | 'message',
-  onProgress?: (progress: number) => void
+  useCase: "story" | "message",
+  onProgress?: (progress: number) => void,
 ): Promise<UploadedMedia> {
   if (!cameraRef.current) {
-    throw new Error('Camera not ready');
+    throw new Error("Camera not ready");
   }
 
   // Get optimal recording settings
@@ -166,7 +166,7 @@ export async function recordAndUploadVideo(
   });
 
   if (!video) {
-    throw new Error('Failed to record video');
+    throw new Error("Failed to record video");
   }
 
   onProgress?.(0.2);
@@ -186,7 +186,7 @@ export async function recordAndUploadVideo(
 
 /**
  * Pick and upload multiple images (for posts with galleries)
- * 
+ *
  * @example
  * const mediaList = await pickAndUploadMultipleImages('feed', 5, (index, progress) => {
  *   console.log(`Image ${index + 1}: ${Math.round(progress * 100)}%`);
@@ -195,24 +195,24 @@ export async function recordAndUploadVideo(
 export async function pickAndUploadMultipleImages(
   useCase: MediaUseCase,
   maxCount: number = 10,
-  onProgress?: (index: number, progress: number) => void
+  onProgress?: (index: number, progress: number) => void,
 ): Promise<UploadedMedia[]> {
   // Step 1: Request permissions
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (status !== 'granted') {
-    throw new Error('Camera roll permission denied');
+  if (status !== "granted") {
+    throw new Error("Camera roll permission denied");
   }
 
   // Step 2: Pick multiple images
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: 'images',
+    mediaTypes: "images",
     allowsMultipleSelection: true,
     selectionLimit: maxCount,
     quality: 1,
   });
 
   if (result.canceled || result.assets.length === 0) {
-    throw new Error('No images selected');
+    throw new Error("No images selected");
   }
 
   // Step 3: Process all images
@@ -222,19 +222,15 @@ export async function pickAndUploadMultipleImages(
   for (let i = 0; i < result.assets.length; i++) {
     const asset = result.assets[i];
     onProgress?.(i, 0.5);
-    
+
     const processed = await processImage(asset.uri, constraints);
     processedList.push(processed);
-    
+
     onProgress?.(i, 1);
   }
 
   // Step 4: Batch upload
-  const uploaded = await uploadMediaBatch(
-    processedList,
-    useCase,
-    onProgress
-  );
+  const uploaded = await uploadMediaBatch(processedList, useCase, onProgress);
 
   return uploaded;
 }
@@ -242,22 +238,41 @@ export async function pickAndUploadMultipleImages(
 /**
  * Get optimal camera configuration
  * Apply these settings before recording to enforce limits upfront
- * 
+ *
  * @example
  * const cameraProps = getOptimalCameraConfig('story');
  * <Camera {...cameraProps} ref={cameraRef} />
  */
-export function getOptimalCameraConfig(useCase: 'story' | 'message') {
+export function getOptimalCameraConfig(useCase: "story" | "message") {
   const preset = getOptimalCameraPreset(useCase);
-  
+
   return {
     // Video quality preset
     videoQuality: preset.videoQuality,
-    
+
     // Recommended: Disable HDR and high frame rates
     enableHighQualityPhotos: false,
-    
+
     // For stories: prefer portrait, for messages: no preference
-    aspect: useCase === 'story' ? ('9:16' as const) : ('4:3' as const),
+    aspect: useCase === "story" ? ("9:16" as const) : ("4:3" as const),
   };
+}
+
+/**
+ * Persist verification photo to local storage
+ * Used during ID/face verification flow
+ */
+export async function persistVerificationPhoto(
+  uri: string,
+  type: "id" | "selfie",
+): Promise<string> {
+  try {
+    // For now, just return the URI as-is
+    // In production, this would save to secure storage
+    console.log(`[Media] Persisting ${type} verification photo:`, uri);
+    return uri;
+  } catch (error) {
+    console.error("[Media] persistVerificationPhoto error:", error);
+    throw error;
+  }
 }

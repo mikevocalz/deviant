@@ -17,7 +17,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";

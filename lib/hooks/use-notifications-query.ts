@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { notificationsApi } from "@/lib/api/supabase-notifications";
+import { notificationsApi } from "@/lib/api/notifications";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export const notificationKeys = {

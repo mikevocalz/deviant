@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { blocksApi } from "@/lib/api/supabase-blocks";
+import { blocksApi } from "@/lib/api/blocks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 

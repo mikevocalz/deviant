@@ -177,7 +177,10 @@ export default function ChatScreen() {
             const newConversation =
               await messagesApiClient.getOrCreateConversation(chatId);
             if (newConversation) {
-              actualConversationId = newConversation.id;
+              actualConversationId =
+                typeof newConversation === "string"
+                  ? newConversation
+                  : newConversation;
               console.log(
                 "[Chat] Created new conversation with ID:",
                 actualConversationId,
@@ -196,7 +199,10 @@ export default function ChatScreen() {
               const newConversation =
                 await messagesApiClient.getOrCreateConversation(chatId);
               if (newConversation) {
-                actualConversationId = newConversation.id;
+                actualConversationId =
+                  typeof newConversation === "string"
+                    ? newConversation
+                    : newConversation;
                 console.log(
                   "[Chat] Created new conversation from fallback:",
                   actualConversationId,
@@ -258,25 +264,23 @@ export default function ChatScreen() {
         const conversation = conversations.find((c) => c.id === chatId);
 
         if (conversation) {
-          // Find the other participant (not current user)
-          const otherParticipant = conversation.participants.find(
-            (p) => p.username !== currentUser.username,
-          );
+          // Use the user object from conversation (the other participant)
+          const otherUser = conversation.user;
 
-          if (otherParticipant) {
-            console.log("[Chat] Found recipient:", otherParticipant.username);
+          if (otherUser) {
+            console.log("[Chat] Found recipient:", otherUser.username);
             setRecipient({
-              id: otherParticipant.id,
-              username: otherParticipant.username,
-              name: otherParticipant.name || otherParticipant.username,
+              id: conversation.id,
+              username: otherUser.username,
+              name: otherUser.name || otherUser.username,
               avatar:
-                otherParticipant.avatar ||
+                otherUser.avatar ||
                 `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  otherParticipant.username,
+                  otherUser.username,
                 )}&background=3EA4E5&color=fff`,
             });
           } else {
-            console.warn("[Chat] No other participant found in conversation");
+            console.warn("[Chat] No user found in conversation");
           }
         } else {
           console.warn("[Chat] Conversation not found:", chatId);
@@ -287,26 +291,28 @@ export default function ChatScreen() {
               await messagesApiClient.getOrCreateConversation(chatId);
             if (newConversation) {
               // Reload conversations to get the updated list
+              const newConvId =
+                typeof newConversation === "string"
+                  ? newConversation
+                  : newConversation;
               const updatedConversations =
                 await messagesApiClient.getConversations();
               const updatedConversation = updatedConversations.find(
-                (c) => c.id === newConversation.id,
+                (c) => c.id === newConvId,
               );
 
               if (updatedConversation) {
-                const otherParticipant = updatedConversation.participants.find(
-                  (p) => p.username !== currentUser.username,
-                );
+                const otherUser = updatedConversation.user;
 
-                if (otherParticipant) {
+                if (otherUser) {
                   setRecipient({
-                    id: otherParticipant.id,
-                    username: otherParticipant.username,
-                    name: otherParticipant.name || otherParticipant.username,
+                    id: updatedConversation.id,
+                    username: otherUser.username,
+                    name: otherUser.name || otherUser.username,
                     avatar:
-                      otherParticipant.avatar ||
+                      otherUser.avatar ||
                       `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        otherParticipant.username,
+                        otherUser.username,
                       )}&background=3EA4E5&color=fff`,
                   });
                 }
@@ -595,7 +601,6 @@ export default function ChatScreen() {
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
-          estimatedItemSize={80}
           renderItem={({ item }) => (
             <View
               className={`rounded-2xl mb-2 ${
@@ -631,7 +636,7 @@ export default function ChatScreen() {
               </View>
             </View>
           )}
-        </FlashList>
+        />
 
         {/* Typing Indicator */}
         <TypingIndicator

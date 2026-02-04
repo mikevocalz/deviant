@@ -5,7 +5,7 @@ import {
   useInfiniteQuery,
 } from "@tanstack/react-query";
 import { debounce } from "@tanstack/pacer";
-import { postsApi } from "@/lib/api/supabase-posts";
+import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
 
@@ -232,7 +232,7 @@ export function useSyncLikedPosts() {
   return useQuery({
     queryKey: ["likedPosts"],
     queryFn: async () => {
-      const { usersApi } = await import("@/lib/api/supabase-users");
+      const { usersApi } = await import("@/lib/api/users");
       const likedPosts = await usersApi.getLikedPosts();
 
       // Sync to Zustand store

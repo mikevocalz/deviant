@@ -41,7 +41,7 @@ import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { usersApi } from "@/lib/api/supabase-users";
+import { usersApi } from "@/lib/api/users";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";

@@ -69,13 +69,14 @@ export function SignUpStep2() {
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
 
-  // Record terms acceptance - calls Payload CMS directly
+  // Record terms acceptance - calls API directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
     try {
-      const { getPayloadBaseUrl } = await import("@/lib/api-config");
-      const PAYLOAD_URL = getPayloadBaseUrl();
+      const API_URL =
+        process.env.EXPO_PUBLIC_SUPABASE_URL ||
+        "https://npfjanxturvmjyevoyfo.supabase.co";
 
-      await fetch(`${PAYLOAD_URL}/api/terms-acceptance`, {
+      await fetch(`${API_URL}/rest/v1/terms_acceptance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "omit",

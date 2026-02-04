@@ -6,7 +6,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventsApi } from "@/lib/api/supabase-events";
+import { eventsApi } from "@/lib/api/events";
 
 export const eventCommentKeys = {
   all: ["event-comments"] as const,

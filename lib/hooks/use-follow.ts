@@ -8,7 +8,7 @@
  */
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { followsApi } from "@/lib/api/supabase-follows";
+import { followsApi } from "@/lib/api/follows";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 

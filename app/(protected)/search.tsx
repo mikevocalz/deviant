@@ -16,8 +16,8 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useEffect, useState } from "react";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import { useSearchPosts, useSearchUsers } from "@/lib/hooks/use-search";
-import { postsApi } from "@/lib/api/supabase-posts";
-import { usersApi } from "@/lib/api/supabase-users";
+import { postsApi } from "@/lib/api/posts";
+import { usersApi } from "@/lib/api/users";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 8) / 3;

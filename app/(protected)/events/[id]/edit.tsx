@@ -37,7 +37,7 @@ import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { eventsApi } from "@/lib/api/supabase-events";
+import { eventsApi } from "@/lib/api/events";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LocationAutocomplete,
