@@ -13,7 +13,10 @@ import {
   Fit,
   type RiveError,
 } from "@rive-app/react-native";
-import { getApiBaseUrl } from "@/lib/api-config";
+// Supabase URL for health checks
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co";
 
 const BOOT_TIMEOUT_MS = 10000; // 10 second boot timeout
 const ANIMATION_DURATION_MS = 9000; // 9 second animation
@@ -37,23 +40,25 @@ export default function AnimatedSplashScreen({
     require("../assets/deviant.riv"),
   );
 
-  // Check API health
+  // Check Supabase health
   const checkApiHealth = async (): Promise<boolean> => {
-    const API_URL = getApiBaseUrl();
-    console.log("[Splash] Checking API health at:", API_URL);
-    setApiStatus(`Connecting to ${API_URL}...`);
+    console.log("[Splash] Checking Supabase health at:", SUPABASE_URL);
+    setApiStatus(`Connecting to Supabase...`);
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${API_URL}/api/users?limit=1`, {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
         signal: controller.signal,
+        headers: {
+          apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+        },
       });
       clearTimeout(timeoutId);
-      console.log("[Splash] API Health OK - Status:", res.status);
+      console.log("[Splash] Supabase Health OK - Status:", res.status);
       setApiStatus(`Connected (${res.status})`);
       return res.ok;
     } catch (err: any) {
-      console.error("[Splash] API Health FAIL:", err.message);
+      console.error("[Splash] Supabase Health FAIL:", err.message);
       setApiStatus(`Failed: ${err.message}`);
       return false;
     }

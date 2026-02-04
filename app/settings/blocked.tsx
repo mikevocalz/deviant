@@ -16,9 +16,9 @@ import {
   useUnblockUser,
   type BlockedUser,
 } from "@/lib/hooks/use-blocks";
-import { getCdnBaseUrl } from "@/lib/api-config";
-
-const CDN_URL = getCdnBaseUrl();
+// CDN URL with production fallback
+const CDN_URL =
+  process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
 
 function getAvatarUrl(avatar: string | null): string {
   if (!avatar) return "https://i.pravatar.cc/150?img=0";

@@ -23,18 +23,14 @@ import { Platform } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
-import { validateApiConfig, getApiBaseUrl } from "@/lib/api-config";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 SplashScreen.preventAutoHideAsync();
 
-// CRITICAL: Validate API configuration at app startup - BEFORE any requests
-const API_CONFIG_VALID = validateApiConfig();
-if (!API_CONFIG_VALID) {
-  console.error(
-    "[RootLayout] CRITICAL: API configuration is INVALID. App may not function correctly.",
-  );
-}
+// Supabase URL for health checks
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -86,16 +82,18 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    // Health check to verify network connectivity to API
-    // CRITICAL: Uses canonical API resolver - NEVER inline env vars
+    // Health check to verify network connectivity to Supabase
     const checkAPIHealth = async () => {
-      const API_URL = getApiBaseUrl();
-      console.log("[RootLayout] Checking API health at:", API_URL);
+      console.log("[RootLayout] Checking Supabase health at:", SUPABASE_URL);
       try {
-        const res = await fetch(`${API_URL}/api/users?limit=1`);
-        console.log("[RootLayout] API Health OK - Status:", res.status);
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
+          headers: {
+            apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
+          },
+        });
+        console.log("[RootLayout] Supabase Health OK - Status:", res.status);
       } catch (err) {
-        console.error("[RootLayout] API Health FAIL:", err);
+        console.error("[RootLayout] Supabase Health FAIL:", err);
       }
     };
     checkAPIHealth();

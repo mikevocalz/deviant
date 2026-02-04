@@ -1,7 +1,7 @@
-import { getApiBaseUrl } from "@/lib/api-config";
-
-// CRITICAL: Use canonical API URL resolver - NEVER empty string fallback
-export const API_BASE = getApiBaseUrl();
+// Supabase URL for API calls
+export const API_BASE =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co";
 
 export async function uploadFaceForVerification(params: {
   token?: string;

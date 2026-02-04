@@ -15,7 +15,9 @@
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}",
-        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}"
+        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}",
+        "EXPO_PUBLIC_SUPABASE_URL": "${EXPO_PUBLIC_SUPABASE_URL}",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
       }
     },
     "preview": {
@@ -28,14 +30,16 @@
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}",
-        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}"
+        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}",
+        "EXPO_PUBLIC_SUPABASE_URL": "${EXPO_PUBLIC_SUPABASE_URL}",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-16.4"
+        "image": "macos-sonoma-14.6-xcode-16.1"
       },
       "node": "22.14.0",
       "pnpm": "10.28.0",
@@ -46,7 +50,9 @@
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
         "EXPO_PUBLIC_BUNNY_CDN_URL": "${BUNNY_CDN_URL}",
-        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}"
+        "EXPO_PUBLIC_FISHJAM_APP_ID": "${FISHJAM_APP_ID}",
+        "EXPO_PUBLIC_SUPABASE_URL": "${EXPO_PUBLIC_SUPABASE_URL}",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}"
       }
     }
   },
