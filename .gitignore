@@ -85,3 +85,4 @@ logs/
 rork-eslint.config.js
 .qodo/
 Thumbs.db
+*.sql
