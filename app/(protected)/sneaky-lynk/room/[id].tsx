@@ -179,6 +179,8 @@ export default function SneakyLynkRoomScreen() {
           <VideoStage
             featuredSpeaker={featuredSpeaker}
             isSpeaking={featuredSpeaker.isSpeaking}
+            isLocalUser={isHost}
+            isVideoEnabled={isVideoOn}
           />
         )}
 

@@ -3,10 +3,11 @@
  * Featured speaker video with overlay info
  */
 
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { BadgeCheck, Video } from "lucide-react-native";
+import { BadgeCheck, Video, VideoOff } from "lucide-react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import type { SneakyUser } from "../types";
 
 interface FeaturedSpeaker {
@@ -19,6 +20,8 @@ interface FeaturedSpeaker {
 interface VideoStageProps {
   featuredSpeaker: FeaturedSpeaker | null;
   isSpeaking: boolean;
+  isLocalUser?: boolean;
+  isVideoEnabled?: boolean;
   onSelectSpeaker?: (userId: string) => void;
 }
 
@@ -34,22 +37,54 @@ function SoundWave() {
   );
 }
 
-export function VideoStage({ featuredSpeaker, isSpeaking, onSelectSpeaker }: VideoStageProps) {
+export function VideoStage({
+  featuredSpeaker,
+  isSpeaking,
+  isLocalUser = false,
+  isVideoEnabled = false,
+  onSelectSpeaker,
+}: VideoStageProps) {
+  const [permission, requestPermission] = useCameraPermissions();
+
   if (!featuredSpeaker) return null;
+
+  // Show camera for local user with video enabled
+  const showCamera = isLocalUser && isVideoEnabled && permission?.granted;
+  const needsPermission = isLocalUser && isVideoEnabled && !permission?.granted;
 
   return (
     <View className="px-4 mb-5">
       <Pressable
-        onPress={() => onSelectSpeaker?.(featuredSpeaker.user.id)}
+        onPress={() => {
+          if (needsPermission) {
+            requestPermission();
+          } else {
+            onSelectSpeaker?.(featuredSpeaker.user.id);
+          }
+        }}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
-        {/* Video/Avatar placeholder */}
-        {/* TODO: Replace with actual Fishjam video track render */}
-        <Image
-          source={{ uri: featuredSpeaker.user.avatar }}
-          className="w-full h-full"
-          contentFit="cover"
-        />
+        {/* Show camera for local user, avatar for others */}
+        {showCamera ? (
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="front"
+            mirror={true}
+          />
+        ) : needsPermission ? (
+          <View className="w-full h-full bg-card items-center justify-center">
+            <VideoOff size={48} color="#6B7280" />
+            <Text className="text-muted-foreground mt-2">
+              Tap to enable camera
+            </Text>
+          </View>
+        ) : (
+          <Image
+            source={{ uri: featuredSpeaker.user.avatar }}
+            className="w-full h-full"
+            contentFit="cover"
+          />
+        )}
 
         {/* Gradient overlay */}
         <LinearGradient
