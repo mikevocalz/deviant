@@ -1,6 +1,7 @@
-import { supabase, supabaseAdmin } from "../supabase/client";
+import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { updateProfilePrivileged } from "../supabase/privileged";
 
 export const usersApi = {
   /**
@@ -133,7 +134,8 @@ export const usersApi = {
   },
 
   /**
-   * Update current user's profile
+   * Update current user's profile via Edge Function
+   * Uses privileged wrapper to bypass RLS securely
    */
   async updateProfile(updates: {
     firstName?: string;
@@ -145,48 +147,20 @@ export const usersApi = {
     avatar?: string;
   }) {
     try {
-      // Get current user from Better Auth store
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      console.log("[Users] updateProfile via Edge Function:", updates);
 
-      console.log("[Users] updateProfile for userId:", userId);
-      console.log("[Users] updateProfile updates:", updates);
+      // Use Edge Function wrapper for privileged write
+      const updatedUser = await updateProfilePrivileged({
+        name: updates.name,
+        firstName: updates.firstName,
+        lastName: updates.lastName,
+        bio: updates.bio,
+        location: updates.location,
+        avatarUrl: updates.avatar,
+      });
 
-      // Build update object - map 'name' to 'firstName' if provided
-      const updateData: Record<string, any> = {
-        [DB.users.updatedAt]: new Date().toISOString(),
-      };
-
-      if (updates.firstName !== undefined) {
-        updateData[DB.users.firstName] = updates.firstName;
-      }
-      if (updates.lastName !== undefined) {
-        updateData[DB.users.lastName] = updates.lastName;
-      }
-      // Map 'name' to 'firstName' for compatibility with edit-profile screen
-      if (updates.name !== undefined) {
-        updateData[DB.users.firstName] = updates.name;
-      }
-      if (updates.bio !== undefined) {
-        updateData[DB.users.bio] = updates.bio;
-      }
-      if (updates.location !== undefined) {
-        updateData[DB.users.location] = updates.location;
-      }
-
-      console.log("[Users] updateProfile updateData:", updateData);
-
-      // Use admin client to bypass RLS (since we use Better Auth, not Supabase Auth)
-      const { data, error } = await supabaseAdmin
-        .from(DB.users.table)
-        .update(updateData)
-        .eq(DB.users.id, userId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      console.log("[Users] updateProfile success:", data);
-      return data;
+      console.log("[Users] updateProfile success:", updatedUser);
+      return updatedUser;
     } catch (error) {
       console.error("[Users] updateProfile error:", error);
       throw error;
