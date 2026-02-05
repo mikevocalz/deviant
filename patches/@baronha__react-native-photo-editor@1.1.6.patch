@@ -31,7 +31,7 @@ index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d
          ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
  
 diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..ff8838636b8cf8dcb77a4a8c4627cc5b2418e024 100644
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..37ba4519ba36be1d870cd67ce00005d43e92b1da 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 +++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 @@ -265,6 +265,29 @@ public class ZLEditImageViewController: UIViewController {
@@ -49,7 +49,7 @@ index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..ff8838636b8cf8dcb77a4a8c4627cc5b
 +                        self?.addTextStickersView(text, textColor: textColor, bgColor: bgColor)
 +                    }
 +                case "stickers":
-+                    self.showImageStickerView()
++                    self.imageStickerBtnClick()
 +                case "draw":
 +                    self.drawBtnClick()
 +                case "filter":
