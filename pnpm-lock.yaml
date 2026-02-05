@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   '@baronha/react-native-photo-editor@1.1.6':
-    hash: 2da5f9845726de25cba1d7ef01aece4cc18c9288bc0c70cef9d94e0069ce493b
+    hash: cc011f628e56daa0d48254863e6fb3cecd860556ebd8baf85b3d9e288ae96bde
     path: patches/@baronha__react-native-photo-editor@1.1.6.patch
 
 importers:
@@ -15,7 +15,7 @@ importers:
     dependencies:
       '@baronha/react-native-photo-editor':
         specifier: ^1.1.6
-        version: 1.1.6(patch_hash=2da5f9845726de25cba1d7ef01aece4cc18c9288bc0c70cef9d94e0069ce493b)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 1.1.6(patch_hash=cc011f628e56daa0d48254863e6fb3cecd860556ebd8baf85b3d9e288ae96bde)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@better-auth/expo':
         specifier: ^1.4.18
         version: 1.4.18(@better-auth/core@1.4.18(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.8(zod@4.3.6))(jose@6.1.3)(kysely@0.28.11)(nanostores@1.1.0))(better-auth@1.4.18(pg@8.18.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(expo-constants@18.0.13)(expo-linking@8.0.11)(expo-network@8.0.8(expo@54.0.33)(react@19.1.0))(expo-web-browser@15.0.10(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)))
@@ -6496,7 +6496,7 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
-  '@baronha/react-native-photo-editor@1.1.6(patch_hash=2da5f9845726de25cba1d7ef01aece4cc18c9288bc0c70cef9d94e0069ce493b)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+  '@baronha/react-native-photo-editor@1.1.6(patch_hash=cc011f628e56daa0d48254863e6fb3cecd860556ebd8baf85b3d9e288ae96bde)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
     dependencies:
       react: 19.1.0
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
