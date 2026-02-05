@@ -24,3 +24,9 @@ verify_jwt = false
 
 [functions.send-message]
 verify_jwt = false
+
+[functions.create-post]
+verify_jwt = false
+
+[functions.create-story]
+verify_jwt = false

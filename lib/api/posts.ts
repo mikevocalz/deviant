@@ -2,6 +2,13 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface CreatePostResponse {
+  ok: boolean;
+  data?: { post: any };
+  error?: { code: string; message: string };
+}
 
 const PAGE_SIZE = 10;
 
@@ -251,7 +258,7 @@ export const postsApi = {
   },
 
   /**
-   * Create new post
+   * Create new post via Edge Function
    */
   async createPost(data: {
     content?: string;
@@ -260,57 +267,39 @@ export const postsApi = {
     isNSFW?: boolean;
   }) {
     try {
-      console.log("[Posts] createPost");
+      console.log("[Posts] createPost via Edge Function");
 
-      // Get current user from Better Auth store
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
 
-      console.log("[Posts] createPost for userId:", userId);
+      const { data: response, error } =
+        await supabase.functions.invoke<CreatePostResponse>("create-post", {
+          body: {
+            content: data.content,
+            media: data.media,
+            location: data.location,
+            isNSFW: data.isNSFW,
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      // Insert post
-      const { data: post, error } = await supabase
-        .from(DB.posts.table)
-        .insert({
-          [DB.posts.authorId]: userId,
-          [DB.posts.content]: data.content || "",
-          [DB.posts.location]: data.location,
-          [DB.posts.isNsfw]: data.isNSFW || false,
-          [DB.posts.visibility]: "public",
-          [DB.posts.likesCount]: 0,
-          [DB.posts.commentsCount]: 0,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Insert media if provided
-      if (data.media && data.media.length > 0) {
-        const mediaInserts = data.media.map((m, index) => ({
-          [DB.postsMedia.parentId]: post[DB.posts.id],
-          [DB.postsMedia.type]: m.type,
-          [DB.postsMedia.url]: m.url,
-          [DB.postsMedia.order]: index,
-          [DB.postsMedia.id]: `${post[DB.posts.id]}_${index}`,
-        }));
-
-        await supabase.from(DB.postsMedia.table).insert(mediaInserts);
+      if (error) {
+        console.error("[Posts] Edge Function error:", error);
+        throw new Error(error.message || "Failed to create post");
       }
 
-      // Increment user posts count
-      await supabase.rpc("increment_posts_count", {
-        user_id: userId,
-      });
+      if (!response?.ok || !response?.data?.post) {
+        const errorMessage =
+          response?.error?.message || "Failed to create post";
+        throw new Error(errorMessage);
+      }
 
-      console.log("[Posts] createPost success, ID:", post[DB.posts.id]);
+      const post = response.data.post;
+      console.log("[Posts] createPost success, ID:", post.id);
 
-      // Return the created post directly instead of fetching again
-      // This enables optimistic updates - the post is immediately available
       return {
-        id: String(post[DB.posts.id]),
-        author: {
-          username: "you", // Will be updated on next fetch
+        id: post.id,
+        author: post.author || {
+          username: "you",
           avatar: "",
           verified: false,
           name: "You",

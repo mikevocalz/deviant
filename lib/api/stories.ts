@@ -1,6 +1,13 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface CreateStoryResponse {
+  ok: boolean;
+  data?: { story: any };
+  error?: { code: string; message: string };
+}
 
 export const storiesApi = {
   /**
@@ -117,64 +124,42 @@ export const storiesApi = {
     try {
       console.log("[Stories] createStory");
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      console.log("[Stories] createStory via Edge Function");
 
-      // Set expiry to 24 hours from now
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 24);
+      const token = await requireBetterAuthToken();
 
       // Get the first media URL from items
       const firstItem = storyData.items[0];
       const mediaUrl = firstItem?.url || "";
+      const mediaType = firstItem?.type === "video" ? "video" : "image";
 
-      let mediaId: number | null = null;
-
-      // Create media record if we have a URL
-      if (mediaUrl) {
-        console.log("[Stories] Creating media record for URL:", mediaUrl);
-        const { data: mediaData, error: mediaError } = await supabase
-          .from(DB.media.table)
-          .insert({
-            [DB.media.url]: mediaUrl,
-            [DB.media.ownerId]: userId,
-            [DB.media.mimeType]:
-              firstItem?.type === "video" ? "video/mp4" : "image/jpeg",
-            [DB.media.filename]: mediaUrl.split("/").pop() || "story-media",
-            type: firstItem?.type === "video" ? "video" : "image", // Required column
-          })
-          .select()
-          .single();
-
-        if (mediaError) {
-          console.error(
-            "[Stories] Failed to create media record:",
-            mediaError.message,
-            mediaError.details,
-          );
-        } else {
-          mediaId = mediaData?.[DB.media.id];
-          console.log("[Stories] Created media record:", mediaId);
-        }
+      if (!mediaUrl) {
+        throw new Error("Story must have media");
       }
 
-      const { data, error } = await supabase
-        .from(DB.stories.table)
-        .insert({
-          [DB.stories.authorId]: userId,
-          [DB.stories.mediaId]: mediaId,
-          [DB.stories.expiresAt]: expiresAt.toISOString(),
-          [DB.stories.visibility]: "public",
-          [DB.stories.viewCount]: 0,
-          [DB.stories.viewersCount]: 0,
-        })
-        .select()
-        .single();
+      const { data: response, error } =
+        await supabase.functions.invoke<CreateStoryResponse>("create-story", {
+          body: {
+            mediaUrl,
+            mediaType,
+            visibility: "public",
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[Stories] Edge Function error:", error);
+        throw new Error(error.message || "Failed to create story");
+      }
 
-      console.log("[Stories] Story created:", data?.id, "with media:", mediaId);
-      return data;
+      if (!response?.ok || !response?.data?.story) {
+        const errorMessage =
+          response?.error?.message || "Failed to create story";
+        throw new Error(errorMessage);
+      }
+
+      console.log("[Stories] Story created:", response.data.story.id);
+      return response.data.story;
     } catch (error) {
       console.error("[Stories] createStory error:", error);
       throw error;
