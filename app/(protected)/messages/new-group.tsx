@@ -167,6 +167,9 @@ export default function NewGroupScreen() {
               className="flex-1 h-11 ml-2 text-foreground text-base"
             />
           </View>
+          <Text className="text-xs text-muted-foreground mt-2 ml-1">
+            Group chats support up to {MAX_GROUP_MEMBERS} members
+          </Text>
         </View>
 
         {/* Selected Users */}
