@@ -91,7 +91,7 @@ export function useRoomEvents({
         {
           event: "INSERT",
           schema: "public",
-          table: "sneaky_room_events",
+          table: "video_room_events",
           filter: `room_id=eq.${roomId}`,
         },
         (payload) => {

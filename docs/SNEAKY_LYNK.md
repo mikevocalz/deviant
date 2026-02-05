@@ -5,6 +5,7 @@ Audio-first live rooms with optional video stage. A Twitter Spaces-like feature 
 ## Overview
 
 Sneaky Lynk allows users to create and join live audio rooms with optional video. Features include:
+
 - **Audio-first rooms** with optional video stage
 - **Real-time participant management** (speakers, listeners)
 - **Active speaker detection** with animated pulse rings
@@ -35,13 +36,12 @@ Sneaky Lynk allows users to create and join live audio rooms with optional video
 │    └── ui/                  # UI components (NativeWind)         │
 ├─────────────────────────────────────────────────────────────────┤
 │                      Supabase Edge Functions                     │
-│    sneaky_create_room, sneaky_join_room, sneaky_refresh_token,  │
-│    sneaky_kick_user, sneaky_ban_user, sneaky_end_room,          │
-│    sneaky_toggle_hand                                            │
+│    video_create_room, video_join_room, video_refresh_token,     │
+│    video_kick_user, video_ban_user, video_end_room              │
 ├─────────────────────────────────────────────────────────────────┤
 │                      Supabase Database                           │
-│    sneaky_rooms, sneaky_room_members, sneaky_room_bans,         │
-│    sneaky_room_kicks, sneaky_room_tokens, sneaky_room_events    │
+│    video_rooms, video_room_members, video_room_bans,            │
+│    video_room_kicks, video_room_tokens, video_room_events       │
 ├─────────────────────────────────────────────────────────────────┤
 │                         Fishjam RTC                              │
 │    WebRTC audio/video, peer management, active speaker detection │
@@ -78,30 +78,27 @@ src/sneaky-lynk/
     ├── VideoStage.tsx            # Featured video
     └── VideoThumbnailRow.tsx     # Video thumbnails
 
-supabase/
-├── migrations/20260205_sneaky_lynk.sql
-└── functions/
-    ├── sneaky_create_room/
-    ├── sneaky_join_room/
-    ├── sneaky_refresh_token/
-    ├── sneaky_kick_user/
-    ├── sneaky_ban_user/
-    ├── sneaky_end_room/
-    └── sneaky_toggle_hand/
+supabase/functions/ (existing)
+├── video_create_room/
+├── video_join_room/
+├── video_refresh_token/
+├── video_kick_user/
+├── video_ban_user/
+└── video_end_room/
 ```
 
 ## Database Schema
 
 ### Tables
 
-| Table | Description |
-|-------|-------------|
-| `sneaky_rooms` | Room metadata (title, topic, status, etc.) |
-| `sneaky_room_members` | Participants with roles (host, moderator, speaker, listener) |
-| `sneaky_room_bans` | Ban records with optional expiry |
-| `sneaky_room_kicks` | Kick history |
-| `sneaky_room_tokens` | Fishjam token tracking for revocation |
-| `sneaky_room_events` | Events for Realtime subscriptions |
+| Table                | Description                                                  |
+| -------------------- | ------------------------------------------------------------ | --- |
+| `video_rooms`        | Room metadata (title, status, etc.)                          |
+| `video_room_members` | Participants with roles (host, moderator, speaker, listener) |
+| `video_room_bans`    | Ban records with optional expiry                             |
+| `video_room_kicks`   | Kick history                                                 |
+| `video_room_tokens`  | Fishjam token tracking for revocation                        |
+| `video_room_events`  | Events for Realtime subscriptions                            |     |
 
 ### RLS Policies
 
@@ -115,15 +112,15 @@ All write operations go through Edge Functions with service role.
 
 ## Edge Functions
 
-| Function | Description |
-|----------|-------------|
-| `sneaky_create_room` | Create room, add host |
-| `sneaky_join_room` | Join room, mint Fishjam token |
-| `sneaky_refresh_token` | Refresh Fishjam token |
-| `sneaky_kick_user` | Kick user, revoke tokens, broadcast eject |
-| `sneaky_ban_user` | Ban user, revoke tokens, broadcast eject |
-| `sneaky_end_room` | End room, revoke all tokens, broadcast |
-| `sneaky_toggle_hand` | Raise/lower hand, broadcast event |
+| Function               | Description                               |
+| ---------------------- | ----------------------------------------- |
+| `sneaky_create_room`   | Create room, add host                     |
+| `sneaky_join_room`     | Join room, mint Fishjam token             |
+| `sneaky_refresh_token` | Refresh Fishjam token                     |
+| `sneaky_kick_user`     | Kick user, revoke tokens, broadcast eject |
+| `sneaky_ban_user`      | Ban user, revoke tokens, broadcast eject  |
+| `sneaky_end_room`      | End room, revoke all tokens, broadcast    |
+| `sneaky_toggle_hand`   | Raise/lower hand, broadcast event         |
 
 ## Environment Variables
 
@@ -172,6 +169,7 @@ pnpm add lucide-react-native
 ## Testing Checklist
 
 ### Basic Flow
+
 - [ ] Open Messages tab
 - [ ] Navigate to "Sneaky Lynk" tab
 - [ ] See list of live rooms (mock data)
@@ -179,6 +177,7 @@ pnpm add lucide-react-native
 - [ ] Tap room to enter
 
 ### Room Screen
+
 - [ ] See room header with LIVE badge and listener count
 - [ ] See video stage (if room has video)
 - [ ] See speakers grid with animated pulse rings
@@ -189,11 +188,13 @@ pnpm add lucide-react-native
 - [ ] Leave room
 
 ### Moderation (requires real backend)
+
 - [ ] Kick user → target sees EjectModal
 - [ ] Ban user → target sees EjectModal, can't rejoin
 - [ ] End room → all participants navigate out
 
 ### Token Management (requires real backend)
+
 - [ ] Join room → receive Fishjam token
 - [ ] Token auto-refreshes before expiry
 - [ ] App foreground → check token validity
