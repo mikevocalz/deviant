@@ -90,30 +90,45 @@ export default function SettingsScreenIOS() {
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Yes, I'm sure",
           style: "destructive",
-          onPress: async () => {
-            setIsDeleting(true);
-            try {
-              const { error } = await authClient.deleteUser();
-              if (error) {
-                toast.error("Failed to delete account", {
-                  description: error.message || "Please try again",
-                });
-              } else {
-                toast.success("Account deleted", {
-                  description: "Your account has been permanently deleted",
-                });
-                logout();
-                router.replace("/login");
-              }
-            } catch (err: any) {
-              toast.error("Error", {
-                description: err?.message || "Something went wrong",
-              });
-            } finally {
-              setIsDeleting(false);
-            }
+          onPress: () => {
+            // Second confirmation
+            Alert.alert(
+              "Final Confirmation",
+              "This is your last chance. Your account and all associated data will be permanently deleted.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Delete My Account",
+                  style: "destructive",
+                  onPress: async () => {
+                    setIsDeleting(true);
+                    try {
+                      const { error } = await authClient.deleteUser();
+                      if (error) {
+                        toast.error("Failed to delete account", {
+                          description: error.message || "Please try again",
+                        });
+                      } else {
+                        toast.success("Account deleted", {
+                          description:
+                            "Your account has been permanently deleted",
+                        });
+                        logout();
+                        router.replace("/login");
+                      }
+                    } catch (err: any) {
+                      toast.error("Error", {
+                        description: err?.message || "Something went wrong",
+                      });
+                    } finally {
+                      setIsDeleting(false);
+                    }
+                  },
+                },
+              ],
+            );
           },
         },
       ],
