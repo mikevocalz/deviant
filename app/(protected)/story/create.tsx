@@ -2,15 +2,11 @@ import {
   View,
   Text,
   Pressable,
-  Dimensions,
   ScrollView,
-  StyleSheet,
   Alert,
-  Platform,
-  Animated,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { SafeAreaView } from "react-native-safe-area-context";
 import {
   X,
   Image as ImageIcon,
@@ -18,70 +14,38 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
-  Type,
-  Sticker,
-  Sparkles,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
-import { LinearGradient } from "expo-linear-gradient";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useLayoutEffect,
-} from "react";
+import { useState, useCallback, useLayoutEffect, useEffect } from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 import ImageEditor from "@thienmd/react-native-image-editor";
 import * as LegacyFileSystem from "expo-file-system/legacy";
-import { BlurView } from "expo-blur";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CANVAS_WIDTH = SCREEN_WIDTH - 32;
-const CANVAS_HEIGHT = Math.min(SCREEN_HEIGHT * 0.6, CANVAS_WIDTH * (16 / 9));
+import * as Haptics from "expo-haptics";
 
 const MAX_STORY_ITEMS = 4;
 const MAX_VIDEO_DURATION = 30;
 const MAX_FILE_SIZE_MB = 50;
 
-const bgGradients = [
-  { colors: ["#1a1a2e", "#16213e"] as [string, string], label: "Midnight" },
-  { colors: ["#34A2DF", "#8A40CF"] as [string, string], label: "Ocean" },
-  { colors: ["#8A40CF", "#FF5BFC"] as [string, string], label: "Purple" },
-  { colors: ["#FF5BFC", "#FF6B6B"] as [string, string], label: "Sunset" },
-  { colors: ["#11998e", "#38ef7d"] as [string, string], label: "Forest" },
-  { colors: ["#fc4a1a", "#f7b733"] as [string, string], label: "Fire" },
-];
-
-const textColors = [
-  "#ffffff",
-  "#000000",
-  "#FF5BFC",
-  "#3EA4E5",
-  "#38ef7d",
-  "#f7b733",
-];
-
 export default function CreateStoryScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { width, height } = useWindowDimensions();
   const { colors } = useColorScheme();
+  
+  const CANVAS_WIDTH = width - 32;
+  const CANVAS_HEIGHT = Math.min(height * 0.55, CANVAS_WIDTH * (16 / 9));
+
   const {
     selectedMedia,
     mediaTypes,
-    text,
-    textColor,
     setSelectedMedia,
-    setText,
-    setTextColor,
-    setBackgroundColor,
     reset,
     currentIndex,
     setCurrentIndex,
@@ -91,39 +55,17 @@ export default function CreateStoryScreen() {
     prevSlide,
   } = useCreateStoryStore();
 
-  const { pickStoryMedia, recordStoryVideo, requestPermissions } =
-    useMediaPicker();
+  const { pickStoryMedia, recordStoryVideo, requestPermissions } = useMediaPicker();
   const createStory = useCreateStory();
   const showToast = useUIStore((s) => s.showToast);
-  const {
-    uploadMultiple,
-    isUploading: isUploadingMedia,
-    progress: mediaUploadProgress,
-  } = useMediaUpload({ folder: "stories" });
+  const { uploadMultiple } = useMediaUpload({ folder: "stories" });
+  
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     requestPermissions();
   }, [requestPermissions]);
-
-  const animateTransition = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 0.5,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim]);
 
   const handleMediaSelected = useCallback(
     (media: MediaAsset[]) => {
@@ -131,11 +73,7 @@ export default function CreateStoryScreen() {
       const newItems = media.slice(0, MAX_STORY_ITEMS - currentCount);
 
       if (media.length > MAX_STORY_ITEMS - currentCount) {
-        showToast(
-          "warning",
-          "Story Limit",
-          `You can add up to ${MAX_STORY_ITEMS} items per story. ${newItems.length} items added.`,
-        );
+        showToast("warning", "Story Limit", `You can add up to ${MAX_STORY_ITEMS} items per story.`);
       }
 
       const validMedia: MediaAsset[] = [];
@@ -157,368 +95,184 @@ export default function CreateStoryScreen() {
       }
 
       if (errors.length > 0) {
-        showToast(
-          "warning",
-          "Some videos couldn't be added",
-          errors.join(", "),
-        );
+        showToast("warning", "Some videos couldn't be added", errors.join(", "));
       }
 
       if (validMedia.length > 0) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const updatedAssets = [...mediaAssets, ...validMedia];
         setMediaAssets(updatedAssets);
-        const updatedUris = updatedAssets.map((m) => m.uri);
-        const updatedTypes = updatedAssets.map((m) => m.type);
-        setSelectedMedia(updatedUris, updatedTypes);
-        // Set current index to the first newly added item
-        // If this is the first media, set to 0, otherwise set to the first new item
-        const newIndex = mediaAssets.length === 0 ? 0 : mediaAssets.length;
-        setCurrentIndex(newIndex);
-        console.log(
-          "[Story] Media selected, updated assets:",
-          updatedAssets.length,
-          "currentIndex:",
-          newIndex,
+        setSelectedMedia(
+          updatedAssets.map((m) => m.uri),
+          updatedAssets.map((m) => m.type)
         );
-        animateTransition();
+        setCurrentIndex(mediaAssets.length === 0 ? 0 : mediaAssets.length);
       }
     },
-    [mediaAssets, setMediaAssets, setSelectedMedia, animateTransition],
+    [mediaAssets, setMediaAssets, setSelectedMedia, setCurrentIndex, showToast]
   );
 
   const handlePickLibrary = async () => {
+    if (mediaAssets.length >= MAX_STORY_ITEMS) {
+      showToast("warning", "Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+      return;
+    }
     try {
-      console.log("[Story] handlePickLibrary called");
-      if (mediaAssets.length >= MAX_STORY_ITEMS) {
-        showToast(
-          "warning",
-          "Story Limit",
-          `Maximum ${MAX_STORY_ITEMS} items per story.`,
-        );
-        return;
-      }
-
-      if (!pickStoryMedia) {
-        console.error("[Story] pickStoryMedia is not available");
-        showToast(
-          "error",
-          "Error",
-          "Media picker is not available. Please try again.",
-        );
-        return;
-      }
-
-      console.log("[Story] Calling pickStoryMedia...");
-      const media = await pickStoryMedia({
+      const media = await pickStoryMedia?.({
         maxDuration: MAX_VIDEO_DURATION,
         maxFileSizeMB: MAX_FILE_SIZE_MB,
       });
-
-      console.log("[Story] pickStoryMedia returned:", media);
       if (media && media.length > 0) {
         handleMediaSelected(media);
-      } else if (media === undefined) {
-        console.log("[Story] User cancelled or no permission");
       }
     } catch (error) {
-      console.error("[Story] Error picking media:", error);
-      showToast("error", "Error", "Failed to pick media. Please try again.");
+      showToast("error", "Error", "Failed to pick media.");
     }
   };
 
   const handleRecordVideo = async () => {
+    if (mediaAssets.length >= MAX_STORY_ITEMS) {
+      showToast("warning", "Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+      return;
+    }
     try {
-      console.log("[Story] handleRecordVideo called");
-      if (mediaAssets.length >= MAX_STORY_ITEMS) {
-        showToast(
-          "warning",
-          "Story Limit",
-          `Maximum ${MAX_STORY_ITEMS} items per story.`,
-        );
-        return;
-      }
-
-      if (!recordStoryVideo) {
-        console.error("[Story] recordStoryVideo is not available");
-        showToast(
-          "error",
-          "Error",
-          "Video recorder is not available. Please try again.",
-        );
-        return;
-      }
-
-      console.log("[Story] Calling recordStoryVideo...");
-      const media = await recordStoryVideo({
+      const media = await recordStoryVideo?.({
         maxDuration: MAX_VIDEO_DURATION,
         maxFileSizeMB: MAX_FILE_SIZE_MB,
       });
-      console.log("[Story] recordStoryVideo returned:", media);
       if (media) {
         handleMediaSelected([media]);
-      } else if (media === undefined) {
-        console.log("[Story] User cancelled or no permission");
       }
     } catch (error) {
-      console.error("[Story] Error recording video:", error);
-      showToast("error", "Error", "Failed to record video. Please try again.");
+      showToast("error", "Error", "Failed to record video.");
     }
   };
 
   const handleRemoveMedia = (index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const updated = mediaAssets.filter((_, i) => i !== index);
     setMediaAssets(updated);
     setSelectedMedia(
       updated.map((m) => m.uri),
-      updated.map((m) => m.type),
+      updated.map((m) => m.type)
     );
     if (currentIndex >= updated.length && updated.length > 0) {
       setCurrentIndex(updated.length - 1);
     }
-    animateTransition();
   };
 
   const handleEditImage = useCallback(
     async (index: number) => {
       const asset = mediaAssets[index];
       if (!asset || asset.type !== "image") {
-        showToast(
-          "info",
-          "Edit",
-          "Only images can be edited with stickers and text",
-        );
+        showToast("info", "Edit", "Only images can be edited with stickers and text");
         return;
       }
 
       try {
-        // Copy image to app cache directory for the editor
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const fileName = `story-edit-${Date.now()}.jpg`;
         const docDir = LegacyFileSystem.cacheDirectory || "";
         const destPath = `${docDir}${fileName}`;
 
-        // If the URI is already a file path, use it directly
         let editPath = asset.uri;
         if (asset.uri.startsWith("file://")) {
           editPath = asset.uri.replace("file://", "");
         } else {
-          // Copy from content:// or ph:// to file system
-          await LegacyFileSystem.copyAsync({
-            from: asset.uri,
-            to: destPath,
-          });
+          await LegacyFileSystem.copyAsync({ from: asset.uri, to: destPath });
           editPath = destPath.replace("file://", "");
         }
 
-        console.log("[Story] Opening image editor for:", editPath);
-
-        // Open the native image editor with Instagram-like features
         ImageEditor.Edit({
           path: editPath,
-          hiddenControls: ["crop"], // Keep text, sticker, draw, save
-          colors: [
-            "#FFFFFF",
-            "#000000",
-            "#FF5BFC",
-            "#3EA4E5",
-            "#38ef7d",
-            "#f7b733",
-            "#FF6B6B",
-            "#9B59B6",
-            "#E91E63",
-            "#00BCD4",
-          ],
-          languages: {
-            doneTitle: "Done",
-            saveTitle: "Save",
-            clearAllTitle: "Clear",
-          },
+          hiddenControls: ["crop"],
+          colors: ["#FFFFFF", "#000000", "#FF5BFC", "#3EA4E5", "#38ef7d", "#f7b733", "#FF6B6B", "#9B59B6"],
+          languages: { doneTitle: "Done", saveTitle: "Save", clearAllTitle: "Clear" },
           onDone: (editedPath: string) => {
-            console.log("[Story] Image edited, new path:", editedPath);
-            // Update the media asset with the edited image
             const updatedAssets = [...mediaAssets];
             updatedAssets[index] = {
               ...asset,
-              uri: editedPath.startsWith("file://")
-                ? editedPath
-                : `file://${editedPath}`,
+              uri: editedPath.startsWith("file://") ? editedPath : `file://${editedPath}`,
             };
             setMediaAssets(updatedAssets);
             setSelectedMedia(
               updatedAssets.map((m) => m.uri),
-              updatedAssets.map((m) => m.type),
+              updatedAssets.map((m) => m.type)
             );
             showToast("success", "Edited", "Your story has been updated!");
           },
-          onCancel: () => {
-            console.log("[Story] Image edit cancelled");
-          },
+          onCancel: () => {},
         });
       } catch (error) {
-        console.error("[Story] Error opening image editor:", error);
         showToast("error", "Error", "Could not open image editor");
       }
     },
-    [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
+    [mediaAssets, setMediaAssets, setSelectedMedia, showToast]
   );
 
-  const simulateUploadProgress = useCallback(() => {
-    setUploadProgress(0);
-    progressAnim.setValue(0);
-
-    const stages = [
-      { progress: 15, delay: 200 },
-      { progress: 35, delay: 400 },
-      { progress: 55, delay: 300 },
-      { progress: 75, delay: 350 },
-      { progress: 90, delay: 400 },
-      { progress: 100, delay: 300 },
-    ];
-
-    let totalDelay = 0;
-    stages.forEach(({ progress, delay }) => {
-      totalDelay += delay;
-      setTimeout(() => {
-        setUploadProgress(progress);
-        Animated.timing(progressAnim, {
-          toValue: progress / 100,
-          duration: delay * 0.8,
-          useNativeDriver: false,
-        }).start();
-      }, totalDelay);
-    });
-
-    return totalDelay + 200;
-  }, [progressAnim]);
-
   const handleShare = async () => {
-    // Prevent double submission
-    if (isSharing || createStory.isPending) {
-      console.log("[Story] Already sharing, ignoring");
-      return;
-    }
-
+    if (isSharing || createStory.isPending) return;
     if (selectedMedia.length === 0) {
       showToast("warning", "Empty Story", "Please add media to your story");
       return;
     }
 
     setIsSharing(true);
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      let storyItems: Array<{
-        type: string;
-        url?: string;
-        text?: string;
-        textColor?: string;
-        backgroundColor?: string;
-      }> = [];
+      const mediaFiles = mediaAssets.map((m) => ({
+        uri: m.uri,
+        type: m.type as "image" | "video",
+      }));
 
-      // Upload media to Bunny.net CDN
-      if (mediaAssets.length > 0) {
-        const mediaFiles = mediaAssets.map((m) => ({
-          uri: m.uri,
-          type: m.type as "image" | "video",
-        }));
+      const uploadResults = await uploadMultiple(mediaFiles);
+      const failedUploads = uploadResults.filter((r) => !r.success);
 
-        const uploadResults = await uploadMultiple(mediaFiles);
-        const failedUploads = uploadResults.filter((r) => !r.success);
-
-        if (failedUploads.length > 0) {
-          setIsSharing(false);
-          setUploadProgress(0);
-          progressAnim.setValue(0);
-          showToast(
-            "error",
-            "Upload Error",
-            "Failed to upload media. Please try again.",
-          );
-          return;
-        }
-
-        storyItems = uploadResults.map((r) => ({
-          type: r.type,
-          url: r.url,
-        }));
-      }
-
-      if (storyItems.length === 0) {
+      if (failedUploads.length > 0) {
         setIsSharing(false);
-        showToast("warning", "Empty Story", "Please add content to your story");
+        showToast("error", "Upload Error", "Failed to upload media.");
         return;
       }
+
+      const storyItems = uploadResults.map((r) => ({ type: r.type, url: r.url }));
 
       createStory.mutate(
         { items: storyItems },
         {
           onSuccess: () => {
-            setUploadProgress(100);
-            setTimeout(() => {
-              setIsSharing(false);
-              setUploadProgress(0);
-              progressAnim.setValue(0);
-              showToast("success", "Success", "Story shared successfully!");
-              reset();
-              setMediaAssets([]);
-              router.back();
-            }, 300);
+            setIsSharing(false);
+            showToast("success", "Success", "Story shared successfully!");
+            reset();
+            setMediaAssets([]);
+            router.back();
           },
           onError: (error: any) => {
             setIsSharing(false);
-            setUploadProgress(0);
-            progressAnim.setValue(0);
-            console.error("[Story] Error creating story:", error);
-            console.error(
-              "[Story] Error details:",
-              JSON.stringify(error, null, 2),
-            );
-            const errorMessage =
-              error?.message ||
-              error?.error?.message ||
-              error?.error ||
-              "Failed to share story. Please try again.";
-            showToast("error", "Error", errorMessage);
+            showToast("error", "Error", error?.message || "Failed to share story.");
           },
-        },
+        }
       );
     } catch (error) {
-      console.error("[Story] Unexpected error:", error);
       setIsSharing(false);
-      setUploadProgress(0);
-      progressAnim.setValue(0);
-      showToast("error", "Error", "Something went wrong. Please try again.");
+      showToast("error", "Error", "Something went wrong.");
     }
   };
 
   const handleClose = () => {
     if (selectedMedia.length > 0) {
-      Alert.alert(
-        "Discard Story?",
-        "You have unsaved changes. Are you sure you want to discard?",
-        [
-          { text: "Keep Editing", style: "cancel" },
-          {
-            text: "Discard",
-            style: "destructive",
-            onPress: () => {
-              reset();
-              setMediaAssets([]);
-              router.back();
-            },
+      Alert.alert("Discard Story?", "You have unsaved changes.", [
+        { text: "Keep Editing", style: "cancel" },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            reset();
+            setMediaAssets([]);
+            router.back();
           },
-        ],
-      );
+        },
+      ]);
     } else {
       router.back();
     }
@@ -526,53 +280,23 @@ export default function CreateStoryScreen() {
 
   const currentMedia = selectedMedia[currentIndex];
   const currentMediaType = mediaTypes[currentIndex];
-
   const isValid = selectedMedia.length > 0;
 
-  // Set up header with useLayoutEffect
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
       headerTitle: "New Story",
       headerTitleAlign: "left" as const,
-      headerStyle: {
-        backgroundColor: colors.background,
-      },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600" as const,
-        fontSize: 18,
-      },
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: { color: colors.foreground, fontWeight: "600", fontSize: 18 },
       headerLeft: () => (
-        <Pressable
-          onPress={handleClose}
-          hitSlop={12}
-          style={{
-            marginLeft: 8,
-            width: 44,
-            height: 44,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
+        <Pressable onPress={handleClose} hitSlop={12} className="ml-2 w-11 h-11 items-center justify-center">
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable
-          onPress={handleShare}
-          disabled={isSharing || !isValid}
-          hitSlop={12}
-          style={{ marginRight: 8 }}
-        >
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color:
-                isValid && !isSharing ? colors.primary : colors.mutedForeground,
-            }}
-          >
+        <Pressable onPress={handleShare} disabled={isSharing || !isValid} hitSlop={12} className="mr-2">
+          <Text className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}>
             {isSharing ? "Sharing..." : "Share"}
           </Text>
         </Pressable>
@@ -581,388 +305,166 @@ export default function CreateStoryScreen() {
   }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
 
   return (
-    <View className="flex-1 bg-background">
-      <SafeAreaView
-        edges={[]}
-        style={{ flex: 1, backgroundColor: colors.background }}
-      >
-        {isSharing && (
-          <View style={styles.progressContainer}>
-            <View style={styles.progressBackground}>
-              <Animated.View
-                style={[
-                  styles.progressBar,
-                  {
-                    width: progressAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ["0%", "100%"],
-                    }),
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.progressText}>
-              {uploadProgress < 100
-                ? `Uploading... ${uploadProgress}%`
-                : "Processing..."}
-            </Text>
-          </View>
-        )}
-
-        <View
-          style={{
-            flex: 1,
-            alignItems: "center",
-            justifyContent: "center",
-            paddingHorizontal: 16,
-          }}
+    <ScrollView
+      className="flex-1 bg-background"
+      contentContainerStyle={{ flexGrow: 1 }}
+      contentInsetAdjustmentBehavior="automatic"
+    >
+      {/* Upload Progress Overlay */}
+      {isSharing && (
+        <Motion.View
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute top-20 left-4 right-4 bg-black/90 rounded-xl p-4 z-50"
+          style={{ borderCurve: "continuous" }}
         >
-          <View
-            style={{
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
-              borderRadius: 20,
-              overflow: "hidden",
-            }}
-          >
-            {currentMedia ? (
-              <View style={{ flex: 1, backgroundColor: "#000" }}>
-                {currentMediaType === "video" ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Image
-                      source={{ uri: currentMedia }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                    <View
-                      style={{
-                        position: "absolute",
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <Video size={16} color="#fff" />
-                      <Text style={{ color: "#fff", fontSize: 14 }}>Video</Text>
-                    </View>
-                  </View>
-                ) : (
-                  <Pressable
-                    onPress={() => handleEditImage(currentIndex)}
-                    style={{ flex: 1 }}
-                  >
-                    <Image
-                      source={{ uri: currentMedia }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                    {/* Edit button overlay */}
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 16,
-                        right: 16,
-                        flexDirection: "row",
-                        gap: 8,
-                      }}
-                    >
-                      <Pressable
-                        onPress={() => handleEditImage(currentIndex)}
-                        style={{
-                          backgroundColor: "rgba(0,0,0,0.7)",
-                          paddingHorizontal: 16,
-                          paddingVertical: 10,
-                          borderRadius: 20,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <Pencil size={18} color="#fff" />
-                        <Text
-                          style={{
-                            color: "#fff",
-                            fontSize: 14,
-                            fontWeight: "600",
-                          }}
-                        >
-                          Edit
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </Pressable>
-                )}
-              </View>
-            ) : (
-              <View
-                style={{
-                  flex: 1,
-                  backgroundColor: "#1a1a1a",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <ImageIcon size={48} color="#666" />
-                <Text style={{ color: "#666", marginTop: 12, fontSize: 16 }}>
-                  Add media to get started
-                </Text>
-              </View>
-            )}
-
-            {selectedMedia.length > 1 && (
-              <>
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 12,
-                    left: 12,
-                    right: 12,
-                    flexDirection: "row",
-                    gap: 4,
-                  }}
-                >
-                  {selectedMedia.map((_, idx) => (
-                    <View
-                      key={idx}
-                      style={{
-                        flex: 1,
-                        height: 3,
-                        borderRadius: 2,
-                        backgroundColor:
-                          idx === currentIndex
-                            ? "#fff"
-                            : "rgba(255,255,255,0.3)",
-                      }}
-                    />
-                  ))}
-                </View>
-
-                {currentIndex > 0 && (
-                  <Pressable
-                    onPress={() => {
-                      prevSlide();
-                      animateTransition();
-                    }}
-                    style={{
-                      position: "absolute",
-                      left: 8,
-                      top: "50%",
-                      marginTop: -20,
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: "rgba(0,0,0,0.5)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <ChevronLeft size={24} color="#fff" />
-                  </Pressable>
-                )}
-
-                {currentIndex < selectedMedia.length - 1 && (
-                  <Pressable
-                    onPress={() => {
-                      nextSlide();
-                      animateTransition();
-                    }}
-                    style={{
-                      position: "absolute",
-                      right: 8,
-                      top: "50%",
-                      marginTop: -20,
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: "rgba(0,0,0,0.5)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <ChevronRight size={24} color="#fff" />
-                  </Pressable>
-                )}
-              </>
-            )}
+          <View className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <Motion.View
+              className="h-full bg-primary rounded-full"
+              initial={{ width: "0%" }}
+              animate={{ width: `${uploadProgress}%` }}
+            />
           </View>
+          <Text className="text-white text-sm font-medium text-center mt-3">
+            {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : "Processing..."}
+          </Text>
+        </Motion.View>
+      )}
 
-          {mediaAssets.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={{ marginTop: 16, maxHeight: 72 }}
-              contentContainerStyle={{ paddingHorizontal: 4, gap: 8 }}
-            >
-              {mediaAssets.map((asset, idx) => (
-                <Pressable
-                  key={asset.id}
-                  onPress={() => {
-                    setCurrentIndex(idx);
-                    animateTransition();
-                  }}
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    borderWidth: idx === currentIndex ? 2 : 0,
-                    borderColor: "#3EA4E5",
-                  }}
-                >
-                  <Image
-                    source={{ uri: asset.uri }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                  <Pressable
-                    onPress={() => handleRemoveMedia(idx)}
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 18,
-                      height: 18,
-                      borderRadius: 9,
-                      backgroundColor: "rgba(240,82,82,0.9)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    hitSlop={8}
-                  >
-                    <X size={10} color="#fff" />
-                  </Pressable>
-                  {asset.type === "video" && (
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 2,
-                        left: 2,
-                      }}
+      {/* Canvas Area */}
+      <View className="flex-1 items-center justify-center px-4 py-6">
+        <View
+          style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderCurve: "continuous" }}
+          className="rounded-2xl overflow-hidden bg-card"
+        >
+          {currentMedia ? (
+            <View className="flex-1 bg-black">
+              {currentMediaType === "video" ? (
+                <View className="flex-1 items-center justify-center">
+                  <Image source={{ uri: currentMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
+                    <Video size={16} color="#fff" />
+                    <Text className="text-white text-sm">Video</Text>
+                  </View>
+                </View>
+              ) : (
+                <Pressable onPress={() => handleEditImage(currentIndex)} className="flex-1">
+                  <Image source={{ uri: currentMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <View className="absolute bottom-4 right-4">
+                    <Pressable
+                      onPress={() => handleEditImage(currentIndex)}
+                      className="bg-black/70 px-4 py-2.5 rounded-full flex-row items-center gap-2"
+                      style={{ borderCurve: "continuous" }}
                     >
-                      <Video size={12} color="#fff" />
-                    </View>
-                  )}
+                      <Pencil size={18} color="#fff" />
+                      <Text className="text-white text-sm font-semibold">Edit</Text>
+                    </Pressable>
+                  </View>
                 </Pressable>
-              ))}
-            </ScrollView>
+              )}
+            </View>
+          ) : (
+            <View className="flex-1 bg-card items-center justify-center">
+              <ImageIcon size={48} color="#666" />
+              <Text className="text-muted-foreground mt-3 text-base">Add media to get started</Text>
+            </View>
+          )}
+
+          {/* Progress indicators */}
+          {selectedMedia.length > 1 && (
+            <>
+              <View className="absolute top-3 left-3 right-3 flex-row gap-1">
+                {selectedMedia.map((_, idx) => (
+                  <View
+                    key={idx}
+                    className={`flex-1 h-0.5 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/30"}`}
+                  />
+                ))}
+              </View>
+
+              {currentIndex > 0 && (
+                <Pressable
+                  onPress={() => { prevSlide(); Haptics.selectionAsync(); }}
+                  className="absolute left-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                >
+                  <ChevronLeft size={24} color="#fff" />
+                </Pressable>
+              )}
+
+              {currentIndex < selectedMedia.length - 1 && (
+                <Pressable
+                  onPress={() => { nextSlide(); Haptics.selectionAsync(); }}
+                  className="absolute right-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                >
+                  <ChevronRight size={24} color="#fff" />
+                </Pressable>
+              )}
+            </>
           )}
         </View>
 
-        <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "center",
-              gap: 24,
-              marginBottom: 16,
-            }}
+        {/* Media thumbnails */}
+        {mediaAssets.length > 0 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            className="mt-4 max-h-16"
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
           >
-            <Pressable
-              onPress={() => {
-                console.log("[Story] Gallery button pressed");
-                handlePickLibrary();
-              }}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{
-                alignItems: "center",
-                gap: 4,
-                opacity:
-                  mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
-              }}
-            >
-              <View
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 26,
-                  backgroundColor: "#1a1a1a",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+            {mediaAssets.map((asset, idx) => (
+              <Pressable
+                key={asset.id}
+                onPress={() => { setCurrentIndex(idx); Haptics.selectionAsync(); }}
+                className={`w-14 h-14 rounded-lg overflow-hidden ${idx === currentIndex ? "border-2 border-primary" : ""}`}
+                style={{ borderCurve: "continuous" }}
               >
-                <ImageIcon size={24} color="#fff" />
-              </View>
-              <Text style={{ color: "#999", fontSize: 12 }}>
-                Gallery{" "}
-                {mediaAssets.length > 0
-                  ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
-                  : ""}
-              </Text>
-            </Pressable>
+                <Image source={{ uri: asset.uri }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                <Pressable
+                  onPress={() => handleRemoveMedia(idx)}
+                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
+                  hitSlop={8}
+                >
+                  <X size={10} color="#fff" />
+                </Pressable>
+                {asset.type === "video" && (
+                  <View className="absolute bottom-0.5 left-0.5">
+                    <Video size={12} color="#fff" />
+                  </View>
+                )}
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+      </View>
 
-            <Pressable
-              onPress={() => {
-                console.log("[Story] Video button pressed");
-                handleRecordVideo();
-              }}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{
-                alignItems: "center",
-                gap: 4,
-                opacity:
-                  mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? 0.4 : 1,
-              }}
-            >
-              <View
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 26,
-                  backgroundColor: "#1a1a1a",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Video size={24} color="#fff" />
-              </View>
-              <Text style={{ color: "#999", fontSize: 12 }}>Video (30s)</Text>
-            </Pressable>
-          </View>
+      {/* Action buttons */}
+      <View className="px-4 pb-6">
+        <View className="flex-row justify-center gap-6">
+          <Pressable
+            onPress={handlePickLibrary}
+            disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+            className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
+          >
+            <View className="w-14 h-14 rounded-full bg-card items-center justify-center" style={{ borderCurve: "continuous" }}>
+              <ImageIcon size={24} color="#fff" />
+            </View>
+            <Text className="text-muted-foreground text-xs">
+              Gallery {mediaAssets.length > 0 ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})` : ""}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleRecordVideo}
+            disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+            className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
+          >
+            <View className="w-14 h-14 rounded-full bg-card items-center justify-center" style={{ borderCurve: "continuous" }}>
+              <Video size={24} color="#fff" />
+            </View>
+            <Text className="text-muted-foreground text-xs">Video (30s)</Text>
+          </Pressable>
         </View>
-      </SafeAreaView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  progressContainer: {
-    position: "absolute",
-    top: 70,
-    left: 16,
-    right: 16,
-    backgroundColor: "rgba(0,0,0,0.85)",
-    borderRadius: 12,
-    padding: 16,
-    zIndex: 100,
-  },
-  progressBackground: {
-    height: 6,
-    backgroundColor: "#333",
-    borderRadius: 3,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "#3EA4E5",
-    borderRadius: 3,
-  },
-  progressText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "500",
-    textAlign: "center",
-    marginTop: 10,
-  },
-});
