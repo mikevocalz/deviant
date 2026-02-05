@@ -166,26 +166,15 @@ export const auth = {
           avatar:${DB.users.avatarId}(url)
         `);
 
-      // Check if userId is a UUID (auth_id)
-      const isUUID =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-          userId,
-        );
+      // Check if userId is numeric (Payload CMS internal ID)
+      const isNumeric = /^\d+$/.test(userId);
 
-      if (isUUID) {
-        // Query by auth_id
-        query = query.eq(DB.users.authId, userId);
-      } else if (/^\d+$/.test(userId)) {
+      if (isNumeric) {
         // Query by internal ID
         query = query.eq(DB.users.id, parseInt(userId));
       } else {
-        // Try to match by email from auth
-        const { data: authUser } = await supabase.auth.getUser();
-        if (authUser?.user?.email) {
-          query = query.eq(DB.users.email, authUser.user.email);
-        } else {
-          return null;
-        }
+        // Query by auth_id (Better Auth ID - could be UUID or random string)
+        query = query.eq(DB.users.authId, userId);
       }
 
       const { data, error } = await query.single();
