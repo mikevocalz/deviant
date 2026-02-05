@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback, useRef } from "react";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import {
   mockSpaces,
@@ -29,14 +29,36 @@ import {
   ConnectionBanner,
   EjectModal,
 } from "@/src/sneaky-lynk/ui";
-import type { SneakyUser, EjectPayload } from "@/src/sneaky-lynk/types";
+import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 
 export default function SneakyLynkRoomScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+
+  // Room store
+  const {
+    isMuted,
+    isVideoOn,
+    isHandRaised,
+    activeSpeakerId,
+    showEjectModal,
+    ejectPayload,
+    connectionState: storeConnectionState,
+    setIsMuted,
+    setIsVideoOn,
+    toggleMute,
+    toggleVideo,
+    toggleHand,
+    setActiveSpeakerId,
+    showEject,
+    hideEject,
+    setConnectionState,
+    reset,
+  } = useRoomStore();
 
   // Determine if this is a mock room or real room
   const isMockRoom = id?.startsWith("space-") || id === "my-room";
@@ -46,8 +68,7 @@ export default function SneakyLynkRoomScreen() {
   const videoRoom = useVideoRoom({
     roomId: isMockRoom ? "" : id || "",
     onEjected: (reason) => {
-      setEjectPayload(reason);
-      setShowEjectModal(true);
+      showEject(reason);
     },
     onRoomEnded: () => {
       showToast("info", "Room Ended", "The host has ended this room");
@@ -58,26 +79,24 @@ export default function SneakyLynkRoomScreen() {
     },
   });
 
-  // Local state
-  const [mockIsMuted, setMockIsMuted] = useState(false);
-  const [mockIsVideoOn, setMockIsVideoOn] = useState(true);
-  const [isHandRaised, setIsHandRaised] = useState(false);
-  const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
-  const [showEjectModal, setShowEjectModal] = useState(false);
-  const [ejectPayload, setEjectPayload] = useState<EjectPayload | null>(null);
+  // Reset store on mount and set initial state based on host status
+  useEffect(() => {
+    reset();
+    const isHostUser = mockSpace?.host.id === currentUserMock.id;
+    if (isHostUser) {
+      setIsMuted(false);
+      setIsVideoOn(true);
+    }
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Derived state based on mock vs real
   const isHost = isMockRoom
     ? mockSpace?.host.id === currentUserMock.id
     : videoRoom.localUser?.role === "host";
-  const isMuted = isMockRoom ? mockIsMuted : !videoRoom.isMicOn;
-  const isVideoOn = isMockRoom ? mockIsVideoOn : videoRoom.isCameraOn;
-  const connectionState:
-    | "connecting"
-    | "connected"
-    | "reconnecting"
-    | "disconnected" = isMockRoom
-    ? "connected"
+  const effectiveMuted = isMockRoom ? isMuted : !videoRoom.isMicOn;
+  const effectiveVideoOn = isMockRoom ? isVideoOn : videoRoom.isCameraOn;
+  const connectionState = isMockRoom
+    ? storeConnectionState
     : videoRoom.connectionState.status === "error"
       ? "disconnected"
       : (videoRoom.connectionState.status as
@@ -122,32 +141,32 @@ export default function SneakyLynkRoomScreen() {
 
   const handleToggleMic = useCallback(async () => {
     if (isMockRoom) {
-      setMockIsMuted((prev: boolean) => !prev);
+      toggleMute();
     } else {
       await videoRoom.toggleMic();
     }
-  }, [isMockRoom, videoRoom]);
+  }, [isMockRoom, videoRoom, toggleMute]);
 
   const handleToggleVideo = useCallback(async () => {
     if (isMockRoom) {
-      setMockIsVideoOn((prev: boolean) => !prev);
+      toggleVideo();
     } else {
       await videoRoom.toggleCamera();
     }
-  }, [isMockRoom, videoRoom]);
+  }, [isMockRoom, videoRoom, toggleVideo]);
 
   const handleToggleHand = useCallback(() => {
-    setIsHandRaised((prev) => !prev);
-  }, []);
+    toggleHand();
+  }, [toggleHand]);
 
   const handleChat = useCallback(() => {
     console.log("[SneakyLynk] Chat pressed");
   }, []);
 
   const handleEjectDismiss = useCallback(() => {
-    setShowEjectModal(false);
+    hideEject();
     router.back();
-  }, [router]);
+  }, [router, hideEject]);
 
   // Room not found (for mock rooms)
   if (isMockRoom && !mockSpace) {
@@ -210,7 +229,7 @@ export default function SneakyLynkRoomScreen() {
         id: featuredSpeakerUser.id,
         user: featuredSpeakerUser,
         isSpeaking: featuredSpeakerUser.id === activeSpeakerId,
-        hasVideo: isVideoOn,
+        hasVideo: effectiveVideoOn,
       }
     : null;
 
@@ -267,7 +286,7 @@ export default function SneakyLynkRoomScreen() {
             featuredSpeaker={featuredSpeaker}
             isSpeaking={featuredSpeaker.isSpeaking}
             isLocalUser={isHost}
-            isVideoEnabled={isVideoOn}
+            isVideoEnabled={effectiveVideoOn}
           />
         )}
 
@@ -282,8 +301,8 @@ export default function SneakyLynkRoomScreen() {
 
       {/* Controls Bar */}
       <ControlsBar
-        isMuted={isMuted}
-        isVideoEnabled={isVideoOn}
+        isMuted={effectiveMuted}
+        isVideoEnabled={effectiveVideoOn}
         handRaised={isHandRaised}
         hasVideo={roomHasVideo}
         onLeave={handleLeave}
