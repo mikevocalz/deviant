@@ -3,7 +3,7 @@
  * Gradient card displaying a live Sneaky Lynk room
  */
 
-import { View, Text, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Video, Users } from "lucide-react-native";
@@ -16,62 +16,148 @@ interface LiveRoomCardProps {
 
 export function LiveRoomCard({ space, onPress }: LiveRoomCardProps) {
   return (
-    <Pressable
-      onPress={onPress}
-      className="rounded-[20px] overflow-hidden mb-4"
-    >
+    <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.card}>
       <LinearGradient
-        colors={["#FF6DC1", "#C850C0"]}
+        colors={["#3EA4E5", "#2563EB"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        className="p-[18px] min-h-[180px]"
+        style={styles.gradient}
       >
         {/* Header with badges */}
-        <View className="flex-row items-center gap-2">
-          <View className="flex-row items-center bg-white/25 px-2.5 py-1.5 rounded-xl gap-1.5">
-            <View className="w-1.5 h-1.5 rounded-full bg-white" />
-            <Text className="text-white text-[11px] font-bold">LIVE</Text>
+        <View style={styles.header}>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveText}>LIVE</Text>
           </View>
           {space.hasVideo && (
-            <View className="bg-white/25 p-1.5 rounded-[10px]">
+            <View style={styles.videoBadge}>
               <Video size={12} color="#fff" />
             </View>
           )}
         </View>
 
         {/* Content */}
-        <View className="flex-1 justify-center my-3.5">
-          <Text className="text-lg font-bold text-white mb-1.5" numberOfLines={2}>
+        <View style={styles.content}>
+          <Text style={styles.title} numberOfLines={2}>
             {space.title}
           </Text>
-          <Text className="text-[13px] text-white/80 font-medium">
-            {space.topic}
-          </Text>
+          <Text style={styles.topic}>{space.topic}</Text>
         </View>
 
         {/* Footer */}
-        <View className="flex-row items-center justify-between">
-          <View className="flex-row items-center">
+        <View style={styles.footer}>
+          <View style={styles.speakersRow}>
             <Image
               source={{ uri: space.host.avatar }}
-              className="w-8 h-8 rounded-full border-2 border-white"
+              style={styles.hostAvatar}
             />
-            {space.speakers.slice(0, 2).map((speaker, index) => (
+            {space.speakers.slice(0, 2).map((speaker) => (
               <Image
                 key={speaker.id}
                 source={{ uri: speaker.avatar }}
-                className="w-7 h-7 rounded-full border-2 border-white -ml-2.5"
+                style={styles.speakerAvatar}
               />
             ))}
           </View>
-          <View className="flex-row items-center gap-1.5">
+          <View style={styles.listenersInfo}>
             <Users size={14} color="#fff" />
-            <Text className="text-sm font-semibold text-white">
+            <Text style={styles.listenersText}>
               {space.listeners.toLocaleString()}
             </Text>
           </View>
         </View>
       </LinearGradient>
-    </Pressable>
+    </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  gradient: {
+    padding: 18,
+    minHeight: 180,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    gap: 5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+  },
+  liveText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  videoBadge: {
+    backgroundColor: "rgba(255,255,255,0.25)",
+    padding: 6,
+    borderRadius: 10,
+  },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    marginVertical: 14,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  topic: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "500",
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  speakersRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  hostAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  speakerAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#fff",
+    marginLeft: -10,
+  },
+  listenersInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  listenersText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+  },
+});

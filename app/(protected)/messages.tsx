@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  StyleSheet,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -170,32 +171,25 @@ function SneakyLynkContent({
   }, [router]);
 
   return (
-    <View className="flex-1">
+    <View style={lynkStyles.container}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 border-b border-border">
-        <View className="flex-row items-center gap-2.5">
+      <View style={lynkStyles.header}>
+        <View style={lynkStyles.headerLeft}>
           <Radio size={28} color="#3EA4E5" />
-          <Text className="text-[28px] font-extrabold text-foreground tracking-tight">
-            Lynks
-          </Text>
+          <Text style={lynkStyles.headerTitle}>Lynks</Text>
         </View>
-        <Pressable
+        <TouchableOpacity
+          style={lynkStyles.createButton}
           onPress={handleCreateLynk}
-          className="w-10 h-10 rounded-full bg-primary items-center justify-center"
         >
           <Plus size={20} color="#fff" />
-        </Pressable>
+        </TouchableOpacity>
       </View>
 
       {/* Live Lynks List */}
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingTop: 16,
-          paddingBottom: 20,
-          gap: 16,
-        }}
+        contentContainerStyle={lynkStyles.liveList}
       >
         {liveLynks.length > 0 ? (
           liveLynks.map((space) => (
@@ -206,13 +200,11 @@ function SneakyLynkContent({
             />
           ))
         ) : (
-          <View className="items-center justify-center pt-20 gap-3">
+          <View style={lynkStyles.emptyState}>
             <Radio size={48} color="#6B7280" />
-            <Text className="text-lg font-semibold text-foreground">
-              No Live Lynks
-            </Text>
-            <Text className="text-sm text-muted-foreground">
-              Check back later or start your own!
+            <Text style={lynkStyles.emptyTitle}>No Live Lynks</Text>
+            <Text style={lynkStyles.emptyText}>
+              Check back later for live conversations
             </Text>
           </View>
         )}
@@ -220,6 +212,63 @@ function SneakyLynkContent({
     </View>
   );
 }
+
+const lynkStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#262626",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -0.5,
+  },
+  createButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#3EA4E5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveList: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 16,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
+  },
+});
 
 export default function MessagesScreen() {
   const router = useRouter();
