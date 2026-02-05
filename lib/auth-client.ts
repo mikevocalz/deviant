@@ -12,10 +12,9 @@ import { passkeyClient } from "@better-auth/passkey/client";
 import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
 
-// Auth server URL - uses the app's API routes
+// Auth server URL - Better Auth server
 const AUTH_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  "https://payload-cms-setup-gray.vercel.app";
+  process.env.EXPO_PUBLIC_AUTH_URL || "https://dvnt-auth-new.vercel.app";
 
 // Create the Better Auth client
 export const authClient = createAuthClient({
