@@ -1,4 +1,4 @@
-import { supabase } from "../supabase/client";
+import { supabase, supabaseAdmin } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 
@@ -176,7 +176,8 @@ export const usersApi = {
 
       console.log("[Users] updateProfile updateData:", updateData);
 
-      const { data, error } = await supabase
+      // Use admin client to bypass RLS (since we use Better Auth, not Supabase Auth)
+      const { data, error } = await supabaseAdmin
         .from(DB.users.table)
         .update(updateData)
         .eq(DB.users.id, userId)
