@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const bookmarksApi = {
   /**
@@ -9,20 +10,10 @@ export const bookmarksApi = {
     try {
       console.log("[Bookmarks] getBookmarks");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
+      const userId = getCurrentUserId();
+      if (!userId) return [];
 
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
-
-      // bookmarks.user_id is UUID type, so use auth_id
+      // bookmarks.user_id uses the user ID
       const { data, error } = await supabase
         .from(DB.bookmarks.table)
         .select(
@@ -31,7 +22,7 @@ export const bookmarksApi = {
           ${DB.bookmarks.createdAt}
         `,
         )
-        .eq(DB.bookmarks.userId, user.id)
+        .eq(DB.bookmarks.userId, userId)
         .order(DB.bookmarks.createdAt, { ascending: false });
 
       if (error) throw error;
@@ -55,31 +46,20 @@ export const bookmarksApi = {
         isBookmarked,
       );
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
-
-      // bookmarks.user_id is UUID type, so use auth_id
       if (isBookmarked) {
         // Remove bookmark
         await supabase
           .from(DB.bookmarks.table)
           .delete()
-          .eq(DB.bookmarks.userId, user.id)
+          .eq(DB.bookmarks.userId, userId)
           .eq(DB.bookmarks.postId, parseInt(postId));
       } else {
         // Add bookmark
         await supabase.from(DB.bookmarks.table).insert({
-          [DB.bookmarks.userId]: user.id,
+          [DB.bookmarks.userId]: userId,
           [DB.bookmarks.postId]: parseInt(postId),
         });
       }

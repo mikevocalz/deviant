@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const usersApi = {
   /**
@@ -142,19 +143,11 @@ export const usersApi = {
     name?: string;
   }) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      // Get current user from Better Auth store
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
-      // Look up user by auth_id (Supabase Auth UUID)
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      console.log("[Users] updateProfile for userId:", userId);
 
       const { data, error } = await supabase
         .from(DB.users.table)
@@ -171,7 +164,7 @@ export const usersApi = {
           }),
           [DB.users.updatedAt]: new Date().toISOString(),
         })
-        .eq(DB.users.id, userData[DB.users.id])
+        .eq(DB.users.id, parseInt(userId))
         .select()
         .single();
 
@@ -188,23 +181,13 @@ export const usersApi = {
    */
   async getLikedPosts(): Promise<string[]> {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const userId = getCurrentUserId();
+      if (!userId) return [];
 
       const { data, error } = await supabase
         .from(DB.likes.table)
         .select(DB.likes.postId)
-        .eq(DB.likes.userId, userData[DB.users.id]);
+        .eq(DB.likes.userId, parseInt(userId));
 
       if (error) throw error;
 
@@ -364,18 +347,10 @@ export const usersApi = {
    */
   async updateAvatar(avatarUrl: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      console.log("[Users] updateAvatar for userId:", userId);
 
       // First create media record
       const { data: mediaData, error: mediaError } = await supabase
@@ -390,7 +365,7 @@ export const usersApi = {
       const { error } = await supabase
         .from(DB.users.table)
         .update({ [DB.users.avatarId]: mediaData.id })
-        .eq(DB.users.id, userData[DB.users.id]);
+        .eq(DB.users.id, parseInt(userId));
 
       if (error) throw error;
       return { success: true, avatarUrl };
@@ -405,10 +380,8 @@ export const usersApi = {
    */
   async getCurrentUser() {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
+      const userId = getCurrentUserId();
+      if (!userId) return null;
 
       const { data, error } = await supabase
         .from(DB.users.table)
@@ -424,7 +397,7 @@ export const usersApi = {
           avatar:${DB.users.avatarId}(url)
         `,
         )
-        .eq(DB.users.authId, user.id)
+        .eq(DB.users.id, parseInt(userId))
         .single();
 
       if (error) return null;

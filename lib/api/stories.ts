@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const storiesApi = {
   /**
@@ -9,19 +10,8 @@ export const storiesApi = {
     try {
       console.log("[Stories] getStories");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      // Get current user ID
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const userId = getCurrentUserId();
+      if (!userId) return [];
 
       // Get non-expired stories
       const now = new Date().toISOString();
@@ -81,7 +71,7 @@ export const storiesApi = {
             avatar: author?.avatar?.url || "",
             hasStory: true,
             isViewed: story.viewed || false,
-            isYou: authorId === user.id,
+            isYou: authorId === userId,
             items: [], // stories-bar expects 'items', not 'stories'
           });
         }
@@ -127,10 +117,8 @@ export const storiesApi = {
     try {
       console.log("[Stories] createStory");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       // Set expiry to 24 hours from now
       const expiresAt = new Date();
@@ -149,7 +137,7 @@ export const storiesApi = {
           .from(DB.media.table)
           .insert({
             [DB.media.url]: mediaUrl,
-            [DB.media.ownerId]: user.id,
+            [DB.media.ownerId]: userId,
             [DB.media.mimeType]:
               firstItem?.type === "video" ? "video/mp4" : "image/jpeg",
             [DB.media.filename]: mediaUrl.split("/").pop() || "story-media",
@@ -173,7 +161,7 @@ export const storiesApi = {
       const { data, error } = await supabase
         .from(DB.stories.table)
         .insert({
-          [DB.stories.authorId]: user.id,
+          [DB.stories.authorId]: userId,
           [DB.stories.mediaId]: mediaId,
           [DB.stories.expiresAt]: expiresAt.toISOString(),
           [DB.stories.visibility]: "public",

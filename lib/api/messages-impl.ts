@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const messagesApi = {
   /**
@@ -9,18 +10,8 @@ export const messagesApi = {
     try {
       console.log("[Messages] getConversations");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const visitorId = getCurrentUserId();
+      if (!visitorId) return [];
 
       // Get conversations where user is a participant
       const { data, error } = await supabase
@@ -35,7 +26,7 @@ export const messagesApi = {
           )
         `,
         )
-        .eq(DB.conversationsRels.usersId, userData[DB.users.id])
+        .eq(DB.conversationsRels.usersId, parseInt(visitorId))
         .order(DB.conversationsRels.parentId, { ascending: false });
 
       if (error) throw error;
@@ -73,7 +64,7 @@ export const messagesApi = {
             `,
             )
             .eq(DB.conversationsRels.parentId, convId)
-            .neq(DB.conversationsRels.usersId, userData[DB.users.id])
+            .neq(DB.conversationsRels.usersId, parseInt(visitorId))
             .limit(1);
 
           const otherUserData = participants?.[0]?.user as any;
@@ -112,18 +103,8 @@ export const messagesApi = {
     try {
       console.log("[Messages] getMessages:", conversationId);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const visitorId = getCurrentUserId();
+      if (!visitorId) return [];
 
       const { data, error } = await supabase
         .from(DB.messages.table)
@@ -145,9 +126,7 @@ export const messagesApi = {
         id: String(msg[DB.messages.id]),
         text: msg[DB.messages.content],
         sender:
-          msg[DB.messages.senderId] === userData[DB.users.id]
-            ? "user"
-            : "other",
+          msg[DB.messages.senderId] === parseInt(visitorId) ? "user" : "other",
         timestamp: formatTimeAgo(msg[DB.messages.createdAt]),
       }));
     } catch (error) {
@@ -167,24 +146,14 @@ export const messagesApi = {
     try {
       console.log("[Messages] sendMessage:", data.conversationId);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const visitorId = getCurrentUserId();
+      if (!visitorId) throw new Error("Not authenticated");
 
       const { data: result, error } = await supabase
         .from(DB.messages.table)
         .insert({
           [DB.messages.conversationId]: parseInt(data.conversationId),
-          [DB.messages.senderId]: userData[DB.users.id],
+          [DB.messages.senderId]: parseInt(visitorId),
           [DB.messages.content]: data.content,
           [DB.messages.read]: false,
         })
@@ -211,24 +180,14 @@ export const messagesApi = {
    */
   async getOrCreateConversation(otherUserId: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const visitorId = getCurrentUserId();
+      if (!visitorId) throw new Error("Not authenticated");
 
       // Check if conversation exists between these two users
       const { data: existingConvs } = await supabase
         .from(DB.conversationsRels.table)
         .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, userData[DB.users.id]);
+        .eq(DB.conversationsRels.usersId, parseInt(visitorId));
 
       if (existingConvs && existingConvs.length > 0) {
         // Check if any of these conversations include the other user
@@ -265,7 +224,7 @@ export const messagesApi = {
       await supabase.from(DB.conversationsRels.table).insert([
         {
           [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
-          [DB.conversationsRels.usersId]: userData[DB.users.id],
+          [DB.conversationsRels.usersId]: parseInt(visitorId),
         },
         {
           [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
@@ -285,24 +244,14 @@ export const messagesApi = {
    */
   async getUnreadCount() {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return 0;
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return 0;
+      const visitorId = getCurrentUserId();
+      if (!visitorId) return 0;
 
       // Get conversations where user is a participant
       const { data: convs } = await supabase
         .from(DB.conversationsRels.table)
         .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, userData[DB.users.id]);
+        .eq(DB.conversationsRels.usersId, parseInt(visitorId));
 
       if (!convs || convs.length === 0) return 0;
 
@@ -313,7 +262,7 @@ export const messagesApi = {
         .select("*", { count: "exact", head: true })
         .in(DB.messages.conversationId, convIds)
         .eq(DB.messages.read, false)
-        .neq(DB.messages.senderId, userData[DB.users.id]);
+        .neq(DB.messages.senderId, parseInt(visitorId));
 
       if (error) throw error;
 
@@ -345,18 +294,8 @@ export const messagesApi = {
    */
   async createGroupConversation(participantIds: string[], groupName: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const visitorId = getCurrentUserId();
+      if (!visitorId) throw new Error("Not authenticated");
 
       // Create the conversation
       const { data: conversation, error: convError } = await supabase
@@ -371,9 +310,7 @@ export const messagesApi = {
       if (convError) throw convError;
 
       // Add all participants including current user
-      const allParticipants = [
-        ...new Set([...participantIds, String(userData[DB.users.id])]),
-      ];
+      const allParticipants = [...new Set([...participantIds, visitorId])];
 
       const participantInserts = allParticipants.map((userId) => ({
         [DB.conversationsRels.parentId]: conversation[DB.conversations.id],
@@ -398,25 +335,15 @@ export const messagesApi = {
    */
   async markAsRead(conversationId: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return;
+      const visitorId = getCurrentUserId();
+      if (!visitorId) return;
 
       // Mark all messages in conversation as read (except own messages)
       await supabase
         .from(DB.messages.table)
         .update({ [DB.messages.read]: true })
         .eq(DB.messages.conversationId, parseInt(conversationId))
-        .neq(DB.messages.senderId, userData[DB.users.id]);
+        .neq(DB.messages.senderId, parseInt(visitorId));
     } catch (error) {
       console.error("[Messages] markAsRead error:", error);
     }
@@ -455,23 +382,13 @@ export const messagesApi = {
    */
   async getFollowingIds(): Promise<string[]> {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const visitorId = getCurrentUserId();
+      if (!visitorId) return [];
 
       const { data, error } = await supabase
         .from(DB.follows.table)
         .select(DB.follows.followingId)
-        .eq(DB.follows.followerId, userData[DB.users.id]);
+        .eq(DB.follows.followerId, parseInt(visitorId));
 
       if (error) throw error;
 

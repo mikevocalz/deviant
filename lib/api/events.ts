@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const eventsApi = {
   /**
@@ -189,25 +190,15 @@ export const eventsApi = {
     try {
       console.log("[Events] rsvpEvent:", eventId, status);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       // Check if RSVP exists
       const { data: existing } = await supabase
         .from(DB.eventRsvps.table)
         .select("*")
         .eq(DB.eventRsvps.eventId, parseInt(eventId))
-        .eq(DB.eventRsvps.userId, userData[DB.users.id])
+        .eq(DB.eventRsvps.userId, parseInt(userId))
         .single();
 
       if (existing) {
@@ -216,14 +207,14 @@ export const eventsApi = {
           .from(DB.eventRsvps.table)
           .update({ [DB.eventRsvps.status]: status })
           .eq(DB.eventRsvps.eventId, parseInt(eventId))
-          .eq(DB.eventRsvps.userId, userData[DB.users.id]);
+          .eq(DB.eventRsvps.userId, parseInt(userId));
 
         if (error) throw error;
       } else {
         // Create new RSVP
         const { error } = await supabase.from(DB.eventRsvps.table).insert({
           [DB.eventRsvps.eventId]: parseInt(eventId),
-          [DB.eventRsvps.userId]: userData[DB.users.id],
+          [DB.eventRsvps.userId]: parseInt(userId),
           [DB.eventRsvps.status]: status,
         });
 
@@ -249,24 +240,14 @@ export const eventsApi = {
    */
   async getUserRsvp(eventId: string) {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return null;
+      const userId = getCurrentUserId();
+      if (!userId) return null;
 
       const { data, error } = await supabase
         .from(DB.eventRsvps.table)
         .select(DB.eventRsvps.status)
         .eq(DB.eventRsvps.eventId, parseInt(eventId))
-        .eq(DB.eventRsvps.userId, userData[DB.users.id])
+        .eq(DB.eventRsvps.userId, parseInt(userId))
         .single();
 
       if (error) return null;
@@ -285,16 +266,14 @@ export const eventsApi = {
     try {
       console.log("[Events] createEvent");
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
-      // Use user.id (UUID) for host_id since events.host_id is UUID type
+      // Use userId for host_id
       const { data, error } = await supabase
         .from(DB.events.table)
         .insert({
-          [DB.events.hostId]: user.id, // UUID from Supabase auth
+          [DB.events.hostId]: userId,
           [DB.events.title]: eventData.title,
           [DB.events.description]: eventData.description,
           [DB.events.startDate]: eventData.date,

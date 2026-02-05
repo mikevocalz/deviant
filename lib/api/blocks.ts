@@ -1,5 +1,6 @@
-import { supabase } from '../supabase/client';
-import { DB } from '../supabase/db-map';
+import { supabase } from "../supabase/client";
+import { DB } from "../supabase/db-map";
+import { getCurrentUserId } from "./auth-helper";
 
 export const blocksApi = {
   /**
@@ -7,22 +8,15 @@ export const blocksApi = {
    */
   async getBlockedUsers() {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) return [];
+      const userId = getCurrentUserId();
+      if (!userId) return [];
 
       // Note: This assumes a 'blocks' table exists in the schema
       // If not, this will return empty array
       const { data, error } = await supabase
-        .from('blocks')
-        .select(`
+        .from("blocks")
+        .select(
+          `
           id,
           created_at,
           blocked:blocked_id(
@@ -32,11 +26,15 @@ export const blocksApi = {
             last_name,
             avatar:avatar_id(url)
           )
-        `)
-        .eq('blocker_id', userData[DB.users.id]);
+        `,
+        )
+        .eq("blocker_id", parseInt(userId));
 
       if (error) {
-        console.log('[Blocks] getBlockedUsers - table may not exist:', error.message);
+        console.log(
+          "[Blocks] getBlockedUsers - table may not exist:",
+          error.message,
+        );
         return [];
       }
 
@@ -44,13 +42,13 @@ export const blocksApi = {
         id: String(block.id),
         blockId: String(block.id),
         userId: String(block.blocked?.id),
-        username: block.blocked?.username || 'unknown',
-        name: block.blocked?.first_name || block.blocked?.username || 'Unknown',
+        username: block.blocked?.username || "unknown",
+        name: block.blocked?.first_name || block.blocked?.username || "Unknown",
         avatar: block.blocked?.avatar?.url || null,
         blockedAt: block.created_at,
       }));
     } catch (error) {
-      console.error('[Blocks] getBlockedUsers error:', error);
+      console.error("[Blocks] getBlockedUsers error:", error);
       return [];
     }
   },
@@ -58,24 +56,16 @@ export const blocksApi = {
   /**
    * Block a user
    */
-  async blockUser(userId: string) {
+  async blockUser(targetUserId: string) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error('User not found');
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
-        .from('blocks')
+        .from("blocks")
         .insert({
-          blocker_id: userData[DB.users.id],
-          blocked_id: parseInt(userId),
+          blocker_id: parseInt(userId),
+          blocked_id: parseInt(targetUserId),
         })
         .select()
         .single();
@@ -83,7 +73,7 @@ export const blocksApi = {
       if (error) throw error;
       return { success: true, data };
     } catch (error) {
-      console.error('[Blocks] blockUser error:', error);
+      console.error("[Blocks] blockUser error:", error);
       throw error;
     }
   },
@@ -94,14 +84,14 @@ export const blocksApi = {
   async unblockUser(blockId: string) {
     try {
       const { error } = await supabase
-        .from('blocks')
+        .from("blocks")
         .delete()
-        .eq('id', blockId);
+        .eq("id", blockId);
 
       if (error) throw error;
       return { success: true };
     } catch (error) {
-      console.error('[Blocks] unblockUser error:', error);
+      console.error("[Blocks] unblockUser error:", error);
       throw error;
     }
   },

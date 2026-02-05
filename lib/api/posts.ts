@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
+import { getCurrentUserId } from "./auth-helper";
 
 const PAGE_SIZE = 10;
 
@@ -261,26 +262,17 @@ export const postsApi = {
     try {
       console.log("[Posts] createPost");
 
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      // Get current user from Better Auth store
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
-      // Get user ID from users table
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      console.log("[Posts] createPost for userId:", userId);
 
       // Insert post
       const { data: post, error } = await supabase
         .from(DB.posts.table)
         .insert({
-          [DB.posts.authorId]: userData[DB.users.id],
+          [DB.posts.authorId]: parseInt(userId),
           [DB.posts.content]: data.content || "",
           [DB.posts.location]: data.location,
           [DB.posts.isNsfw]: data.isNSFW || false,
@@ -308,7 +300,7 @@ export const postsApi = {
 
       // Increment user posts count
       await supabase.rpc("increment_posts_count", {
-        user_id: userData[DB.users.id],
+        user_id: parseInt(userId),
       });
 
       console.log("[Posts] createPost success, ID:", post[DB.posts.id]);
@@ -350,25 +342,15 @@ export const postsApi = {
     try {
       console.log("[Posts] likePost:", postId, "isLiked:", isLiked);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       const newLikedState = !isLiked;
 
       if (newLikedState) {
         // Add like
         await supabase.from(DB.likes.table).insert({
-          [DB.likes.userId]: userData[DB.users.id],
+          [DB.likes.userId]: parseInt(userId),
           [DB.likes.postId]: parseInt(postId),
         });
 
@@ -381,7 +363,7 @@ export const postsApi = {
         await supabase
           .from(DB.likes.table)
           .delete()
-          .eq(DB.likes.userId, userData[DB.users.id])
+          .eq(DB.likes.userId, parseInt(userId))
           .eq(DB.likes.postId, parseInt(postId));
 
         // Decrement count

@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Comment } from "@/lib/types";
+import { getCurrentUserId } from "./auth-helper";
 
 export const commentsApi = {
   /**
@@ -54,24 +55,14 @@ export const commentsApi = {
     try {
       console.log("[Comments] addComment, postId:", postId);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from(DB.comments.table)
         .insert({
           [DB.comments.postId]: parseInt(postId),
-          [DB.comments.authorId]: userData[DB.users.id],
+          [DB.comments.authorId]: parseInt(userId),
           [DB.comments.content]: content,
           [DB.comments.likesCount]: 0,
         })
@@ -116,18 +107,8 @@ export const commentsApi = {
     try {
       console.log("[Comments] likeComment:", commentId, "isLiked:", isLiked);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: userData } = await supabase
-        .from(DB.users.table)
-        .select(DB.users.id)
-        .eq(DB.users.authId, user.id)
-        .single();
-
-      if (!userData) throw new Error("User not found");
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
 
       const newLikedState = !isLiked;
 
