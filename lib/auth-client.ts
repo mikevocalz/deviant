@@ -7,6 +7,7 @@
 
 import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
+import { usernameClient } from "better-auth/client/plugins";
 import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
 
@@ -24,6 +25,7 @@ export const authClient = createAuthClient({
       storagePrefix: "dvnt",
       storage: SecureStore,
     }),
+    usernameClient(),
   ],
 });
 
