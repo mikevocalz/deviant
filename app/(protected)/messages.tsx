@@ -20,7 +20,7 @@ import {
   Plus,
 } from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,6 +30,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
 import { mockSpaces } from "@/src/sneaky-lynk/mocks/data";
 import { LiveRoomCard } from "@/src/sneaky-lynk/ui";
+import PagerView from "react-native-pager-view";
 
 interface ConversationItem {
   id: string;
@@ -288,6 +289,7 @@ export default function MessagesScreen() {
   >([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
+  const pagerRef = useRef<PagerView>(null);
 
   const transformConversation = useCallback(
     (conv: Conversation): ConversationItem | null => {
@@ -369,7 +371,15 @@ export default function MessagesScreen() {
 
   const handleTabPress = useCallback((index: number) => {
     setActiveTab(index);
+    pagerRef.current?.setPage(index);
   }, []);
+
+  const handlePageSelected = useCallback(
+    (e: { nativeEvent: { position: number } }) => {
+      setActiveTab(e.nativeEvent.position);
+    },
+    [],
+  );
 
   if (isLoading) {
     return (
@@ -476,34 +486,43 @@ export default function MessagesScreen() {
         </Pressable>
       </View>
 
-      {/* Tab Content */}
-      {activeTab === 0 && (
-        <ConversationList
-          conversations={inboxConversations}
-          isRefreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          onChatPress={handleChatPress}
-          onProfilePress={handleProfilePress}
-          emptyTitle="No Messages"
-          emptyDescription="Messages from people you follow will appear here"
-          emptyIcon={Inbox}
-          router={router}
-        />
-      )}
-      {activeTab === 1 && (
-        <ConversationList
-          conversations={spamConversations}
-          isRefreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          onChatPress={handleChatPress}
-          onProfilePress={handleProfilePress}
-          emptyTitle="No Message Requests"
-          emptyDescription="Messages from people you don't follow will appear here"
-          emptyIcon={ShieldAlert}
-          router={router}
-        />
-      )}
-      {activeTab === 2 && <SneakyLynkContent router={router} />}
+      {/* Swipeable Tab Content */}
+      <PagerView
+        ref={pagerRef}
+        style={{ flex: 1 }}
+        initialPage={0}
+        onPageSelected={handlePageSelected}
+      >
+        <View key="inbox" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={inboxConversations}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            emptyTitle="No Messages"
+            emptyDescription="Messages from people you follow will appear here"
+            emptyIcon={Inbox}
+            router={router}
+          />
+        </View>
+        <View key="requests" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={spamConversations}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            emptyTitle="No Message Requests"
+            emptyDescription="Messages from people you don't follow will appear here"
+            emptyIcon={ShieldAlert}
+            router={router}
+          />
+        </View>
+        <View key="lynks" style={{ flex: 1 }}>
+          <SneakyLynkContent router={router} />
+        </View>
+      </PagerView>
     </View>
   );
 }
