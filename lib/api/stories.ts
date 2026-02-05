@@ -181,21 +181,56 @@ export const storiesApi = {
     }
   },
   /**
-   * Delete story
+   * Delete story (only owner can delete)
    */
   async deleteStory(storyId: string) {
     try {
       console.log("[Stories] deleteStory:", storyId);
 
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Only delete if user owns the story
       const { error } = await supabase
         .from(DB.stories.table)
         .delete()
-        .eq(DB.stories.id, storyId);
+        .eq(DB.stories.id, storyId)
+        .eq(DB.stories.authorId, userId);
 
       if (error) throw error;
       return { success: true };
     } catch (error) {
       console.error("[Stories] deleteStory error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update story (only owner can update)
+   */
+  async updateStory(storyId: string, updates: { visibility?: string }) {
+    try {
+      console.log("[Stories] updateStory:", storyId);
+
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from(DB.stories.table)
+        .update({
+          ...(updates.visibility && {
+            [DB.stories.visibility]: updates.visibility,
+          }),
+        })
+        .eq(DB.stories.id, storyId)
+        .eq(DB.stories.authorId, userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error("[Stories] updateStory error:", error);
       throw error;
     }
   },

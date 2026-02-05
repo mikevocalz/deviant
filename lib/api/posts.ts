@@ -390,13 +390,16 @@ export const postsApi = {
   },
 
   /**
-   * Update post
+   * Update post (only owner can update)
    */
   async updatePost(
     postId: string,
     updates: { content?: string; location?: string },
   ) {
     try {
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
       const { data, error } = await supabase
         .from(DB.posts.table)
         .update({
@@ -406,8 +409,10 @@ export const postsApi = {
           ...(updates.location !== undefined && {
             [DB.posts.location]: updates.location,
           }),
+          [DB.posts.updatedAt]: new Date().toISOString(),
         })
         .eq(DB.posts.id, postId)
+        .eq(DB.posts.authorId, parseInt(userId))
         .select()
         .single();
 
@@ -420,23 +425,33 @@ export const postsApi = {
   },
 
   /**
-   * Delete post
+   * Delete post (only owner can delete)
    */
   async deletePost(postId: string) {
     try {
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
       // Delete media first
       await supabase
         .from(DB.postsMedia.table)
         .delete()
         .eq(DB.postsMedia.parentId, postId);
 
-      // Delete post
+      // Delete post (only if user owns it)
       const { error } = await supabase
         .from(DB.posts.table)
         .delete()
-        .eq(DB.posts.id, postId);
+        .eq(DB.posts.id, postId)
+        .eq(DB.posts.authorId, parseInt(userId));
 
       if (error) throw error;
+
+      // Decrement user posts count
+      await supabase.rpc("decrement_posts_count", {
+        user_id: parseInt(userId),
+      });
+
       return { success: true };
     } catch (error) {
       console.error("[Posts] deletePost error:", error);

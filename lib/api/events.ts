@@ -312,10 +312,17 @@ export const eventsApi = {
   },
 
   /**
-   * Update event
+   * Update event (only host or co-organizer can update)
    */
   async updateEvent(eventId: string, updates: any) {
     try {
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Check if user is host or co-organizer
+      const canEdit = await this.canEditEvent(eventId, userId);
+      if (!canEdit) throw new Error("Not authorized to edit this event");
+
       const updateData: any = {};
       if (updates.title) updateData[DB.events.title] = updates.title;
       if (updates.description)
@@ -345,29 +352,183 @@ export const eventsApi = {
   },
 
   /**
-   * Delete event
+   * Delete event (only host can delete)
    */
   async deleteEvent(eventId: string) {
     try {
       console.log("[Events] deleteEvent:", eventId);
 
-      // Delete RSVPs first
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Delete co-organizers first
+      await supabase
+        .from("event_co_organizers")
+        .delete()
+        .eq("event_id", parseInt(eventId));
+
+      // Delete RSVPs
       await supabase
         .from(DB.eventRsvps.table)
         .delete()
         .eq(DB.eventRsvps.eventId, parseInt(eventId));
 
-      // Delete event
+      // Delete event (only if user is host)
       const { error } = await supabase
         .from(DB.events.table)
         .delete()
-        .eq(DB.events.id, parseInt(eventId));
+        .eq(DB.events.id, parseInt(eventId))
+        .eq(DB.events.hostId, userId);
 
       if (error) throw error;
       return { success: true };
     } catch (error) {
       console.error("[Events] deleteEvent error:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Check if user can edit event (is host or co-organizer)
+   */
+  async canEditEvent(eventId: string, userId: string): Promise<boolean> {
+    try {
+      // Check if user is host
+      const { data: event } = await supabase
+        .from(DB.events.table)
+        .select(DB.events.hostId)
+        .eq(DB.events.id, parseInt(eventId))
+        .single();
+
+      if (event && event[DB.events.hostId] === userId) {
+        return true;
+      }
+
+      // Check if user is co-organizer
+      const { data: coOrg } = await supabase
+        .from("event_co_organizers")
+        .select("id")
+        .eq("event_id", parseInt(eventId))
+        .eq("user_id", parseInt(userId))
+        .single();
+
+      return !!coOrg;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  /**
+   * Add co-organizer to event (only host can add)
+   */
+  async addCoOrganizer(eventId: string, coOrganizerUserId: string) {
+    try {
+      console.log("[Events] addCoOrganizer:", eventId, coOrganizerUserId);
+
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Verify user is the host
+      const { data: event } = await supabase
+        .from(DB.events.table)
+        .select(DB.events.hostId)
+        .eq(DB.events.id, parseInt(eventId))
+        .single();
+
+      if (!event || event[DB.events.hostId] !== userId) {
+        throw new Error("Only the host can add co-organizers");
+      }
+
+      // Add co-organizer
+      const { data, error } = await supabase
+        .from("event_co_organizers")
+        .insert({
+          event_id: parseInt(eventId),
+          user_id: parseInt(coOrganizerUserId),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { success: true, data };
+    } catch (error) {
+      console.error("[Events] addCoOrganizer error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Remove co-organizer from event (only host can remove)
+   */
+  async removeCoOrganizer(eventId: string, coOrganizerUserId: string) {
+    try {
+      console.log("[Events] removeCoOrganizer:", eventId, coOrganizerUserId);
+
+      const userId = getCurrentUserId();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Verify user is the host
+      const { data: event } = await supabase
+        .from(DB.events.table)
+        .select(DB.events.hostId)
+        .eq(DB.events.id, parseInt(eventId))
+        .single();
+
+      if (!event || event[DB.events.hostId] !== userId) {
+        throw new Error("Only the host can remove co-organizers");
+      }
+
+      // Remove co-organizer
+      const { error } = await supabase
+        .from("event_co_organizers")
+        .delete()
+        .eq("event_id", parseInt(eventId))
+        .eq("user_id", parseInt(coOrganizerUserId));
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error("[Events] removeCoOrganizer error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get co-organizers for an event
+   */
+  async getCoOrganizers(eventId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("event_co_organizers")
+        .select(
+          `
+          user:user_id(
+            id,
+            username,
+            first_name,
+            avatar:avatar_id(url)
+          )
+        `,
+        )
+        .eq("event_id", parseInt(eventId));
+
+      if (error) {
+        console.log(
+          "[Events] getCoOrganizers - table may not exist:",
+          error.message,
+        );
+        return [];
+      }
+
+      return (data || []).map((co: any) => ({
+        id: String(co.user?.id),
+        username: co.user?.username || "unknown",
+        name: co.user?.first_name || co.user?.username || "Unknown",
+        avatar: co.user?.avatar?.url || "",
+      }));
+    } catch (error) {
+      console.error("[Events] getCoOrganizers error:", error);
+      return [];
     }
   },
 
