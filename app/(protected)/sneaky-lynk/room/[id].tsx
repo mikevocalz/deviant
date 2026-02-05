@@ -80,14 +80,18 @@ export default function SneakyLynkRoomScreen() {
   });
 
   // Reset store on mount and set initial state based on host status
+  const hasInitializedRef = useRef(false);
   useEffect(() => {
+    if (hasInitializedRef.current) return;
+    hasInitializedRef.current = true;
+
     reset();
     const isHostUser = mockSpace?.host.id === currentUserMock.id;
     if (isHostUser) {
       setIsMuted(false);
       setIsVideoOn(true);
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, mockSpace, reset, setIsMuted, setIsVideoOn]);
 
   // Derived state based on mock vs real
   const isHost = isMockRoom
