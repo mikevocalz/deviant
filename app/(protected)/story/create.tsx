@@ -430,8 +430,16 @@ export default function CreateStoryScreen() {
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                   />
-                  {/* Instagram-style vertical toolbar on right */}
-                  <View className="absolute right-3 top-10 gap-3">
+                  {/* Tap anywhere to open editor (background layer) */}
+                  <Pressable
+                    onPress={() => handleEditImage(currentIndex)}
+                    className="absolute inset-0"
+                  />
+                  {/* Instagram-style vertical toolbar on right (on top of background) */}
+                  <View
+                    className="absolute right-3 top-10 gap-3"
+                    style={{ zIndex: 10 }}
+                  >
                     {CREATIVE_TOOLS.map((tool) => (
                       <Pressable
                         key={tool.id}
@@ -472,11 +480,6 @@ export default function CreateStoryScreen() {
                       </Pressable>
                     ))}
                   </View>
-                  {/* Tap anywhere hint */}
-                  <Pressable
-                    onPress={() => handleEditImage(currentIndex)}
-                    className="absolute inset-0"
-                  />
                 </View>
               )}
             </View>
