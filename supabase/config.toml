@@ -30,3 +30,24 @@ verify_jwt = false
 
 [functions.create-story]
 verify_jwt = false
+
+[functions.update-post]
+verify_jwt = false
+
+[functions.delete-post]
+verify_jwt = false
+
+[functions.delete-story]
+verify_jwt = false
+
+[functions.update-avatar]
+verify_jwt = false
+
+[functions.toggle-block]
+verify_jwt = false
+
+[functions.create-conversation]
+verify_jwt = false
+
+[functions.create-test-user]
+verify_jwt = false

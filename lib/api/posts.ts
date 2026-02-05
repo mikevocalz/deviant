@@ -335,34 +335,30 @@ export const postsApi = {
   },
 
   /**
-   * Update post (only owner can update)
+   * Update post via Edge Function (only owner can update)
    */
   async updatePost(
     postId: string,
     updates: { content?: string; location?: string },
   ) {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const postIdInt = parseInt(postId);
 
-      const { data, error } = await supabase
-        .from(DB.posts.table)
-        .update({
-          ...(updates.content !== undefined && {
-            [DB.posts.content]: updates.content,
-          }),
-          ...(updates.location !== undefined && {
-            [DB.posts.location]: updates.location,
-          }),
-          [DB.posts.updatedAt]: new Date().toISOString(),
-        })
-        .eq(DB.posts.id, postId)
-        .eq(DB.posts.authorId, userId)
-        .select()
-        .single();
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { post: any };
+        error?: { code: string; message: string };
+      }>("update-post", {
+        body: { postId: postIdInt, ...updates },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) throw error;
-      return data;
+      if (error) throw new Error(error.message || "Failed to update post");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to update post");
+
+      return response.data?.post;
     } catch (error) {
       console.error("[Posts] updatePost error:", error);
       throw error;
@@ -370,32 +366,25 @@ export const postsApi = {
   },
 
   /**
-   * Delete post (only owner can delete)
+   * Delete post via Edge Function (only owner can delete)
    */
   async deletePost(postId: string) {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const postIdInt = parseInt(postId);
 
-      // Delete media first
-      await supabase
-        .from(DB.postsMedia.table)
-        .delete()
-        .eq(DB.postsMedia.parentId, postId);
-
-      // Delete post (only if user owns it)
-      const { error } = await supabase
-        .from(DB.posts.table)
-        .delete()
-        .eq(DB.posts.id, postId)
-        .eq(DB.posts.authorId, userId);
-
-      if (error) throw error;
-
-      // Decrement user posts count
-      await supabase.rpc("decrement_posts_count", {
-        user_id: userId,
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { success: boolean };
+        error?: { code: string; message: string };
+      }>("delete-post", {
+        body: { postId: postIdInt },
+        headers: { Authorization: `Bearer ${token}` },
       });
+
+      if (error) throw new Error(error.message || "Failed to delete post");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to delete post");
 
       return { success: true };
     } catch (error) {

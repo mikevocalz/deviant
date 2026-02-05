@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
 
 export const blocksApi = {
   /**
@@ -54,24 +55,27 @@ export const blocksApi = {
   },
 
   /**
-   * Block a user
+   * Block a user via Edge Function
    */
   async blockUser(targetUserId: string) {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const targetUserIdInt = parseInt(targetUserId);
 
-      const { data, error } = await supabase
-        .from("blocks")
-        .insert({
-          blocker_id: userId,
-          blocked_id: parseInt(targetUserId),
-        })
-        .select()
-        .single();
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { blocked: boolean };
+        error?: { code: string; message: string };
+      }>("toggle-block", {
+        body: { targetUserId: targetUserIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) throw error;
-      return { success: true, data };
+      if (error) throw new Error(error.message || "Failed to block user");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to block user");
+
+      return { success: true, blocked: response.data?.blocked };
     } catch (error) {
       console.error("[Blocks] blockUser error:", error);
       throw error;
@@ -79,17 +83,27 @@ export const blocksApi = {
   },
 
   /**
-   * Unblock a user
+   * Unblock a user via Edge Function
    */
-  async unblockUser(blockId: string) {
+  async unblockUser(targetUserId: string) {
     try {
-      const { error } = await supabase
-        .from("blocks")
-        .delete()
-        .eq("id", blockId);
+      const token = await requireBetterAuthToken();
+      const targetUserIdInt = parseInt(targetUserId);
 
-      if (error) throw error;
-      return { success: true };
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { blocked: boolean };
+        error?: { code: string; message: string };
+      }>("toggle-block", {
+        body: { targetUserId: targetUserIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) throw new Error(error.message || "Failed to unblock user");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to unblock user");
+
+      return { success: true, blocked: response.data?.blocked };
     } catch (error) {
       console.error("[Blocks] unblockUser error:", error);
       throw error;

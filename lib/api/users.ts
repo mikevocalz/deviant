@@ -2,6 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { updateProfilePrivileged } from "../supabase/privileged";
+import { requireBetterAuthToken } from "../auth/identity";
 
 export const usersApi = {
   /**
@@ -374,27 +375,23 @@ export const usersApi = {
    */
   async updateAvatar(avatarUrl: string) {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      console.log("[Users] updateAvatar via Edge Function");
 
-      console.log("[Users] updateAvatar for userId:", userId);
+      const token = await requireBetterAuthToken();
 
-      // First create media record
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .insert({ url: avatarUrl })
-        .select("id")
-        .single();
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { success: boolean; avatarUrl: string };
+        error?: { code: string; message: string };
+      }>("update-avatar", {
+        body: { avatarUrl },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (mediaError) throw mediaError;
+      if (error) throw new Error(error.message || "Failed to update avatar");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to update avatar");
 
-      // Then update user avatar
-      const { error } = await supabase
-        .from(DB.users.table)
-        .update({ [DB.users.avatarId]: mediaData.id })
-        .eq(DB.users.id, userId);
-
-      if (error) throw error;
       return { success: true, avatarUrl };
     } catch (error) {
       console.error("[Users] updateAvatar error:", error);

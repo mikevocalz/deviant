@@ -188,63 +188,30 @@ export const messagesApi = {
   },
 
   /**
-   * Create or get direct conversation
+   * Create or get direct conversation via Edge Function
    */
   async getOrCreateConversation(otherUserId: string) {
     try {
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const otherUserIdInt = parseInt(otherUserId);
 
-      // Check if conversation exists between these two users
-      const { data: existingConvs } = await supabase
-        .from(DB.conversationsRels.table)
-        .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, visitorId);
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { conversationId: string; isNew: boolean };
+        error?: { code: string; message: string };
+      }>("create-conversation", {
+        body: { otherUserId: otherUserIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (existingConvs && existingConvs.length > 0) {
-        // Check if any of these conversations include the other user
-        for (const conv of existingConvs) {
-          const { data: otherParticipant } = await supabase
-            .from(DB.conversationsRels.table)
-            .select("*")
-            .eq(
-              DB.conversationsRels.parentId,
-              conv[DB.conversationsRels.parentId],
-            )
-            .eq(DB.conversationsRels.usersId, parseInt(otherUserId))
-            .single();
+      if (error)
+        throw new Error(error.message || "Failed to create conversation");
+      if (!response?.ok)
+        throw new Error(
+          response?.error?.message || "Failed to create conversation",
+        );
 
-          if (otherParticipant) {
-            return String(conv[DB.conversationsRels.parentId]);
-          }
-        }
-      }
-
-      // Create new conversation
-      const { data: newConv, error } = await supabase
-        .from(DB.conversations.table)
-        .insert({
-          [DB.conversations.isGroup]: false,
-          [DB.conversations.lastMessageAt]: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Add participants
-      await supabase.from(DB.conversationsRels.table).insert([
-        {
-          [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
-          [DB.conversationsRels.usersId]: visitorId,
-        },
-        {
-          [DB.conversationsRels.parentId]: newConv[DB.conversations.id],
-          [DB.conversationsRels.usersId]: parseInt(otherUserId),
-        },
-      ]);
-
-      return String(newConv[DB.conversations.id]);
+      return response.data?.conversationId || "";
     } catch (error) {
       console.error("[Messages] getOrCreateConversation error:", error);
       throw error;

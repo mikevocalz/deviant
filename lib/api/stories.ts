@@ -166,23 +166,28 @@ export const storiesApi = {
     }
   },
   /**
-   * Delete story (only owner can delete)
+   * Delete story via Edge Function (only owner can delete)
    */
   async deleteStory(storyId: string) {
     try {
-      console.log("[Stories] deleteStory:", storyId);
+      console.log("[Stories] deleteStory via Edge Function:", storyId);
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const storyIdInt = parseInt(storyId);
 
-      // Only delete if user owns the story
-      const { error } = await supabase
-        .from(DB.stories.table)
-        .delete()
-        .eq(DB.stories.id, storyId)
-        .eq(DB.stories.authorId, userId);
+      const { data: response, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { success: boolean };
+        error?: { code: string; message: string };
+      }>("delete-story", {
+        body: { storyId: storyIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) throw error;
+      if (error) throw new Error(error.message || "Failed to delete story");
+      if (!response?.ok)
+        throw new Error(response?.error?.message || "Failed to delete story");
+
       return { success: true };
     } catch (error) {
       console.error("[Stories] deleteStory error:", error);
