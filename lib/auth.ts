@@ -64,8 +64,7 @@ export const auth = betterAuth({
       rpID: "dvnt.app",
       rpName: "DVNT",
       origin:
-        process.env.EXPO_PUBLIC_AUTH_URL ||
-        "https://server-zeta-lovat.vercel.app",
+        process.env.EXPO_PUBLIC_AUTH_URL || "https://dvnt-auth-new.vercel.app",
       authenticatorSelection: {
         authenticatorAttachment: "platform",
         userVerification: "required",
