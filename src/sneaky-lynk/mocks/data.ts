@@ -50,12 +50,34 @@ export const mockUsers: SneakyUser[] = [
   },
 ];
 
+// Current user mock (for testing as host)
+export const currentUserMock: SneakyUser = {
+  id: "current-user",
+  username: "you",
+  displayName: "You (Host)",
+  avatar: "https://i.pravatar.cc/150?u=currentuser",
+  isVerified: true,
+};
+
 export const mockSpaces: MockSpace[] = [
+  {
+    id: "my-room",
+    title: "Your Test Room (Host Mode)",
+    topic: "Technology",
+    description:
+      "Test being a host with video enabled. You have full controls!",
+    isLive: true,
+    hasVideo: true,
+    listeners: 42,
+    host: currentUserMock,
+    speakers: [mockUsers[1], mockUsers[2]],
+  },
   {
     id: "space-1",
     title: "Building the Future of AI",
     topic: "Technology",
-    description: "Join us as we discuss the latest developments in artificial intelligence and machine learning.",
+    description:
+      "Join us as we discuss the latest developments in artificial intelligence and machine learning.",
     isLive: true,
     hasVideo: true,
     listeners: 1247,
@@ -66,7 +88,8 @@ export const mockSpaces: MockSpace[] = [
     id: "space-2",
     title: "Late Night Music Vibes",
     topic: "Music",
-    description: "Chill beats and good conversations. Share your favorite tracks!",
+    description:
+      "Chill beats and good conversations. Share your favorite tracks!",
     isLive: true,
     hasVideo: false,
     listeners: 892,
@@ -77,7 +100,8 @@ export const mockSpaces: MockSpace[] = [
     id: "space-3",
     title: "Startup Funding 101",
     topic: "Business",
-    description: "Learn how to pitch to investors and secure your first round of funding.",
+    description:
+      "Learn how to pitch to investors and secure your first round of funding.",
     isLive: true,
     hasVideo: true,
     listeners: 456,
@@ -88,7 +112,8 @@ export const mockSpaces: MockSpace[] = [
     id: "space-4",
     title: "Design Systems Deep Dive",
     topic: "Design",
-    description: "Exploring component libraries, tokens, and scalable design patterns.",
+    description:
+      "Exploring component libraries, tokens, and scalable design patterns.",
     isLive: true,
     hasVideo: false,
     listeners: 234,
@@ -97,5 +122,12 @@ export const mockSpaces: MockSpace[] = [
   },
 ];
 
-export const TOPICS = ["All", "Technology", "Music", "Business", "Design", "Community"] as const;
+export const TOPICS = [
+  "All",
+  "Technology",
+  "Music",
+  "Business",
+  "Design",
+  "Community",
+] as const;
 export type Topic = (typeof TOPICS)[number];

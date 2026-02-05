@@ -8,7 +8,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import { useState, useEffect, useCallback } from "react";
-import { mockSpaces, mockUsers } from "@/src/sneaky-lynk/mocks/data";
+import {
+  mockSpaces,
+  mockUsers,
+  currentUserMock,
+} from "@/src/sneaky-lynk/mocks/data";
 import {
   VideoStage,
   SpeakerGrid,
@@ -31,11 +35,14 @@ export default function SneakyLynkRoomScreen() {
   // Find mock space
   const space = mockSpaces.find((s) => s.id === id);
 
+  // Check if current user is the host
+  const isHost = space?.host.id === currentUserMock.id;
+
   // Room state
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("connected");
-  const [isMuted, setIsMuted] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isMuted, setIsMuted] = useState(isHost ? false : true); // Host starts unmuted
+  const [isVideoOn, setIsVideoOn] = useState(isHost ? true : false); // Host starts with video on
   const [isHandRaised, setIsHandRaised] = useState(false);
   const [activeSpeakerId, setActiveSpeakerId] = useState<string | null>(null);
   const [showEjectModal, setShowEjectModal] = useState(false);
@@ -140,6 +147,11 @@ export default function SneakyLynkRoomScreen() {
               <View className="w-2 h-2 rounded-full bg-red-500" />
               <Text className="text-red-500 text-xs font-bold">LIVE</Text>
             </View>
+            {isHost && (
+              <View className="flex-row items-center bg-primary/20 px-2 py-1 rounded-full">
+                <Text className="text-primary text-xs font-bold">HOST</Text>
+              </View>
+            )}
             <View className="flex-row items-center gap-1">
               <Users size={14} color="#6B7280" />
               <Text className="text-muted-foreground text-sm">
