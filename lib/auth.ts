@@ -58,8 +58,19 @@ export const auth = betterAuth({
   // Expo plugin for mobile auth
   plugins: [expo(), username()],
 
-  // User additional fields to match existing Supabase users table
+  // Account linking configuration
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google", "apple"],
+    },
+  },
+
+  // User configuration
   user: {
+    deleteUser: {
+      enabled: true,
+    },
     additionalFields: {
       username: {
         type: "string",
