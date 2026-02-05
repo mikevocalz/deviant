@@ -26,6 +26,7 @@ import {
   Megaphone,
   Bug,
   Trash2,
+  Fingerprint,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -77,6 +78,47 @@ export default function SettingsScreenAndroid() {
   }, [navigation, colors, router]);
 
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSettingUpPasskey, setIsSettingUpPasskey] = useState(false);
+  const [hasPasskey, setHasPasskey] = useState(false);
+
+  // Check if user has passkey set up
+  const checkPasskeys = async () => {
+    try {
+      const { data } = await authClient.passkey.listUserPasskeys();
+      setHasPasskey(!!(data && data.length > 0));
+    } catch (e) {
+      console.log("[Settings] Could not check passkeys", e);
+    }
+  };
+
+  useLayoutEffect(() => {
+    checkPasskeys();
+  }, []);
+
+  const handleSetupPasskey = async () => {
+    setIsSettingUpPasskey(true);
+    try {
+      const { error } = await authClient.passkey.addPasskey({
+        name: "My Device",
+      });
+      if (error) {
+        toast.error("Failed to set up biometrics", {
+          description: error.message || "Please try again",
+        });
+      } else {
+        toast.success("Biometrics enabled", {
+          description: "You can now sign in with fingerprint",
+        });
+        setHasPasskey(true);
+      }
+    } catch (err: any) {
+      toast.error("Error", {
+        description: err?.message || "Something went wrong",
+      });
+    } finally {
+      setIsSettingUpPasskey(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -171,6 +213,39 @@ export default function SettingsScreenAndroid() {
               label="Blocked"
               onPress={() => router.push("/settings/blocked" as any)}
             />
+          </SettingsSection>
+
+          {/* Security */}
+          <SettingsSection title="Security">
+            <Pressable
+              onPress={handleSetupPasskey}
+              disabled={isSettingUpPasskey || hasPasskey}
+              className="flex-row items-center justify-between px-4 py-3 active:bg-secondary/50"
+            >
+              <View className="flex-row items-center gap-3">
+                <Fingerprint
+                  size={22}
+                  color={hasPasskey ? "#22c55e" : "#666"}
+                />
+                <View>
+                  <Text className="text-base text-foreground">
+                    {hasPasskey ? "Biometrics Enabled" : "Set Up Biometrics"}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    {hasPasskey
+                      ? "Sign in quickly with fingerprint"
+                      : "Use fingerprint to sign in"}
+                  </Text>
+                </View>
+              </View>
+              {hasPasskey ? (
+                <CheckCircle size={20} color="#22c55e" />
+              ) : isSettingUpPasskey ? (
+                <Text className="text-sm text-muted-foreground">
+                  Setting up...
+                </Text>
+              ) : null}
+            </Pressable>
           </SettingsSection>
 
           {/* Notifications & Interactions */}
