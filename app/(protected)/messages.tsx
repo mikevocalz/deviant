@@ -27,8 +27,8 @@ import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
-import { mockSpaces, TOPICS, type Topic } from "@/src/sneaky-lynk/mocks/data";
-import { TopicPills, LiveRoomCard } from "@/src/sneaky-lynk/ui";
+import { mockSpaces } from "@/src/sneaky-lynk/mocks/data";
+import { LiveRoomCard } from "@/src/sneaky-lynk/ui";
 
 interface ConversationItem {
   id: string;
@@ -156,13 +156,7 @@ function SneakyLynkContent({
 }: {
   router: ReturnType<typeof useRouter>;
 }) {
-  const [selectedTopic, setSelectedTopic] = useState<Topic>("All");
-
-  const liveSpaces = mockSpaces.filter((s) => s.isLive);
-  const filteredSpaces =
-    selectedTopic === "All"
-      ? liveSpaces
-      : liveSpaces.filter((space) => space.topic === selectedTopic);
+  const liveLynks = mockSpaces.filter((s) => s.isLive);
 
   const handleRoomPress = useCallback(
     (roomId: string) => {
@@ -171,10 +165,9 @@ function SneakyLynkContent({
     [router],
   );
 
-  const handleCreateRoom = useCallback(() => {
-    // TODO: Implement room creation
-    console.log("[SneakyLynk] Create room pressed");
-  }, []);
+  const handleCreateLynk = useCallback(() => {
+    router.push("/(protected)/sneaky-lynk/create" as any);
+  }, [router]);
 
   return (
     <View className="flex-1">
@@ -183,57 +176,29 @@ function SneakyLynkContent({
         <View className="flex-row items-center gap-2.5">
           <Radio size={28} color="#3EA4E5" />
           <Text className="text-[28px] font-extrabold text-foreground tracking-tight">
-            Spaces
+            Lynks
           </Text>
         </View>
         <Pressable
-          onPress={handleCreateRoom}
+          onPress={handleCreateLynk}
           className="w-10 h-10 rounded-full bg-primary items-center justify-center"
         >
           <Plus size={20} color="#fff" />
         </Pressable>
       </View>
 
-      {/* Topic Pills */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingVertical: 16,
-          gap: 10,
-        }}
-      >
-        {TOPICS.map((topic) => (
-          <Pressable
-            key={topic}
-            onPress={() => setSelectedTopic(topic)}
-            className={`px-[18px] py-2.5 rounded-[20px] mr-2.5 ${
-              selectedTopic === topic ? "bg-primary" : "bg-secondary"
-            }`}
-          >
-            <Text
-              className={`text-sm font-semibold ${
-                selectedTopic === topic ? "text-white" : "text-muted-foreground"
-              }`}
-            >
-              {topic}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
-
-      {/* Live Spaces List */}
+      {/* Live Lynks List */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 16,
+          paddingTop: 16,
           paddingBottom: 20,
           gap: 16,
         }}
       >
-        {filteredSpaces.length > 0 ? (
-          filteredSpaces.map((space) => (
+        {liveLynks.length > 0 ? (
+          liveLynks.map((space) => (
             <LiveRoomCard
               key={space.id}
               space={space}
@@ -244,10 +209,10 @@ function SneakyLynkContent({
           <View className="items-center justify-center pt-20 gap-3">
             <Radio size={48} color="#6B7280" />
             <Text className="text-lg font-semibold text-foreground">
-              No Live Spaces
+              No Live Lynks
             </Text>
             <Text className="text-sm text-muted-foreground">
-              Check back later for live conversations
+              Check back later or start your own!
             </Text>
           </View>
         )}
