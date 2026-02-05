@@ -525,7 +525,7 @@ export default function CreateScreen() {
           />
         </View>
 
-        {/* NSFW Toggle - only show when media is selected */}
+        {/* Content Rating Toggle - only show when media is selected */}
         {selectedMedia.length > 0 && (
           <View
             style={{
@@ -544,19 +544,26 @@ export default function CreateScreen() {
               borderColor: isNSFW ? "rgba(239, 68, 68, 0.3)" : "#333",
             }}
           >
-            <View style={{ flex: 1 }}>
-              <Text
-                style={{
-                  color: isNSFW ? "#ef4444" : "#fff",
-                  fontWeight: "600",
-                  fontSize: 15,
-                }}
-              >
-                NSFW Content
+            <View
+              style={{ flex: 1, flexDirection: "row", alignItems: "center" }}
+            >
+              <Text style={{ fontSize: 20, marginRight: 8 }}>
+                {isNSFW ? "😈" : "😇"}
               </Text>
-              <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>
-                Mark as adult/sensitive content
-              </Text>
+              <View>
+                <Text
+                  style={{
+                    color: isNSFW ? "#ef4444" : "#fff",
+                    fontWeight: "600",
+                    fontSize: 15,
+                  }}
+                >
+                  {isNSFW ? "Spicy" : "Sweet"}
+                </Text>
+                <Text style={{ color: "#666", fontSize: 12, marginTop: 2 }}>
+                  {isNSFW ? "Mature content warning" : "All audiences"}
+                </Text>
+              </View>
             </View>
             <Switch
               value={isNSFW}

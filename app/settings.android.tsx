@@ -276,13 +276,13 @@ export default function SettingsScreenAndroid() {
             />
             <View className="flex-row items-center justify-between px-4 py-3">
               <View className="flex-row items-center gap-3">
-                <EyeOff size={22} color="#666" />
+                <Text style={{ fontSize: 22 }}>😈</Text>
                 <View>
                   <Text className="text-base text-foreground">
-                    Show NSFW Content
+                    Show Spicy Content
                   </Text>
                   <Text className="text-xs text-muted-foreground">
-                    Display sensitive content in feed
+                    Display mature content in feed
                   </Text>
                 </View>
               </View>

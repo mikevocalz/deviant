@@ -235,33 +235,38 @@ export default function EditPostScreen() {
             </View>
           </View>
 
-          {/* NSFW Toggle */}
+          {/* Content Rating Toggle */}
           <View
             className="flex-row items-center justify-between p-4 rounded-xl"
             style={{
               backgroundColor: colors.card,
               borderWidth: 1,
-              borderColor: colors.border,
+              borderColor: isNSFW ? "rgba(239, 68, 68, 0.3)" : colors.border,
             }}
           >
-            <View className="flex-1">
-              <Text
-                className="text-sm font-medium mb-1"
-                style={{ color: colors.foreground }}
-              >
-                Mark as NSFW
+            <View className="flex-row items-center flex-1">
+              <Text style={{ fontSize: 20, marginRight: 8 }}>
+                {isNSFW ? "😈" : "😇"}
               </Text>
-              <Text
-                className="text-xs"
-                style={{ color: colors.mutedForeground }}
-              >
-                Sensitive content that requires age verification
-              </Text>
+              <View>
+                <Text
+                  className="text-sm font-medium mb-1"
+                  style={{ color: isNSFW ? "#ef4444" : colors.foreground }}
+                >
+                  {isNSFW ? "Spicy" : "Sweet"}
+                </Text>
+                <Text
+                  className="text-xs"
+                  style={{ color: colors.mutedForeground }}
+                >
+                  {isNSFW ? "Mature content warning" : "All audiences"}
+                </Text>
+              </View>
             </View>
             <Switch
               value={isNSFW}
               onValueChange={setIsNSFW}
-              trackColor={{ false: colors.muted, true: colors.primary }}
+              trackColor={{ false: colors.muted, true: "#ef4444" }}
               thumbColor="#fff"
               disabled={true}
             />

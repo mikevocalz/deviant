@@ -454,11 +454,7 @@ function FeedPostComponent({
                     </Text>
                   </Pressable>
                 )}
-                {isNSFW && (
-                  <View className="h-3.5 w-3.5 items-center justify-center rounded-full bg-[#FC253A]">
-                    <Text className="text-[8px] text-white">✓</Text>
-                  </View>
-                )}
+                {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
               </View>
               {location && (
                 <Text className="text-xs text-muted-foreground">

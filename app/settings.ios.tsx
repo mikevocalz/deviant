@@ -282,13 +282,13 @@ export default function SettingsScreenIOS() {
             <View className="ml-12 h-px bg-border" />
             <View className="flex-row items-center justify-between bg-card px-4 py-3">
               <View className="flex-row items-center gap-3">
-                <EyeOff size={20} color="#666" />
+                <Text style={{ fontSize: 20 }}>😈</Text>
                 <View>
                   <Text className="text-base text-foreground">
-                    Show NSFW Content
+                    Show Spicy Content
                   </Text>
                   <Text className="text-xs text-muted-foreground">
-                    Display sensitive content in feed
+                    Display mature content in feed
                   </Text>
                 </View>
               </View>
