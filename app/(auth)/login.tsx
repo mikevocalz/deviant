@@ -41,10 +41,18 @@ export default function LoginScreen() {
       setIsSubmitting(true);
 
       try {
+        console.log("[Login] Attempting login for:", value.email);
         const { data, error } = await signIn.email({
           email: value.email,
           password: value.password,
         });
+
+        console.log(
+          "[Login] Response - data:",
+          JSON.stringify(data),
+          "error:",
+          JSON.stringify(error),
+        );
 
         if (error) {
           throw new Error(error.message || "Login failed");

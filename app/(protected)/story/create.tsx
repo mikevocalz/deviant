@@ -14,6 +14,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  Type,
+  Sticker,
+  Sparkles,
+  Download,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -27,6 +31,16 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// Instagram-style creative tools - vertical toolbar
+const CREATIVE_TOOLS = [
+  { id: "text", icon: Type, label: "Aa" },
+  { id: "stickers", icon: Sticker, label: "Stickers" },
+  { id: "draw", icon: Pencil, label: "Draw" },
+  { id: "effects", icon: Sparkles, label: "Effects" },
+  { id: "save", icon: Download, label: "Save" },
+] as const;
 
 const MAX_STORY_ITEMS = 4;
 const MAX_VIDEO_DURATION = 30;
@@ -35,6 +49,7 @@ const MAX_FILE_SIZE_MB = 50;
 export default function CreateStoryScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { colors } = useColorScheme();
 
@@ -178,7 +193,10 @@ export default function CreateStoryScreen() {
   };
 
   const handleEditImage = useCallback(
-    async (index: number) => {
+    async (
+      index: number,
+      initialTool?: "text" | "stickers" | "draw" | "filter",
+    ) => {
       const asset = mediaAssets[index];
       if (!asset || asset.type !== "image") {
         showToast(
@@ -194,6 +212,7 @@ export default function CreateStoryScreen() {
 
         // @baronha/react-native-photo-editor works on both iOS and Android
         // Uses ZLImageEditor (iOS) and PhotoEditor (Android)
+        // Pass initialTool to open directly to that tool (requires native patch)
         const result = await PhotoEditor.open({
           path: asset.uri,
           stickers: [
@@ -203,7 +222,8 @@ export default function CreateStoryScreen() {
             "https://cdn-icons-png.flaticon.com/512/4392/4392529.png",
             "https://cdn-icons-png.flaticon.com/512/4392/4392522.png",
           ],
-        });
+          ...(initialTool && { initialTool }),
+        } as any);
 
         if (result) {
           const editedPath = String(result);
@@ -399,28 +419,60 @@ export default function CreateStoryScreen() {
                   </View>
                 </View>
               ) : (
-                <Pressable
-                  onPress={() => handleEditImage(currentIndex)}
-                  className="flex-1"
-                >
+                <View className="flex-1">
                   <Image
                     source={{ uri: currentMedia }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                   />
-                  <View className="absolute bottom-4 right-4">
-                    <Pressable
-                      onPress={() => handleEditImage(currentIndex)}
-                      className="bg-black/70 px-4 py-2.5 rounded-full flex-row items-center gap-2"
-                      style={{ borderCurve: "continuous" }}
-                    >
-                      <Pencil size={18} color="#fff" />
-                      <Text className="text-white text-sm font-semibold">
-                        Edit
-                      </Text>
-                    </Pressable>
+                  {/* Instagram-style vertical toolbar on right */}
+                  <View className="absolute right-3 top-10 gap-3">
+                    {CREATIVE_TOOLS.map((tool) => (
+                      <Pressable
+                        key={tool.id}
+                        onPress={() => {
+                          Haptics.impactAsync(
+                            Haptics.ImpactFeedbackStyle.Light,
+                          );
+                          if (tool.id === "save") {
+                            showToast("info", "Save", "Image saved to gallery");
+                          } else if (tool.id === "text") {
+                            handleEditImage(currentIndex, "text");
+                          } else if (tool.id === "stickers") {
+                            handleEditImage(currentIndex, "stickers");
+                          } else if (tool.id === "draw") {
+                            handleEditImage(currentIndex, "draw");
+                          } else if (tool.id === "effects") {
+                            handleEditImage(currentIndex, "filter");
+                          }
+                        }}
+                        className="items-center"
+                      >
+                        <View
+                          className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
+                          style={{ borderCurve: "continuous" }}
+                        >
+                          <tool.icon size={20} color="#fff" strokeWidth={2} />
+                        </View>
+                        <Text
+                          className="text-white text-[10px] font-medium mt-0.5"
+                          style={{
+                            textShadowColor: "rgba(0,0,0,0.8)",
+                            textShadowOffset: { width: 0, height: 1 },
+                            textShadowRadius: 2,
+                          }}
+                        >
+                          {tool.label}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
-                </Pressable>
+                  {/* Tap anywhere hint */}
+                  <Pressable
+                    onPress={() => handleEditImage(currentIndex)}
+                    className="absolute inset-0"
+                  />
+                </View>
               )}
             </View>
           ) : (

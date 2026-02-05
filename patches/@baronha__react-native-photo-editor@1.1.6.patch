@@ -1,5 +1,82 @@
+diff --git a/android/src/main/res/layout/photo_editor_view.xml b/android/src/main/res/layout/photo_editor_view.xml
+index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcfbdb16129 100644
+--- a/android/src/main/res/layout/photo_editor_view.xml
++++ b/android/src/main/res/layout/photo_editor_view.xml
+@@ -6,6 +6,7 @@
+   android:layout_width="match_parent"
+   android:layout_height="match_parent"
+   android:background="@color/tool_bg"
++  android:fitsSystemWindows="true"
+   app:layout_behavior="@string/appbar_scrolling_view_behavior">
+ 
+ 
+diff --git a/ios/PhotoEditor.swift b/ios/PhotoEditor.swift
+index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d190ac117 100644
+--- a/ios/PhotoEditor.swift
++++ b/ios/PhotoEditor.swift
+@@ -52,11 +52,14 @@ class PhotoEditor: NSObject, ZLEditImageControllerDelegate {
+         self.resolve = resolve;
+         self.reject = reject;
+         
++        // Initial tool to auto-select when editor opens
++        let initialTool = options["initialTool"] as? String
++        ZLImageEditorConfiguration.default().initialTool = initialTool
++        
+         // Stickers
+         let stickers = options["stickers"] as? [String] ?? []
+         ZLImageEditorConfiguration.default().imageStickerContainerView = StickerView(stickers: stickers)
+         
+-        
+         //Config
+         ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
+ 
+diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..5f784e8f9d3099dbbf4b20dc9f5c9931964de1df 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+@@ -265,6 +265,26 @@ public class ZLEditImageViewController: UIViewController {
+         if self.tools.contains(.filter) {
+             self.generateFilterImages()
+         }
++        
++        // Auto-select initial tool if specified
++        if let initialTool = ZLImageEditorConfiguration.default().initialTool {
++            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
++                switch initialTool {
++                case "text":
++                    self.showInputTextVC()
++                case "stickers":
++                    self.showImageStickerView()
++                case "draw":
++                    self.drawBtnClick()
++                case "filter":
++                    self.filterBtnClick()
++                default:
++                    break
++                }
++            }
++            // Clear the initial tool so it doesn't persist
++            ZLImageEditorConfiguration.default().initialTool = nil
++        }
+     }
+     
+     public override func viewDidLayoutSubviews() {
+diff --git a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+index b49b33d405ee2b6dcc962add20bb75c6163de1d8..95b26230e81003332230573b05e319e127270f99 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+@@ -111,6 +111,9 @@ public class ZLImageEditorConfiguration: NSObject {
+     /// The default text sticker color. If this color not in textStickerTextColors, will pick the first color in textStickerTextColors as the default.
+     @objc public var textStickerDefaultTextColor = UIColor.white
+     
++    /// Initial tool to auto-select when editor opens (text, stickers, draw, filter)
++    @objc public var initialTool: String? = nil
++    
+     private var pri_filters: [ZLFilter] = ZLFilter.all
+     /// Filters for image editor.
+     @objc public var filters: [ZLFilter] {
 diff --git a/react-native-photo-editor.podspec b/react-native-photo-editor.podspec
-index 1234567..abcdefg 100644
+index 61bc5bcfac7342591b61ba9d36d80172be64e57f..6ea6ea0722832692da99016069cc54f274bbfc14 100644
 --- a/react-native-photo-editor.podspec
 +++ b/react-native-photo-editor.podspec
 @@ -17,8 +17,8 @@ Pod::Spec.new do |s|

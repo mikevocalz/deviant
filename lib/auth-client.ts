@@ -16,6 +16,8 @@ import { QueryClient } from "@tanstack/react-query";
 const AUTH_URL =
   process.env.EXPO_PUBLIC_AUTH_URL || "https://dvnt-auth-new.vercel.app";
 
+console.log("[AuthClient] Using AUTH_URL:", AUTH_URL);
+
 // Create the Better Auth client
 export const authClient = createAuthClient({
   baseURL: AUTH_URL,
