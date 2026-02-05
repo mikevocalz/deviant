@@ -2,6 +2,19 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Comment } from "@/lib/types";
 import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface AddCommentResponse {
+  ok: boolean;
+  data?: { comment: any };
+  error?: { code: string; message: string };
+}
+
+interface DeleteCommentResponse {
+  ok: boolean;
+  data?: { success: boolean };
+  error?: { code: string; message: string };
+}
 
 export const commentsApi = {
   /**
@@ -38,8 +51,8 @@ export const commentsApi = {
           text: c[DB.comments.content] || "",
           timeAgo: formatTimeAgo(c[DB.comments.createdAt]),
           likes: Number(c[DB.comments.likesCount]) || 0,
-          hasLiked: false, // TODO: implement viewer like state
-          replies: [] as Comment[], // TODO: implement nested replies
+          hasLiked: false,
+          replies: [] as Comment[],
         }),
       );
     } catch (error) {
@@ -49,34 +62,33 @@ export const commentsApi = {
   },
 
   /**
-   * Add comment to post
+   * Add comment to post via Edge Function
    */
   async addComment(postId: string, content: string) {
     try {
-      console.log("[Comments] addComment, postId:", postId);
+      console.log("[Comments] addComment via Edge Function, postId:", postId);
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const postIdInt = parseInt(postId);
 
-      const { data, error } = await supabase
-        .from(DB.comments.table)
-        .insert({
-          [DB.comments.postId]: parseInt(postId),
-          [DB.comments.authorId]: userId,
-          [DB.comments.content]: content,
-          [DB.comments.likesCount]: 0,
-        })
-        .select()
-        .single();
+      const { data, error } =
+        await supabase.functions.invoke<AddCommentResponse>("add-comment", {
+          body: { postId: postIdInt, content },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[Comments] Edge Function error:", error);
+        throw new Error(error.message || "Failed to add comment");
+      }
 
-      // Increment post comments count
-      await supabase.rpc("increment_post_comments", {
-        post_id: parseInt(postId),
-      });
+      if (!data?.ok || !data?.data?.comment) {
+        const errorMessage = data?.error?.message || "Failed to add comment";
+        throw new Error(errorMessage);
+      }
 
-      return data;
+      console.log("[Comments] addComment result:", data.data.comment);
+      return data.data.comment;
     } catch (error) {
       console.error("[Comments] addComment error:", error);
       throw error;
@@ -141,22 +153,35 @@ export const commentsApi = {
   },
 
   /**
-   * Delete comment
+   * Delete comment via Edge Function
    */
-  async deleteComment(commentId: string, postId: string) {
+  async deleteComment(commentId: string, _postId?: string) {
     try {
-      const { error } = await supabase
-        .from(DB.comments.table)
-        .delete()
-        .eq(DB.comments.id, parseInt(commentId));
+      console.log("[Comments] deleteComment via Edge Function:", commentId);
 
-      if (error) throw error;
+      const token = await requireBetterAuthToken();
+      const commentIdInt = parseInt(commentId);
 
-      // Decrement post comments count
-      await supabase.rpc("decrement_post_comments", {
-        post_id: parseInt(postId),
-      });
+      const { data, error } =
+        await supabase.functions.invoke<DeleteCommentResponse>(
+          "delete-comment",
+          {
+            body: { commentId: commentIdInt },
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
+      if (error) {
+        console.error("[Comments] Edge Function error:", error);
+        throw new Error(error.message || "Failed to delete comment");
+      }
+
+      if (!data?.ok) {
+        const errorMessage = data?.error?.message || "Failed to delete comment";
+        throw new Error(errorMessage);
+      }
+
+      console.log("[Comments] deleteComment success");
       return { success: true };
     } catch (error) {
       console.error("[Comments] deleteComment error:", error);

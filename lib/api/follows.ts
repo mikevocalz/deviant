@@ -1,66 +1,53 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface ToggleFollowResponse {
+  ok: boolean;
+  data?: { following: boolean };
+  error?: { code: string; message: string };
+}
 
 export const followsApi = {
   /**
-   * Follow/unfollow user
+   * Follow/unfollow user via Edge Function
    */
-  async toggleFollow(targetUserId: string, isFollowing: boolean) {
+  async toggleFollow(targetUserId: string, _isFollowing?: boolean) {
     try {
-      console.log(
-        "[Follows] toggleFollow:",
-        targetUserId,
-        "isFollowing:",
-        isFollowing,
-      );
+      console.log("[Follows] toggleFollow via Edge Function:", targetUserId);
 
-      const currentUserId = getCurrentUserIdInt();
-      if (!currentUserId) throw new Error("Not authenticated");
-
+      const token = await requireBetterAuthToken();
       const targetUserIdInt = parseInt(targetUserId);
 
-      if (isFollowing) {
-        // Unfollow
-        await supabase
-          .from(DB.follows.table)
-          .delete()
-          .eq(DB.follows.followerId, currentUserId)
-          .eq(DB.follows.followingId, targetUserIdInt);
-
-        // Decrement counts
-        await supabase.rpc("decrement_following_count", {
-          user_id: currentUserId,
-        });
-        await supabase.rpc("decrement_followers_count", {
-          user_id: targetUserIdInt,
-        });
-      } else {
-        // Follow
-        await supabase.from(DB.follows.table).insert({
-          [DB.follows.followerId]: currentUserId,
-          [DB.follows.followingId]: targetUserIdInt,
+      const { data, error } =
+        await supabase.functions.invoke<ToggleFollowResponse>("toggle-follow", {
+          body: { targetUserId: targetUserIdInt },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        // Increment counts
-        await supabase.rpc("increment_following_count", {
-          user_id: currentUserId,
-        });
-        await supabase.rpc("increment_followers_count", {
-          user_id: targetUserIdInt,
-        });
+      if (error) {
+        console.error("[Follows] Edge Function error:", error);
+        throw new Error(error.message || "Failed to toggle follow");
+      }
+
+      if (!data?.ok || !data?.data) {
+        const errorMessage = data?.error?.message || "Failed to toggle follow";
+        console.error("[Follows] Toggle failed:", errorMessage);
+        throw new Error(errorMessage);
       }
 
       // Get updated counts
       const { data: targetUser } = await supabase
         .from(DB.users.table)
         .select(`${DB.users.followersCount}, ${DB.users.followingCount}`)
-        .eq(DB.users.id, parseInt(targetUserId))
+        .eq(DB.users.id, targetUserIdInt)
         .single();
 
+      console.log("[Follows] toggleFollow result:", data.data);
       return {
         success: true,
-        following: !isFollowing,
+        following: data.data.following,
         followersCount: targetUser?.[DB.users.followersCount] || 0,
         followingCount: targetUser?.[DB.users.followingCount] || 0,
       };

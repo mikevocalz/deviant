@@ -12,3 +12,15 @@ verify_jwt = false
 
 [functions.toggle-bookmark]
 verify_jwt = false
+
+[functions.toggle-follow]
+verify_jwt = false
+
+[functions.add-comment]
+verify_jwt = false
+
+[functions.delete-comment]
+verify_jwt = false
+
+[functions.send-message]
+verify_jwt = false
