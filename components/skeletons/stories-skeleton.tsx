@@ -1,22 +1,22 @@
-import { View, ScrollView, StyleSheet } from "react-native"
-import { SkeletonCircle, SkeletonText } from "@/components/ui/skeleton"
+import { View, ScrollView, StyleSheet } from "react-native";
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 
 function StorySkeleton() {
   return (
     <View style={styles.storyItem}>
       <View style={styles.storyRing}>
-        <SkeletonCircle size={60} />
+        <Skeleton style={{ width: 74, height: 98, borderRadius: 10 }} />
       </View>
       <SkeletonText width={60} height={10} style={styles.username} />
     </View>
-  )
+  );
 }
 
 export function StoriesBarSkeleton() {
   return (
     <View style={styles.container}>
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         scrollEnabled={false}
@@ -28,31 +28,33 @@ export function StoriesBarSkeleton() {
         <StorySkeleton />
       </ScrollView>
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
+    height: 154,
     borderBottomWidth: 1,
     borderBottomColor: "#1a1a1a",
   },
   scrollContent: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    gap: 16,
   },
   storyItem: {
     alignItems: "center",
-    padding: 8,
+    gap: 6,
   },
   storyRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.1)",
+    width: 80,
+    height: 104,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.05)",
     alignItems: "center",
     justifyContent: "center",
   },
   username: {
-    marginTop: 6,
+    marginTop: 0,
   },
-})
+});
