@@ -213,7 +213,7 @@ export default function CreateStoryScreen() {
         // @baronha/react-native-photo-editor works on both iOS and Android
         // Uses ZLImageEditor (iOS) and PhotoEditor (Android)
         // Pass initialTool to open directly to that tool (requires native patch)
-        const result = await PhotoEditor.open({
+        const editorOptions = {
           path: asset.uri,
           stickers: [
             "https://cdn-icons-png.flaticon.com/512/5272/5272912.png",
@@ -223,7 +223,12 @@ export default function CreateStoryScreen() {
             "https://cdn-icons-png.flaticon.com/512/4392/4392522.png",
           ],
           ...(initialTool && { initialTool }),
-        } as any);
+        };
+        console.log(
+          "[Story] Opening PhotoEditor with options:",
+          JSON.stringify(editorOptions),
+        );
+        const result = await PhotoEditor.open(editorOptions as any);
 
         if (result) {
           const editedPath = String(result);
