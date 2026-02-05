@@ -1,2 +1,8 @@
 [functions.media-upload]
 verify_jwt = false
+
+[functions.auth-sync]
+verify_jwt = false
+
+[functions.update-profile]
+verify_jwt = false
