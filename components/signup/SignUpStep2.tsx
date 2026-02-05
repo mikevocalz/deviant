@@ -31,8 +31,7 @@ import { IdScanTab, FaceScanTab } from "@/components/verification/tabs";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
-import { supabase } from "@/lib/supabase/client";
-import { DB } from "@/lib/supabase/db-map";
+import { signUp } from "@/lib/auth-client";
 import { toast } from "sonner-native";
 import {
   validateDateOfBirth,
@@ -102,35 +101,33 @@ export function SignUpStep2() {
   const createAccount = async () => {
     setIsSubmitting(true);
 
-    console.log("[SignUp] Creating account with Supabase...");
+    console.log("[SignUp] Creating account with Better Auth...");
     console.log("[SignUp] Email:", formData.email);
     console.log("[SignUp] Username:", formData.username);
 
     try {
-      // Sign up with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // Sign up with Better Auth
+      const { data, error } = await signUp.email({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            username: formData.username,
-            firstName: formData.firstName,
-            lastName: formData.lastName,
-          },
-        },
-      });
+        name: `${formData.firstName} ${formData.lastName}`,
+        // Additional fields passed to Better Auth
+        username: formData.username,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+      } as any);
 
-      if (authError) {
-        console.error("[SignUp] Supabase auth error:", authError);
+      if (error) {
+        console.error("[SignUp] Better Auth error:", error);
         toast.error("Registration Failed", {
-          description: authError.message || "Could not create account",
+          description: error.message || "Could not create account",
         });
         setIsSubmitting(false);
         return;
       }
 
-      if (!authData.user) {
-        console.error("[SignUp] No user returned from Supabase");
+      if (!data?.user) {
+        console.error("[SignUp] No user returned from Better Auth");
         toast.error("Registration Failed", {
           description: "Could not create account",
         });
@@ -138,34 +135,15 @@ export function SignUpStep2() {
         return;
       }
 
-      console.log("[SignUp] Supabase user created:", authData.user.id);
-
-      // Create user profile in users table - use auth_id for Supabase Auth UUID
-      const { error: profileError } = await supabase
-        .from(DB.users.table)
-        .insert({
-          [DB.users.authId]: authData.user.id,
-          [DB.users.email]: formData.email,
-          [DB.users.username]: formData.username,
-          [DB.users.firstName]: formData.firstName,
-          [DB.users.lastName]: formData.lastName,
-          [DB.users.verified]: true,
-          [DB.users.createdAt]: new Date().toISOString(),
-          [DB.users.updatedAt]: new Date().toISOString(),
-        });
-
-      if (profileError) {
-        console.error("[SignUp] Profile creation error:", profileError);
-        // Continue anyway - profile might already exist
-      }
+      console.log("[SignUp] Better Auth user created:", data.user.id);
 
       // Set user in auth store
       setUser({
-        id: authData.user.id,
-        email: formData.email,
-        username: formData.username,
-        name: `${formData.firstName} ${formData.lastName}`,
-        avatar: "",
+        id: data.user.id,
+        email: data.user.email,
+        username: (data.user as any).username || formData.username,
+        name: data.user.name || `${formData.firstName} ${formData.lastName}`,
+        avatar: data.user.image || "",
         bio: "",
         website: "",
         location: "",
@@ -177,7 +155,7 @@ export function SignUpStep2() {
       });
 
       // Record terms acceptance
-      recordTermsAcceptance(authData.user.id, formData.email).catch(() => {});
+      recordTermsAcceptance(data.user.id, formData.email).catch(() => {});
 
       toast.success("Welcome to DVNT!", {
         description: "Your account has been created and verified.",

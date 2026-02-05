@@ -6,7 +6,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { router } from "expo-router";
-import { supabase } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth-client";
 import { ArrowLeft, Mail } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 
@@ -22,9 +22,10 @@ export default function ForgotPasswordScreen() {
 
       try {
         console.log("[ForgotPassword] Sending reset email to:", value.email);
-        
-        const { error } = await supabase.auth.resetPasswordForEmail(value.email, {
-          redirectTo: 'dvnt://reset-password', // Deep link to your app
+
+        const { error } = await (authClient as any).forgetPassword({
+          email: value.email,
+          redirectTo: "/reset-password",
         });
 
         if (error) {
@@ -65,25 +66,21 @@ export default function ForgotPasswordScreen() {
             <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
               <Mail size={40} color={colors.primary} />
             </View>
-            
+
             <View className="items-center gap-2">
               <Text className="text-2xl font-bold text-foreground text-center">
                 Check Your Email
               </Text>
               <Text className="text-muted-foreground text-center">
-                We've sent a password reset link to your email address. Click the link to reset your password.
+                We've sent a password reset link to your email address. Click
+                the link to reset your password.
               </Text>
             </View>
 
             <View className="w-full gap-3 mt-4">
-              <Button onPress={() => router.back()}>
-                Back to Login
-              </Button>
-              
-              <Button
-                variant="secondary"
-                onPress={() => setEmailSent(false)}
-              >
+              <Button onPress={() => router.back()}>Back to Login</Button>
+
+              <Button variant="secondary" onPress={() => setEmailSent(false)}>
                 Try Different Email
               </Button>
             </View>
@@ -110,13 +107,14 @@ export default function ForgotPasswordScreen() {
             <Pressable onPress={() => router.back()} className="self-start">
               <ArrowLeft size={24} color={colors.foreground} />
             </Pressable>
-            
+
             <View className="gap-2">
               <Text className="text-3xl font-bold text-foreground">
                 Forgot Password?
               </Text>
               <Text className="text-muted-foreground">
-                Enter your email address and we'll send you a link to reset your password.
+                Enter your email address and we'll send you a link to reset your
+                password.
               </Text>
             </View>
           </View>
@@ -149,9 +147,7 @@ export default function ForgotPasswordScreen() {
 
             <View className="items-center">
               <Pressable onPress={() => router.back()}>
-                <Text className="text-sm text-primary">
-                  Back to Login
-                </Text>
+                <Text className="text-sm text-primary">Back to Login</Text>
               </Pressable>
             </View>
           </View>

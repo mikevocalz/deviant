@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { storage } from "@/lib/utils/storage";
-import { supabase } from "@/lib/supabase/client";
-import { auth, type AppUser } from "@/lib/api/auth";
+import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
 
 /**
  * Extract avatar URL from various formats:
@@ -72,7 +71,7 @@ export const useAuthStore = create<AuthStore>()(
       logout: async () => {
         console.log("[AuthStore] logout");
         try {
-          await auth.signOut();
+          await handleSignOut();
         } catch (error) {
           console.error("[AuthStore] logout error:", error);
         }
@@ -82,14 +81,12 @@ export const useAuthStore = create<AuthStore>()(
       loadAuthState: async () => {
         console.log("[AuthStore] loadAuthState");
         try {
-          // First, check for stored session
-          const {
-            data: { session },
-            error: sessionError,
-          } = await supabase.auth.getSession();
+          // Check for stored session using Better Auth
+          const { data: session, error: sessionError } =
+            await authClient.getSession();
 
-          if (sessionError) {
-            console.error("[AuthStore] Session error:", sessionError);
+          if (sessionError || !session) {
+            console.log("[AuthStore] No active session found");
             set({ user: null, isAuthenticated: false });
             return;
           }
@@ -97,21 +94,29 @@ export const useAuthStore = create<AuthStore>()(
           if (session?.user) {
             console.log("[AuthStore] Found session for user:", session.user.id);
 
-            // Load user profile
-            const profile = await auth.getProfile(session.user.id);
+            // Map Better Auth user to AppUser
+            const user = session.user;
+            const profile: AppUser = {
+              id: user.id,
+              email: user.email,
+              username: (user as any).username || user.email.split("@")[0],
+              name: user.name || "",
+              avatar: user.image || "",
+              bio: (user as any).bio || "",
+              website: "",
+              location: (user as any).location || "",
+              hashtags: [],
+              isVerified: (user as any).verified || false,
+              postsCount: (user as any).postsCount || 0,
+              followersCount: (user as any).followersCount || 0,
+              followingCount: (user as any).followingCount || 0,
+            };
 
-            if (profile) {
-              console.log("[AuthStore] Profile loaded:", profile.id);
-              set({
-                user: profile,
-                isAuthenticated: true,
-              });
-            } else {
-              console.log("[AuthStore] No profile found for session user");
-              // Don't sign out immediately - give the user a chance
-              // In case profile just hasn't been created yet
-              set({ user: null, isAuthenticated: false });
-            }
+            console.log("[AuthStore] Profile loaded:", profile.id);
+            set({
+              user: profile,
+              isAuthenticated: true,
+            });
           } else {
             console.log("[AuthStore] No active session found");
             set({ user: null, isAuthenticated: false });
@@ -144,38 +149,8 @@ export const useAuthStore = create<AuthStore>()(
   ),
 );
 
-// Setup auth state listener
-supabase.auth.onAuthStateChange((event, session) => {
-  console.log("[AuthStore] Auth state change:", event);
-
-  if (event === "SIGNED_IN" && session?.user) {
-    // Load profile when user signs in
-    auth
-      .getProfile(session.user.id)
-      .then((profile) => {
-        if (profile) {
-          useAuthStore.getState().setUser(profile);
-        }
-      })
-      .catch((error) => {
-        console.error("[AuthStore] Failed to load profile on sign in:", error);
-      });
-  } else if (event === "SIGNED_OUT") {
-    useAuthStore.getState().setUser(null);
-  } else if (event === "TOKEN_REFRESHED" && session?.user) {
-    // Refresh profile on token refresh
-    auth
-      .getProfile(session.user.id)
-      .then((profile) => {
-        if (profile) {
-          useAuthStore.getState().setUser(profile);
-        }
-      })
-      .catch((error) => {
-        console.error("[AuthStore] Failed to refresh profile:", error);
-      });
-  }
-});
+// Better Auth handles session state internally via the client
+// No need for manual auth state listener - the useSession hook is reactive
 
 export const waitForRehydration = async (): Promise<void> => {
   // Simple wait - Zustand handles this automatically

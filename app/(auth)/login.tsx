@@ -7,7 +7,7 @@ import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { router } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { auth } from "@/lib/api/auth";
+import { signIn } from "@/lib/auth-client";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
@@ -41,25 +41,33 @@ export default function LoginScreen() {
       setIsSubmitting(true);
 
       try {
-        const result = await auth.signIn(value.email, value.password);
+        const { data, error } = await signIn.email({
+          email: value.email,
+          password: value.password,
+        });
 
-        if (result.user && result.profile) {
+        if (error) {
+          throw new Error(error.message || "Login failed");
+        }
+
+        if (data?.user) {
           console.log("[Login] Success, navigating to home...");
           // Set user in auth store
           setUser({
-            id: result.profile.id,
-            email: result.profile.email,
-            username: result.profile.username,
-            name: result.profile.name,
-            avatar: result.profile.avatar || "",
-            bio: result.profile.bio || "",
-            website: result.profile.website || "",
-            location: result.profile.location || "",
-            hashtags: result.profile.hashtags || [],
-            isVerified: result.profile.isVerified,
-            postsCount: result.profile.postsCount,
-            followersCount: result.profile.followersCount,
-            followingCount: result.profile.followingCount,
+            id: data.user.id,
+            email: data.user.email,
+            username:
+              (data.user as any).username || data.user.email.split("@")[0],
+            name: data.user.name || (data.user as any).firstName || "",
+            avatar: data.user.image || "",
+            bio: (data.user as any).bio || "",
+            website: "",
+            location: (data.user as any).location || "",
+            hashtags: [],
+            isVerified: (data.user as any).verified || false,
+            postsCount: (data.user as any).postsCount || 0,
+            followersCount: (data.user as any).followersCount || 0,
+            followingCount: (data.user as any).followingCount || 0,
           });
           // Small delay to let auth state sync before navigation
           setTimeout(() => {

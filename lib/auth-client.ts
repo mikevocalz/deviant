@@ -1,14 +1,34 @@
 /**
- * Auth Client for Expo - Supabase Implementation
+ * Better Auth Client for Expo
  *
  * Use this client in React components to handle authentication.
  * Provides hooks and methods for sign in, sign up, sign out, and session management.
- * Automatically syncs with Zustand auth store on sign in/up/out.
  */
 
+import { createAuthClient } from "better-auth/react";
+import { expoClient } from "@better-auth/expo/client";
+import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
-import { auth, type AppUser } from "@/lib/api/auth";
-import { supabase } from "@/lib/supabase/client";
+
+// Auth server URL - uses the app's API routes
+const AUTH_URL =
+  process.env.EXPO_PUBLIC_API_URL ||
+  "https://payload-cms-setup-gray.vercel.app";
+
+// Create the Better Auth client
+export const authClient = createAuthClient({
+  baseURL: AUTH_URL,
+  plugins: [
+    expoClient({
+      scheme: "dvnt",
+      storagePrefix: "dvnt",
+      storage: SecureStore,
+    }),
+  ],
+});
+
+// Export hooks and methods
+export const { signIn, signUp, signOut, useSession, getSession } = authClient;
 
 // Reference to the global query client (set by the app)
 let globalQueryClient: QueryClient | null = null;
@@ -17,8 +37,8 @@ export function setQueryClient(client: QueryClient) {
   globalQueryClient = client;
 }
 
-// Clear all cached data when switching users - MUST be called before setting new user
-function clearAllCachedData() {
+// Clear all cached data when switching users
+export function clearAllCachedData() {
   console.log("[Auth] === CLEARING ALL USER DATA ===");
 
   // 1. Clear React Query cache FIRST
@@ -86,30 +106,36 @@ function clearAllCachedData() {
   }
 }
 
-// Re-export auth functions from Supabase auth module
-export { auth };
-
-// Get current session
-export async function getSession() {
-  return auth.getSession();
+// Sign out and clear all data
+export async function handleSignOut() {
+  clearAllCachedData();
+  await signOut();
 }
 
-// Get auth token from Supabase session
+// Get auth token for API requests
 export async function getAuthToken(): Promise<string | null> {
   try {
-    const session = await auth.getSession();
-    return session?.access_token || null;
+    const { data: session } = await authClient.getSession();
+    return session?.session?.token || null;
   } catch (error) {
     console.error("[Auth] Error getting auth token:", error);
     return null;
   }
 }
 
-// Sign out and clear all data
-export async function signOut() {
-  clearAllCachedData();
-  await auth.signOut();
+// App user type for compatibility
+export interface AppUser {
+  id: string;
+  email: string;
+  username: string;
+  name: string;
+  avatar?: string;
+  bio?: string;
+  website?: string;
+  location?: string;
+  hashtags?: string[];
+  isVerified: boolean;
+  postsCount: number;
+  followersCount: number;
+  followingCount: number;
 }
-
-// Type exports
-export type { AppUser };
