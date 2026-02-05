@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@baronha/react-native-photo-editor':
+        specifier: ^1.1.6
+        version: 1.1.6(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       '@blazejkustra/react-native-onboarding':
         specifier: ^1.0.0
         version: 1.0.0(expo-image@3.0.11(expo@54.0.33)(react-native-web@0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-reanimated@4.1.6(@babel/core@7.29.0)(react-native-worklets@0.5.1(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-safe-area-context@5.6.2(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-svg@15.12.1(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -83,9 +86,6 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.90.16
         version: 5.90.20(react@19.1.0)
-      '@thienmd/react-native-image-editor':
-        specifier: ^0.7.0
-        version: 0.7.0
       babel-preset-expo:
         specifier: ^54.0.9
         version: 54.0.10(@babel/core@7.29.0)(@babel/runtime@7.28.6)(expo@54.0.33)(react-refresh@0.14.2)
@@ -886,6 +886,12 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@baronha/react-native-photo-editor@1.1.6':
+    resolution: {integrity: sha512-Dfcv+bR83PU5PK/LUKxoI0mX4tK1vSMfE4D+ycuVgupbeZItnrwNjI3Ton4RETv4Kv2aZkUtpihh+CBdV7PWTg==}
+    peerDependencies:
+      react: '*'
+      react-native: '*'
 
   '@binbat/whip-whep@1.1.1-sdp-trickle-throw':
     resolution: {integrity: sha512-JFoNBEms4ECrbDd7LG2k5XP2DpGTUMGzaiCK7tjWyHYrrn58eb5BAJAX1GNQhrwkmBCRoIlhGTXULxKo6tsFug==}
@@ -2244,9 +2250,6 @@ packages:
       react: '*'
       react-native: '*'
       react-native-maps: '*'
-
-  '@thienmd/react-native-image-editor@0.7.0':
-    resolution: {integrity: sha512-2zJyVEQq7wsbuNsyES8h+lrBqNvDHk0JXXkARZIL48QdCKkfbDIM37mK4JMc5y/S6vfuaVmB6QOzprneHSK4Ew==}
 
   '@types/babel__core@7.20.5':
     resolution: {integrity: sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==}
@@ -6193,6 +6196,11 @@ snapshots:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
 
+  '@baronha/react-native-photo-editor@1.1.6(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
+    dependencies:
+      react: 19.1.0
+      react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
+
   '@binbat/whip-whep@1.1.1-sdp-trickle-throw': {}
 
   '@blazejkustra/react-native-alert@1.0.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
@@ -7666,8 +7674,6 @@ snapshots:
       react-native: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-maps: 1.27.1(react-native-web@0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       supercluster: 7.1.5
-
-  '@thienmd/react-native-image-editor@0.7.0': {}
 
   '@types/babel__core@7.20.5':
     dependencies:

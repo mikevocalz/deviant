@@ -25,8 +25,7 @@ import { useState, useCallback, useLayoutEffect, useEffect } from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
-import ImageEditor from "@thienmd/react-native-image-editor";
-import * as LegacyFileSystem from "expo-file-system/legacy";
+import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
 
 const MAX_STORY_ITEMS = 4;
@@ -38,7 +37,7 @@ export default function CreateStoryScreen() {
   const navigation = useNavigation();
   const { width, height } = useWindowDimensions();
   const { colors } = useColorScheme();
-  
+
   const CANVAS_WIDTH = width - 32;
   const CANVAS_HEIGHT = Math.min(height * 0.55, CANVAS_WIDTH * (16 / 9));
 
@@ -55,11 +54,12 @@ export default function CreateStoryScreen() {
     prevSlide,
   } = useCreateStoryStore();
 
-  const { pickStoryMedia, recordStoryVideo, requestPermissions } = useMediaPicker();
+  const { pickStoryMedia, recordStoryVideo, requestPermissions } =
+    useMediaPicker();
   const createStory = useCreateStory();
   const showToast = useUIStore((s) => s.showToast);
   const { uploadMultiple } = useMediaUpload({ folder: "stories" });
-  
+
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -73,7 +73,11 @@ export default function CreateStoryScreen() {
       const newItems = media.slice(0, MAX_STORY_ITEMS - currentCount);
 
       if (media.length > MAX_STORY_ITEMS - currentCount) {
-        showToast("warning", "Story Limit", `You can add up to ${MAX_STORY_ITEMS} items per story.`);
+        showToast(
+          "warning",
+          "Story Limit",
+          `You can add up to ${MAX_STORY_ITEMS} items per story.`,
+        );
       }
 
       const validMedia: MediaAsset[] = [];
@@ -95,7 +99,11 @@ export default function CreateStoryScreen() {
       }
 
       if (errors.length > 0) {
-        showToast("warning", "Some videos couldn't be added", errors.join(", "));
+        showToast(
+          "warning",
+          "Some videos couldn't be added",
+          errors.join(", "),
+        );
       }
 
       if (validMedia.length > 0) {
@@ -104,17 +112,21 @@ export default function CreateStoryScreen() {
         setMediaAssets(updatedAssets);
         setSelectedMedia(
           updatedAssets.map((m) => m.uri),
-          updatedAssets.map((m) => m.type)
+          updatedAssets.map((m) => m.type),
         );
         setCurrentIndex(mediaAssets.length === 0 ? 0 : mediaAssets.length);
       }
     },
-    [mediaAssets, setMediaAssets, setSelectedMedia, setCurrentIndex, showToast]
+    [mediaAssets, setMediaAssets, setSelectedMedia, setCurrentIndex, showToast],
   );
 
   const handlePickLibrary = async () => {
     if (mediaAssets.length >= MAX_STORY_ITEMS) {
-      showToast("warning", "Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+      showToast(
+        "warning",
+        "Story Limit",
+        `Maximum ${MAX_STORY_ITEMS} items per story.`,
+      );
       return;
     }
     try {
@@ -132,7 +144,11 @@ export default function CreateStoryScreen() {
 
   const handleRecordVideo = async () => {
     if (mediaAssets.length >= MAX_STORY_ITEMS) {
-      showToast("warning", "Story Limit", `Maximum ${MAX_STORY_ITEMS} items per story.`);
+      showToast(
+        "warning",
+        "Story Limit",
+        `Maximum ${MAX_STORY_ITEMS} items per story.`,
+      );
       return;
     }
     try {
@@ -154,7 +170,7 @@ export default function CreateStoryScreen() {
     setMediaAssets(updated);
     setSelectedMedia(
       updated.map((m) => m.uri),
-      updated.map((m) => m.type)
+      updated.map((m) => m.type),
     );
     if (currentIndex >= updated.length && updated.length > 0) {
       setCurrentIndex(updated.length - 1);
@@ -165,49 +181,52 @@ export default function CreateStoryScreen() {
     async (index: number) => {
       const asset = mediaAssets[index];
       if (!asset || asset.type !== "image") {
-        showToast("info", "Edit", "Only images can be edited with stickers and text");
+        showToast(
+          "info",
+          "Edit",
+          "Only images can be edited with stickers and text",
+        );
         return;
       }
 
       try {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        const fileName = `story-edit-${Date.now()}.jpg`;
-        const docDir = LegacyFileSystem.cacheDirectory || "";
-        const destPath = `${docDir}${fileName}`;
 
-        let editPath = asset.uri;
-        if (asset.uri.startsWith("file://")) {
-          editPath = asset.uri.replace("file://", "");
-        } else {
-          await LegacyFileSystem.copyAsync({ from: asset.uri, to: destPath });
-          editPath = destPath.replace("file://", "");
-        }
-
-        ImageEditor.Edit({
-          path: editPath,
-          hiddenControls: ["crop"],
-          colors: ["#FFFFFF", "#000000", "#FF5BFC", "#3EA4E5", "#38ef7d", "#f7b733", "#FF6B6B", "#9B59B6"],
-          languages: { doneTitle: "Done", saveTitle: "Save", clearAllTitle: "Clear" },
-          onDone: (editedPath: string) => {
-            const updatedAssets = [...mediaAssets];
-            updatedAssets[index] = {
-              ...asset,
-              uri: editedPath.startsWith("file://") ? editedPath : `file://${editedPath}`,
-            };
-            setMediaAssets(updatedAssets);
-            setSelectedMedia(
-              updatedAssets.map((m) => m.uri),
-              updatedAssets.map((m) => m.type)
-            );
-            showToast("success", "Edited", "Your story has been updated!");
-          },
-          onCancel: () => {},
+        // @baronha/react-native-photo-editor works on both iOS and Android
+        // Uses ZLImageEditor (iOS) and PhotoEditor (Android)
+        const result = await PhotoEditor.open({
+          path: asset.uri,
+          stickers: [
+            "https://cdn-icons-png.flaticon.com/512/5272/5272912.png",
+            "https://cdn-icons-png.flaticon.com/512/5272/5272913.png",
+            "https://cdn-icons-png.flaticon.com/512/5272/5272916.png",
+            "https://cdn-icons-png.flaticon.com/512/4392/4392529.png",
+            "https://cdn-icons-png.flaticon.com/512/4392/4392522.png",
+          ],
         });
+
+        if (result) {
+          const editedPath = String(result);
+          const updatedAssets = [...mediaAssets];
+          updatedAssets[index] = {
+            ...asset,
+            uri: editedPath.startsWith("file://")
+              ? editedPath
+              : `file://${editedPath}`,
+          };
+          setMediaAssets(updatedAssets);
+          setSelectedMedia(
+            updatedAssets.map((m) => m.uri),
+            updatedAssets.map((m) => m.type),
+          );
+          showToast("success", "Edited", "Your story has been updated!");
+        }
       } catch (error) {
-        showToast("error", "Error", "Could not open image editor");
+        // User cancelled or error occurred
+        console.log("[Story] Photo editor closed:", error);
       }
     },
-    [mediaAssets, setMediaAssets, setSelectedMedia, showToast]
+    [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
   );
 
   const handleShare = async () => {
@@ -235,7 +254,10 @@ export default function CreateStoryScreen() {
         return;
       }
 
-      const storyItems = uploadResults.map((r) => ({ type: r.type, url: r.url }));
+      const storyItems = uploadResults.map((r) => ({
+        type: r.type,
+        url: r.url,
+      }));
 
       createStory.mutate(
         { items: storyItems },
@@ -249,9 +271,13 @@ export default function CreateStoryScreen() {
           },
           onError: (error: any) => {
             setIsSharing(false);
-            showToast("error", "Error", error?.message || "Failed to share story.");
+            showToast(
+              "error",
+              "Error",
+              error?.message || "Failed to share story.",
+            );
           },
-        }
+        },
       );
     } catch (error) {
       setIsSharing(false);
@@ -288,15 +314,30 @@ export default function CreateStoryScreen() {
       headerTitle: "New Story",
       headerTitleAlign: "left" as const,
       headerStyle: { backgroundColor: colors.background },
-      headerTitleStyle: { color: colors.foreground, fontWeight: "600", fontSize: 18 },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600",
+        fontSize: 18,
+      },
       headerLeft: () => (
-        <Pressable onPress={handleClose} hitSlop={12} className="ml-2 w-11 h-11 items-center justify-center">
+        <Pressable
+          onPress={handleClose}
+          hitSlop={12}
+          className="ml-2 w-11 h-11 items-center justify-center"
+        >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable onPress={handleShare} disabled={isSharing || !isValid} hitSlop={12} className="mr-2">
-          <Text className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}>
+        <Pressable
+          onPress={handleShare}
+          disabled={isSharing || !isValid}
+          hitSlop={12}
+          className="mr-2"
+        >
+          <Text
+            className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
+          >
             {isSharing ? "Sharing..." : "Share"}
           </Text>
         </Pressable>
@@ -326,7 +367,9 @@ export default function CreateStoryScreen() {
             />
           </View>
           <Text className="text-white text-sm font-medium text-center mt-3">
-            {uploadProgress < 100 ? `Uploading... ${uploadProgress}%` : "Processing..."}
+            {uploadProgress < 100
+              ? `Uploading... ${uploadProgress}%`
+              : "Processing..."}
           </Text>
         </Motion.View>
       )}
@@ -334,22 +377,37 @@ export default function CreateStoryScreen() {
       {/* Canvas Area */}
       <View className="flex-1 items-center justify-center px-4 py-6">
         <View
-          style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT, borderCurve: "continuous" }}
+          style={{
+            width: CANVAS_WIDTH,
+            height: CANVAS_HEIGHT,
+            borderCurve: "continuous",
+          }}
           className="rounded-2xl overflow-hidden bg-card"
         >
           {currentMedia ? (
             <View className="flex-1 bg-black">
               {currentMediaType === "video" ? (
                 <View className="flex-1 items-center justify-center">
-                  <Image source={{ uri: currentMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                  <Image
+                    source={{ uri: currentMedia }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
                   <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
                     <Video size={16} color="#fff" />
                     <Text className="text-white text-sm">Video</Text>
                   </View>
                 </View>
               ) : (
-                <Pressable onPress={() => handleEditImage(currentIndex)} className="flex-1">
-                  <Image source={{ uri: currentMedia }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                <Pressable
+                  onPress={() => handleEditImage(currentIndex)}
+                  className="flex-1"
+                >
+                  <Image
+                    source={{ uri: currentMedia }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
                   <View className="absolute bottom-4 right-4">
                     <Pressable
                       onPress={() => handleEditImage(currentIndex)}
@@ -357,7 +415,9 @@ export default function CreateStoryScreen() {
                       style={{ borderCurve: "continuous" }}
                     >
                       <Pencil size={18} color="#fff" />
-                      <Text className="text-white text-sm font-semibold">Edit</Text>
+                      <Text className="text-white text-sm font-semibold">
+                        Edit
+                      </Text>
                     </Pressable>
                   </View>
                 </Pressable>
@@ -366,7 +426,9 @@ export default function CreateStoryScreen() {
           ) : (
             <View className="flex-1 bg-card items-center justify-center">
               <ImageIcon size={48} color="#666" />
-              <Text className="text-muted-foreground mt-3 text-base">Add media to get started</Text>
+              <Text className="text-muted-foreground mt-3 text-base">
+                Add media to get started
+              </Text>
             </View>
           )}
 
@@ -384,7 +446,10 @@ export default function CreateStoryScreen() {
 
               {currentIndex > 0 && (
                 <Pressable
-                  onPress={() => { prevSlide(); Haptics.selectionAsync(); }}
+                  onPress={() => {
+                    prevSlide();
+                    Haptics.selectionAsync();
+                  }}
                   className="absolute left-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
                 >
                   <ChevronLeft size={24} color="#fff" />
@@ -393,7 +458,10 @@ export default function CreateStoryScreen() {
 
               {currentIndex < selectedMedia.length - 1 && (
                 <Pressable
-                  onPress={() => { nextSlide(); Haptics.selectionAsync(); }}
+                  onPress={() => {
+                    nextSlide();
+                    Haptics.selectionAsync();
+                  }}
                   className="absolute right-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
                 >
                   <ChevronRight size={24} color="#fff" />
@@ -414,11 +482,18 @@ export default function CreateStoryScreen() {
             {mediaAssets.map((asset, idx) => (
               <Pressable
                 key={asset.id}
-                onPress={() => { setCurrentIndex(idx); Haptics.selectionAsync(); }}
+                onPress={() => {
+                  setCurrentIndex(idx);
+                  Haptics.selectionAsync();
+                }}
                 className={`w-14 h-14 rounded-lg overflow-hidden ${idx === currentIndex ? "border-2 border-primary" : ""}`}
                 style={{ borderCurve: "continuous" }}
               >
-                <Image source={{ uri: asset.uri }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                <Image
+                  source={{ uri: asset.uri }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
                 <Pressable
                   onPress={() => handleRemoveMedia(idx)}
                   className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
@@ -445,11 +520,17 @@ export default function CreateStoryScreen() {
             disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
             className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
           >
-            <View className="w-14 h-14 rounded-full bg-card items-center justify-center" style={{ borderCurve: "continuous" }}>
+            <View
+              className="w-14 h-14 rounded-full bg-card items-center justify-center"
+              style={{ borderCurve: "continuous" }}
+            >
               <ImageIcon size={24} color="#fff" />
             </View>
             <Text className="text-muted-foreground text-xs">
-              Gallery {mediaAssets.length > 0 ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})` : ""}
+              Gallery{" "}
+              {mediaAssets.length > 0
+                ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
+                : ""}
             </Text>
           </Pressable>
 
@@ -458,7 +539,10 @@ export default function CreateStoryScreen() {
             disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
             className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
           >
-            <View className="w-14 h-14 rounded-full bg-card items-center justify-center" style={{ borderCurve: "continuous" }}>
+            <View
+              className="w-14 h-14 rounded-full bg-card items-center justify-center"
+              style={{ borderCurve: "continuous" }}
+            >
               <Video size={24} color="#fff" />
             </View>
             <Text className="text-muted-foreground text-xs">Video (30s)</Text>
