@@ -12,9 +12,9 @@ import { passkeyClient } from "@better-auth/passkey/client";
 import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
 
-// Auth server URL - Better Auth server
+// Auth server URL - Better Auth server (CANONICAL: https://server-zeta-lovat.vercel.app)
 const AUTH_URL =
-  process.env.EXPO_PUBLIC_AUTH_URL || "https://dvnt-auth-new.vercel.app";
+  process.env.EXPO_PUBLIC_AUTH_URL || "https://server-zeta-lovat.vercel.app";
 
 console.log("[AuthClient] Using AUTH_URL:", AUTH_URL);
 

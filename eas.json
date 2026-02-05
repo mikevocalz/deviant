@@ -11,7 +11,7 @@
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
-        "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
@@ -27,7 +27,7 @@
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
-        "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
@@ -48,7 +48,7 @@
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
-        "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
+        "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
         "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY": "${BUNNY_STORAGE_API_KEY}",
         "EXPO_PUBLIC_BUNNY_STORAGE_REGION": "${BUNNY_STORAGE_REGION}",
