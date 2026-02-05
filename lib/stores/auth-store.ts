@@ -3,6 +3,8 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { storage } from "@/lib/utils/storage";
 import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
+import { syncAuthUser } from "@/lib/api/privileged";
+import { clearUserRowCache } from "@/lib/auth/identity";
 
 /**
  * Extract avatar URL from various formats:
@@ -89,15 +91,34 @@ export const useAuthStore = create<AuthStore>()(
           if (sessionError || !session) {
             console.log("[AuthStore] No active session found");
             set({ user: null, isAuthenticated: false });
+            clearUserRowCache();
             return;
           }
 
           if (session?.user) {
             console.log("[AuthStore] Found session for user:", session.user.id);
 
-            // Fetch the Payload CMS profile to get the integer ID
-            // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
-            // Pass email as fallback if auth_id not found in database
+            // Sync user via Edge Function - this ensures we have a valid users row
+            // with the correct auth_id mapping
+            try {
+              const syncedUser = await syncAuthUser();
+              console.log(
+                "[AuthStore] User synced via Edge Function, ID:",
+                syncedUser.id,
+              );
+              set({
+                user: syncedUser,
+                isAuthenticated: true,
+              });
+              return;
+            } catch (syncError) {
+              console.warn(
+                "[AuthStore] auth-sync failed, falling back to direct fetch:",
+                syncError,
+              );
+            }
+
+            // Fallback: Try direct profile fetch if Edge Function fails
             const payloadProfile = await auth.getProfile(
               session.user.id,
               session.user.email,
@@ -113,9 +134,9 @@ export const useAuthStore = create<AuthStore>()(
                 isAuthenticated: true,
               });
             } else {
-              // Fallback to Better Auth data if profile fetch fails
+              // Last resort: Use Better Auth data directly
               console.warn(
-                "[AuthStore] Could not load Payload profile, using Better Auth data",
+                "[AuthStore] Could not load profile, using Better Auth data",
               );
               const user = session.user;
               const profile: AppUser = {
@@ -141,10 +162,12 @@ export const useAuthStore = create<AuthStore>()(
           } else {
             console.log("[AuthStore] No active session found");
             set({ user: null, isAuthenticated: false });
+            clearUserRowCache();
           }
         } catch (error) {
           console.error("[AuthStore] loadAuthState error:", error);
           set({ user: null, isAuthenticated: false });
+          clearUserRowCache();
         }
       },
     }),

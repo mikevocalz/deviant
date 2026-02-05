@@ -12,7 +12,8 @@
     "build:ios": "eas build --platform ios",
     "update:production": "eas update --channel production",
     "update:preview": "eas update --channel preview",
-    "check:secrets": "npx ts-node scripts/check-secrets.ts"
+    "check:secrets": "npx ts-node scripts/check-secrets.ts",
+    "check:guardrails": "npx ts-node scripts/check-secrets.ts"
   },
   "dependencies": {
     "@baronha/react-native-photo-editor": "^1.1.6",

@@ -1,53 +1,32 @@
 /**
  * Identity Helpers
- * 
+ *
  * Centralized identity management for Better Auth + Supabase integration.
- * 
+ *
  * IMPORTANT: Better Auth IDs are strings (not UUIDs, not integers).
  * The users table has:
- * - `id` (integer): Payload CMS internal ID
+ * - `id` (integer): Internal database PK
  * - `auth_id` (string): Better Auth user ID
- * 
- * Use these helpers to get the correct ID type for your use case.
+ *
+ * NEVER parse Better Auth IDs as integers!
+ *
+ * Use these helpers to get the correct ID type for your use case:
+ * - For Edge Function calls: use getBetterAuthToken()
+ * - For database queries by user: use getCurrentUserId() (returns int)
+ * - For auth_id lookups: use getAuthIdFromStore()
  */
 
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { useAuthStore } from "../stores/auth-store";
+import { authClient, getAuthToken } from "../auth-client";
 
-/**
- * Get the current Better Auth user ID (string).
- * This is the `auth_id` stored in the users table.
- * 
- * @returns The Better Auth user ID string, or null if not authenticated
- */
-export function getCurrentAuthId(): string | null {
-  const user = useAuthStore.getState().user;
-  if (!user) return null;
-  
-  // The auth store should have the auth_id, but we need to check
-  // If user.id looks like a Better Auth ID (not numeric), return it
-  // Otherwise, we need to look it up
-  const isNumeric = /^\d+$/.test(user.id);
-  
-  if (!isNumeric) {
-    // user.id is already the auth_id
-    return user.id;
-  }
-  
-  // user.id is the integer ID, we need to get auth_id from somewhere else
-  // This shouldn't happen if auth store is set up correctly
-  console.warn("[Identity] getCurrentAuthId: user.id is numeric, auth_id not available");
-  return null;
-}
+// In-memory cache for user row to avoid repeated DB calls
+let cachedUserRow: UserRow | null = null;
+let cachedUserRowExpiry = 0;
+const CACHE_TTL_MS = 60000; // 1 minute
 
-/**
- * Get the current user's database row.
- * Fetches from users table by auth_id.
- * 
- * @returns The user row from database, or null if not found
- */
-export async function getCurrentUserRow(): Promise<{
+export interface UserRow {
   id: number;
   authId: string;
   email: string;
@@ -58,17 +37,99 @@ export async function getCurrentUserRow(): Promise<{
   location: string | null;
   verified: boolean;
   avatarUrl: string | null;
-} | null> {
+  followersCount: number;
+  followingCount: number;
+  postsCount: number;
+}
+
+/**
+ * Get the Better Auth access token for API calls.
+ * Use this for Edge Function Authorization headers.
+ *
+ * @returns The Better Auth token string, or null if not authenticated
+ */
+export async function getBetterAuthToken(): Promise<string | null> {
+  return getAuthToken();
+}
+
+/**
+ * Get the Better Auth access token, throwing if not available.
+ * Use this when authentication is required.
+ *
+ * @throws Error if not authenticated
+ * @returns The Better Auth token string
+ */
+export async function requireBetterAuthToken(): Promise<string> {
+  const token = await getBetterAuthToken();
+  if (!token) {
+    throw new Error("Not authenticated - no Better Auth token available");
+  }
+  return token;
+}
+
+/**
+ * Get the Better Auth user ID (string) from the current session.
+ * This is the `auth_id` stored in the users table.
+ *
+ * NEVER parse this as an integer!
+ *
+ * @returns The Better Auth user ID string
+ * @throws Error if not authenticated
+ */
+export async function getAuthIdFromSession(): Promise<string> {
+  const { data: session } = await authClient.getSession();
+  if (!session?.user?.id) {
+    throw new Error("Not authenticated - no session available");
+  }
+  return session.user.id;
+}
+
+/**
+ * Get the Better Auth user ID from the auth store (synchronous).
+ * Returns the auth_id if available in the store.
+ *
+ * @returns The auth_id string, or null if not available
+ */
+export function getAuthIdFromStore(): string | null {
+  const user = useAuthStore.getState().user;
+  if (!user) return null;
+
+  // Check if we have authId stored
+  if ((user as any).authId) {
+    return (user as any).authId;
+  }
+
+  // If user.id is not numeric, it's the auth_id
+  const isNumeric = /^\d+$/.test(user.id);
+  if (!isNumeric) {
+    return user.id;
+  }
+
+  return null;
+}
+
+/**
+ * Get the current user's database row.
+ * Fetches from users table and caches the result.
+ *
+ * @param forceRefresh - Force a fresh fetch from database
+ * @returns The user row from database, or null if not found
+ */
+export async function getCurrentUserRow(
+  forceRefresh = false,
+): Promise<UserRow | null> {
+  // Check cache first
+  if (!forceRefresh && cachedUserRow && Date.now() < cachedUserRowExpiry) {
+    return cachedUserRow;
+  }
+
   const user = useAuthStore.getState().user;
   if (!user) return null;
 
   try {
-    // First try to get by integer ID if we have it
     const isNumeric = /^\d+$/.test(user.id);
-    
-    let query = supabase
-      .from(DB.users.table)
-      .select(`
+
+    let query = supabase.from(DB.users.table).select(`
         ${DB.users.id},
         ${DB.users.authId},
         ${DB.users.email},
@@ -78,6 +139,9 @@ export async function getCurrentUserRow(): Promise<{
         ${DB.users.bio},
         ${DB.users.location},
         ${DB.users.verified},
+        ${DB.users.followersCount},
+        ${DB.users.followingCount},
+        ${DB.users.postsCount},
         avatar:${DB.users.avatarId}(url)
       `);
 
@@ -95,7 +159,7 @@ export async function getCurrentUserRow(): Promise<{
       return null;
     }
 
-    return {
+    const userRow: UserRow = {
       id: data[DB.users.id] as number,
       authId: data[DB.users.authId] as string,
       email: data[DB.users.email] as string,
@@ -106,7 +170,16 @@ export async function getCurrentUserRow(): Promise<{
       location: data[DB.users.location] as string | null,
       verified: (data[DB.users.verified] as boolean) || false,
       avatarUrl: (data.avatar as any)?.url || null,
+      followersCount: (data[DB.users.followersCount] as number) || 0,
+      followingCount: (data[DB.users.followingCount] as number) || 0,
+      postsCount: (data[DB.users.postsCount] as number) || 0,
     };
+
+    // Update cache
+    cachedUserRow = userRow;
+    cachedUserRowExpiry = Date.now() + CACHE_TTL_MS;
+
+    return userRow;
   } catch (error) {
     console.error("[Identity] getCurrentUserRow error:", error);
     return null;
@@ -115,11 +188,11 @@ export async function getCurrentUserRow(): Promise<{
 
 /**
  * Get the current user's integer database ID.
- * This fetches from the database to ensure we have the correct ID.
- * 
- * Use this when you need the integer ID for database operations.
- * For most Edge Function calls, use getCurrentAuthId() instead.
- * 
+ * This is the `users.id` column (integer PK).
+ *
+ * Use this when you need the integer ID for database queries.
+ * For Edge Function calls, use requireBetterAuthToken() instead.
+ *
  * @returns The integer user ID, or null if not authenticated
  */
 export async function getCurrentUserId(): Promise<number | null> {
@@ -139,12 +212,12 @@ export async function getCurrentUserId(): Promise<number | null> {
 
 /**
  * Get the current user's integer ID synchronously.
- * 
+ *
  * WARNING: This assumes the auth store has the correct integer ID.
  * If the store has a Better Auth ID, this will return null.
- * 
+ *
  * Prefer getCurrentUserId() (async) when possible.
- * 
+ *
  * @returns The integer user ID, or null if not available
  */
 export function getCurrentUserIdSync(): number | null {
@@ -153,9 +226,29 @@ export function getCurrentUserIdSync(): number | null {
 
   const isNumeric = /^\d+$/.test(user.id);
   if (!isNumeric) {
-    console.warn("[Identity] getCurrentUserIdSync: user.id is not numeric");
+    // Don't warn - this is expected when auth store has auth_id
     return null;
   }
 
   return parseInt(user.id);
+}
+
+/**
+ * Clear the cached user row.
+ * Call this on logout or when user data changes.
+ */
+export function clearUserRowCache(): void {
+  cachedUserRow = null;
+  cachedUserRowExpiry = 0;
+}
+
+/**
+ * Update the cached user row with new data.
+ * Call this after profile updates to keep cache in sync.
+ */
+export function updateUserRowCache(updates: Partial<UserRow>): void {
+  if (cachedUserRow) {
+    cachedUserRow = { ...cachedUserRow, ...updates };
+    cachedUserRowExpiry = Date.now() + CACHE_TTL_MS;
+  }
 }

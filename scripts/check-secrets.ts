@@ -1,13 +1,16 @@
 #!/usr/bin/env npx ts-node
 
 /**
- * Security Check: Ensure service role key is never in client code
- * 
+ * Security & Architecture Guardrails
+ *
  * This script scans the codebase to ensure:
  * 1. EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY is never used
- * 2. SUPABASE_SERVICE_ROLE_KEY is not in client code (/app, /src, /lib, /components)
- * 
- * Run: npm run check:secrets
+ * 2. SUPABASE_SERVICE_ROLE_KEY is not in client code
+ * 3. No direct writes to sensitive tables from client code
+ * 4. No parseInt on Better Auth IDs
+ * 5. No getCurrentUserIdInt usage for Better Auth IDs
+ *
+ * Run: npm run check:guardrails
  * Should be run in CI and pre-commit hooks.
  */
 
@@ -19,23 +22,55 @@ const GREEN = "\x1b[32m";
 const YELLOW = "\x1b[33m";
 const RESET = "\x1b[0m";
 
+// Sensitive tables that should not have direct client writes
+const SENSITIVE_TABLES = [
+  "users",
+  "posts",
+  "stories",
+  "events",
+  "messages",
+  "conversations",
+  "conversation_members",
+  "follows",
+  "likes",
+  "comments",
+  "blocks",
+];
+
 // Patterns that should NEVER appear in client code
 const FORBIDDEN_PATTERNS = [
   {
     pattern: /EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY/g,
-    message: "EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY should NEVER be used. Service role key must not be exposed to client.",
+    message:
+      "EXPO_PUBLIC_SUPABASE_SERVICE_ROLE_KEY should NEVER be used. Service role key must not be exposed to client.",
+    severity: "critical",
   },
   {
     pattern: /SUPABASE_SERVICE_ROLE_KEY/g,
-    message: "SUPABASE_SERVICE_ROLE_KEY found in client code. This key should only be used in Edge Functions.",
-    // Allow in Edge Functions directory
-    allowedPaths: ["/supabase/functions/"],
+    message:
+      "SUPABASE_SERVICE_ROLE_KEY found in client code. This key should only be used in Edge Functions.",
+    allowedPaths: ["/supabase/functions/", "/scripts/"],
+    severity: "critical",
   },
   {
     pattern: /supabaseAdmin/g,
-    message: "supabaseAdmin should not exist in client code. Use Edge Functions for privileged operations.",
-    // Allow in the privileged.ts file which documents the pattern
+    message:
+      "supabaseAdmin should not exist in client code. Use Edge Functions for privileged operations.",
     allowedPaths: ["/supabase/functions/"],
+    severity: "critical",
+  },
+  {
+    pattern: /parseInt\s*\(\s*session\.user\.id/g,
+    message:
+      "Never parseInt Better Auth session.user.id - it's a string, not an integer!",
+    severity: "error",
+  },
+  {
+    pattern: /getCurrentUserIdInt\s*\(/g,
+    message:
+      "getCurrentUserIdInt is deprecated. Use getCurrentUserId() from lib/auth/identity.ts instead.",
+    allowedPaths: ["/lib/api/auth-helper.ts"], // Allow in the definition file
+    severity: "warning",
   },
 ];
 
@@ -74,9 +109,9 @@ function isAllowedPath(filePath: string, allowedPaths?: string[]): boolean {
 
 function scanFile(filePath: string): Violation[] {
   const violations: Violation[] = [];
-  
+
   if (shouldSkip(filePath)) return violations;
-  
+
   const ext = path.extname(filePath);
   if (!EXTENSIONS.includes(ext)) return violations;
 
@@ -84,6 +119,7 @@ function scanFile(filePath: string): Violation[] {
     const content = fs.readFileSync(filePath, "utf-8");
     const lines = content.split("\n");
 
+    // Check forbidden patterns
     for (const { pattern, message, allowedPaths } of FORBIDDEN_PATTERNS) {
       if (isAllowedPath(filePath, allowedPaths)) continue;
 
@@ -99,6 +135,56 @@ function scanFile(filePath: string): Violation[] {
         // Reset regex lastIndex for global patterns
         pattern.lastIndex = 0;
       });
+    }
+
+    // Check for direct writes to sensitive tables
+    // Only check client code (not Edge Functions or scripts)
+    if (
+      !filePath.includes("/supabase/functions/") &&
+      !filePath.includes("/scripts/")
+    ) {
+      for (const table of SENSITIVE_TABLES) {
+        const writePatterns = [
+          new RegExp(
+            `\\.from\\s*\\(\\s*["'\`]${table}["'\`]\\s*\\)\\s*\\.\\s*insert`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*["'\`]${table}["'\`]\\s*\\)\\s*\\.\\s*update`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*["'\`]${table}["'\`]\\s*\\)\\s*\\.\\s*delete`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*insert`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*update`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*delete`,
+            "g",
+          ),
+        ];
+
+        lines.forEach((line, index) => {
+          for (const writePattern of writePatterns) {
+            if (writePattern.test(line)) {
+              violations.push({
+                file: filePath,
+                line: index + 1,
+                pattern: `direct write to ${table}`,
+                message: `Direct write to "${table}" table detected. Use Edge Function wrappers from lib/api/privileged/index.ts instead.`,
+              });
+            }
+            writePattern.lastIndex = 0;
+          }
+        });
+      }
     }
   } catch (error) {
     // Skip files that can't be read
@@ -142,7 +228,13 @@ function main(): void {
   }
 
   // Also check root-level config files
-  const rootFiles = [".env", ".env.local", ".env.development", ".env.production", "eas.json"];
+  const rootFiles = [
+    ".env",
+    ".env.local",
+    ".env.development",
+    ".env.production",
+    "eas.json",
+  ];
   for (const file of rootFiles) {
     const fullPath = path.join(projectRoot, file);
     if (fs.existsSync(fullPath)) {
@@ -152,11 +244,15 @@ function main(): void {
 
   if (allViolations.length === 0) {
     console.log(`${GREEN}✅ No security violations found!${RESET}\n`);
-    console.log("Service role key is properly isolated to Edge Functions only.");
+    console.log(
+      "Service role key is properly isolated to Edge Functions only.",
+    );
     process.exit(0);
   }
 
-  console.log(`${RED}❌ Found ${allViolations.length} security violation(s):${RESET}\n`);
+  console.log(
+    `${RED}❌ Found ${allViolations.length} security violation(s):${RESET}\n`,
+  );
 
   for (const violation of allViolations) {
     console.log(`${RED}VIOLATION:${RESET} ${violation.file}:${violation.line}`);
@@ -165,7 +261,9 @@ function main(): void {
   }
 
   console.log(`${YELLOW}Fix these issues before committing.${RESET}`);
-  console.log("Service role key must ONLY be used in Supabase Edge Functions.\n");
+  console.log(
+    "Service role key must ONLY be used in Supabase Edge Functions.\n",
+  );
 
   process.exit(1);
 }
