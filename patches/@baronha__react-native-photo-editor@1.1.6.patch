@@ -11,16 +11,18 @@ index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcf
  
  
 diff --git a/ios/PhotoEditor.swift b/ios/PhotoEditor.swift
-index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d190ac117 100644
+index 0c1e923c856731a18b947710c8dc13c052476ccb..df0bf55537b7d3275aaadc9b02700da69dd96671 100644
 --- a/ios/PhotoEditor.swift
 +++ b/ios/PhotoEditor.swift
-@@ -52,11 +52,14 @@ class PhotoEditor: NSObject, ZLEditImageControllerDelegate {
+@@ -52,11 +52,16 @@ class PhotoEditor: NSObject, ZLEditImageControllerDelegate {
          self.resolve = resolve;
          self.reject = reject;
          
 +        // Initial tool to auto-select when editor opens
 +        let initialTool = options["initialTool"] as? String
++        print("[PhotoEditor] initialTool from options: \(initialTool ?? "nil")")
 +        ZLImageEditorConfiguration.default().initialTool = initialTool
++        print("[PhotoEditor] Set initialTool to config: \(ZLImageEditorConfiguration.default().initialTool ?? "nil")")
 +        
          // Stickers
          let stickers = options["stickers"] as? [String] ?? []
@@ -31,31 +33,39 @@ index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d
          ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
  
 diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..2c49155fa40b2c5570ed697100e0143b74d96f73 100644
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..793fe8c084e38d6a97f72e5b27261b2937eb4963 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 +++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-@@ -265,6 +265,28 @@ public class ZLEditImageViewController: UIViewController {
+@@ -265,6 +265,36 @@ public class ZLEditImageViewController: UIViewController {
          if self.tools.contains(.filter) {
              self.generateFilterImages()
          }
 +        
 +        // Auto-select initial tool if specified
-+        if let initialTool = ZLImageEditorConfiguration.default().initialTool {
++        let initialTool = ZLImageEditorConfiguration.default().initialTool
++        print("[ZLEditImageVC] viewDidLoad - initialTool: \(initialTool ?? "nil")")
++        if let tool = initialTool {
 +            // Clear immediately to prevent reuse
 +            ZLImageEditorConfiguration.default().initialTool = nil
 +            
 +            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
 +                guard let self = self else { return }
-+                switch initialTool {
++                print("[ZLEditImageVC] Executing initialTool: \(tool)")
++                switch tool {
 +                case "text":
++                    print("[ZLEditImageVC] Opening text tool")
 +                    self.textStickerBtnClick()
 +                case "stickers":
++                    print("[ZLEditImageVC] Opening stickers tool")
 +                    self.imageStickerBtnClick()
 +                case "draw":
++                    print("[ZLEditImageVC] Opening draw tool")
 +                    self.drawBtnClick()
 +                case "filter":
++                    print("[ZLEditImageVC] Opening filter tool")
 +                    self.filterBtnClick()
 +                default:
++                    print("[ZLEditImageVC] Unknown tool: \(tool)")
 +                    break
 +                }
 +            }
