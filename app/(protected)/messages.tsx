@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Users,
   Radio,
+  Plus,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useEffect, useState } from "react";
@@ -157,10 +158,11 @@ function SneakyLynkContent({
 }) {
   const [selectedTopic, setSelectedTopic] = useState<Topic>("All");
 
+  const liveSpaces = mockSpaces.filter((s) => s.isLive);
   const filteredSpaces =
     selectedTopic === "All"
-      ? mockSpaces
-      : mockSpaces.filter((space) => space.topic === selectedTopic);
+      ? liveSpaces
+      : liveSpaces.filter((space) => space.topic === selectedTopic);
 
   const handleRoomPress = useCallback(
     (roomId: string) => {
@@ -169,35 +171,88 @@ function SneakyLynkContent({
     [router],
   );
 
+  const handleCreateRoom = useCallback(() => {
+    // TODO: Implement room creation
+    console.log("[SneakyLynk] Create room pressed");
+  }, []);
+
   return (
-    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-      <TopicPills
-        selectedTopic={selectedTopic}
-        onSelectTopic={setSelectedTopic}
-      />
+    <View className="flex-1">
+      {/* Header */}
+      <View className="flex-row items-center justify-between px-5 py-4 border-b border-border">
+        <View className="flex-row items-center gap-2.5">
+          <Radio size={28} color="#3EA4E5" />
+          <Text className="text-[28px] font-extrabold text-foreground tracking-tight">
+            Spaces
+          </Text>
+        </View>
+        <Pressable
+          onPress={handleCreateRoom}
+          className="w-10 h-10 rounded-full bg-primary items-center justify-center"
+        >
+          <Plus size={20} color="#fff" />
+        </Pressable>
+      </View>
 
-      <View className="px-4 pb-6">
-        {filteredSpaces.map((space) => (
-          <LiveRoomCard
-            key={space.id}
-            space={space}
-            onPress={() => handleRoomPress(space.id)}
-          />
-        ))}
-
-        {filteredSpaces.length === 0 && (
-          <View className="items-center justify-center py-12">
-            <Radio size={48} color="#6B7280" />
-            <Text className="text-muted-foreground text-center mt-4">
-              No live rooms in {selectedTopic}
+      {/* Topic Pills */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingVertical: 16,
+          gap: 10,
+        }}
+      >
+        {TOPICS.map((topic) => (
+          <Pressable
+            key={topic}
+            onPress={() => setSelectedTopic(topic)}
+            className={`px-[18px] py-2.5 rounded-[20px] mr-2.5 ${
+              selectedTopic === topic ? "bg-primary" : "bg-secondary"
+            }`}
+          >
+            <Text
+              className={`text-sm font-semibold ${
+                selectedTopic === topic ? "text-white" : "text-muted-foreground"
+              }`}
+            >
+              {topic}
             </Text>
-            <Text className="text-muted-foreground/60 text-center text-sm mt-1">
-              Check back later or start your own!
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Live Spaces List */}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: 20,
+          gap: 16,
+        }}
+      >
+        {filteredSpaces.length > 0 ? (
+          filteredSpaces.map((space) => (
+            <LiveRoomCard
+              key={space.id}
+              space={space}
+              onPress={() => handleRoomPress(space.id)}
+            />
+          ))
+        ) : (
+          <View className="items-center justify-center pt-20 gap-3">
+            <Radio size={48} color="#6B7280" />
+            <Text className="text-lg font-semibold text-foreground">
+              No Live Spaces
+            </Text>
+            <Text className="text-sm text-muted-foreground">
+              Check back later for live conversations
             </Text>
           </View>
         )}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
