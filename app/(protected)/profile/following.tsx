@@ -76,9 +76,8 @@ const FollowingRow = memo(function FollowingRow({
               paddingHorizontal: 20,
               paddingVertical: 8,
               borderRadius: 8,
-              backgroundColor:
-                user.isFollowing !== false ? "#262626" : "#3EA4E5",
-              borderWidth: user.isFollowing !== false ? 1 : 0,
+              backgroundColor: user.isFollowing ? "#262626" : "#3EA4E5",
+              borderWidth: user.isFollowing ? 1 : 0,
               borderColor: "#404040",
               opacity: isFollowPending ? 0.5 : 1,
             }}
@@ -90,7 +89,7 @@ const FollowingRow = memo(function FollowingRow({
                 color: "#fff",
               }}
             >
-              {user.isFollowing !== false ? "Following" : "Follow"}
+              {user.isFollowing ? "Following" : "Follow"}
             </Text>
           </Motion.View>
         </Pressable>
@@ -128,13 +127,9 @@ export default function FollowingScreen() {
     queryFn: async ({ pageParam = 1 }) => {
       if (!userId) return { users: [], nextPage: null };
       const result = await usersApi.getFollowing(userId, pageParam);
-      // Mark all as following since this is the "following" list
-      const usersWithFollowing = (result.docs || []).map((u: any) => ({
-        ...u,
-        isFollowing: true,
-      }));
+      // API now returns isFollowing state for current viewer
       return {
-        users: usersWithFollowing,
+        users: result.docs || [],
         nextPage: result.hasNextPage ? pageParam + 1 : null,
       };
     },
@@ -179,7 +174,7 @@ export default function FollowingScreen() {
   const handleFollowPress = useCallback(
     (user: FollowingUser) => {
       if (!user.id) return;
-      const action = user.isFollowing !== false ? "unfollow" : "follow";
+      const action = user.isFollowing ? "unfollow" : "follow";
       followMutate({
         userId: user.id,
         action,

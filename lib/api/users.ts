@@ -236,11 +236,12 @@ export const usersApi = {
   },
 
   /**
-   * Get followers for a user
+   * Get followers for a user (includes isFollowing state for current viewer)
    */
   async getFollowers(userId: string, page: number = 1, limit: number = 20) {
     try {
       const offset = (page - 1) * limit;
+      const currentUserId = getCurrentUserIdInt();
 
       const { data, error, count } = await supabase
         .from(DB.follows.table)
@@ -261,16 +262,33 @@ export const usersApi = {
 
       if (error) throw error;
 
-      const docs = (data || []).map((f: any) => ({
-        id: String(f.follower?.[DB.users.id]),
-        username: f.follower?.[DB.users.username] || "unknown",
-        name:
-          f.follower?.[DB.users.firstName] ||
-          f.follower?.[DB.users.username] ||
-          "Unknown",
-        avatar: f.follower?.avatar?.url || "",
-        verified: f.follower?.[DB.users.verified] || false,
-      }));
+      // Get IDs of users the current viewer is following
+      let followingIds: number[] = [];
+      if (currentUserId) {
+        const { data: followingData } = await supabase
+          .from(DB.follows.table)
+          .select(DB.follows.followingId)
+          .eq(DB.follows.followerId, currentUserId);
+
+        followingIds = (followingData || []).map(
+          (f: any) => f[DB.follows.followingId],
+        );
+      }
+
+      const docs = (data || []).map((f: any) => {
+        const followerId = f.follower?.[DB.users.id];
+        return {
+          id: String(followerId),
+          username: f.follower?.[DB.users.username] || "unknown",
+          name:
+            f.follower?.[DB.users.firstName] ||
+            f.follower?.[DB.users.username] ||
+            "Unknown",
+          avatar: f.follower?.avatar?.url || "",
+          verified: f.follower?.[DB.users.verified] || false,
+          isFollowing: followingIds.includes(followerId),
+        };
+      });
 
       return {
         docs,
@@ -285,11 +303,12 @@ export const usersApi = {
   },
 
   /**
-   * Get following for a user
+   * Get following for a user (includes isFollowing state for current viewer)
    */
   async getFollowing(userId: string, page: number = 1, limit: number = 20) {
     try {
       const offset = (page - 1) * limit;
+      const currentUserId = getCurrentUserIdInt();
 
       const { data, error, count } = await supabase
         .from(DB.follows.table)
@@ -310,16 +329,33 @@ export const usersApi = {
 
       if (error) throw error;
 
-      const docs = (data || []).map((f: any) => ({
-        id: String(f.following?.[DB.users.id]),
-        username: f.following?.[DB.users.username] || "unknown",
-        name:
-          f.following?.[DB.users.firstName] ||
-          f.following?.[DB.users.username] ||
-          "Unknown",
-        avatar: f.following?.avatar?.url || "",
-        verified: f.following?.[DB.users.verified] || false,
-      }));
+      // Get IDs of users the current viewer is following
+      let viewerFollowingIds: number[] = [];
+      if (currentUserId) {
+        const { data: followingData } = await supabase
+          .from(DB.follows.table)
+          .select(DB.follows.followingId)
+          .eq(DB.follows.followerId, currentUserId);
+
+        viewerFollowingIds = (followingData || []).map(
+          (f: any) => f[DB.follows.followingId],
+        );
+      }
+
+      const docs = (data || []).map((f: any) => {
+        const followingId = f.following?.[DB.users.id];
+        return {
+          id: String(followingId),
+          username: f.following?.[DB.users.username] || "unknown",
+          name:
+            f.following?.[DB.users.firstName] ||
+            f.following?.[DB.users.username] ||
+            "Unknown",
+          avatar: f.following?.avatar?.url || "",
+          verified: f.following?.[DB.users.verified] || false,
+          isFollowing: viewerFollowingIds.includes(followingId),
+        };
+      });
 
       return {
         docs,
