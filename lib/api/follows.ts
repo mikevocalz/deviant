@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
 
 export const followsApi = {
   /**
@@ -15,37 +15,39 @@ export const followsApi = {
         isFollowing,
       );
 
-      const currentUserId = getCurrentUserId();
+      const currentUserId = getCurrentUserIdInt();
       if (!currentUserId) throw new Error("Not authenticated");
+
+      const targetUserIdInt = parseInt(targetUserId);
 
       if (isFollowing) {
         // Unfollow
         await supabase
           .from(DB.follows.table)
           .delete()
-          .eq(DB.follows.followerId, parseInt(currentUserId))
-          .eq(DB.follows.followingId, parseInt(targetUserId));
+          .eq(DB.follows.followerId, currentUserId)
+          .eq(DB.follows.followingId, targetUserIdInt);
 
         // Decrement counts
         await supabase.rpc("decrement_following_count", {
-          user_id: parseInt(currentUserId),
+          user_id: currentUserId,
         });
         await supabase.rpc("decrement_followers_count", {
-          user_id: parseInt(targetUserId),
+          user_id: targetUserIdInt,
         });
       } else {
         // Follow
         await supabase.from(DB.follows.table).insert({
-          [DB.follows.followerId]: parseInt(currentUserId),
-          [DB.follows.followingId]: parseInt(targetUserId),
+          [DB.follows.followerId]: currentUserId,
+          [DB.follows.followingId]: targetUserIdInt,
         });
 
         // Increment counts
         await supabase.rpc("increment_following_count", {
-          user_id: parseInt(currentUserId),
+          user_id: currentUserId,
         });
         await supabase.rpc("increment_followers_count", {
-          user_id: parseInt(targetUserId),
+          user_id: targetUserIdInt,
         });
       }
 
@@ -73,13 +75,13 @@ export const followsApi = {
    */
   async isFollowing(targetUserId: string): Promise<boolean> {
     try {
-      const currentUserId = getCurrentUserId();
+      const currentUserId = getCurrentUserIdInt();
       if (!currentUserId) return false;
 
       const { data, error } = await supabase
         .from(DB.follows.table)
         .select("id")
-        .eq(DB.follows.followerId, parseInt(currentUserId))
+        .eq(DB.follows.followerId, currentUserId)
         .eq(DB.follows.followingId, parseInt(targetUserId))
         .single();
 

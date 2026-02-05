@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 
 export const storiesApi = {
   /**
@@ -117,7 +117,7 @@ export const storiesApi = {
     try {
       console.log("[Stories] createStory");
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       // Set expiry to 24 hours from now
@@ -187,7 +187,7 @@ export const storiesApi = {
     try {
       console.log("[Stories] deleteStory:", storyId);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       // Only delete if user owns the story
@@ -212,7 +212,7 @@ export const storiesApi = {
     try {
       console.log("[Stories] updateStory:", storyId);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase

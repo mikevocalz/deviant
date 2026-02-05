@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 
 export const eventsApi = {
   /**
@@ -190,15 +190,17 @@ export const eventsApi = {
     try {
       console.log("[Events] rsvpEvent:", eventId, status);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
+
+      const eventIdInt = parseInt(eventId);
 
       // Check if RSVP exists
       const { data: existing } = await supabase
         .from(DB.eventRsvps.table)
         .select("*")
-        .eq(DB.eventRsvps.eventId, parseInt(eventId))
-        .eq(DB.eventRsvps.userId, parseInt(userId))
+        .eq(DB.eventRsvps.eventId, eventIdInt)
+        .eq(DB.eventRsvps.userId, userId)
         .single();
 
       if (existing) {
@@ -206,15 +208,15 @@ export const eventsApi = {
         const { error } = await supabase
           .from(DB.eventRsvps.table)
           .update({ [DB.eventRsvps.status]: status })
-          .eq(DB.eventRsvps.eventId, parseInt(eventId))
-          .eq(DB.eventRsvps.userId, parseInt(userId));
+          .eq(DB.eventRsvps.eventId, eventIdInt)
+          .eq(DB.eventRsvps.userId, userId);
 
         if (error) throw error;
       } else {
         // Create new RSVP
         const { error } = await supabase.from(DB.eventRsvps.table).insert({
-          [DB.eventRsvps.eventId]: parseInt(eventId),
-          [DB.eventRsvps.userId]: parseInt(userId),
+          [DB.eventRsvps.eventId]: eventIdInt,
+          [DB.eventRsvps.userId]: userId,
           [DB.eventRsvps.status]: status,
         });
 
@@ -240,14 +242,14 @@ export const eventsApi = {
    */
   async getUserRsvp(eventId: string) {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return null;
 
       const { data, error } = await supabase
         .from(DB.eventRsvps.table)
         .select(DB.eventRsvps.status)
         .eq(DB.eventRsvps.eventId, parseInt(eventId))
-        .eq(DB.eventRsvps.userId, parseInt(userId))
+        .eq(DB.eventRsvps.userId, userId)
         .single();
 
       if (error) return null;
@@ -266,7 +268,7 @@ export const eventsApi = {
     try {
       console.log("[Events] createEvent");
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       // Use userId for host_id
@@ -316,11 +318,11 @@ export const eventsApi = {
    */
   async updateEvent(eventId: string, updates: any) {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       // Check if user is host or co-organizer
-      const canEdit = await this.canEditEvent(eventId, userId);
+      const canEdit = await this.canEditEvent(eventId, String(userId));
       if (!canEdit) throw new Error("Not authorized to edit this event");
 
       const updateData: any = {};
@@ -358,7 +360,7 @@ export const eventsApi = {
     try {
       console.log("[Events] deleteEvent:", eventId);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       // Delete co-organizers first

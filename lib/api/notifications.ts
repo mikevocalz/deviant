@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
 
 // Type exports for activity-store compatibility
 export type NotificationType =
@@ -50,7 +50,7 @@ export const notificationsApi = {
    */
   async getNotifications(limit: number = 50) {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return { docs: [], totalDocs: 0 };
 
       // Note: This assumes a 'notifications' table exists
@@ -67,7 +67,7 @@ export const notificationsApi = {
         `,
           { count: "exact" },
         )
-        .eq("user_id", parseInt(userId))
+        .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(limit);
 
@@ -126,13 +126,13 @@ export const notificationsApi = {
    */
   async markAllAsRead() {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       const { error } = await supabase
         .from("notifications")
         .update({ read: true })
-        .eq("user_id", parseInt(userId));
+        .eq("user_id", userId);
 
       if (error) throw error;
       return { success: true };
@@ -154,13 +154,13 @@ export const notificationsApi = {
    */
   async getBadges() {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return { unread: 0, total: 0 };
 
       const { count: unread } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", parseInt(userId))
+        .eq("user_id", userId)
         .eq("read", false);
 
       return { unread: unread || 0, total: 0 };

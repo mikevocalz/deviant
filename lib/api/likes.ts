@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
 
 export const likesApi = {
   /**
@@ -8,13 +8,15 @@ export const likesApi = {
    */
   async likePost(postId: string): Promise<{ liked: boolean; likes: number }> {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
+
+      const postIdInt = parseInt(postId);
 
       // Add like
       await supabase.from(DB.likes.table).insert({
-        [DB.likes.userId]: parseInt(userId),
-        [DB.likes.postId]: parseInt(postId),
+        [DB.likes.userId]: userId,
+        [DB.likes.postId]: postIdInt,
       });
 
       // Increment likes count
@@ -39,18 +41,20 @@ export const likesApi = {
    */
   async unlikePost(postId: string): Promise<{ liked: boolean; likes: number }> {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
+
+      const postIdInt = parseInt(postId);
 
       // Remove like
       await supabase
         .from(DB.likes.table)
         .delete()
-        .eq(DB.likes.userId, parseInt(userId))
-        .eq(DB.likes.postId, parseInt(postId));
+        .eq(DB.likes.userId, userId)
+        .eq(DB.likes.postId, postIdInt);
 
       // Decrement likes count
-      await supabase.rpc("decrement_post_likes", { post_id: parseInt(postId) });
+      await supabase.rpc("decrement_post_likes", { post_id: postIdInt });
 
       // Get updated count
       const { data: postData } = await supabase
@@ -85,13 +89,13 @@ export const likesApi = {
    */
   async hasLiked(postId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return false;
 
       const { data } = await supabase
         .from(DB.likes.table)
         .select("id")
-        .eq(DB.likes.userId, parseInt(userId))
+        .eq(DB.likes.userId, userId)
         .eq(DB.likes.postId, parseInt(postId))
         .single();
 

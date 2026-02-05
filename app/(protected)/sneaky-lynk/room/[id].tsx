@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import {
   mockSpaces,
@@ -101,17 +101,20 @@ export default function SneakyLynkRoomScreen() {
     return () => clearInterval(interval);
   }, [isMockRoom, mockSpace]);
 
-  // Join real room on mount
+  // Join real room on mount (only for non-mock rooms)
+  const hasJoinedRef = useRef(false);
   useEffect(() => {
-    if (!isMockRoom && id) {
+    if (!isMockRoom && id && !hasJoinedRef.current) {
+      hasJoinedRef.current = true;
       videoRoom.join();
     }
     return () => {
-      if (!isMockRoom) {
+      if (!isMockRoom && hasJoinedRef.current) {
         videoRoom.leave();
+        hasJoinedRef.current = false;
       }
     };
-  }, [isMockRoom, id]);
+  }, [isMockRoom, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLeave = useCallback(() => {
     router.back();

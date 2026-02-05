@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 
 export const usersApi = {
   /**
@@ -144,7 +144,7 @@ export const usersApi = {
   }) {
     try {
       // Get current user from Better Auth store
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       console.log("[Users] updateProfile for userId:", userId);
@@ -164,7 +164,7 @@ export const usersApi = {
           }),
           [DB.users.updatedAt]: new Date().toISOString(),
         })
-        .eq(DB.users.id, parseInt(userId))
+        .eq(DB.users.id, userId)
         .select()
         .single();
 
@@ -181,13 +181,13 @@ export const usersApi = {
    */
   async getLikedPosts(): Promise<string[]> {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return [];
 
       const { data, error } = await supabase
         .from(DB.likes.table)
         .select(DB.likes.postId)
-        .eq(DB.likes.userId, parseInt(userId));
+        .eq(DB.likes.userId, userId);
 
       if (error) throw error;
 
@@ -347,7 +347,7 @@ export const usersApi = {
    */
   async updateAvatar(avatarUrl: string) {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       console.log("[Users] updateAvatar for userId:", userId);
@@ -365,7 +365,7 @@ export const usersApi = {
       const { error } = await supabase
         .from(DB.users.table)
         .update({ [DB.users.avatarId]: mediaData.id })
-        .eq(DB.users.id, parseInt(userId));
+        .eq(DB.users.id, userId);
 
       if (error) throw error;
       return { success: true, avatarUrl };
@@ -380,7 +380,7 @@ export const usersApi = {
    */
   async getCurrentUser() {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return null;
 
       const { data, error } = await supabase
@@ -397,7 +397,7 @@ export const usersApi = {
           avatar:${DB.users.avatarId}(url)
         `,
         )
-        .eq(DB.users.id, parseInt(userId))
+        .eq(DB.users.id, userId)
         .single();
 
       if (error) return null;

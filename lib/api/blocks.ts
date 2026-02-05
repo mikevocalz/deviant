@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
 
 export const blocksApi = {
   /**
@@ -8,7 +8,7 @@ export const blocksApi = {
    */
   async getBlockedUsers() {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return [];
 
       // Note: This assumes a 'blocks' table exists in the schema
@@ -28,7 +28,7 @@ export const blocksApi = {
           )
         `,
         )
-        .eq("blocker_id", parseInt(userId));
+        .eq("blocker_id", userId);
 
       if (error) {
         console.log(
@@ -58,13 +58,13 @@ export const blocksApi = {
    */
   async blockUser(targetUserId: string) {
     try {
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from("blocks")
         .insert({
-          blocker_id: parseInt(userId),
+          blocker_id: userId,
           blocked_id: parseInt(targetUserId),
         })
         .select()

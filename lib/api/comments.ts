@@ -1,7 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Comment } from "@/lib/types";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
 
 export const commentsApi = {
   /**
@@ -55,14 +55,14 @@ export const commentsApi = {
     try {
       console.log("[Comments] addComment, postId:", postId);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from(DB.comments.table)
         .insert({
           [DB.comments.postId]: parseInt(postId),
-          [DB.comments.authorId]: parseInt(userId),
+          [DB.comments.authorId]: userId,
           [DB.comments.content]: content,
           [DB.comments.likesCount]: 0,
         })
@@ -107,7 +107,7 @@ export const commentsApi = {
     try {
       console.log("[Comments] likeComment:", commentId, "isLiked:", isLiked);
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
       const newLikedState = !isLiked;
