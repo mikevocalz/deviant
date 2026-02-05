@@ -175,6 +175,14 @@ export default function LoginScreen() {
               }}
             />
 
+            <View className="items-end">
+              <Pressable
+                onPress={() => router.push("/(auth)/forgot-password" as any)}
+              >
+                <Text className="text-primary text-sm">Forgot password?</Text>
+              </Pressable>
+            </View>
+
             <Button
               onPress={form.handleSubmit}
               disabled={isSubmitting}
