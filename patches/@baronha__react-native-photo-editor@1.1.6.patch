@@ -31,10 +31,10 @@ index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d
          ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
  
 diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..5f784e8f9d3099dbbf4b20dc9f5c9931964de1df 100644
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..dfc44616aa836445400c5c2af524026da70c9d44 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 +++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-@@ -265,6 +265,26 @@ public class ZLEditImageViewController: UIViewController {
+@@ -265,6 +265,28 @@ public class ZLEditImageViewController: UIViewController {
          if self.tools.contains(.filter) {
              self.generateFilterImages()
          }
@@ -44,7 +44,9 @@ index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..5f784e8f9d3099dbbf4b20dc9f5c9931
 +            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
 +                switch initialTool {
 +                case "text":
-+                    self.showInputTextVC()
++                    self.showInputTextVC { [weak self] (text, textColor, bgColor) in
++                        self?.addTextStickersView(text, textColor: textColor, bgColor: bgColor)
++                    }
 +                case "stickers":
 +                    self.showImageStickerView()
 +                case "draw":
@@ -76,7 +78,7 @@ index b49b33d405ee2b6dcc962add20bb75c6163de1d8..95b26230e81003332230573b05e319e1
      /// Filters for image editor.
      @objc public var filters: [ZLFilter] {
 diff --git a/lib/commonjs/index.js b/lib/commonjs/index.js
-index e62f1f30a2f69ee458173335403a3985f8abf52c..84689df54daade1f7672c13dd0a425eb0a4e9209 100644
+index e62f1f30a2f69ee458173335403a3985f8abf52c..bc5c23e9d931a51235ebd4a08f1921bae33afeac 100644
 --- a/lib/commonjs/index.js
 +++ b/lib/commonjs/index.js
 @@ -1,22 +1,21 @@
@@ -125,7 +127,7 @@ index e62f1f30a2f69ee458173335403a3985f8abf52c..84689df54daade1f7672c13dd0a425eb
  var _default = exportObject;
  exports.default = _default;
 diff --git a/lib/module/index.js b/lib/module/index.js
-index 1df5576a156cb7eb1ff6c338a51f849900bf94bc..b292025ff77431d5f79c59dcf39bb2e763f85895 100644
+index 1df5576a156cb7eb1ff6c338a51f849900bf94bc..76c24d3589bd2c41b773ef3452f4f8ddafabfe63 100644
 --- a/lib/module/index.js
 +++ b/lib/module/index.js
 @@ -1,15 +1,13 @@
@@ -161,6 +163,7 @@ index 1df5576a156cb7eb1ff6c338a51f849900bf94bc..b292025ff77431d5f79c59dcf39bb2e7
  };
  export default exportObject;
  //# sourceMappingURL=index.js.map
+\ No newline at end of file
 diff --git a/react-native-photo-editor.podspec b/react-native-photo-editor.podspec
 index 61bc5bcfac7342591b61ba9d36d80172be64e57f..6ea6ea0722832692da99016069cc54f274bbfc14 100644
 --- a/react-native-photo-editor.podspec
