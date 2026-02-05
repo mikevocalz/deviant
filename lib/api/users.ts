@@ -141,6 +141,8 @@ export const usersApi = {
     bio?: string;
     location?: string;
     name?: string;
+    website?: string;
+    avatar?: string;
   }) {
     try {
       // Get current user from Better Auth store
@@ -148,27 +150,41 @@ export const usersApi = {
       if (!userId) throw new Error("Not authenticated");
 
       console.log("[Users] updateProfile for userId:", userId);
+      console.log("[Users] updateProfile updates:", updates);
+
+      // Build update object - map 'name' to 'firstName' if provided
+      const updateData: Record<string, any> = {
+        [DB.users.updatedAt]: new Date().toISOString(),
+      };
+
+      if (updates.firstName !== undefined) {
+        updateData[DB.users.firstName] = updates.firstName;
+      }
+      if (updates.lastName !== undefined) {
+        updateData[DB.users.lastName] = updates.lastName;
+      }
+      // Map 'name' to 'firstName' for compatibility with edit-profile screen
+      if (updates.name !== undefined) {
+        updateData[DB.users.firstName] = updates.name;
+      }
+      if (updates.bio !== undefined) {
+        updateData[DB.users.bio] = updates.bio;
+      }
+      if (updates.location !== undefined) {
+        updateData[DB.users.location] = updates.location;
+      }
+
+      console.log("[Users] updateProfile updateData:", updateData);
 
       const { data, error } = await supabase
         .from(DB.users.table)
-        .update({
-          ...(updates.firstName !== undefined && {
-            [DB.users.firstName]: updates.firstName,
-          }),
-          ...(updates.lastName !== undefined && {
-            [DB.users.lastName]: updates.lastName,
-          }),
-          ...(updates.bio !== undefined && { [DB.users.bio]: updates.bio }),
-          ...(updates.location !== undefined && {
-            [DB.users.location]: updates.location,
-          }),
-          [DB.users.updatedAt]: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq(DB.users.id, userId)
         .select()
         .single();
 
       if (error) throw error;
+      console.log("[Users] updateProfile success:", data);
       return data;
     } catch (error) {
       console.error("[Users] updateProfile error:", error);
