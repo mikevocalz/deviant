@@ -6,3 +6,9 @@ verify_jwt = false
 
 [functions.update-profile]
 verify_jwt = false
+
+[functions.toggle-like]
+verify_jwt = false
+
+[functions.toggle-bookmark]
+verify_jwt = false

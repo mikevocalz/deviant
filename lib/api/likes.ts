@@ -1,87 +1,65 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface ToggleLikeResponse {
+  ok: boolean;
+  data?: { liked: boolean; likesCount: number };
+  error?: { code: string; message: string };
+}
 
 export const likesApi = {
   /**
-   * Like a post
-   */
-  async likePost(postId: string): Promise<{ liked: boolean; likes: number }> {
-    try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
-
-      const postIdInt = parseInt(postId);
-
-      // Add like
-      await supabase.from(DB.likes.table).insert({
-        [DB.likes.userId]: userId,
-        [DB.likes.postId]: postIdInt,
-      });
-
-      // Increment likes count
-      await supabase.rpc("increment_post_likes", { post_id: parseInt(postId) });
-
-      // Get updated count
-      const { data: postData } = await supabase
-        .from(DB.posts.table)
-        .select(DB.posts.likesCount)
-        .eq(DB.posts.id, postId)
-        .single();
-
-      return { liked: true, likes: postData?.[DB.posts.likesCount] || 0 };
-    } catch (error) {
-      console.error("[Likes] likePost error:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Unlike a post
-   */
-  async unlikePost(postId: string): Promise<{ liked: boolean; likes: number }> {
-    try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
-
-      const postIdInt = parseInt(postId);
-
-      // Remove like
-      await supabase
-        .from(DB.likes.table)
-        .delete()
-        .eq(DB.likes.userId, userId)
-        .eq(DB.likes.postId, postIdInt);
-
-      // Decrement likes count
-      await supabase.rpc("decrement_post_likes", { post_id: postIdInt });
-
-      // Get updated count
-      const { data: postData } = await supabase
-        .from(DB.posts.table)
-        .select(DB.posts.likesCount)
-        .eq(DB.posts.id, postId)
-        .single();
-
-      return { liked: false, likes: postData?.[DB.posts.likesCount] || 0 };
-    } catch (error) {
-      console.error("[Likes] unlikePost error:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Toggle like on a post
+   * Toggle like on a post via Edge Function
    */
   async toggleLike(
     postId: string,
-    isCurrentlyLiked: boolean,
+    _isCurrentlyLiked?: boolean,
   ): Promise<{ liked: boolean; likes: number }> {
-    if (isCurrentlyLiked) {
-      return this.unlikePost(postId);
-    } else {
-      return this.likePost(postId);
+    try {
+      console.log("[Likes] toggleLike via Edge Function:", postId);
+
+      const token = await requireBetterAuthToken();
+      const postIdInt = parseInt(postId);
+
+      const { data, error } =
+        await supabase.functions.invoke<ToggleLikeResponse>("toggle-like", {
+          body: { postId: postIdInt },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+      if (error) {
+        console.error("[Likes] Edge Function error:", error);
+        throw new Error(error.message || "Failed to toggle like");
+      }
+
+      if (!data?.ok || !data?.data) {
+        const errorMessage = data?.error?.message || "Failed to toggle like";
+        console.error("[Likes] Toggle failed:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      console.log("[Likes] toggleLike result:", data.data);
+      return { liked: data.data.liked, likes: data.data.likesCount };
+    } catch (error) {
+      console.error("[Likes] toggleLike error:", error);
+      throw error;
     }
+  },
+
+  /**
+   * Like a post (calls toggleLike)
+   */
+  async likePost(postId: string): Promise<{ liked: boolean; likes: number }> {
+    return this.toggleLike(postId);
+  },
+
+  /**
+   * Unlike a post (calls toggleLike)
+   */
+  async unlikePost(postId: string): Promise<{ liked: boolean; likes: number }> {
+    return this.toggleLike(postId);
   },
 
   /**

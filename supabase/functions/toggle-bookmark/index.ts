@@ -1,0 +1,159 @@
+/**
+ * Edge Function: toggle-bookmark
+ * Toggle bookmark on a post with Better Auth verification
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+interface ApiResponse<T = unknown> {
+  ok: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+}
+
+function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(code: string, message: string, status = 400): Response {
+  console.error(`[Edge:toggle-bookmark] Error: ${code} - ${message}`);
+  return jsonResponse({ ok: false, error: { code, message } }, status);
+}
+
+async function verifyBetterAuthSession(token: string): Promise<{ odUserId: string; email: string } | null> {
+  const betterAuthUrl = Deno.env.get("BETTER_AUTH_BASE_URL");
+  if (!betterAuthUrl) return null;
+
+  try {
+    const response = await fetch(`${betterAuthUrl}/api/auth/get-session`, {
+      method: "GET",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data?.user?.id) return null;
+    return { odUserId: data.user.id, email: data.user.email || "" };
+  } catch {
+    return null;
+  }
+}
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return errorResponse("validation_error", "Method not allowed", 405);
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const session = await verifyBetterAuthSession(token);
+    if (!session) {
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
+    }
+
+    const { odUserId } = session;
+    console.log("[Edge:toggle-bookmark] Authenticated user auth_id:", odUserId);
+
+    // Parse body
+    let body: { postId: number };
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("validation_error", "Invalid JSON body", 400);
+    }
+
+    const { postId } = body;
+    if (!postId || typeof postId !== "number") {
+      return errorResponse("validation_error", "postId is required and must be a number", 400);
+    }
+
+    // Get Supabase admin client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse("internal_error", "Server configuration error", 500);
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get user's integer ID from auth_id
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("auth_id", odUserId)
+      .single();
+
+    if (userError || !userData) {
+      console.error("[Edge:toggle-bookmark] User not found:", userError);
+      return errorResponse("not_found", "User not found", 404);
+    }
+
+    const userId = userData.id;
+    console.log("[Edge:toggle-bookmark] User ID:", userId, "Post ID:", postId);
+
+    // Check if already bookmarked
+    const { data: existingBookmark } = await supabaseAdmin
+      .from("bookmarks")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("post_id", postId)
+      .single();
+
+    let bookmarked: boolean;
+    
+    if (existingBookmark) {
+      // Remove bookmark
+      const { error: deleteError } = await supabaseAdmin
+        .from("bookmarks")
+        .delete()
+        .eq("user_id", userId)
+        .eq("post_id", postId);
+
+      if (deleteError) {
+        console.error("[Edge:toggle-bookmark] Delete error:", deleteError);
+        return errorResponse("internal_error", "Failed to remove bookmark", 500);
+      }
+      bookmarked = false;
+    } else {
+      // Add bookmark
+      const { error: insertError } = await supabaseAdmin
+        .from("bookmarks")
+        .insert({ user_id: userId, post_id: postId });
+
+      if (insertError) {
+        console.error("[Edge:toggle-bookmark] Insert error:", insertError);
+        return errorResponse("internal_error", "Failed to add bookmark", 500);
+      }
+      bookmarked = true;
+    }
+
+    console.log("[Edge:toggle-bookmark] Result:", { bookmarked });
+
+    return jsonResponse({
+      ok: true,
+      data: { bookmarked },
+    });
+  } catch (err) {
+    console.error("[Edge:toggle-bookmark] Unexpected error:", err);
+    return errorResponse("internal_error", "An unexpected error occurred", 500);
+  }
+});

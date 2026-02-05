@@ -1,6 +1,13 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId } from "./auth-helper";
+import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface ToggleBookmarkResponse {
+  ok: boolean;
+  data?: { bookmarked: boolean };
+  error?: { code: string; message: string };
+}
 
 export const bookmarksApi = {
   /**
@@ -10,10 +17,9 @@ export const bookmarksApi = {
     try {
       console.log("[Bookmarks] getBookmarks");
 
-      const userId = getCurrentUserId();
+      const userId = getCurrentUserIdInt();
       if (!userId) return [];
 
-      // bookmarks.user_id uses the user ID
       const { data, error } = await supabase
         .from(DB.bookmarks.table)
         .select(
@@ -35,36 +41,38 @@ export const bookmarksApi = {
   },
 
   /**
-   * Toggle bookmark on post
+   * Toggle bookmark on post via Edge Function
    */
-  async toggleBookmark(postId: string, isBookmarked: boolean) {
+  async toggleBookmark(postId: string, _isBookmarked?: boolean) {
     try {
-      console.log(
-        "[Bookmarks] toggleBookmark:",
-        postId,
-        "isBookmarked:",
-        isBookmarked,
-      );
+      console.log("[Bookmarks] toggleBookmark via Edge Function:", postId);
 
-      const userId = getCurrentUserId();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const postIdInt = parseInt(postId);
 
-      if (isBookmarked) {
-        // Remove bookmark
-        await supabase
-          .from(DB.bookmarks.table)
-          .delete()
-          .eq(DB.bookmarks.userId, userId)
-          .eq(DB.bookmarks.postId, parseInt(postId));
-      } else {
-        // Add bookmark
-        await supabase.from(DB.bookmarks.table).insert({
-          [DB.bookmarks.userId]: userId,
-          [DB.bookmarks.postId]: parseInt(postId),
-        });
+      const { data, error } =
+        await supabase.functions.invoke<ToggleBookmarkResponse>(
+          "toggle-bookmark",
+          {
+            body: { postId: postIdInt },
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+      if (error) {
+        console.error("[Bookmarks] Edge Function error:", error);
+        throw new Error(error.message || "Failed to toggle bookmark");
       }
 
-      return { success: true, bookmarked: !isBookmarked };
+      if (!data?.ok || !data?.data) {
+        const errorMessage =
+          data?.error?.message || "Failed to toggle bookmark";
+        console.error("[Bookmarks] Toggle failed:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      console.log("[Bookmarks] toggleBookmark result:", data.data);
+      return { success: true, bookmarked: data.data.bookmarked };
     } catch (error) {
       console.error("[Bookmarks] toggleBookmark error:", error);
       throw error;
