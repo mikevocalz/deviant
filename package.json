@@ -128,5 +128,10 @@
     "staticFeatureFlags": {
       "ENABLE_SHARED_ELEMENT_TRANSITIONS": true
     }
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@baronha/react-native-photo-editor@1.1.6": "patches/@baronha__react-native-photo-editor@1.1.6.patch"
+    }
   }
 }

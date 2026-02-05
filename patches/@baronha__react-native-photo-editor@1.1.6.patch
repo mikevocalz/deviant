@@ -1,0 +1,15 @@
+diff --git a/react-native-photo-editor.podspec b/react-native-photo-editor.podspec
+index 1234567..abcdefg 100644
+--- a/react-native-photo-editor.podspec
++++ b/react-native-photo-editor.podspec
+@@ -17,8 +17,8 @@ Pod::Spec.new do |s|
+   s.source_files = "ios/**/*.{h,m,mm,swift}"
+   
+   s.dependency "React-Core"
+-  s.dependency "SDWebImage", "~> 5.11.1"
+-  s.dependency 'SDWebImageWebPCoder', '~> 0.8.4'
++  s.dependency "SDWebImage"
++  s.dependency 'SDWebImageWebPCoder'
+ 
+   s.subspec 'ZLImageEditor' do |zl|
+     zl.name             = "ZLImageEditor"
