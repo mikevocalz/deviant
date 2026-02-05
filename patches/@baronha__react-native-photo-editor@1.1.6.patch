@@ -31,23 +31,24 @@ index 0c1e923c856731a18b947710c8dc13c052476ccb..17beb0bd7381514e02d1828d7aa6cd1d
          ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
  
 diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..37ba4519ba36be1d870cd67ce00005d43e92b1da 100644
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..2c49155fa40b2c5570ed697100e0143b74d96f73 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 +++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-@@ -265,6 +265,29 @@ public class ZLEditImageViewController: UIViewController {
+@@ -265,6 +265,28 @@ public class ZLEditImageViewController: UIViewController {
          if self.tools.contains(.filter) {
              self.generateFilterImages()
          }
 +        
 +        // Auto-select initial tool if specified
 +        if let initialTool = ZLImageEditorConfiguration.default().initialTool {
-+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
++            // Clear immediately to prevent reuse
++            ZLImageEditorConfiguration.default().initialTool = nil
++            
++            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
 +                guard let self = self else { return }
 +                switch initialTool {
 +                case "text":
-+                    self.showInputTextVC(nil, textColor: nil, bgColor: nil) { [weak self] (text, textColor, bgColor) in
-+                        self?.addTextStickersView(text, textColor: textColor, bgColor: bgColor)
-+                    }
++                    self.textStickerBtnClick()
 +                case "stickers":
 +                    self.imageStickerBtnClick()
 +                case "draw":
@@ -58,8 +59,6 @@ index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..37ba4519ba36be1d870cd67ce00005d4
 +                    break
 +                }
 +            }
-+            // Clear the initial tool so it doesn't persist
-+            ZLImageEditorConfiguration.default().initialTool = nil
 +        }
      }
      
