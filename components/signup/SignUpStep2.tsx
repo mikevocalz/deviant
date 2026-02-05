@@ -32,6 +32,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
 import { signUp } from "@/lib/auth-client";
+import { auth } from "@/lib/api/auth";
 import { toast } from "sonner-native";
 import {
   validateDateOfBirth,
@@ -137,25 +138,54 @@ export function SignUpStep2() {
 
       console.log("[SignUp] Better Auth user created:", data.user.id);
 
-      // Set user in auth store
-      setUser({
-        id: data.user.id,
-        email: data.user.email,
-        username: (data.user as any).username || formData.username,
-        name: data.user.name || `${formData.firstName} ${formData.lastName}`,
-        avatar: data.user.image || "",
-        bio: "",
-        website: "",
-        location: "",
-        hashtags: [],
-        isVerified: true,
-        postsCount: 0,
-        followersCount: 0,
-        followingCount: 0,
-      });
+      // Fetch the Payload CMS profile to get the integer ID
+      // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
+      const profile = await auth.getProfile(data.user.id);
+
+      if (profile) {
+        console.log("[SignUp] Payload profile loaded, ID:", profile.id);
+        // Set user in auth store with the Payload CMS integer ID
+        setUser({
+          id: profile.id, // This is the Payload CMS integer ID (as string)
+          email: profile.email,
+          username: profile.username,
+          name: profile.name,
+          avatar: profile.avatar || "",
+          bio: profile.bio || "",
+          website: profile.website || "",
+          location: profile.location || "",
+          hashtags: profile.hashtags || [],
+          isVerified: profile.isVerified,
+          postsCount: profile.postsCount,
+          followersCount: profile.followersCount,
+          followingCount: profile.followingCount,
+        });
+      } else {
+        // Fallback to Better Auth data if profile fetch fails
+        console.warn(
+          "[SignUp] Could not load Payload profile, using Better Auth data",
+        );
+        setUser({
+          id: data.user.id,
+          email: data.user.email,
+          username: (data.user as any).username || formData.username,
+          name: data.user.name || `${formData.firstName} ${formData.lastName}`,
+          avatar: data.user.image || "",
+          bio: "",
+          website: "",
+          location: "",
+          hashtags: [],
+          isVerified: true,
+          postsCount: 0,
+          followersCount: 0,
+          followingCount: 0,
+        });
+      }
 
       // Record terms acceptance
-      recordTermsAcceptance(data.user.id, formData.email).catch(() => {});
+      recordTermsAcceptance(profile?.id || data.user.id, formData.email).catch(
+        () => {},
+      );
 
       toast.success("Welcome to DVNT!", {
         description: "Your account has been created and verified.",

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { storage } from "@/lib/utils/storage";
 import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
+import { auth } from "@/lib/api/auth";
 
 /**
  * Extract avatar URL from various formats:
@@ -94,29 +95,45 @@ export const useAuthStore = create<AuthStore>()(
           if (session?.user) {
             console.log("[AuthStore] Found session for user:", session.user.id);
 
-            // Map Better Auth user to AppUser
-            const user = session.user;
-            const profile: AppUser = {
-              id: user.id,
-              email: user.email,
-              username: (user as any).username || user.email.split("@")[0],
-              name: user.name || "",
-              avatar: user.image || "",
-              bio: (user as any).bio || "",
-              website: "",
-              location: (user as any).location || "",
-              hashtags: [],
-              isVerified: (user as any).verified || false,
-              postsCount: (user as any).postsCount || 0,
-              followersCount: (user as any).followersCount || 0,
-              followingCount: (user as any).followingCount || 0,
-            };
+            // Fetch the Payload CMS profile to get the integer ID
+            // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
+            const payloadProfile = await auth.getProfile(session.user.id);
 
-            console.log("[AuthStore] Profile loaded:", profile.id);
-            set({
-              user: profile,
-              isAuthenticated: true,
-            });
+            if (payloadProfile) {
+              console.log(
+                "[AuthStore] Payload profile loaded, ID:",
+                payloadProfile.id,
+              );
+              set({
+                user: payloadProfile,
+                isAuthenticated: true,
+              });
+            } else {
+              // Fallback to Better Auth data if profile fetch fails
+              console.warn(
+                "[AuthStore] Could not load Payload profile, using Better Auth data",
+              );
+              const user = session.user;
+              const profile: AppUser = {
+                id: user.id,
+                email: user.email,
+                username: (user as any).username || user.email.split("@")[0],
+                name: user.name || "",
+                avatar: user.image || "",
+                bio: (user as any).bio || "",
+                website: "",
+                location: (user as any).location || "",
+                hashtags: [],
+                isVerified: (user as any).verified || false,
+                postsCount: (user as any).postsCount || 0,
+                followersCount: (user as any).followersCount || 0,
+                followingCount: (user as any).followingCount || 0,
+              };
+              set({
+                user: profile,
+                isAuthenticated: true,
+              });
+            }
           } else {
             console.log("[AuthStore] No active session found");
             set({ user: null, isAuthenticated: false });

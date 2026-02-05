@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { router } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { signIn } from "@/lib/auth-client";
+import { auth } from "@/lib/api/auth";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
@@ -59,28 +60,45 @@ export default function LoginScreen() {
         }
 
         if (data?.user) {
-          console.log("[Login] Success, navigating to home...");
-          // Set user in auth store
-          setUser({
-            id: data.user.id,
-            email: data.user.email,
-            username:
-              (data.user as any).username || data.user.email.split("@")[0],
-            name: data.user.name || (data.user as any).firstName || "",
-            avatar: data.user.image || "",
-            bio: (data.user as any).bio || "",
-            website: "",
-            location: (data.user as any).location || "",
-            hashtags: [],
-            isVerified: (data.user as any).verified || false,
-            postsCount: (data.user as any).postsCount || 0,
-            followersCount: (data.user as any).followersCount || 0,
-            followingCount: (data.user as any).followingCount || 0,
-          });
-          // Small delay to let auth state sync before navigation
-          setTimeout(() => {
-            router.replace("/(protected)/(tabs)" as any);
-          }, 100);
+          console.log(
+            "[Login] Better Auth success, fetching Payload profile...",
+          );
+
+          // Fetch the Payload CMS profile to get the integer ID
+          // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
+          const profile = await auth.getProfile(data.user.id);
+
+          if (profile) {
+            console.log("[Login] Payload profile loaded, ID:", profile.id);
+            // Set user in auth store with the Payload CMS integer ID
+            setUser({
+              id: profile.id, // This is the Payload CMS integer ID (as string)
+              email: profile.email,
+              username: profile.username,
+              name: profile.name,
+              avatar: profile.avatar || "",
+              bio: profile.bio || "",
+              website: profile.website || "",
+              location: profile.location || "",
+              hashtags: profile.hashtags || [],
+              isVerified: profile.isVerified,
+              postsCount: profile.postsCount,
+              followersCount: profile.followersCount,
+              followingCount: profile.followingCount,
+            });
+            // Small delay to let auth state sync before navigation
+            setTimeout(() => {
+              router.replace("/(protected)/(tabs)" as any);
+            }, 100);
+          } else {
+            console.error(
+              "[Login] Could not load Payload profile for:",
+              data.user.id,
+            );
+            toast.error("Login Failed", {
+              description: "Could not load user profile from database",
+            });
+          }
         } else {
           toast.error("Login Failed", {
             description: "Could not load user profile",
