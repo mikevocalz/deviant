@@ -1,6 +1,13 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
+
+interface SendMessageResponse {
+  ok: boolean;
+  data?: { message: any };
+  error?: { code: string; message: string };
+}
 
 export const messagesApi = {
   /**
@@ -135,7 +142,7 @@ export const messagesApi = {
   },
 
   /**
-   * Send message
+   * Send message via Edge Function
    */
   async sendMessage(data: {
     conversationId: string;
@@ -143,31 +150,37 @@ export const messagesApi = {
     media?: Array<{ uri: string; type: "image" | "video" }>;
   }) {
     try {
-      console.log("[Messages] sendMessage:", data.conversationId);
+      console.log(
+        "[Messages] sendMessage via Edge Function:",
+        data.conversationId,
+      );
 
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const conversationIdInt = parseInt(data.conversationId);
 
-      const { data: result, error } = await supabase
-        .from(DB.messages.table)
-        .insert({
-          [DB.messages.conversationId]: parseInt(data.conversationId),
-          [DB.messages.senderId]: visitorId,
-          [DB.messages.content]: data.content,
-          [DB.messages.read]: false,
-        })
-        .select()
-        .single();
+      const { data: response, error } =
+        await supabase.functions.invoke<SendMessageResponse>("send-message", {
+          body: {
+            conversationId: conversationIdInt,
+            content: data.content,
+            mediaUrl: data.media?.[0]?.uri,
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      if (error) throw error;
+      if (error) {
+        console.error("[Messages] Edge Function error:", error);
+        throw new Error(error.message || "Failed to send message");
+      }
 
-      // Update conversation's last_message_at
-      await supabase
-        .from(DB.conversations.table)
-        .update({ [DB.conversations.lastMessageAt]: new Date().toISOString() })
-        .eq(DB.conversations.id, parseInt(data.conversationId));
+      if (!response?.ok || !response?.data?.message) {
+        const errorMessage =
+          response?.error?.message || "Failed to send message";
+        throw new Error(errorMessage);
+      }
 
-      return result;
+      console.log("[Messages] sendMessage success:", response.data.message.id);
+      return response.data.message;
     } catch (error) {
       console.error("[Messages] sendMessage error:", error);
       throw error;

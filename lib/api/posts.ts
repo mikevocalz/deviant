@@ -322,61 +322,16 @@ export const postsApi = {
   },
 
   /**
-   * Like/unlike post
+   * Like/unlike post via Edge Function
+   * Delegates to likesApi.toggleLike for consistency
    */
   async likePost(
     postId: string,
     isLiked: boolean,
   ): Promise<{ liked: boolean; likes: number }> {
-    try {
-      console.log("[Posts] likePost:", postId, "isLiked:", isLiked);
-
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
-
-      const newLikedState = !isLiked;
-      const postIdInt = parseInt(postId);
-
-      if (newLikedState) {
-        // Add like
-        await supabase.from(DB.likes.table).insert({
-          [DB.likes.userId]: userId,
-          [DB.likes.postId]: postIdInt,
-        });
-
-        // Increment count
-        await supabase.rpc("increment_post_likes", {
-          post_id: postIdInt,
-        });
-      } else {
-        // Remove like
-        await supabase
-          .from(DB.likes.table)
-          .delete()
-          .eq(DB.likes.userId, userId)
-          .eq(DB.likes.postId, postIdInt);
-
-        // Decrement count
-        await supabase.rpc("decrement_post_likes", {
-          post_id: postIdInt,
-        });
-      }
-
-      // Get updated likes count
-      const { data: postData } = await supabase
-        .from(DB.posts.table)
-        .select(DB.posts.likesCount)
-        .eq(DB.posts.id, postId)
-        .single();
-
-      return {
-        liked: newLikedState,
-        likes: postData?.[DB.posts.likesCount] || 0,
-      };
-    } catch (error) {
-      console.error("[Posts] likePost error:", error);
-      throw error;
-    }
+    // Import dynamically to avoid circular dependency
+    const { likesApi } = await import("./likes");
+    return likesApi.toggleLike(postId, isLiked);
   },
 
   /**
