@@ -12,7 +12,7 @@ import { assertAvatarSource } from "@/lib/invariants/assertAvatarOwnership";
 
 export function StoriesBar() {
   const router = useRouter();
-  const { data: stories = [], isLoading } = useStories();
+  const { data: stories = [], isLoading, isPending } = useStories();
   const user = useAuthStore((state) => state.user);
 
   const handleCreateStory = useCallback(() => {
@@ -83,7 +83,7 @@ export function StoriesBar() {
     return Array.from(authorMap.values());
   }, [stories, user]);
 
-  if (isLoading) {
+  if (isPending) {
     return <StoriesBarSkeleton />;
   }
 
