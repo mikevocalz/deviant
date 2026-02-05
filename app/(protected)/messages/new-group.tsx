@@ -33,6 +33,8 @@ interface SelectedUser {
   avatar: string;
 }
 
+const MAX_GROUP_MEMBERS = 4;
+
 export default function NewGroupScreen() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
@@ -70,15 +72,27 @@ export default function NewGroupScreen() {
         )}`,
     }));
 
-  const toggleUserSelection = useCallback((user: SelectedUser) => {
-    setSelectedUsers((prev) => {
-      const isSelected = prev.some((u) => u.id === user.id);
-      if (isSelected) {
-        return prev.filter((u) => u.id !== user.id);
-      }
-      return [...prev, user];
-    });
-  }, []);
+  const toggleUserSelection = useCallback(
+    (user: SelectedUser) => {
+      setSelectedUsers((prev) => {
+        const isSelected = prev.some((u) => u.id === user.id);
+        if (isSelected) {
+          return prev.filter((u) => u.id !== user.id);
+        }
+        // Check max limit (excluding current user who will be added automatically)
+        if (prev.length >= MAX_GROUP_MEMBERS - 1) {
+          showToast(
+            "warning",
+            "Limit Reached",
+            `Group chats can have max ${MAX_GROUP_MEMBERS} members`,
+          );
+          return prev;
+        }
+        return [...prev, user];
+      });
+    },
+    [showToast],
+  );
 
   const isUserSelected = useCallback(
     (userId: string) => selectedUsers.some((u) => u.id === userId),
@@ -183,7 +197,8 @@ export default function NewGroupScreen() {
               </View>
             </ScrollView>
             <Text className="text-xs text-muted-foreground mt-2">
-              {selectedUsers.length} selected (minimum 2)
+              {selectedUsers.length}/{MAX_GROUP_MEMBERS - 1} selected (min 2,
+              max {MAX_GROUP_MEMBERS - 1})
             </Text>
           </View>
         )}

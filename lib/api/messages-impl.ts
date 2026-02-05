@@ -291,11 +291,21 @@ export const messagesApi = {
 
   /**
    * Create a group conversation
+   * Max 4 members including the creator
    */
   async createGroupConversation(participantIds: string[], groupName: string) {
     try {
       const visitorId = getCurrentUserId();
       if (!visitorId) throw new Error("Not authenticated");
+
+      // Validate max group size (4 members including creator)
+      const MAX_GROUP_MEMBERS = 4;
+      const totalMembers = participantIds.length + 1; // +1 for creator
+      if (totalMembers > MAX_GROUP_MEMBERS) {
+        throw new Error(
+          `Group chats can have max ${MAX_GROUP_MEMBERS} members`,
+        );
+      }
 
       // Create the conversation
       const { data: conversation, error: convError } = await supabase
