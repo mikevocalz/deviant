@@ -2,12 +2,12 @@ import {
   View,
   Text,
   Pressable,
-  TextInput,
   Dimensions,
   ScrollView,
-  Animated,
   StyleSheet,
   Alert,
+  Platform,
+  Animated,
 } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,10 +17,13 @@ import {
   Video,
   ChevronLeft,
   ChevronRight,
+  Pencil,
+  Type,
+  Sticker,
+  Sparkles,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { Motion } from "@legendapp/motion";
-import { Progress } from "@/components/ui/progress";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
@@ -36,6 +39,9 @@ import {
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
+import ImageEditor from "@thienmd/react-native-image-editor";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+import { BlurView } from "expo-blur";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const CANVAS_WIDTH = SCREEN_WIDTH - 32;
@@ -271,6 +277,89 @@ export default function CreateStoryScreen() {
     }
     animateTransition();
   };
+
+  const handleEditImage = useCallback(
+    async (index: number) => {
+      const asset = mediaAssets[index];
+      if (!asset || asset.type !== "image") {
+        showToast(
+          "info",
+          "Edit",
+          "Only images can be edited with stickers and text",
+        );
+        return;
+      }
+
+      try {
+        // Copy image to app cache directory for the editor
+        const fileName = `story-edit-${Date.now()}.jpg`;
+        const docDir = LegacyFileSystem.cacheDirectory || "";
+        const destPath = `${docDir}${fileName}`;
+
+        // If the URI is already a file path, use it directly
+        let editPath = asset.uri;
+        if (asset.uri.startsWith("file://")) {
+          editPath = asset.uri.replace("file://", "");
+        } else {
+          // Copy from content:// or ph:// to file system
+          await LegacyFileSystem.copyAsync({
+            from: asset.uri,
+            to: destPath,
+          });
+          editPath = destPath.replace("file://", "");
+        }
+
+        console.log("[Story] Opening image editor for:", editPath);
+
+        // Open the native image editor with Instagram-like features
+        ImageEditor.Edit({
+          path: editPath,
+          hiddenControls: ["crop"], // Keep text, sticker, draw, save
+          colors: [
+            "#FFFFFF",
+            "#000000",
+            "#FF5BFC",
+            "#3EA4E5",
+            "#38ef7d",
+            "#f7b733",
+            "#FF6B6B",
+            "#9B59B6",
+            "#E91E63",
+            "#00BCD4",
+          ],
+          languages: {
+            doneTitle: "Done",
+            saveTitle: "Save",
+            clearAllTitle: "Clear",
+          },
+          onDone: (editedPath: string) => {
+            console.log("[Story] Image edited, new path:", editedPath);
+            // Update the media asset with the edited image
+            const updatedAssets = [...mediaAssets];
+            updatedAssets[index] = {
+              ...asset,
+              uri: editedPath.startsWith("file://")
+                ? editedPath
+                : `file://${editedPath}`,
+            };
+            setMediaAssets(updatedAssets);
+            setSelectedMedia(
+              updatedAssets.map((m) => m.uri),
+              updatedAssets.map((m) => m.type),
+            );
+            showToast("success", "Edited", "Your story has been updated!");
+          },
+          onCancel: () => {
+            console.log("[Story] Image edit cancelled");
+          },
+        });
+      } catch (error) {
+        console.error("[Story] Error opening image editor:", error);
+        showToast("error", "Error", "Could not open image editor");
+      }
+    },
+    [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
+  );
 
   const simulateUploadProgress = useCallback(() => {
     setUploadProgress(0);
@@ -568,11 +657,50 @@ export default function CreateStoryScreen() {
                     </View>
                   </View>
                 ) : (
-                  <Image
-                    source={{ uri: currentMedia }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
+                  <Pressable
+                    onPress={() => handleEditImage(currentIndex)}
+                    style={{ flex: 1 }}
+                  >
+                    <Image
+                      source={{ uri: currentMedia }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    {/* Edit button overlay */}
+                    <View
+                      style={{
+                        position: "absolute",
+                        bottom: 16,
+                        right: 16,
+                        flexDirection: "row",
+                        gap: 8,
+                      }}
+                    >
+                      <Pressable
+                        onPress={() => handleEditImage(currentIndex)}
+                        style={{
+                          backgroundColor: "rgba(0,0,0,0.7)",
+                          paddingHorizontal: 16,
+                          paddingVertical: 10,
+                          borderRadius: 20,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <Pencil size={18} color="#fff" />
+                        <Text
+                          style={{
+                            color: "#fff",
+                            fontSize: 14,
+                            fontWeight: "600",
+                          }}
+                        >
+                          Edit
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </Pressable>
                 )}
               </View>
             ) : (
