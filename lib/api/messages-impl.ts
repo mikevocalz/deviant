@@ -273,15 +273,42 @@ export const messagesApi = {
   },
 
   /**
-   * Get spam unread message count (from non-followed users)
+   * Get spam unread message count (from users you don't follow back)
    */
   async getSpamUnreadCount() {
     try {
-      // TODO: Implement when following table is available
-      console.log(
-        "[Messages] getSpamUnreadCount - returning 0 (not yet implemented)",
-      );
-      return 0;
+      const visitorId = getCurrentUserIdInt();
+      if (!visitorId) return 0;
+
+      // Get IDs of users the current user is following
+      const followingIds = await this.getFollowingIds();
+
+      // Get conversations where user is a participant
+      const { data: convs } = await supabase
+        .from(DB.conversationsRels.table)
+        .select(DB.conversationsRels.parentId)
+        .eq(DB.conversationsRels.usersId, visitorId);
+
+      if (!convs || convs.length === 0) return 0;
+
+      const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
+
+      // Get unread messages from these conversations
+      const { data: unreadMessages, error } = await supabase
+        .from(DB.messages.table)
+        .select(`${DB.messages.senderId}`)
+        .in(DB.messages.conversationId, convIds)
+        .eq(DB.messages.read, false)
+        .neq(DB.messages.senderId, visitorId);
+
+      if (error) throw error;
+
+      // Count messages from users NOT in followingIds (spam/requests)
+      const spamCount = (unreadMessages || []).filter(
+        (msg) => !followingIds.includes(String(msg[DB.messages.senderId])),
+      ).length;
+
+      return spamCount;
     } catch (error) {
       console.error("[Messages] getSpamUnreadCount error:", error);
       return 0;
