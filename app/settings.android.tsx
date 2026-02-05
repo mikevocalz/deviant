@@ -1,8 +1,8 @@
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useState } from "react";
 import {
   User,
   Bell,
@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Megaphone,
   Bug,
+  Trash2,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -32,6 +33,8 @@ import { useColorScheme } from "@/lib/hooks";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SettingsListItem } from "@/components/settings/SettingsListItem";
 import { Switch } from "@/components/ui/switch";
+import { authClient } from "@/lib/auth-client";
+import { toast } from "sonner-native";
 
 export default function SettingsScreenAndroid() {
   const router = useRouter();
@@ -73,9 +76,48 @@ export default function SettingsScreenAndroid() {
     });
   }, [navigation, colors, router]);
 
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const handleLogout = () => {
     logout();
     router.replace("/login");
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const { error } = await authClient.deleteUser();
+              if (error) {
+                toast.error("Failed to delete account", {
+                  description: error.message || "Please try again",
+                });
+              } else {
+                toast.success("Account deleted", {
+                  description: "Your account has been permanently deleted",
+                });
+                logout();
+                router.replace("/login");
+              }
+            } catch (err: any) {
+              toast.error("Error", {
+                description: err?.message || "Something went wrong",
+              });
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -232,6 +274,20 @@ export default function SettingsScreenAndroid() {
               />
             </SettingsSection>
           )}
+
+          {/* Danger Zone */}
+          <SettingsSection title="Danger Zone">
+            <Pressable
+              onPress={handleDeleteAccount}
+              disabled={isDeleting}
+              className="flex-row items-center gap-3 px-4 py-3 active:bg-secondary/50"
+            >
+              <Trash2 size={22} color="#ef4444" />
+              <Text className="text-base text-destructive">
+                {isDeleting ? "Deleting..." : "Delete Account"}
+              </Text>
+            </Pressable>
+          </SettingsSection>
 
           {/* Logout Button - Material Design Style */}
           <View className="px-4 py-6">
