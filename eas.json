@@ -9,6 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
+        "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
@@ -24,6 +25,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
+        "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
@@ -44,6 +46,7 @@
       "node": "22.14.0",
       "pnpm": "10.28.0",
       "env": {
+        "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "${API_URL}",
         "EXPO_PUBLIC_BUNNY_STORAGE_ZONE": "${BUNNY_STORAGE_ZONE}",
