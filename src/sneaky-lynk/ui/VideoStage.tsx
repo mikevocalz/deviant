@@ -22,6 +22,7 @@ interface VideoStageProps {
   isSpeaking: boolean;
   isLocalUser?: boolean;
   isVideoEnabled?: boolean;
+  remoteVideoTrack?: any; // Remote video track for non-local users
   onSelectSpeaker?: (userId: string) => void;
 }
 
@@ -42,6 +43,7 @@ export function VideoStage({
   isSpeaking,
   isLocalUser = false,
   isVideoEnabled = false,
+  remoteVideoTrack,
   onSelectSpeaker,
 }: VideoStageProps) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -49,8 +51,11 @@ export function VideoStage({
   if (!featuredSpeaker) return null;
 
   // Show camera for local user with video enabled
-  const showCamera = isLocalUser && isVideoEnabled && permission?.granted;
+  const showLocalCamera = isLocalUser && isVideoEnabled && permission?.granted;
   const needsPermission = isLocalUser && isVideoEnabled && !permission?.granted;
+  // Show video for remote user with video (host or speaker with video on)
+  const showRemoteVideo =
+    !isLocalUser && featuredSpeaker.hasVideo && remoteVideoTrack;
 
   return (
     <View className="px-4 mb-5">
@@ -64,13 +69,25 @@ export function VideoStage({
         }}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
-        {/* Show camera for local user, avatar for others */}
-        {showCamera ? (
+        {/* Show camera for local user, remote video for others with video, or avatar */}
+        {showLocalCamera ? (
           <CameraView
             style={StyleSheet.absoluteFill}
             facing="front"
             mirror={true}
           />
+        ) : showRemoteVideo ? (
+          <View style={StyleSheet.absoluteFill} className="bg-card">
+            {/* Remote video would be rendered here via Fishjam VideoRendererView */}
+            <Image
+              source={{ uri: featuredSpeaker.user.avatar }}
+              className="w-full h-full"
+              contentFit="cover"
+            />
+            <View className="absolute top-4 left-4 bg-green-500/80 px-2 py-1 rounded-lg">
+              <Text className="text-white text-xs font-bold">VIDEO ON</Text>
+            </View>
+          </View>
         ) : needsPermission ? (
           <View className="w-full h-full bg-card items-center justify-center">
             <VideoOff size={48} color="#6B7280" />

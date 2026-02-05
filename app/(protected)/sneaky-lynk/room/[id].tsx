@@ -28,6 +28,7 @@ import {
   ControlsBar,
   ConnectionBanner,
   EjectModal,
+  ChatSheet,
 } from "@/src/sneaky-lynk/ui";
 import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -45,6 +46,7 @@ export default function SneakyLynkRoomScreen() {
     isVideoOn,
     isHandRaised,
     activeSpeakerId,
+    isChatOpen,
     showEjectModal,
     ejectPayload,
     connectionState: storeConnectionState,
@@ -54,11 +56,23 @@ export default function SneakyLynkRoomScreen() {
     toggleVideo,
     toggleHand,
     setActiveSpeakerId,
+    openChat,
+    closeChat,
     showEject,
     hideEject,
     setConnectionState,
     reset,
   } = useRoomStore();
+
+  // Chat messages state
+  const [chatMessages, setChatMessages] = React.useState<
+    Array<{
+      id: string;
+      user: SneakyUser;
+      content: string;
+      timestamp: Date;
+    }>
+  >([]);
 
   // Determine if this is a mock room or real room
   const isMockRoom = id?.startsWith("space-") || id === "my-room";
@@ -164,7 +178,22 @@ export default function SneakyLynkRoomScreen() {
   }, [toggleHand]);
 
   const handleChat = useCallback(() => {
-    console.log("[SneakyLynk] Chat pressed");
+    console.log("[SneakyLynk] Chat pressed - opening sheet");
+    openChat();
+  }, [openChat]);
+
+  const handleCloseChat = useCallback(() => {
+    closeChat();
+  }, [closeChat]);
+
+  const handleSendMessage = useCallback((content: string) => {
+    const newMessage = {
+      id: `msg-${Date.now()}`,
+      user: currentUserMock,
+      content,
+      timestamp: new Date(),
+    };
+    setChatMessages((prev) => [newMessage, ...prev]);
   }, []);
 
   const handleEjectDismiss = useCallback(() => {
@@ -321,6 +350,15 @@ export default function SneakyLynkRoomScreen() {
         visible={showEjectModal}
         payload={ejectPayload}
         onDismiss={handleEjectDismiss}
+      />
+
+      {/* Chat Sheet (75% height) */}
+      <ChatSheet
+        isOpen={isChatOpen}
+        onClose={handleCloseChat}
+        messages={chatMessages}
+        onSendMessage={handleSendMessage}
+        currentUser={currentUserMock}
       />
     </View>
   );
