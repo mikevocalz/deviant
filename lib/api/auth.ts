@@ -147,10 +147,9 @@ export const auth = {
   /**
    * Get user profile from users table
    */
-  async getProfile(userId: string): Promise<AppUser | null> {
+  async getProfile(userId: string, email?: string): Promise<AppUser | null> {
     try {
-      // Query by auth_id (UUID) or email
-      let query = supabase.from(DB.users.table).select(`
+      const selectFields = `
           ${DB.users.id},
           ${DB.users.authId},
           ${DB.users.email},
@@ -164,23 +163,59 @@ export const auth = {
           ${DB.users.followingCount},
           ${DB.users.postsCount},
           avatar:${DB.users.avatarId}(url)
-        `);
+        `;
 
       // Check if userId is numeric (Payload CMS internal ID)
       const isNumeric = /^\d+$/.test(userId);
 
+      let data: any = null;
+      let error: any = null;
+
       if (isNumeric) {
         // Query by internal ID
-        query = query.eq(DB.users.id, parseInt(userId));
+        const result = await supabase
+          .from(DB.users.table)
+          .select(selectFields)
+          .eq(DB.users.id, parseInt(userId))
+          .single();
+        data = result.data;
+        error = result.error;
       } else {
-        // Query by auth_id (Better Auth ID - could be UUID or random string)
-        query = query.eq(DB.users.authId, userId);
+        // Try query by auth_id first
+        const authIdResult = await supabase
+          .from(DB.users.table)
+          .select(selectFields)
+          .eq(DB.users.authId, userId)
+          .single();
+
+        if (authIdResult.data) {
+          data = authIdResult.data;
+        } else if (email) {
+          // Fallback: query by email if auth_id not found
+          console.log("[Auth] auth_id not found, trying email:", email);
+          const emailResult = await supabase
+            .from(DB.users.table)
+            .select(selectFields)
+            .eq(DB.users.email, email)
+            .single();
+          data = emailResult.data;
+          error = emailResult.error;
+
+          // Update auth_id in database if found by email
+          if (data && !data[DB.users.authId]) {
+            console.log("[Auth] Updating auth_id for user:", data[DB.users.id]);
+            await supabase
+              .from(DB.users.table)
+              .update({ [DB.users.authId]: userId })
+              .eq(DB.users.id, data[DB.users.id]);
+          }
+        } else {
+          error = authIdResult.error;
+        }
       }
 
-      const { data, error } = await query.single();
-
       if (error || !data) {
-        console.error("[Supabase Auth] Get profile error:", error);
+        console.error("[Auth] Get profile error:", error);
         return null;
       }
 
@@ -189,7 +224,7 @@ export const auth = {
         email: data[DB.users.email],
         username: data[DB.users.username],
         name: data[DB.users.firstName] || data[DB.users.username],
-        avatar: (data.avatar as any)?.url,
+        avatar: data.avatar?.url,
         bio: data[DB.users.bio],
         location: data[DB.users.location],
         isVerified: data[DB.users.verified] || false,

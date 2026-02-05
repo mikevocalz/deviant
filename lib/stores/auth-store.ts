@@ -97,7 +97,11 @@ export const useAuthStore = create<AuthStore>()(
 
             // Fetch the Payload CMS profile to get the integer ID
             // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
-            const payloadProfile = await auth.getProfile(session.user.id);
+            // Pass email as fallback if auth_id not found in database
+            const payloadProfile = await auth.getProfile(
+              session.user.id,
+              session.user.email,
+            );
 
             if (payloadProfile) {
               console.log(
