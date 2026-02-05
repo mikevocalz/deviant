@@ -7,6 +7,7 @@
 
 import { betterAuth } from "better-auth";
 import { username } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { expo } from "@better-auth/expo";
 import { Pool } from "pg";
 
@@ -55,8 +56,23 @@ export const auth = betterAuth({
     },
   },
 
-  // Expo plugin for mobile auth
-  plugins: [expo(), username()],
+  // Plugins
+  plugins: [
+    expo(),
+    username(),
+    passkey({
+      rpID: "dvnt.app",
+      rpName: "DVNT",
+      origin:
+        process.env.EXPO_PUBLIC_API_URL ||
+        "https://payload-cms-setup-gray.vercel.app",
+      authenticatorSelection: {
+        authenticatorAttachment: "platform",
+        userVerification: "required",
+        residentKey: "preferred",
+      },
+    }),
+  ],
 
   // Account linking configuration
   account: {
