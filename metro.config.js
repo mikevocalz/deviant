@@ -89,6 +89,17 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // Fix: event-target-shim@6 exports only "." but Fishjam WebRTC imports
+  // "event-target-shim/index" which isn't in the exports map.
+  // Rewrite to the root specifier so the exports field resolves correctly.
+  if (moduleName === "event-target-shim/index") {
+    const rewritten = "event-target-shim";
+    if (originalResolveRequest) {
+      return originalResolveRequest(context, rewritten, platform);
+    }
+    return context.resolveRequest(context, rewritten, platform);
+  }
+
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }
