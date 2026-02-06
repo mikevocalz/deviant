@@ -183,7 +183,7 @@ export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const eventId = id || "";
   const { isRsvped, toggleRsvp } = useEventViewStore();
-  const { hasValidTicket } = useTicketStore();
+  const { hasValidTicket, setTicket } = useTicketStore();
   const showToast = useUIStore((s) => s.showToast);
   const { user } = useAuthStore();
 
@@ -288,8 +288,41 @@ export default function EventDetailScreen() {
   const handleGetTickets = useCallback(() => {
     if (!eventData) return;
     toggleRsvp(eventId);
+
+    // Create and store ticket so View Ticket page can find it
+    const tierLevel = selectedTier?.tier || "ga";
+    const qrPayload = btoa(JSON.stringify({ eid: eventId, uid: user?.id }));
+    setTicket(eventId, {
+      id: `tkt_${Date.now()}`,
+      eventId,
+      userId: user?.id || "",
+      paid: true,
+      status: "valid",
+      qrToken: qrPayload,
+      tier: tierLevel,
+      tierName: selectedTier?.name || undefined,
+      transferable: tierLevel === "vip" || tierLevel === "table",
+      eventTitle: eventData.title,
+      eventDate: eventData.date,
+      eventEndDate: eventData.endDate,
+      eventLocation: eventData.location,
+      eventImage: eventData.image,
+      dressCode: eventData.dressCode,
+      doorPolicy: eventData.doorPolicy,
+      entryWindow: eventData.entryWindow,
+      perks: selectedTier?.perks || eventData.perks,
+    });
+
     showToast("success", "Confirmed", `You're going to ${eventData.title}!`);
-  }, [eventId, eventData, toggleRsvp, showToast]);
+  }, [
+    eventId,
+    eventData,
+    selectedTier,
+    user?.id,
+    toggleRsvp,
+    setTicket,
+    showToast,
+  ]);
 
   const handleViewTicket = useCallback(() => {
     router.push(`/ticket/${eventId}` as any);
