@@ -11,11 +11,13 @@
 ### CRITICAL: ARCHITECTURE LOCK - DIRECT PAYLOAD ONLY
 
 **PERMANENT DECISION (2026-02-01):**
+
 - ✅ Mobile App → Payload CMS directly (ONLY option)
 - ❌ Hono server removed permanently
 - ❌ Expo Router API routes forbidden for native app
 
 **Required Environment Variables:**
+
 ```bash
 # .env (REQUIRED for native app)
 EXPO_PUBLIC_API_URL=https://payload-cms-setup-gray.vercel.app
@@ -23,6 +25,7 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 ```
 
 **Safety Checks in `lib/api-client.ts`:**
+
 - ✅ Fails fast if Hono URL detected (server-zeta-lovat)
 - ✅ Fails fast if localhost detected in production
 - ✅ Fails fast if no API URL set on native
@@ -32,6 +35,7 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 - ✅ Logs resolved URL on boot
 
 **Never do these:**
+
 - ❌ `npx expo start --clear` - Can affect cached data
 - ❌ `rm -rf node_modules` - Can break the build
 - ❌ `npm cache clean` - Unnecessary and risky
@@ -41,6 +45,7 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 - ❌ Any command that could affect user data or authentication state
 
 ### ALWAYS DO THESE:
+
 - ✅ Use `npx expo start` (no flags) for development
 - ✅ Use `npm install` only when packages are missing (verify with `npm ls <package>`)
 - ✅ Test fixes on specific files, not broad sweeping changes
@@ -48,15 +53,43 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 - ✅ Check for errors BEFORE suggesting user action
 
 ### IF SOMETHING IS BROKEN:
+
 1. Read the error message first
 2. Check specific files for issues
 3. Fix the code - don't wipe caches or reinstall
 4. Only suggest safe, targeted fixes
 
+### DEPLOYMENT - MANDATORY OTA UPDATE RULE:
+
+**NEVER skip the OTA update step when deploying to TestFlight/production.**
+
+The production TestFlight app uses **Expo Updates (OTA)** to get the latest JS bundle. A native build alone does NOT update the JS bundle — the OTA layer may serve an older version.
+
+**After EVERY commit that should be visible in production:**
+
+```bash
+# 1. Push to git
+git push origin main
+
+# 2. ALWAYS push OTA update (CRITICAL - never skip this)
+npx eas-cli update --branch production --message "<description>" --platform ios
+
+# 3. Only if native deps changed, also do a native build
+npx eas-cli build --platform ios --profile production --auto-submit --non-interactive
+```
+
+**Rules:**
+
+- Use `--platform ios` (web export fails due to react-native-pager-view)
+- User must force-close + reopen app twice (download then apply)
+- Use `/deploy` workflow in Windsurf to automate this
+
 ### AFTER EVERY FIX - MANDATORY VERIFICATION:
+
 **ALWAYS verify everything works after making changes. Never assume fixes work.**
 
 1. **Run TypeScript check:**
+
    ```bash
    npx tsc --noEmit 2>&1 | grep "error TS" | grep -v "^server/" | head -30
    ```
@@ -88,12 +121,14 @@ EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
 **Issue:** Serverless functions timing out when connecting to Supabase PostgreSQL.
 
 **Root Cause:**
+
 - Connection timeout too short (5s) for cold starts
 - Using session pooler (port 5432) instead of transaction pooler
 - Missing SSL configuration
 - Pool size too large for serverless
 
 **Fixes Applied:**
+
 ```typescript
 // payload.config.ts
 db: postgresAdapter({
@@ -109,12 +144,15 @@ db: postgresAdapter({
 ```
 
 **Database URI:**
+
 ```
 postgresql://...@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
+
 ☝️ **Port 6543** = Supabase transaction pooler (better for serverless)
 
 **Vercel Configuration:** (`vercel.json`)
+
 ```json
 {
   "functions": {
@@ -133,6 +171,7 @@ postgresql://...@aws-1-us-east-1.pooler.supabase.com:6543/postgres?pgbouncer=tru
 **Root Cause:** `getPayloadUserId()` was querying `/api/users` without authentication.
 
 **Fix:** Use current user's ID from auth session instead of API query:
+
 ```typescript
 // lib/api/messages.ts
 const currentUser = useAuthStore.getState().user;
@@ -144,11 +183,13 @@ if (currentUser && currentUser.username === username) {
 ### Health Check Endpoints
 
 **Payload CMS:** `/api/health`
+
 - Lightweight DB ping (queries 1 user)
 - 10s timeout
 - Returns connection status + response time
 
 **Test:**
+
 ```bash
 curl https://payload-cms-setup-gray.vercel.app/api/health
 # {"status":"ok","database":"connected","responseTime":"195ms"}
@@ -156,12 +197,12 @@ curl https://payload-cms-setup-gray.vercel.app/api/health
 
 ### Performance Results
 
-| Metric | Before | After |
-|--------|--------|-------|
-| DB Connection Timeout | 5s | 20s |
-| Health Check | Timeout | 195ms |
-| Posts API | Timeout | <1s |
-| App Boot Errors | Yes | No ✅ |
+| Metric                | Before  | After |
+| --------------------- | ------- | ----- |
+| DB Connection Timeout | 5s      | 20s   |
+| Health Check          | Timeout | 195ms |
+| Posts API             | Timeout | <1s   |
+| App Boot Errors       | Yes     | No ✅ |
 
 **See:** `SEV0-RESOLUTION.md` for complete details.
 
@@ -690,6 +731,7 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 ### Rules
 
 1. **ALWAYS verify `node_modules` exists** before making changes:
+
    ```bash
    ls node_modules/ | head -5
    ```
@@ -697,11 +739,13 @@ The update toast in `lib/hooks/use-updates.ts` is **CRITICAL** for OTA (Over-The
 2. **If `node_modules` is empty or missing, run `npm install` FIRST** - before doing anything else
 
 3. **After cloning or switching branches**, always run:
+
    ```bash
    npm install
    ```
 
 4. **After adding new packages**, verify they installed:
+
    ```bash
    npm ls <package-name>
    ```
@@ -740,6 +784,7 @@ cd ios && pod install && cd ..
 ### Required Check
 
 After making code changes, ALWAYS run:
+
 ```bash
 npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
 ```
@@ -747,51 +792,57 @@ npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
 ### Common Crash-Causing Bugs to Avoid
 
 1. **Variables used before declaration**
+
    ```tsx
    // WRONG - callHandleNext used before defined
    useEffect(() => {
      callHandleNext()  // ERROR: used before declaration
    }, [callHandleNext])
-   
+
    const callHandleNext = useCallback(() => { ... }, [])
-   
+
    // CORRECT - define before using
    const callHandleNext = useCallback(() => { ... }, [])
-   
+
    useEffect(() => {
      callHandleNext()  // OK
    }, [callHandleNext])
    ```
 
 2. **Calling booleans as functions**
+
    ```tsx
    // WRONG - isBookmarked is a boolean, not a function
-   const isBookmarked = bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id)
-   const isSaved = isBookmarked(id)  // CRASH: boolean is not a function
-   
+   const isBookmarked =
+     bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id);
+   const isSaved = isBookmarked(id); // CRASH: boolean is not a function
+
    // CORRECT
-   const isBookmarked = bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id)
-   const isSaved = isBookmarked  // OK: use the boolean directly
+   const isBookmarked =
+     bookmarkStore.isBookmarked(id) || apiBookmarks.includes(id);
+   const isSaved = isBookmarked; // OK: use the boolean directly
    ```
 
 3. **Missing function definitions**
+
    ```tsx
    // WRONG - showToast not defined
-   showToast("success", "Done", "Saved!")  // CRASH: showToast is not defined
-   
+   showToast("success", "Done", "Saved!"); // CRASH: showToast is not defined
+
    // CORRECT - import from store first
-   const showToast = useUIStore((s) => s.showToast)
-   showToast("success", "Done", "Saved!")  // OK
+   const showToast = useUIStore((s) => s.showToast);
+   showToast("success", "Done", "Saved!"); // OK
    ```
 
 4. **Duplicate JSX attributes**
+
    ```tsx
    // WRONG - duplicate attribute causes error
    <ScrollView
      keyboardShouldPersistTaps="handled"
      keyboardShouldPersistTaps="handled"  // ERROR: duplicate
    />
-   
+
    // CORRECT
    <ScrollView
      keyboardShouldPersistTaps="handled"
@@ -799,12 +850,13 @@ npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
    ```
 
 5. **Wrong import syntax**
+
    ```tsx
    // WRONG - named import when should be default
-   import { StarRating } from "react-native-star-rating-widget"  // ERROR
-   
+   import { StarRating } from "react-native-star-rating-widget"; // ERROR
+
    // CORRECT - use default import
-   import StarRating from "react-native-star-rating-widget"  // OK
+   import StarRating from "react-native-star-rating-widget"; // OK
    ```
 
 ### TypeScript Errors That Cause Crashes
@@ -1301,11 +1353,11 @@ setUploadProgress(100);
 
 These are configured in EAS project settings and referenced in `eas.json`:
 
-| Variable               | EAS Secret Name | Value                                       |
-| ---------------------- | --------------- | ------------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://server-zeta-lovat.vercel.app`      |
-| `EXPO_PUBLIC_AUTH_URL` | -               | `https://server-zeta-lovat.vercel.app`      |
-| `EXPO_PUBLIC_BUNNY_*`  | `BUNNY_*`       | See EAS secrets                             |
+| Variable               | EAS Secret Name | Value                                  |
+| ---------------------- | --------------- | -------------------------------------- |
+| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://server-zeta-lovat.vercel.app` |
+| `EXPO_PUBLIC_AUTH_URL` | -               | `https://server-zeta-lovat.vercel.app` |
+| `EXPO_PUBLIC_BUNNY_*`  | `BUNNY_*`       | See EAS secrets                        |
 
 ### Architecture Overview
 
@@ -1321,7 +1373,8 @@ Payload CMS REST API (/api/posts, /api/users, etc.)
 Supabase PostgreSQL (Transaction Pooler: port 6543)
 ```
 
-**CRITICAL:** 
+**CRITICAL:**
+
 - ✅ Mobile app communicates DIRECTLY with Payload CMS
 - ❌ Hono server removed permanently (server-zeta-lovat.vercel.app)
 - ❌ Expo Router API routes NOT used by native app
@@ -1338,8 +1391,10 @@ Supabase PostgreSQL (Transaction Pooler: port 6543)
 curl https://payload-cms-setup-gray.vercel.app/api/health
 # Expected: {"status":"ok","database":"connected","responseTime":"~200ms"}
 ```
+
 # Expected: {"status":"ok","service":"dvnt-api"}
-```
+
+````
 
 ### Standalone API Server
 
@@ -1356,7 +1411,7 @@ npm run dev
 # Production build
 npm run build
 npm start
-```
+````
 
 ### Deployment Steps
 
