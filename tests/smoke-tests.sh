@@ -12,7 +12,7 @@
 # Don't use set -e as it breaks arithmetic operations
 # We track failures manually and exit at the end
 
-API_URL="${API_URL:-https://payload-cms-setup-gray.vercel.app}"
+API_URL="${API_URL:-https://npfjanxturvmjyevoyfo.supabase.co}"
 AUTH_URL="${AUTH_URL:-https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth}"
 
 echo "============================================================"

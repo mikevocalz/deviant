@@ -29,18 +29,18 @@ Verified:    Smoke tests pass (24/24)
 
 ```json
 {
-  "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
+  "EXPO_PUBLIC_SUPABASE_URL": "https://npfjanxturvmjyevoyfo.supabase.co",
   "EXPO_PUBLIC_AUTH_URL": "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth",
   "EXPO_PUBLIC_BUNNY_CDN_URL": "https://dvnt.b-cdn.net"
 }
 ```
 
-### CMS (Vercel)
+### Edge Functions (Supabase)
 
 ```
-DATABASE_URI=postgresql://...
-PAYLOAD_SECRET=...
-PAYLOAD_SERVER_URL=https://payload-cms-setup-gray.vercel.app
+SUPABASE_URL=https://npfjanxturvmjyevoyfo.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+BETTER_AUTH_SECRET=...
 ```
 
 ## Regression: Likes/Follows/Bookmarks Not Working

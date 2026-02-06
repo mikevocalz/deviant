@@ -19,7 +19,7 @@ DVNT is a React Native + Expo app with Payload CMS backend. This document descri
 
 ```
 Auth:  https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth
-API:   https://payload-cms-setup-gray.vercel.app
+API:   https://npfjanxturvmjyevoyfo.supabase.co (Supabase + Edge Functions)
 CDN:   https://dvnt.b-cdn.net
 ```
 

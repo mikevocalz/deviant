@@ -5,7 +5,7 @@
 # Usage: ./scripts/curl-smoke.sh [TOKEN]
 # If TOKEN not provided, will test unauthenticated endpoints only
 
-BASE="https://payload-cms-setup-gray.vercel.app"
+BASE="https://npfjanxturvmjyevoyfo.supabase.co"
 TOKEN="${1:-}"
 FAILED=0
 PASSED=0

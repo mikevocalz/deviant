@@ -79,9 +79,14 @@ logs/
 # EAS
 .easignore
 
-# Misc
-.vercel
+# AI tools
+.windsurf/
+.cursor/
+.copilot/
+.qodo/
 .rork
 rork-eslint.config.js
-.qodo/
+
+# Misc
+.vercel
 Thumbs.db

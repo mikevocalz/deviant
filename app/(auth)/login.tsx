@@ -9,6 +9,7 @@ import { router } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { signIn } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
+import { syncAuthUser } from "@/lib/api/privileged";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
@@ -60,11 +61,20 @@ export default function LoginScreen() {
         }
 
         if (data?.user) {
-          console.log("[Login] Better Auth success, fetching user profile...");
+          console.log("[Login] Better Auth success, syncing user profile...");
 
-          // Fetch the user profile from the users table
-          // Pass email so getProfile can fall back to email lookup if auth_id doesn't match
-          const profile = await auth.getProfile(data.user.id, data.user.email);
+          // Sync user to app's users table (creates row if needed, updates auth_id)
+          let profile;
+          try {
+            profile = await syncAuthUser();
+            console.log("[Login] User synced, ID:", profile.id);
+          } catch (syncError) {
+            console.warn(
+              "[Login] syncAuthUser failed, trying getProfile:",
+              syncError,
+            );
+            profile = await auth.getProfile(data.user.id, data.user.email);
+          }
 
           if (profile) {
             console.log("[Login] Profile loaded, ID:", profile.id);
@@ -75,9 +85,9 @@ export default function LoginScreen() {
               name: profile.name,
               avatar: profile.avatar || "",
               bio: profile.bio || "",
-              website: profile.website || "",
+              website: (profile as any).website || "",
               location: profile.location || "",
-              hashtags: profile.hashtags || [],
+              hashtags: (profile as any).hashtags || [],
               isVerified: profile.isVerified,
               postsCount: profile.postsCount,
               followersCount: profile.followersCount,
@@ -88,10 +98,7 @@ export default function LoginScreen() {
               router.replace("/(protected)/(tabs)" as any);
             }, 100);
           } else {
-            console.error(
-              "[Login] Could not load Payload profile for:",
-              data.user.id,
-            );
+            console.error("[Login] Could not load profile for:", data.user.id);
             toast.error("Login Failed", {
               description: "Could not load user profile from database",
             });

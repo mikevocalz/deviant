@@ -200,8 +200,8 @@ if (currentUser && currentUser.username === username) {
 **Test:**
 
 ```bash
-curl https://payload-cms-setup-gray.vercel.app/api/health
-# {"status":"ok","database":"connected","responseTime":"195ms"}
+curl https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth/api/auth/ok
+# {"ok":true}
 ```
 
 ### Performance Results
@@ -217,25 +217,18 @@ curl https://payload-cms-setup-gray.vercel.app/api/health
 
 ---
 
-## 📍 CMS Location
+## 📍 Backend Location
 
-**All Payload CMS collections live only in:**
+**All backend logic lives in Supabase Edge Functions:**
 
 ```
-/Users/mikevocalz/Downloads/payload-cms-setup
+/Users/mikevocalz/deviant/supabase/functions/
 ```
 
-- There are **no** collections or `payload.config` in the deviant repo. Do not add any.
-- When changing CMS collections, edit them in **payload-cms-setup** only, then redeploy the CMS from that folder.
-- **⚠️ CRITICAL: After making CMS changes, you MUST redeploy:**
-  ```bash
-  cd /Users/mikevocalz/Downloads/payload-cms-setup
-  git add collections/
-  git commit -m "Description of changes"
-  git push origin master
-  npx vercel --prod --yes  # Redeploy to production
-  ```
-- Production CMS URL: `https://payload-cms-setup-gray.vercel.app`
+- There is **no** Payload CMS, Vercel server, or Hono server. All removed.
+- Edge Functions are deployed via: `supabase functions deploy <function-name>`
+- Auth is handled by Better Auth in the `auth` Edge Function
+- All writes go through privileged Edge Functions (service role key)
 
 ---
 
@@ -1392,86 +1385,32 @@ Supabase PostgreSQL
 ### Production Health Checks
 
 ```bash
-# Payload CMS
-curl https://payload-cms-setup-gray.vercel.app/api/health
-# Expected: {"status":"ok","database":"connected","responseTime":"~200ms"}
+# Better Auth
+curl https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth/api/auth/ok
+# Expected: {"ok":true}
 ```
 
-# Expected: {"status":"ok","service":"dvnt-api"}
+### Deployment
 
-````
-
-### Standalone API Server
-
-The `server/` directory contains a Hono-based API server that mirrors the Expo Router API routes but runs in pure Node.js without React Native dependencies.
+All backend logic is deployed as Supabase Edge Functions:
 
 ```bash
-# Install server dependencies
-cd server
-npm install
+# Deploy a single Edge Function
+supabase functions deploy <function-name>
 
-# Development
-npm run dev
+# Deploy all Edge Functions
+supabase functions deploy
 
-# Production build
-npm run build
-npm start
-````
-
-### Deployment Steps
-
-1. **Deploy the standalone server** to Vercel/Railway/Render:
-
-   ```bash
-   cd server
-   vercel deploy
-   # or
-   railway deploy
-   ```
-
-2. **Set environment variables** on your deployment:
-
-   ```bash
-   PORT=3001
-   PAYLOAD_URL=https://payload-cms-setup-gray.vercel.app
-   PAYLOAD_API_KEY=your_api_key
-   BETTER_AUTH_SECRET=your_secret
-   DATABASE_URI=postgresql://...
-   ```
-
-3. **Configure native app** to use deployed API:
-
-   Environment variables are set via EAS secrets and referenced in `eas.json`:
-
-   ```json
-   {
-     "build": {
-       "production": {
-         "env": {
-           "EXPO_PUBLIC_API_URL": "${API_URL}",
-           "EXPO_PUBLIC_AUTH_URL": "${AUTH_URL}"
-         }
-       }
-     }
-   }
-   ```
-
-4. **Rebuild native apps** with production config:
-
-   ```bash
-   eas build --platform all --profile production
-   ```
+# Set secrets
+supabase secrets set KEY=value
+```
 
 ### Local Development
 
-For development, the Expo Router API routes work with the dev server:
-
 ```bash
-# Start with tunnel for Android emulator/physical devices
+# Start Expo dev server
 npx expo start --tunnel --clear
 ```
-
-Leave `EXPO_PUBLIC_API_URL` empty in development - the app uses relative URLs.
 
 ### Why Not Expo Web Export?
 

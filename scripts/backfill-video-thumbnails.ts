@@ -28,11 +28,15 @@ import * as http from "http";
 require("dotenv").config();
 
 // Configuration
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "https://payload-cms-setup-gray.vercel.app";
+const API_URL =
+  process.env.EXPO_PUBLIC_API_URL || "https://npfjanxturvmjyevoyfo.supabase.co";
 const BUNNY_STORAGE_ZONE = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE || "dvnt";
-const BUNNY_STORAGE_API_KEY = process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
-const BUNNY_STORAGE_REGION = process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "de";
-const BUNNY_CDN_URL = process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
+const BUNNY_STORAGE_API_KEY =
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
+const BUNNY_STORAGE_REGION =
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_REGION || "de";
+const BUNNY_CDN_URL =
+  process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
 const DRY_RUN = process.env.DRY_RUN === "true";
 
 console.log("=".repeat(60));
@@ -72,7 +76,9 @@ async function fetchAllPosts(): Promise<Post[]> {
 
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Failed to fetch posts: ${response.status} ${response.statusText}`);
+      throw new Error(
+        `Failed to fetch posts: ${response.status} ${response.statusText}`,
+      );
     }
 
     const data = await response.json();
@@ -100,10 +106,10 @@ function findVideosNeedingThumbnails(posts: Post[]): Post[] {
 
     const isVideo = firstMedia.type === "video";
     const hasNoThumbnail = !firstMedia.thumbnail;
-    const hasValidUrl = firstMedia.url && (
-      firstMedia.url.startsWith("http://") ||
-      firstMedia.url.startsWith("https://")
-    );
+    const hasValidUrl =
+      firstMedia.url &&
+      (firstMedia.url.startsWith("http://") ||
+        firstMedia.url.startsWith("https://"));
 
     return isVideo && hasNoThumbnail && hasValidUrl;
   });
@@ -118,32 +124,34 @@ async function downloadVideo(videoUrl: string): Promise<string> {
     const file = fs.createWriteStream(tempPath);
 
     const protocol = videoUrl.startsWith("https") ? https : http;
-    protocol.get(videoUrl, (response) => {
-      if (response.statusCode === 301 || response.statusCode === 302) {
-        // Handle redirect
-        const redirectUrl = response.headers.location;
-        if (redirectUrl) {
-          file.close();
-          fs.unlinkSync(tempPath);
-          downloadVideo(redirectUrl).then(resolve).catch(reject);
+    protocol
+      .get(videoUrl, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          // Handle redirect
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            file.close();
+            fs.unlinkSync(tempPath);
+            downloadVideo(redirectUrl).then(resolve).catch(reject);
+            return;
+          }
+        }
+
+        if (response.statusCode !== 200) {
+          reject(new Error(`Failed to download video: ${response.statusCode}`));
           return;
         }
-      }
 
-      if (response.statusCode !== 200) {
-        reject(new Error(`Failed to download video: ${response.statusCode}`));
-        return;
-      }
-
-      response.pipe(file);
-      file.on("finish", () => {
-        file.close();
-        resolve(tempPath);
+        response.pipe(file);
+        file.on("finish", () => {
+          file.close();
+          resolve(tempPath);
+        });
+      })
+      .on("error", (err) => {
+        fs.unlink(tempPath, () => {}); // Delete temp file on error
+        reject(err);
       });
-    }).on("error", (err) => {
-      fs.unlink(tempPath, () => {}); // Delete temp file on error
-      reject(err);
-    });
   });
 }
 
@@ -156,11 +164,16 @@ async function generateThumbnail(videoPath: string): Promise<string> {
 
     // FFmpeg command to extract frame at 0.5 seconds
     const args = [
-      "-i", videoPath,
-      "-ss", "0.5",
-      "-vframes", "1",
-      "-vf", "scale=720:-2",
-      "-q:v", "2",
+      "-i",
+      videoPath,
+      "-ss",
+      "0.5",
+      "-vframes",
+      "1",
+      "-vf",
+      "scale=720:-2",
+      "-q:v",
+      "2",
       "-y",
       thumbnailPath,
     ];
@@ -184,18 +197,22 @@ async function generateThumbnail(videoPath: string): Promise<string> {
 /**
  * Upload thumbnail to Bunny CDN
  */
-async function uploadToBunny(filePath: string, remotePath: string): Promise<string> {
+async function uploadToBunny(
+  filePath: string,
+  remotePath: string,
+): Promise<string> {
   const fileBuffer = fs.readFileSync(filePath);
-  const storageHost = BUNNY_STORAGE_REGION === "de"
-    ? "storage.bunnycdn.com"
-    : `${BUNNY_STORAGE_REGION}.storage.bunnycdn.com`;
+  const storageHost =
+    BUNNY_STORAGE_REGION === "de"
+      ? "storage.bunnycdn.com"
+      : `${BUNNY_STORAGE_REGION}.storage.bunnycdn.com`;
 
   const uploadUrl = `https://${storageHost}/${BUNNY_STORAGE_ZONE}/${remotePath}`;
 
   const response = await fetch(uploadUrl, {
     method: "PUT",
     headers: {
-      "AccessKey": BUNNY_STORAGE_API_KEY,
+      AccessKey: BUNNY_STORAGE_API_KEY,
       "Content-Type": "image/jpeg",
     },
     body: fileBuffer,
@@ -322,7 +339,9 @@ async function main(): Promise<void> {
 
     // Find videos needing thumbnails
     const postsToProcess = findVideosNeedingThumbnails(allPosts);
-    console.log(`\nFound ${postsToProcess.length} video posts needing thumbnails`);
+    console.log(
+      `\nFound ${postsToProcess.length} video posts needing thumbnails`,
+    );
 
     if (postsToProcess.length === 0) {
       console.log("Nothing to do!");

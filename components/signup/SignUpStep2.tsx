@@ -33,6 +33,7 @@ import { compareFaces } from "@/lib/face-matcher";
 import { compareDOBs } from "@/lib/dob-extractor";
 import { signUp } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
+import { syncAuthUser } from "@/lib/api/privileged";
 import { toast } from "sonner-native";
 import {
   validateDateOfBirth,
@@ -138,31 +139,42 @@ export function SignUpStep2() {
 
       console.log("[SignUp] Better Auth user created:", data.user.id);
 
-      // Fetch the user profile from the users table
-      // Pass email so getProfile can fall back to email lookup if auth_id doesn't match
-      const profile = await auth.getProfile(data.user.id, data.user.email);
+      // Sync user to app's users table (creates row if new signup)
+      let profile;
+      try {
+        profile = await syncAuthUser();
+        console.log("[SignUp] User synced, ID:", profile.id);
+      } catch (syncError) {
+        console.warn(
+          "[SignUp] syncAuthUser failed, trying getProfile:",
+          syncError,
+        );
+        profile = await auth.getProfile(data.user.id, data.user.email);
+      }
 
       if (profile) {
-        console.log("[SignUp] Profile loaded, ID:", profile.id);
         setUser({
           id: profile.id,
           email: profile.email,
           username: profile.username,
-          name: profile.name,
+          name:
+            profile.name ||
+            (profile as any).firstName ||
+            `${formData.firstName} ${formData.lastName}`,
           avatar: profile.avatar || "",
           bio: profile.bio || "",
-          website: profile.website || "",
+          website: (profile as any).website || "",
           location: profile.location || "",
-          hashtags: profile.hashtags || [],
+          hashtags: (profile as any).hashtags || [],
           isVerified: profile.isVerified,
           postsCount: profile.postsCount,
           followersCount: profile.followersCount,
           followingCount: profile.followingCount,
         });
       } else {
-        // Fallback to Better Auth data if profile fetch fails
+        // Fallback to Better Auth data if both sync and profile fetch fail
         console.warn(
-          "[SignUp] Could not load Payload profile, using Better Auth data",
+          "[SignUp] Could not sync or load profile, using Better Auth data",
         );
         setUser({
           id: data.user.id,
