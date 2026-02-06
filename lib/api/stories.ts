@@ -1,6 +1,10 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import {
+  getCurrentUserId,
+  getCurrentUserIdInt,
+  getCurrentUserAuthId,
+} from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface CreateStoryResponse {
@@ -202,8 +206,8 @@ export const storiesApi = {
     try {
       console.log("[Stories] updateStory:", storyId);
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const authId = await getCurrentUserAuthId();
+      if (!authId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from(DB.stories.table)
@@ -213,7 +217,7 @@ export const storiesApi = {
           }),
         })
         .eq(DB.stories.id, storyId)
-        .eq(DB.stories.authorId, userId)
+        .eq(DB.stories.authorId, authId)
         .select()
         .single();
 

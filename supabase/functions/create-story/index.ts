@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +31,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -73,7 +77,11 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -106,7 +114,11 @@ serve(async (req: Request) => {
     }
 
     if (!mediaType || !["image", "video"].includes(mediaType)) {
-      return errorResponse("validation_error", "mediaType must be 'image' or 'video'", 400);
+      return errorResponse(
+        "validation_error",
+        "mediaType must be 'image' or 'video'",
+        400,
+      );
     }
 
     // Get user's integer ID
@@ -136,7 +148,11 @@ serve(async (req: Request) => {
 
     if (mediaError) {
       console.error("[Edge:create-story] Media insert error:", mediaError);
-      return errorResponse("internal_error", "Failed to create media record", 500);
+      return errorResponse(
+        "internal_error",
+        "Failed to create media record",
+        500,
+      );
     }
 
     // Calculate expiry (24 hours from now)
@@ -147,7 +163,7 @@ serve(async (req: Request) => {
     const { data: story, error: storyError } = await supabaseAdmin
       .from("stories")
       .insert({
-        author_id: userId,
+        author_id: odUserId,
         media_id: mediaRecord.id,
         expires_at: expiresAt.toISOString(),
         visibility: visibility || "public",
