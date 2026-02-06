@@ -60,19 +60,16 @@ export default function LoginScreen() {
         }
 
         if (data?.user) {
-          console.log(
-            "[Login] Better Auth success, fetching Payload profile...",
-          );
+          console.log("[Login] Better Auth success, fetching user profile...");
 
-          // Fetch the Payload CMS profile to get the integer ID
-          // The Better Auth user.id is a UUID, but we need the Payload CMS integer ID
-          const profile = await auth.getProfile(data.user.id);
+          // Fetch the user profile from the users table
+          // Pass email so getProfile can fall back to email lookup if auth_id doesn't match
+          const profile = await auth.getProfile(data.user.id, data.user.email);
 
           if (profile) {
-            console.log("[Login] Payload profile loaded, ID:", profile.id);
-            // Set user in auth store with the Payload CMS integer ID
+            console.log("[Login] Profile loaded, ID:", profile.id);
             setUser({
-              id: profile.id, // This is the Payload CMS integer ID (as string)
+              id: profile.id,
               email: profile.email,
               username: profile.username,
               name: profile.name,
