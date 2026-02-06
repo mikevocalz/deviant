@@ -18,6 +18,7 @@ export default function AuthLayout() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="forgot-password" />
         <Stack.Screen name="reset-password" />
+        <Stack.Screen name="verify-email" />
       </Stack>
     </KeyboardProvider>
   );
