@@ -12,15 +12,25 @@ import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
 
 // Auth server URL — Better Auth hosted in Supabase Edge Function (CANONICAL)
-const AUTH_URL =
+// IMPORTANT: Better Auth client uses baseURL as origin-only and appends basePath.
+// baseURL MUST be just the origin (no path), basePath routes through the Edge Function.
+const AUTH_FULL_URL =
   process.env.EXPO_PUBLIC_AUTH_URL ||
   "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth";
 
-console.log("[AuthClient] Using AUTH_URL:", AUTH_URL);
+// Extract origin from the full URL (e.g. "https://npfjanxturvmjyevoyfo.supabase.co")
+const AUTH_ORIGIN = new URL(AUTH_FULL_URL).origin;
+// Extract the path prefix (e.g. "/functions/v1/auth") and append Better Auth's route prefix
+const AUTH_PATH_PREFIX = new URL(AUTH_FULL_URL).pathname.replace(/\/$/, "");
+const AUTH_BASE_PATH = `${AUTH_PATH_PREFIX}/api/auth`;
+
+console.log("[AuthClient] AUTH_ORIGIN:", AUTH_ORIGIN);
+console.log("[AuthClient] AUTH_BASE_PATH:", AUTH_BASE_PATH);
 
 // Create the Better Auth client
 export const authClient = createAuthClient({
-  baseURL: AUTH_URL,
+  baseURL: AUTH_ORIGIN,
+  basePath: AUTH_BASE_PATH,
   plugins: [
     expoClient({
       scheme: "dvnt",
