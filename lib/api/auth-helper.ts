@@ -1,4 +1,5 @@
 import { useAuthStore } from "../stores/auth-store";
+import { getCurrentUserRow } from "../auth/identity";
 
 /**
  * Get current user ID from Better Auth store
@@ -45,6 +46,16 @@ export function getCurrentUserIdInt(): number | null {
   }
 
   return parsed;
+}
+
+/**
+ * Get current user's auth_id (UUID) for tables that use UUID foreign keys.
+ * Some tables (bookmarks, conversations_rels) reference auth_id, not integer id.
+ * Returns null if user is not authenticated or auth_id is not available.
+ */
+export async function getCurrentUserAuthId(): Promise<string | null> {
+  const userRow = await getCurrentUserRow();
+  return userRow?.authId || null;
 }
 
 /**

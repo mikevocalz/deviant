@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface ToggleBookmarkResponse {
@@ -17,8 +17,8 @@ export const bookmarksApi = {
     try {
       console.log("[Bookmarks] getBookmarks");
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) return [];
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return [];
 
       const { data, error } = await supabase
         .from(DB.bookmarks.table)
@@ -28,7 +28,7 @@ export const bookmarksApi = {
           ${DB.bookmarks.createdAt}
         `,
         )
-        .eq(DB.bookmarks.userId, userId)
+        .eq(DB.bookmarks.userId, authId)
         .order(DB.bookmarks.createdAt, { ascending: false });
 
       if (error) throw error;

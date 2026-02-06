@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserIdInt, getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface SendMessageResponse {
@@ -17,8 +17,9 @@ export const messagesApi = {
     try {
       console.log("[Messages] getConversations");
 
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) return [];
+      // conversations_rels.users_id is a UUID column → use auth_id
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return [];
 
       // Get conversations where user is a participant
       const { data, error } = await supabase
@@ -33,7 +34,7 @@ export const messagesApi = {
           )
         `,
         )
-        .eq(DB.conversationsRels.usersId, visitorId)
+        .eq(DB.conversationsRels.usersId, authId)
         .order(DB.conversationsRels.parentId, { ascending: false });
 
       if (error) throw error;
@@ -71,7 +72,7 @@ export const messagesApi = {
             `,
             )
             .eq(DB.conversationsRels.parentId, convId)
-            .neq(DB.conversationsRels.usersId, visitorId)
+            .neq(DB.conversationsRels.usersId, authId)
             .limit(1);
 
           const otherUserData = participants?.[0]?.user as any;
@@ -223,25 +224,28 @@ export const messagesApi = {
    */
   async getUnreadCount() {
     try {
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) return 0;
+      // conversations_rels.users_id is UUID, messages.sender_id is integer
+      const authId = await getCurrentUserAuthId();
+      const visitorIntId = getCurrentUserIdInt();
+      if (!authId) return 0;
 
       // Get conversations where user is a participant
       const { data: convs } = await supabase
         .from(DB.conversationsRels.table)
         .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, visitorId);
+        .eq(DB.conversationsRels.usersId, authId);
 
       if (!convs || convs.length === 0) return 0;
 
       // Count unread messages in these conversations
       const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
-      const { count, error } = await supabase
+      let query = supabase
         .from(DB.messages.table)
         .select("*", { count: "exact", head: true })
         .in(DB.messages.conversationId, convIds)
-        .eq(DB.messages.read, false)
-        .neq(DB.messages.senderId, visitorId);
+        .eq(DB.messages.read, false);
+      if (visitorIntId) query = query.neq(DB.messages.senderId, visitorIntId);
+      const { count, error } = await query;
 
       if (error) throw error;
 
@@ -257,8 +261,9 @@ export const messagesApi = {
    */
   async getSpamUnreadCount() {
     try {
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) return 0;
+      const authId = await getCurrentUserAuthId();
+      const visitorIntId = getCurrentUserIdInt();
+      if (!authId) return 0;
 
       // Get IDs of users the current user is following
       const followingIds = await this.getFollowingIds();
@@ -267,19 +272,21 @@ export const messagesApi = {
       const { data: convs } = await supabase
         .from(DB.conversationsRels.table)
         .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, visitorId);
+        .eq(DB.conversationsRels.usersId, authId);
 
       if (!convs || convs.length === 0) return 0;
 
       const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
 
       // Get unread messages from these conversations
-      const { data: unreadMessages, error } = await supabase
+      let unreadQuery = supabase
         .from(DB.messages.table)
         .select(`${DB.messages.senderId}`)
         .in(DB.messages.conversationId, convIds)
-        .eq(DB.messages.read, false)
-        .neq(DB.messages.senderId, visitorId);
+        .eq(DB.messages.read, false);
+      if (visitorIntId)
+        unreadQuery = unreadQuery.neq(DB.messages.senderId, visitorIntId);
+      const { data: unreadMessages, error } = await unreadQuery;
 
       if (error) throw error;
 
@@ -353,15 +360,15 @@ export const messagesApi = {
    */
   async markAsRead(conversationId: string) {
     try {
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) return;
+      const visitorIntId = getCurrentUserIdInt();
+      if (!visitorIntId) return;
 
       // Mark all messages in conversation as read (except own messages)
       await supabase
         .from(DB.messages.table)
         .update({ [DB.messages.read]: true })
         .eq(DB.messages.conversationId, parseInt(conversationId))
-        .neq(DB.messages.senderId, visitorId);
+        .neq(DB.messages.senderId, visitorIntId);
     } catch (error) {
       console.error("[Messages] markAsRead error:", error);
     }
