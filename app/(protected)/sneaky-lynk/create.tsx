@@ -52,7 +52,7 @@ export default function CreateLynkScreen() {
       showToast("success", "Lynk Created", "Your Lynk is now live!");
 
       // Navigate to the new room (using mock ID for now)
-      router.replace("/(protected)/sneaky-lynk/room/new-room" as any);
+      router.replace("/(protected)/sneaky-lynk/room/my-room" as any);
     } catch (error) {
       console.error("[CreateLynk] Error:", error);
       showToast("error", "Error", "Failed to create Lynk");

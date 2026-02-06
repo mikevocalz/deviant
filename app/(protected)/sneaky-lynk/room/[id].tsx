@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import React, { useEffect, useCallback, useRef } from "react";
+import { useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import {
   mockSpaces,
@@ -39,6 +40,10 @@ export default function SneakyLynkRoomScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+
+  // Camera & mic permissions for mock rooms
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [audioPermission, requestAudioPermission] = useMicrophonePermissions();
 
   // Room store
   const {
@@ -170,19 +175,41 @@ export default function SneakyLynkRoomScreen() {
 
   const handleToggleMic = useCallback(async () => {
     if (isMockRoom) {
+      // Request mic permission if not granted yet
+      if (!audioPermission?.granted) {
+        const result = await requestAudioPermission();
+        if (!result.granted) return;
+      }
       toggleMute();
     } else {
       await videoRoom.toggleMic();
     }
-  }, [isMockRoom, videoRoom, toggleMute]);
+  }, [
+    isMockRoom,
+    videoRoom,
+    toggleMute,
+    audioPermission,
+    requestAudioPermission,
+  ]);
 
   const handleToggleVideo = useCallback(async () => {
     if (isMockRoom) {
+      // Request camera permission if not granted yet
+      if (!cameraPermission?.granted) {
+        const result = await requestCameraPermission();
+        if (!result.granted) return;
+      }
       toggleVideo();
     } else {
       await videoRoom.toggleCamera();
     }
-  }, [isMockRoom, videoRoom, toggleVideo]);
+  }, [
+    isMockRoom,
+    videoRoom,
+    toggleVideo,
+    cameraPermission,
+    requestCameraPermission,
+  ]);
 
   const handleToggleHand = useCallback(() => {
     toggleHand();
