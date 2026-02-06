@@ -32,6 +32,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
 
 // Instagram-style creative tools - vertical toolbar
 const CREATIVE_TOOLS = [
@@ -77,6 +78,8 @@ export default function CreateStoryScreen() {
 
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const openStickerSheet = useStickerStore((s) => s.openSheet);
+  const isStickerSheetOpen = useStickerStore((s) => s.isSheetOpen);
 
   useEffect(() => {
     requestPermissions();
@@ -196,6 +199,7 @@ export default function CreateStoryScreen() {
     async (
       index: number,
       initialTool?: "text" | "stickers" | "draw" | "filter",
+      customStickers?: string[],
     ) => {
       const asset = mediaAssets[index];
       if (!asset || asset.type !== "image") {
@@ -215,7 +219,7 @@ export default function CreateStoryScreen() {
         // Pass initialTool to open directly to that tool (requires native patch)
         const editorOptions = {
           path: asset.uri,
-          stickers: [
+          stickers: customStickers ?? [
             "https://cdn-icons-png.flaticon.com/512/5272/5272912.png",
             "https://cdn-icons-png.flaticon.com/512/5272/5272913.png",
             "https://cdn-icons-png.flaticon.com/512/5272/5272916.png",
@@ -252,6 +256,15 @@ export default function CreateStoryScreen() {
       }
     },
     [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
+  );
+
+  const handleStickersDone = useCallback(
+    (stickers: string[]) => {
+      if (stickers.length > 0) {
+        handleEditImage(currentIndex, "stickers", stickers);
+      }
+    },
+    [currentIndex, handleEditImage],
   );
 
   const handleShare = async () => {
@@ -371,244 +384,253 @@ export default function CreateStoryScreen() {
   }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
 
   return (
-    <ScrollView
-      className="flex-1 bg-background"
-      contentContainerStyle={{ flexGrow: 1 }}
-      contentInsetAdjustmentBehavior="automatic"
-    >
-      {/* Upload Progress Overlay */}
-      {isSharing && (
-        <Motion.View
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-20 left-4 right-4 bg-black/90 rounded-xl p-4 z-50"
-          style={{ borderCurve: "continuous" }}
-        >
-          <View className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <Motion.View
-              className="h-full bg-primary rounded-full"
-              initial={{ width: "0%" }}
-              animate={{ width: `${uploadProgress}%` }}
-            />
-          </View>
-          <Text className="text-white text-sm font-medium text-center mt-3">
-            {uploadProgress < 100
-              ? `Uploading... ${uploadProgress}%`
-              : "Processing..."}
-          </Text>
-        </Motion.View>
-      )}
-
-      {/* Canvas Area */}
-      <View className="flex-1 items-center justify-center px-4 py-6">
-        <View
-          style={{
-            width: CANVAS_WIDTH,
-            height: CANVAS_HEIGHT,
-            borderCurve: "continuous",
-          }}
-          className="rounded-2xl overflow-hidden bg-card"
-        >
-          {currentMedia ? (
-            <View className="flex-1 bg-black">
-              {currentMediaType === "video" ? (
-                <View className="flex-1 items-center justify-center">
-                  <Image
-                    source={{ uri: currentMedia }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                  <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
-                    <Video size={16} color="#fff" />
-                    <Text className="text-white text-sm">Video</Text>
-                  </View>
-                </View>
-              ) : (
-                <View className="flex-1">
-                  <Image
-                    source={{ uri: currentMedia }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                  {/* Tap anywhere to open editor (background layer) */}
-                  <Pressable
-                    onPress={() => handleEditImage(currentIndex)}
-                    className="absolute inset-0"
-                  />
-                  {/* Instagram-style vertical toolbar on right (on top of background) */}
-                  <View
-                    className="absolute right-3 top-10 gap-3"
-                    style={{ zIndex: 10 }}
-                  >
-                    {CREATIVE_TOOLS.map((tool) => (
-                      <Pressable
-                        key={tool.id}
-                        onPress={() => {
-                          Haptics.impactAsync(
-                            Haptics.ImpactFeedbackStyle.Light,
-                          );
-                          if (tool.id === "save") {
-                            showToast("info", "Save", "Image saved to gallery");
-                          } else if (tool.id === "text") {
-                            handleEditImage(currentIndex, "text");
-                          } else if (tool.id === "stickers") {
-                            handleEditImage(currentIndex, "stickers");
-                          } else if (tool.id === "draw") {
-                            handleEditImage(currentIndex, "draw");
-                          } else if (tool.id === "effects") {
-                            handleEditImage(currentIndex, "filter");
-                          }
-                        }}
-                        className="items-center"
-                      >
-                        <View
-                          className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
-                          style={{ borderCurve: "continuous" }}
-                        >
-                          <tool.icon size={20} color="#fff" strokeWidth={2} />
-                        </View>
-                        <Text
-                          className="text-white text-[10px] font-medium mt-0.5"
-                          style={{
-                            textShadowColor: "rgba(0,0,0,0.8)",
-                            textShadowOffset: { width: 0, height: 1 },
-                            textShadowRadius: 2,
-                          }}
-                        >
-                          {tool.label}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              )}
-            </View>
-          ) : (
-            <View className="flex-1 bg-card items-center justify-center">
-              <ImageIcon size={48} color="#666" />
-              <Text className="text-muted-foreground mt-3 text-base">
-                Add media to get started
-              </Text>
-            </View>
-          )}
-
-          {/* Progress indicators */}
-          {selectedMedia.length > 1 && (
-            <>
-              <View className="absolute top-3 left-3 right-3 flex-row gap-1">
-                {selectedMedia.map((_, idx) => (
-                  <View
-                    key={idx}
-                    className={`flex-1 h-0.5 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/30"}`}
-                  />
-                ))}
-              </View>
-
-              {currentIndex > 0 && (
-                <Pressable
-                  onPress={() => {
-                    prevSlide();
-                    Haptics.selectionAsync();
-                  }}
-                  className="absolute left-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-                >
-                  <ChevronLeft size={24} color="#fff" />
-                </Pressable>
-              )}
-
-              {currentIndex < selectedMedia.length - 1 && (
-                <Pressable
-                  onPress={() => {
-                    nextSlide();
-                    Haptics.selectionAsync();
-                  }}
-                  className="absolute right-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-                >
-                  <ChevronRight size={24} color="#fff" />
-                </Pressable>
-              )}
-            </>
-          )}
-        </View>
-
-        {/* Media thumbnails */}
-        {mediaAssets.length > 0 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            className="mt-4 max-h-16"
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
+    <>
+      <ScrollView
+        className="flex-1 bg-background"
+        contentContainerStyle={{ flexGrow: 1 }}
+        contentInsetAdjustmentBehavior="automatic"
+      >
+        {/* Upload Progress Overlay */}
+        {isSharing && (
+          <Motion.View
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-20 left-4 right-4 bg-black/90 rounded-xl p-4 z-50"
+            style={{ borderCurve: "continuous" }}
           >
-            {mediaAssets.map((asset, idx) => (
-              <Pressable
-                key={asset.id}
-                onPress={() => {
-                  setCurrentIndex(idx);
-                  Haptics.selectionAsync();
-                }}
-                className={`w-14 h-14 rounded-lg overflow-hidden ${idx === currentIndex ? "border-2 border-primary" : ""}`}
-                style={{ borderCurve: "continuous" }}
-              >
-                <Image
-                  source={{ uri: asset.uri }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                />
-                <Pressable
-                  onPress={() => handleRemoveMedia(idx)}
-                  className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
-                  hitSlop={8}
-                >
-                  <X size={10} color="#fff" />
-                </Pressable>
-                {asset.type === "video" && (
-                  <View className="absolute bottom-0.5 left-0.5">
-                    <Video size={12} color="#fff" />
+            <View className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <Motion.View
+                className="h-full bg-primary rounded-full"
+                initial={{ width: "0%" }}
+                animate={{ width: `${uploadProgress}%` }}
+              />
+            </View>
+            <Text className="text-white text-sm font-medium text-center mt-3">
+              {uploadProgress < 100
+                ? `Uploading... ${uploadProgress}%`
+                : "Processing..."}
+            </Text>
+          </Motion.View>
+        )}
+
+        {/* Canvas Area */}
+        <View className="flex-1 items-center justify-center px-4 py-6">
+          <View
+            style={{
+              width: CANVAS_WIDTH,
+              height: CANVAS_HEIGHT,
+              borderCurve: "continuous",
+            }}
+            className="rounded-2xl overflow-hidden bg-card"
+          >
+            {currentMedia ? (
+              <View className="flex-1 bg-black">
+                {currentMediaType === "video" ? (
+                  <View className="flex-1 items-center justify-center">
+                    <Image
+                      source={{ uri: currentMedia }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
+                      <Video size={16} color="#fff" />
+                      <Text className="text-white text-sm">Video</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View className="flex-1">
+                    <Image
+                      source={{ uri: currentMedia }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    {/* Tap anywhere to open editor (background layer) */}
+                    <Pressable
+                      onPress={() => handleEditImage(currentIndex)}
+                      className="absolute inset-0"
+                    />
+                    {/* Instagram-style vertical toolbar on right (on top of background) */}
+                    <View
+                      className="absolute right-3 top-10 gap-3"
+                      style={{ zIndex: 10 }}
+                    >
+                      {CREATIVE_TOOLS.map((tool) => (
+                        <Pressable
+                          key={tool.id}
+                          onPress={() => {
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
+                            if (tool.id === "save") {
+                              showToast(
+                                "info",
+                                "Save",
+                                "Image saved to gallery",
+                              );
+                            } else if (tool.id === "text") {
+                              handleEditImage(currentIndex, "text");
+                            } else if (tool.id === "stickers") {
+                              openStickerSheet();
+                            } else if (tool.id === "draw") {
+                              handleEditImage(currentIndex, "draw");
+                            } else if (tool.id === "effects") {
+                              handleEditImage(currentIndex, "filter");
+                            }
+                          }}
+                          className="items-center"
+                        >
+                          <View
+                            className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
+                            style={{ borderCurve: "continuous" }}
+                          >
+                            <tool.icon size={20} color="#fff" strokeWidth={2} />
+                          </View>
+                          <Text
+                            className="text-white text-[10px] font-medium mt-0.5"
+                            style={{
+                              textShadowColor: "rgba(0,0,0,0.8)",
+                              textShadowOffset: { width: 0, height: 1 },
+                              textShadowRadius: 2,
+                            }}
+                          >
+                            {tool.label}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
                   </View>
                 )}
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-      </View>
+              </View>
+            ) : (
+              <View className="flex-1 bg-card items-center justify-center">
+                <ImageIcon size={48} color="#666" />
+                <Text className="text-muted-foreground mt-3 text-base">
+                  Add media to get started
+                </Text>
+              </View>
+            )}
 
-      {/* Action buttons */}
-      <View className="px-4 pb-6">
-        <View className="flex-row justify-center gap-6">
-          <Pressable
-            onPress={handlePickLibrary}
-            disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-            className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
-          >
-            <View
-              className="w-14 h-14 rounded-full bg-card items-center justify-center"
-              style={{ borderCurve: "continuous" }}
-            >
-              <ImageIcon size={24} color="#fff" />
-            </View>
-            <Text className="text-muted-foreground text-xs">
-              Gallery{" "}
-              {mediaAssets.length > 0
-                ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
-                : ""}
-            </Text>
-          </Pressable>
+            {/* Progress indicators */}
+            {selectedMedia.length > 1 && (
+              <>
+                <View className="absolute top-3 left-3 right-3 flex-row gap-1">
+                  {selectedMedia.map((_, idx) => (
+                    <View
+                      key={idx}
+                      className={`flex-1 h-0.5 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/30"}`}
+                    />
+                  ))}
+                </View>
 
-          <Pressable
-            onPress={handleRecordVideo}
-            disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-            className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
-          >
-            <View
-              className="w-14 h-14 rounded-full bg-card items-center justify-center"
-              style={{ borderCurve: "continuous" }}
+                {currentIndex > 0 && (
+                  <Pressable
+                    onPress={() => {
+                      prevSlide();
+                      Haptics.selectionAsync();
+                    }}
+                    className="absolute left-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                  >
+                    <ChevronLeft size={24} color="#fff" />
+                  </Pressable>
+                )}
+
+                {currentIndex < selectedMedia.length - 1 && (
+                  <Pressable
+                    onPress={() => {
+                      nextSlide();
+                      Haptics.selectionAsync();
+                    }}
+                    className="absolute right-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
+                  >
+                    <ChevronRight size={24} color="#fff" />
+                  </Pressable>
+                )}
+              </>
+            )}
+          </View>
+
+          {/* Media thumbnails */}
+          {mediaAssets.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              className="mt-4 max-h-16"
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
             >
-              <Video size={24} color="#fff" />
-            </View>
-            <Text className="text-muted-foreground text-xs">Video (30s)</Text>
-          </Pressable>
+              {mediaAssets.map((asset, idx) => (
+                <Pressable
+                  key={asset.id}
+                  onPress={() => {
+                    setCurrentIndex(idx);
+                    Haptics.selectionAsync();
+                  }}
+                  className={`w-14 h-14 rounded-lg overflow-hidden ${idx === currentIndex ? "border-2 border-primary" : ""}`}
+                  style={{ borderCurve: "continuous" }}
+                >
+                  <Image
+                    source={{ uri: asset.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                  <Pressable
+                    onPress={() => handleRemoveMedia(idx)}
+                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
+                    hitSlop={8}
+                  >
+                    <X size={10} color="#fff" />
+                  </Pressable>
+                  {asset.type === "video" && (
+                    <View className="absolute bottom-0.5 left-0.5">
+                      <Video size={12} color="#fff" />
+                    </View>
+                  )}
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
         </View>
-      </View>
-    </ScrollView>
+
+        {/* Action buttons */}
+        <View className="px-4 pb-6">
+          <View className="flex-row justify-center gap-6">
+            <Pressable
+              onPress={handlePickLibrary}
+              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+              className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
+            >
+              <View
+                className="w-14 h-14 rounded-full bg-card items-center justify-center"
+                style={{ borderCurve: "continuous" }}
+              >
+                <ImageIcon size={24} color="#fff" />
+              </View>
+              <Text className="text-muted-foreground text-xs">
+                Gallery{" "}
+                {mediaAssets.length > 0
+                  ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
+                  : ""}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleRecordVideo}
+              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+              className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
+            >
+              <View
+                className="w-14 h-14 rounded-full bg-card items-center justify-center"
+                style={{ borderCurve: "continuous" }}
+              >
+                <Video size={24} color="#fff" />
+              </View>
+              <Text className="text-muted-foreground text-xs">Video (30s)</Text>
+            </Pressable>
+          </View>
+        </View>
+      </ScrollView>
+
+      {/* Klipy Sticker Picker Sheet */}
+      {isStickerSheetOpen && <StickerPickerSheet onDone={handleStickersDone} />}
+    </>
   );
 }
