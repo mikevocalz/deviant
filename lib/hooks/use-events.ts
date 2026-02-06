@@ -49,6 +49,14 @@ export function useEvents(category?: string) {
   });
 }
 
+// Fetch current user's events (hosting + RSVP'd)
+export function useMyEvents() {
+  return useQuery({
+    queryKey: [...eventKeys.all, "mine"] as const,
+    queryFn: () => eventsApiClient.getMyEvents(),
+  });
+}
+
 // Fetch upcoming events
 export function useUpcomingEvents() {
   return useQuery({

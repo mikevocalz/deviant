@@ -73,6 +73,59 @@ export const eventsApi = {
   },
 
   /**
+   * Get events the current user is hosting or has RSVP'd to
+   */
+  async getMyEvents(limit: number = 50) {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) return [];
+
+      // Get events user RSVP'd to
+      const { data: rsvps } = await supabase
+        .from(DB.eventRsvps.table)
+        .select(DB.eventRsvps.eventId)
+        .eq(DB.eventRsvps.userId, userId);
+
+      const rsvpEventIds = (rsvps || []).map(
+        (r: any) => r[DB.eventRsvps.eventId],
+      );
+
+      // Get events user is hosting + events they RSVP'd to
+      let query = supabase
+        .from(DB.events.table)
+        .select("*")
+        .order(DB.events.startDate, { ascending: false })
+        .limit(limit);
+
+      // Combine: host_id match OR id in rsvp list
+      if (rsvpEventIds.length > 0) {
+        query = query.or(
+          `${DB.events.hostId}.eq.${userId},${DB.events.id}.in.(${rsvpEventIds.join(",")})`,
+        );
+      } else {
+        query = query.eq(DB.events.hostId, userId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      return (data || []).map((event: any) => ({
+        id: String(event[DB.events.id]),
+        title: event[DB.events.title],
+        description: event[DB.events.description],
+        date: event[DB.events.startDate],
+        location: event[DB.events.location],
+        image: event[DB.events.coverImageUrl] || "",
+        price: Number(event[DB.events.price]) || 0,
+        attendees: Number(event[DB.events.totalAttendees]) || 0,
+      }));
+    } catch (error) {
+      console.error("[Events] getMyEvents error:", error);
+      return [];
+    }
+  },
+
+  /**
    * Get past events
    */
   async getPastEvents(limit: number = 20) {

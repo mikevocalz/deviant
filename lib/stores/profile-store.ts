@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type ProfileTab = "posts" | "video" | "saved" | "tagged";
+type ProfileTab = "posts" | "video" | "events" | "saved" | "tagged";
 
 interface ProfileState {
   activeTab: ProfileTab;
