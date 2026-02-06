@@ -61,19 +61,36 @@ export default function LoginScreen() {
         }
 
         if (data?.user) {
-          console.log("[Login] Better Auth success, syncing user profile...");
+          console.log(
+            "[Login] Better Auth success, user:",
+            data.user.id,
+            data.user.email,
+          );
+          console.log(
+            "[Login] Session token present:",
+            !!(data as any)?.session?.token,
+          );
+
+          // Give the expo client a moment to persist the session token to SecureStore
+          await new Promise((resolve) => setTimeout(resolve, 500));
 
           // Sync user to app's users table (creates row if needed, updates auth_id)
           let profile;
           try {
+            console.log("[Login] Calling syncAuthUser...");
             profile = await syncAuthUser();
             console.log("[Login] User synced, ID:", profile.id);
-          } catch (syncError) {
+          } catch (syncError: any) {
             console.warn(
-              "[Login] syncAuthUser failed, trying getProfile:",
-              syncError,
+              "[Login] syncAuthUser failed:",
+              syncError?.message || syncError,
             );
+            console.log("[Login] Falling back to getProfile...");
             profile = await auth.getProfile(data.user.id, data.user.email);
+            console.log(
+              "[Login] getProfile result:",
+              profile ? profile.id : "null",
+            );
           }
 
           if (profile) {

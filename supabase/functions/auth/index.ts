@@ -37,6 +37,7 @@ const corsHeaders: Record<string, string> = {
     "authorization, x-client-info, apikey, content-type, cookie, set-cookie",
   "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Credentials": "true",
+  "Access-Control-Expose-Headers": "set-auth-token, set-cookie",
 };
 
 // ─── Email helpers ──────────────────────────────────────────────────────────
