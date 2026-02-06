@@ -143,7 +143,18 @@ export default function SneakyLynkRoomScreen() {
   useEffect(() => {
     if (!isMockRoom && id && !hasJoinedRef.current) {
       hasJoinedRef.current = true;
-      videoRoom.join();
+      (async () => {
+        const joined = await videoRoom.join();
+        if (joined) {
+          // Auto-start camera for host
+          try {
+            await videoRoom.toggleCamera();
+            await videoRoom.toggleMic();
+          } catch (e) {
+            console.warn("[SneakyLynk] Failed to start media:", e);
+          }
+        }
+      })();
     }
     return () => {
       if (!isMockRoom && hasJoinedRef.current) {
@@ -232,15 +243,32 @@ export default function SneakyLynkRoomScreen() {
     : videoRoom.participants.length;
   const roomHasVideo = isMockRoom ? mockSpace!.hasVideo : true;
 
+  // Build a SneakyUser for the local user in real rooms so VideoStage can render
+  const localSneakyUser: SneakyUser | null =
+    !isMockRoom && videoRoom.localUser
+      ? {
+          id: videoRoom.localUser.id,
+          username: videoRoom.localUser.username || "You",
+          displayName: videoRoom.localUser.username || "You",
+          avatar:
+            videoRoom.localUser.avatar ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              videoRoom.localUser.username || "U",
+            )}&background=1a1a1a&color=fff`,
+          isVerified: false,
+        }
+      : null;
+
   const allSpeakerUsers: SneakyUser[] = isMockRoom
     ? [mockSpace!.host, ...mockSpace!.speakers]
-    : [];
-  const featuredSpeakerUser = activeSpeakerId
-    ? allSpeakerUsers.find((s) => s.id === activeSpeakerId) ||
-      (isMockRoom ? mockSpace!.host : null)
-    : isMockRoom
-      ? mockSpace!.host
-      : null;
+    : localSneakyUser
+      ? [localSneakyUser]
+      : [];
+  const featuredSpeakerUser = isMockRoom
+    ? activeSpeakerId
+      ? allSpeakerUsers.find((s) => s.id === activeSpeakerId) || mockSpace!.host
+      : mockSpace!.host
+    : localSneakyUser;
 
   // Transform to Speaker format for SpeakerGrid
   const speakers = allSpeakerUsers.map((user, index) => ({
