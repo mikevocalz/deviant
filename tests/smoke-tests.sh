@@ -13,7 +13,7 @@
 # We track failures manually and exit at the end
 
 API_URL="${API_URL:-https://payload-cms-setup-gray.vercel.app}"
-AUTH_URL="${AUTH_URL:-https://server-zeta-lovat.vercel.app}"
+AUTH_URL="${AUTH_URL:-https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth}"
 
 echo "============================================================"
 echo "COMPREHENSIVE API SMOKE TESTS"

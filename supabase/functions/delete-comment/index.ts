@@ -30,20 +30,25 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string): Promise<{ odUserId: string } | null> {
-  const betterAuthUrl = Deno.env.get("BETTER_AUTH_BASE_URL");
-  if (!betterAuthUrl) return null;
-
+async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
   try {
-    const response = await fetch(`${betterAuthUrl}/api/auth/get-session`, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-    });
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
 
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data?.user?.id) return null;
-    return { odUserId: data.user.id };
+    if (sessionError || !session) return null;
+    if (new Date(session.expiresAt) < new Date()) return null;
+
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name")
+      .eq("id", session.userId)
+      .single();
+
+    if (userError || !user) return null;
+    return { odUserId: user.id, email: user.email || "" };
   } catch {
     return null;
   }
@@ -65,7 +70,15 @@ serve(async (req: Request) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const session = await verifyBetterAuthSession(token);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse("internal_error", "Server configuration error", 500);
+    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
       return errorResponse("unauthorized", "Invalid or expired session", 401);
     }
@@ -83,14 +96,6 @@ serve(async (req: Request) => {
     if (!commentId || typeof commentId !== "number") {
       return errorResponse("validation_error", "commentId is required and must be a number", 400);
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user's integer ID
     const { data: userData, error: userError } = await supabaseAdmin

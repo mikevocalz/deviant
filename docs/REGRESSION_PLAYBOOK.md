@@ -4,15 +4,15 @@ Emergency procedures for when things break. Follow these steps in order.
 
 ## Quick Reference
 
-| Symptom | Likely Cause | Fix |
-|---------|--------------|-----|
-| 401 Unauthorized | JWT expired/invalid | Re-login, check token storage |
-| 404 Not Found | Endpoint path changed | Check ENDPOINT_INVENTORY.md |
-| 409 Conflict | Duplicate data | Check unique constraints |
-| 500 Server Error | Backend crash | Check Vercel logs |
-| Wrong avatar on posts | Identity leak | Check avatar source |
-| Likes not updating | Cache key mismatch | Check query key includes viewerId |
-| Counts going negative | Optimistic update bug | Add Math.max(0, count) |
+| Symptom               | Likely Cause          | Fix                               |
+| --------------------- | --------------------- | --------------------------------- |
+| 401 Unauthorized      | JWT expired/invalid   | Re-login, check token storage     |
+| 404 Not Found         | Endpoint path changed | Check ENDPOINT_INVENTORY.md       |
+| 409 Conflict          | Duplicate data        | Check unique constraints          |
+| 500 Server Error      | Backend crash         | Check Vercel logs                 |
+| Wrong avatar on posts | Identity leak         | Check avatar source               |
+| Likes not updating    | Cache key mismatch    | Check query key includes viewerId |
+| Counts going negative | Optimistic update bug | Add Math.max(0, count)            |
 
 ## Last Known Good State
 
@@ -30,7 +30,7 @@ Verified:    Smoke tests pass (24/24)
 ```json
 {
   "EXPO_PUBLIC_API_URL": "https://payload-cms-setup-gray.vercel.app",
-  "EXPO_PUBLIC_AUTH_URL": "https://server-zeta-lovat.vercel.app",
+  "EXPO_PUBLIC_AUTH_URL": "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth",
   "EXPO_PUBLIC_BUNNY_CDN_URL": "https://dvnt.b-cdn.net"
 }
 ```
@@ -54,11 +54,13 @@ PAYLOAD_SERVER_URL=https://payload-cms-setup-gray.vercel.app
 ### Diagnosis
 
 1. Check smoke tests:
+
    ```bash
    JWT_TOKEN="..." ./tests/smoke-tests.sh
    ```
 
 2. Test specific endpoint:
+
    ```bash
    curl -X POST "$API_URL/api/posts/18/like" -H "Authorization: JWT $TOKEN"
    ```
@@ -93,12 +95,12 @@ Search for these patterns in the component:
 
 ```typescript
 // ❌ BAD - using authUser for other user's content
-user?.avatar || post.author.avatar
-currentUser?.username || comment.author.username
+user?.avatar || post.author.avatar;
+currentUser?.username || comment.author.username;
 
 // ✅ GOOD - always use entity data
-post.author.avatar
-comment.author.username
+post.author.avatar;
+comment.author.username;
 ```
 
 ### Fix
@@ -118,6 +120,7 @@ comment.author.username
 ### Diagnosis
 
 Check for:
+
 - Video operations after unmount
 - Source changes without cleanup
 - Multiple players for same video
@@ -195,7 +198,7 @@ curl "$API_URL/api/events/3/participants" -H "Authorization: JWT $TOKEN"
 ```typescript
 // In lib/feature-flags.ts
 const DEFAULT_FLAGS = {
-  video_autoplay: false,  // Disable video autoplay
+  video_autoplay: false, // Disable video autoplay
   // ...
 };
 ```

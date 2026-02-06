@@ -1,7 +1,7 @@
 /**
  * Edge Function: update-profile
  * Updates user profile with Better Auth session verification
- * 
+ *
  * This function verifies the Better Auth session token and updates
  * the users table using the service role key (server-side only).
  */
@@ -12,24 +12,31 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 // Validation schema for profile updates
-const UpdateProfileSchema = z.object({
-  name: z.string().max(100).optional(),
-  firstName: z.string().max(50).optional(),
-  lastName: z.string().max(50).optional(),
-  bio: z.string().max(500).optional(),
-  location: z.string().max(100).optional(),
-  avatarUrl: z.string().url().optional(),
-}).refine(
-  (data) => Object.values(data).some((v) => v !== undefined),
-  { message: "At least one field must be provided" }
-);
+const UpdateProfileSchema = z
+  .object({
+    name: z.string().max(100).optional(),
+    firstName: z.string().max(50).optional(),
+    lastName: z.string().max(50).optional(),
+    bio: z.string().max(500).optional(),
+    location: z.string().max(100).optional(),
+    avatarUrl: z.string().url().optional(),
+  })
+  .refine((data) => Object.values(data).some((v) => v !== undefined), {
+    message: "At least one field must be provided",
+  });
 
-type ErrorCode = "unauthorized" | "forbidden" | "validation_error" | "not_found" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "validation_error"
+  | "not_found"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -44,7 +51,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   console.error(`[Edge:update-profile] Error: ${code} - ${message}`);
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
@@ -52,44 +63,29 @@ function errorResponse(code: ErrorCode, message: string, status = 400): Response
 /**
  * Verify Better Auth session by calling the session endpoint
  */
-async function verifyBetterAuthSession(token: string): Promise<{ userId: string; email: string } | null> {
-  const betterAuthUrl = Deno.env.get("BETTER_AUTH_BASE_URL");
-  if (!betterAuthUrl) {
-    console.error("[Edge:update-profile] BETTER_AUTH_BASE_URL not configured");
-    return null;
-  }
-
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
-    console.log("[Edge:update-profile] Verifying session with Better Auth...");
-    
-    const response = await fetch(`${betterAuthUrl}/api/auth/get-session`, {
-      method: "GET",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
 
-    if (!response.ok) {
-      console.error("[Edge:update-profile] Better Auth session check failed:", response.status);
-      return null;
-    }
+    if (sessionError || !session) return null;
+    if (new Date(session.expiresAt) < new Date()) return null;
 
-    const data = await response.json();
-    
-    if (!data?.session?.userId || !data?.user?.id) {
-      console.error("[Edge:update-profile] Invalid session response structure");
-      return null;
-    }
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name")
+      .eq("id", session.userId)
+      .single();
 
-    console.log("[Edge:update-profile] Session verified for user:", data.user.id);
-    
-    return {
-      userId: data.user.id,
-      email: data.user.email || "",
-    };
-  } catch (error) {
-    console.error("[Edge:update-profile] Session verification error:", error);
+    if (userError || !user) return null;
+    return { odUserId: user.id, email: user.email || "" };
+  } catch {
     return null;
   }
 }
@@ -108,19 +104,31 @@ serve(async (req: Request) => {
     // 1. Extract and validate Authorization header
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse("internal_error", "Server configuration error", 500);
+    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
     console.log("[Edge:update-profile] Received request with token");
 
     // 2. Verify Better Auth session
-    const session = await verifyBetterAuthSession(token);
+    const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
       return errorResponse("unauthorized", "Invalid or expired session", 401);
     }
 
-    const { userId: authId, email } = session;
+    const { odUserId: authId, email } = session;
     console.log("[Edge:update-profile] Authenticated user auth_id:", authId);
 
     // 3. Parse and validate request body
@@ -133,25 +141,17 @@ serve(async (req: Request) => {
 
     const parsed = UpdateProfileSchema.safeParse(body);
     if (!parsed.success) {
-      const errorMessage = parsed.error.errors.map(e => e.message).join(", ");
+      const errorMessage = parsed.error.errors.map((e) => e.message).join(", ");
       return errorResponse("validation_error", errorMessage, 400);
     }
 
     const updates = parsed.data;
-    console.log("[Edge:update-profile] Validated updates:", JSON.stringify(updates));
+    console.log(
+      "[Edge:update-profile] Validated updates:",
+      JSON.stringify(updates),
+    );
 
-    // 4. Create Supabase admin client (service role - server-side only!)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error("[Edge:update-profile] Missing Supabase environment variables");
-      return errorResponse("internal_error", "Server configuration error", 500);
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    // 5. Build update object - map fields to database columns
+    // 4. Build update object - map fields to database columns
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
@@ -175,14 +175,18 @@ serve(async (req: Request) => {
     // Note: avatarUrl would need to be handled separately if it's a media ID
     // For now, we skip it as avatar updates go through media upload flow
 
-    console.log("[Edge:update-profile] Update data:", JSON.stringify(updateData));
+    console.log(
+      "[Edge:update-profile] Update data:",
+      JSON.stringify(updateData),
+    );
 
     // 6. Update user by auth_id
     const { data: updatedUser, error: updateError } = await supabaseAdmin
       .from("users")
       .update(updateData)
       .eq("auth_id", authId)
-      .select(`
+      .select(
+        `
         id,
         auth_id,
         username,
@@ -196,21 +200,25 @@ serve(async (req: Request) => {
         following_count,
         posts_count,
         avatar:avatar_id(url)
-      `)
+      `,
+      )
       .single();
 
     if (updateError) {
       console.error("[Edge:update-profile] Update error:", updateError.message);
-      
+
       // Check if user not found
       if (updateError.code === "PGRST116") {
         return errorResponse("not_found", "User not found", 404);
       }
-      
+
       return errorResponse("internal_error", "Failed to update profile", 500);
     }
 
-    console.log("[Edge:update-profile] Profile updated successfully for user:", updatedUser.id);
+    console.log(
+      "[Edge:update-profile] Profile updated successfully for user:",
+      updatedUser.id,
+    );
 
     // 7. Return updated user data
     return jsonResponse({

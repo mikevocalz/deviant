@@ -178,7 +178,7 @@ These operations work with the regular Supabase client because:
 ```bash
 EXPO_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-EXPO_PUBLIC_AUTH_URL=https://server-zeta-lovat.vercel.app
+EXPO_PUBLIC_AUTH_URL=https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth
 # ⚠️ NO SERVICE ROLE KEY HERE - EVER!
 ```
 
@@ -187,7 +187,7 @@ EXPO_PUBLIC_AUTH_URL=https://server-zeta-lovat.vercel.app
 ```bash
 supabase secrets set SUPABASE_URL=https://xxx.supabase.co
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=eyJ...
-supabase secrets set BETTER_AUTH_BASE_URL=https://server-zeta-lovat.vercel.app
+supabase secrets set BETTER_AUTH_BASE_URL=https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth
 ```
 
 ## Guardrails

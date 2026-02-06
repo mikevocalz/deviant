@@ -1352,46 +1352,42 @@ setUploadProgress(100);
 
 ### Live Deployments
 
-| Service               | URL                                         |
-| --------------------- | ------------------------------------------- |
-| **Payload CMS**       | `https://payload-cms-setup-gray.vercel.app` |
-| **API Server (Hono)** | `https://server-zeta-lovat.vercel.app`      |
-| **Bunny CDN**         | `https://dvnt.b-cdn.net`                    |
+| Service                | URL                                                          |
+| ---------------------- | ------------------------------------------------------------ |
+| **Auth (Better Auth)** | `https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth` |
+| **Edge Functions**     | `https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/*`    |
+| **Bunny CDN**          | `https://dvnt.b-cdn.net`                                     |
 
 ### EAS Environment Variables
 
 These are configured in EAS project settings and referenced in `eas.json`:
 
-| Variable               | EAS Secret Name | Value                                  |
-| ---------------------- | --------------- | -------------------------------------- |
-| `EXPO_PUBLIC_API_URL`  | `API_URL`       | `https://server-zeta-lovat.vercel.app` |
-| `EXPO_PUBLIC_AUTH_URL` | -               | `https://server-zeta-lovat.vercel.app` |
-| `EXPO_PUBLIC_BUNNY_*`  | `BUNNY_*`       | See EAS secrets                        |
+| Variable                   | EAS Secret Name | Value                                                        |
+| -------------------------- | --------------- | ------------------------------------------------------------ |
+| `EXPO_PUBLIC_AUTH_URL`     | -               | `https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth` |
+| `EXPO_PUBLIC_SUPABASE_URL` | -               | `https://npfjanxturvmjyevoyfo.supabase.co`                   |
+| `EXPO_PUBLIC_BUNNY_*`      | `BUNNY_*`       | See EAS secrets                                              |
 
 ### Architecture Overview
 
-**LOCKED (2026-02-01): DIRECT TO PAYLOAD ONLY**
+**LOCKED (2026-02-06): SUPABASE + EDGE FUNCTIONS ONLY**
 
 ```
 Native App (iOS/Android)
          ↓
-EXPO_PUBLIC_API_URL (https://payload-cms-setup-gray.vercel.app)
+Better Auth (Supabase Edge Function) ← Authentication
+Supabase Client (direct) ← Reads
+Edge Functions (privileged) ← Writes (posts, stories, events, messages)
          ↓
-Payload CMS REST API (/api/posts, /api/users, etc.)
-         ↓
-Supabase PostgreSQL (Transaction Pooler: port 6543)
+Supabase PostgreSQL
 ```
 
 **CRITICAL:**
 
-- ✅ Mobile app communicates DIRECTLY with Payload CMS
-- ❌ Hono server removed permanently (server-zeta-lovat.vercel.app)
-- ❌ Expo Router API routes NOT used by native app
-- ✅ Authentication via JWT tokens (stored securely on device)
-
-**Database:** Supabase transaction pooler (port 6543 with `pgbouncer=true`) for optimal serverless performance.
-
-**Important:** Expo Router's web export with `output: "server"` cannot bundle native React Native modules for SSR. The `/server` directory is no longer used.
+- ✅ Auth via Better Auth in Supabase Edge Function
+- ✅ Reads via Supabase client (anon key)
+- ✅ Writes via privileged Edge Functions (service role)
+- ❌ No Vercel, no Payload CMS, no Hono, no Expo API routes
 
 ### Production Health Checks
 

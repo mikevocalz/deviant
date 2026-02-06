@@ -10,7 +10,7 @@
  * Required Deno env vars:
  *   RESEND_API_KEY        — Resend API token (re_...)
  *   RESEND_FROM_EMAIL     — Verified sender (e.g. DVNT <noreply@dvnt.app>)
- *   BETTER_AUTH_BASE_URL  — Better Auth server for session verification
+ *   (Session verified via direct DB lookup of Better Auth session table)
  *   SUPABASE_URL          — Supabase project URL
  *   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
  */
@@ -143,23 +143,26 @@ function buildResetPasswordEmail(url: string): {
 
 async function verifyBetterAuthSession(
   token: string,
+  supabaseAdmin: any,
 ): Promise<{ userId: string; email: string } | null> {
-  const betterAuthUrl = Deno.env.get("BETTER_AUTH_BASE_URL");
-  if (!betterAuthUrl) return null;
-
   try {
-    const response = await fetch(`${betterAuthUrl}/api/auth/get-session`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
 
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data?.user?.id) return null;
-    return { userId: data.user.id, email: data.user.email || "" };
+    if (sessionError || !session) return null;
+    if (new Date(session.expiresAt) < new Date()) return null;
+
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name")
+      .eq("id", session.userId)
+      .single();
+
+    if (userError || !user) return null;
+    return { userId: user.id, email: user.email || "" };
   } catch {
     return null;
   }

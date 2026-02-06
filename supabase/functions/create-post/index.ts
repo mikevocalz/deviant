@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,20 +31,28 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string): Promise<{ odUserId: string } | null> {
-  const betterAuthUrl = Deno.env.get("BETTER_AUTH_BASE_URL");
-  if (!betterAuthUrl) return null;
-
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
-    const response = await fetch(`${betterAuthUrl}/api/auth/get-session`, {
-      method: "GET",
-      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
-    });
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
 
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (!data?.user?.id) return null;
-    return { odUserId: data.user.id };
+    if (sessionError || !session) return null;
+    if (new Date(session.expiresAt) < new Date()) return null;
+
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name")
+      .eq("id", session.userId)
+      .single();
+
+    if (userError || !user) return null;
+    return { odUserId: user.id, email: user.email || "" };
   } catch {
     return null;
   }
@@ -74,11 +83,23 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
-    const session = await verifyBetterAuthSession(token);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse("internal_error", "Server configuration error", 500);
+    }
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
       return errorResponse("unauthorized", "Invalid or expired session", 401);
     }
@@ -95,17 +116,16 @@ serve(async (req: Request) => {
     const { content, location, isNSFW, visibility, media } = body;
 
     // Must have content or media
-    if ((!content || content.trim().length === 0) && (!media || media.length === 0)) {
-      return errorResponse("validation_error", "Post must have content or media", 400);
+    if (
+      (!content || content.trim().length === 0) &&
+      (!media || media.length === 0)
+    ) {
+      return errorResponse(
+        "validation_error",
+        "Post must have content or media",
+        400,
+      );
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Get user's integer ID and profile info
     const { data: userData, error: userError } = await supabaseAdmin
@@ -161,7 +181,11 @@ serve(async (req: Request) => {
         console.error("[Edge:create-post] Media insert error:", mediaError);
         // Don't fail the whole request, post was created
       } else {
-        console.log("[Edge:create-post] Media inserted:", media.length, "items");
+        console.log(
+          "[Edge:create-post] Media inserted:",
+          media.length,
+          "items",
+        );
       }
     }
 

@@ -6,19 +6,19 @@ DVNT is a React Native + Expo app with Payload CMS backend. This document descri
 
 ## Tech Stack
 
-| Layer | Technology |
-|-------|------------|
-| Mobile App | React Native + Expo |
+| Layer            | Technology                                            |
+| ---------------- | ----------------------------------------------------- |
+| Mobile App       | React Native + Expo                                   |
 | State Management | TanStack Query (server state), Zustand (client state) |
-| Backend | Payload CMS v3 |
-| Database | PostgreSQL (Supabase) |
-| CDN | Bunny CDN |
-| Auth | JWT tokens |
+| Backend          | Payload CMS v3                                        |
+| Database         | PostgreSQL (Supabase)                                 |
+| CDN              | Bunny CDN                                             |
+| Auth             | JWT tokens                                            |
 
 ## Canonical URLs
 
 ```
-Auth:  https://server-zeta-lovat.vercel.app
+Auth:  https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth
 API:   https://payload-cms-setup-gray.vercel.app
 CDN:   https://dvnt.b-cdn.net
 ```
@@ -51,11 +51,11 @@ CDN:   https://dvnt.b-cdn.net
 
 All query keys are defined in `lib/contracts/query-keys.ts`. **NEVER use ad-hoc keys.**
 
-| Pattern | Example | Rule |
-|---------|---------|------|
-| User-specific | `["likeState", viewerId, postId]` | MUST include viewerId |
-| Entity-specific | `["posts", "detail", postId]` | MUST include entityId |
-| Lists | `["posts", "feed"]` | OK for broad invalidation |
+| Pattern         | Example                           | Rule                      |
+| --------------- | --------------------------------- | ------------------------- |
+| User-specific   | `["likeState", viewerId, postId]` | MUST include viewerId     |
+| Entity-specific | `["posts", "detail", postId]`     | MUST include entityId     |
+| Lists           | `["posts", "feed"]`               | OK for broad invalidation |
 
 ### Forbidden Keys
 
@@ -111,7 +111,7 @@ queryClient.setQueryData(queryKey, (old) => ({
 // 3. On error, rollback
 onError: () => {
   queryClient.setQueryData(queryKey, previousData);
-}
+};
 ```
 
 ### Rules
@@ -124,25 +124,25 @@ onError: () => {
 
 These UNIQUE constraints prevent duplicate data:
 
-| Table | Constraint | Purpose |
-|-------|------------|---------|
-| likes | `(user_id, post_id)` | One like per user per post |
-| likes | `(user_id, comment_id)` | One like per user per comment |
-| follows | `(follower_id, following_id)` | One follow relationship |
-| bookmarks | `(user_id, post_id)` | One bookmark per user per post |
-| event_rsvps | `(event_id, user_id)` | One RSVP per user per event |
+| Table       | Constraint                    | Purpose                        |
+| ----------- | ----------------------------- | ------------------------------ |
+| likes       | `(user_id, post_id)`          | One like per user per post     |
+| likes       | `(user_id, comment_id)`       | One like per user per comment  |
+| follows     | `(follower_id, following_id)` | One follow relationship        |
+| bookmarks   | `(user_id, post_id)`          | One bookmark per user per post |
+| event_rsvps | `(event_id, user_id)`         | One RSVP per user per event    |
 
 ## Feature Flags
 
 Runtime toggles in `lib/feature-flags.ts`:
 
-| Flag | Default | Purpose |
-|------|---------|---------|
-| `video_autoplay` | true | Auto-play videos in feed |
-| `story_replies_dm` | true | Story replies go to DM |
-| `event_rsvp` | true | Event RSVP functionality |
-| `event_comments` | true | Comments on events |
-| `push_notifications` | true | Push notification delivery |
+| Flag                 | Default | Purpose                    |
+| -------------------- | ------- | -------------------------- |
+| `video_autoplay`     | true    | Auto-play videos in feed   |
+| `story_replies_dm`   | true    | Story replies go to DM     |
+| `event_rsvp`         | true    | Event RSVP functionality   |
+| `event_comments`     | true    | Comments on events         |
+| `push_notifications` | true    | Push notification delivery |
 
 Flags can be disabled in Payload CMS admin without redeploy.
 
