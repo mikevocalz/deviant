@@ -10,6 +10,10 @@ import { username } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
 import { expo } from "@better-auth/expo";
 import { Pool } from "pg";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM_EMAIL = "DVNT <noreply@dvnt.app>";
 
 // Database connection - uses Supabase Postgres
 const DATABASE_URL =
@@ -42,17 +46,27 @@ export const auth = betterAuth({
     enabled: true,
     requireEmailVerification: false,
     sendResetPassword: async ({ user, url }) => {
-      // For now, log the reset URL - you'll need to integrate an email provider
       console.log(`[Auth] Password reset requested for ${user.email}`);
-      console.log(`[Auth] Reset URL: ${url}`);
-      // TODO: Integrate with email provider (Resend, SendGrid, etc.)
-      // Example with Resend:
-      // await resend.emails.send({
-      //   from: 'noreply@dvnt.app',
-      //   to: user.email,
-      //   subject: 'Reset your password',
-      //   html: `<a href="${url}">Click here to reset your password</a>`
-      // });
+      try {
+        await resend.emails.send({
+          from: FROM_EMAIL,
+          to: user.email,
+          subject: "Reset your DVNT password",
+          html: [
+            '<div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0a0a0a;color:#fff;border-radius:16px">',
+            '<h2 style="margin:0 0 16px">Reset Your Password</h2>',
+            '<p style="color:#a1a1aa;line-height:1.6">We received a request to reset your password. Tap the button below to choose a new one.</p>',
+            `<a href="${url}" style="display:inline-block;margin:24px 0;padding:14px 28px;background:#6366f1;color:#fff;text-decoration:none;border-radius:10px;font-weight:600">Reset Password</a>`,
+            '<p style="color:#71717a;font-size:13px">If you didn\u2019t request this, you can safely ignore this email.</p>',
+            '<hr style="border:none;border-top:1px solid #27272a;margin:24px 0"/>',
+            '<p style="color:#52525b;font-size:12px">DVNT</p>',
+            "</div>",
+          ].join(""),
+        });
+        console.log(`[Auth] Reset email sent to ${user.email}`);
+      } catch (err) {
+        console.error("[Auth] Failed to send reset email:", err);
+      }
     },
   },
 
