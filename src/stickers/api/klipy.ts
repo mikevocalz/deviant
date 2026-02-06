@@ -2,13 +2,12 @@
  * Klipy API client — Stickers, GIFs, Memes
  * Docs: https://docs.klipy.com
  *
- * Auth: api_key query parameter on every request.
+ * Auth: Bearer token in Authorization header.
  * Base URL: https://api.klipy.com/v1
  */
 
 const KLIPY_BASE = "https://api.klipy.com/v1";
-const KLIPY_API_KEY =
-  process.env.EXPO_PUBLIC_KLIPY_API_KEY ?? "";
+const KLIPY_API_KEY = process.env.EXPO_PUBLIC_KLIPY_API_KEY ?? "";
 
 // ── Types ──────────────────────────────────────────────
 
@@ -65,7 +64,6 @@ export interface KlipyAutocompleteResponse {
 
 function buildUrl(path: string, params: Record<string, string>): string {
   const url = new URL(`${KLIPY_BASE}${path}`);
-  url.searchParams.set("api_key", KLIPY_API_KEY);
   for (const [k, v] of Object.entries(params)) {
     if (v) url.searchParams.set(k, v);
   }
@@ -79,37 +77,54 @@ async function klipyFetch<T>(
 ): Promise<T> {
   const url = buildUrl(path, params);
   const res = await fetch(url, {
-    headers: { Accept: "application/json" },
+    headers: {
+      Authorization: `Bearer ${KLIPY_API_KEY}`,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
     signal,
   });
 
-  if (!res.ok) {
+  if (!res.ok && res.status !== 204) {
+    const errText = await res.text().catch(() => "");
+    console.error("[Klipy] API error:", res.status, errText);
     throw new Error(`Klipy API error: ${res.status}`);
   }
 
-  // Klipy may return 204 with no body for empty results
+  // 204 = no content (empty results or auth issue)
   if (res.status === 204) {
-    return { results: [] } as T;
+    console.warn("[Klipy] 204 No Content — key may be test-restricted");
+    return { results: [], data: [] } as T;
   }
 
   const text = await res.text();
-  if (!text) return { results: [] } as T;
+  if (!text) return { results: [], data: [] } as T;
 
-  return JSON.parse(text) as T;
+  const json = JSON.parse(text);
+  console.log("[Klipy] RAW response keys:", Object.keys(json));
+
+  // Klipy may return { data: [...] } or { results: [...] }
+  if (json.data && !json.results) {
+    json.results = json.data;
+  }
+
+  return json as T;
 }
 
 // ── Tab → API path mapping ────────────────────────────
+// Correct Klipy endpoints: /search/stickers, /search/gifs, /search (memes)
 
 const TAB_SEARCH_PATH: Record<KlipyTab, string> = {
-  stickers: "/stickers/search",
-  gifs: "/gifs/search",
-  memes: "/memes/search",
+  stickers: "/search/stickers",
+  gifs: "/search/gifs",
+  memes: "/search",
 };
 
-const TAB_TRENDING_PATH: Record<KlipyTab, string> = {
-  stickers: "/stickers/trending",
-  gifs: "/gifs/trending",
-  memes: "/memes/trending",
+// Default search terms when no user query (Klipy has no trending endpoint)
+const TAB_DEFAULT_QUERY: Record<KlipyTab, string> = {
+  stickers: "trending",
+  gifs: "popular",
+  memes: "funny",
 };
 
 // ── Public API ─────────────────────────────────────────
@@ -119,14 +134,14 @@ export async function klipySearch(
   query: string,
   options?: { limit?: number; next?: string; signal?: AbortSignal },
 ): Promise<KlipySearchResponse> {
-  const path = query.trim()
-    ? TAB_SEARCH_PATH[tab]
-    : TAB_TRENDING_PATH[tab];
+  // Klipy requires a query — empty search returns empty.
+  // Use a default query when user hasn't typed anything.
+  const effectiveQuery = query.trim() || TAB_DEFAULT_QUERY[tab];
 
   return klipyFetch<KlipySearchResponse>(
-    path,
+    TAB_SEARCH_PATH[tab],
     {
-      q: query.trim(),
+      q: effectiveQuery,
       limit: String(options?.limit ?? 30),
       ...(options?.next ? { pos: options.next } : {}),
     },
@@ -173,22 +188,11 @@ export function getItemImageUri(item: KlipyItem, tab: KlipyTab): string {
   }
 
   if (tab === "gifs") {
-    return (
-      m.gif?.url ??
-      m.mediumgif?.url ??
-      m.tinygif?.url ??
-      ""
-    );
+    return m.gif?.url ?? m.mediumgif?.url ?? m.tinygif?.url ?? "";
   }
 
   // memes
-  return (
-    m.gif?.url ??
-    m.png?.url ??
-    m.tinygif?.url ??
-    m.tinypng?.url ??
-    ""
-  );
+  return m.gif?.url ?? m.png?.url ?? m.tinygif?.url ?? m.tinypng?.url ?? "";
 }
 
 /**
