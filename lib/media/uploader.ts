@@ -93,20 +93,11 @@ export async function uploadMedia(
     useCase,
   });
 
-  // Step 1: Get user ID
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("Not authenticated");
-
-  const { data: userData } = await supabase
-    .from(DB.users.table)
-    .select(DB.users.id)
-    .eq(DB.users.email, user.email)
-    .single();
-
-  if (!userData) throw new Error("User not found");
-  const userId = userData[DB.users.id];
+  // Step 1: Get user ID via Better Auth (supabase.auth.getUser() returns null)
+  const { getCurrentUserRow } = await import("@/lib/auth/identity");
+  const userRow = await getCurrentUserRow();
+  if (!userRow) throw new Error("Not authenticated");
+  const userId = userRow.id;
 
   // Step 2: Check for duplicate (save bandwidth!)
   const duplicate = await checkDuplicate(media.hash, userId);

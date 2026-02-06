@@ -134,14 +134,11 @@ export const auth = {
 
   /**
    * Get current user
+   * NOTE: Uses Better Auth store, not supabase.auth.getUser()
    */
-  async getCurrentUser() {
-    const { data, error } = await supabase.auth.getUser();
-    if (error) {
-      console.error("[Supabase Auth] Get user error:", error);
-      return null;
-    }
-    return data.user;
+  getCurrentUser() {
+    const { useAuthStore } = require("../stores/auth-store");
+    return useAuthStore.getState().user;
   },
 
   /**
