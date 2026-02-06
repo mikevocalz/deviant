@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import React, { useEffect, useCallback, useRef } from "react";
-import { useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import { Camera } from "react-native-vision-camera";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import {
   mockSpaces,
@@ -41,9 +41,9 @@ export default function SneakyLynkRoomScreen() {
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
 
-  // Camera & mic permissions for mock rooms
-  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [audioPermission, requestAudioPermission] = useMicrophonePermissions();
+  // Camera & mic permissions (VisionCamera)
+  const cameraPermissionRef = useRef<string | null>(null);
+  const micPermissionRef = useRef<string | null>(null);
 
   // Room store
   const {
@@ -176,40 +176,30 @@ export default function SneakyLynkRoomScreen() {
   const handleToggleMic = useCallback(async () => {
     if (isMockRoom) {
       // Request mic permission if not granted yet
-      if (!audioPermission?.granted) {
-        const result = await requestAudioPermission();
-        if (!result.granted) return;
+      if (micPermissionRef.current !== "granted") {
+        const result = await Camera.requestMicrophonePermission();
+        micPermissionRef.current = result;
+        if (result !== "granted") return;
       }
       toggleMute();
     } else {
       await videoRoom.toggleMic();
     }
-  }, [
-    isMockRoom,
-    videoRoom,
-    toggleMute,
-    audioPermission,
-    requestAudioPermission,
-  ]);
+  }, [isMockRoom, videoRoom, toggleMute]);
 
   const handleToggleVideo = useCallback(async () => {
     if (isMockRoom) {
       // Request camera permission if not granted yet
-      if (!cameraPermission?.granted) {
-        const result = await requestCameraPermission();
-        if (!result.granted) return;
+      if (cameraPermissionRef.current !== "granted") {
+        const result = await Camera.requestCameraPermission();
+        cameraPermissionRef.current = result;
+        if (result !== "granted") return;
       }
       toggleVideo();
     } else {
       await videoRoom.toggleCamera();
     }
-  }, [
-    isMockRoom,
-    videoRoom,
-    toggleVideo,
-    cameraPermission,
-    requestCameraPermission,
-  ]);
+  }, [isMockRoom, videoRoom, toggleVideo]);
 
   const handleToggleHand = useCallback(() => {
     toggleHand();

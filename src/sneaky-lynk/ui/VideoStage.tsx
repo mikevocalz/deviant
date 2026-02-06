@@ -3,15 +3,13 @@
  * Featured speaker video with overlay info
  */
 
-import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
+import React from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BadgeCheck, Video } from "lucide-react-native";
-import { CameraView } from "expo-camera";
+import { Camera, useCameraDevice } from "react-native-vision-camera";
 import type { SneakyUser } from "../types";
-
-const STAGE_HEIGHT = 220;
-const STAGE_WIDTH = Dimensions.get("window").width - 32; // px-4 = 16px each side
 
 interface FeaturedSpeaker {
   id: string;
@@ -49,11 +47,13 @@ export function VideoStage({
   remoteVideoTrack,
   onSelectSpeaker,
 }: VideoStageProps) {
+  const frontDevice = useCameraDevice("front");
+
   if (!featuredSpeaker) return null;
 
   // Show camera for local user with video enabled
   // Permission is already handled by the parent before setting isVideoEnabled=true
-  const showLocalCamera = isLocalUser && isVideoEnabled;
+  const showLocalCamera = isLocalUser && isVideoEnabled && !!frontDevice;
   // Show video for remote user with video (host or speaker with video on)
   const showRemoteVideo =
     !isLocalUser && featuredSpeaker.hasVideo && remoteVideoTrack;
@@ -68,13 +68,13 @@ export function VideoStage({
       >
         {/* Show camera for local user, remote video for others with video, or avatar */}
         {showLocalCamera ? (
-          <View style={StyleSheet.absoluteFill}>
-            <CameraView
-              style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT }}
-              facing="front"
-              mirror={true}
-            />
-          </View>
+          <Camera
+            style={StyleSheet.absoluteFill}
+            device={frontDevice!}
+            isActive={true}
+            photo={false}
+            video={false}
+          />
         ) : showRemoteVideo ? (
           <View style={StyleSheet.absoluteFill} className="bg-card">
             {/* Remote video would be rendered here via Fishjam VideoRendererView */}
