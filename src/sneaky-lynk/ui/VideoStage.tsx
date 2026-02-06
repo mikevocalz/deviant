@@ -3,12 +3,15 @@
  * Featured speaker video with overlay info
  */
 
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { BadgeCheck, Video, VideoOff } from "lucide-react-native";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { BadgeCheck, Video } from "lucide-react-native";
+import { CameraView } from "expo-camera";
 import type { SneakyUser } from "../types";
+
+const STAGE_HEIGHT = 220;
+const STAGE_WIDTH = Dimensions.get("window").width - 32; // px-4 = 16px each side
 
 interface FeaturedSpeaker {
   id: string;
@@ -46,13 +49,11 @@ export function VideoStage({
   remoteVideoTrack,
   onSelectSpeaker,
 }: VideoStageProps) {
-  const [permission, requestPermission] = useCameraPermissions();
-
   if (!featuredSpeaker) return null;
 
   // Show camera for local user with video enabled
-  const showLocalCamera = isLocalUser && isVideoEnabled && permission?.granted;
-  const needsPermission = isLocalUser && isVideoEnabled && !permission?.granted;
+  // Permission is already handled by the parent before setting isVideoEnabled=true
+  const showLocalCamera = isLocalUser && isVideoEnabled;
   // Show video for remote user with video (host or speaker with video on)
   const showRemoteVideo =
     !isLocalUser && featuredSpeaker.hasVideo && remoteVideoTrack;
@@ -61,21 +62,19 @@ export function VideoStage({
     <View className="px-4 mb-5">
       <Pressable
         onPress={() => {
-          if (needsPermission) {
-            requestPermission();
-          } else {
-            onSelectSpeaker?.(featuredSpeaker.user.id);
-          }
+          onSelectSpeaker?.(featuredSpeaker.user.id);
         }}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
         {/* Show camera for local user, remote video for others with video, or avatar */}
         {showLocalCamera ? (
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="front"
-            mirror={true}
-          />
+          <View style={StyleSheet.absoluteFill}>
+            <CameraView
+              style={{ width: STAGE_WIDTH, height: STAGE_HEIGHT }}
+              facing="front"
+              mirror={true}
+            />
+          </View>
         ) : showRemoteVideo ? (
           <View style={StyleSheet.absoluteFill} className="bg-card">
             {/* Remote video would be rendered here via Fishjam VideoRendererView */}
@@ -87,13 +86,6 @@ export function VideoStage({
             <View className="absolute top-4 left-4 bg-green-500/80 px-2 py-1 rounded-lg">
               <Text className="text-white text-xs font-bold">VIDEO ON</Text>
             </View>
-          </View>
-        ) : needsPermission ? (
-          <View className="w-full h-full bg-card items-center justify-center">
-            <VideoOff size={48} color="#6B7280" />
-            <Text className="text-muted-foreground mt-2">
-              Tap to enable camera
-            </Text>
           </View>
         ) : (
           <Image
