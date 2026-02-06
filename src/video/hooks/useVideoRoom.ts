@@ -5,20 +5,17 @@
  * ╔══════════════════════════════════════════════════════════════════════╗
  * ║  RENDER-STABILITY GUARDRAIL — READ BEFORE EDITING                  ║
  * ║                                                                    ║
- * ║  This hook uses a ref-based architecture to prevent infinite       ║
- * ║  re-render loops. The rules below are MANDATORY:                   ║
+ * ║  All room state lives in useVideoRoomStore (Zustand).              ║
+ * ║  This hook orchestrates Fishjam SDK ↔ store sync.                  ║
  * ║                                                                    ║
- * ║  1. NO useCallback may list `state`, `state.*`, or any prop       ║
- * ║     callback (onError, onEjected, onRoomEnded) in its deps.       ║
- * ║     Read them from stateRef.current / onErrorRef.current instead.  ║
+ * ║  1. NO useCallback may list store state or prop callbacks in deps. ║
+ * ║     Read them from store.getState() / refs instead.                ║
  * ║                                                                    ║
- * ║  2. NO useEffect may depend on state or any derived callback.     ║
- * ║     Use [] for one-time subscriptions; use primitive Fishjam      ║
+ * ║  2. NO useEffect may depend on store state or derived callbacks.   ║
+ * ║     Use [] for one-time subscriptions; use primitive Fishjam       ║
  * ║     values (peerStatus, reconnectionStatus) only where needed.     ║
  * ║                                                                    ║
- * ║  3. setState must bail out (return prev) when nothing changed.    ║
- * ║                                                                    ║
- * ║  4. Fishjam SDK refs (joinRoom, leaveRoom) are ref-wrapped        ║
+ * ║  3. Fishjam SDK refs (joinRoom, leaveRoom) are ref-wrapped        ║
  * ║     because their identity is NOT guaranteed stable across         ║
  * ║     reconnects.                                                    ║
  * ║                                                                    ║
@@ -27,11 +24,12 @@
  * ║  scheduleTokenRefresh recreated → join recreated → screen         ║
  * ║  re-renders → effects re-fire → infinite loop.                    ║
  * ║                                                                    ║
- * ║  If you add a new callback, it MUST follow these rules.           ║
+ * ║  FIX: Zustand store + getState() eliminates all dependency cycles. ║
+ * ║  Store updates are granular — only subscribed slices re-render.    ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import {
   useConnection,
   useCamera,
@@ -41,8 +39,8 @@ import {
 } from "@fishjam-cloud/react-native-client";
 import { AppState, type AppStateStatus } from "react-native";
 import { videoApi } from "../api";
+import { useVideoRoomStore } from "../stores/video-room-store";
 import type {
-  VideoRoomState,
   ConnectionState,
   Participant,
   EjectPayload,
@@ -72,17 +70,10 @@ export function useVideoRoom({
   const screenShareHook = useScreenShare();
   const peersHook = usePeers();
 
-  // ── Canonical state ─────────────────────────────────────────────────
-  const [state, setState] = useState<VideoRoomState>({
-    room: null,
-    localUser: null,
-    participants: [],
-    connectionState: { status: "disconnected" },
-    isCameraOn: false,
-    isMicOn: false,
-    isFrontCamera: true,
-    isEjected: false,
-  });
+  // ── Store access ──────────────────────────────────────────────────
+  // Subscribe to full state for return value; use getState() in callbacks.
+  const store = useVideoRoomStore();
+  const getStore = useVideoRoomStore.getState;
 
   // ── Internal refs (timers, subscriptions) ───────────────────────────
   const tokenExpiresAtRef = useRef<Date | null>(null);
@@ -93,16 +84,10 @@ export function useVideoRoom({
   const unsubscribeEventsRef = useRef<(() => void) | null>(null);
   const unsubscribeMembersRef = useRef<(() => void) | null>(null);
 
-  // ── Ref-wrapped values to break dependency cycles ───────────────────
-  // WHY: Callbacks that read state would need `state` in their deps,
-  // causing them to recreate on every render, which cascades into
-  // infinite re-render loops. Reading from refs is render-stable.
+  // ── Ref-wrapped external callbacks & SDK refs ───────────────────────
+  // Prevents dependency cycles — callbacks read from refs, not deps.
 
-  // Prevents: callbacks depending on state → recreating → re-triggering effects
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  // Prevents: handleEject depending on onEjected prop → recreating when parent re-renders
+  // Prevents: handleEject depending on onEjected prop
   const onEjectedRef = useRef(onEjected);
   onEjectedRef.current = onEjected;
 
@@ -114,8 +99,8 @@ export function useVideoRoom({
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
-  // Prevents: scheduleTokenRefresh/join/leave depending on Fishjam SDK refs
-  // whose identity may change across reconnects
+  // Prevents: callbacks depending on Fishjam SDK refs whose identity
+  // may change across reconnects
   const joinRoomRef = useRef(joinRoom);
   joinRoomRef.current = joinRoom;
   const leaveRoomRef = useRef(leaveRoom);
@@ -128,7 +113,7 @@ export function useVideoRoom({
   microphoneRef.current = microphoneHook;
 
   // ── Connection state sync ───────────────────────────────────────────
-  // Deps: only primitive Fishjam status values. Bails out if unchanged.
+  // Deps: only primitive Fishjam status values. Store bails out if unchanged.
   useEffect(() => {
     let newStatus: ConnectionState["status"] = "disconnected";
 
@@ -142,14 +127,11 @@ export function useVideoRoom({
       newStatus = "error";
     }
 
-    setState((prev) => {
-      if (prev.connectionState.status === newStatus) return prev;
-      return { ...prev, connectionState: { status: newStatus } };
-    });
-  }, [peerStatus, reconnectionStatus]);
+    getStore().setConnectionStatus(newStatus);
+  }, [peerStatus, reconnectionStatus, getStore]);
 
   // ── Stable callbacks (deps: [] only) ────────────────────────────────
-  // All mutable values read from refs. Identity never changes.
+  // All mutable values read from store.getState() or refs.
 
   const clearTokenTimer = useCallback(() => {
     if (tokenRefreshTimerRef.current) {
@@ -160,34 +142,20 @@ export function useVideoRoom({
 
   const handleEject = useCallback(
     (payload: EjectPayload) => {
-      setState((prev) => {
-        if (prev.isEjected) return prev; // already ejected, bail
-        return {
-          ...prev,
-          isEjected: true,
-          ejectReason: payload,
-          connectionState: { status: "disconnected" },
-        };
-      });
-
+      getStore().setEjected(payload);
       leaveRoomRef.current();
       clearTokenTimer();
       onEjectedRef.current?.(payload);
     },
-    [clearTokenTimer], // clearTokenTimer is stable (deps: [])
+    [clearTokenTimer, getStore],
   );
 
   const handleRoomEnded = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      room: prev.room ? { ...prev.room, status: "ended" } : null,
-      connectionState: { status: "disconnected" },
-    }));
-
+    getStore().setRoomEnded();
     leaveRoomRef.current();
     clearTokenTimer();
     onRoomEndedRef.current?.();
-  }, [clearTokenTimer]);
+  }, [clearTokenTimer, getStore]);
 
   const handleRoomEvent = useCallback(
     (event: RoomEvent) => {
@@ -195,7 +163,7 @@ export function useVideoRoom({
 
       switch (event.type) {
         case "eject":
-          if (event.targetId === stateRef.current.localUser?.id) {
+          if (event.targetId === getStore().localUser?.id) {
             const payload = event.payload as unknown as EjectPayload;
             handleEject(payload);
           }
@@ -205,7 +173,7 @@ export function useVideoRoom({
           break;
       }
     },
-    [handleEject, handleRoomEnded], // both stable (deps: [clearTokenTimer] which is [])
+    [handleEject, handleRoomEnded, getStore],
   );
 
   const scheduleTokenRefresh = useCallback(
@@ -234,15 +202,16 @@ export function useVideoRoom({
             return;
           }
 
-          // Reconnect with new token — read localUser from ref
+          // Reconnect with new token — read localUser from store
+          const { localUser } = getStore();
           leaveRoomRef.current();
           await joinRoomRef.current({
             peerToken: result.data!.token,
             peerMetadata: {
-              userId: stateRef.current.localUser?.id,
-              username: stateRef.current.localUser?.username,
-              avatar: stateRef.current.localUser?.avatar,
-              role: stateRef.current.localUser?.role,
+              userId: localUser?.id,
+              username: localUser?.username,
+              avatar: localUser?.avatar,
+              role: localUser?.role,
             },
           });
 
@@ -254,28 +223,22 @@ export function useVideoRoom({
         }
       }, delay);
     },
-    [roomId, clearTokenTimer, handleEject], // all stable
+    [roomId, clearTokenTimer, handleEject, getStore],
   );
 
   const join = useCallback(async () => {
-    if (stateRef.current.isEjected) {
+    if (getStore().isEjected) {
       onErrorRef.current?.("You have been removed from this room");
       return false;
     }
 
-    setState((prev) => {
-      if (prev.connectionState.status === "connecting") return prev;
-      return { ...prev, connectionState: { status: "connecting" } };
-    });
+    getStore().setConnectionStatus("connecting");
 
     try {
       const result = await videoApi.joinRoom(roomId);
 
       if (!result.ok) {
-        setState((prev) => ({
-          ...prev,
-          connectionState: { status: "error", error: result.error?.message },
-        }));
+        getStore().setConnectionStatus("error", result.error?.message);
         onErrorRef.current?.(result.error?.message || "Failed to join room");
         return false;
       }
@@ -285,26 +248,25 @@ export function useVideoRoom({
       tokenExpiresAtRef.current = new Date(expiresAt);
       currentJtiRef.current = peer.id;
 
-      setState((prev) => ({
-        ...prev,
-        room: {
-          id: room.id,
-          title: room.title,
-          isPublic: false,
-          status: "open",
-          maxParticipants: 10,
-          fishjamRoomId: room.fishjamRoomId,
-          createdBy: "",
-          createdAt: "",
-        },
-        localUser: {
-          id: user.id,
-          username: user.username,
-          avatar: user.avatar,
-          role: peer.role as MemberRole,
-          peerId: peer.id,
-        },
-      }));
+      // Update store with room + localUser
+      const s = getStore();
+      s.setRoom({
+        id: room.id,
+        title: room.title,
+        isPublic: false,
+        status: "open",
+        maxParticipants: 10,
+        fishjamRoomId: room.fishjamRoomId,
+        createdBy: "",
+        createdAt: "",
+      });
+      s.setLocalUser({
+        id: user.id,
+        username: user.username,
+        avatar: user.avatar,
+        role: peer.role as MemberRole,
+        peerId: peer.id,
+      });
 
       // Connect to Fishjam — use ref for stable identity
       await joinRoomRef.current({
@@ -342,14 +304,11 @@ export function useVideoRoom({
       return true;
     } catch (err) {
       console.error("[useVideoRoom] Join error:", err);
-      setState((prev) => ({
-        ...prev,
-        connectionState: { status: "error", error: "Connection failed" },
-      }));
+      getStore().setConnectionStatus("error", "Connection failed");
       onErrorRef.current?.("Failed to connect to room");
       return false;
     }
-  }, [roomId, scheduleTokenRefresh, handleRoomEvent]); // all stable
+  }, [roomId, scheduleTokenRefresh, handleRoomEvent, getStore]);
 
   const leave = useCallback(async () => {
     console.log("[useVideoRoom] Leaving room...");
@@ -359,48 +318,38 @@ export function useVideoRoom({
     unsubscribeMembersRef.current?.();
     leaveRoomRef.current();
 
-    setState((prev) => {
-      if (
-        prev.connectionState.status === "disconnected" &&
-        prev.participants.length === 0
-      ) {
-        return prev;
-      }
-      return {
-        ...prev,
-        connectionState: { status: "disconnected" },
-        participants: [],
-      };
-    });
-  }, [clearTokenTimer]); // stable
+    const s = getStore();
+    s.setConnectionStatus("disconnected");
+    s.setParticipants([]);
+  }, [clearTokenTimer, getStore]);
 
   // ── Media toggles ──────────────────────────────────────────────────
-  // Read current on/off from stateRef; read SDK hooks from refs.
+  // Read current on/off from store.getState(); read SDK hooks from refs.
   // Zero deps on state → stable identity.
 
   const toggleCamera = useCallback(async () => {
-    if (stateRef.current.isCameraOn) {
+    if (getStore().isCameraOn) {
       cameraRef.current.stopCamera();
     } else {
       await cameraRef.current.startCamera();
     }
-    setState((prev) => ({ ...prev, isCameraOn: !prev.isCameraOn }));
-  }, []);
+    getStore().toggleCamera();
+  }, [getStore]);
 
   const toggleMic = useCallback(async () => {
-    if (stateRef.current.isMicOn) {
+    if (getStore().isMicOn) {
       microphoneRef.current.stopMicrophone();
     } else {
       await microphoneRef.current.startMicrophone();
     }
-    setState((prev) => ({ ...prev, isMicOn: !prev.isMicOn }));
-  }, []);
+    getStore().toggleMic();
+  }, [getStore]);
 
   const switchCamera = useCallback(async () => {
     cameraRef.current.stopCamera();
     await cameraRef.current.startCamera();
-    setState((prev) => ({ ...prev, isFrontCamera: !prev.isFrontCamera }));
-  }, []);
+    getStore().toggleFrontCamera();
+  }, [getStore]);
 
   // ── Admin actions ──────────────────────────────────────────────────
   // Only depend on roomId (static for hook lifetime).
@@ -470,31 +419,16 @@ export function useVideoRoom({
       };
     });
 
-    setState((prev) => {
-      // Bail out if peer count hasn't changed and IDs match
-      if (
-        prev.participants.length === participants.length &&
-        prev.participants.every((p, i) => p.userId === participants[i]?.userId)
-      ) {
-        // Still update tracks/camera state even if same users
-        const tracksChanged = prev.participants.some(
-          (p, i) =>
-            p.isCameraOn !== participants[i]?.isCameraOn ||
-            p.isMicOn !== participants[i]?.isMicOn,
-        );
-        if (!tracksChanged) return prev;
-      }
-      return { ...prev, participants };
-    });
-  }, [peersHook.peers]);
+    getStore().setParticipants(participants);
+  }, [peersHook.peers, getStore]);
 
   // ── App state listener ─────────────────────────────────────────────
-  // One-time subscription. Reads connection status from stateRef.
+  // One-time subscription. Reads connection status from store.
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (
         nextAppState === "active" &&
-        stateRef.current.connectionState.status === "connected"
+        getStore().connectionState.status === "connected"
       ) {
         console.log("[useVideoRoom] App became active, checking connection...");
       } else if (nextAppState === "background") {
@@ -507,7 +441,7 @@ export function useVideoRoom({
       handleAppStateChange,
     );
     return () => subscription.remove();
-  }, []);
+  }, [getStore]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -516,12 +450,22 @@ export function useVideoRoom({
       unsubscribeEventsRef.current?.();
       unsubscribeMembersRef.current?.();
       leaveRoomRef.current();
+      getStore().reset();
     };
-  }, [clearTokenTimer]);
+  }, [clearTokenTimer, getStore]);
 
   // ── Public API ─────────────────────────────────────────────────────
+  // Spread store state so consumers get reactive updates via Zustand.
   return {
-    ...state,
+    room: store.room,
+    localUser: store.localUser,
+    participants: store.participants,
+    connectionState: store.connectionState,
+    isCameraOn: store.isCameraOn,
+    isMicOn: store.isMicOn,
+    isFrontCamera: store.isFrontCamera,
+    isEjected: store.isEjected,
+    ejectReason: store.ejectReason,
     join,
     leave,
     toggleCamera,
