@@ -1,3 +1,16 @@
+diff --git a/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt b/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
+index 1234567..abcdefg 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
+@@ -21,7 +21,7 @@ class PhotoEditorModule(reactContext: ReactApplicationContext) : ReactContextBase
+   @ReactMethod
+   fun open(options: ReadableMap?, promise: Promise): Unit {
+     this.promise = promise
+-    val activity = currentActivity
++    val activity = reactApplicationContext.getCurrentActivity()
+     if (activity == null) {
+       promise.reject("ACTIVITY_DOES_NOT_EXIST", "Activity doesn't exist");
+       return;
 diff --git a/android/src/main/res/layout/photo_editor_view.xml b/android/src/main/res/layout/photo_editor_view.xml
 index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcfbdb16129 100644
 --- a/android/src/main/res/layout/photo_editor_view.xml
