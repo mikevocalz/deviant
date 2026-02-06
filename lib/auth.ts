@@ -25,7 +25,10 @@ import { Pool } from "pg";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "DVNT <noreply@dvnt.app>";
+// Use onboarding@resend.dev until dvnt.app domain is verified in Resend
+// Once verified, switch to: DVNT <noreply@dvnt.app>
+const FROM_EMAIL =
+  process.env.RESEND_FROM_EMAIL || "DVNT <onboarding@resend.dev>";
 const APP_NAME = "DVNT";
 const BRAND_COLOR = "#6366f1";
 

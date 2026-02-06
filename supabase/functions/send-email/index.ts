@@ -55,11 +55,7 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: string,
-  message: string,
-  status = 400,
-): Response {
+function errorResponse(code: string, message: string, status = 400): Response {
   console.error(`[Edge:send-email] Error: ${code} - ${message}`);
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
@@ -73,7 +69,7 @@ const APP_SCHEME = "dvnt";
 function baseWrapper(content: string): string {
   return [
     '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>',
-    '<body style="margin:0;padding:0;background:#000;font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',Roboto,sans-serif">',
+    "<body style=\"margin:0;padding:0;background:#000;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif\">",
     '<div style="max-width:480px;margin:0 auto;padding:40px 24px">',
     content,
     '<hr style="border:none;border-top:1px solid #27272a;margin:32px 0"/>',
@@ -89,18 +85,20 @@ function ctaButton(text: string, url: string): string {
 function buildWelcomeEmail(name: string): { subject: string; html: string } {
   return {
     subject: `Welcome to ${APP_NAME}!`,
-    html: baseWrapper([
-      `<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Welcome to ${APP_NAME} 🎉</h1>`,
-      `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${name || "there"},</p>`,
-      '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Your account is live. You\'re now part of the community where nightlife meets culture.</p>',
-      '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Here\'s what you can do:</p>',
-      '<ul style="color:#a1a1aa;line-height:2;font-size:15px;padding-left:20px">',
-      "<li>Discover events happening near you</li>",
-      "<li>Share stories and connect with your crew</li>",
-      "<li>Get exclusive access to VIP experiences</li>",
-      "</ul>",
-      ctaButton("Open DVNT", `${APP_SCHEME}://`),
-    ].join("")),
+    html: baseWrapper(
+      [
+        `<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Welcome to ${APP_NAME} 🎉</h1>`,
+        `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${name || "there"},</p>`,
+        '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Your account is live. You\'re now part of the community where nightlife meets culture.</p>',
+        '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Here\'s what you can do:</p>',
+        '<ul style="color:#a1a1aa;line-height:2;font-size:15px;padding-left:20px">',
+        "<li>Discover events happening near you</li>",
+        "<li>Share stories and connect with your crew</li>",
+        "<li>Get exclusive access to VIP experiences</li>",
+        "</ul>",
+        ctaButton("Open DVNT", `${APP_SCHEME}://`),
+      ].join(""),
+    ),
   };
 }
 
@@ -110,29 +108,34 @@ function buildConfirmEmail(
 ): { subject: string; html: string } {
   return {
     subject: `Confirm your ${APP_NAME} email`,
-    html: baseWrapper([
-      '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Confirm Your Email</h1>',
-      `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${name || "there"},</p>`,
-      '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Tap the button below to verify your email address. This link expires in 24 hours.</p>',
-      ctaButton("Confirm Email", url),
-      '<p style="color:#71717a;font-size:13px">If you didn\u2019t create an account, you can safely ignore this email.</p>',
-      `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
-    ].join("")),
+    html: baseWrapper(
+      [
+        '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Confirm Your Email</h1>',
+        `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${name || "there"},</p>`,
+        '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Tap the button below to verify your email address. This link expires in 24 hours.</p>',
+        ctaButton("Confirm Email", url),
+        '<p style="color:#71717a;font-size:13px">If you didn\u2019t create an account, you can safely ignore this email.</p>',
+        `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
+      ].join(""),
+    ),
   };
 }
 
-function buildResetPasswordEmail(
-  url: string,
-): { subject: string; html: string } {
+function buildResetPasswordEmail(url: string): {
+  subject: string;
+  html: string;
+} {
   return {
     subject: `Reset your ${APP_NAME} password`,
-    html: baseWrapper([
-      '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Reset Your Password</h1>',
-      '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">We received a request to reset your password. Tap the button below to choose a new one. This link expires in 1 hour.</p>',
-      ctaButton("Reset Password", url),
-      '<p style="color:#71717a;font-size:13px">If you didn\u2019t request this, you can safely ignore this email.</p>',
-      `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
-    ].join("")),
+    html: baseWrapper(
+      [
+        '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Reset Your Password</h1>',
+        '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">We received a request to reset your password. Tap the button below to choose a new one. This link expires in 1 hour.</p>',
+        ctaButton("Reset Password", url),
+        '<p style="color:#71717a;font-size:13px">If you didn\u2019t request this, you can safely ignore this email.</p>',
+        `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
+      ].join(""),
+    ),
   };
 }
 
@@ -177,7 +180,7 @@ serve(async (req: Request) => {
     // Validate env
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     const fromEmail =
-      Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <noreply@dvnt.app>";
+      Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <onboarding@resend.dev>";
 
     if (!resendApiKey) {
       return errorResponse(
@@ -297,10 +300,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:send-email] Unexpected error:", err);
-    return errorResponse(
-      "internal_error",
-      "An unexpected error occurred",
-      500,
-    );
+    return errorResponse("internal_error", "An unexpected error occurred", 500);
   }
 });
