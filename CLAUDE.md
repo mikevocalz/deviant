@@ -8,27 +8,36 @@
 
 **This is PRODUCTION code. Treat it as such AT ALL TIMES.**
 
-### CRITICAL: ARCHITECTURE LOCK - DIRECT PAYLOAD ONLY
+### CRITICAL: ARCHITECTURE LOCK - SUPABASE + EDGE FUNCTIONS ONLY
 
-**PERMANENT DECISION (2026-02-01):**
+**PERMANENT DECISION (2026-02-06):**
 
-- ✅ Mobile App → Payload CMS directly (ONLY option)
-- ❌ Hono server removed permanently
-- ❌ Expo Router API routes forbidden for native app
+- ✅ Mobile App → Supabase (database, storage, realtime)
+- ✅ Server logic → Supabase Edge Functions (Deno runtime)
+- ✅ Auth → Better Auth (hosted in Supabase Edge Function at https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth)
+- ✅ Email → Resend (via Better Auth Edge Function + send-email Edge Function)
+- ❌ Payload CMS — REMOVED, never reference
+- ❌ Next.js — NOT USED, never reference
+- ❌ Hono server — REMOVED permanently
+- ❌ Expo Router API routes (app/api/) — FORBIDDEN for native app
+- ❌ tRPC — REMOVED, never reference
 
 **Required Environment Variables:**
 
 ```bash
 # .env (REQUIRED for native app)
-EXPO_PUBLIC_API_URL=https://payload-cms-setup-gray.vercel.app
-EXPO_PUBLIC_AUTH_URL=https://payload-cms-setup-gray.vercel.app
+EXPO_PUBLIC_AUTH_URL=https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth
+EXPO_PUBLIC_SUPABASE_URL=https://npfjanxturvmjyevoyfo.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<supabase anon key>
+DATABASE_URL=<supabase postgres connection string>
+RESEND_API_KEY=<resend api key>
+RESEND_FROM_EMAIL=DVNT <onboarding@resend.dev>
 ```
 
-**Safety Checks in `lib/api-client.ts`:**
+**Safety Checks:**
 
-- ✅ Fails fast if Hono URL detected (server-zeta-lovat)
 - ✅ Fails fast if localhost detected in production
-- ✅ Fails fast if no API URL set on native
+- ✅ Fails fast if no auth/supabase URL set on native
 - ✅ Fails fast if not HTTPS in production
 - ✅ Fails fast if Expo dev server URL (port 8081)
 - ✅ Fails fast if relative URL used (Expo Router routes)

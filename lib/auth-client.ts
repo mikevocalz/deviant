@@ -8,13 +8,13 @@
 import { createAuthClient } from "better-auth/react";
 import { expoClient } from "@better-auth/expo/client";
 import { usernameClient } from "better-auth/client/plugins";
-import { passkeyClient } from "@better-auth/passkey/client";
 import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
 
-// Auth server URL - Better Auth server (CANONICAL: https://server-zeta-lovat.vercel.app)
+// Auth server URL — Better Auth hosted in Supabase Edge Function (CANONICAL)
 const AUTH_URL =
-  process.env.EXPO_PUBLIC_AUTH_URL || "https://server-zeta-lovat.vercel.app";
+  process.env.EXPO_PUBLIC_AUTH_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth";
 
 console.log("[AuthClient] Using AUTH_URL:", AUTH_URL);
 
@@ -28,7 +28,6 @@ export const authClient = createAuthClient({
       storage: SecureStore,
     }),
     usernameClient(),
-    passkeyClient(),
   ],
 });
 
