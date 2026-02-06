@@ -1,18 +1,25 @@
 /**
  * TicketActionsBar — Sticky bottom actions
- * Transfer, Apple Wallet, Share — respects ticket rules
+ * Wallet (platform-aware), Calendar, Share — respects ticket rules
+ * Loading, success, error states for each action.
  */
 
-import React, { memo, useCallback } from "react";
-import { View, Text, Pressable, StyleSheet, Share, Alert } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import React, { memo, useCallback, useState } from "react";
 import {
-  ArrowRightLeft,
-  Wallet,
-  Share2,
-  Ban,
-} from "lucide-react-native";
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Wallet, CalendarPlus, Share2, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { addToWallet } from "@/src/ticket/helpers/add-to-wallet";
+import { addTicketToCalendar } from "@/src/ticket/helpers/add-to-calendar";
+import { shareTicket } from "@/src/ticket/helpers/share-ticket";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketActionsBarProps {
@@ -26,103 +33,165 @@ const TIER_ACCENT: Record<TicketTierLevel, string> = {
   table: "#c084fc",
 };
 
+type ActionState = "idle" | "loading" | "success" | "error";
+
 export const TicketActionsBar = memo(function TicketActionsBar({
   ticket,
 }: TicketActionsBarProps) {
   const insets = useSafeAreaInsets();
+  const showToast = useUIStore((s) => s.showToast);
   const tier = ticket.tier || "ga";
   const accent = TIER_ACCENT[tier];
 
   const isActive = ticket.status === "valid";
-  const canTransfer = isActive && ticket.transferable !== false;
-  const hasAppleWallet = Boolean(ticket.applePassUrl);
 
-  const handleTransfer = useCallback(() => {
-    if (!canTransfer) {
-      Alert.alert("Not Available", "This ticket cannot be transferred.");
-      return;
-    }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      "Transfer Ticket",
-      "Send this ticket to someone else? You will lose access once transferred.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Transfer", style: "destructive" },
-      ],
-    );
-  }, [canTransfer]);
+  const [walletState, setWalletState] = useState<ActionState>("idle");
+  const [calendarState, setCalendarState] = useState<ActionState>("idle");
+  const [shareState, setShareState] = useState<ActionState>("idle");
 
-  const handleWallet = useCallback(() => {
-    if (!hasAppleWallet) {
-      Alert.alert("Coming Soon", "Apple Wallet passes will be available soon.");
-      return;
-    }
+  // ── Wallet ──
+  const handleWallet = useCallback(async () => {
+    if (walletState === "loading") return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, [hasAppleWallet]);
+    setWalletState("loading");
 
+    const result = await addToWallet(ticket);
+
+    if (result.success) {
+      setWalletState("success");
+      showToast("success", "Added", "Ticket added to wallet");
+      setTimeout(() => setWalletState("idle"), 3000);
+    } else {
+      setWalletState("error");
+      const msg =
+        result.error === "not_configured" || result.error === "not_implemented"
+          ? "Wallet passes coming soon"
+          : "Could not add to wallet";
+      showToast("error", "Wallet", msg);
+      setTimeout(() => setWalletState("idle"), 3000);
+    }
+  }, [ticket, walletState, showToast]);
+
+  // ── Calendar ──
+  const handleCalendar = useCallback(async () => {
+    if (calendarState === "loading") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCalendarState("loading");
+
+    const result = await addTicketToCalendar(ticket);
+
+    if (result.success) {
+      setCalendarState("success");
+      showToast(
+        "success",
+        result.alreadyAdded ? "Already Added" : "Added",
+        result.alreadyAdded
+          ? "Event is already in your calendar"
+          : "Event added to calendar",
+      );
+      setTimeout(() => setCalendarState("idle"), 3000);
+    } else {
+      setCalendarState("error");
+      const msg =
+        result.error === "permission_denied"
+          ? "Calendar permission required"
+          : "Could not add to calendar";
+      showToast("error", "Calendar", msg);
+      setTimeout(() => setCalendarState("idle"), 3000);
+    }
+  }, [ticket, calendarState, showToast]);
+
+  // ── Share ──
   const handleShare = useCallback(async () => {
+    if (shareState === "loading") return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      await Share.share({
-        message: `I'm going to ${ticket.eventTitle || "an event"}! 🎉`,
-      });
-    } catch {
-      // User cancelled
+    setShareState("loading");
+
+    const result = await shareTicket(ticket);
+
+    if (result.success) {
+      setShareState("idle");
+    } else {
+      setShareState("error");
+      showToast("error", "Share", "Could not share ticket");
+      setTimeout(() => setShareState("idle"), 3000);
     }
-  }, [ticket.eventTitle]);
+  }, [ticket, shareState, showToast]);
 
   if (!isActive) return null;
 
-  return (
-    <View
-      style={[
-        styles.container,
-        { paddingBottom: insets.bottom + 8 },
-      ]}
-    >
-      {/* Transfer */}
-      <Pressable
-        onPress={handleTransfer}
-        style={[
-          styles.actionButton,
-          !canTransfer && styles.disabledButton,
-        ]}
-      >
-        {canTransfer ? (
-          <ArrowRightLeft size={18} color="#fff" />
-        ) : (
-          <Ban size={18} color="rgba(255,255,255,0.25)" />
-        )}
-        <Text
-          style={[
-            styles.actionLabel,
-            !canTransfer && styles.disabledLabel,
-          ]}
-        >
-          Transfer
-        </Text>
-      </Pressable>
+  const walletLabel = Platform.OS === "ios" ? "Apple Wallet" : "Google Wallet";
 
-      {/* Apple Wallet */}
+  return (
+    <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+      {/* Wallet */}
       <Pressable
         onPress={handleWallet}
         style={[
           styles.actionButton,
-          styles.walletButton,
+          walletState === "success" && styles.successButton,
         ]}
+        disabled={walletState === "loading"}
       >
-        <Wallet size={18} color="#fff" />
-        <Text style={styles.actionLabel}>Wallet</Text>
+        {walletState === "loading" ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : walletState === "success" ? (
+          <Check size={16} color="#22c55e" />
+        ) : (
+          <Wallet size={16} color="#fff" />
+        )}
+        <Text
+          style={[
+            styles.actionLabel,
+            walletState === "success" && styles.successLabel,
+          ]}
+          numberOfLines={1}
+        >
+          {walletState === "success" ? "Added" : "Wallet"}
+        </Text>
+      </Pressable>
+
+      {/* Calendar */}
+      <Pressable
+        onPress={handleCalendar}
+        style={[
+          styles.actionButton,
+          calendarState === "success" && styles.successButton,
+        ]}
+        disabled={calendarState === "loading"}
+      >
+        {calendarState === "loading" ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : calendarState === "success" ? (
+          <Check size={16} color="#22c55e" />
+        ) : (
+          <CalendarPlus size={16} color="#fff" />
+        )}
+        <Text
+          style={[
+            styles.actionLabel,
+            calendarState === "success" && styles.successLabel,
+          ]}
+          numberOfLines={1}
+        >
+          {calendarState === "success" ? "Added" : "Calendar"}
+        </Text>
       </Pressable>
 
       {/* Share */}
       <Pressable
         onPress={handleShare}
         style={[styles.actionButton, { backgroundColor: `${accent}20` }]}
+        disabled={shareState === "loading"}
       >
-        <Share2 size={18} color={accent} />
-        <Text style={[styles.actionLabel, { color: accent }]}>Share</Text>
+        {shareState === "loading" ? (
+          <ActivityIndicator size="small" color={accent} />
+        ) : (
+          <Share2 size={16} color={accent} />
+        )}
+        <Text style={[styles.actionLabel, { color: accent }]} numberOfLines={1}>
+          Share
+        </Text>
       </Pressable>
     </View>
   );
@@ -148,18 +217,15 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     backgroundColor: "rgba(255,255,255,0.06)",
   },
-  walletButton: {
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  disabledButton: {
-    opacity: 0.4,
+  successButton: {
+    backgroundColor: "rgba(34,197,94,0.1)",
   },
   actionLabel: {
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
   },
-  disabledLabel: {
-    color: "rgba(255,255,255,0.25)",
+  successLabel: {
+    color: "#22c55e",
   },
 });
