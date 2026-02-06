@@ -1,186 +1,299 @@
+/**
+ * View Ticket — Luxury Digital Pass
+ * posh.vip-style VIP ticket with glassmorphism, tier accents, and animated QR
+ */
 
 import React from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
-import { X, Calendar, MapPin, Clock, CheckCircle, AlertCircle } from "lucide-react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native";
+import { ArrowLeft, RefreshCw, TicketX, Shield } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useColorScheme } from "@/lib/hooks";
+import { Motion } from "@legendapp/motion";
 import { useTicketStore } from "@/lib/stores/ticket-store";
-import QRCode from "@/components/qr-code";
+import type { TicketTierLevel } from "@/lib/stores/ticket-store";
+import {
+  TicketHeroCard,
+  TicketQRCode,
+  TicketAccessDetails,
+  TicketActionsBar,
+} from "@/src/ticket/ui";
 
-export default function TicketModal() {
+const TIER_ACCENT: Record<TicketTierLevel, string> = {
+  free: "#a3a3a3",
+  ga: "#60a5fa",
+  vip: "#fbbf24",
+  table: "#c084fc",
+};
+
+export default function ViewTicketScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors } = useColorScheme();
   const { getTicketByEventId } = useTicketStore();
 
   const eventId = id || "lower-east-side-winter-bar-fest";
-  
-  // Get ticket from store or create a mock one
-  const ticket = getTicketByEventId(eventId) || {
-    id: `ticket-${eventId}`,
-    eventId: eventId,
-    userId: "current-user",
-    paid: true,
-    status: "valid" as const,
-    qrToken: `mock-token-${eventId}`,
-  };
+  const ticket = getTicketByEventId(eventId);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  };
+  // ── Loading state ──
+  // Ticket store is synchronous, but guard for missing data
+  if (!ticket) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        {/* Back button */}
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={22} color="#fff" />
+        </Pressable>
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
+        <View style={styles.emptyContainer}>
+          <TicketX size={56} color="rgba(255,255,255,0.2)" />
+          <Text style={styles.emptyTitle}>Ticket Not Found</Text>
+          <Text style={styles.emptySubtitle}>
+            This ticket may have been removed or is no longer available.
+          </Text>
+          <Pressable onPress={() => router.back()} style={styles.retryButton}>
+            <RefreshCw size={16} color="#fff" />
+            <Text style={styles.retryText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
-  const getStatusInfo = () => {
-    switch (ticket?.status) {
-      case "checked_in":
-        return {
-          label: "Checked In",
-          color: "#22c55e",
-          icon: CheckCircle,
-        };
-      case "revoked":
-        return {
-          label: "Revoked",
-          color: "#ef4444",
-          icon: AlertCircle,
-        };
-      default:
-        return {
-          label: "Valid",
-          color: "#22c55e",
-          icon: CheckCircle,
-        };
-    }
-  };
-
-  const statusInfo = getStatusInfo();
-  const StatusIcon = statusInfo.icon;
+  const tier = ticket.tier || "ga";
+  const accent = TIER_ACCENT[tier];
+  const isExpired = ticket.status === "expired";
+  const isRevoked = ticket.status === "revoked";
 
   return (
-    <View className="flex-1 bg-background">
-      {/* Header */}
-      <View 
-        className="flex-row items-center justify-between px-5 py-3"
-        style={{ paddingTop: insets.top + 12 }}
+    <View style={styles.screen}>
+      {/* Back button overlay */}
+      <Pressable
+        onPress={() => router.back()}
+        style={[styles.backButton, { top: insets.top + 8 }]}
       >
-        <Text className="text-xl font-bold text-foreground">Your Ticket</Text>
-        <Pressable onPress={() => router.back()} className="w-10 h-10 bg-card rounded-full items-center justify-center">
-          <X size={24} color={colors.mutedForeground} />
-        </Pressable>
-      </View>
+        <ArrowLeft size={22} color="#fff" />
+      </Pressable>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="p-5">
-        <View className="rounded-2xl overflow-hidden shadow-lg">
-          <LinearGradient
-            colors={["#1A1A28", "#252538"]}
-            className="p-5"
-          >
-            <View className="mb-4">
-              <View className="gap-3">
-                <Text className="text-2xl font-extrabold text-white leading-tight" numberOfLines={2}>
-                  {ticket.eventId}
-                </Text>
-                <View 
-                  className="flex-row items-center self-start px-3 py-1.5 rounded-full gap-1.5"
-                  style={{ backgroundColor: `${statusInfo.color}20` }}
-                >
-                  <StatusIcon size={14} color={statusInfo.color} />
-                  <Text className="text-sm font-semibold" style={{ color: statusInfo.color }}>
-                    {statusInfo.label}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View className="flex-row items-center my-5 relative">
-              <View className="absolute -left-8 w-5 h-5 bg-background rounded-full" />
-              {[...Array(20)].map((_, i) => (
-                <View key={i} className="flex-1 h-0.5 bg-white/20 mx-0.5 rounded-full" />
-              ))}
-              <View className="absolute -right-8 w-5 h-5 bg-background rounded-full" />
-            </View>
-
-            <View className="items-center mb-5">
-              <View className="p-4 bg-white rounded-2xl shadow-md">
-                <QRCode
-                  value={ticket.qrToken || ""}
-                  size={200}
-                  backgroundColor="#FFFFFF"
-                  foregroundColor="#000000"
-                  logo={true}
-                  logoSize={48}
-                  logoBackgroundColor="#FFFFFF"
-                />
-              </View>
-              <Text className="mt-3 text-sm text-white/60 font-medium">
-                Scan this QR code at the venue
-              </Text>
-            </View>
-
-            <View className="bg-white/10 rounded-2xl p-4 gap-3 mb-4">
-              <View className="flex-row gap-3">
-                <View className="flex-1 flex-row items-start gap-2.5">
-                  <Calendar size={16} color="#3b82f6" />
-                  <View>
-                    <Text className="text-xs text-white/60 font-medium uppercase tracking-wide">Date</Text>
-                    <Text className="text-sm text-white font-semibold mt-0.5">Coming Soon</Text>
-                  </View>
-                </View>
-                <View className="flex-1 flex-row items-start gap-2.5">
-                  <Clock size={16} color="#3b82f6" />
-                  <View>
-                    <Text className="text-xs text-white/60 font-medium uppercase tracking-wide">Time</Text>
-                    <Text className="text-sm text-white font-semibold mt-0.5">TBD</Text>
-                  </View>
-                </View>
-              </View>
-              <View className="flex-row gap-3">
-                <View className="flex-1 flex-row items-start gap-2.5">
-                  <MapPin size={16} color="#3b82f6" />
-                  <View className="flex-1">
-                    <Text className="text-xs text-white/60 font-medium uppercase tracking-wide">Location</Text>
-                    <Text className="text-sm text-white font-semibold mt-0.5" numberOfLines={1}>New York, NY</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            <View className="items-center">
-              <View className="items-center">
-                <Text className="text-xs text-white/60 font-medium uppercase tracking-wide mb-1">Ticket ID</Text>
-                <Text className="text-sm text-white/80 font-bold tracking-widest font-mono">
-                  {ticket.id.slice(0, 8).toUpperCase()}
-                </Text>
-              </View>
-            </View>
-          </LinearGradient>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: insets.bottom + 100 },
+        ]}
+      >
+        {/* ── 1. TICKET HERO ── */}
+        <View style={styles.heroWrap}>
+          <TicketHeroCard ticket={ticket} />
         </View>
 
-        {ticket.status === "checked_in" && ticket.checkedInAt && (
-          <View className="flex-row items-center gap-2.5 mt-4 p-3.5 bg-green-500/15 rounded-2xl">
-            <CheckCircle size={18} color="#22c55e" />
-            <Text className="flex-1 text-sm text-green-500 font-medium">
-              Checked in on {formatDate(ticket.checkedInAt)} at {formatTime(ticket.checkedInAt)}
+        {/* ── Expired / Revoked banner ── */}
+        {(isExpired || isRevoked) && (
+          <Motion.View
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            style={[
+              styles.statusBanner,
+              {
+                backgroundColor: isRevoked
+                  ? "rgba(239,68,68,0.12)"
+                  : "rgba(163,163,163,0.1)",
+                borderColor: isRevoked
+                  ? "rgba(239,68,68,0.2)"
+                  : "rgba(163,163,163,0.15)",
+              },
+            ]}
+          >
+            <Shield size={16} color={isRevoked ? "#ef4444" : "#a3a3a3"} />
+            <Text
+              style={[
+                styles.statusBannerText,
+                { color: isRevoked ? "#ef4444" : "#a3a3a3" },
+              ]}
+            >
+              {isRevoked
+                ? "This ticket has been revoked"
+                : "This event has ended"}
+            </Text>
+          </Motion.View>
+        )}
+
+        {/* ── Tear line separator ── */}
+        <View style={styles.tearLine}>
+          <View style={styles.tearCircleLeft} />
+          {Array.from({ length: 24 }).map((_, i) => (
+            <View
+              key={i}
+              style={[styles.tearDash, { backgroundColor: `${accent}30` }]}
+            />
+          ))}
+          <View style={styles.tearCircleRight} />
+        </View>
+
+        {/* ── 2. QR CODE ZONE ── */}
+        <TicketQRCode ticket={ticket} />
+
+        {/* ── Transferable / Non-transferable label ── */}
+        <View style={styles.transferRow}>
+          <View
+            style={[
+              styles.transferBadge,
+              {
+                borderColor: ticket.transferable
+                  ? "rgba(34,197,94,0.2)"
+                  : "rgba(255,255,255,0.08)",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.transferText,
+                {
+                  color: ticket.transferable
+                    ? "rgba(34,197,94,0.7)"
+                    : "rgba(255,255,255,0.25)",
+                },
+              ]}
+            >
+              {ticket.transferable ? "Transferable" : "Non-transferable"}
             </Text>
           </View>
-        )}
+        </View>
+
+        {/* ── 3. ACCESS DETAILS ── */}
+        <TicketAccessDetails ticket={ticket} />
       </ScrollView>
+
+      {/* ── 5. ACTIONS BAR (sticky bottom) ── */}
+      <TicketActionsBar ticket={ticket} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: "#0a0a0a",
+  },
+  backButton: {
+    position: "absolute",
+    top: 56,
+    left: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scrollContent: {
+    paddingTop: 0,
+  },
+  heroWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  statusBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statusBannerText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  tearLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 20,
+    marginVertical: 8,
+    position: "relative",
+  },
+  tearCircleLeft: {
+    position: "absolute",
+    left: -28,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#0a0a0a",
+  },
+  tearCircleRight: {
+    position: "absolute",
+    right: -28,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#0a0a0a",
+  },
+  tearDash: {
+    flex: 1,
+    height: 2,
+    borderRadius: 1,
+    marginHorizontal: 2,
+  },
+  transferRow: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  transferBadge: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+  },
+  transferText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  // Empty / error states
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 40,
+    gap: 12,
+  },
+  emptyTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    marginTop: 8,
+  },
+  emptySubtitle: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  retryText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+});
