@@ -63,6 +63,16 @@ export function useVideoRoom({
   const unsubscribeEventsRef = useRef<(() => void) | null>(null);
   const unsubscribeMembersRef = useRef<(() => void) | null>(null);
 
+  // Refs to break dependency cycles - callbacks read from refs instead of state
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const onEjectedRef = useRef(onEjected);
+  onEjectedRef.current = onEjected;
+  const onRoomEndedRef = useRef(onRoomEnded);
+  onRoomEndedRef.current = onRoomEnded;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   // Update connection state based on Fishjam status
   useEffect(() => {
     let newStatus: ConnectionState["status"] = "disconnected";
@@ -77,13 +87,14 @@ export function useVideoRoom({
       newStatus = "error";
     }
 
-    setState((prev) => ({
-      ...prev,
-      connectionState: { status: newStatus },
-    }));
+    // Only update if status actually changed to avoid re-render loops
+    setState((prev) => {
+      if (prev.connectionState.status === newStatus) return prev;
+      return { ...prev, connectionState: { status: newStatus } };
+    });
   }, [peerStatus, reconnectionStatus]);
 
-  // Handle eject event
+  // Handle eject event - uses refs to avoid dependency cycles
   const handleEject = useCallback(
     (payload: EjectPayload) => {
       setState((prev) => ({
@@ -99,12 +110,12 @@ export function useVideoRoom({
         clearTimeout(tokenRefreshTimerRef.current);
       }
 
-      onEjected?.(payload);
+      onEjectedRef.current?.(payload);
     },
-    [leaveRoom, onEjected],
+    [leaveRoom],
   );
 
-  // Handle room ended event
+  // Handle room ended event - uses refs to avoid dependency cycles
   const handleRoomEnded = useCallback(() => {
     setState((prev) => ({
       ...prev,
@@ -118,17 +129,17 @@ export function useVideoRoom({
       clearTimeout(tokenRefreshTimerRef.current);
     }
 
-    onRoomEnded?.();
-  }, [leaveRoom, onRoomEnded]);
+    onRoomEndedRef.current?.();
+  }, [leaveRoom]);
 
-  // Handle room events
+  // Handle room events - uses stateRef to read localUser without dep cycle
   const handleRoomEvent = useCallback(
     (event: RoomEvent) => {
       console.log("[useVideoRoom] Event received:", event.type, event.payload);
 
       switch (event.type) {
         case "eject":
-          if (event.targetId === state.localUser?.id) {
+          if (event.targetId === stateRef.current.localUser?.id) {
             const payload = event.payload as unknown as EjectPayload;
             handleEject(payload);
           }
@@ -138,7 +149,7 @@ export function useVideoRoom({
           break;
       }
     },
-    [state.localUser?.id, handleEject, handleRoomEnded],
+    [handleEject, handleRoomEnded],
   );
 
   // Schedule token refresh
@@ -175,10 +186,10 @@ export function useVideoRoom({
           await joinRoom({
             peerToken: result.data!.token,
             peerMetadata: {
-              userId: state.localUser?.id,
-              username: state.localUser?.username,
-              avatar: state.localUser?.avatar,
-              role: state.localUser?.role,
+              userId: stateRef.current.localUser?.id,
+              username: stateRef.current.localUser?.username,
+              avatar: stateRef.current.localUser?.avatar,
+              role: stateRef.current.localUser?.role,
             },
           });
 
@@ -186,17 +197,17 @@ export function useVideoRoom({
           scheduleTokenRefresh(tokenExpiresAtRef.current);
         } catch (err) {
           console.error("[useVideoRoom] Token refresh error:", err);
-          onError?.("Failed to refresh session");
+          onErrorRef.current?.("Failed to refresh session");
         }
       }, delay);
     },
-    [roomId, joinRoom, leaveRoom, handleEject, onError, state.localUser],
+    [roomId, joinRoom, leaveRoom, handleEject],
   );
 
-  // Join room
+  // Join room - uses refs to avoid dependency cycles
   const join = useCallback(async () => {
-    if (state.isEjected) {
-      onError?.("You have been removed from this room");
+    if (stateRef.current.isEjected) {
+      onErrorRef.current?.("You have been removed from this room");
       return false;
     }
 
@@ -213,7 +224,7 @@ export function useVideoRoom({
           ...prev,
           connectionState: { status: "error", error: result.error?.message },
         }));
-        onError?.(result.error?.message || "Failed to join room");
+        onErrorRef.current?.(result.error?.message || "Failed to join room");
         return false;
       }
 
@@ -283,17 +294,10 @@ export function useVideoRoom({
         ...prev,
         connectionState: { status: "error", error: "Connection failed" },
       }));
-      onError?.("Failed to connect to room");
+      onErrorRef.current?.("Failed to connect to room");
       return false;
     }
-  }, [
-    roomId,
-    state.isEjected,
-    joinRoom,
-    scheduleTokenRefresh,
-    handleRoomEvent,
-    onError,
-  ]);
+  }, [roomId, joinRoom, scheduleTokenRefresh, handleRoomEvent]);
 
   // Leave room
   const leave = useCallback(async () => {
@@ -349,11 +353,11 @@ export function useVideoRoom({
     async (targetUserId: string, reason?: string) => {
       const result = await videoApi.kickUser({ roomId, targetUserId, reason });
       if (!result.ok) {
-        onError?.(result.error?.message || "Failed to kick user");
+        onErrorRef.current?.(result.error?.message || "Failed to kick user");
       }
       return result.ok;
     },
-    [roomId, onError],
+    [roomId],
   );
 
   // Ban user (host/mod only)
@@ -366,21 +370,21 @@ export function useVideoRoom({
         durationMinutes,
       });
       if (!result.ok) {
-        onError?.(result.error?.message || "Failed to ban user");
+        onErrorRef.current?.(result.error?.message || "Failed to ban user");
       }
       return result.ok;
     },
-    [roomId, onError],
+    [roomId],
   );
 
   // End room (host only)
   const endRoom = useCallback(async () => {
     const result = await videoApi.endRoom(roomId);
     if (!result.ok) {
-      onError?.(result.error?.message || "Failed to end room");
+      onErrorRef.current?.(result.error?.message || "Failed to end room");
     }
     return result.ok;
-  }, [roomId, onError]);
+  }, [roomId]);
 
   // Build participants list from Fishjam peers
   useEffect(() => {
@@ -414,12 +418,12 @@ export function useVideoRoom({
     setState((prev) => ({ ...prev, participants }));
   }, [peersHook.peers]);
 
-  // Handle app state changes
+  // Handle app state changes - uses stateRef to avoid re-subscribing on every state change
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (
         nextAppState === "active" &&
-        state.connectionState.status === "connected"
+        stateRef.current.connectionState.status === "connected"
       ) {
         console.log("[useVideoRoom] App became active, checking connection...");
       } else if (nextAppState === "background") {
@@ -432,7 +436,7 @@ export function useVideoRoom({
       handleAppStateChange,
     );
     return () => subscription.remove();
-  }, [state.connectionState.status]);
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
