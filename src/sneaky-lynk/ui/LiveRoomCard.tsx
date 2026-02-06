@@ -18,7 +18,7 @@ export function LiveRoomCard({ space, onPress }: LiveRoomCardProps) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.card}>
       <LinearGradient
-        colors={["#3EA4E5", "#2563EB"]}
+        colors={["#FF5BFC", "#FC253A"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}

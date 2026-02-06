@@ -19,7 +19,7 @@ export function ConnectionBanner({ state }: ConnectionBannerProps) {
       bg: "bg-primary/20",
       border: "border-primary/30",
       text: "Connecting...",
-      icon: <Wifi size={16} color="#3EA4E5" />,
+      icon: <Wifi size={16} color="#FC253A" />,
       textColor: "text-primary",
     },
     reconnecting: {
@@ -48,7 +48,9 @@ export function ConnectionBanner({ state }: ConnectionBannerProps) {
   const { bg, border, text, icon, textColor } = config[state];
 
   return (
-    <View className={`mx-4 my-2 px-4 py-3 rounded-xl flex-row items-center gap-3 ${bg} border ${border}`}>
+    <View
+      className={`mx-4 my-2 px-4 py-3 rounded-xl flex-row items-center gap-3 ${bg} border ${border}`}
+    >
       {icon}
       <Text className={`text-sm font-medium ${textColor}`}>{text}</Text>
     </View>

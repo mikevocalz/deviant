@@ -50,7 +50,7 @@ export default function CreateLynkScreen() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       showToast("success", "Lynk Created", "Your Lynk is now live!");
-      
+
       // Navigate to the new room (using mock ID for now)
       router.replace("/(protected)/sneaky-lynk/room/new-room" as any);
     } catch (error) {
@@ -73,7 +73,7 @@ export default function CreateLynkScreen() {
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
         <View className="flex-row items-center gap-2">
-          <Radio size={20} color="#3EA4E5" />
+          <Radio size={20} color="#FC253A" />
           <Text className="text-lg font-bold text-foreground">Create Lynk</Text>
         </View>
         <View className="w-6" />
@@ -127,10 +127,12 @@ export default function CreateLynkScreen() {
         <View className="flex-row items-center justify-between bg-secondary rounded-xl px-4 py-4 mb-4">
           <View className="flex-row items-center gap-3">
             <View className="w-10 h-10 rounded-full bg-primary/20 items-center justify-center">
-              <Video size={20} color="#3EA4E5" />
+              <Video size={20} color="#FC253A" />
             </View>
             <View>
-              <Text className="text-foreground font-semibold">Enable Video</Text>
+              <Text className="text-foreground font-semibold">
+                Enable Video
+              </Text>
               <Text className="text-xs text-muted-foreground">
                 Allow speakers to share video
               </Text>
@@ -139,7 +141,7 @@ export default function CreateLynkScreen() {
           <Switch
             value={hasVideo}
             onValueChange={setHasVideo}
-            trackColor={{ false: "#374151", true: "#3EA4E5" }}
+            trackColor={{ false: "#374151", true: "#FC253A" }}
             thumbColor="#fff"
           />
         </View>
@@ -149,9 +151,9 @@ export default function CreateLynkScreen() {
           <View className="flex-row items-center gap-3">
             <View className="w-10 h-10 rounded-full bg-primary/20 items-center justify-center">
               {isPublic ? (
-                <Globe size={20} color="#3EA4E5" />
+                <Globe size={20} color="#FC253A" />
               ) : (
-                <Lock size={20} color="#3EA4E5" />
+                <Lock size={20} color="#FC253A" />
               )}
             </View>
             <View>
@@ -168,7 +170,7 @@ export default function CreateLynkScreen() {
           <Switch
             value={isPublic}
             onValueChange={setIsPublic}
-            trackColor={{ false: "#374151", true: "#3EA4E5" }}
+            trackColor={{ false: "#374151", true: "#FC253A" }}
             thumbColor="#fff"
           />
         </View>

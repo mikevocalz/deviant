@@ -176,7 +176,7 @@ function SneakyLynkContent({
       {/* Header */}
       <View style={lynkStyles.header}>
         <View style={lynkStyles.headerLeft}>
-          <Radio size={28} color="#3EA4E5" />
+          <Radio size={28} color="#FC253A" />
           <Text style={lynkStyles.headerTitle}>Lynks</Text>
         </View>
         <TouchableOpacity
@@ -243,7 +243,7 @@ const lynkStyles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#3EA4E5",
+    backgroundColor: "#FC253A",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -424,7 +424,7 @@ export default function MessagesScreen() {
             activeTab === 0 ? "border-b-2 border-primary" : ""
           }`}
         >
-          <Inbox size={16} color={activeTab === 0 ? "#3EA4E5" : "#6B7280"} />
+          <Inbox size={16} color={activeTab === 0 ? "#FC253A" : "#6B7280"} />
           <Text
             className={`font-semibold text-sm ${
               activeTab === 0 ? "text-primary" : "text-muted-foreground"
@@ -450,7 +450,7 @@ export default function MessagesScreen() {
         >
           <ShieldAlert
             size={16}
-            color={activeTab === 1 ? "#3EA4E5" : "#6B7280"}
+            color={activeTab === 1 ? "#FC253A" : "#6B7280"}
           />
           <Text
             className={`font-semibold text-sm ${
@@ -475,7 +475,7 @@ export default function MessagesScreen() {
             activeTab === 2 ? "border-b-2 border-primary" : ""
           }`}
         >
-          <Radio size={16} color={activeTab === 2 ? "#3EA4E5" : "#6B7280"} />
+          <Radio size={16} color={activeTab === 2 ? "#FC253A" : "#6B7280"} />
           <Text
             className={`font-semibold text-sm ${
               activeTab === 2 ? "text-primary" : "text-muted-foreground"

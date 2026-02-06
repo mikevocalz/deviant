@@ -228,7 +228,7 @@ export default function SneakyLynkRoomScreen() {
   if (!isMockRoom && connectionState === "connecting") {
     return (
       <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#3EA4E5" />
+        <ActivityIndicator size="large" color="#FC253A" />
         <Text className="text-foreground mt-4">Joining room...</Text>
       </View>
     );
