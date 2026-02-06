@@ -472,14 +472,16 @@ export default function MessagesScreen() {
         <Pressable
           onPress={() => handleTabPress(2)}
           className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
-            activeTab === 2 ? "border-b-2 border-primary" : ""
+            activeTab === 2 ? "border-b-2" : ""
           }`}
+          style={activeTab === 2 ? { borderBottomColor: "#FF5BFC" } : undefined}
         >
           <Radio size={16} color={activeTab === 2 ? "#FF5BFC" : "#6B7280"} />
           <Text
             className={`font-semibold text-sm ${
-              activeTab === 2 ? "text-primary" : "text-muted-foreground"
+              activeTab === 2 ? "" : "text-muted-foreground"
             }`}
+            style={activeTab === 2 ? { color: "#FF5BFC" } : undefined}
           >
             Sneaky Lynk
           </Text>
