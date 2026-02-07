@@ -127,9 +127,19 @@ function ProfileScreenContent() {
       setIsUpdatingAvatar(true);
       const selectedUri = result.assets[0].uri;
 
+      // OPTIMISTIC: Show local image immediately before upload
+      const previousAvatar = user?.avatar;
+      if (user) {
+        setUser({ ...user, avatar: selectedUri });
+      }
+
       // Upload to Bunny CDN
       const uploadResult = await uploadSingle(selectedUri);
       if (!uploadResult.success || !uploadResult.url) {
+        // ROLLBACK: Restore previous avatar on failure
+        if (user) {
+          setUser({ ...user, avatar: previousAvatar });
+        }
         showToast(
           "error",
           "Upload Failed",
@@ -139,8 +149,18 @@ function ProfileScreenContent() {
         return;
       }
 
-      // Update profile with new avatar
-      await usersApi.updateAvatar(uploadResult.url);
+      // Update profile with new avatar on backend
+      try {
+        await usersApi.updateAvatar(uploadResult.url);
+      } catch {
+        // Backend update failed — rollback
+        if (user) {
+          setUser({ ...user, avatar: previousAvatar });
+        }
+        showToast("error", "Error", "Couldn't save changes. Try again.");
+        setIsUpdatingAvatar(false);
+        return;
+      }
 
       const newAvatarUrl = uploadResult.url;
 
@@ -532,7 +552,8 @@ function ProfileScreenContent() {
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
               <Pressable
-                onPress={() => router.push("/(protected)/edit-profile")}
+                onPress={handleAvatarPress}
+                disabled={isUpdatingAvatar}
               >
                 <View className="relative">
                   <Image
@@ -545,15 +566,21 @@ function ProfileScreenContent() {
                     className="w-[88px] h-[88px] rounded-full"
                     contentFit="cover"
                   />
-                  <View
-                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
-                    style={{
-                      borderColor: colors.background,
-                      transform: [{ translateX: -14 }],
-                    }}
-                  >
-                    <Camera size={14} color="#fff" />
-                  </View>
+                  {isUpdatingAvatar ? (
+                    <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
+                      <ActivityIndicator size="small" color="#fff" />
+                    </View>
+                  ) : (
+                    <View
+                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                      style={{
+                        borderColor: colors.background,
+                        transform: [{ translateX: -14 }],
+                      }}
+                    >
+                      <Camera size={14} color="#fff" />
+                    </View>
+                  )}
                 </View>
               </Pressable>
               <View className="flex-row gap-8">
