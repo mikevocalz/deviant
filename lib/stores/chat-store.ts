@@ -163,7 +163,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   type: msg.media[0].type,
                   uri: msg.media[0].url,
                 }
-              : undefined,
+              : meta?.mediaUrl
+                ? {
+                    type: (meta.mediaType as "image" | "video") || "image",
+                    uri: meta.mediaUrl as string,
+                  }
+                : undefined,
           storyReply,
         };
       });
@@ -247,19 +252,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
           });
         }
 
-        // Parse media safely — server may return media array or nothing
+        // Parse media safely — check result.media array, then metadata.mediaUrl, then local fallback
+        const resMeta = result.metadata;
         const serverMedia =
           Array.isArray(result.media) && result.media.length > 0
             ? {
                 type: result.media[0].type as "image" | "video",
                 uri: result.media[0].url,
               }
-            : mediaToSend
+            : resMeta?.mediaUrl
               ? {
-                  type: mediaToSend.type,
-                  uri: uploadedMediaUrl || mediaToSend.uri,
+                  type: (resMeta.mediaType as "image" | "video") || "image",
+                  uri: resMeta.mediaUrl as string,
                 }
-              : undefined;
+              : mediaToSend
+                ? {
+                    type: mediaToSend.type,
+                    uri: uploadedMediaUrl || mediaToSend.uri,
+                  }
+                : undefined;
 
         const existingMessages = get().messages[conversationId] || [];
         const newMessage: Message = {

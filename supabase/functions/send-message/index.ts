@@ -114,11 +114,16 @@ serve(async (req: Request) => {
       );
     }
     if (
-      !content ||
-      typeof content !== "string" ||
-      content.trim().length === 0
+      (!content ||
+        typeof content !== "string" ||
+        content.trim().length === 0) &&
+      !mediaUrl
     ) {
-      return errorResponse("validation_error", "content is required", 400);
+      return errorResponse(
+        "validation_error",
+        "content or mediaUrl is required",
+        400,
+      );
     }
 
     // Get user's integer ID
@@ -158,14 +163,24 @@ serve(async (req: Request) => {
       conversationId,
     );
 
-    // Insert message with optional metadata (e.g. story reply context)
+    // Insert message with optional metadata (e.g. story reply context, media)
+    const mergedMetadata: Record<string, unknown> = {
+      ...(metadata && typeof metadata === "object" ? metadata : {}),
+    };
+    if (mediaUrl && typeof mediaUrl === "string") {
+      mergedMetadata.mediaUrl = mediaUrl;
+      mergedMetadata.mediaType = mediaUrl.match(/\.(mp4|mov|webm)$/i)
+        ? "video"
+        : "image";
+    }
+
     const insertPayload: Record<string, unknown> = {
       conversation_id: conversationId,
       sender_id: userId,
-      content: content.trim(),
+      content: (content || "").trim() || (mediaUrl ? "📷 Photo" : ""),
     };
-    if (metadata && typeof metadata === "object") {
-      insertPayload.metadata = metadata;
+    if (Object.keys(mergedMetadata).length > 0) {
+      insertPayload.metadata = mergedMetadata;
     }
 
     const { data: message, error: insertError } = await supabaseAdmin
