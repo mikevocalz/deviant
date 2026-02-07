@@ -2,6 +2,11 @@
  * Sneaky Lynk Room Screen
  * Live audio/video room with speakers, listeners, and controls
  * Uses Fishjam for real audio/video — no mock data
+ *
+ * ARCHITECTURE: Two separate components to avoid useVideoRoom's internal
+ * useCamera() from interfering with the shared Fishjam camera context.
+ * - LocalRoom: uses useCamera/useMicrophone directly (no useVideoRoom)
+ * - ServerRoom: uses useVideoRoom for full Fishjam room management
  */
 
 import {
@@ -31,21 +36,49 @@ import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 
+// ── Shared helpers ──────────────────────────────────────────────────
+
+function buildLocalUser(authUser: any): SneakyUser {
+  return {
+    id: authUser?.id || "local",
+    username: authUser?.username || "You",
+    displayName: authUser?.name || authUser?.username || "You",
+    avatar:
+      authUser?.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        authUser?.username || "U",
+      )}&background=1a1a1a&color=fff&rounded=true`,
+    isVerified: authUser?.isVerified || false,
+  };
+}
+
+// ── Router entry point ──────────────────────────────────────────────
+
 export default function SneakyLynkRoomScreen() {
   const { id, title: paramTitle } = useLocalSearchParams<{
     id: string;
     title?: string;
   }>();
+
+  const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
+
+  // Render completely separate components so useVideoRoom's internal
+  // useCamera() never runs in the same component as the local camera.
+  if (isServerRoom) {
+    return <ServerRoom id={id} paramTitle={paramTitle} />;
+  }
+  return <LocalRoom id={id} paramTitle={paramTitle} />;
+}
+
+// ── LocalRoom: direct Fishjam camera/mic, NO useVideoRoom ──────────
+
+function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const showToast = useUIStore((s) => s.showToast);
   const authUser = useAuthStore((s) => s.user);
-
-  // Fishjam camera & mic hooks
   const fishjamCamera = useCamera();
   const fishjamMic = useMicrophone();
 
-  // Room store
   const {
     isHandRaised,
     activeSpeakerId,
@@ -57,194 +90,249 @@ export default function SneakyLynkRoomScreen() {
     setActiveSpeakerId,
     openChat,
     closeChat,
-    showEject,
     hideEject,
     reset,
   } = useRoomStore();
 
-  // Chat messages state
   const [chatMessages, setChatMessages] = React.useState<
-    Array<{
-      id: string;
-      user: SneakyUser;
-      content: string;
-      timestamp: Date;
-    }>
+    Array<{ id: string; user: SneakyUser; content: string; timestamp: Date }>
   >([]);
 
-  // Real Fishjam video room hook (used for server-backed rooms)
-  const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
-  const videoRoom = useVideoRoom({
-    roomId: isServerRoom ? id || "" : "",
-    onEjected: (reason) => {
-      showEject(reason);
-    },
-    onRoomEnded: () => {
-      showToast("info", "Room Ended", "The host has ended this room");
-      router.back();
-    },
-    onError: (error) => {
-      showToast("error", "Error", error);
-    },
-  });
-
-  // Build local user as SneakyUser from auth store
-  const localUser: SneakyUser = {
-    id: authUser?.id || "local",
-    username: authUser?.username || "You",
-    displayName: authUser?.name || authUser?.username || "You",
-    avatar:
-      authUser?.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        authUser?.username || "U",
-      )}&background=1a1a1a&color=fff&rounded=true`,
-    isVerified: authUser?.isVerified || false,
-  };
-
-  // Derived state
-  const isHost = isServerRoom ? videoRoom.localUser?.role === "host" : true;
-  const effectiveMuted = isServerRoom
-    ? !videoRoom.isMicOn
-    : !fishjamMic.isMicrophoneOn;
-  const effectiveVideoOn = isServerRoom
-    ? videoRoom.isCameraOn
-    : fishjamCamera.isCameraOn;
-  const connectionState = isServerRoom
-    ? videoRoom.connectionState.status === "error"
-      ? "disconnected"
-      : (videoRoom.connectionState.status as
-          | "connecting"
-          | "connected"
-          | "reconnecting"
-          | "disconnected")
-    : storeConnectionState;
-
-  // Simulate speaking indicator based on mic activity
-  useEffect(() => {
-    if (effectiveMuted) {
-      setActiveSpeakerId(null as any);
-      return;
-    }
-    // When mic is on, show the local user as speaking
-    setActiveSpeakerId(localUser.id);
-  }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
+  const localUser = buildLocalUser(authUser);
+  const effectiveMuted = !fishjamMic.isMicrophoneOn;
+  const effectiveVideoOn = fishjamCamera.isCameraOn;
 
   // Reset store on mount
-  const hasInitializedRef = useRef(false);
   useEffect(() => {
-    if (hasInitializedRef.current) return;
-    hasInitializedRef.current = true;
     reset();
-  }, [reset]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start camera & mic on mount
-  const hasJoinedRef = useRef(false);
-  const isServerRoomRef = useRef(isServerRoom);
-  isServerRoomRef.current = isServerRoom;
-
+  // Start camera & mic on mount, stop on unmount
   useEffect(() => {
-    if (hasJoinedRef.current) return;
-    hasJoinedRef.current = true;
-
+    let cancelled = false;
     (async () => {
-      if (isServerRoom && id) {
-        const joined = await videoRoom.join();
-        if (joined) {
-          try {
-            await videoRoom.toggleCamera();
-            await videoRoom.toggleMic();
-          } catch (e) {
-            console.warn("[SneakyLynk] Failed to start media:", e);
-          }
-        }
-      } else {
-        try {
-          console.log("[SneakyLynk] Starting local camera & mic");
-          await fishjamCamera.startCamera();
-          await fishjamMic.startMicrophone();
-          console.log("[SneakyLynk] Camera & mic started");
-        } catch (e) {
-          console.warn("[SneakyLynk] Failed to start local media:", e);
-        }
+      try {
+        console.log("[SneakyLynk:Local] Starting camera & mic");
+        await fishjamCamera.startCamera();
+        if (!cancelled) await fishjamMic.startMicrophone();
+        console.log("[SneakyLynk:Local] Camera & mic started");
+      } catch (e) {
+        console.warn("[SneakyLynk:Local] Failed to start media:", e);
       }
     })();
-    // No cleanup here — camera/mic cleanup is handled by the unmount-only effect below.
-    // Putting stopCamera in this cleanup causes the camera to die on Strict Mode
-    // re-runs and effect dep changes.
-  }, [isServerRoom, id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Cleanup camera/mic ONLY on true unmount (empty deps = runs once)
-  useEffect(() => {
     return () => {
-      if (isServerRoomRef.current) {
-        videoRoom.leave();
-      } else {
-        fishjamCamera.stopCamera();
-        fishjamMic.stopMicrophone();
-      }
+      cancelled = true;
+      fishjamCamera.stopCamera();
+      fishjamMic.stopMicrophone();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleLeave = useCallback(() => {
-    router.back();
-  }, [router]);
+  // Speaking indicator
+  useEffect(() => {
+    if (effectiveMuted) {
+      setActiveSpeakerId(null as any);
+    } else {
+      setActiveSpeakerId(localUser.id);
+    }
+  }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
+  const handleLeave = useCallback(() => router.back(), [router]);
   const handleToggleMic = useCallback(async () => {
-    if (isServerRoom) {
-      await videoRoom.toggleMic();
-    } else {
-      if (fishjamMic.isMicrophoneOn) {
-        fishjamMic.stopMicrophone();
-      } else {
-        await fishjamMic.startMicrophone();
-      }
-    }
-  }, [isServerRoom, videoRoom, fishjamMic]);
-
+    if (fishjamMic.isMicrophoneOn) fishjamMic.stopMicrophone();
+    else await fishjamMic.startMicrophone();
+  }, [fishjamMic]);
   const handleToggleVideo = useCallback(async () => {
-    if (isServerRoom) {
-      await videoRoom.toggleCamera();
-    } else {
-      if (fishjamCamera.isCameraOn) {
-        fishjamCamera.stopCamera();
-      } else {
-        await fishjamCamera.startCamera();
-      }
-    }
-  }, [isServerRoom, videoRoom, fishjamCamera]);
-
-  const handleToggleHand = useCallback(() => {
-    toggleHand();
-  }, [toggleHand]);
-
-  const handleChat = useCallback(() => {
-    openChat();
-  }, [openChat]);
-
-  const handleCloseChat = useCallback(() => {
-    closeChat();
-  }, [closeChat]);
-
+    if (fishjamCamera.isCameraOn) fishjamCamera.stopCamera();
+    else await fishjamCamera.startCamera();
+  }, [fishjamCamera]);
+  const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
+  const handleChat = useCallback(() => openChat(), [openChat]);
+  const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
   const handleSendMessage = useCallback(
     (content: string) => {
-      const newMessage = {
-        id: `msg-${Date.now()}`,
-        user: localUser,
-        content,
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [newMessage, ...prev]);
+      setChatMessages((prev) => [
+        {
+          id: `msg-${Date.now()}`,
+          user: localUser,
+          content,
+          timestamp: new Date(),
+        },
+        ...prev,
+      ]);
     },
     [localUser],
   );
-
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
   }, [router, hideEject]);
 
-  // Loading state for server rooms
-  if (isServerRoom && connectionState === "connecting") {
+  const roomTitle = paramTitle || "Sneaky Lynk";
+  const speakers = [
+    {
+      id: localUser.id,
+      user: localUser,
+      role: "host" as const,
+      isSpeaking: localUser.id === activeSpeakerId,
+    },
+  ];
+  const featuredSpeaker = {
+    id: localUser.id,
+    user: localUser,
+    isSpeaking: localUser.id === activeSpeakerId,
+    hasVideo: effectiveVideoOn,
+  };
+  const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
+  const cameraStream = fishjamCamera.cameraStream;
+
+  return (
+    <RoomLayout
+      insets={insets}
+      connectionState={storeConnectionState}
+      isHost={true}
+      roomTitle={roomTitle}
+      participantCount={1}
+      featuredSpeaker={featuredSpeaker}
+      isLocalUser={true}
+      effectiveVideoOn={effectiveVideoOn}
+      cameraStream={cameraStream}
+      speakers={speakers}
+      activeSpeakers={activeSpeakers}
+      effectiveMuted={effectiveMuted}
+      isHandRaised={isHandRaised}
+      isChatOpen={isChatOpen}
+      showEjectModal={showEjectModal}
+      ejectPayload={ejectPayload}
+      chatMessages={chatMessages}
+      localUser={localUser}
+      onLeave={handleLeave}
+      onToggleMic={handleToggleMic}
+      onToggleVideo={handleToggleVideo}
+      onToggleHand={handleToggleHand}
+      onChat={handleChat}
+      onCloseChat={handleCloseChat}
+      onSendMessage={handleSendMessage}
+      onEjectDismiss={handleEjectDismiss}
+    />
+  );
+}
+
+// ── ServerRoom: full useVideoRoom for Fishjam-backed rooms ──────────
+
+function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const showToast = useUIStore((s) => s.showToast);
+  const authUser = useAuthStore((s) => s.user);
+
+  const {
+    isHandRaised,
+    activeSpeakerId,
+    isChatOpen,
+    showEjectModal,
+    ejectPayload,
+    toggleHand,
+    setActiveSpeakerId,
+    openChat,
+    closeChat,
+    showEject,
+    hideEject,
+    reset,
+  } = useRoomStore();
+
+  const [chatMessages, setChatMessages] = React.useState<
+    Array<{ id: string; user: SneakyUser; content: string; timestamp: Date }>
+  >([]);
+
+  const videoRoom = useVideoRoom({
+    roomId: id || "",
+    onEjected: (reason) => showEject(reason),
+    onRoomEnded: () => {
+      showToast("info", "Room Ended", "The host has ended this room");
+      router.back();
+    },
+    onError: (error) => showToast("error", "Error", error),
+  });
+
+  const localUser = buildLocalUser(authUser);
+  const isHost = videoRoom.localUser?.role === "host";
+  const effectiveMuted = !videoRoom.isMicOn;
+  const effectiveVideoOn = videoRoom.isCameraOn;
+  const connectionState =
+    videoRoom.connectionState.status === "error"
+      ? "disconnected"
+      : (videoRoom.connectionState.status as
+          | "connecting"
+          | "connected"
+          | "reconnecting"
+          | "disconnected");
+
+  // Reset store on mount
+  useEffect(() => {
+    reset();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Join room on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const joined = await videoRoom.join();
+      if (joined && !cancelled) {
+        try {
+          await videoRoom.toggleCamera();
+          await videoRoom.toggleMic();
+        } catch (e) {
+          console.warn("[SneakyLynk:Server] Failed to start media:", e);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+      videoRoom.leave();
+    };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Speaking indicator
+  useEffect(() => {
+    if (effectiveMuted) {
+      setActiveSpeakerId(null as any);
+    } else {
+      setActiveSpeakerId(localUser.id);
+    }
+  }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
+
+  const handleLeave = useCallback(() => router.back(), [router]);
+  const handleToggleMic = useCallback(
+    async () => videoRoom.toggleMic(),
+    [videoRoom],
+  );
+  const handleToggleVideo = useCallback(
+    async () => videoRoom.toggleCamera(),
+    [videoRoom],
+  );
+  const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
+  const handleChat = useCallback(() => openChat(), [openChat]);
+  const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
+  const handleSendMessage = useCallback(
+    (content: string) => {
+      setChatMessages((prev) => [
+        {
+          id: `msg-${Date.now()}`,
+          user: localUser,
+          content,
+          timestamp: new Date(),
+        },
+        ...prev,
+      ]);
+    },
+    [localUser],
+  );
+  const handleEjectDismiss = useCallback(() => {
+    hideEject();
+    router.back();
+  }, [router, hideEject]);
+
+  if (connectionState === "connecting") {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#FC253A" />
@@ -253,18 +341,12 @@ export default function SneakyLynkRoomScreen() {
     );
   }
 
-  // Room data
-  const roomTitle = isServerRoom
-    ? videoRoom.room?.title || paramTitle || "Room"
-    : paramTitle || "Sneaky Lynk";
-  const participantCount = isServerRoom ? videoRoom.participants.length + 1 : 1;
+  const roomTitle = videoRoom.room?.title || paramTitle || "Room";
+  const participantCount = videoRoom.participants.length + 1;
 
-  // Build speakers list — local user is always a speaker
   const allSpeakers: SneakyUser[] = [localUser];
-
-  // Add remote participants as speakers (for server rooms)
-  if (isServerRoom && videoRoom.participants.length > 0) {
-    videoRoom.participants.forEach((p) => {
+  if (videoRoom.participants.length > 0) {
+    videoRoom.participants.forEach((p: any) => {
       allSpeakers.push({
         id: p.userId || p.oderId || p.odId,
         username: p.username || "User",
@@ -285,11 +367,6 @@ export default function SneakyLynkRoomScreen() {
     role: index === 0 ? ("host" as const) : ("speaker" as const),
     isSpeaking: user.id === activeSpeakerId,
   }));
-
-  // No separate listeners for now — everyone is a speaker
-  const listeners: { id: string; user: SneakyUser }[] = [];
-
-  // Featured speaker for VideoStage
   const featuredSpeakerUser =
     allSpeakers.find((s) => s.id === activeSpeakerId) || localUser;
   const featuredSpeaker = {
@@ -298,13 +375,99 @@ export default function SneakyLynkRoomScreen() {
     isSpeaking: featuredSpeakerUser.id === activeSpeakerId,
     hasVideo: effectiveVideoOn,
   };
-
   const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
+  const cameraStream = videoRoom.camera?.cameraStream || null;
 
-  // Camera stream for VideoStage
-  const cameraStream = isServerRoom
-    ? videoRoom.camera?.cameraStream
-    : fishjamCamera.cameraStream;
+  return (
+    <RoomLayout
+      insets={insets}
+      connectionState={connectionState}
+      isHost={!!isHost}
+      roomTitle={roomTitle}
+      participantCount={participantCount}
+      featuredSpeaker={featuredSpeaker}
+      isLocalUser={featuredSpeakerUser.id === localUser.id}
+      effectiveVideoOn={effectiveVideoOn}
+      cameraStream={cameraStream}
+      speakers={speakers}
+      activeSpeakers={activeSpeakers}
+      effectiveMuted={effectiveMuted}
+      isHandRaised={isHandRaised}
+      isChatOpen={isChatOpen}
+      showEjectModal={showEjectModal}
+      ejectPayload={ejectPayload}
+      chatMessages={chatMessages}
+      localUser={localUser}
+      onLeave={handleLeave}
+      onToggleMic={handleToggleMic}
+      onToggleVideo={handleToggleVideo}
+      onToggleHand={handleToggleHand}
+      onChat={handleChat}
+      onCloseChat={handleCloseChat}
+      onSendMessage={handleSendMessage}
+      onEjectDismiss={handleEjectDismiss}
+    />
+  );
+}
+
+// ── Shared Room Layout (pure presentation) ──────────────────────────
+
+function RoomLayout({
+  insets,
+  connectionState,
+  isHost,
+  roomTitle,
+  participantCount,
+  featuredSpeaker,
+  isLocalUser,
+  effectiveVideoOn,
+  cameraStream,
+  speakers,
+  activeSpeakers,
+  effectiveMuted,
+  isHandRaised,
+  isChatOpen,
+  showEjectModal,
+  ejectPayload,
+  chatMessages,
+  localUser,
+  onLeave,
+  onToggleMic,
+  onToggleVideo,
+  onToggleHand,
+  onChat,
+  onCloseChat,
+  onSendMessage,
+  onEjectDismiss,
+}: {
+  insets: any;
+  connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
+  isHost: boolean;
+  roomTitle: string;
+  participantCount: number;
+  featuredSpeaker: any;
+  isLocalUser: boolean;
+  effectiveVideoOn: boolean;
+  cameraStream: any;
+  speakers: any[];
+  activeSpeakers: Set<string>;
+  effectiveMuted: boolean;
+  isHandRaised: boolean;
+  isChatOpen: boolean;
+  showEjectModal: boolean;
+  ejectPayload: any;
+  chatMessages: any[];
+  localUser: SneakyUser;
+  onLeave: () => void;
+  onToggleMic: () => void;
+  onToggleVideo: () => void;
+  onToggleHand: () => void;
+  onChat: () => void;
+  onCloseChat: () => void;
+  onSendMessage: (content: string) => void;
+  onEjectDismiss: () => void;
+}) {
+  const listeners: { id: string; user: SneakyUser }[] = [];
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -313,7 +476,7 @@ export default function SneakyLynkRoomScreen() {
 
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <Pressable onPress={handleLeave} hitSlop={12}>
+        <Pressable onPress={onLeave} hitSlop={12}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
 
@@ -354,7 +517,7 @@ export default function SneakyLynkRoomScreen() {
         <VideoStage
           featuredSpeaker={featuredSpeaker}
           isSpeaking={featuredSpeaker.isSpeaking}
-          isLocalUser={featuredSpeakerUser.id === localUser.id}
+          isLocalUser={isLocalUser}
           isVideoEnabled={effectiveVideoOn}
           videoTrack={cameraStream ? { stream: cameraStream } : undefined}
         />
@@ -376,26 +539,26 @@ export default function SneakyLynkRoomScreen() {
         isVideoEnabled={effectiveVideoOn}
         handRaised={isHandRaised}
         hasVideo={true}
-        onLeave={handleLeave}
-        onToggleMute={handleToggleMic}
-        onToggleVideo={handleToggleVideo}
-        onToggleHand={handleToggleHand}
-        onOpenChat={handleChat}
+        onLeave={onLeave}
+        onToggleMute={onToggleMic}
+        onToggleVideo={onToggleVideo}
+        onToggleHand={onToggleHand}
+        onOpenChat={onChat}
       />
 
       {/* Eject Modal */}
       <EjectModal
         visible={showEjectModal}
         payload={ejectPayload}
-        onDismiss={handleEjectDismiss}
+        onDismiss={onEjectDismiss}
       />
 
       {/* Chat Sheet (75% height) */}
       <ChatSheet
         isOpen={isChatOpen}
-        onClose={handleCloseChat}
+        onClose={onCloseChat}
         messages={chatMessages}
-        onSendMessage={handleSendMessage}
+        onSendMessage={onSendMessage}
         currentUser={localUser}
       />
     </View>
