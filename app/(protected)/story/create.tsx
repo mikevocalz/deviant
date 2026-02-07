@@ -31,14 +31,11 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
-import * as MediaLibrary from "expo-media-library";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
 import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
-import { CameraScreen, type CapturedMedia } from "@/src/camera";
-import * as ImagePicker from "expo-image-picker";
 
 // Instagram-style creative tools - vertical toolbar
 const CREATIVE_TOOLS = [
@@ -89,7 +86,6 @@ export default function CreateStoryScreen() {
   const [videoThumbnails, setVideoThumbnails] = useState<
     Record<string, string>
   >({});
-  const [showCamera, setShowCamera] = useState(false);
   const openStickerSheet = useStickerStore((s) => s.openSheet);
   const isStickerSheetOpen = useStickerStore((s) => s.isSheetOpen);
 
@@ -186,7 +182,7 @@ export default function CreateStoryScreen() {
     }
   };
 
-  // Consume camera result when returning from camera screen (legacy route fallback)
+  // Consume camera result when returning from camera screen
   useFocusEffect(
     useCallback(() => {
       const result = consumeCameraResult();
@@ -204,43 +200,6 @@ export default function CreateStoryScreen() {
     }, [consumeCameraResult, handleMediaSelected]),
   );
 
-  const handleCameraCapture = useCallback(
-    (captured: CapturedMedia) => {
-      setShowCamera(false);
-      const media: MediaAsset = {
-        id: captured.uri,
-        uri: captured.uri,
-        type: captured.type === "video" ? "video" : "image",
-        width: captured.width,
-        height: captured.height,
-        duration: captured.duration,
-      };
-      handleMediaSelected([media]);
-    },
-    [handleMediaSelected],
-  );
-
-  const handleCameraGallery = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
-      quality: 0.8,
-      videoMaxDuration: MAX_VIDEO_DURATION,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setShowCamera(false);
-      const media: MediaAsset = {
-        id: asset.uri,
-        uri: asset.uri,
-        type: asset.type === "video" ? "video" : "image",
-        width: asset.width,
-        height: asset.height,
-        duration: asset.duration ? asset.duration / 1000 : undefined,
-      };
-      handleMediaSelected([media]);
-    }
-  }, [handleMediaSelected]);
-
   const handleOpenCamera = () => {
     if (mediaAssets.length >= MAX_STORY_ITEMS) {
       showToast(
@@ -250,7 +209,14 @@ export default function CreateStoryScreen() {
       );
       return;
     }
-    setShowCamera(true);
+    router.push({
+      pathname: "/(protected)/camera",
+      params: {
+        mode: "both",
+        source: "story",
+        maxDuration: String(MAX_VIDEO_DURATION),
+      },
+    });
   };
 
   const handleRemoveMedia = (index: number) => {
@@ -448,21 +414,6 @@ export default function CreateStoryScreen() {
     });
   }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
 
-  if (showCamera) {
-    return (
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
-        <CameraScreen
-          onCapture={handleCameraCapture}
-          onClose={() => setShowCamera(false)}
-          allowedModes={["photo", "video"]}
-          maxVideoDuration={MAX_VIDEO_DURATION}
-          showGallery={true}
-          onGalleryPress={handleCameraGallery}
-        />
-      </View>
-    );
-  }
-
   return (
     <>
       <ScrollView
@@ -523,20 +474,27 @@ export default function CreateStoryScreen() {
                   </View>
                 ) : (
                   <View className="flex-1">
-                    {/* Tap image to open full editor */}
+                    <Image
+                      source={{ uri: currentMedia }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    {/* Tap anywhere to open editor (background layer — z-0) */}
                     <Pressable
                       onPress={() => handleEditImage(currentIndex)}
-                      style={{ flex: 1 }}
-                    >
-                      <Image
-                        source={{ uri: currentMedia }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                      />
-                    </Pressable>
-                    {/* Instagram-style vertical toolbar on right */}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 0,
+                      }}
+                    />
+                    {/* Instagram-style vertical toolbar on right (z-10, above background) */}
                     <View
                       className="absolute right-3 top-10 gap-3"
+                      style={{ zIndex: 10, elevation: 10 }}
                       pointerEvents="box-none"
                     >
                       {CREATIVE_TOOLS.map((tool) => (
@@ -547,37 +505,11 @@ export default function CreateStoryScreen() {
                               Haptics.ImpactFeedbackStyle.Light,
                             );
                             if (tool.id === "save") {
-                              (async () => {
-                                try {
-                                  const asset = mediaAssets[currentIndex];
-                                  if (!asset) return;
-                                  const { status } =
-                                    await MediaLibrary.requestPermissionsAsync();
-                                  if (status !== "granted") {
-                                    showToast(
-                                      "error",
-                                      "Permission Denied",
-                                      "Allow photo library access to save",
-                                    );
-                                    return;
-                                  }
-                                  await MediaLibrary.saveToLibraryAsync(
-                                    asset.uri,
-                                  );
-                                  showToast(
-                                    "success",
-                                    "Saved",
-                                    "Image saved to gallery",
-                                  );
-                                } catch (e) {
-                                  console.warn("[Story] Save failed:", e);
-                                  showToast(
-                                    "error",
-                                    "Error",
-                                    "Failed to save image",
-                                  );
-                                }
-                              })();
+                              showToast(
+                                "info",
+                                "Save",
+                                "Image saved to gallery",
+                              );
                             } else if (tool.id === "text") {
                               handleEditImage(currentIndex, "text");
                             } else if (tool.id === "stickers") {

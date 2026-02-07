@@ -33,7 +33,6 @@ import {
   Camera as CameraIcon,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import * as Brightness from "expo-brightness";
 import * as MediaLibrary from "expo-media-library";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Motion } from "@legendapp/motion";
@@ -80,24 +79,12 @@ export function CameraScreen({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordDuration] = useState(0);
   const [isTakingPhoto, setIsTakingPhoto] = useState(false);
-  const [showScreenFlash, setShowScreenFlash] = useState(false);
-  const savedBrightnessRef = useRef<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [lastGalleryThumb, setLastGalleryThumb] = useState<string | null>(null);
   const [permissionsReady, setPermissionsReady] = useState(false);
-  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const device = useCameraDevice(position);
-
-  const handleCameraInitialized = useCallback(() => {
-    console.log("[Camera] Native session initialized");
-    setIsCameraReady(true);
-  }, []);
-
-  const handleCameraError = useCallback((error: any) => {
-    console.error("[Camera] Native error:", error);
-  }, []);
 
   useEffect(() => {
     (async () => {
@@ -115,13 +102,9 @@ export function CameraScreen({
           const assets = await MediaLibrary.getAssetsAsync({
             first: 1,
             sortBy: [MediaLibrary.SortBy.creationTime],
-            mediaType: [
-              MediaLibrary.MediaType.photo,
-              MediaLibrary.MediaType.video,
-            ],
+            mediaType: [MediaLibrary.MediaType.photo, MediaLibrary.MediaType.video],
           });
-          if (assets.assets.length > 0)
-            setLastGalleryThumb(assets.assets[0].uri);
+          if (assets.assets.length > 0) setLastGalleryThumb(assets.assets[0].uri);
         }
       } catch {}
     })();
@@ -153,65 +136,19 @@ export function CameraScreen({
     if (!cameraRef.current || isTakingPhoto) return;
     setIsTakingPhoto(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // Front camera + flash enabled → Snapchat-style screen glow
-    const needsScreenFlash = position === "front" && flash !== "off";
-    if (needsScreenFlash) {
-      try {
-        const current = await Brightness.getBrightnessAsync();
-        savedBrightnessRef.current = current;
-        await Brightness.setBrightnessAsync(1);
-      } catch {}
-      setShowScreenFlash(true);
-      // Let the bright overlay render + brightness max out
-      await new Promise((r) => setTimeout(r, 200));
-    }
-
     try {
       const photo: PhotoFile = await cameraRef.current.takePhoto({
-        // Hardware flash only on back camera
-        flash:
-          position === "back"
-            ? flash === "auto"
-              ? "auto"
-              : flash === "on"
-                ? "on"
-                : "off"
-            : "off",
+        flash: flash === "auto" ? "auto" : flash === "on" ? "on" : "off",
         enableShutterSound: true,
       });
-
-      // Restore brightness + hide overlay
-      if (needsScreenFlash) {
-        setShowScreenFlash(false);
-        if (savedBrightnessRef.current !== null) {
-          await Brightness.setBrightnessAsync(savedBrightnessRef.current);
-          savedBrightnessRef.current = null;
-        }
-      }
-
-      const uri =
-        Platform.OS === "android" ? `file://${photo.path}` : photo.path;
-      onCapture({
-        uri,
-        type: "image",
-        width: photo.width,
-        height: photo.height,
-      });
+      const uri = Platform.OS === "android" ? `file://${photo.path}` : photo.path;
+      onCapture({ uri, type: "image", width: photo.width, height: photo.height });
     } catch (e) {
       console.error("[Camera] Photo error:", e);
-      // Always restore on error
-      setShowScreenFlash(false);
-      if (savedBrightnessRef.current !== null) {
-        Brightness.setBrightnessAsync(savedBrightnessRef.current).catch(
-          () => {},
-        );
-        savedBrightnessRef.current = null;
-      }
     } finally {
       setIsTakingPhoto(false);
     }
-  }, [flash, isTakingPhoto, onCapture, position]);
+  }, [flash, isTakingPhoto, onCapture]);
 
   const stopRecording = useCallback(async () => {
     if (!cameraRef.current || !isRecording) return;
@@ -229,18 +166,10 @@ export function CameraScreen({
   }, [isRecording]);
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || isRecording || !device || !isCameraReady) return;
-    if (!hasCamPerm || !hasMicPerm) {
-      console.warn("[Camera] Missing permissions for recording");
-      return;
-    }
-
+    if (!cameraRef.current || isRecording) return;
     setIsRecording(true);
     setRecordDuration(0);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-
-    // Small delay to let the native camera session stabilize
-    await new Promise((r) => setTimeout(r, 100));
 
     recordingTimerRef.current = setInterval(() => {
       setRecordDuration((prev) => {
@@ -253,15 +182,13 @@ export function CameraScreen({
       cameraRef.current.startRecording({
         flash: flash === "on" ? "on" : "off",
         onRecordingFinished: (video: VideoFile) => {
-          const uri =
-            Platform.OS === "android" ? `file://${video.path}` : video.path;
+          const uri = Platform.OS === "android" ? `file://${video.path}` : video.path;
           onCapture({ uri, type: "video", duration: video.duration });
         },
         onRecordingError: (err) => {
           console.error("[Camera] Recording error:", err);
           setIsRecording(false);
-          if (recordingTimerRef.current)
-            clearInterval(recordingTimerRef.current);
+          if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
         },
       });
     } catch (e) {
@@ -269,17 +196,7 @@ export function CameraScreen({
       setIsRecording(false);
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     }
-  }, [
-    flash,
-    isRecording,
-    maxVideoDuration,
-    onCapture,
-    stopRecording,
-    device,
-    hasCamPerm,
-    hasMicPerm,
-    isCameraReady,
-  ]);
+  }, [flash, isRecording, maxVideoDuration, onCapture, stopRecording]);
 
   const handleCapture = useCallback(() => {
     if (mode === "photo") handleTakePhoto();
@@ -335,25 +252,12 @@ export function CameraScreen({
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={true}
-          photo={true}
-          video={true}
-          audio={true}
-          torch={position === "back" && flash === "on" ? "on" : "off"}
+          photo={mode === "photo"}
+          video={mode === "video"}
+          audio={mode === "video"}
           zoom={zoom}
           enableZoomGesture={true}
-          onInitialized={handleCameraInitialized}
-          onError={handleCameraError}
         />
-
-        {/* Snapchat-style screen flash for front camera */}
-        {showScreenFlash && (
-          <Motion.View
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ type: "timing", duration: 100 }}
-            style={s.screenFlash}
-          />
-        )}
 
         {isRecording && (
           <Motion.View
@@ -379,11 +283,7 @@ export function CameraScreen({
               <ZapOff size={22} color="#fff" />
             ) : (
               <View>
-                <Zap
-                  size={22}
-                  color={flash === "auto" ? "#FFD700" : "#fff"}
-                  fill={flash === "on" ? "#fff" : "none"}
-                />
+                <Zap size={22} color={flash === "auto" ? "#FFD700" : "#fff"} fill={flash === "on" ? "#fff" : "none"} />
                 {flash === "auto" && <Text style={s.flashA}>A</Text>}
               </View>
             )}
@@ -401,11 +301,7 @@ export function CameraScreen({
           {showGallery && (
             <Pressable onPress={onGalleryPress} style={s.galleryBtn}>
               {lastGalleryThumb ? (
-                <Image
-                  source={{ uri: lastGalleryThumb }}
-                  style={s.galleryThumb}
-                  contentFit="cover"
-                />
+                <Image source={{ uri: lastGalleryThumb }} style={s.galleryThumb} contentFit="cover" />
               ) : (
                 <ImageIcon size={24} color="#fff" />
               )}
@@ -414,11 +310,7 @@ export function CameraScreen({
         </View>
 
         {/* Capture */}
-        <Pressable
-          onPress={handleCapture}
-          disabled={isTakingPhoto}
-          style={s.captureOuter}
-        >
+        <Pressable onPress={handleCapture} disabled={isTakingPhoto} style={s.captureOuter}>
           {mode === "photo" ? (
             <View style={s.capturePhoto}>
               {isTakingPhoto && <ActivityIndicator size="small" color="#000" />}
@@ -444,13 +336,7 @@ export function CameraScreen({
       {allowedModes.length > 1 && !isRecording && (
         <View style={[s.modeBar, { bottom: insets.bottom + 100 }]}>
           {allowedModes.map((m) => (
-            <Pressable
-              key={m}
-              onPress={() => {
-                setMode(m);
-                Haptics.selectionAsync();
-              }}
-            >
+            <Pressable key={m} onPress={() => { setMode(m); Haptics.selectionAsync(); }}>
               <Text style={[s.modeText, mode === m && s.modeActive]}>
                 {m === "photo" ? "PHOTO" : "VIDEO"}
               </Text>
@@ -466,147 +352,28 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   permText: { color: "#999", fontSize: 16, textAlign: "center", marginTop: 12 },
-  permBtn: {
-    backgroundColor: "#3EA4E5",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
+  permBtn: { backgroundColor: "#3EA4E5", paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   permBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
   cameraWrap: { flex: 1, borderRadius: 20, overflow: "hidden", margin: 4 },
-  recBadge: {
-    position: "absolute",
-    alignSelf: "center",
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    gap: 6,
-  },
+  recBadge: { position: "absolute", alignSelf: "center", flexDirection: "row", alignItems: "center", backgroundColor: "rgba(0,0,0,0.6)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, gap: 6 },
   recDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#ef4444" },
-  recText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
+  recText: { color: "#fff", fontSize: 16, fontWeight: "700", fontVariant: ["tabular-nums"] },
   recMax: { color: "rgba(255,255,255,0.5)", fontSize: 14 },
-  topBar: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  topBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  topBar: { position: "absolute", left: 16, right: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  topBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
   topRight: { flexDirection: "row", gap: 10 },
-  flashA: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    color: "#FFD700",
-    fontSize: 10,
-    fontWeight: "800",
-  },
-  bottomBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 32,
-  },
+  flashA: { position: "absolute", bottom: -2, right: -2, color: "#FFD700", fontSize: 10, fontWeight: "800" },
+  bottomBar: { position: "absolute", bottom: 0, left: 0, right: 0, flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 32 },
   bottomSide: { width: 48, alignItems: "center" },
-  galleryBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.3)",
-  },
+  galleryBtn: { width: 48, height: 48, borderRadius: 10, overflow: "hidden", borderWidth: 2, borderColor: "rgba(255,255,255,0.4)", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.3)" },
   galleryThumb: { width: "100%", height: "100%" },
-  captureOuter: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    borderColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  capturePhoto: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#fff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  captureVideo: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#ef4444",
-  },
-  captureRecording: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#ef4444",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stopSquare: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    backgroundColor: "#fff",
-  },
-  flipBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modeBar: {
-    position: "absolute",
-    alignSelf: "center",
-    flexDirection: "row",
-    gap: 24,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  modeText: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 1,
-  },
+  captureOuter: { width: 80, height: 80, borderRadius: 40, borderWidth: 4, borderColor: "#fff", alignItems: "center", justifyContent: "center" },
+  capturePhoto: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  captureVideo: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#ef4444" },
+  captureRecording: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#ef4444", alignItems: "center", justifyContent: "center" },
+  stopSquare: { width: 24, height: 24, borderRadius: 4, backgroundColor: "#fff" },
+  flipBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
+  modeBar: { position: "absolute", alignSelf: "center", flexDirection: "row", gap: 24, backgroundColor: "rgba(0,0,0,0.4)", paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
+  modeText: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "700", letterSpacing: 1 },
   modeActive: { color: "#fff" },
-  screenFlash: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#FFFDE7",
-    opacity: 0.92,
-    zIndex: 999,
-  },
 });
