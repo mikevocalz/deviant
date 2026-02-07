@@ -17,7 +17,6 @@
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   ActivityIndicator,
   Dimensions,
@@ -43,6 +42,7 @@ import {
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
+import { Input } from "@/components/ui/input";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -484,45 +484,38 @@ export default function EditPostScreen() {
           }}
           className="px-4 pt-5 pb-3"
         >
-          <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Caption
-          </Text>
-          <View
-            className="rounded-2xl bg-card border border-border overflow-hidden"
-            style={{ minHeight: 140 }}
-          >
-            <TextInput
-              value={caption}
-              onChangeText={setCaption}
-              placeholder="Write a caption..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              multiline
-              maxLength={MAX_CAPTION + 100}
-              textAlignVertical="top"
-              className="px-4 pt-4 pb-3 text-foreground text-[15px] leading-[22px]"
-              style={{ minHeight: 120, color: "#fff" }}
-            />
-            <View className="flex-row items-center justify-between px-4 pb-3">
-              <View className="flex-row items-center gap-1.5">
-                {captionOverLimit && <AlertCircle size={12} color="#ef4444" />}
-                <Text
-                  className={`text-xs ${
-                    captionOverLimit
-                      ? "text-red-400 font-semibold"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  {caption.length.toLocaleString()}/
-                  {MAX_CAPTION.toLocaleString()}
-                </Text>
-              </View>
-              {/* Hashtag count */}
-              {caption.includes("#") && (
-                <Text className="text-xs text-primary/60">
-                  {(caption.match(/#\w+/g) || []).length} hashtags
-                </Text>
-              )}
-            </View>
+          <Input
+            label="CAPTION"
+            labelClassName="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+            value={caption}
+            onChangeText={setCaption}
+            placeholder="Write a caption..."
+            multiline
+            maxLength={MAX_CAPTION + 100}
+            textAlignVertical="top"
+            className="pt-3 pb-2 text-[15px] leading-[22px]"
+            style={{ minHeight: 120 }}
+            error={
+              captionOverLimit
+                ? `Caption exceeds ${MAX_CAPTION.toLocaleString()} characters`
+                : undefined
+            }
+          />
+          <View className="flex-row items-center justify-between mt-1.5">
+            <Text
+              className={`text-xs ${
+                captionOverLimit
+                  ? "text-red-400 font-semibold"
+                  : "text-muted-foreground"
+              }`}
+            >
+              {caption.length.toLocaleString()}/{MAX_CAPTION.toLocaleString()}
+            </Text>
+            {caption.includes("#") && (
+              <Text className="text-xs text-primary/60">
+                {(caption.match(/#\w+/g) || []).length} hashtags
+              </Text>
+            )}
           </View>
 
           {/* Extracted hashtags preview */}
@@ -566,30 +559,27 @@ export default function EditPostScreen() {
           }}
           className="px-4 pb-3"
         >
-          <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Location
-          </Text>
-          <View className="flex-row items-center rounded-2xl bg-card border border-border px-4 py-3.5">
-            <MapPin size={18} color="rgba(255,255,255,0.35)" />
-            <TextInput
-              value={location}
-              onChangeText={setLocation}
-              placeholder="Add a location..."
-              placeholderTextColor="rgba(255,255,255,0.3)"
-              className="flex-1 ml-3 text-foreground text-[15px]"
-              style={{ color: "#fff" }}
-              returnKeyType="done"
-            />
-            {location.length > 0 && (
-              <Pressable
-                onPress={() => setLocation("")}
-                hitSlop={8}
-                className="ml-2 w-6 h-6 rounded-full bg-white/10 items-center justify-center"
-              >
-                <X size={12} color="rgba(255,255,255,0.5)" />
-              </Pressable>
-            )}
-          </View>
+          <Input
+            label="LOCATION"
+            labelClassName="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+            value={location}
+            onChangeText={setLocation}
+            placeholder="Add a location..."
+            leftIcon={<MapPin size={18} color="rgba(255,255,255,0.35)" />}
+            rightIcon={
+              location.length > 0 ? (
+                <Pressable
+                  onPress={() => setLocation("")}
+                  hitSlop={8}
+                  className="w-6 h-6 rounded-full bg-white/10 items-center justify-center"
+                >
+                  <X size={12} color="rgba(255,255,255,0.5)" />
+                </Pressable>
+              ) : undefined
+            }
+            className="text-[15px]"
+            returnKeyType="done"
+          />
         </Motion.View>
 
         {/* ─── Info Banner ─── */}
