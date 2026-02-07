@@ -31,6 +31,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
+import * as MediaLibrary from "expo-media-library";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
@@ -474,27 +475,21 @@ export default function CreateStoryScreen() {
                   </View>
                 ) : (
                   <View className="flex-1">
-                    <Image
-                      source={{ uri: currentMedia }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                    {/* Tap anywhere to open editor (background layer — z-0) */}
+                    {/* Tap image to open full editor */}
                     <Pressable
                       onPress={() => handleEditImage(currentIndex)}
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        zIndex: 0,
-                      }}
-                    />
-                    {/* Instagram-style vertical toolbar on right (z-10, above background) */}
+                      style={{ flex: 1 }}
+                    >
+                      <Image
+                        source={{ uri: currentMedia }}
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                      />
+                    </Pressable>
+                    {/* Instagram-style vertical toolbar on right */}
                     <View
                       className="absolute right-3 top-10 gap-3"
-                      style={{ zIndex: 10, elevation: 10 }}
+                      pointerEvents="box-none"
                     >
                       {CREATIVE_TOOLS.map((tool) => (
                         <Pressable
@@ -504,11 +499,37 @@ export default function CreateStoryScreen() {
                               Haptics.ImpactFeedbackStyle.Light,
                             );
                             if (tool.id === "save") {
-                              showToast(
-                                "info",
-                                "Save",
-                                "Image saved to gallery",
-                              );
+                              (async () => {
+                                try {
+                                  const asset = mediaAssets[currentIndex];
+                                  if (!asset) return;
+                                  const { status } =
+                                    await MediaLibrary.requestPermissionsAsync();
+                                  if (status !== "granted") {
+                                    showToast(
+                                      "error",
+                                      "Permission Denied",
+                                      "Allow photo library access to save",
+                                    );
+                                    return;
+                                  }
+                                  await MediaLibrary.saveToLibraryAsync(
+                                    asset.uri,
+                                  );
+                                  showToast(
+                                    "success",
+                                    "Saved",
+                                    "Image saved to gallery",
+                                  );
+                                } catch (e) {
+                                  console.warn("[Story] Save failed:", e);
+                                  showToast(
+                                    "error",
+                                    "Error",
+                                    "Failed to save image",
+                                  );
+                                }
+                              })();
                             } else if (tool.id === "text") {
                               handleEditImage(currentIndex, "text");
                             } else if (tool.id === "stickers") {
