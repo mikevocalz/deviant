@@ -52,6 +52,7 @@ export const DB = {
     id: "id",
     authorId: "author_id",
     mediaId: "media_id",
+    thumbnailId: "thumbnail_id",
     caption: "caption",
     location: "location",
     visibility: "visibility",

@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +31,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -66,7 +70,11 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -94,7 +102,11 @@ serve(async (req: Request) => {
 
     const { targetUserId } = body;
     if (!targetUserId || typeof targetUserId !== "number") {
-      return errorResponse("validation_error", "targetUserId is required and must be a number", 400);
+      return errorResponse(
+        "validation_error",
+        "targetUserId is required and must be a number",
+        400,
+      );
     }
 
     // Get user's integer ID
@@ -142,7 +154,9 @@ serve(async (req: Request) => {
 
       // Update counts
       await supabaseAdmin.rpc("decrement_following_count", { user_id: userId });
-      await supabaseAdmin.rpc("decrement_followers_count", { user_id: targetUserId });
+      await supabaseAdmin.rpc("decrement_followers_count", {
+        user_id: targetUserId,
+      });
       following = false;
     } else {
       // Follow
@@ -157,8 +171,76 @@ serve(async (req: Request) => {
 
       // Update counts
       await supabaseAdmin.rpc("increment_following_count", { user_id: userId });
-      await supabaseAdmin.rpc("increment_followers_count", { user_id: targetUserId });
+      await supabaseAdmin.rpc("increment_followers_count", {
+        user_id: targetUserId,
+      });
       following = true;
+
+      // ── Send follow notification to target user (fire-and-forget) ──
+      try {
+        // Get follower's username for the notification message
+        const { data: followerData } = await supabaseAdmin
+          .from("users")
+          .select("username, avatar_id(url)")
+          .eq("id", userId)
+          .single();
+
+        const followerUsername = followerData?.username || "Someone";
+        const followerAvatar = (followerData?.avatar_id as any)?.url || "";
+
+        // 1. Insert into notifications table
+        await supabaseAdmin.from("notifications").insert({
+          recipient_id: targetUserId,
+          actor_id: userId,
+          type: "follow",
+          entity_type: "user",
+          entity_id: String(userId),
+        });
+
+        // 2. Send Expo push notification
+        const { data: tokens } = await supabaseAdmin
+          .from("push_tokens")
+          .select("token")
+          .eq("user_id", targetUserId);
+
+        if (tokens && tokens.length > 0) {
+          const messages = tokens.map((t: { token: string }) => ({
+            to: t.token,
+            title: "New Follower",
+            body: `${followerUsername} started following you`,
+            data: {
+              type: "follow",
+              senderId: String(userId),
+              senderUsername: followerUsername,
+              senderAvatar: followerAvatar,
+              entityType: "user",
+              entityId: String(userId),
+            },
+            sound: "default",
+            channelId: "default",
+          }));
+
+          await fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(messages),
+          });
+          console.log(
+            "[Edge:toggle-follow] Push notification sent to",
+            tokens.length,
+            "device(s)",
+          );
+        }
+      } catch (notifErr) {
+        // Don't fail the follow if notification fails
+        console.error(
+          "[Edge:toggle-follow] Notification error (non-fatal):",
+          notifErr,
+        );
+      }
     }
 
     console.log("[Edge:toggle-follow] Result:", { following });

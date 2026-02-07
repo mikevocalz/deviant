@@ -63,6 +63,7 @@ export type Story = {
     id?: string;
     type: "image" | "video" | "text";
     url?: string;
+    thumbnail?: string;
     text?: string;
     textColor?: string;
     backgroundColor?: string;

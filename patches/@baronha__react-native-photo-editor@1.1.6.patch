@@ -11,6 +11,20 @@ index 1234567..abcdefg 100644
      if (activity == null) {
        promise.reject("ACTIVITY_DOES_NOT_EXIST", "Activity doesn't exist");
        return;
+@@ -31,9 +31,13 @@ class PhotoEditorModule(reactContext: ReactApplicationContext) : ReactContextBase
+ 
+     val path = options?.getString("path")
+     val stickers = options?.getArray("stickers") as ReadableArray
++    val initialTool = if (options?.hasKey("initialTool") == true) options.getString("initialTool") else null
+ 
+     intent.putExtra("path", path)
+     intent.putExtra("stickers", stickers.toArrayList())
++    if (initialTool != null) {
++      intent.putExtra("initialTool", initialTool)
++    }
+ 
+     activity.startActivityForResult(intent, EDIT_SUCCESSFUL)
+   }
 diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
 index 2f10101980250a6aa8bedccbb61b2d8407c339b6..303df1eb04aaf8410d17fd3f77c8a03ee976cb22 100644
 --- a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
@@ -78,7 +92,7 @@ index 0c1e923c856731a18b947710c8dc13c052476ccb..df0bf55537b7d3275aaadc9b02700da6
          ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
  
 diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
-index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..793fe8c084e38d6a97f72e5b27261b2937eb4963 100644
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..abcdef1234567890abcdef1234567890abcdef12 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 +++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
 @@ -265,6 +265,36 @@ public class ZLEditImageViewController: UIViewController {
@@ -118,6 +132,26 @@ index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..793fe8c084e38d6a97f72e5b27261b29
      }
      
      public override func viewDidLayoutSubviews() {
++@@ -396,6 +426,10 @@ public class ZLEditImageViewController: UIViewController {
++        self.drawingImageView.frame = self.imageView.frame
++        self.stickersContainer.frame = self.imageView.frame
++        
+++        // Ensure overlays are always above the image
+++        self.containerView.bringSubviewToFront(self.drawingImageView)
+++        self.containerView.bringSubviewToFront(self.stickersContainer)
+++        
++        // Optimization for long pictures.
++@@ -438,6 +472,11 @@ public class ZLEditImageViewController: UIViewController {
++ 
++        self.stickersContainer = UIView()
+++        self.stickersContainer.isUserInteractionEnabled = true
++        self.containerView.addSubview(self.stickersContainer)
++        
+++        // Ensure drawing and sticker overlays are always above the image view
+++        self.containerView.bringSubviewToFront(self.drawingImageView)
+++        self.containerView.bringSubviewToFront(self.stickersContainer)
+++        
++        let color1 = UIColor.black.withAlphaComponent(0.35).cgColor
 diff --git a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
 index b49b33d405ee2b6dcc962add20bb75c6163de1d8..95b26230e81003332230573b05e319e127270f99 100644
 --- a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift

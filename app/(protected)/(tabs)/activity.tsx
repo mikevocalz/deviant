@@ -3,7 +3,8 @@ import { FlashList } from "@shopify/flash-list";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useCallback, useEffect, memo, useState } from "react";
+import { useCallback, useEffect, memo, useState, useRef } from "react";
+import { useFocusEffect } from "expo-router";
 import {
   Heart,
   MessageCircle,
@@ -168,14 +169,26 @@ export default function ActivityScreen() {
   const isLoading = loadingScreens.activity;
   const unreadCount = getUnreadCount();
 
+  const hasLoadedOnce = useRef(false);
+
   useEffect(() => {
     const loadActivities = async () => {
       await new Promise((resolve) => setTimeout(resolve, 800));
       loadInitialActivities();
       setScreenLoading("activity", false);
+      hasLoadedOnce.current = true;
     };
     loadActivities();
   }, [loadInitialActivities, setScreenLoading]);
+
+  // Refetch when tab is focused (ensures new follow notifications appear)
+  useFocusEffect(
+    useCallback(() => {
+      if (hasLoadedOnce.current) {
+        fetchFromBackend();
+      }
+    }, [fetchFromBackend]),
+  );
 
   const filteredActivities = activities.filter((activity) => {
     if (activeTab === "All") return true;

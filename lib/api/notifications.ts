@@ -47,18 +47,23 @@ export interface Notification {
 export const notificationsApi = {
   /**
    * Get notifications for current user
+   * DB schema: recipient_id (int), actor_id (int) → users(id), type enum, entity_type enum, entity_id varchar, read_at timestamp
    */
   async getNotifications(limit: number = 50) {
     try {
       const userId = getCurrentUserIdInt();
       if (!userId) return { docs: [], totalDocs: 0 };
 
-      // Note: This assumes a 'notifications' table exists
       const { data, error, count } = await supabase
         .from("notifications")
         .select(
           `
-          *,
+          id,
+          type,
+          entity_type,
+          entity_id,
+          read_at,
+          created_at,
           actor:actor_id(
             id,
             username,
@@ -67,24 +72,49 @@ export const notificationsApi = {
         `,
           { count: "exact" },
         )
-        .eq("user_id", userId)
+        .eq("recipient_id", userId)
         .order("created_at", { ascending: false })
         .limit(limit);
 
       if (error) {
-        console.log(
-          "[Notifications] getNotifications - table may not exist:",
+        console.error(
+          "[Notifications] getNotifications error:",
           error.message,
+          error.details,
+          error.hint,
         );
         return { docs: [], totalDocs: 0 };
+      }
+
+      console.log(
+        "[Notifications] Raw data count:",
+        data?.length,
+        "for userId:",
+        userId,
+      );
+      if (data?.length) {
+        console.log(
+          "[Notifications] Types:",
+          data.map((n: any) => n.type).join(", "),
+        );
       }
 
       const docs = (data || []).map((n: any) => ({
         id: String(n.id),
         type: n.type,
-        message: n.message,
-        read: n.read || false,
+        message: "",
+        read: !!n.read_at,
+        readAt: n.read_at || undefined,
         createdAt: n.created_at,
+        entityType: n.entity_type || undefined,
+        entityId: n.entity_id || undefined,
+        sender: n.actor
+          ? {
+              id: String(n.actor.id),
+              username: n.actor.username,
+              avatar: n.actor.avatar?.url || "",
+            }
+          : null,
         actor: n.actor
           ? {
               id: String(n.actor.id),
@@ -92,8 +122,8 @@ export const notificationsApi = {
               avatar: n.actor.avatar?.url || "",
             }
           : null,
-        postId: n.post_id ? String(n.post_id) : null,
-        commentId: n.comment_id ? String(n.comment_id) : null,
+        postId: n.entity_type === "post" ? n.entity_id : null,
+        commentId: n.entity_type === "comment" ? n.entity_id : null,
       }));
 
       return { docs, totalDocs: count || 0 };
@@ -110,8 +140,8 @@ export const notificationsApi = {
     try {
       const { error } = await supabase
         .from("notifications")
-        .update({ read: true })
-        .eq("id", notificationId);
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", parseInt(notificationId));
 
       if (error) throw error;
       return { success: true };
@@ -131,8 +161,9 @@ export const notificationsApi = {
 
       const { error } = await supabase
         .from("notifications")
-        .update({ read: true })
-        .eq("user_id", userId);
+        .update({ read_at: new Date().toISOString() })
+        .eq("recipient_id", userId)
+        .is("read_at", null);
 
       if (error) throw error;
       return { success: true };
@@ -160,8 +191,8 @@ export const notificationsApi = {
       const { count: unread } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("read", false);
+        .eq("recipient_id", userId)
+        .is("read_at", null);
 
       return { unread: unread || 0, total: 0 };
     } catch (error) {

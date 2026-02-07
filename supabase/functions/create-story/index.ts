@@ -63,6 +63,7 @@ interface CreateStoryBody {
   mediaType: "image" | "video";
   visibility?: "public" | "followers" | "close_friends";
   duration?: number;
+  thumbnailUrl?: string;
 }
 
 serve(async (req: Request) => {
@@ -107,7 +108,7 @@ serve(async (req: Request) => {
       return errorResponse("validation_error", "Invalid JSON body", 400);
     }
 
-    const { mediaUrl, mediaType, visibility, duration } = body;
+    const { mediaUrl, mediaType, visibility, duration, thumbnailUrl } = body;
 
     if (!mediaUrl || typeof mediaUrl !== "string") {
       return errorResponse("validation_error", "mediaUrl is required", 400);
@@ -158,15 +159,41 @@ serve(async (req: Request) => {
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24);
 
+    // Create thumbnail media record if provided (for video stories)
+    let thumbnailMediaId: number | null = null;
+    if (thumbnailUrl) {
+      const { data: thumbRecord, error: thumbError } = await supabaseAdmin
+        .from("media")
+        .insert({
+          url: thumbnailUrl,
+          mime_type: "image/jpeg",
+        })
+        .select()
+        .single();
+
+      if (!thumbError && thumbRecord) {
+        thumbnailMediaId = thumbRecord.id;
+        console.log(
+          "[Edge:create-story] Thumbnail media created:",
+          thumbnailMediaId,
+        );
+      }
+    }
+
     // Create story
+    const storyInsert: Record<string, unknown> = {
+      author_id: odUserId,
+      media_id: mediaRecord.id,
+      expires_at: expiresAt.toISOString(),
+      visibility: visibility || "public",
+    };
+    if (thumbnailMediaId) {
+      storyInsert.thumbnail_id = thumbnailMediaId;
+    }
+
     const { data: story, error: storyError } = await supabaseAdmin
       .from("stories")
-      .insert({
-        author_id: odUserId,
-        media_id: mediaRecord.id,
-        expires_at: expiresAt.toISOString(),
-        visibility: visibility || "public",
-      })
+      .insert(storyInsert)
       .select()
       .single();
 

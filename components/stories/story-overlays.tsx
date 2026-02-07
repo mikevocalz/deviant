@@ -243,6 +243,9 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
           storyMediaUrl: item.story_image || "",
           storyUsername: customData.username || "",
           storyAvatar: customData.avatar || "",
+          storyExpiresAt: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
         },
       });
 

@@ -171,7 +171,12 @@ export function StoriesBar() {
                     hasStory={true}
                     isViewed={myStory.isViewed}
                     isCloseFriends={myStory.hasCloseFriendsStory}
-                    storyThumbnail={myStory.items?.[0]?.url}
+                    storyThumbnail={
+                      myStory.items?.[0]?.type === "video"
+                        ? myStory.items?.[0]?.thumbnail ||
+                          myStory.items?.[0]?.url
+                        : myStory.items?.[0]?.url
+                    }
                   />
                 </Pressable>
                 {/* Add button overlay - tap to add new story */}

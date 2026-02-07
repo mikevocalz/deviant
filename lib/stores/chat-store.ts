@@ -122,12 +122,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         if (meta && meta.type === "story_reply") {
           // New format: metadata JSONB column from backend
+          // Stories expire after 24h — check if the story is still active
+          const storyExpired = meta.storyExpiresAt
+            ? new Date(meta.storyExpiresAt) < new Date()
+            : false; // Default to not expired if no expiry info
           storyReply = {
             storyId: meta.storyId || "",
             storyMediaUrl: meta.storyMediaUrl || undefined,
             storyUsername: meta.storyUsername || "",
             storyAvatar: meta.storyAvatar || undefined,
-            isExpired: !meta.storyMediaUrl,
+            isExpired: storyExpired,
           };
         } else {
           // Legacy fallback: parse "📷 Replied to your story: " prefix

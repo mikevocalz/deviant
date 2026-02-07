@@ -34,7 +34,8 @@ export const storiesApi = {
         .select(
           `
           *,
-          media:${DB.stories.mediaId}(url)
+          media:${DB.stories.mediaId}(url, mime_type),
+          thumbnail:${DB.stories.thumbnailId}(url)
         `,
         )
         .gt(DB.stories.expiresAt, now)
@@ -112,11 +113,19 @@ export const storiesApi = {
 
         const mediaUrl = story.media?.url;
         if (mediaUrl) {
+          const mimeType = story.media?.mime_type || "";
+          const isVideo =
+            mimeType.startsWith("video/") ||
+            mediaUrl.endsWith(".mp4") ||
+            mediaUrl.endsWith(".mov") ||
+            mediaUrl.includes("/video/");
+          const thumbnailUrl = story.thumbnail?.url || undefined;
           storiesByAuthor.get(authorId).items.push({
             id: String(story[DB.stories.id]),
             url: mediaUrl,
-            type: story.media ? "image" : "text",
-            duration: 5000,
+            thumbnail: thumbnailUrl,
+            type: isVideo ? "video" : "image",
+            duration: isVideo ? 30000 : 5000,
             visibility,
             header: {
               heading: author?.[DB.users.username] || "unknown",
@@ -143,6 +152,7 @@ export const storiesApi = {
     items: Array<{
       type: string;
       url?: string;
+      thumbnail?: string;
       text?: string;
       textColor?: string;
       backgroundColor?: string;
@@ -172,9 +182,10 @@ export const storiesApi = {
           continue;
         }
 
+        const thumbnailUrl = item.thumbnail || undefined;
         const { data: response, error } =
           await supabase.functions.invoke<CreateStoryResponse>("create-story", {
-            body: { mediaUrl, mediaType, visibility },
+            body: { mediaUrl, mediaType, visibility, thumbnailUrl },
             headers: { Authorization: `Bearer ${token}` },
           });
 

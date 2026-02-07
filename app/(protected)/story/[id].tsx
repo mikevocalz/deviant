@@ -546,15 +546,24 @@ export default function StoryViewerScreen() {
 
       // Send reply with story context as metadata for StoryReplyBubble rendering
       const currentItem = story.items?.[currentItemIndex];
+      // For video stories, use thumbnail if available for the preview image
+      const previewUrl =
+        currentItem?.type === "video"
+          ? currentItem?.thumbnail || currentItem?.url || ""
+          : currentItem?.url || "";
       const message = await messagesApiClient.sendMessage({
         conversationId: conversationId,
         content: replyText.trim(),
         metadata: {
           type: "story_reply",
           storyId: story.id || "",
-          storyMediaUrl: currentItem?.url || "",
+          storyMediaUrl: previewUrl,
           storyUsername: story.username || "",
           storyAvatar: story.avatar || "",
+          // Story expires 24h after creation — pass expiry so chat can show/hide preview
+          storyExpiresAt: new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString(),
         },
       });
 
@@ -741,39 +750,25 @@ export default function StoryViewerScreen() {
         </Pressable>
       </View>
 
-      {/* Content */}
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+      {/* Content — full screen behind header */}
+      <View style={{ flex: 1 }}>
         {isVideo && videoUrl && player ? (
-          <View style={{ width, height: height * 0.7 }}>
-            {videoUrl ? (
-              <>
-                <VideoView
-                  player={player}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="contain"
-                  nativeControls={false}
-                  allowsFullscreen={false}
-                  allowsPictureInPicture={false}
-                />
-                <VideoSeekBar
-                  currentTime={videoCurrentTime}
-                  duration={videoDuration}
-                  onSeek={handleSeek}
-                  visible={showSeekBar}
-                  barWidth={width - 32}
-                />
-              </>
-            ) : (
-              <View
-                style={{
-                  flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-              >
-                <Text style={{ color: "#fff" }}>Invalid video URL</Text>
-              </View>
-            )}
+          <View style={{ flex: 1 }}>
+            <VideoView
+              player={player}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              nativeControls={false}
+              allowsFullscreen={false}
+              allowsPictureInPicture={false}
+            />
+            <VideoSeekBar
+              currentTime={videoCurrentTime}
+              duration={videoDuration}
+              onSeek={handleSeek}
+              visible={showSeekBar}
+              barWidth={width - 32}
+            />
           </View>
         ) : isImage &&
           currentItem?.url &&
@@ -781,16 +776,15 @@ export default function StoryViewerScreen() {
             currentItem.url.startsWith("https://")) ? (
           <Image
             source={{ uri: currentItem.url }}
-            style={{ width, height: height * 0.7 }}
-            contentFit="contain"
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
             transition={200}
             cachePolicy="memory-disk"
           />
         ) : currentItem?.type === "text" ? (
           <View
             style={{
-              width,
-              height: height * 0.7,
+              flex: 1,
               justifyContent: "center",
               alignItems: "center",
               padding: 20,
@@ -810,8 +804,7 @@ export default function StoryViewerScreen() {
         ) : (
           <View
             style={{
-              width,
-              height: height * 0.7,
+              flex: 1,
               justifyContent: "center",
               alignItems: "center",
             }}

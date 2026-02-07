@@ -1,6 +1,6 @@
 /**
  * Send Push Notification Edge Function
- * 
+ *
  * Sends Expo push notifications to users
  * Called by database triggers or directly from the app
  */
@@ -15,7 +15,14 @@ interface PushNotificationPayload {
   title: string;
   body: string;
   data?: Record<string, unknown>;
-  type: "follow" | "like" | "comment" | "mention" | "message" | "event_invite" | "event_update";
+  type:
+    | "follow"
+    | "like"
+    | "comment"
+    | "mention"
+    | "message"
+    | "event_invite"
+    | "event_update";
 }
 
 interface ExpoPushMessage {
@@ -43,7 +50,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const payload: PushNotificationPayload = await req.json();
@@ -51,48 +58,65 @@ serve(async (req) => {
 
     if (!userId || !title || !body || !type) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: userId, title, body, type" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          error: "Missing required fields: userId, title, body, type",
+        }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[send_notification] Sending ${type} notification to user ${userId}`);
+    // userId is the INTEGER user ID (users.id)
+    const recipientId = typeof userId === "string" ? parseInt(userId) : userId;
+    const actorId = data?.actorId
+      ? typeof data.actorId === "string"
+        ? parseInt(data.actorId as string)
+        : (data.actorId as number)
+      : null;
 
-    // 1. Get user's push tokens
+    console.log(
+      `[send_notification] Sending ${type} notification to user ${recipientId}`,
+    );
+
+    // 1. Get user's push tokens (push_tokens.user_id is INTEGER)
     const { data: tokens, error: tokenError } = await supabase
       .from("push_tokens")
       .select("token, platform")
-      .eq("user_id", userId);
+      .eq("user_id", recipientId);
 
     if (tokenError) {
       console.error("[send_notification] Error fetching tokens:", tokenError);
       return new Response(
         JSON.stringify({ error: "Failed to fetch push tokens" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
+        { status: 500, headers: { "Content-Type": "application/json" } },
       );
     }
 
     if (!tokens || tokens.length === 0) {
       console.log("[send_notification] No push tokens found for user");
       return new Response(
-        JSON.stringify({ ok: true, sent: 0, message: "No push tokens registered" }),
-        { headers: { "Content-Type": "application/json" } }
+        JSON.stringify({
+          ok: true,
+          sent: 0,
+          message: "No push tokens registered",
+        }),
+        { headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // 2. Store notification in database
-    const { error: notifError } = await supabase
-      .from("notifications")
-      .insert({
-        user_id: userId,
-        type,
-        title,
-        body,
-        data: data || {},
-      });
+    // 2. Store notification in database (matches actual schema)
+    const { error: notifError } = await supabase.from("notifications").insert({
+      recipient_id: recipientId,
+      actor_id: actorId,
+      type,
+      entity_type: data?.entityType || null,
+      entity_id: data?.entityId ? String(data.entityId) : null,
+    });
 
     if (notifError) {
-      console.error("[send_notification] Error storing notification:", notifError);
+      console.error(
+        "[send_notification] Error storing notification:",
+        notifError,
+      );
       // Continue anyway - push notification is more important
     }
 
@@ -110,17 +134,21 @@ serve(async (req) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        Accept: "application/json",
         "Accept-Encoding": "gzip, deflate",
       },
       body: JSON.stringify(messages),
     });
 
     const expoResult = await expoResponse.json();
-    console.log("[send_notification] Expo response:", JSON.stringify(expoResult));
+    console.log(
+      "[send_notification] Expo response:",
+      JSON.stringify(expoResult),
+    );
 
     // Check for errors in the response
-    const errors = expoResult.data?.filter((r: any) => r.status === "error") || [];
+    const errors =
+      expoResult.data?.filter((r: any) => r.status === "error") || [];
     if (errors.length > 0) {
       console.error("[send_notification] Some notifications failed:", errors);
     }
@@ -132,13 +160,13 @@ serve(async (req) => {
         failed: errors.length,
         errors: errors.map((e: any) => e.message),
       }),
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("[send_notification] Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });

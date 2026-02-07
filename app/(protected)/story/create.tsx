@@ -79,7 +79,11 @@ export default function CreateStoryScreen() {
     useMediaPicker();
   const createStory = useCreateStory();
   const showToast = useUIStore((s) => s.showToast);
-  const { uploadMultiple } = useMediaUpload({ folder: "stories" });
+  const {
+    uploadMultiple,
+    progress: uploadProgress,
+    statusMessage: uploadStatus,
+  } = useMediaUpload({ folder: "stories" });
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 
@@ -87,7 +91,6 @@ export default function CreateStoryScreen() {
   const [visibility, setVisibility] = useState<"public" | "close_friends">(
     "public",
   );
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [videoThumbnails, setVideoThumbnails] = useState<
     Record<string, string>
   >({});
@@ -331,6 +334,7 @@ export default function CreateStoryScreen() {
       const storyItems = uploadResults.map((r) => ({
         type: r.type,
         url: r.url,
+        thumbnail: r.thumbnail,
       }));
 
       createStory.mutate(
@@ -442,9 +446,10 @@ export default function CreateStoryScreen() {
               />
             </View>
             <Text className="text-white text-sm font-medium text-center mt-3">
-              {uploadProgress < 100
-                ? `Uploading... ${uploadProgress}%`
-                : "Processing..."}
+              {uploadStatus ||
+                (uploadProgress < 100
+                  ? `Uploading... ${uploadProgress}%`
+                  : "Processing...")}
             </Text>
           </Motion.View>
         )}
