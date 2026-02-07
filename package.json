@@ -14,7 +14,7 @@
     "update:preview": "eas update --channel preview",
     "check:secrets": "npx ts-node scripts/check-secrets.ts",
     "check:guardrails": "npx ts-node scripts/check-secrets.ts",
-    "postinstall": "bash scripts/fix-rive-swift.sh && bash scripts/patch-insta-story.sh"
+    "postinstall": "bash scripts/fix-rive-swift.sh && bash scripts/patch-insta-story.sh && bash scripts/patch-photo-editor-luts.sh"
   },
   "dependencies": {
     "@baronha/react-native-photo-editor": "^1.1.6",

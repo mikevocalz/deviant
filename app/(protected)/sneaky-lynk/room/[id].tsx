@@ -365,6 +365,11 @@ export default function SneakyLynkRoomScreen() {
             isSpeaking={featuredSpeaker.isSpeaking}
             isLocalUser={isHost}
             isVideoEnabled={effectiveVideoOn}
+            videoTrack={
+              !isMockRoom && videoRoom.camera?.cameraStream
+                ? { stream: videoRoom.camera.cameraStream }
+                : undefined
+            }
           />
         )}
 

@@ -1,6 +1,7 @@
 /**
  * Video Stage Component
  * Featured speaker video with overlay info
+ * Uses Fishjam RTCView for rendering WebRTC video tracks
  */
 
 import React from "react";
@@ -8,7 +9,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BadgeCheck, Video } from "lucide-react-native";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import { RTCView } from "@fishjam-cloud/react-native-client";
 import type { SneakyUser } from "../types";
 
 interface FeaturedSpeaker {
@@ -23,7 +24,7 @@ interface VideoStageProps {
   isSpeaking: boolean;
   isLocalUser?: boolean;
   isVideoEnabled?: boolean;
-  remoteVideoTrack?: any; // Remote video track for non-local users
+  videoTrack?: any; // Fishjam video track (local or remote) with .stream
   onSelectSpeaker?: (userId: string) => void;
 }
 
@@ -44,19 +45,12 @@ export function VideoStage({
   isSpeaking,
   isLocalUser = false,
   isVideoEnabled = false,
-  remoteVideoTrack,
+  videoTrack,
   onSelectSpeaker,
 }: VideoStageProps) {
-  const frontDevice = useCameraDevice("front");
-
   if (!featuredSpeaker) return null;
 
-  // Show camera for local user with video enabled
-  // Permission is already handled by the parent before setting isVideoEnabled=true
-  const showLocalCamera = isLocalUser && isVideoEnabled && !!frontDevice;
-  // Show video for remote user with video (host or speaker with video on)
-  const showRemoteVideo =
-    !isLocalUser && featuredSpeaker.hasVideo && remoteVideoTrack;
+  const hasVideoStream = isVideoEnabled && videoTrack?.stream;
 
   return (
     <View className="px-4 mb-5">
@@ -66,27 +60,15 @@ export function VideoStage({
         }}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
-        {/* Show camera for local user, remote video for others with video, or avatar */}
-        {showLocalCamera ? (
-          <Camera
+        {/* Fishjam RTCView for video tracks (local or remote) */}
+        {hasVideoStream ? (
+          <RTCView
+            // @ts-expect-error - RTCView types may vary between versions
+            stream={videoTrack.stream}
             style={StyleSheet.absoluteFill}
-            device={frontDevice!}
-            isActive={true}
-            photo={false}
-            video={false}
+            objectFit="cover"
+            mirror={isLocalUser}
           />
-        ) : showRemoteVideo ? (
-          <View style={StyleSheet.absoluteFill} className="bg-card">
-            {/* Remote video would be rendered here via Fishjam VideoRendererView */}
-            <Image
-              source={{ uri: featuredSpeaker.user.avatar }}
-              className="w-full h-full"
-              contentFit="cover"
-            />
-            <View className="absolute top-4 left-4 bg-green-500/80 px-2 py-1 rounded-lg">
-              <Text className="text-white text-xs font-bold">VIDEO ON</Text>
-            </View>
-          </View>
         ) : (
           <Image
             source={{ uri: featuredSpeaker.user.avatar }}
