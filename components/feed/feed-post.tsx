@@ -465,8 +465,8 @@ function FeedPostComponent({
               onPress={handleProfilePress}
               style={{
                 position: "absolute",
-                top: 12,
-                right: 12,
+                top: 0,
+                left: 0,
                 zIndex: 50,
                 elevation: 50,
                 shadowColor: "#000",

@@ -7,6 +7,7 @@ import {
   RefreshControl,
   StyleSheet,
 } from "react-native";
+import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -100,9 +101,11 @@ function ConversationList({
         >
           <Pressable onPress={() => onProfilePress(item.user.username)}>
             <View className="relative">
-              <Image
-                source={{ uri: item.user.avatar }}
-                className="h-14 w-14 rounded-full"
+              <Avatar
+                uri={item.user.avatar}
+                username={item.user.username}
+                size={56}
+                variant="circle"
               />
               {item.unread && (
                 <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />

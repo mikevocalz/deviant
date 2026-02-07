@@ -630,60 +630,68 @@ export default function ChatScreen() {
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
-          renderItem={({ item }) => (
-            <View
-              className={`rounded-2xl mb-2 ${
-                item.sender === "me" ? "self-end" : "self-start"
-              }`}
-              style={{ maxWidth: "80%" }}
-            >
-              {item.media && (
-                <MediaMessage
-                  media={item.media}
-                  onPress={() => handleMediaPreview(item.media!)}
-                />
-              )}
-              {item.storyReply ? (
-                <View className="mb-1">
-                  <StoryReplyBubble
-                    storyReply={item.storyReply}
-                    replyText={item.text}
-                    isOwnMessage={item.sender === "me"}
+          renderItem={({ item }) => {
+            const isMe = item.sender === "me";
+            const bubble = (
+              <View style={{ maxWidth: "80%" }}>
+                {item.media && (
+                  <MediaMessage
+                    media={item.media}
+                    onPress={() => handleMediaPreview(item.media!)}
                   />
-                  <Text
-                    className={`text-[11px] mt-1 px-1 ${
-                      item.sender === "me"
-                        ? "text-foreground/70"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {item.time}
-                  </Text>
-                </View>
-              ) : (
-                <View
-                  className={`px-4 py-2.5 rounded-2xl ${
-                    item.sender === "me" ? "bg-primary" : "bg-secondary"
-                  }`}
-                >
-                  {item.text ? (
-                    <Text className="text-foreground text-[15px]">
-                      {renderMessageText(item.text, handleMentionPress)}
+                )}
+                {item.storyReply ? (
+                  <View className="mb-1">
+                    <StoryReplyBubble
+                      storyReply={item.storyReply}
+                      replyText={item.text}
+                      isOwnMessage={isMe}
+                    />
+                    <Text
+                      className={`text-[11px] mt-1 px-1 ${
+                        isMe ? "text-foreground/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.time}
                     </Text>
-                  ) : null}
-                  <Text
-                    className={`text-[11px] mt-1 ${
-                      item.sender === "me"
-                        ? "text-foreground/70"
-                        : "text-muted-foreground"
+                  </View>
+                ) : (
+                  <View
+                    className={`px-4 py-2.5 rounded-2xl ${
+                      isMe ? "bg-primary" : "bg-secondary"
                     }`}
                   >
-                    {item.time}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
+                    {item.text ? (
+                      <Text className="text-foreground text-[15px]">
+                        {renderMessageText(item.text, handleMentionPress)}
+                      </Text>
+                    ) : null}
+                    <Text
+                      className={`text-[11px] mt-1 ${
+                        isMe ? "text-foreground/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.time}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+
+            if (isMe) {
+              return <View className="self-end mb-2">{bubble}</View>;
+            }
+
+            return (
+              <View className="flex-row items-end gap-2 mb-2 self-start">
+                <Image
+                  source={{ uri: recipient?.avatar || "" }}
+                  style={{ width: 28, height: 28, borderRadius: 14 }}
+                />
+                {bubble}
+              </View>
+            );
+          }}
         />
 
         {/* Typing Indicator */}
@@ -725,7 +733,7 @@ export default function ChatScreen() {
             <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
               <Image
                 source={{ uri: pendingMedia.uri }}
-                className="w-12 h-12 rounded-lg"
+                style={{ width: 48, height: 48, borderRadius: 8 }}
                 contentFit="cover"
               />
               <View className="flex-1">
