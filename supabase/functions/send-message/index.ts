@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +31,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -66,7 +70,11 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -94,9 +102,17 @@ serve(async (req: Request) => {
 
     const { conversationId, content, mediaUrl } = body;
     if (!conversationId || typeof conversationId !== "number") {
-      return errorResponse("validation_error", "conversationId is required", 400);
+      return errorResponse(
+        "validation_error",
+        "conversationId is required",
+        400,
+      );
     }
-    if (!content || typeof content !== "string" || content.trim().length === 0) {
+    if (
+      !content ||
+      typeof content !== "string" ||
+      content.trim().length === 0
+    ) {
       return errorResponse("validation_error", "content is required", 400);
     }
 
@@ -114,27 +130,36 @@ serve(async (req: Request) => {
     const userId = userData.id;
 
     // Verify user is a member of the conversation
+    // conversations_rels.users_id is TEXT (auth_id), not integer
     const { data: membership } = await supabaseAdmin
       .from("conversations_rels")
       .select("id")
       .eq("parent_id", conversationId)
-      .eq("users_id", userId)
+      .eq("users_id", odUserId)
       .single();
 
     if (!membership) {
-      return errorResponse("forbidden", "You are not a member of this conversation", 403);
+      return errorResponse(
+        "forbidden",
+        "You are not a member of this conversation",
+        403,
+      );
     }
 
-    console.log("[Edge:send-message] User:", userId, "Conversation:", conversationId);
+    console.log(
+      "[Edge:send-message] User:",
+      userId,
+      "Conversation:",
+      conversationId,
+    );
 
-    // Insert message
+    // Insert message (messages.sender_id is integer, no media_url column exists)
     const { data: message, error: insertError } = await supabaseAdmin
       .from("messages")
       .insert({
         conversation_id: conversationId,
         sender_id: userId,
         content: content.trim(),
-        media_url: mediaUrl || null,
       })
       .select()
       .single();

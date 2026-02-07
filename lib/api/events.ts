@@ -421,12 +421,6 @@ export const eventsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) throw new Error("Not authenticated");
 
-      // Delete co-organizers first
-      await supabase
-        .from("event_co_organizers")
-        .delete()
-        .eq("event_id", parseInt(eventId));
-
       // Delete RSVPs
       await supabase
         .from(DB.eventRsvps.table)
@@ -460,19 +454,7 @@ export const eventsApi = {
         .eq(DB.events.id, parseInt(eventId))
         .single();
 
-      if (event && event[DB.events.hostId] === authId) {
-        return true;
-      }
-
-      // Check if user is co-organizer
-      const { data: coOrg } = await supabase
-        .from("event_co_organizers")
-        .select("id")
-        .eq("event_id", parseInt(eventId))
-        .eq("user_id", authId)
-        .single();
-
-      return !!coOrg;
+      return !!(event && event[DB.events.hostId] === authId);
     } catch (error) {
       return false;
     }
@@ -481,115 +463,27 @@ export const eventsApi = {
   /**
    * Add co-organizer to event (only host can add)
    */
-  async addCoOrganizer(eventId: string, coOrganizerUserId: string) {
-    try {
-      console.log("[Events] addCoOrganizer:", eventId, coOrganizerUserId);
-
-      const authId = await getCurrentUserAuthId();
-      if (!authId) throw new Error("Not authenticated");
-
-      // Verify user is the host (host_id is text/auth_id)
-      const { data: event } = await supabase
-        .from(DB.events.table)
-        .select(DB.events.hostId)
-        .eq(DB.events.id, parseInt(eventId))
-        .single();
-
-      if (!event || event[DB.events.hostId] !== authId) {
-        throw new Error("Only the host can add co-organizers");
-      }
-
-      // Add co-organizer
-      const { data, error } = await supabase
-        .from("event_co_organizers")
-        .insert({
-          event_id: parseInt(eventId),
-          user_id: coOrganizerUserId,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return { success: true, data };
-    } catch (error) {
-      console.error("[Events] addCoOrganizer error:", error);
-      throw error;
-    }
+  async addCoOrganizer(_eventId: string, _coOrganizerUserId: string) {
+    // event_co_organizers table not yet created in schema
+    console.warn("[Events] addCoOrganizer: not yet implemented");
+    throw new Error("Co-organizers not yet implemented");
   },
 
   /**
    * Remove co-organizer from event (only host can remove)
    */
-  async removeCoOrganizer(eventId: string, coOrganizerUserId: string) {
-    try {
-      console.log("[Events] removeCoOrganizer:", eventId, coOrganizerUserId);
-
-      const authId = await getCurrentUserAuthId();
-      if (!authId) throw new Error("Not authenticated");
-
-      // Verify user is the host (host_id is text/auth_id)
-      const { data: event } = await supabase
-        .from(DB.events.table)
-        .select(DB.events.hostId)
-        .eq(DB.events.id, parseInt(eventId))
-        .single();
-
-      if (!event || event[DB.events.hostId] !== authId) {
-        throw new Error("Only the host can remove co-organizers");
-      }
-
-      // Remove co-organizer
-      const { error } = await supabase
-        .from("event_co_organizers")
-        .delete()
-        .eq("event_id", parseInt(eventId))
-        .eq("user_id", coOrganizerUserId);
-
-      if (error) throw error;
-      return { success: true };
-    } catch (error) {
-      console.error("[Events] removeCoOrganizer error:", error);
-      throw error;
-    }
+  async removeCoOrganizer(_eventId: string, _coOrganizerUserId: string) {
+    // event_co_organizers table not yet created in schema
+    console.warn("[Events] removeCoOrganizer: not yet implemented");
+    throw new Error("Co-organizers not yet implemented");
   },
 
   /**
    * Get co-organizers for an event
    */
-  async getCoOrganizers(eventId: string) {
-    try {
-      const { data, error } = await supabase
-        .from("event_co_organizers")
-        .select(
-          `
-          user:user_id(
-            id,
-            username,
-            first_name,
-            avatar:avatar_id(url)
-          )
-        `,
-        )
-        .eq("event_id", parseInt(eventId));
-
-      if (error) {
-        console.log(
-          "[Events] getCoOrganizers - table may not exist:",
-          error.message,
-        );
-        return [];
-      }
-
-      return (data || []).map((co: any) => ({
-        id: String(co.user?.id),
-        username: co.user?.username || "unknown",
-        name: co.user?.first_name || co.user?.username || "Unknown",
-        avatar: co.user?.avatar?.url || "",
-      }));
-    } catch (error) {
-      console.error("[Events] getCoOrganizers error:", error);
-      return [];
-    }
+  async getCoOrganizers(_eventId: string) {
+    // event_co_organizers table not yet created in schema
+    return [];
   },
 
   /**

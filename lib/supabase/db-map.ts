@@ -142,7 +142,7 @@ export const DB = {
     conversationId: "conversation_id",
     senderId: "sender_id",
     content: "content",
-    read: "read",
+    readAt: "read_at",
     createdAt: "created_at",
   },
   media: {
