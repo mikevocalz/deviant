@@ -219,10 +219,18 @@ export function CameraScreen({
   }, [isRecording]);
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || isRecording) return;
+    if (!cameraRef.current || isRecording || !device) return;
+    if (!hasCamPerm || !hasMicPerm) {
+      console.warn("[Camera] Missing permissions for recording");
+      return;
+    }
+
     setIsRecording(true);
     setRecordDuration(0);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+
+    // Small delay to let the native camera session stabilize
+    await new Promise((r) => setTimeout(r, 100));
 
     recordingTimerRef.current = setInterval(() => {
       setRecordDuration((prev) => {
@@ -251,7 +259,16 @@ export function CameraScreen({
       setIsRecording(false);
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     }
-  }, [flash, isRecording, maxVideoDuration, onCapture, stopRecording]);
+  }, [
+    flash,
+    isRecording,
+    maxVideoDuration,
+    onCapture,
+    stopRecording,
+    device,
+    hasCamPerm,
+    hasMicPerm,
+  ]);
 
   const handleCapture = useCallback(() => {
     if (mode === "photo") handleTakePhoto();

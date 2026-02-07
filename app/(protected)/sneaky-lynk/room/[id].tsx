@@ -20,7 +20,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import React, { useEffect, useCallback, useRef } from "react";
-import { useCameraPermissions, useMicrophonePermissions } from "expo-camera";
+import {
+  useCameraPermission,
+  useMicrophonePermission,
+} from "react-native-vision-camera";
 import { useCamera, useMicrophone } from "@fishjam-cloud/react-native-client";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -82,9 +85,15 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   const fishjamMic = useMicrophone();
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
 
-  // expo-camera permissions for native CameraView preview
-  const [camPermission, requestCamPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  // VisionCamera permissions for native camera preview
+  const {
+    hasPermission: hasCamPermission,
+    requestPermission: requestCamPermission,
+  } = useCameraPermission();
+  const {
+    hasPermission: hasMicPermission,
+    requestPermission: requestMicPermission,
+  } = useMicrophonePermission();
 
   // Keep refs to the latest camera/mic so effects never use stale closures.
   const cameraRef = useRef(fishjamCamera);
@@ -118,7 +127,7 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
 
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !fishjamMic.isMicrophoneOn;
-  const effectiveVideoOn = localVideoOn && camPermission?.granted === true;
+  const effectiveVideoOn = localVideoOn && hasCamPermission;
 
   // Reset store on mount, request permissions
   useEffect(() => {

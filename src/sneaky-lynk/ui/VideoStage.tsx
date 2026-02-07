@@ -10,7 +10,10 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BadgeCheck, Video } from "lucide-react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
-import { CameraView } from "expo-camera";
+import {
+  Camera as VisionCamera,
+  useCameraDevice,
+} from "react-native-vision-camera";
 import type { SneakyUser } from "../types";
 
 interface FeaturedSpeaker {
@@ -137,16 +140,19 @@ function VideoPanel({
   useNativeCamera?: boolean;
 }) {
   const hasStream = videoTrack?.stream;
+  const frontDevice = useCameraDevice("front");
 
   // Determine what to render for video
   const renderVideo = () => {
-    // Native camera preview (expo-camera) — for local rooms without Fishjam connection
-    if (useNativeCamera && isLocal) {
+    // VisionCamera preview — for local rooms without Fishjam connection
+    if (useNativeCamera && isLocal && frontDevice) {
       return (
-        <CameraView
+        <VisionCamera
           style={StyleSheet.absoluteFill}
-          facing="front"
-          mirror={true}
+          device={frontDevice}
+          isActive={true}
+          photo={false}
+          video={false}
         />
       );
     }
@@ -209,6 +215,8 @@ export function VideoStage({
   useNativeCamera = false,
   onSelectSpeaker,
 }: VideoStageProps) {
+  const frontDevice = useCameraDevice("front");
+
   if (!featuredSpeaker) return null;
 
   const isDual = !!coHost;
@@ -274,11 +282,13 @@ export function VideoStage({
         onPress={() => onSelectSpeaker?.(featuredSpeaker.user.id)}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
-        {showNativeCamera ? (
-          <CameraView
+        {showNativeCamera && frontDevice ? (
+          <VisionCamera
             style={StyleSheet.absoluteFill}
-            facing="front"
-            mirror={true}
+            device={frontDevice}
+            isActive={true}
+            photo={false}
+            video={false}
           />
         ) : hasVideoStream ? (
           <RTCView
