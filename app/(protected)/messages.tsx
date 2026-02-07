@@ -28,8 +28,6 @@ import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
-import { mockSpaces } from "@/src/sneaky-lynk/mocks/data";
-import { LiveRoomCard } from "@/src/sneaky-lynk/ui";
 import PagerView from "react-native-pager-view";
 
 interface ConversationItem {
@@ -158,15 +156,6 @@ function SneakyLynkContent({
 }: {
   router: ReturnType<typeof useRouter>;
 }) {
-  const liveLynks = mockSpaces.filter((s) => s.isLive);
-
-  const handleRoomPress = useCallback(
-    (roomId: string) => {
-      router.push(`/(protected)/sneaky-lynk/room/${roomId}` as any);
-    },
-    [router],
-  );
-
   const handleCreateLynk = useCallback(() => {
     router.push("/(protected)/sneaky-lynk/create" as any);
   }, [router]);
@@ -187,29 +176,23 @@ function SneakyLynkContent({
         </TouchableOpacity>
       </View>
 
-      {/* Live Lynks List */}
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={lynkStyles.liveList}
-      >
-        {liveLynks.length > 0 ? (
-          liveLynks.map((space) => (
-            <LiveRoomCard
-              key={space.id}
-              space={space}
-              onPress={() => handleRoomPress(space.id)}
-            />
-          ))
-        ) : (
-          <View style={lynkStyles.emptyState}>
-            <Radio size={48} color="#6B7280" />
-            <Text style={lynkStyles.emptyTitle}>No Live Lynks</Text>
-            <Text style={lynkStyles.emptyText}>
-              Check back later for live conversations
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+      {/* Empty state — no live rooms yet */}
+      <View style={lynkStyles.emptyStateContainer}>
+        <View style={lynkStyles.emptyState}>
+          <Radio size={48} color="#6B7280" />
+          <Text style={lynkStyles.emptyTitle}>No Live Lynks</Text>
+          <Text style={lynkStyles.emptyText}>
+            Start a live conversation with friends
+          </Text>
+          <TouchableOpacity
+            style={lynkStyles.createLynkButton}
+            onPress={handleCreateLynk}
+          >
+            <Plus size={18} color="#fff" />
+            <Text style={lynkStyles.createLynkText}>Start a Lynk</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -253,8 +236,12 @@ const lynkStyles = StyleSheet.create({
     paddingBottom: 20,
     gap: 16,
   },
-  emptyState: {
+  emptyStateContainer: {
     flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyState: {
     alignItems: "center",
     justifyContent: "center",
     paddingTop: 80,
@@ -268,6 +255,22 @@ const lynkStyles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: "#6B7280",
+    textAlign: "center",
+  },
+  createLynkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FC253A",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  createLynkText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
   },
 });
 
