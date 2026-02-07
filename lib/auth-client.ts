@@ -37,7 +37,7 @@ export const authClient = createAuthClient({
       scheme: "dvnt",
       storagePrefix: "dvnt",
       storage: SecureStore,
-      cookiePrefix: ["dvnt", "better-auth"],
+      cookiePrefix: "better-auth",
     }),
     usernameClient(),
     passkeyClient(),

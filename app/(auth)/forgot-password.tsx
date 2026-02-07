@@ -25,7 +25,7 @@ export default function ForgotPasswordScreen() {
 
         const { error } = await (authClient as any).forgetPassword({
           email: value.email,
-          redirectTo: "/reset-password",
+          redirectTo: "dvnt://reset-password",
         });
 
         if (error) {
