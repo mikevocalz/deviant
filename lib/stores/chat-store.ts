@@ -142,13 +142,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
           id: String(msg.id),
           text: displayText,
           sender: isSender ? ("me" as const) : ("them" as const),
-          time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString(
-            [],
-            {
-              hour: "2-digit",
-              minute: "2-digit",
-            },
-          ),
+          time: (() => {
+            try {
+              const d = new Date(
+                msg.createdAt || msg.created_at || msg.timestamp,
+              );
+              return isNaN(d.getTime())
+                ? ""
+                : d.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  });
+            } catch {
+              return "";
+            }
+          })(),
           media:
             msg.media && msg.media.length > 0
               ? {
@@ -182,51 +190,76 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
-    set({ isSending: true });
+    // Capture values before clearing
+    const messageText = currentMessage;
+    const mediaToSend = pendingMedia;
+
+    // CRITICAL: Clear input immediately (optimistic) so user sees it reset
+    set({
+      currentMessage: "",
+      mentionQuery: "",
+      showMentions: false,
+      pendingMedia: null,
+      isSending: true,
+    });
 
     try {
       // Prepare media for upload
       let mediaItems: Array<{ uri: string; type: "image" | "video" }> = [];
-      if (pendingMedia) {
-        mediaItems = [{ uri: pendingMedia.uri, type: pendingMedia.type }];
+      if (mediaToSend) {
+        mediaItems = [{ uri: mediaToSend.uri, type: mediaToSend.type }];
       }
 
       // Send via API (handles Bunny upload internally)
       const result = await messagesApiClient.sendMessage({
         conversationId,
-        content: currentMessage || "",
+        content: messageText || "",
         media: mediaItems.length > 0 ? mediaItems : undefined,
       });
 
       if (result) {
-        // Add to local state
-        const existingMessages = messages[conversationId] || [];
-        const newMessage: Message = {
-          id: result.id,
-          text: result.content,
-          sender: "me",
-          time: new Date(result.createdAt).toLocaleTimeString([], {
+        // Parse time safely — handle missing or invalid createdAt
+        let timeStr: string;
+        try {
+          const d = new Date(result.createdAt || result.created_at);
+          timeStr = isNaN(d.getTime())
+            ? new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          timeStr = new Date().toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
-          }),
-          media:
-            result.media.length > 0
-              ? {
-                  type: result.media[0].type,
-                  uri: result.media[0].url,
-                }
-              : undefined,
+          });
+        }
+
+        // Parse media safely — server may return media array or nothing
+        const serverMedia =
+          Array.isArray(result.media) && result.media.length > 0
+            ? {
+                type: result.media[0].type as "image" | "video",
+                uri: result.media[0].url,
+              }
+            : mediaToSend
+              ? { type: mediaToSend.type, uri: mediaToSend.uri }
+              : undefined;
+
+        const existingMessages = get().messages[conversationId] || [];
+        const newMessage: Message = {
+          id: result.id || String(Date.now()),
+          text: result.content || result.text || messageText,
+          sender: "me",
+          time: timeStr,
+          media: serverMedia,
         };
 
         set({
           messages: {
-            ...messages,
+            ...get().messages,
             [conversationId]: [...existingMessages, newMessage],
           },
-          currentMessage: "",
-          mentionQuery: "",
-          showMentions: false,
-          pendingMedia: null,
           isSending: false,
         });
       } else {
@@ -234,7 +267,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (error) {
       console.error("[ChatStore] sendMessageToBackend error:", error);
-      set({ isSending: false });
+      // Restore message on error so user doesn't lose their text
+      set({
+        currentMessage: messageText,
+        pendingMedia: mediaToSend,
+        isSending: false,
+      });
     }
   },
 
