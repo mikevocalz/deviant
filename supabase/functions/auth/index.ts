@@ -318,6 +318,47 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // Welcome email endpoint (uses same Resend config that works for password reset)
+  if (path === "/auth/send-welcome" && req.method === "POST") {
+    try {
+      const { to, name } = await req.json();
+      if (!to) {
+        return new Response(
+          JSON.stringify({ ok: false, error: "to is required" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      const displayName = name || to.split("@")[0];
+      const html = baseWrapper(
+        [
+          `<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Welcome to ${APP_NAME} 🎉</h1>`,
+          `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${displayName},</p>`,
+          '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Your account is live. You\'re now part of the community where nightlife meets culture.</p>',
+          '<ul style="color:#a1a1aa;line-height:2;font-size:15px;padding-left:20px">',
+          "<li>Discover events happening near you</li>",
+          "<li>Share stories and connect with your crew</li>",
+          "<li>Get exclusive access to VIP experiences</li>",
+          "</ul>",
+          ctaButton("Open DVNT", "dvnt://"),
+        ].join(""),
+      );
+      await sendEmail(to, `Welcome to ${APP_NAME}!`, html);
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (err: any) {
+      console.error("[Auth] Welcome email error:", err);
+      return new Response(JSON.stringify({ ok: false, error: err.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
   // All other requests → Better Auth
   try {
     const auth = await getAuth();

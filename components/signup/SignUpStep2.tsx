@@ -193,6 +193,21 @@ export function SignUpStep2() {
         });
       }
 
+      // Send welcome email via auth edge function (same Resend config as password reset)
+      const AUTH_URL =
+        process.env.EXPO_PUBLIC_AUTH_URL ||
+        "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth";
+      fetch(`${AUTH_URL}/send-welcome`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: formData.email,
+          name: formData.firstName || data.user.name,
+        }),
+      }).catch((err) =>
+        console.warn("[SignUp] Welcome email failed (non-blocking):", err),
+      );
+
       // Record terms acceptance
       recordTermsAcceptance(profile?.id || data.user.id, formData.email).catch(
         () => {},
