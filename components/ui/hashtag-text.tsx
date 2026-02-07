@@ -115,7 +115,7 @@ export function HashtagText({
             <Text
               key={index}
               onPress={() => handleHashtagPress(part.value)}
-              style={[styles.hashtag, { color: HASHTAG_COLOR }, textStyle]}
+              style={[styles.hashtag, textStyle, { color: HASHTAG_COLOR }]}
             >
               {part.content}
             </Text>
@@ -125,7 +125,7 @@ export function HashtagText({
             <Text
               key={index}
               onPress={() => handleMentionPress(part.value)}
-              style={[styles.mention, { color: MENTION_COLOR }, textStyle]}
+              style={[styles.mention, textStyle, { color: MENTION_COLOR }]}
             >
               {part.content}
             </Text>

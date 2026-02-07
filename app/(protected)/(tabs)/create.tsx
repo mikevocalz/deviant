@@ -15,6 +15,7 @@ import {
   Camera,
   Trash2,
   Plus,
+  Hash,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -51,12 +52,16 @@ export default function CreateScreen() {
     caption,
     location,
     isNSFW,
+    tags,
     setCaption,
     setLocationData,
     setIsNSFW,
+    addTag,
+    removeTag,
     reset,
   } = useCreatePostStore();
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
+  const [tagInput, setTagInput] = useState("");
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
     useMediaPicker();
   const { mutate: createPost, isPending: isCreating } = useCreatePost();
@@ -315,9 +320,14 @@ export default function CreateScreen() {
       console.log("[Create] Creating post with CDN URLs:", postMedia);
       console.log("[Create] Author ID:", user?.id, "Username:", user?.username);
 
+      // Append tags as hashtags to the caption content
+      const tagsString =
+        tags.length > 0 ? "\n" + tags.map((t) => `#${t}`).join(" ") : "";
+      const fullContent = caption + tagsString;
+
       createPost(
         {
-          content: caption,
+          content: fullContent,
           location,
           media: postMedia,
           isNSFW,
@@ -505,6 +515,114 @@ export default function CreateScreen() {
             onLocationSelect={(data: LocationData) => setLocationData(data)}
             onClear={() => setLocationData(null)}
           />
+        </View>
+
+        {/* Tags Input */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "#111",
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: "#333",
+                paddingHorizontal: 12,
+                height: 44,
+              }}
+            >
+              <Hash size={16} color="#8A40CF" strokeWidth={2.5} />
+              <TextInput
+                value={tagInput}
+                onChangeText={(t) => setTagInput(t.replace(/\s/g, ""))}
+                placeholder="Add tag"
+                placeholderTextColor="#666"
+                style={{
+                  flex: 1,
+                  color: "#fff",
+                  fontSize: 15,
+                  marginLeft: 6,
+                }}
+                returnKeyType="done"
+                onSubmitEditing={() => {
+                  if (tagInput.trim()) {
+                    addTag(tagInput);
+                    setTagInput("");
+                  }
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+            </View>
+            <Pressable
+              onPress={() => {
+                if (tagInput.trim()) {
+                  addTag(tagInput);
+                  setTagInput("");
+                }
+              }}
+              style={{
+                backgroundColor: tagInput.trim() ? "#8A40CF" : "#333",
+                height: 44,
+                paddingHorizontal: 16,
+                borderRadius: 10,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
+                Add
+              </Text>
+            </Pressable>
+          </View>
+          {tags.length > 0 && (
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 6,
+                marginTop: 10,
+              }}
+            >
+              {tags.map((tag) => (
+                <Pressable
+                  key={tag}
+                  onPress={() => removeTag(tag)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    backgroundColor: "rgba(138, 64, 207, 0.12)",
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 100,
+                    borderWidth: 1,
+                    borderColor: "rgba(138, 64, 207, 0.25)",
+                  }}
+                >
+                  <Hash size={11} color="#8A40CF" strokeWidth={2.5} />
+                  <Text
+                    style={{
+                      color: "#8A40CF",
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {tag}
+                  </Text>
+                  <X size={12} color="#8A40CF" style={{ marginLeft: 2 }} />
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
 
         {/* Content Rating Toggle - only show when media is selected */}

@@ -166,10 +166,10 @@ serve(async (req: Request) => {
     // Insert media if provided
     if (media && media.length > 0) {
       const mediaInserts = media.map((m, index) => ({
-        parent_id: post.id,
+        _parent_id: post.id,
         type: m.type,
         url: m.url,
-        order: index,
+        _order: index,
         id: `${post.id}_${index}`,
       }));
 
