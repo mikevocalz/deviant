@@ -10,7 +10,10 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { useRouter, useNavigation } from "expo-router";
-import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+  SafeAreaView,
+} from "react-native-safe-area-context";
 import { useLayoutEffect } from "react";
 import {
   X,
@@ -27,11 +30,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@/components/ui/popover";
+// Popover removed — inline expanding pickers used instead
 
 // Conditionally import expo-maps (requires dev build, not available in Expo Go)
 let AppleMaps: typeof import("expo-maps").AppleMaps | null = null;
@@ -120,7 +119,7 @@ export default function CreateEventScreen() {
   };
 
   const handleDateChange = (event: unknown, selectedDate?: Date) => {
-    setShowDatePicker(false);
+    if (Platform.OS === "android") setShowDatePicker(false);
     if (selectedDate) {
       const newDate = new Date(eventDate);
       newDate.setFullYear(selectedDate.getFullYear());
@@ -131,7 +130,7 @@ export default function CreateEventScreen() {
   };
 
   const handleTimeChange = (event: unknown, selectedTime?: Date) => {
-    setShowTimePicker(false);
+    if (Platform.OS === "android") setShowTimePicker(false);
     if (selectedTime) {
       const newDate = new Date(eventDate);
       newDate.setHours(selectedTime.getHours());
@@ -199,7 +198,7 @@ export default function CreateEventScreen() {
       // Upload main event image (first image) and additional images to Bunny.net CDN
       let mainEventImageUrl = "";
       let additionalImageUrls: string[] = [];
-      
+
       if (eventImages.length > 0) {
         const mediaFiles = eventImages.map((uri) => ({
           uri,
@@ -224,13 +223,21 @@ export default function CreateEventScreen() {
         // First image is the main event image
         mainEventImageUrl = uploadResults[0]?.url || "";
         // Remaining images are additional images
-        additionalImageUrls = uploadResults.slice(1).map((r) => r.url).filter(Boolean);
-        console.log("[CreateEvent] Upload successful - Main:", mainEventImageUrl, "Additional:", additionalImageUrls.length);
+        additionalImageUrls = uploadResults
+          .slice(1)
+          .map((r) => r.url)
+          .filter(Boolean);
+        console.log(
+          "[CreateEvent] Upload successful - Main:",
+          mainEventImageUrl,
+          "Additional:",
+          additionalImageUrls.length,
+        );
       }
 
       // Format date as ISO string for Payload
       const eventDateISO = eventDate.toISOString();
-      
+
       const eventData = {
         title: title.trim(),
         description: description.trim(),
@@ -259,15 +266,25 @@ export default function CreateEventScreen() {
         onError: (error: any) => {
           setIsSubmitting(false);
           console.error("[CreateEvent] Error creating event:", error);
-          console.error("[CreateEvent] Error details:", JSON.stringify(error, null, 2));
-          const errorMessage = error?.message || error?.error?.message || "Failed to create event. Please try again.";
+          console.error(
+            "[CreateEvent] Error details:",
+            JSON.stringify(error, null, 2),
+          );
+          const errorMessage =
+            error?.message ||
+            error?.error?.message ||
+            "Failed to create event. Please try again.";
           showToast("error", "Error", errorMessage);
         },
       });
     } catch (error: any) {
       setIsSubmitting(false);
       console.error("[CreateEvent] Unexpected error:", error);
-      showToast("error", "Error", "An unexpected error occurred. Please try again.");
+      showToast(
+        "error",
+        "Error",
+        "An unexpected error occurred. Please try again.",
+      );
     }
   };
 
@@ -289,7 +306,13 @@ export default function CreateEventScreen() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
-          style={{ marginLeft: 8, width: 44, height: 44, alignItems: "center", justifyContent: "center" }}
+          style={{
+            marginLeft: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
         >
           <X size={24} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
@@ -297,17 +320,34 @@ export default function CreateEventScreen() {
       headerRight: () => (
         <Pressable
           onPress={() => {
-            console.log("[CreateEvent] Create button pressed, isValid:", isValid, "isSubmitting:", isSubmitting);
+            console.log(
+              "[CreateEvent] Create button pressed, isValid:",
+              isValid,
+              "isSubmitting:",
+              isSubmitting,
+            );
             if (!isSubmitting && isValid) {
               handleSubmit();
             } else if (!isValid) {
               // Show which fields are missing
               if (!title.trim()) {
-                showToast("warning", "Missing Title", "Please enter an event title");
+                showToast(
+                  "warning",
+                  "Missing Title",
+                  "Please enter an event title",
+                );
               } else if (!description.trim()) {
-                showToast("warning", "Missing Description", "Please enter an event description");
+                showToast(
+                  "warning",
+                  "Missing Description",
+                  "Please enter an event description",
+                );
               } else if (!location.trim()) {
-                showToast("warning", "Missing Location", "Please enter a location");
+                showToast(
+                  "warning",
+                  "Missing Location",
+                  "Please enter a location",
+                );
               }
             }
           }}
@@ -319,7 +359,10 @@ export default function CreateEventScreen() {
             style={{
               fontSize: 14,
               fontWeight: "600",
-              color: isValid && !isSubmitting ? colors.primary : colors.mutedForeground,
+              color:
+                isValid && !isSubmitting
+                  ? colors.primary
+                  : colors.mutedForeground,
             }}
           >
             {isSubmitting ? "Creating..." : "Create"}
@@ -327,11 +370,21 @@ export default function CreateEventScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, colors, isValid, isSubmitting, title, description, location, handleSubmit, showToast, router]);
+  }, [
+    navigation,
+    colors,
+    isValid,
+    isSubmitting,
+    title,
+    description,
+    location,
+    handleSubmit,
+    showToast,
+    router,
+  ]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
@@ -343,393 +396,373 @@ export default function CreateEventScreen() {
         bottomOffset={100}
         enabled={true}
       >
-          {/* Title & Description */}
-          <View className="mb-6">
-            <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-              <FileText size={20} color={colors.primary} />
-              <TextInput
-                className="flex-1 ml-3 py-4 text-lg font-semibold text-foreground"
-                placeholder="Event Title"
-                placeholderTextColor={colors.mutedForeground}
-                value={title}
-                onChangeText={setTitle}
-                maxLength={200}
-              />
-            </View>
+        {/* Title & Description */}
+        <View className="mb-6">
+          <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+            <FileText size={20} color={colors.primary} />
+            <TextInput
+              className="flex-1 ml-3 py-4 text-lg font-semibold text-foreground"
+              placeholder="Event Title"
+              placeholderTextColor={colors.mutedForeground}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={200}
+            />
+          </View>
 
-            <View className="bg-card rounded-2xl p-4">
-              <TextInput
-                className="text-base text-foreground min-h-[100px]"
-                placeholder="Describe your event... What will attendees experience?"
-                placeholderTextColor={colors.mutedForeground}
-                value={description}
-                onChangeText={setDescription}
-                multiline
-                numberOfLines={4}
-                maxLength={2000}
-                textAlignVertical="top"
-              />
-              <Text className="text-xs text-muted-foreground text-right mt-2">
-                {description.length}/2000
+          <View className="bg-card rounded-2xl p-4">
+            <TextInput
+              className="text-base text-foreground min-h-[100px]"
+              placeholder="Describe your event... What will attendees experience?"
+              placeholderTextColor={colors.mutedForeground}
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={4}
+              maxLength={2000}
+              textAlignVertical="top"
+            />
+            <Text className="text-xs text-muted-foreground text-right mt-2">
+              {description.length}/2000
+            </Text>
+          </View>
+        </View>
+
+        {/* Date & Time */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Date & Time
+          </Text>
+
+          {/* Date row */}
+          <Pressable
+            onPress={() => {
+              setShowDatePicker((v) => !v);
+              setShowTimePicker(false);
+            }}
+            className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mb-3"
+          >
+            <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+              <Calendar size={18} color={colors.primary} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs text-muted-foreground mb-0.5">Date</Text>
+              <Text className="text-sm font-semibold text-foreground">
+                {formatDate(eventDate)}
               </Text>
             </View>
-          </View>
+          </Pressable>
 
-          {/* Date & Time */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Date & Time
-            </Text>
-            <View className="flex-row gap-3">
-              <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
-                <PopoverTrigger>
-                  <View className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3">
-                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                      <Calendar size={18} color={colors.primary} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-xs text-muted-foreground mb-0.5">
-                        Date
-                      </Text>
-                      <Text className="text-sm font-semibold text-foreground">
-                        {formatDate(eventDate)}
-                      </Text>
-                    </View>
-                  </View>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md">
-                  <View className="flex-row items-center justify-between mb-4">
-                    <Text className="text-xl font-bold text-foreground">Select Date</Text>
-                    <Pressable onPress={() => setShowDatePicker(false)}>
-                      <X size={24} color={colors.foreground} />
-                    </Pressable>
-                  </View>
-                  <DateTimePicker
-                    value={eventDate}
-                    mode="date"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleDateChange}
-                    minimumDate={new Date()}
-                    themeVariant="dark"
-                  />
-                  {Platform.OS === "android" && (
-                    <Pressable
-                      onPress={() => setShowDatePicker(false)}
-                      className="mt-4 bg-primary rounded-2xl py-4 items-center"
-                    >
-                      <Text className="text-primary-foreground font-semibold text-base">Done</Text>
-                    </Pressable>
-                  )}
-                </PopoverContent>
-              </Popover>
-
-              <Popover open={showTimePicker} onOpenChange={setShowTimePicker}>
-                <PopoverTrigger>
-                  <View className="flex-1 flex-row items-center bg-card rounded-2xl p-4 gap-3">
-                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                      <Clock size={18} color={colors.primary} />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-xs text-muted-foreground mb-0.5">
-                        Time
-                      </Text>
-                      <Text className="text-sm font-semibold text-foreground">
-                        {formatTime(eventDate)}
-                      </Text>
-                    </View>
-                  </View>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="center" className="w-[90%] max-w-md">
-                  <View className="flex-row items-center justify-between mb-4">
-                    <Text className="text-xl font-bold text-foreground">Select Time</Text>
-                    <Pressable onPress={() => setShowTimePicker(false)}>
-                      <X size={24} color={colors.foreground} />
-                    </Pressable>
-                  </View>
-                  <DateTimePicker
-                    value={eventDate}
-                    mode="time"
-                    display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={handleTimeChange}
-                    themeVariant="dark"
-                  />
-                  {Platform.OS === "android" && (
-                    <Pressable
-                      onPress={() => setShowTimePicker(false)}
-                      className="mt-4 bg-primary rounded-2xl py-4 items-center"
-                    >
-                      <Text className="text-primary-foreground font-semibold text-base">Done</Text>
-                    </Pressable>
-                  )}
-                </PopoverContent>
-              </Popover>
+          {showDatePicker && (
+            <View className="bg-card rounded-2xl mb-3 overflow-hidden">
+              <DateTimePicker
+                value={eventDate}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+                themeVariant="dark"
+                style={{ width: "100%" }}
+              />
             </View>
-          </View>
+          )}
 
-          {/* Location */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Location
-            </Text>
-            <LocationAutocomplete
-              value={location}
-              placeholder="Search venue or address"
-              onLocationSelect={(data: LocationData) => {
-                setLocation(data.name);
-                setLocationData(data);
-              }}
-              onTextChange={(text: string) => {
-                // Update location as user types (enables form validation)
-                setLocation(text);
-                // Clear coordinates since we only have text, not a selected place
-                if (!text) {
-                  setLocationData(null);
-                }
-              }}
-              onClear={() => {
-                setLocation("");
+          {/* Time row */}
+          <Pressable
+            onPress={() => {
+              setShowTimePicker((v) => !v);
+              setShowDatePicker(false);
+            }}
+            className="flex-row items-center bg-card rounded-2xl p-4 gap-3"
+          >
+            <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+              <Clock size={18} color={colors.primary} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs text-muted-foreground mb-0.5">Time</Text>
+              <Text className="text-sm font-semibold text-foreground">
+                {formatTime(eventDate)}
+              </Text>
+            </View>
+          </Pressable>
+
+          {showTimePicker && (
+            <View className="bg-card rounded-2xl mt-3 overflow-hidden">
+              <DateTimePicker
+                value={eventDate}
+                mode="time"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleTimeChange}
+                themeVariant="dark"
+                style={{ width: "100%" }}
+              />
+            </View>
+          )}
+        </View>
+
+        {/* Location */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Location
+          </Text>
+          <LocationAutocomplete
+            value={location}
+            placeholder="Search venue or address"
+            onLocationSelect={(data: LocationData) => {
+              setLocation(data.name);
+              setLocationData(data);
+            }}
+            onTextChange={(text: string) => {
+              // Update location as user types (enables form validation)
+              setLocation(text);
+              // Clear coordinates since we only have text, not a selected place
+              if (!text) {
                 setLocationData(null);
-              }}
-            />
+              }
+            }}
+            onClear={() => {
+              setLocation("");
+              setLocationData(null);
+            }}
+          />
 
-            {locationData?.latitude && locationData?.longitude && (
-              <View
-                className="mt-3 rounded-2xl overflow-hidden"
-                style={{ height: 180 }}
-              >
-                {Platform.OS === "ios" ? (
-                  AppleMaps ? (
-                    <AppleMaps.View
-                      style={{ flex: 1 }}
-                      cameraPosition={{
+          {locationData?.latitude && locationData?.longitude && (
+            <View
+              className="mt-3 rounded-2xl overflow-hidden"
+              style={{ height: 180 }}
+            >
+              {Platform.OS === "ios" ? (
+                AppleMaps ? (
+                  <AppleMaps.View
+                    style={{ flex: 1 }}
+                    cameraPosition={{
+                      coordinates: {
+                        latitude: locationData.latitude,
+                        longitude: locationData.longitude,
+                      },
+                      zoom: 15,
+                    }}
+                    markers={[
+                      {
+                        id: "event-location",
                         coordinates: {
                           latitude: locationData.latitude,
                           longitude: locationData.longitude,
                         },
-                        zoom: 15,
-                      }}
-                      markers={[
-                        {
-                          id: "event-location",
-                          coordinates: {
-                            latitude: locationData.latitude,
-                            longitude: locationData.longitude,
-                          },
-                        },
-                      ]}
-                    />
-                  ) : (
-                    <View className="flex-1 bg-muted items-center justify-center">
-                      <Text className="text-muted-foreground text-sm">
-                        Map preview requires dev build
-                      </Text>
-                    </View>
-                  )
-                ) : Platform.OS === "android" ? (
-                  GoogleMaps ? (
-                    <GoogleMaps.View
-                      style={{ flex: 1 }}
-                      cameraPosition={{
-                        coordinates: {
-                          latitude: locationData.latitude,
-                          longitude: locationData.longitude,
-                        },
-                        zoom: 15,
-                      }}
-                      markers={[
-                        {
-                          id: "event-location",
-                          coordinates: {
-                            latitude: locationData.latitude,
-                            longitude: locationData.longitude,
-                          },
-                        },
-                      ]}
-                    />
-                  ) : (
-                    <View className="flex-1 bg-muted items-center justify-center">
-                      <Text className="text-muted-foreground text-sm">
-                        Map preview requires dev build
-                      </Text>
-                    </View>
-                  )
+                      },
+                    ]}
+                  />
                 ) : (
                   <View className="flex-1 bg-muted items-center justify-center">
                     <Text className="text-muted-foreground text-sm">
-                      Maps only available on iOS and Android
+                      Map preview requires dev build
+                    </Text>
+                  </View>
+                )
+              ) : Platform.OS === "android" ? (
+                GoogleMaps ? (
+                  <GoogleMaps.View
+                    style={{ flex: 1 }}
+                    cameraPosition={{
+                      coordinates: {
+                        latitude: locationData.latitude,
+                        longitude: locationData.longitude,
+                      },
+                      zoom: 15,
+                    }}
+                    markers={[
+                      {
+                        id: "event-location",
+                        coordinates: {
+                          latitude: locationData.latitude,
+                          longitude: locationData.longitude,
+                        },
+                      },
+                    ]}
+                  />
+                ) : (
+                  <View className="flex-1 bg-muted items-center justify-center">
+                    <Text className="text-muted-foreground text-sm">
+                      Map preview requires dev build
+                    </Text>
+                  </View>
+                )
+              ) : (
+                <View className="flex-1 bg-muted items-center justify-center">
+                  <Text className="text-muted-foreground text-sm">
+                    Maps only available on iOS and Android
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Event Images */}
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+              Event Images
+            </Text>
+            <Text className="text-xs text-muted-foreground">
+              {eventImages.length}/4
+            </Text>
+          </View>
+
+          <View className="flex-row flex-wrap gap-3">
+            {eventImages.map((uri, index) => (
+              <View
+                key={uri}
+                className="relative rounded-2xl overflow-hidden"
+                style={{ width: "48%", aspectRatio: 1 }}
+              >
+                <Image
+                  source={{ uri }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
+                <Pressable
+                  onPress={() => removeImage(index)}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
+                >
+                  <X size={16} color="#fff" />
+                </Pressable>
+                {index === 0 && (
+                  <View className="absolute bottom-2 left-2 bg-primary px-2 py-1 rounded-lg">
+                    <Text className="text-xs font-medium text-primary-foreground">
+                      Cover
                     </Text>
                   </View>
                 )}
               </View>
-            )}
-          </View>
+            ))}
 
-          {/* Event Images */}
-          <View className="mb-6">
-            <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-                Event Images
-              </Text>
-              <Text className="text-xs text-muted-foreground">
-                {eventImages.length}/4
-              </Text>
-            </View>
-
-            <View className="flex-row flex-wrap gap-3">
-              {eventImages.map((uri, index) => (
-                <View
-                  key={uri}
-                  className="relative rounded-2xl overflow-hidden"
-                  style={{ width: "48%", aspectRatio: 1 }}
-                >
-                  <Image
-                    source={{ uri }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                  <Pressable
-                    onPress={() => removeImage(index)}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
-                  >
-                    <X size={16} color="#fff" />
-                  </Pressable>
-                  {index === 0 && (
-                    <View className="absolute bottom-2 left-2 bg-primary px-2 py-1 rounded-lg">
-                      <Text className="text-xs font-medium text-primary-foreground">
-                        Cover
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-
-              {eventImages.length < 4 && (
-                <Pressable
-                  onPress={handlePickImages}
-                  className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border"
-                  style={{
-                    width: "48%",
-                    aspectRatio: 1,
-                    justifyContent: "center",
-                  }}
-                >
-                  <View className="items-center justify-center gap-2 mb-8">
-                    <View className="w-12 h-12 rounded-xl bg-muted items-center justify-center">
-                      <Plus size={24} color={colors.mutedForeground} />
-                    </View>
-                    <Text className="text-xs text-muted-foreground font-medium">
-                      Add Image
-                    </Text>
+            {eventImages.length < 4 && (
+              <Pressable
+                onPress={handlePickImages}
+                className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border"
+                style={{
+                  width: "48%",
+                  aspectRatio: 1,
+                  justifyContent: "center",
+                }}
+              >
+                <View className="items-center justify-center gap-2 mb-8">
+                  <View className="w-12 h-12 rounded-xl bg-muted items-center justify-center">
+                    <Plus size={24} color={colors.mutedForeground} />
                   </View>
-                </Pressable>
-              )}
-            </View>
-          </View>
-
-          {/* Tags */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Suggested Tags
-            </Text>
-            <View className="flex-row flex-wrap gap-2 mb-3">
-              {SUGGESTED_TAGS.map((tag) => (
-                <Pressable key={tag} onPress={() => toggleTag(tag)}>
-                  <Badge variant={tags.includes(tag) ? "default" : "outline"}>
-                    <UIText>{tag}</UIText>
-                  </Badge>
-                </Pressable>
-              ))}
-            </View>
-
-            {/* Selected custom tags */}
-            {tags.filter((t) => !SUGGESTED_TAGS.includes(t)).length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {tags
-                  .filter((t) => !SUGGESTED_TAGS.includes(t))
-                  .map((tag) => (
-                    <Pressable key={tag} onPress={() => toggleTag(tag)}>
-                      <Badge variant="secondary">
-                        <UIText>{tag}</UIText>
-                        <X size={12} color={colors.secondaryForeground} />
-                      </Badge>
-                    </Pressable>
-                  ))}
-              </View>
+                  <Text className="text-xs text-muted-foreground font-medium">
+                    Add Image
+                  </Text>
+                </View>
+              </Pressable>
             )}
+          </View>
+        </View>
 
-            {/* Add custom tag */}
-            <View className="flex-row items-center bg-card rounded-2xl px-4 gap-2">
-              <Tag size={18} color={colors.mutedForeground} />
+        {/* Tags */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Suggested Tags
+          </Text>
+          <View className="flex-row flex-wrap gap-2 mb-3">
+            {SUGGESTED_TAGS.map((tag) => (
+              <Pressable key={tag} onPress={() => toggleTag(tag)}>
+                <Badge variant={tags.includes(tag) ? "default" : "outline"}>
+                  <UIText>{tag}</UIText>
+                </Badge>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Selected custom tags */}
+          {tags.filter((t) => !SUGGESTED_TAGS.includes(t)).length > 0 && (
+            <View className="flex-row flex-wrap gap-2 mb-3">
+              {tags
+                .filter((t) => !SUGGESTED_TAGS.includes(t))
+                .map((tag) => (
+                  <Pressable key={tag} onPress={() => toggleTag(tag)}>
+                    <Badge variant="secondary">
+                      <UIText>{tag}</UIText>
+                      <X size={12} color={colors.secondaryForeground} />
+                    </Badge>
+                  </Pressable>
+                ))}
+            </View>
+          )}
+
+          {/* Add custom tag */}
+          <View className="flex-row items-center bg-card rounded-2xl px-4 gap-2">
+            <Tag size={18} color={colors.mutedForeground} />
+            <TextInput
+              className="flex-1 py-4 text-base text-foreground"
+              placeholder="Add custom tag..."
+              placeholderTextColor={colors.mutedForeground}
+              value={customTag}
+              onChangeText={setCustomTag}
+              onSubmitEditing={addCustomTag}
+              returnKeyType="done"
+            />
+            {customTag.trim() && (
+              <Pressable onPress={addCustomTag} className="p-2">
+                <Plus size={20} color={colors.primary} />
+              </Pressable>
+            )}
+          </View>
+        </View>
+
+        {/* Ticketing */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Ticketing
+          </Text>
+          <View className="flex-row gap-3">
+            <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
+              <DollarSign size={18} color={colors.mutedForeground} />
               <TextInput
-                className="flex-1 py-4 text-base text-foreground"
-                placeholder="Add custom tag..."
+                className="flex-1 ml-3 py-4 text-base text-foreground"
+                placeholder="Price (0 = free)"
                 placeholderTextColor={colors.mutedForeground}
-                value={customTag}
-                onChangeText={setCustomTag}
-                onSubmitEditing={addCustomTag}
-                returnKeyType="done"
+                value={ticketPrice}
+                onChangeText={setTicketPrice}
+                keyboardType="decimal-pad"
               />
-              {customTag.trim() && (
-                <Pressable onPress={addCustomTag} className="p-2">
-                  <Plus size={20} color={colors.primary} />
-                </Pressable>
-              )}
+            </View>
+
+            <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
+              <Users size={18} color={colors.mutedForeground} />
+              <TextInput
+                className="flex-1 ml-3 py-4 text-base text-foreground"
+                placeholder="Max attendees"
+                placeholderTextColor={colors.mutedForeground}
+                value={maxAttendees}
+                onChangeText={setMaxAttendees}
+                keyboardType="number-pad"
+              />
             </View>
           </View>
+        </View>
 
-          {/* Ticketing */}
-          <View className="mb-6">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-              Ticketing
+        {/* Info Card */}
+        <View className="flex-row bg-card rounded-2xl p-4 gap-3.5 border border-border">
+          <View
+            className="w-11 h-11 rounded-xl items-center justify-center"
+            style={{ backgroundColor: `${colors.primary}20` }}
+          >
+            <Ticket size={20} color={colors.primary} />
+          </View>
+          <View className="flex-1">
+            <Text className="text-base font-semibold text-foreground mb-1">
+              Secure Ticketing
             </Text>
-            <View className="flex-row gap-3">
-              <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
-                <DollarSign size={18} color={colors.mutedForeground} />
-                <TextInput
-                  className="flex-1 ml-3 py-4 text-base text-foreground"
-                  placeholder="Price (0 = free)"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={ticketPrice}
-                  onChangeText={setTicketPrice}
-                  keyboardType="decimal-pad"
-                />
-              </View>
-
-              <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
-                <Users size={18} color={colors.mutedForeground} />
-                <TextInput
-                  className="flex-1 ml-3 py-4 text-base text-foreground"
-                  placeholder="Max attendees"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={maxAttendees}
-                  onChangeText={setMaxAttendees}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
+            <Text className="text-sm text-muted-foreground leading-5">
+              Each ticket will be generated with a unique QR code for secure
+              check-in. Attendees can add tickets to Apple Wallet or Google
+              Wallet.
+            </Text>
           </View>
-
-          {/* Info Card */}
-          <View className="flex-row bg-card rounded-2xl p-4 gap-3.5 border border-border">
-            <View
-              className="w-11 h-11 rounded-xl items-center justify-center"
-              style={{ backgroundColor: `${colors.primary}20` }}
-            >
-              <Ticket size={20} color={colors.primary} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-foreground mb-1">
-                Secure Ticketing
-              </Text>
-              <Text className="text-sm text-muted-foreground leading-5">
-                Each ticket will be generated with a unique QR code for secure
-                check-in. Attendees can add tickets to Apple Wallet or Google
-                Wallet.
-              </Text>
-            </View>
-          </View>
+        </View>
       </KeyboardAwareScrollView>
-
 
       {/* Progress Overlay */}
       {isSubmitting && (
