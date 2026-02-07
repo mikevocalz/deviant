@@ -369,6 +369,12 @@ export function useCreatePost() {
           const filteredData = old.filter((p) => !p.id.startsWith("temp-"));
           return [newPost, ...filteredData];
         });
+
+        // Invalidate profile posts so new post shows on user's profile
+        queryClient.invalidateQueries({
+          queryKey: ["profilePosts"],
+          refetchType: "active",
+        });
       }
     },
   });
