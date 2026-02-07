@@ -215,18 +215,16 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
         return;
       }
 
-      // Encode story context as structured prefix for client-side parsing
-      const storyContext = JSON.stringify({
-        storyId: customData.appStoryId || "",
-        storyMediaUrl: item.story_image || "",
-        storyUsername: customData.username || "",
-        storyAvatar: customData.avatar || "",
-        isExpired: false,
-      });
-
       await messagesApiClient.sendMessage({
         conversationId,
-        content: `[STORY_REPLY:${storyContext}] ${replyText.trim()}`,
+        content: replyText.trim(),
+        metadata: {
+          type: "story_reply",
+          storyId: customData.appStoryId || "",
+          storyMediaUrl: item.story_image || "",
+          storyUsername: customData.username || "",
+          storyAvatar: customData.avatar || "",
+        },
       });
 
       showToast("success", "Sent", "Reply sent to their messages");

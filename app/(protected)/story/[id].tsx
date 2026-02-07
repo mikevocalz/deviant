@@ -544,20 +544,18 @@ export default function StoryViewerScreen() {
         return;
       }
 
-      // Encode story context as structured prefix for client-side parsing
-      // This enables the chat screen to render StoryReplyBubble with thumbnail + expiry
+      // Send reply with story context as metadata for StoryReplyBubble rendering
       const currentItem = story.items?.[currentItemIndex];
-      const storyContext = JSON.stringify({
-        storyId: story.id || "",
-        storyMediaUrl: currentItem?.url || "",
-        storyUsername: story.username || "",
-        storyAvatar: story.avatar || "",
-        isExpired: false,
-      });
-
       const message = await messagesApiClient.sendMessage({
         conversationId: conversationId,
-        content: `[STORY_REPLY:${storyContext}] ${replyText.trim()}`,
+        content: replyText.trim(),
+        metadata: {
+          type: "story_reply",
+          storyId: story.id || "",
+          storyMediaUrl: currentItem?.url || "",
+          storyUsername: story.username || "",
+          storyAvatar: story.avatar || "",
+        },
       });
 
       console.log("[StoryViewer] Reply sent successfully");

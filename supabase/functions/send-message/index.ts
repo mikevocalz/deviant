@@ -93,14 +93,19 @@ serve(async (req: Request) => {
 
     const { odUserId } = session;
 
-    let body: { conversationId: number; content: string; mediaUrl?: string };
+    let body: {
+      conversationId: number;
+      content: string;
+      mediaUrl?: string;
+      metadata?: Record<string, unknown>;
+    };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body", 400);
     }
 
-    const { conversationId, content, mediaUrl } = body;
+    const { conversationId, content, mediaUrl, metadata } = body;
     if (!conversationId || typeof conversationId !== "number") {
       return errorResponse(
         "validation_error",
@@ -153,14 +158,19 @@ serve(async (req: Request) => {
       conversationId,
     );
 
-    // Insert message (messages.sender_id is integer, no media_url column exists)
+    // Insert message with optional metadata (e.g. story reply context)
+    const insertPayload: Record<string, unknown> = {
+      conversation_id: conversationId,
+      sender_id: userId,
+      content: content.trim(),
+    };
+    if (metadata && typeof metadata === "object") {
+      insertPayload.metadata = metadata;
+    }
+
     const { data: message, error: insertError } = await supabaseAdmin
       .from("messages")
-      .insert({
-        conversation_id: conversationId,
-        sender_id: userId,
-        content: content.trim(),
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -185,7 +195,7 @@ serve(async (req: Request) => {
           conversationId: String(message.conversation_id),
           senderId: String(message.sender_id),
           content: message.content,
-          mediaUrl: message.media_url,
+          metadata: message.metadata || null,
           createdAt: message.created_at,
           read: message.read || false,
         },

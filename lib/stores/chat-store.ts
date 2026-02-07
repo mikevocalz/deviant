@@ -109,40 +109,33 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const content = msg.content || msg.text || "";
         const isSender = (msg.sender?.id || msg.sender) === user?.id;
 
-        // Detect story reply messages
+        // Detect story reply messages via metadata (preferred) or legacy content prefix
         let storyReply: StoryReplyContext | undefined;
         let displayText = content;
+        const meta = msg.metadata;
 
-        // Format 1: Structured JSON prefix — [STORY_REPLY:{"storyId":...}] reply text
-        const structuredMatch = content.match(
-          /^\[STORY_REPLY:(.*?)\]\s*([\s\S]*)$/,
-        );
-        // Format 2: Legacy simple prefix — 📷 Replied to your story: reply text
-        const legacyPrefix = "📷 Replied to your story: ";
-
-        if (structuredMatch) {
-          try {
-            const meta = JSON.parse(structuredMatch[1]);
-            displayText = structuredMatch[2] || "";
-            storyReply = {
-              storyId: meta.storyId || "",
-              storyMediaUrl: meta.storyMediaUrl,
-              storyUsername: meta.storyUsername || "",
-              storyAvatar: meta.storyAvatar,
-              isExpired: meta.isExpired ?? false,
-            };
-          } catch {
-            // JSON parse failed — treat as normal message
-          }
-        } else if (content.startsWith(legacyPrefix)) {
-          displayText = content.slice(legacyPrefix.length);
+        if (meta && meta.type === "story_reply") {
+          // New format: metadata JSONB column from backend
           storyReply = {
-            storyId: "",
-            storyMediaUrl: undefined,
-            storyUsername: isSender ? "" : user?.username || "",
-            storyAvatar: undefined,
-            isExpired: true, // Legacy messages have no media URL, show as expired
+            storyId: meta.storyId || "",
+            storyMediaUrl: meta.storyMediaUrl || undefined,
+            storyUsername: meta.storyUsername || "",
+            storyAvatar: meta.storyAvatar || undefined,
+            isExpired: !meta.storyMediaUrl,
           };
+        } else {
+          // Legacy fallback: parse "📷 Replied to your story: " prefix
+          const legacyPrefix = "📷 Replied to your story: ";
+          if (content.startsWith(legacyPrefix)) {
+            displayText = content.slice(legacyPrefix.length);
+            storyReply = {
+              storyId: "",
+              storyMediaUrl: undefined,
+              storyUsername: isSender ? "" : user?.username || "",
+              storyAvatar: undefined,
+              isExpired: true,
+            };
+          }
         }
 
         return {

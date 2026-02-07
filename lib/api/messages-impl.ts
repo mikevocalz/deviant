@@ -122,6 +122,7 @@ export const messagesApi = {
           ${DB.messages.id},
           ${DB.messages.content},
           ${DB.messages.senderId},
+          ${DB.messages.metadata},
           ${DB.messages.createdAt}
         `,
         )
@@ -136,6 +137,7 @@ export const messagesApi = {
         text: msg[DB.messages.content],
         sender: msg[DB.messages.senderId] === visitorId ? "user" : "other",
         timestamp: formatTimeAgo(msg[DB.messages.createdAt]),
+        metadata: msg[DB.messages.metadata] || null,
       }));
     } catch (error) {
       console.error("[Messages] getMessages error:", error);
@@ -150,6 +152,7 @@ export const messagesApi = {
     conversationId: string;
     content: string;
     media?: Array<{ uri: string; type: "image" | "video" }>;
+    metadata?: Record<string, unknown>;
   }) {
     try {
       console.log(
@@ -160,13 +163,18 @@ export const messagesApi = {
       const token = await requireBetterAuthToken();
       const conversationIdInt = parseInt(data.conversationId);
 
+      const body: Record<string, unknown> = {
+        conversationId: conversationIdInt,
+        content: data.content,
+        mediaUrl: data.media?.[0]?.uri,
+      };
+      if (data.metadata) {
+        body.metadata = data.metadata;
+      }
+
       const { data: response, error } =
         await supabase.functions.invoke<SendMessageResponse>("send-message", {
-          body: {
-            conversationId: conversationIdInt,
-            content: data.content,
-            mediaUrl: data.media?.[0]?.uri,
-          },
+          body,
           headers: { Authorization: `Bearer ${token}` },
         });
 
