@@ -83,7 +83,7 @@ export default function ProtectedLayout() {
       <Stack.Screen
         name="camera"
         options={{
-          presentation: "containedModal",
+          presentation: "card",
           animation: "fade",
           animationDuration: 250,
           headerShown: false,
