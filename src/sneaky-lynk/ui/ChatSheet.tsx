@@ -93,13 +93,24 @@ export function ChatSheet({
   // 75% of screen height
   const snapPoints = useMemo(() => ["75%"], []);
 
+  // Control open/close via ref instead of mount/unmount
+  const prevIsOpen = useRef(isOpen);
+  if (isOpen !== prevIsOpen.current) {
+    prevIsOpen.current = isOpen;
+    if (isOpen) {
+      bottomSheetRef.current?.snapToIndex(0);
+    } else {
+      bottomSheetRef.current?.close();
+    }
+  }
+
   const handleSheetChanges = useCallback(
     (index: number) => {
       if (index === -1) {
         onClose();
       }
     },
-    [onClose]
+    [onClose],
   );
 
   const handleSend = useCallback(() => {
@@ -117,15 +128,13 @@ export function ChatSheet({
         opacity={0.5}
       />
     ),
-    []
+    [],
   );
-
-  if (!isOpen) return null;
 
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={0}
+      index={isOpen ? 0 : -1}
       snapPoints={snapPoints}
       onChange={handleSheetChanges}
       enablePanDownToClose

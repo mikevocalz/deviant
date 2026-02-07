@@ -1,0 +1,250 @@
+diff --git a/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt b/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
+index c1f46c98c4797b183c4bb330c4da164f9f17e503..bcc58ebeba5e74581a922dd9f051563b46f5e209 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt
+@@ -21,7 +21,7 @@ class PhotoEditorModule(reactContext: ReactApplicationContext) : ReactContextBas
+   @ReactMethod
+   fun open(options: ReadableMap?, promise: Promise): Unit {
+     this.promise = promise
+-    val activity = currentActivity
++    val activity = reactApplicationContext.getCurrentActivity()
+     if (activity == null) {
+       promise.reject("ACTIVITY_DOES_NOT_EXIST", "Activity doesn't exist");
+       return;
+@@ -31,9 +31,13 @@ class PhotoEditorModule(reactContext: ReactApplicationContext) : ReactContextBas
+ 
+     val path = options?.getString("path")
+     val stickers = options?.getArray("stickers") as ReadableArray
++    val initialTool = if (options?.hasKey("initialTool") == true) options.getString("initialTool") else null
+ 
+     intent.putExtra("path", path)
+     intent.putExtra("stickers", stickers.toArrayList())
++    if (initialTool != null) {
++      intent.putExtra("initialTool", initialTool)
++    }
+ 
+     activity.startActivityForResult(intent, EDIT_SUCCESSFUL)
+   }
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+index 2f10101980250a6aa8bedccbb61b2d8407c339b6..303df1eb04aaf8410d17fd3f77c8a03ee976cb22 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+@@ -120,6 +120,8 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+     mPhotoEditor?.setOnPhotoEditorListener(this)
+ //    val drawable = Drawable.cre
+ 
++    val initialTool = value?.getString("initialTool")
++
+     Glide
+       .with(this)
+       .load(path)
+@@ -143,7 +145,17 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+           dataSource: DataSource?,
+           isFirstResource: Boolean
+         ): Boolean {
+-          //
++          // Auto-select initial tool after image loads
++          if (initialTool != null) {
++            mPhotoEditorView?.post {
++              when (initialTool) {
++                "text" -> onToolSelected(ToolType.TEXT)
++                "draw" -> onToolSelected(ToolType.SHAPE)
++                "stickers" -> onToolSelected(ToolType.STICKER)
++                "filter" -> onToolSelected(ToolType.FILTER)
++              }
++            }
++          }
+           return false
+         }
+       })
+diff --git a/android/src/main/res/layout/photo_editor_view.xml b/android/src/main/res/layout/photo_editor_view.xml
+index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcfbdb16129 100644
+--- a/android/src/main/res/layout/photo_editor_view.xml
++++ b/android/src/main/res/layout/photo_editor_view.xml
+@@ -6,6 +6,7 @@
+   android:layout_width="match_parent"
+   android:layout_height="match_parent"
+   android:background="@color/tool_bg"
++  android:fitsSystemWindows="true"
+   app:layout_behavior="@string/appbar_scrolling_view_behavior">
+ 
+ 
+diff --git a/ios/PhotoEditor.swift b/ios/PhotoEditor.swift
+index 0c1e923c856731a18b947710c8dc13c052476ccb..df0bf55537b7d3275aaadc9b02700da69dd96671 100644
+--- a/ios/PhotoEditor.swift
++++ b/ios/PhotoEditor.swift
+@@ -52,11 +52,16 @@ class PhotoEditor: NSObject, ZLEditImageControllerDelegate {
+         self.resolve = resolve;
+         self.reject = reject;
+         
++        // Initial tool to auto-select when editor opens
++        let initialTool = options["initialTool"] as? String
++        print("[PhotoEditor] initialTool from options: \(initialTool ?? "nil")")
++        ZLImageEditorConfiguration.default().initialTool = initialTool
++        print("[PhotoEditor] Set initialTool to config: \(ZLImageEditorConfiguration.default().initialTool ?? "nil")")
++        
+         // Stickers
+         let stickers = options["stickers"] as? [String] ?? []
+         ZLImageEditorConfiguration.default().imageStickerContainerView = StickerView(stickers: stickers)
+         
+-        
+         //Config
+         ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
+ 
+diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..793fe8c084e38d6a97f72e5b27261b2937eb4963 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+@@ -265,6 +265,36 @@ public class ZLEditImageViewController: UIViewController {
+         if self.tools.contains(.filter) {
+             self.generateFilterImages()
+         }
++        
++        // Auto-select initial tool if specified
++        let initialTool = ZLImageEditorConfiguration.default().initialTool
++        print("[ZLEditImageVC] viewDidLoad - initialTool: \(initialTool ?? "nil")")
++        if let tool = initialTool {
++            // Clear immediately to prevent reuse
++            ZLImageEditorConfiguration.default().initialTool = nil
++            
++            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
++                guard let self = self else { return }
++                print("[ZLEditImageVC] Executing initialTool: \(tool)")
++                switch tool {
++                case "text":
++                    print("[ZLEditImageVC] Opening text tool")
++                    self.textStickerBtnClick()
++                case "stickers":
++                    print("[ZLEditImageVC] Opening stickers tool")
++                    self.imageStickerBtnClick()
++                case "draw":
++                    print("[ZLEditImageVC] Opening draw tool")
++                    self.drawBtnClick()
++                case "filter":
++                    print("[ZLEditImageVC] Opening filter tool")
++                    self.filterBtnClick()
++                default:
++                    print("[ZLEditImageVC] Unknown tool: \(tool)")
++                    break
++                }
++            }
++        }
+     }
+     
+     public override func viewDidLayoutSubviews() {
+diff --git a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+index b49b33d405ee2b6dcc962add20bb75c6163de1d8..95b26230e81003332230573b05e319e127270f99 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+@@ -111,6 +111,9 @@ public class ZLImageEditorConfiguration: NSObject {
+     /// The default text sticker color. If this color not in textStickerTextColors, will pick the first color in textStickerTextColors as the default.
+     @objc public var textStickerDefaultTextColor = UIColor.white
+     
++    /// Initial tool to auto-select when editor opens (text, stickers, draw, filter)
++    @objc public var initialTool: String? = nil
++    
+     private var pri_filters: [ZLFilter] = ZLFilter.all
+     /// Filters for image editor.
+     @objc public var filters: [ZLFilter] {
+diff --git a/lib/commonjs/index.js b/lib/commonjs/index.js
+index e62f1f30a2f69ee458173335403a3985f8abf52c..bc5c23e9d931a51235ebd4a08f1921bae33afeac 100644
+--- a/lib/commonjs/index.js
++++ b/lib/commonjs/index.js
+@@ -1,22 +1,21 @@
+-"use strict";
++'use strict';
+ 
+-Object.defineProperty(exports, "__esModule", {
+-  value: true
++Object.defineProperty(exports, '__esModule', {
++  value: true,
+ });
+ exports.default = void 0;
+ 
+-var _reactNative = require("react-native");
++var _reactNative = require('react-native');
+ 
+-const {
+-  PhotoEditor
+-} = _reactNative.NativeModules;
+-var _default = PhotoEditor;
+-exports.default = _default;
+-//# sourceMappingURL=index.js.mapt = {
+-  open: optionsEditor => {
+-    const options = { ...defaultOptions,
+-      ...optionsEditor
+-    };
++const { PhotoEditor } = _reactNative.NativeModules;
++
++const defaultOptions = {
++  stickers: [],
++};
++
++const exportObject = {
++  open: (optionsEditor) => {
++    const options = { ...defaultOptions, ...optionsEditor };
+     return new Promise(async (resolve, reject) => {
+       try {
+         const response = await PhotoEditor.open(options);
+@@ -31,7 +30,7 @@ exports.default = _default;
+         reject(e);
+       }
+     });
+-  }
++  },
+ };
+ var _default = exportObject;
+ exports.default = _default;
+diff --git a/lib/module/index.js b/lib/module/index.js
+index 1df5576a156cb7eb1ff6c338a51f849900bf94bc..76c24d3589bd2c41b773ef3452f4f8ddafabfe63 100644
+--- a/lib/module/index.js
++++ b/lib/module/index.js
+@@ -1,15 +1,13 @@
+ import { NativeModules } from 'react-native';
+-const {
+-  PhotoEditor
+-} = NativeModules;
+-export default PhotoEditor;
+-//# sourceMappingURL=index.js.map stickers: []
++const { PhotoEditor } = NativeModules;
++
++const defaultOptions = {
++  stickers: [],
+ };
+-exportObject = {
+-  open: optionsEditor => {
+-    const options = { ...defaultOptions,
+-      ...optionsEditor
+-    };
++
++const exportObject = {
++  open: (optionsEditor) => {
++    const options = { ...defaultOptions, ...optionsEditor };
+     return new Promise(async (resolve, reject) => {
+       try {
+         const response = await PhotoEditor.open(options);
+@@ -24,7 +22,7 @@ exportObject = {
+         reject(e);
+       }
+     });
+-  }
++  },
+ };
+ export default exportObject;
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/react-native-photo-editor.podspec b/react-native-photo-editor.podspec
+index 61bc5bcfac7342591b61ba9d36d80172be64e57f..6ea6ea0722832692da99016069cc54f274bbfc14 100644
+--- a/react-native-photo-editor.podspec
++++ b/react-native-photo-editor.podspec
+@@ -17,8 +17,8 @@ Pod::Spec.new do |s|
+   s.source_files = "ios/**/*.{h,m,mm,swift}"
+   
+   s.dependency "React-Core"
+-  s.dependency "SDWebImage", "~> 5.11.1"
+-  s.dependency 'SDWebImageWebPCoder', '~> 0.8.4'
++  s.dependency "SDWebImage"
++  s.dependency 'SDWebImageWebPCoder'
+ 
+   s.subspec 'ZLImageEditor' do |zl|
+     zl.name             = "ZLImageEditor"
