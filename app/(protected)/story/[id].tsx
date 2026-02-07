@@ -354,7 +354,8 @@ export default function StoryViewerScreen() {
             isMountedRef.current &&
             !isExitingRef.current
           ) {
-            hasAdvanced.current = true;
+            // Do NOT set hasAdvanced here — handleNext sets it itself.
+            // Setting it here would cause handleNext's guard to block the call.
             runOnJS(callHandleNext)();
           }
         });
@@ -585,11 +586,14 @@ export default function StoryViewerScreen() {
         videoCurrentTime,
         videoDuration,
       });
+      // Set flag to prevent this effect from re-firing on next 100ms tick
       hasAdvanced.current = true;
       // Cancel the progress animation since video ended naturally
       cancelAnimation(progress);
       // Small delay to ensure state is consistent
       safeTimeout(() => {
+        // Reset flag right before calling so handleNext's guard doesn't block
+        hasAdvanced.current = false;
         callHandleNext();
       }, 50);
     }
