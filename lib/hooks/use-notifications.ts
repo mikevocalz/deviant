@@ -183,7 +183,7 @@ export function useNotifications() {
                 case "message":
                   if (data.conversationId) {
                     router.push(
-                      `/(protected)/messages/${data.conversationId}` as any,
+                      `/(protected)/chat/${data.conversationId}` as any,
                     );
                   }
                   break;
