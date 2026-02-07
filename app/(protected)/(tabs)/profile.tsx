@@ -151,18 +151,26 @@ function ProfileScreenContent() {
 
       // CRITICAL: Patch all caches where MY avatar appears
       // This ensures instant UI sync across the entire app
+      // Do NOT invalidate profile queries — that refetches from DB and overwrites
+      // the optimistic value before the edge function write is visible.
       const userId = user?.id;
       const username = user?.username;
 
-      // 1. Invalidate profile caches (will refetch with new avatar)
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
+      // 1. Directly patch profile cache with new avatar (no refetch)
       if (userId) {
-        queryClient.invalidateQueries({ queryKey: ["profile", userId] });
+        queryClient.setQueryData(["profile", userId], (old: any) => {
+          if (!old) return old;
+          return { ...old, avatar: newAvatarUrl, avatarUrl: newAvatarUrl };
+        });
       }
       if (username) {
-        queryClient.invalidateQueries({
-          queryKey: ["profile", "username", username],
-        });
+        queryClient.setQueryData(
+          ["profile", "username", username],
+          (old: any) => {
+            if (!old) return old;
+            return { ...old, avatar: newAvatarUrl, avatarUrl: newAvatarUrl };
+          },
+        );
       }
 
       // 2. Patch feed cache - update my posts' author avatar

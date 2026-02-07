@@ -22,17 +22,12 @@ export const storiesApi = {
       console.log("[Stories] getStories");
 
       const userId = getCurrentUserId();
-      console.log("[Stories] getCurrentUserId:", userId);
-      if (!userId) {
-        console.warn("[Stories] No userId, returning empty");
-        return [];
-      }
+      if (!userId) return [];
 
       // Get non-expired stories
       const now = new Date().toISOString();
-      console.log("[Stories] Querying stories with expires_at >", now);
 
-      const { data, error, status, statusText } = await supabase
+      const { data, error } = await supabase
         .from(DB.stories.table)
         .select(
           `
@@ -44,37 +39,19 @@ export const storiesApi = {
         .order(DB.stories.createdAt, { ascending: false })
         .limit(50);
 
-      console.log("[Stories] Query response:", {
-        status,
-        statusText,
-        errorMsg: error?.message,
-        errorCode: error?.code,
-      });
       if (error) throw error;
-
-      console.log("[Stories] Raw stories data:", data?.length, "stories found");
-      if (data && data.length > 0) {
-        console.log("[Stories] First story:", JSON.stringify(data[0]));
-      }
 
       // Fetch author data separately since author_id is UUID
       const authorIds = [
         ...new Set((data || []).map((s: any) => s[DB.stories.authorId])),
       ];
-      console.log("[Stories] Author IDs to fetch:", authorIds);
 
-      const { data: authors, error: authorsError } = await supabase
+      const { data: authors } = await supabase
         .from(DB.users.table)
         .select(
           `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
         )
         .in(DB.users.authId, authorIds);
-
-      console.log(
-        "[Stories] Authors found:",
-        authors?.length,
-        authorsError ? `Error: ${authorsError.message}` : "",
-      );
 
       const authorsMap = new Map(
         (authors || []).map((a: any) => [a[DB.users.authId], a]),
@@ -86,16 +63,20 @@ export const storiesApi = {
       (data || []).forEach((story: any) => {
         const authorId = story[DB.stories.authorId];
         const author = authorsMap.get(authorId);
+        // Use integer user ID (from users table) so stories-bar can match against auth store user.id
+        const authorIntId = author?.[DB.users.id]
+          ? String(author[DB.users.id])
+          : authorId;
         if (!storiesByAuthor.has(authorId)) {
           storiesByAuthor.set(authorId, {
-            id: String(story[DB.stories.id]), // Use story ID, not author ID
-            userId: authorId, // Store author ID separately for filtering
+            id: String(story[DB.stories.id]),
+            userId: authorIntId, // Integer user ID for stories-bar matching
             username: author?.[DB.users.username] || "unknown",
             avatar: author?.avatar?.url || "",
             hasStory: true,
             isViewed: story.viewed || false,
-            isYou: authorId === userId,
-            items: [], // stories-bar expects 'items', not 'stories'
+            isYou: authorIntId === userId, // Compare integer IDs
+            items: [],
           });
         }
 
