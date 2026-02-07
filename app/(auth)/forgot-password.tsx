@@ -24,7 +24,7 @@ export default function ForgotPasswordScreen() {
       try {
         console.log("[ForgotPassword] Sending reset email to:", value.email);
 
-        const { error } = await (authClient as any).requestPasswordReset({
+        const { error } = await (authClient as any).forgetPassword({
           email: value.email,
           redirectTo: "dvnt://reset-password",
         });
