@@ -6,7 +6,6 @@ import {
   Animated,
   Platform,
 } from "react-native";
-import { PasteInput } from "@/components/ui/paste-input";
 import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -760,7 +759,7 @@ export default function ChatScreen() {
               <ImageIcon size={22} color="#3EA4E5" />
             </Pressable>
 
-            <PasteInput
+            <TextInput
               ref={inputRef}
               value={currentMessage}
               onChangeText={handleTextChange}
@@ -769,16 +768,6 @@ export default function ChatScreen() {
               placeholderTextColor="#666"
               className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
               multiline
-              onPasteImage={(uris) => {
-                if (uris.length > 0) {
-                  setPendingMedia({
-                    type: "image",
-                    uri: uris[0],
-                    width: undefined,
-                    height: undefined,
-                  });
-                }
-              }}
             />
 
             <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
