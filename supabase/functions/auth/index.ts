@@ -218,53 +218,6 @@ async function getAuth() {
       user: {
         additionalFields: {
           username: { type: "string", required: false, input: true },
-          firstName: {
-            type: "string",
-            required: false,
-            input: true,
-            fieldName: "first_name",
-          },
-          lastName: {
-            type: "string",
-            required: false,
-            input: true,
-            fieldName: "last_name",
-          },
-          bio: { type: "string", required: false, input: true },
-          location: { type: "string", required: false, input: true },
-          avatarId: {
-            type: "number",
-            required: false,
-            input: false,
-            fieldName: "avatar_id",
-          },
-          verified: {
-            type: "boolean",
-            required: false,
-            input: false,
-            defaultValue: false,
-          },
-          followersCount: {
-            type: "number",
-            required: false,
-            input: false,
-            fieldName: "followers_count",
-            defaultValue: 0,
-          },
-          followingCount: {
-            type: "number",
-            required: false,
-            input: false,
-            fieldName: "following_count",
-            defaultValue: 0,
-          },
-          postsCount: {
-            type: "number",
-            required: false,
-            input: false,
-            fieldName: "posts_count",
-            defaultValue: 0,
-          },
         },
       },
       session: {
