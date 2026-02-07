@@ -181,7 +181,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
-    const { currentMessage, pendingMedia, messages } = get();
+    const { currentMessage, pendingMedia, messages, isSending } = get();
+    if (isSending) return; // Re-entrance guard
     if (!currentMessage.trim() && !pendingMedia) return;
 
     const user = useAuthStore.getState().user;

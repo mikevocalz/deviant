@@ -433,8 +433,10 @@ export default function ChatScreen() {
   }, [mentionQuery, recipient]);
 
   const handleSend = useCallback(() => {
-    if (!currentMessage.trim() && !pendingMedia) return;
-    if (isSending) return; // Prevent double send
+    // Read fresh state from store — avoids stale closure bugs
+    const store = useChatStore.getState();
+    if (!store.currentMessage.trim() && !store.pendingMedia) return;
+    if (store.isSending) return;
 
     Animated.sequence([
       Animated.timing(sendButtonScale, {
@@ -449,16 +451,8 @@ export default function ChatScreen() {
       }),
     ]).start();
 
-    // Send to backend (not local-only)
     sendMessageToBackend(chatId);
-  }, [
-    chatId,
-    currentMessage,
-    sendMessageToBackend,
-    sendButtonScale,
-    pendingMedia,
-    isSending,
-  ]);
+  }, [chatId, sendMessageToBackend, sendButtonScale]);
 
   const handleMentionSelect = useCallback(
     (username: string) => {
@@ -499,8 +493,10 @@ export default function ChatScreen() {
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 
   // Consume camera result when returning from camera screen
+  // Guard: don't overwrite pendingMedia if currently sending
   useFocusEffect(
     useCallback(() => {
+      if (useChatStore.getState().isSending) return;
       const result = consumeCameraResult();
       if (result) {
         const media: MediaAttachment = {
