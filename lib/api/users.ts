@@ -42,8 +42,22 @@ export const usersApi = {
         return null;
       }
 
+      // Check if current user follows this user
+      let isFollowing = false;
+      const currentUserId = getCurrentUserIdInt();
+      const targetUserId = data[DB.users.id];
+      if (currentUserId && targetUserId && currentUserId !== targetUserId) {
+        const { data: followData } = await supabase
+          .from(DB.follows.table)
+          .select("id")
+          .eq(DB.follows.followerId, currentUserId)
+          .eq(DB.follows.followingId, targetUserId)
+          .maybeSingle();
+        isFollowing = !!followData;
+      }
+
       return {
-        id: String(data[DB.users.id]),
+        id: String(targetUserId),
         username: data[DB.users.username],
         email: data[DB.users.email],
         firstName: data[DB.users.firstName],
@@ -58,6 +72,7 @@ export const usersApi = {
         followingCount: Number(data[DB.users.followingCount]) || 0,
         postsCount: Number(data[DB.users.postsCount]) || 0,
         isPrivate: data[DB.users.isPrivate] || false,
+        isFollowing,
         createdAt: data[DB.users.createdAt],
       };
     } catch (error) {
