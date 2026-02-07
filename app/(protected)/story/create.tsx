@@ -34,6 +34,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
+import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
 
 // Instagram-style creative tools - vertical toolbar
 const CREATIVE_TOOLS = [
@@ -237,13 +238,7 @@ export default function CreateStoryScreen() {
         // Pass initialTool to open directly to that tool (requires native patch)
         const editorOptions = {
           path: asset.uri,
-          stickers: customStickers ?? [
-            "https://cdn-icons-png.flaticon.com/512/5272/5272912.png",
-            "https://cdn-icons-png.flaticon.com/512/5272/5272913.png",
-            "https://cdn-icons-png.flaticon.com/512/5272/5272916.png",
-            "https://cdn-icons-png.flaticon.com/512/4392/4392529.png",
-            "https://cdn-icons-png.flaticon.com/512/4392/4392522.png",
-          ],
+          stickers: customStickers ?? ALL_STICKERS,
           ...(initialTool && { initialTool }),
         };
         console.log(
