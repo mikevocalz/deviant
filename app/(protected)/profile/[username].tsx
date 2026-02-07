@@ -286,8 +286,8 @@ function UserProfileScreenComponent() {
     safeUsername || "",
   );
 
-  // Follow state
-  const [isFollowing, setIsFollowing] = useState(false);
+  // Follow state — read directly from query cache (optimistically updated by useFollow)
+  const isFollowing = !!(userData as any)?.isFollowing;
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
 
   // Get userId for follow queries
@@ -300,13 +300,6 @@ function UserProfileScreenComponent() {
       router.replace("/(protected)/(tabs)/profile");
     }
   }, [isOwnProfile, router]);
-
-  useEffect(() => {
-    const isFollowingValue = (userData as any)?.isFollowing;
-    if (typeof isFollowingValue === "boolean") {
-      setIsFollowing(isFollowingValue);
-    }
-  }, [(userData as any)?.isFollowing]);
 
   // Use API data or fallback to mock data - cast to any for flexibility with API response
   const rawUser: {
@@ -361,17 +354,7 @@ function UserProfileScreenComponent() {
     if (!user.id || !username) return;
 
     const action = isFollowing ? "unfollow" : "follow";
-    const newFollowingState = !isFollowing;
-    setIsFollowing(newFollowingState); // Optimistic update
-
-    followMutate(
-      { userId: user.id, action, username }, // Pass username for optimistic cache update
-      {
-        onError: () => {
-          setIsFollowing(isFollowing); // Revert on error
-        },
-      },
-    );
+    followMutate({ userId: user.id, action, username });
   }, [user.id, username, isFollowing, followMutate]);
 
   // State for message button loading

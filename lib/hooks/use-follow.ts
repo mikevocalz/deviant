@@ -7,16 +7,89 @@
  * - Cache invalidation for sync
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueryClient,
+  QueryClient,
+} from "@tanstack/react-query";
 import { followsApi } from "@/lib/api/follows";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useActivityStore } from "@/lib/stores/activity-store";
 
 interface FollowContext {
   previousUserData: any;
   username: string | null;
   previousViewerData?: any;
   previousAuthUser?: any;
+  previousListCaches: Array<{ queryKey: readonly unknown[]; data: any }>;
+  previousActivityFollowed?: boolean;
+}
+
+/**
+ * Walk ALL paginated (infinite) and flat list caches that contain user items
+ * and flip the isFollowing flag for the target user.
+ */
+function optimisticUpdateListCaches(
+  queryClient: QueryClient,
+  targetUserId: string,
+  targetUsername: string | undefined,
+  newIsFollowing: boolean,
+): Array<{ queryKey: readonly unknown[]; data: any }> {
+  const snapshots: Array<{ queryKey: readonly unknown[]; data: any }> = [];
+
+  // Match any list cache that might contain user items with isFollowing
+  const listPrefixes = ["users", "followers", "following"];
+
+  for (const prefix of listPrefixes) {
+    const queries = queryClient.getQueriesData<any>({ queryKey: [prefix] });
+    for (const [queryKey, data] of queries) {
+      if (!data) continue;
+      snapshots.push({ queryKey: [...queryKey], data });
+
+      // Handle infinite query shape: { pages: [{ users: [...] }] }
+      if (data.pages && Array.isArray(data.pages)) {
+        queryClient.setQueryData(queryKey, (old: any) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => {
+              if (!page?.users || !Array.isArray(page.users)) return page;
+              return {
+                ...page,
+                users: page.users.map((u: any) => {
+                  if (
+                    String(u.id) === String(targetUserId) ||
+                    (targetUsername && u.username === targetUsername)
+                  ) {
+                    return { ...u, isFollowing: newIsFollowing };
+                  }
+                  return u;
+                }),
+              };
+            }),
+          };
+        });
+      }
+      // Handle flat array shape: [{ id, isFollowing, ... }]
+      else if (Array.isArray(data)) {
+        queryClient.setQueryData(queryKey, (old: any[]) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((u: any) => {
+            if (
+              String(u.id) === String(targetUserId) ||
+              (targetUsername && u.username === targetUsername)
+            ) {
+              return { ...u, isFollowing: newIsFollowing };
+            }
+            return u;
+          });
+        });
+      }
+    }
+  }
+
+  return snapshots;
 }
 
 export function useFollow() {
@@ -39,59 +112,89 @@ export function useFollow() {
       const isFollowing = action === "unfollow";
       return await followsApi.toggleFollow(userId, isFollowing);
     },
-    // Optimistic update - instant UI feedback
+    // Optimistic update - instant UI feedback across ALL screens
     onMutate: async ({ userId, action, username }) => {
-      // CRITICAL: Only cancel specific user queries, NOT broad ["users"]
+      const newIsFollowing = action === "follow";
+      const countDelta = newIsFollowing ? 1 : -1;
+
+      // Cancel relevant queries to prevent overwrites
       const userQueryKey = username
         ? ["users", "username", username]
         : ["users", "id", userId];
       await queryClient.cancelQueries({ queryKey: userQueryKey });
-
       if (userId) {
         await queryClient.cancelQueries({ queryKey: ["profile", userId] });
       }
-
       const viewerProfileKey = viewerId ? ["profile", viewerId] : null;
       if (viewerProfileKey) {
         await queryClient.cancelQueries({ queryKey: viewerProfileKey });
       }
+      // Cancel list caches that will be optimistically updated
+      await queryClient.cancelQueries({ queryKey: ["users", "followers"] });
+      await queryClient.cancelQueries({ queryKey: ["users", "following"] });
 
+      // Snapshot previous state for rollback
       const previousUserData = queryClient.getQueryData(userQueryKey);
       const previousViewerData = viewerProfileKey
         ? queryClient.getQueryData(viewerProfileKey)
         : undefined;
       const previousAuthUser = authUser;
 
+      // 1. Update target user's profile cache
       if (previousUserData) {
         queryClient.setQueryData(userQueryKey, (old: any) => {
           if (!old) return old;
-          const isFollowing = action === "follow";
-          const countDelta = isFollowing ? 1 : -1;
           return {
             ...old,
-            isFollowing,
+            isFollowing: newIsFollowing,
             followersCount: Math.max(0, (old.followersCount || 0) + countDelta),
           };
         });
       }
 
+      // 2. Update viewer's profile cache (following count)
       if (viewerProfileKey && previousViewerData) {
-        const delta = action === "follow" ? 1 : -1;
         queryClient.setQueryData(viewerProfileKey, (old: any) => {
           if (!old) return old;
           return {
             ...old,
-            followingCount: Math.max(0, (old.followingCount || 0) + delta),
+            followingCount: Math.max(0, (old.followingCount || 0) + countDelta),
           };
         });
       }
 
+      // 3. Update auth store (following count)
       if (authUser) {
-        const delta = action === "follow" ? 1 : -1;
         setUser({
           ...authUser,
-          followingCount: Math.max(0, (authUser.followingCount || 0) + delta),
+          followingCount: Math.max(
+            0,
+            (authUser.followingCount || 0) + countDelta,
+          ),
         });
+      }
+
+      // 4. CRITICAL: Update ALL paginated list caches (followers/following lists)
+      const previousListCaches = optimisticUpdateListCaches(
+        queryClient,
+        userId,
+        username,
+        newIsFollowing,
+      );
+
+      // 5. Sync activity store's followedUsers set
+      const activityStore = useActivityStore.getState();
+      const previousActivityFollowed = username
+        ? activityStore.followedUsers.has(username)
+        : undefined;
+      if (username) {
+        const newFollowedUsers = new Set(activityStore.followedUsers);
+        if (newIsFollowing) {
+          newFollowedUsers.add(username);
+        } else {
+          newFollowedUsers.delete(username);
+        }
+        useActivityStore.setState({ followedUsers: newFollowedUsers });
       }
 
       return {
@@ -99,6 +202,8 @@ export function useFollow() {
         username: username || null,
         previousViewerData,
         previousAuthUser,
+        previousListCaches,
+        previousActivityFollowed,
       } as FollowContext;
     },
     onError: (error: any, variables, context) => {
@@ -122,6 +227,29 @@ export function useFollow() {
 
       if (context?.previousAuthUser) {
         setUser(context.previousAuthUser);
+      }
+
+      // Rollback list caches
+      if (context?.previousListCaches) {
+        for (const { queryKey, data } of context.previousListCaches) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
+
+      // Rollback activity store
+      if (
+        variables.username &&
+        typeof context?.previousActivityFollowed === "boolean"
+      ) {
+        const newFollowedUsers = new Set(
+          useActivityStore.getState().followedUsers,
+        );
+        if (context.previousActivityFollowed) {
+          newFollowedUsers.add(variables.username);
+        } else {
+          newFollowedUsers.delete(variables.username);
+        }
+        useActivityStore.setState({ followedUsers: newFollowedUsers });
       }
 
       const errorMessage =
@@ -184,7 +312,7 @@ export function useFollow() {
       );
     },
     onSettled: (_data, _error, variables) => {
-      // Invalidate multiple related caches to ensure instant updates across all profiles
+      // Invalidate multiple related caches to ensure server-truth sync
       const invalidations: Promise<unknown>[] = [];
 
       // Invalidate the target user's profile (by username and ID)
@@ -214,22 +342,18 @@ export function useFollow() {
         invalidations.push(
           queryClient.invalidateQueries({ queryKey: ["authUser"] }),
           queryClient.invalidateQueries({ queryKey: ["profile", viewerId] }),
-          queryClient.invalidateQueries({ queryKey: ["following", viewerId] }),
-          queryClient.invalidateQueries({ queryKey: ["followers", viewerId] }),
         );
       }
 
-      // Invalidate feed queries that might show follow status
+      // Invalidate ALL followers/following list caches so they refetch with correct isFollowing
       invalidations.push(
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        queryClient.invalidateQueries({ queryKey: ["posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["users", "followers"] }),
+        queryClient.invalidateQueries({ queryKey: ["users", "following"] }),
       );
 
-      // Execute all invalidations in parallel for instant updates
+      // Execute all invalidations in parallel
       Promise.all(invalidations).then(() => {
-        console.log(
-          "[useFollow] All related caches invalidated for instant updates",
-        );
+        console.log("[useFollow] All related caches invalidated for sync");
       });
     },
   });
