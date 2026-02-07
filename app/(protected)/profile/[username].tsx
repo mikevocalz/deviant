@@ -294,7 +294,13 @@ function UserProfileScreenComponent() {
   const userId = (userData as any)?.id;
 
   // CRITICAL: Redirect to tabs profile if viewing own profile
-  // This ensures consistent UI/UX when navigating from comments to own profile
+  // This ensures consistent UI/UX and correct avatar display
+  useEffect(() => {
+    if (isOwnProfile) {
+      router.replace("/(protected)/(tabs)/profile");
+    }
+  }, [isOwnProfile, router]);
+
   useEffect(() => {
     const isFollowingValue = (userData as any)?.isFollowing;
     if (typeof isFollowingValue === "boolean") {
@@ -327,11 +333,14 @@ function UserProfileScreenComponent() {
     };
 
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
-  // over the useUser cache which may be stale after an avatar change
-  const user =
-    isOwnProfile && currentUser?.avatar
-      ? { ...rawUser, avatar: currentUser.avatar }
-      : rawUser;
+  // over the useUser cache which may be stale after an avatar change.
+  // Also handle empty string from API join (avatar_id NULL → avatar: "")
+  const resolvedAvatar =
+    (isOwnProfile && currentUser?.avatar) ||
+    (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null) ||
+    currentUser?.avatar ||
+    null;
+  const user = { ...rawUser, avatar: resolvedAvatar || undefined };
 
   // Create a followMutation-like object for compatibility
   const followMutation = {
