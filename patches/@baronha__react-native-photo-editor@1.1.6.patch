@@ -11,6 +11,38 @@ index 1234567..abcdefg 100644
      if (activity == null) {
        promise.reject("ACTIVITY_DOES_NOT_EXIST", "Activity doesn't exist");
        return;
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+index 2f10101980250a6aa8bedccbb61b2d8407c339b6..303df1eb04aaf8410d17fd3f77c8a03ee976cb22 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+@@ -120,6 +120,8 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+     mPhotoEditor?.setOnPhotoEditorListener(this)
+ //    val drawable = Drawable.cre
+ 
++    val initialTool = value?.getString("initialTool")
++
+     Glide
+       .with(this)
+       .load(path)
+@@ -143,7 +145,17 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+           dataSource: DataSource?,
+           isFirstResource: Boolean
+         ): Boolean {
+-          //
++          // Auto-select initial tool after image loads
++          if (initialTool != null) {
++            mPhotoEditorView?.post {
++              when (initialTool) {
++                "text" -> onToolSelected(ToolType.TEXT)
++                "draw" -> onToolSelected(ToolType.SHAPE)
++                "stickers" -> onToolSelected(ToolType.STICKER)
++                "filter" -> onToolSelected(ToolType.FILTER)
++              }
++            }
++          }
+           return false
+         }
+       })
 diff --git a/android/src/main/res/layout/photo_editor_view.xml b/android/src/main/res/layout/photo_editor_view.xml
 index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcfbdb16129 100644
 --- a/android/src/main/res/layout/photo_editor_view.xml

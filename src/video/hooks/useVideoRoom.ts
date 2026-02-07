@@ -444,8 +444,14 @@ export function useVideoRoom({
   }, [getStore]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
+  // Only run full cleanup (leaveRoom, reset) if we have a roomId.
+  // For non-server rooms (empty roomId), this hook is a no-op and must
+  // NOT call leaveRoom — that would kill the shared Fishjam camera/mic.
+  const roomIdRef = useRef(roomId);
+  roomIdRef.current = roomId;
   useEffect(() => {
     return () => {
+      if (!roomIdRef.current) return;
       clearTokenTimer();
       unsubscribeEventsRef.current?.();
       unsubscribeMembersRef.current?.();
