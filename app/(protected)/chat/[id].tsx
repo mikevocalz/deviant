@@ -46,6 +46,14 @@ import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
+export const unstable_settings = {
+  options: {
+    detents: ["large"],
+    cornerRadius: 16,
+    grabber: true,
+  },
+};
+
 // Empty array - messages will come from backend
 const emptyMessages: Message[] = [];
 

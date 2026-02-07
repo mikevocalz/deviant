@@ -25,6 +25,7 @@ export const unstable_settings = {
   options: {
     detents: ["medium", "large"],
     cornerRadius: 16,
+    grabber: true,
   },
 };
 

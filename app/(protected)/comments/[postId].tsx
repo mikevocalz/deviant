@@ -32,6 +32,14 @@ import {
   type CommentData,
 } from "@/components/comments/threaded-comment";
 
+export const unstable_settings = {
+  options: {
+    detents: ["large"],
+    cornerRadius: 16,
+    grabber: true,
+  },
+};
+
 // Generate unique client mutation ID for idempotency
 function generateMutationId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
