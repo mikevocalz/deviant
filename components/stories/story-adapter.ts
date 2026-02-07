@@ -43,6 +43,8 @@ export function toInstaStoryData(stories: Story[]): IUserStory[] {
             backgroundColor: item.backgroundColor,
             duration: item.duration || 5000,
             isYou: story.isYou,
+            isCloseFriends: story.hasCloseFriendsStory || false,
+            visibility: item.visibility || "public",
           },
         } as IUserStoryItem & { customData: StoryItemCustomData };
       }),
@@ -60,6 +62,8 @@ export interface StoryItemCustomData {
   backgroundColor?: string;
   duration: number;
   isYou?: boolean;
+  isCloseFriends?: boolean;
+  visibility?: "public" | "close_friends";
 }
 
 /**

@@ -117,6 +117,8 @@ export function StoriesBar() {
               backgroundColor: item.backgroundColor,
               duration: item.duration || 5000,
               isYou: false,
+              isCloseFriends: story.hasCloseFriendsStory || false,
+              visibility: item.visibility || "public",
             },
           } as IUserStoryItem;
         }),
@@ -168,6 +170,7 @@ export function StoriesBar() {
                     alt={myStory.username || "Your story"}
                     hasStory={true}
                     isViewed={myStory.isViewed}
+                    isCloseFriends={myStory.hasCloseFriendsStory}
                     storyThumbnail={myStory.items?.[0]?.url}
                   />
                 </Pressable>

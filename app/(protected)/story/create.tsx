@@ -18,6 +18,8 @@ import {
   Sticker,
   Sparkles,
   Download,
+  Star,
+  Globe,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -82,6 +84,9 @@ export default function CreateStoryScreen() {
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 
   const [isSharing, setIsSharing] = useState(false);
+  const [visibility, setVisibility] = useState<"public" | "close_friends">(
+    "public",
+  );
   const [uploadProgress, setUploadProgress] = useState(0);
   const [videoThumbnails, setVideoThumbnails] = useState<
     Record<string, string>
@@ -329,7 +334,7 @@ export default function CreateStoryScreen() {
       }));
 
       createStory.mutate(
-        { items: storyItems },
+        { items: storyItems, visibility },
         {
           onSuccess: () => {
             setIsSharing(false);
@@ -637,6 +642,77 @@ export default function CreateStoryScreen() {
             </ScrollView>
           )}
         </View>
+
+        {/* Visibility Selector */}
+        {selectedMedia.length > 0 && (
+          <View className="px-4 mt-4 mb-2">
+            <View className="flex-row gap-3 justify-center">
+              <Pressable
+                onPress={() => {
+                  setVisibility("public");
+                  Haptics.selectionAsync();
+                }}
+                className="flex-row items-center gap-2 rounded-full px-5 py-2.5"
+                style={{
+                  backgroundColor:
+                    visibility === "public"
+                      ? "rgba(255,255,255,0.15)"
+                      : "rgba(255,255,255,0.05)",
+                  borderWidth: 1.5,
+                  borderColor:
+                    visibility === "public"
+                      ? "rgba(255,255,255,0.3)"
+                      : "rgba(255,255,255,0.08)",
+                }}
+              >
+                <Globe
+                  size={16}
+                  color={visibility === "public" ? "#fff" : "#666"}
+                />
+                <Text
+                  className="text-sm font-semibold"
+                  style={{ color: visibility === "public" ? "#fff" : "#666" }}
+                >
+                  Public
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setVisibility("close_friends");
+                  Haptics.selectionAsync();
+                }}
+                className="flex-row items-center gap-2 rounded-full px-5 py-2.5"
+                style={{
+                  backgroundColor:
+                    visibility === "close_friends"
+                      ? "rgba(252, 37, 58, 0.15)"
+                      : "rgba(255,255,255,0.05)",
+                  borderWidth: 1.5,
+                  borderColor:
+                    visibility === "close_friends"
+                      ? "#FC253A"
+                      : "rgba(255,255,255,0.08)",
+                }}
+              >
+                <Star
+                  size={16}
+                  color={visibility === "close_friends" ? "#FC253A" : "#666"}
+                  fill={
+                    visibility === "close_friends" ? "#FC253A" : "transparent"
+                  }
+                />
+                <Text
+                  className="text-sm font-semibold"
+                  style={{
+                    color: visibility === "close_friends" ? "#FC253A" : "#666",
+                  }}
+                >
+                  Close Friends
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Action buttons */}
         <View className="px-4 pb-6">

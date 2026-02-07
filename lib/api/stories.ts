@@ -22,6 +22,8 @@ export const storiesApi = {
       console.log("[Stories] getStories");
 
       const userId = getCurrentUserId();
+      const userIdInt = getCurrentUserIdInt();
+      const authId = await getCurrentUserAuthId();
       if (!userId) return [];
 
       // Get non-expired stories
@@ -41,9 +43,32 @@ export const storiesApi = {
 
       if (error) throw error;
 
+      // ── VISIBILITY ENFORCEMENT (server-side) ──────────────────────
+      // Fetch which story owners have the current user as a close friend
+      // so we can filter close_friends stories appropriately.
+      let closeFriendOfSet = new Set<string>(); // auth_ids of owners who have me as close friend
+      if (userIdInt) {
+        const { data: cfRows } = await supabase
+          .from("close_friends")
+          .select("owner_id")
+          .eq("friend_id", userIdInt);
+        closeFriendOfSet = new Set((cfRows || []).map((r: any) => r.owner_id));
+      }
+
+      // Filter: remove close_friends stories the viewer isn't allowed to see
+      const visibleStories = (data || []).filter((story: any) => {
+        const vis = story[DB.stories.visibility];
+        if (vis !== "close_friends") return true; // public/followers/private/null → pass through
+        const storyAuthorId = story[DB.stories.authorId];
+        // Owner always sees their own close_friends stories
+        if (storyAuthorId === authId) return true;
+        // Viewer must be in the owner's close friends list
+        return closeFriendOfSet.has(storyAuthorId);
+      });
+
       // Fetch author data separately since author_id is UUID
       const authorIds = [
-        ...new Set((data || []).map((s: any) => s[DB.stories.authorId])),
+        ...new Set(visibleStories.map((s: any) => s[DB.stories.authorId])),
       ];
 
       const { data: authors } = await supabase
@@ -60,27 +85,31 @@ export const storiesApi = {
       // Group by author - stories-bar expects 'items' array, not 'stories'
       const storiesByAuthor = new Map();
 
-      (data || []).forEach((story: any) => {
+      visibleStories.forEach((story: any) => {
         const authorId = story[DB.stories.authorId];
         const author = authorsMap.get(authorId);
-        // Use integer user ID (from users table) so stories-bar can match against auth store user.id
         const authorIntId = author?.[DB.users.id]
           ? String(author[DB.users.id])
           : authorId;
+        const visibility = story[DB.stories.visibility] || "public";
+
         if (!storiesByAuthor.has(authorId)) {
           storiesByAuthor.set(authorId, {
             id: String(story[DB.stories.id]),
-            userId: authorIntId, // Integer user ID for stories-bar matching
+            userId: authorIntId,
             username: author?.[DB.users.username] || "unknown",
             avatar: author?.avatar?.url || "",
             hasStory: true,
             isViewed: story.viewed || false,
-            isYou: authorIntId === userId, // Compare integer IDs
+            isYou: authorIntId === userId,
+            // Track if ANY story in this group is close_friends
+            hasCloseFriendsStory: visibility === "close_friends",
             items: [],
           });
+        } else if (visibility === "close_friends") {
+          storiesByAuthor.get(authorId).hasCloseFriendsStory = true;
         }
 
-        // Add item even if media URL is null - use placeholder or skip
         const mediaUrl = story.media?.url;
         if (mediaUrl) {
           storiesByAuthor.get(authorId).items.push({
@@ -88,6 +117,7 @@ export const storiesApi = {
             url: mediaUrl,
             type: story.media ? "image" : "text",
             duration: 5000,
+            visibility,
             header: {
               heading: author?.[DB.users.username] || "unknown",
               subheading: formatTimeAgo(story[DB.stories.createdAt]),
@@ -117,6 +147,7 @@ export const storiesApi = {
       textColor?: string;
       backgroundColor?: string;
     }>;
+    visibility?: "public" | "close_friends";
   }) {
     try {
       console.log("[Stories] createStory");
@@ -139,7 +170,7 @@ export const storiesApi = {
           body: {
             mediaUrl,
             mediaType,
-            visibility: "public",
+            visibility: storyData.visibility || "public",
           },
           headers: { Authorization: `Bearer ${token}` },
         });

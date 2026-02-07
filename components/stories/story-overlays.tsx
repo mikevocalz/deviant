@@ -17,7 +17,7 @@ import {
   Easing,
 } from "react-native";
 import { PasteInput } from "@/components/ui/paste-input";
-import { X, Send, Heart } from "lucide-react-native";
+import { X, Send, Heart, Star } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
@@ -133,21 +133,40 @@ export const StoryHeaderText: RenderCustomText = ({ profileName, item }) => {
     }
   }, [customData?.username, currentUser?.username, router]);
 
+  const isCFStory =
+    customData?.visibility === "close_friends" || customData?.isCloseFriends;
+
   return (
-    <Pressable
-      onPress={handleProfilePress}
-      className="flex-row items-center ml-2.5"
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-    >
-      <Text className="text-white text-sm font-bold" numberOfLines={1}>
-        {profileName}
-      </Text>
-      {customData && (
-        <Text className="text-white/60 text-xs ml-2">
-          {formatTimeAgo(customData.duration)}
+    <View className="flex-row items-center ml-2.5">
+      <Pressable
+        onPress={handleProfilePress}
+        className="flex-row items-center"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Text className="text-white text-sm font-bold" numberOfLines={1}>
+          {profileName}
         </Text>
+        {customData && (
+          <Text className="text-white/60 text-xs ml-2">
+            {formatTimeAgo(customData.duration)}
+          </Text>
+        )}
+      </Pressable>
+      {isCFStory && (
+        <View
+          className="flex-row items-center ml-2 rounded-full px-2 py-0.5"
+          style={{ backgroundColor: "rgba(252, 37, 58, 0.25)" }}
+        >
+          <Star size={10} color="#FC253A" fill="#FC253A" />
+          <Text
+            className="text-xs font-semibold ml-1"
+            style={{ color: "#FC253A" }}
+          >
+            Close Friends
+          </Text>
+        </View>
       )}
-    </Pressable>
+    </View>
   );
 };
 

@@ -38,6 +38,7 @@ export type StoryItem = {
   url?: string;
   type: "image" | "video" | "text";
   duration: number;
+  visibility?: "public" | "close_friends";
   text?: string;
   textColor?: string;
   backgroundColor?: string;
@@ -56,6 +57,7 @@ export type Story = {
   hasStory?: boolean;
   isViewed: boolean;
   isYou?: boolean;
+  hasCloseFriendsStory?: boolean;
   stories?: StoryItem[];
   items?: Array<{
     id?: string;
@@ -65,6 +67,7 @@ export type Story = {
     textColor?: string;
     backgroundColor?: string;
     duration?: number;
+    visibility?: "public" | "close_friends";
   }>;
 };
 

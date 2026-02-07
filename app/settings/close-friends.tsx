@@ -8,110 +8,27 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
-import { ChevronLeft, Star, Users } from "lucide-react-native";
+import { ChevronLeft, Star, Users, UserPlus } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { Image } from "expo-image";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase/client";
-import { requireBetterAuthToken } from "@/lib/auth/identity";
-import { useAuthStore } from "@/lib/stores/auth-store";
-import { settingsKeys } from "@/lib/hooks/use-user-settings";
-import { toast } from "sonner-native";
+import {
+  useCloseFriendsList,
+  useToggleCloseFriend,
+} from "@/lib/hooks/use-close-friends";
+import * as Haptics from "expo-haptics";
 
-const CDN_URL =
-  process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
-
-function getAvatarUrl(avatar: string | null): string {
-  if (!avatar)
-    return "https://ui-avatars.com/api/?name=U&background=1c1c1c&color=f5f5f4";
-  if (avatar.startsWith("http")) return avatar;
-  return `${CDN_URL}/${avatar}`;
-}
-
-interface CloseFriend {
-  id: string;
-  name: string;
-  username: string;
-  avatar: string | null;
-}
-
-function useCloseFriends() {
-  const { user } = useAuthStore();
-  return useQuery<CloseFriend[]>({
-    queryKey: ["close-friends", user?.id],
-    queryFn: async () => {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke<{
-        ok: boolean;
-        data?: { settings: Record<string, unknown> };
-      }>("user-settings", {
-        body: { action: "get" },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (error || !data?.ok) return [];
-      const ids: string[] = (data?.data?.settings as any)?.closeFriendIds || [];
-      if (ids.length === 0) return [];
-
-      // Fetch user details for each close friend ID
-      const { data: users } = await supabase
-        .from("users")
-        .select("id, name, username, avatar_url")
-        .in("id", ids.map(Number));
-
-      return (users || []).map((u: any) => ({
-        id: String(u.id),
-        name: u.name || "",
-        username: u.username || "",
-        avatar: u.avatar_url || null,
-      }));
-    },
-    enabled: !!user?.id,
-  });
-}
-
-function useRemoveCloseFriend() {
-  const queryClient = useQueryClient();
-  const { user } = useAuthStore();
-
-  return useMutation({
-    mutationFn: async (friendId: string) => {
-      const token = await requireBetterAuthToken();
-      // Get current list
-      const { data: current } = await supabase.functions.invoke<{
-        ok: boolean;
-        data?: { settings: Record<string, unknown> };
-      }>("user-settings", {
-        body: { action: "get" },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const ids: string[] =
-        (current?.data?.settings as any)?.closeFriendIds || [];
-      const updated = ids.filter((id) => id !== friendId);
-
-      await supabase.functions.invoke("user-settings", {
-        body: { action: "update", settings: { closeFriendIds: updated } },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return updated;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["close-friends", user?.id] });
-      queryClient.invalidateQueries({
-        queryKey: settingsKeys.all(user?.id || ""),
-      });
-      toast.success("Removed from close friends");
-    },
-    onError: () => {
-      toast.error("Failed to remove");
-    },
-  });
-}
+const CF_ACCENT = "#FC253A";
 
 export default function CloseFriendsScreen() {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const { data: closeFriends, isLoading } = useCloseFriends();
-  const removeMutation = useRemoveCloseFriend();
+  const { data: closeFriends = [], isLoading } = useCloseFriendsList();
+  const toggleMutation = useToggleCloseFriend();
+
+  const handleRemove = (friendId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleMutation.mutate({ friendId, isCloseFriend: true });
+  };
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -123,12 +40,21 @@ export default function CloseFriendsScreen() {
           <Text className="flex-1 text-lg font-semibold text-foreground">
             Close Friends
           </Text>
+          <Pressable
+            onPress={() => router.push("/(protected)/close-friends" as any)}
+            hitSlop={12}
+          >
+            <UserPlus size={22} color={CF_ACCENT} />
+          </Pressable>
         </View>
 
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="px-4 py-4">
-            <View className="mb-4 flex-row items-center gap-3 rounded-lg bg-primary/10 p-4">
-              <Star size={24} color={colors.primary} fill={colors.primary} />
+            <View
+              className="mb-4 flex-row items-center gap-3 rounded-lg p-4"
+              style={{ backgroundColor: "rgba(252, 37, 58, 0.1)" }}
+            >
+              <Star size={24} color={CF_ACCENT} fill={CF_ACCENT} />
               <View className="flex-1">
                 <Text className="font-semibold text-foreground">
                   Close Friends
@@ -138,13 +64,24 @@ export default function CloseFriendsScreen() {
                 </Text>
               </View>
             </View>
+
+            <Pressable
+              onPress={() => router.push("/(protected)/close-friends" as any)}
+              className="mb-4 flex-row items-center justify-center gap-2 rounded-xl py-3"
+              style={{ backgroundColor: CF_ACCENT }}
+            >
+              <UserPlus size={18} color="#fff" />
+              <Text className="font-semibold text-white">
+                Manage Close Friends
+              </Text>
+            </Pressable>
           </View>
 
           {isLoading ? (
             <View className="flex-1 items-center justify-center py-20">
-              <ActivityIndicator size="large" color={colors.primary} />
+              <ActivityIndicator size="large" color={CF_ACCENT} />
             </View>
-          ) : !closeFriends || closeFriends.length === 0 ? (
+          ) : closeFriends.length === 0 ? (
             <View className="flex-1 items-center justify-center px-8 py-20">
               <View className="mb-4 rounded-full bg-secondary/50 p-4">
                 <Users size={48} color="#666" />
@@ -153,8 +90,8 @@ export default function CloseFriendsScreen() {
                 No Close Friends Yet
               </Text>
               <Text className="text-center text-sm text-muted-foreground">
-                Add close friends from their profile page to share exclusive
-                stories with them.
+                Tap "Manage Close Friends" to search and add people to your
+                close friends list.
               </Text>
             </View>
           ) : (
@@ -168,12 +105,18 @@ export default function CloseFriendsScreen() {
                 <Pressable
                   key={friend.id}
                   onPress={() =>
-                    router.push(`/(protected)/user/${friend.username}` as any)
+                    router.push(
+                      `/(protected)/profile/${friend.username}` as any,
+                    )
                   }
                   className="mb-3 flex-row items-center rounded-lg border border-border bg-card p-3 active:bg-secondary/30"
                 >
                   <Image
-                    source={{ uri: getAvatarUrl(friend.avatar) }}
+                    source={{
+                      uri:
+                        friend.avatar ||
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(friend.name)}&background=1c1c1c&color=f5f5f4`,
+                    }}
                     style={{ width: 48, height: 48, borderRadius: 24 }}
                     contentFit="cover"
                   />
@@ -188,15 +131,12 @@ export default function CloseFriendsScreen() {
                   <Pressable
                     onPress={(e) => {
                       e.stopPropagation();
-                      removeMutation.mutate(friend.id);
+                      handleRemove(friend.id);
                     }}
-                    className="rounded-full bg-secondary/50 p-2"
+                    className="rounded-full p-2"
+                    style={{ backgroundColor: "rgba(252, 37, 58, 0.15)" }}
                   >
-                    <Star
-                      size={18}
-                      color={colors.primary}
-                      fill={colors.primary}
-                    />
+                    <Star size={18} color={CF_ACCENT} fill={CF_ACCENT} />
                   </Pressable>
                 </Pressable>
               ))}
