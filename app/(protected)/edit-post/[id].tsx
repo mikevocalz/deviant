@@ -43,6 +43,7 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
 import { Input } from "@/components/ui/input";
+import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -484,23 +485,22 @@ export default function EditPostScreen() {
           }}
           className="px-4 pt-5 pb-3"
         >
-          <Input
-            label="CAPTION"
-            labelClassName="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+          <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+            CAPTION
+          </Text>
+          <UserMentionAutocomplete
             value={caption}
             onChangeText={setCaption}
-            placeholder="Write a caption..."
+            placeholder="Write a caption... (use @ to tag people)"
             multiline
             maxLength={MAX_CAPTION + 100}
-            textAlignVertical="top"
-            className="pt-3 pb-2 text-[15px] leading-[22px]"
-            style={{ minHeight: 120 }}
-            error={
-              captionOverLimit
-                ? `Caption exceeds ${MAX_CAPTION.toLocaleString()} characters`
-                : undefined
-            }
+            style={{ minHeight: 120, fontSize: 15, lineHeight: 22 }}
           />
+          {captionOverLimit && (
+            <Text className="text-xs text-red-400 font-semibold mt-1">
+              Caption exceeds {MAX_CAPTION.toLocaleString()} characters
+            </Text>
+          )}
           <View className="flex-row items-center justify-between mt-1.5">
             <Text
               className={`text-xs ${
