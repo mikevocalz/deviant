@@ -139,6 +139,9 @@ export default function SneakyLynkRoomScreen() {
 
   // Start camera & mic on mount
   const hasJoinedRef = useRef(false);
+  const isServerRoomRef = useRef(isServerRoom);
+  isServerRoomRef.current = isServerRoom;
+
   useEffect(() => {
     if (hasJoinedRef.current) return;
     hasJoinedRef.current = true;
@@ -165,17 +168,22 @@ export default function SneakyLynkRoomScreen() {
         }
       }
     })();
+    // No cleanup here — camera/mic cleanup is handled by the unmount-only effect below.
+    // Putting stopCamera in this cleanup causes the camera to die on Strict Mode
+    // re-runs and effect dep changes.
+  }, [isServerRoom, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup camera/mic ONLY on true unmount (empty deps = runs once)
+  useEffect(() => {
     return () => {
-      if (isServerRoom) {
+      if (isServerRoomRef.current) {
         videoRoom.leave();
       } else {
         fishjamCamera.stopCamera();
         fishjamMic.stopMicrophone();
       }
-      hasJoinedRef.current = false;
     };
-  }, [isServerRoom, id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLeave = useCallback(() => {
     router.back();
@@ -297,16 +305,6 @@ export default function SneakyLynkRoomScreen() {
   const cameraStream = isServerRoom
     ? videoRoom.camera?.cameraStream
     : fishjamCamera.cameraStream;
-
-  // DEBUG: trace why video doesn't render
-  console.log("[SneakyLynk] Video render check:", {
-    effectiveVideoOn,
-    isCameraOn: fishjamCamera.isCameraOn,
-    hasCameraStream: !!cameraStream,
-    cameraStreamType: cameraStream ? typeof cameraStream : "null",
-    cameraStreamId: cameraStream?.id || "none",
-    videoTrackPassed: cameraStream ? "{ stream }" : "undefined",
-  });
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
