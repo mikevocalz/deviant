@@ -10,7 +10,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -20,7 +21,13 @@ const KickUserSchema = z.object({
   reason: z.string().max(500).optional(),
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -35,7 +42,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -51,19 +62,27 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+    const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return errorResponse("unauthorized", "Invalid token", 401);
     }
@@ -80,7 +99,11 @@ serve(async (req: Request) => {
 
     const parsed = KickUserSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { roomId, targetUserId, reason } = parsed.data;
@@ -112,7 +135,11 @@ serve(async (req: Request) => {
     });
 
     if (!canModerate) {
-      return errorResponse("forbidden", "You do not have permission to kick users", 403);
+      return errorResponse(
+        "forbidden",
+        "You do not have permission to kick users",
+        403,
+      );
     }
 
     // Check target is a member
@@ -124,7 +151,11 @@ serve(async (req: Request) => {
       .single();
 
     if (!targetMember || targetMember.status !== "active") {
-      return errorResponse("not_found", "User is not an active member of this room", 404);
+      return errorResponse(
+        "not_found",
+        "User is not an active member of this room",
+        404,
+      );
     }
 
     // Cannot kick the host
@@ -140,15 +171,19 @@ serve(async (req: Request) => {
 
     // Moderators cannot kick other moderators
     if (actorRole === "moderator" && targetMember.role === "moderator") {
-      return errorResponse("forbidden", "Moderators cannot kick other moderators", 403);
+      return errorResponse(
+        "forbidden",
+        "Moderators cannot kick other moderators",
+        403,
+      );
     }
 
     // 1. Update member status to kicked
     const { error: updateError } = await supabase
       .from("video_room_members")
-      .update({ 
-        status: "kicked", 
-        left_at: new Date().toISOString() 
+      .update({
+        status: "kicked",
+        left_at: new Date().toISOString(),
       })
       .eq("room_id", roomId)
       .eq("user_id", targetUserId);
@@ -167,7 +202,10 @@ serve(async (req: Request) => {
       .is("revoked_at", null);
 
     if (revokeError) {
-      console.error("[video_kick_user] Token revocation error:", revokeError.message);
+      console.error(
+        "[video_kick_user] Token revocation error:",
+        revokeError.message,
+      );
     }
 
     // 3. Record kick in audit table
@@ -182,20 +220,28 @@ serve(async (req: Request) => {
     if (room.fishjam_room_id) {
       try {
         // Get all peers and find the one with matching userId
-        const peersRes = await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}`, {
-          headers: { "Authorization": `Bearer ${fishjamApiKey}` },
-        });
+        const peersRes = await fetch(
+          `${fishjamBaseUrl}/room/${room.fishjam_room_id}`,
+          {
+            headers: { Authorization: `Bearer ${fishjamApiKey}` },
+          },
+        );
 
         if (peersRes.ok) {
           const roomData = await peersRes.json();
           const peers = roomData.data.room.peers || [];
-          const targetPeer = peers.find((p: any) => p.metadata?.userId === targetUserId);
+          const targetPeer = peers.find(
+            (p: any) => p.metadata?.userId === targetUserId,
+          );
 
           if (targetPeer) {
-            await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}/peer/${targetPeer.id}`, {
-              method: "DELETE",
-              headers: { "Authorization": `Bearer ${fishjamApiKey}` },
-            });
+            await fetch(
+              `${fishjamBaseUrl}/room/${room.fishjam_room_id}/peer/${targetPeer.id}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${fishjamApiKey}` },
+              },
+            );
           }
         }
       } catch (err) {
@@ -204,16 +250,21 @@ serve(async (req: Request) => {
     }
 
     // 5. Insert eject event (this triggers realtime broadcast)
-    const { error: eventError } = await supabase.from("video_room_events").insert({
-      room_id: roomId,
-      type: "eject",
-      actor_id: actorId,
-      target_id: targetUserId,
-      payload: { action: "kick", reason },
-    });
+    const { error: eventError } = await supabase
+      .from("video_room_events")
+      .insert({
+        room_id: roomId,
+        type: "eject",
+        actor_id: actorId,
+        target_id: targetUserId,
+        payload: { action: "kick", reason },
+      });
 
     if (eventError) {
-      console.error("[video_kick_user] Event insert error:", eventError.message);
+      console.error(
+        "[video_kick_user] Event insert error:",
+        eventError.message,
+      );
     }
 
     // Also insert member_kicked for audit
@@ -225,7 +276,9 @@ serve(async (req: Request) => {
       payload: { reason },
     });
 
-    console.log(`[video_kick_user] User ${targetUserId} kicked from room ${roomId} by ${actorId}`);
+    console.log(
+      `[video_kick_user] User ${targetUserId} kicked from room ${roomId} by ${actorId}`,
+    );
 
     return jsonResponse({
       ok: true,

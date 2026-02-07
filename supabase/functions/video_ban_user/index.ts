@@ -10,7 +10,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -21,7 +22,13 @@ const BanUserSchema = z.object({
   durationMinutes: z.number().int().min(1).max(525600).optional(), // Max 1 year, null = permanent
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -36,7 +43,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -52,19 +63,27 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+    const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return errorResponse("unauthorized", "Invalid token", 401);
     }
@@ -81,7 +100,11 @@ serve(async (req: Request) => {
 
     const parsed = BanUserSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { roomId, targetUserId, reason, durationMinutes } = parsed.data;
@@ -113,7 +136,11 @@ serve(async (req: Request) => {
     });
 
     if (!canModerate) {
-      return errorResponse("forbidden", "You do not have permission to ban users", 403);
+      return errorResponse(
+        "forbidden",
+        "You do not have permission to ban users",
+        403,
+      );
     }
 
     // Check target's role
@@ -135,27 +162,32 @@ serve(async (req: Request) => {
 
     // Moderators cannot ban other moderators
     if (actorRole === "moderator" && targetRole === "moderator") {
-      return errorResponse("forbidden", "Moderators cannot ban other moderators", 403);
+      return errorResponse(
+        "forbidden",
+        "Moderators cannot ban other moderators",
+        403,
+      );
     }
 
     // Calculate expiry
-    const expiresAt = durationMinutes 
+    const expiresAt = durationMinutes
       ? new Date(Date.now() + durationMinutes * 60 * 1000).toISOString()
       : null;
 
     // 1. Create or update ban record
-    const { error: banError } = await supabase
-      .from("video_room_bans")
-      .upsert({
+    const { error: banError } = await supabase.from("video_room_bans").upsert(
+      {
         room_id: roomId,
         user_id: targetUserId,
         banned_by: actorId,
         reason,
         expires_at: expiresAt,
         created_at: new Date().toISOString(),
-      }, {
+      },
+      {
         onConflict: "room_id,user_id",
-      });
+      },
+    );
 
     if (banError) {
       console.error("[video_ban_user] Ban insert error:", banError.message);
@@ -165,15 +197,18 @@ serve(async (req: Request) => {
     // 2. Update member status to banned
     const { error: updateError } = await supabase
       .from("video_room_members")
-      .update({ 
-        status: "banned", 
-        left_at: new Date().toISOString() 
+      .update({
+        status: "banned",
+        left_at: new Date().toISOString(),
       })
       .eq("room_id", roomId)
       .eq("user_id", targetUserId);
 
     if (updateError) {
-      console.error("[video_ban_user] Member update error:", updateError.message);
+      console.error(
+        "[video_ban_user] Member update error:",
+        updateError.message,
+      );
     }
 
     // 3. Revoke all active tokens
@@ -187,20 +222,28 @@ serve(async (req: Request) => {
     // 4. Remove peer from Fishjam room
     if (room.fishjam_room_id) {
       try {
-        const peersRes = await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}`, {
-          headers: { "Authorization": `Bearer ${fishjamApiKey}` },
-        });
+        const peersRes = await fetch(
+          `${fishjamBaseUrl}/room/${room.fishjam_room_id}`,
+          {
+            headers: { Authorization: `Bearer ${fishjamApiKey}` },
+          },
+        );
 
         if (peersRes.ok) {
           const roomData = await peersRes.json();
           const peers = roomData.data.room.peers || [];
-          const targetPeer = peers.find((p: any) => p.metadata?.userId === targetUserId);
+          const targetPeer = peers.find(
+            (p: any) => p.metadata?.userId === targetUserId,
+          );
 
           if (targetPeer) {
-            await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}/peer/${targetPeer.id}`, {
-              method: "DELETE",
-              headers: { "Authorization": `Bearer ${fishjamApiKey}` },
-            });
+            await fetch(
+              `${fishjamBaseUrl}/room/${room.fishjam_room_id}/peer/${targetPeer.id}`,
+              {
+                method: "DELETE",
+                headers: { Authorization: `Bearer ${fishjamApiKey}` },
+              },
+            );
           }
         }
       } catch (err) {
@@ -226,7 +269,9 @@ serve(async (req: Request) => {
       payload: { reason, expiresAt },
     });
 
-    console.log(`[video_ban_user] User ${targetUserId} banned from room ${roomId} by ${actorId}`);
+    console.log(
+      `[video_ban_user] User ${targetUserId} banned from room ${roomId} by ${actorId}`,
+    );
 
     return jsonResponse({
       ok: true,

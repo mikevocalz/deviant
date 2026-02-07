@@ -10,7 +10,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -19,7 +20,14 @@ const RefreshTokenSchema = z.object({
   currentJti: z.string().optional(), // Current token JTI for validation
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "rate_limited" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "rate_limited"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -34,7 +42,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -54,19 +66,27 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+    const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return errorResponse("unauthorized", "Invalid token", 401);
     }
@@ -83,7 +103,11 @@ serve(async (req: Request) => {
 
     const parsed = RefreshTokenSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { roomId, currentJti } = parsed.data;
@@ -98,7 +122,11 @@ serve(async (req: Request) => {
     });
 
     if (!canRefresh) {
-      return errorResponse("rate_limited", "Too many refresh attempts. Try again later.", 429);
+      return errorResponse(
+        "rate_limited",
+        "Too many refresh attempts. Try again later.",
+        429,
+      );
     }
 
     await supabase.rpc("record_rate_limit", {
@@ -131,7 +159,11 @@ serve(async (req: Request) => {
       .single();
 
     if (!member || member.status !== "active") {
-      return errorResponse("forbidden", "You are not an active member of this room", 403);
+      return errorResponse(
+        "forbidden",
+        "You are not an active member of this room",
+        403,
+      );
     }
 
     // Check if user is banned
@@ -181,8 +213,15 @@ serve(async (req: Request) => {
         .limit(1)
         .single();
 
-      if (latestToken && new Date(recentKickBan.created_at) > new Date(latestToken.issued_at)) {
-        return errorResponse("forbidden", "Your session has been terminated", 403);
+      if (
+        latestToken &&
+        new Date(recentKickBan.created_at) > new Date(latestToken.issued_at)
+      ) {
+        return errorResponse(
+          "forbidden",
+          "Your session has been terminated",
+          403,
+        );
       }
     }
 
@@ -198,28 +237,34 @@ serve(async (req: Request) => {
     const jti = generateJti();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    const addPeerRes = await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}/peer`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${fishjamApiKey}`,
-        "Content-Type": "application/json",
+    const addPeerRes = await fetch(
+      `${fishjamBaseUrl}/room/${room.fishjam_room_id}/peer`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${fishjamApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "webrtc",
+          options: {
+            enableSimulcast: true,
+          },
+          metadata: {
+            userId,
+            role: member.role,
+            jti,
+          },
+        }),
       },
-      body: JSON.stringify({
-        type: "webrtc",
-        options: {
-          enableSimulcast: true,
-        },
-        metadata: {
-          userId,
-          role: member.role,
-          jti,
-        },
-      }),
-    });
+    );
 
     if (!addPeerRes.ok) {
       const errText = await addPeerRes.text();
-      console.error("[video_refresh_token] Fishjam peer creation failed:", errText);
+      console.error(
+        "[video_refresh_token] Fishjam peer creation failed:",
+        errText,
+      );
       return errorResponse("internal_error", "Failed to refresh token", 500);
     }
 
@@ -242,7 +287,9 @@ serve(async (req: Request) => {
       payload: { jti, peerId: peer.id },
     });
 
-    console.log(`[video_refresh_token] Token refreshed for user ${userId} in room ${roomId}`);
+    console.log(
+      `[video_refresh_token] Token refreshed for user ${userId} in room ${roomId}`,
+    );
 
     return jsonResponse({
       ok: true,

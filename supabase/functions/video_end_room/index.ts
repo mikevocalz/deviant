@@ -10,7 +10,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -18,7 +19,13 @@ const EndRoomSchema = z.object({
   roomId: z.string().uuid(),
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -33,7 +40,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -49,19 +60,27 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+    const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return errorResponse("unauthorized", "Invalid token", 401);
     }
@@ -78,7 +97,11 @@ serve(async (req: Request) => {
 
     const parsed = EndRoomSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { roomId } = parsed.data;
@@ -111,9 +134,9 @@ serve(async (req: Request) => {
     // 1. Delete Fishjam room (removes all peers)
     if (room.fishjam_room_id) {
       try {
-        await fetch(`${fishjamUrl}/room/${room.fishjam_room_id}`, {
+        await fetch(`${fishjamBaseUrl}/room/${room.fishjam_room_id}`, {
           method: "DELETE",
-          headers: { "Authorization": `Bearer ${fishjamApiKey}` },
+          headers: { Authorization: `Bearer ${fishjamApiKey}` },
         });
       } catch (err) {
         console.error("[video_end_room] Fishjam room deletion error:", err);
@@ -123,9 +146,9 @@ serve(async (req: Request) => {
     // 2. Update room status
     const { error: updateError } = await supabase
       .from("video_rooms")
-      .update({ 
-        status: "ended", 
-        ended_at: new Date().toISOString() 
+      .update({
+        status: "ended",
+        ended_at: new Date().toISOString(),
       })
       .eq("id", roomId);
 
@@ -137,9 +160,9 @@ serve(async (req: Request) => {
     // 3. Update all active members to 'left'
     await supabase
       .from("video_room_members")
-      .update({ 
-        status: "left", 
-        left_at: new Date().toISOString() 
+      .update({
+        status: "left",
+        left_at: new Date().toISOString(),
       })
       .eq("room_id", roomId)
       .eq("status", "active");

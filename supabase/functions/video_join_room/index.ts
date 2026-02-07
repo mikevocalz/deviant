@@ -9,7 +9,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -17,7 +18,14 @@ const JoinRoomSchema = z.object({
   roomId: z.string().uuid(),
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "not_found" | "conflict" | "rate_limited" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "conflict"
+  | "rate_limited"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -32,7 +40,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -52,19 +64,27 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const fishjamUrl = Deno.env.get("FISHJAM_URL")!;
+    const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
+    const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return errorResponse("unauthorized", "Invalid token", 401);
     }
@@ -81,7 +101,11 @@ serve(async (req: Request) => {
 
     const parsed = JoinRoomSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { roomId } = parsed.data;
@@ -96,7 +120,11 @@ serve(async (req: Request) => {
     });
 
     if (!canJoin) {
-      return errorResponse("rate_limited", "Too many join attempts. Try again later.", 429);
+      return errorResponse(
+        "rate_limited",
+        "Too many join attempts. Try again later.",
+        429,
+      );
     }
 
     await supabase.rpc("record_rate_limit", {
@@ -131,9 +159,12 @@ serve(async (req: Request) => {
     }
 
     // Check participant count
-    const { data: participantCount } = await supabase.rpc("count_active_participants", {
-      p_room_id: roomId,
-    });
+    const { data: participantCount } = await supabase.rpc(
+      "count_active_participants",
+      {
+        p_room_id: roomId,
+      },
+    );
 
     if (participantCount >= room.max_participants) {
       return errorResponse("conflict", "Room is full", 409);
@@ -159,7 +190,11 @@ serve(async (req: Request) => {
         // Rejoin (was kicked or left)
         const { error: updateError } = await supabase
           .from("video_room_members")
-          .update({ status: "active", joined_at: new Date().toISOString(), left_at: null })
+          .update({
+            status: "active",
+            joined_at: new Date().toISOString(),
+            left_at: null,
+          })
           .eq("room_id", roomId)
           .eq("user_id", userId);
 
@@ -191,10 +226,10 @@ serve(async (req: Request) => {
 
     if (!fishjamRoomId) {
       // Create Fishjam room
-      const createRoomRes = await fetch(`${fishjamUrl}/room`, {
+      const createRoomRes = await fetch(`${fishjamBaseUrl}/room`, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${fishjamApiKey}`,
+          Authorization: `Bearer ${fishjamApiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -205,8 +240,15 @@ serve(async (req: Request) => {
 
       if (!createRoomRes.ok) {
         const errText = await createRoomRes.text();
-        console.error("[video_join_room] Fishjam room creation failed:", errText);
-        return errorResponse("internal_error", "Failed to create video room", 500);
+        console.error(
+          "[video_join_room] Fishjam room creation failed:",
+          errText,
+        );
+        return errorResponse(
+          "internal_error",
+          "Failed to create video room",
+          500,
+        );
       }
 
       const fishjamRoom = await createRoomRes.json();
@@ -223,24 +265,27 @@ serve(async (req: Request) => {
     const jti = generateJti();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    const addPeerRes = await fetch(`${fishjamUrl}/room/${fishjamRoomId}/peer`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${fishjamApiKey}`,
-        "Content-Type": "application/json",
+    const addPeerRes = await fetch(
+      `${fishjamBaseUrl}/room/${fishjamRoomId}/peer`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${fishjamApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "webrtc",
+          options: {
+            enableSimulcast: true,
+          },
+          metadata: {
+            userId,
+            role: memberRole,
+            jti,
+          },
+        }),
       },
-      body: JSON.stringify({
-        type: "webrtc",
-        options: {
-          enableSimulcast: true,
-        },
-        metadata: {
-          userId,
-          role: memberRole,
-          jti,
-        },
-      }),
-    });
+    );
 
     if (!addPeerRes.ok) {
       const errText = await addPeerRes.text();
@@ -262,7 +307,10 @@ serve(async (req: Request) => {
       });
 
     if (tokenError) {
-      console.error("[video_join_room] Token storage error:", tokenError.message);
+      console.error(
+        "[video_join_room] Token storage error:",
+        tokenError.message,
+      );
     }
 
     // Log event
