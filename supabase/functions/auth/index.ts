@@ -100,10 +100,10 @@ async function getAuth() {
     console.log("[Auth] Initializing Better Auth...");
 
     // Import Better Auth + plugins
-    const { betterAuth } = await import("npm:better-auth@1.2.7");
-    const { expo } = await import("npm:@better-auth/expo@1.2.7");
-    const { username } = await import("npm:better-auth@1.2.7/plugins");
-    const { passkey } = await import("npm:@better-auth/passkey@1.2.7");
+    const { betterAuth } = await import("npm:better-auth@1.4.18");
+    const { expo } = await import("npm:@better-auth/expo@1.4.18");
+    const { username } = await import("npm:better-auth@1.4.18/plugins");
+    const { passkey } = await import("npm:@better-auth/passkey@1.4.18");
 
     // Import npm:pg — Deno supports Node built-ins (node:net, node:tls) needed by pg
     const pgModule = await import("npm:pg@8.13.1");
