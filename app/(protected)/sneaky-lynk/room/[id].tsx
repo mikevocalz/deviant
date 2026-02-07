@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import React, { useEffect, useCallback, useRef } from "react";
+import { useCameraPermissions, useMicrophonePermissions } from "expo-camera";
 import { useCamera, useMicrophone } from "@fishjam-cloud/react-native-client";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -81,6 +82,16 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   const fishjamMic = useMicrophone();
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
 
+  // expo-camera permissions for native CameraView preview
+  const [camPermission, requestCamPermission] = useCameraPermissions();
+  const [micPermission, requestMicPermission] = useMicrophonePermissions();
+
+  // Keep refs to the latest camera/mic so effects never use stale closures.
+  const cameraRef = useRef(fishjamCamera);
+  cameraRef.current = fishjamCamera;
+  const micRef = useRef(fishjamMic);
+  micRef.current = fishjamMic;
+
   const {
     isHandRaised,
     activeSpeakerId,
@@ -102,32 +113,35 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     Array<{ id: string; user: SneakyUser; content: string; timestamp: Date }>
   >([]);
 
+  // Local video on/off state (CameraView doesn't have isCameraOn)
+  const [localVideoOn, setLocalVideoOn] = React.useState(true);
+
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !fishjamMic.isMicrophoneOn;
-  const effectiveVideoOn = fishjamCamera.isCameraOn;
+  const effectiveVideoOn = localVideoOn && camPermission?.granted === true;
 
-  // Reset store on mount
+  // Reset store on mount, request permissions
   useEffect(() => {
     reset();
+    requestCamPermission();
+    requestMicPermission();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start camera & mic on mount, stop on unmount
+  // Start mic on mount (audio still goes through Fishjam for future server rooms)
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        console.log("[SneakyLynk:Local] Starting camera & mic");
-        await fishjamCamera.startCamera();
-        if (!cancelled) await fishjamMic.startMicrophone();
-        console.log("[SneakyLynk:Local] Camera & mic started");
+        console.log("[SneakyLynk:Local] Starting mic");
+        await micRef.current.startMicrophone();
+        if (!cancelled) console.log("[SneakyLynk:Local] Mic started");
       } catch (e) {
-        console.warn("[SneakyLynk:Local] Failed to start media:", e);
+        console.warn("[SneakyLynk:Local] Failed to start mic:", e);
       }
     })();
     return () => {
       cancelled = true;
-      fishjamCamera.stopCamera();
-      fishjamMic.stopMicrophone();
+      micRef.current.stopMicrophone();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -145,13 +159,12 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     router.back();
   }, [router, id, endRoom, storeListeners.length]);
   const handleToggleMic = useCallback(async () => {
-    if (fishjamMic.isMicrophoneOn) fishjamMic.stopMicrophone();
-    else await fishjamMic.startMicrophone();
-  }, [fishjamMic]);
-  const handleToggleVideo = useCallback(async () => {
-    if (fishjamCamera.isCameraOn) fishjamCamera.stopCamera();
-    else await fishjamCamera.startCamera();
-  }, [fishjamCamera]);
+    if (micRef.current.isMicrophoneOn) micRef.current.stopMicrophone();
+    else await micRef.current.startMicrophone();
+  }, []);
+  const handleToggleVideo = useCallback(() => {
+    setLocalVideoOn((prev) => !prev);
+  }, []);
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
@@ -217,7 +230,6 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     : null;
 
   const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
-  const cameraStream = fishjamCamera.cameraStream;
   const participantCount = 1 + (storeCoHost ? 1 : 0) + storeListeners.length;
 
   return (
@@ -231,7 +243,8 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
       coHost={coHostFeatured}
       isLocalUser={true}
       effectiveVideoOn={effectiveVideoOn}
-      cameraStream={cameraStream}
+      cameraStream={null}
+      useNativeCamera={true}
       speakers={speakers}
       activeSpeakers={activeSpeakers}
       storeListeners={storeListeners}
@@ -495,6 +508,7 @@ function RoomLayout({
   cameraStream,
   coHostVideoTrack,
   isCoHostLocal,
+  useNativeCamera,
   speakers,
   activeSpeakers,
   storeListeners,
@@ -526,6 +540,7 @@ function RoomLayout({
   cameraStream: any;
   coHostVideoTrack?: any;
   isCoHostLocal?: boolean;
+  useNativeCamera?: boolean;
   speakers: any[];
   activeSpeakers: Set<string>;
   storeListeners?: { user: SneakyUser; role: string }[];
@@ -604,6 +619,7 @@ function RoomLayout({
           videoTrack={cameraStream ? { stream: cameraStream } : undefined}
           coHostVideoTrack={coHostVideoTrack}
           isCoHostLocal={isCoHostLocal}
+          useNativeCamera={useNativeCamera}
         />
 
         {/* Speakers Grid */}

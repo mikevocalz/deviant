@@ -30,6 +30,7 @@ import {
 } from "@/lib/video-lifecycle";
 import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { TagBadges } from "@/components/ui/tag-badges";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -525,6 +526,7 @@ function PostDetailScreenContent() {
                   text={`${post.author?.username || "Unknown User"} ${post.caption}`}
                   textStyle={{ fontSize: 16, color: colors.foreground }}
                 />
+                <TagBadges text={post.caption} />
               </View>
             )}
             <Text className="mt-2 text-xs uppercase text-muted-foreground">

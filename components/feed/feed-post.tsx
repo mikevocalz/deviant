@@ -39,6 +39,7 @@ import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { TagBadges } from "@/components/ui/tag-badges";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -691,6 +692,7 @@ function FeedPostComponent({
                 text={`${author?.username || "Unknown User"} ${caption}`}
                 textStyle={{ fontSize: 14, color: colors.foreground }}
               />
+              <TagBadges text={caption} />
             </View>
           )}
           {recentComments.length > 0 || commentCount > 0 ? (

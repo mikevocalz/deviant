@@ -10,6 +10,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { BadgeCheck, Video } from "lucide-react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
+import { CameraView } from "expo-camera";
 import type { SneakyUser } from "../types";
 
 interface FeaturedSpeaker {
@@ -28,6 +29,8 @@ interface VideoStageProps {
   videoTrack?: any;
   coHostVideoTrack?: any;
   isCoHostLocal?: boolean;
+  /** Use expo-camera CameraView for local preview (no Fishjam connection) */
+  useNativeCamera?: boolean;
   onSelectSpeaker?: (userId: string) => void;
 }
 
@@ -124,31 +127,53 @@ function VideoPanel({
   isLocal,
   style,
   role,
+  useNativeCamera,
 }: {
   speaker: FeaturedSpeaker;
   videoTrack?: any;
   isLocal?: boolean;
   style?: any;
   role?: string;
+  useNativeCamera?: boolean;
 }) {
   const hasStream = videoTrack?.stream;
 
-  return (
-    <View style={[{ overflow: "hidden", backgroundColor: "#1a1a1a" }, style]}>
-      {hasStream ? (
+  // Determine what to render for video
+  const renderVideo = () => {
+    // Native camera preview (expo-camera) — for local rooms without Fishjam connection
+    if (useNativeCamera && isLocal) {
+      return (
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="front"
+          mirror={true}
+        />
+      );
+    }
+    // Fishjam RTCView — for server-backed rooms with WebRTC streams
+    if (hasStream) {
+      return (
         <RTCView
           mediaStream={videoTrack.stream}
           style={StyleSheet.absoluteFill}
           objectFit="cover"
           mirror={isLocal}
         />
-      ) : (
-        <Image
-          source={{ uri: speaker.user.avatar }}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-      )}
+      );
+    }
+    // Fallback: avatar
+    return (
+      <Image
+        source={{ uri: speaker.user.avatar }}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+      />
+    );
+  };
+
+  return (
+    <View style={[{ overflow: "hidden", backgroundColor: "#1a1a1a" }, style]}>
+      {renderVideo()}
       <SpeakerLabel
         user={speaker.user}
         isSpeaking={speaker.isSpeaking}
@@ -181,6 +206,7 @@ export function VideoStage({
   videoTrack,
   coHostVideoTrack,
   isCoHostLocal = false,
+  useNativeCamera = false,
   onSelectSpeaker,
 }: VideoStageProps) {
   if (!featuredSpeaker) return null;
@@ -208,6 +234,7 @@ export function VideoStage({
               speaker={featuredSpeaker}
               videoTrack={isVideoEnabled ? videoTrack : undefined}
               isLocal={isLocalUser}
+              useNativeCamera={useNativeCamera}
               style={{
                 flex: 1,
                 borderTopLeftRadius: 20,
@@ -239,6 +266,7 @@ export function VideoStage({
 
   // Single view: just the featured speaker
   const hasVideoStream = isVideoEnabled && videoTrack?.stream;
+  const showNativeCamera = useNativeCamera && isLocalUser && isVideoEnabled;
 
   return (
     <View className="px-4 mb-5">
@@ -246,7 +274,13 @@ export function VideoStage({
         onPress={() => onSelectSpeaker?.(featuredSpeaker.user.id)}
         className="w-full h-[220px] rounded-[20px] overflow-hidden bg-card relative"
       >
-        {hasVideoStream ? (
+        {showNativeCamera ? (
+          <CameraView
+            style={StyleSheet.absoluteFill}
+            facing="front"
+            mirror={true}
+          />
+        ) : hasVideoStream ? (
           <RTCView
             mediaStream={videoTrack.stream}
             style={StyleSheet.absoluteFill}
