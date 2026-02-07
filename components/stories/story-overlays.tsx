@@ -11,12 +11,12 @@ import {
   View,
   Text,
   Pressable,
-  TextInput,
   Keyboard,
   Platform,
   Animated,
   Easing,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import { X, Send, Heart } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -215,9 +215,18 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
         return;
       }
 
+      // Encode story context as structured prefix for client-side parsing
+      const storyContext = JSON.stringify({
+        storyId: customData.appStoryId || "",
+        storyMediaUrl: item.story_image || "",
+        storyUsername: customData.username || "",
+        storyAvatar: customData.avatar || "",
+        isExpired: false,
+      });
+
       await messagesApiClient.sendMessage({
         conversationId,
-        content: `📷 Replied to your story: ${replyText.trim()}`,
+        content: `[STORY_REPLY:${storyContext}] ${replyText.trim()}`,
       });
 
       showToast("success", "Sent", "Reply sent to their messages");
@@ -281,7 +290,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
                 borderColor: "rgba(255,255,255,0.25)",
               }}
             >
-              <TextInput
+              <PasteInput
                 className="flex-1 text-white text-sm"
                 style={{ paddingVertical: 6 }}
                 placeholder={`Reply to ${customData.username}...`}

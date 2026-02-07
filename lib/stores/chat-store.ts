@@ -11,6 +11,14 @@ export interface MediaAttachment {
   duration?: number;
 }
 
+export interface StoryReplyContext {
+  storyId: string;
+  storyMediaUrl?: string;
+  storyUsername: string;
+  storyAvatar?: string;
+  isExpired?: boolean;
+}
+
 export interface Message {
   id: string;
   text: string;
@@ -18,6 +26,7 @@ export interface Message {
   time: string;
   mentions?: string[];
   media?: MediaAttachment;
+  storyReply?: StoryReplyContext;
 }
 
 export interface User {
@@ -96,22 +105,67 @@ export const useChatStore = create<ChatState>((set, get) => ({
         await messagesApiClient.getMessages(conversationId);
 
       // Transform to local message format
-      const localMessages: Message[] = backendMessages.map((msg: any) => ({
-        id: String(msg.id),
-        text: msg.content || msg.text || "",
-        sender: (msg.sender?.id || msg.sender) === user?.id ? "me" : "them",
-        time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        media:
-          msg.media && msg.media.length > 0
-            ? {
-                type: msg.media[0].type,
-                uri: msg.media[0].url,
-              }
-            : undefined,
-      }));
+      const localMessages: Message[] = backendMessages.map((msg: any) => {
+        const content = msg.content || msg.text || "";
+        const isSender = (msg.sender?.id || msg.sender) === user?.id;
+
+        // Detect story reply messages
+        let storyReply: StoryReplyContext | undefined;
+        let displayText = content;
+
+        // Format 1: Structured JSON prefix — [STORY_REPLY:{"storyId":...}] reply text
+        const structuredMatch = content.match(
+          /^\[STORY_REPLY:(.*?)\]\s*([\s\S]*)$/,
+        );
+        // Format 2: Legacy simple prefix — 📷 Replied to your story: reply text
+        const legacyPrefix = "📷 Replied to your story: ";
+
+        if (structuredMatch) {
+          try {
+            const meta = JSON.parse(structuredMatch[1]);
+            displayText = structuredMatch[2] || "";
+            storyReply = {
+              storyId: meta.storyId || "",
+              storyMediaUrl: meta.storyMediaUrl,
+              storyUsername: meta.storyUsername || "",
+              storyAvatar: meta.storyAvatar,
+              isExpired: meta.isExpired ?? false,
+            };
+          } catch {
+            // JSON parse failed — treat as normal message
+          }
+        } else if (content.startsWith(legacyPrefix)) {
+          displayText = content.slice(legacyPrefix.length);
+          storyReply = {
+            storyId: "",
+            storyMediaUrl: undefined,
+            storyUsername: isSender ? "" : user?.username || "",
+            storyAvatar: undefined,
+            isExpired: true, // Legacy messages have no media URL, show as expired
+          };
+        }
+
+        return {
+          id: String(msg.id),
+          text: displayText,
+          sender: isSender ? ("me" as const) : ("them" as const),
+          time: new Date(msg.createdAt || msg.timestamp).toLocaleTimeString(
+            [],
+            {
+              hour: "2-digit",
+              minute: "2-digit",
+            },
+          ),
+          media:
+            msg.media && msg.media.length > 0
+              ? {
+                  type: msg.media[0].type,
+                  uri: msg.media[0].url,
+                }
+              : undefined,
+          storyReply,
+        };
+      });
 
       set((state) => ({
         messages: {

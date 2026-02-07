@@ -6,6 +6,7 @@ import {
   Animated,
   Platform,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -41,6 +42,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
@@ -642,26 +644,45 @@ export default function ChatScreen() {
                   onPress={() => handleMediaPreview(item.media!)}
                 />
               )}
-              <View
-                className={`px-4 py-2.5 rounded-2xl ${
-                  item.sender === "me" ? "bg-primary" : "bg-secondary"
-                }`}
-              >
-                {item.text ? (
-                  <Text className="text-foreground text-[15px]">
-                    {renderMessageText(item.text, handleMentionPress)}
+              {item.storyReply ? (
+                <View className="mb-1">
+                  <StoryReplyBubble
+                    storyReply={item.storyReply}
+                    replyText={item.text}
+                    isOwnMessage={item.sender === "me"}
+                  />
+                  <Text
+                    className={`text-[11px] mt-1 px-1 ${
+                      item.sender === "me"
+                        ? "text-foreground/70"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.time}
                   </Text>
-                ) : null}
-                <Text
-                  className={`text-[11px] mt-1 ${
-                    item.sender === "me"
-                      ? "text-foreground/70"
-                      : "text-muted-foreground"
+                </View>
+              ) : (
+                <View
+                  className={`px-4 py-2.5 rounded-2xl ${
+                    item.sender === "me" ? "bg-primary" : "bg-secondary"
                   }`}
                 >
-                  {item.time}
-                </Text>
-              </View>
+                  {item.text ? (
+                    <Text className="text-foreground text-[15px]">
+                      {renderMessageText(item.text, handleMentionPress)}
+                    </Text>
+                  ) : null}
+                  <Text
+                    className={`text-[11px] mt-1 ${
+                      item.sender === "me"
+                        ? "text-foreground/70"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {item.time}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
         />
@@ -739,7 +760,7 @@ export default function ChatScreen() {
               <ImageIcon size={22} color="#3EA4E5" />
             </Pressable>
 
-            <TextInput
+            <PasteInput
               ref={inputRef}
               value={currentMessage}
               onChangeText={handleTextChange}
@@ -748,6 +769,16 @@ export default function ChatScreen() {
               placeholderTextColor="#666"
               className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
               multiline
+              onPasteImage={(uris) => {
+                if (uris.length > 0) {
+                  setPendingMedia({
+                    type: "image",
+                    uri: uris[0],
+                    width: undefined,
+                    height: undefined,
+                  });
+                }
+              }}
             />
 
             <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>

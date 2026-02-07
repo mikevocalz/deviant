@@ -1,12 +1,12 @@
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   Keyboard,
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import {
   KeyboardAwareScrollView,
   KeyboardAvoidingView,
@@ -342,7 +342,7 @@ export default function CommentsScreen() {
             </View>
           )}
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <TextInput
+            <PasteInput
               value={comment}
               onChangeText={setComment}
               placeholder="Add a comment..."

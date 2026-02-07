@@ -3,10 +3,10 @@ import {
   Text,
   Pressable,
   Dimensions,
-  TextInput,
   Keyboard,
   Platform,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -544,11 +544,20 @@ export default function StoryViewerScreen() {
         return;
       }
 
-      // Send the reply as a message
-      const storyReplyPrefix = `📷 Replied to your story: `;
+      // Encode story context as structured prefix for client-side parsing
+      // This enables the chat screen to render StoryReplyBubble with thumbnail + expiry
+      const currentItem = story.items?.[currentItemIndex];
+      const storyContext = JSON.stringify({
+        storyId: story.id || "",
+        storyMediaUrl: currentItem?.url || "",
+        storyUsername: story.username || "",
+        storyAvatar: story.avatar || "",
+        isExpired: false,
+      });
+
       const message = await messagesApiClient.sendMessage({
         conversationId: conversationId,
-        content: `${storyReplyPrefix}${replyText.trim()}`,
+        content: `[STORY_REPLY:${storyContext}] ${replyText.trim()}`,
       });
 
       console.log("[StoryViewer] Reply sent successfully");
@@ -864,7 +873,7 @@ export default function StoryViewerScreen() {
                 paddingVertical: 8,
               }}
             >
-              <TextInput
+              <PasteInput
                 style={{
                   flex: 1,
                   color: "#fff",

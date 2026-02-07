@@ -1,12 +1,12 @@
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   ScrollView,
   Keyboard,
   Platform,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Image } from "expo-image";
@@ -192,7 +192,7 @@ export default function RepliesScreen() {
             paddingVertical: 12,
           }}
         >
-          <TextInput
+          <PasteInput
             value={reply}
             onChangeText={setReply}
             placeholder="Add a reply..."

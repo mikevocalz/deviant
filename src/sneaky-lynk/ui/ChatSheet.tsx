@@ -14,6 +14,7 @@ import {
   Platform,
   FlatList,
 } from "react-native";
+import { PasteInput } from "@/components/ui/paste-input";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
@@ -184,7 +185,7 @@ export function ChatSheet({
           className="flex-row items-center gap-2 px-4 py-3 border-t border-border"
           style={{ paddingBottom: insets.bottom + 12 }}
         >
-          <TextInput
+          <PasteInput
             value={inputText}
             onChangeText={setInputText}
             placeholder="Type a message..."

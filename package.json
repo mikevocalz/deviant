@@ -73,6 +73,7 @@
     "expo-media-library": "~18.2.1",
     "expo-network": "~8.0.8",
     "expo-notifications": "~0.32.16",
+    "expo-paste-input": "^0.1.7",
     "expo-router": "~6.0.21",
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
@@ -144,8 +145,7 @@
   },
   "pnpm": {
     "patchedDependencies": {
-      "@baronha/react-native-photo-editor@1.1.6": "patches/@baronha__react-native-photo-editor@1.1.6.patch",
-      "@baronha/react-native-photo-editor": "patches/@baronha__react-native-photo-editor.patch"
+      "@baronha/react-native-photo-editor@1.1.6": "patches/@baronha__react-native-photo-editor@1.1.6.patch"
     }
   }
 }
