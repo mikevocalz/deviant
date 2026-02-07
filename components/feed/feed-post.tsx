@@ -73,9 +73,12 @@ interface FeedPostProps {
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const mediaSize = SCREEN_WIDTH; // Full width for media
+const CARD_HORIZONTAL_MARGIN = 4; // marginHorizontal on Article
+const CARD_BORDER_WIDTH = 1; // borderWidth on Article
+const mediaSize =
+  SCREEN_WIDTH - (CARD_HORIZONTAL_MARGIN + CARD_BORDER_WIDTH) * 2; // Fit inside card
 // Instagram-like 4:5 aspect ratio for portrait-friendly display (prevents head cropping)
-const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * 1.25); // 4:5 ratio
+const PORTRAIT_HEIGHT = Math.round(mediaSize * 1.25); // 4:5 ratio
 
 function FeedPostComponent({
   id,
