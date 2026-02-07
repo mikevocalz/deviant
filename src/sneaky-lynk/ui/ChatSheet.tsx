@@ -4,7 +4,7 @@
  * Limited to 75% of screen height
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -90,19 +90,19 @@ export function ChatSheet({
   const insets = useSafeAreaInsets();
   const [inputText, setInputText] = useState("");
 
+  // Delayed unmount: keep sheet mounted briefly after close so animation plays
+  const [shouldRender, setShouldRender] = useState(false);
+  useEffect(() => {
+    if (isOpen) {
+      setShouldRender(true);
+    } else {
+      const timer = setTimeout(() => setShouldRender(false), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   // 75% of screen height
   const snapPoints = useMemo(() => ["75%"], []);
-
-  // Control open/close via ref instead of mount/unmount
-  const prevIsOpen = useRef(isOpen);
-  if (isOpen !== prevIsOpen.current) {
-    prevIsOpen.current = isOpen;
-    if (isOpen) {
-      bottomSheetRef.current?.snapToIndex(0);
-    } else {
-      bottomSheetRef.current?.close();
-    }
-  }
 
   const handleSheetChanges = useCallback(
     (index: number) => {
@@ -131,10 +131,12 @@ export function ChatSheet({
     [],
   );
 
+  if (!shouldRender) return null;
+
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={isOpen ? 0 : -1}
+      index={0}
       snapPoints={snapPoints}
       onChange={handleSheetChanges}
       enablePanDownToClose

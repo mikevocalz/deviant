@@ -157,8 +157,20 @@ export default function SneakyLynkRoomScreen() {
       } else {
         try {
           console.log("[SneakyLynk] Starting local camera & mic");
-          await fishjamCamera.startCamera();
-          await fishjamMic.startMicrophone();
+          const [camTrack, camErr] = (await fishjamCamera.startCamera()) || [];
+          console.log(
+            "[SneakyLynk] Camera result:",
+            camTrack ? "OK" : "null",
+            "err:",
+            camErr,
+          );
+          const [micTrack, micErr] = (await fishjamMic.startMicrophone()) || [];
+          console.log(
+            "[SneakyLynk] Mic result:",
+            micTrack ? "OK" : "null",
+            "err:",
+            micErr,
+          );
         } catch (e) {
           console.warn("[SneakyLynk] Failed to start local media:", e);
         }
@@ -296,6 +308,15 @@ export default function SneakyLynkRoomScreen() {
   const cameraStream = isServerRoom
     ? videoRoom.camera?.cameraStream
     : fishjamCamera.cameraStream;
+
+  console.log("[SneakyLynk] Render state:", {
+    isServerRoom,
+    effectiveVideoOn,
+    isCameraOn: fishjamCamera.isCameraOn,
+    hasCameraStream: !!cameraStream,
+    effectiveMuted,
+    isMicOn: fishjamMic.isMicrophoneOn,
+  });
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
