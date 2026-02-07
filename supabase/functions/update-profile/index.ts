@@ -172,8 +172,25 @@ serve(async (req: Request) => {
     if (updates.location !== undefined) {
       updateData.location = updates.location;
     }
-    // Note: avatarUrl would need to be handled separately if it's a media ID
-    // For now, we skip it as avatar updates go through media upload flow
+
+    // Handle avatar: create media record and set avatar_id
+    if (updates.avatarUrl) {
+      const { data: mediaData, error: mediaError } = await supabaseAdmin
+        .from("media")
+        .insert({ url: updates.avatarUrl })
+        .select("id")
+        .single();
+
+      if (mediaError) {
+        console.error("[Edge:update-profile] Media insert error:", mediaError);
+      } else {
+        updateData.avatar_id = mediaData.id;
+        console.log(
+          "[Edge:update-profile] Created media record:",
+          mediaData.id,
+        );
+      }
+    }
 
     console.log(
       "[Edge:update-profile] Update data:",
