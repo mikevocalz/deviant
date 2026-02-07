@@ -96,13 +96,6 @@ serve(async (req: Request) => {
     if (!avatarUrl)
       return errorResponse("validation_error", "avatarUrl is required", 400);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey)
-      return errorResponse("internal_error", "Server configuration error", 500);
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
     const { data: userData } = await supabaseAdmin
       .from("users")
       .select("id")
