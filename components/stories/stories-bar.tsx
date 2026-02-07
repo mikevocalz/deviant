@@ -156,12 +156,10 @@ export function StoriesBar() {
 
   return (
     <Section className="border-b border-border">
-      <View
-        style={{ height: 154, flexDirection: "row", alignItems: "flex-start" }}
-      >
+      <View style={{ height: 154, flexDirection: "row" }}>
         {/* Your Story */}
-        <View style={{ paddingTop: 6, paddingLeft: 4, paddingRight: 10 }}>
-          <View style={{ alignItems: "center", gap: 6, paddingVertical: 2 }}>
+        <View style={{ paddingTop: 8, paddingLeft: 4, paddingRight: 10 }}>
+          <View style={{ alignItems: "center", gap: 6 }}>
             {hasMyStory && myStory ? (
               <View className="relative">
                 {/* Tap story ring to view story */}
@@ -189,7 +187,7 @@ export function StoriesBar() {
                 <View className="relative">
                   <View
                     className="items-center justify-center rounded-xl border-2 border-border bg-card"
-                    style={{ height: 98, width: 74 }}
+                    style={{ height: 104, width: 80 }}
                   >
                     <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
                       <Plus size={24} color="#0c0a09" strokeWidth={3} />
@@ -229,7 +227,7 @@ export function StoriesBar() {
               avatarFlatListProps={{
                 showsHorizontalScrollIndicator: false,
                 contentContainerStyle: {
-                  paddingVertical: 6,
+                  paddingTop: 8,
                   paddingRight: 40,
                   gap: 4,
                 },
@@ -276,12 +274,11 @@ const avatarStyles = StyleSheet.create({
   },
   image: {
     borderRadius: 14,
-    width: 74,
-    height: 98,
+    width: 80,
+    height: 104,
   },
   wrapper: {
     paddingHorizontal: 4,
-    paddingVertical: 2,
   },
 });
 
