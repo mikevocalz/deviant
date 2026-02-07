@@ -204,13 +204,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
 
     try {
-      // Prepare media for upload
+      // Upload media to Bunny CDN first, then send CDN URL
       let mediaItems: Array<{ uri: string; type: "image" | "video" }> = [];
+      let uploadedMediaUrl: string | undefined;
       if (mediaToSend) {
-        mediaItems = [{ uri: mediaToSend.uri, type: mediaToSend.type }];
+        try {
+          const uploadResult = await uploadToBunny(mediaToSend.uri, "chat");
+          if (uploadResult.success && uploadResult.url) {
+            uploadedMediaUrl = uploadResult.url;
+            mediaItems = [{ uri: uploadResult.url, type: mediaToSend.type }];
+          }
+        } catch (uploadError) {
+          console.error("[ChatStore] Bunny upload failed:", uploadError);
+          // Fall back to local URI
+          mediaItems = [{ uri: mediaToSend.uri, type: mediaToSend.type }];
+        }
       }
 
-      // Send via API (handles Bunny upload internally)
+      // Send via API with CDN URL
       const result = await messagesApiClient.sendMessage({
         conversationId,
         content: messageText || "",
@@ -243,7 +254,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 uri: result.media[0].url,
               }
             : mediaToSend
-              ? { type: mediaToSend.type, uri: mediaToSend.uri }
+              ? {
+                  type: mediaToSend.type,
+                  uri: uploadedMediaUrl || mediaToSend.uri,
+                }
               : undefined;
 
         const existingMessages = get().messages[conversationId] || [];
