@@ -245,7 +245,8 @@ function ProfileScreenContent() {
       }
 
       // 5. Patch stories cache - update MY stories' avatar
-      queryClient.setQueryData(["stories"], (old: any) => {
+      // CRITICAL: useStories uses key ["stories", "list"], patch both
+      const patchStories = (old: any) => {
         if (!old || !Array.isArray(old)) return old;
         return old.map((story: any) => {
           if (
@@ -256,7 +257,9 @@ function ProfileScreenContent() {
           }
           return story;
         });
-      });
+      };
+      queryClient.setQueryData(["stories"], patchStories);
+      queryClient.setQueryData(["stories", "list"], patchStories);
 
       console.log(
         "[Profile] Avatar synced to auth store, feed, profile posts, and stories",
@@ -559,9 +562,9 @@ function ProfileScreenContent() {
                   <Image
                     source={{
                       uri:
-                        user?.avatar ||
+                        displayAvatar ||
                         "https://ui-avatars.com/api/?name=" +
-                          encodeURIComponent(user?.name || "User"),
+                          encodeURIComponent(displayName || "User"),
                     }}
                     className="w-[88px] h-[88px] rounded-full"
                     contentFit="cover"

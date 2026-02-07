@@ -10,6 +10,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { signIn } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
 import { syncAuthUser } from "@/lib/api/privileged";
+import { replayPendingLink } from "@/lib/deep-linking/link-engine";
+import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
@@ -110,9 +112,14 @@ export default function LoginScreen() {
               followersCount: profile.followersCount,
               followingCount: profile.followingCount,
             });
-            // Small delay to let auth state sync before navigation
+            // Replay pending deep link if one was saved, otherwise go to home
             setTimeout(() => {
-              router.replace("/(protected)/(tabs)" as any);
+              const pending = useDeepLinkStore.getState().pendingLink;
+              if (pending) {
+                replayPendingLink();
+              } else {
+                router.replace("/(protected)/(tabs)" as any);
+              }
             }, 100);
           } else {
             console.error("[Login] Could not load profile for:", data.user.id);

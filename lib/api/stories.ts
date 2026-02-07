@@ -155,39 +155,49 @@ export const storiesApi = {
       console.log("[Stories] createStory via Edge Function");
 
       const token = await requireBetterAuthToken();
+      const visibility = storyData.visibility || "public";
 
-      // Get the first media URL from items
-      const firstItem = storyData.items[0];
-      const mediaUrl = firstItem?.url || "";
-      const mediaType = firstItem?.type === "video" ? "video" : "image";
-
-      if (!mediaUrl) {
-        throw new Error("Story must have media");
+      if (!storyData.items || storyData.items.length === 0) {
+        throw new Error("Story must have at least one media item");
       }
 
-      const { data: response, error } =
-        await supabase.functions.invoke<CreateStoryResponse>("create-story", {
-          body: {
-            mediaUrl,
-            mediaType,
-            visibility: storyData.visibility || "public",
-          },
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      // Create one story row per item — they get grouped by author in getStories
+      let lastStory: any = null;
+      for (const item of storyData.items) {
+        const mediaUrl = item.url || "";
+        const mediaType = item.type === "video" ? "video" : "image";
 
-      if (error) {
-        console.error("[Stories] Edge Function error:", error);
-        throw new Error(error.message || "Failed to create story");
+        if (!mediaUrl) {
+          console.warn("[Stories] Skipping item with no URL");
+          continue;
+        }
+
+        const { data: response, error } =
+          await supabase.functions.invoke<CreateStoryResponse>("create-story", {
+            body: { mediaUrl, mediaType, visibility },
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+        if (error) {
+          console.error("[Stories] Edge Function error for item:", error);
+          throw new Error(error.message || "Failed to create story");
+        }
+
+        if (!response?.ok || !response?.data?.story) {
+          const errorMessage =
+            response?.error?.message || "Failed to create story";
+          throw new Error(errorMessage);
+        }
+
+        console.log("[Stories] Story item created:", response.data.story.id);
+        lastStory = response.data.story;
       }
 
-      if (!response?.ok || !response?.data?.story) {
-        const errorMessage =
-          response?.error?.message || "Failed to create story";
-        throw new Error(errorMessage);
+      if (!lastStory) {
+        throw new Error("No story items were created");
       }
 
-      console.log("[Stories] Story created:", response.data.story.id);
-      return response.data.story;
+      return lastStory;
     } catch (error) {
       console.error("[Stories] createStory error:", error);
       throw error;

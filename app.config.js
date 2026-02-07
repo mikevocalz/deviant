@@ -34,6 +34,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.dvnt.app",
       icon: "./assets/images/ios-icon.png",
+      associatedDomains: ["applinks:dvntlive.app", "applinks:www.dvntlive.app"],
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
@@ -55,6 +56,17 @@ export default {
         backgroundColor: "#000000",
       },
       package: "com.dvnt.app",
+      intentFilters: [
+        {
+          action: "VIEW",
+          autoVerify: true,
+          data: [
+            { scheme: "https", host: "dvntlive.app", pathPrefix: "/" },
+            { scheme: "https", host: "www.dvntlive.app", pathPrefix: "/" },
+          ],
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
       permissions: [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
