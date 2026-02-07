@@ -440,6 +440,7 @@ function FeedPostComponent({
           borderColor: colors.border,
           backgroundColor: colors.card,
           position: "relative",
+          overflow: "hidden",
         }}
       >
         {/* Avatar — absolute top-left, overlaps onto the image */}
@@ -447,7 +448,7 @@ function FeedPostComponent({
           onPress={handleProfilePress}
           style={{
             position: "absolute",
-            top: 0,
+            top: 4,
             left: 0,
             zIndex: 50,
             elevation: 50,
@@ -625,7 +626,15 @@ function FeedPostComponent({
                   media[0].url.startsWith("https://")) ? (
                   <Image
                     source={{ uri: media[0].url }}
-                    style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
+                    style={{
+                      width: mediaSize,
+                      height: PORTRAIT_HEIGHT,
+                      borderTopLeftRadius: 0,
+                      borderTopRightRadius: 0,
+                      borderBottomLeftRadius: 12,
+                      borderBottomRightRadius: 12,
+                      overflow: "hidden",
+                    }}
                     contentFit="cover"
                     contentPosition="top"
                     transition={200}
