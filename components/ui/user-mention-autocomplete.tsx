@@ -202,7 +202,8 @@ export function UserMentionAutocomplete({
 const styles = StyleSheet.create({
   container: {
     position: "relative",
-    zIndex: 10,
+    zIndex: 9999,
+    elevation: 9999,
   },
   inputContainer: {
     borderRadius: 12,
@@ -225,7 +226,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 9999,
+    zIndex: 9999,
   },
   suggestionsList: {
     maxHeight: 200,

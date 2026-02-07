@@ -33,6 +33,7 @@ import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
+import { generateVideoThumbnail } from "@/lib/video-thumbnail";
 
 // Instagram-style creative tools - vertical toolbar
 const CREATIVE_TOOLS = [
@@ -78,6 +79,9 @@ export default function CreateStoryScreen() {
 
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [videoThumbnails, setVideoThumbnails] = useState<
+    Record<string, string>
+  >({});
   const openStickerSheet = useStickerStore((s) => s.openSheet);
   const isStickerSheetOpen = useStickerStore((s) => s.isSheetOpen);
 
@@ -133,6 +137,20 @@ export default function CreateStoryScreen() {
           updatedAssets.map((m) => m.type),
         );
         setCurrentIndex(mediaAssets.length === 0 ? 0 : mediaAssets.length);
+
+        // Generate thumbnails for any new videos
+        for (const item of validMedia) {
+          if (item.type === "video") {
+            generateVideoThumbnail(item.uri, 500).then((result) => {
+              if (result.success && result.uri) {
+                setVideoThumbnails((prev) => ({
+                  ...prev,
+                  [item.uri]: result.uri!,
+                }));
+              }
+            });
+          }
+        }
       }
     },
     [mediaAssets, setMediaAssets, setSelectedMedia, setCurrentIndex, showToast],
@@ -426,12 +444,16 @@ export default function CreateStoryScreen() {
             {currentMedia ? (
               <View className="flex-1 bg-black">
                 {currentMediaType === "video" ? (
-                  <View className="flex-1 items-center justify-center">
-                    <Image
-                      source={{ uri: currentMedia }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
+                  <View className="flex-1 items-center justify-center bg-black">
+                    {videoThumbnails[currentMedia] ? (
+                      <Image
+                        source={{ uri: videoThumbnails[currentMedia] }}
+                        style={{ width: "100%", height: "100%" }}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <Video size={48} color="#666" />
+                    )}
                     <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
                       <Video size={16} color="#fff" />
                       <Text className="text-white text-sm">Video</Text>
@@ -576,7 +598,12 @@ export default function CreateStoryScreen() {
                   style={{ borderCurve: "continuous" }}
                 >
                   <Image
-                    source={{ uri: asset.uri }}
+                    source={{
+                      uri:
+                        asset.type === "video" && videoThumbnails[asset.uri]
+                          ? videoThumbnails[asset.uri]
+                          : asset.uri,
+                    }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                   />

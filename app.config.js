@@ -81,6 +81,7 @@ export default {
       output: webOutput,
     },
     plugins: [
+      "./plugins/android-fixes",
       "expo-font",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
