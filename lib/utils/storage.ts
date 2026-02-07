@@ -17,6 +17,7 @@ const USER_DATA_STORAGE_KEYS = [
   "post-storage", // liked posts, like counts
   "bookmark-storage", // bookmarked posts
   "chat-storage", // chat data
+  "lynk-history-storage", // sneaky lynk room history (daily)
   // Don't clear auth-storage here - that's handled separately by clearAuthStorage
   // Don't clear app-storage - that's app state not user data
 ];
