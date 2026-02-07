@@ -22,11 +22,17 @@ export const storiesApi = {
       console.log("[Stories] getStories");
 
       const userId = getCurrentUserId();
-      if (!userId) return [];
+      console.log("[Stories] getCurrentUserId:", userId);
+      if (!userId) {
+        console.warn("[Stories] No userId, returning empty");
+        return [];
+      }
 
       // Get non-expired stories
       const now = new Date().toISOString();
-      const { data, error } = await supabase
+      console.log("[Stories] Querying stories with expires_at >", now);
+
+      const { data, error, status, statusText } = await supabase
         .from(DB.stories.table)
         .select(
           `
@@ -38,6 +44,12 @@ export const storiesApi = {
         .order(DB.stories.createdAt, { ascending: false })
         .limit(50);
 
+      console.log("[Stories] Query response:", {
+        status,
+        statusText,
+        errorMsg: error?.message,
+        errorCode: error?.code,
+      });
       if (error) throw error;
 
       console.log("[Stories] Raw stories data:", data?.length, "stories found");
