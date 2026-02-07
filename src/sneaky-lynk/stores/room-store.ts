@@ -4,7 +4,13 @@
  */
 
 import { create } from "zustand";
-import type { EjectPayload } from "../types";
+import type { EjectPayload, SneakyUser } from "../types";
+
+interface RoomMember {
+  user: SneakyUser;
+  role: "host" | "co-host" | "speaker" | "listener";
+  hasVideo?: boolean;
+}
 
 interface RoomState {
   // Connection state
@@ -17,6 +23,12 @@ interface RoomState {
 
   // Active speaker
   activeSpeakerId: string | null;
+
+  // Co-host (optimistic — shows immediately in dual view)
+  coHost: RoomMember | null;
+
+  // Listeners (optimistic — appear instantly when they join)
+  listeners: RoomMember[];
 
   // Chat
   isChatOpen: boolean;
@@ -41,6 +53,14 @@ interface RoomState {
   showEject: (payload: EjectPayload) => void;
   hideEject: () => void;
 
+  // Co-host (optimistic)
+  setCoHost: (user: SneakyUser) => void;
+  removeCoHost: () => void;
+
+  // Listeners (optimistic)
+  addListener: (user: SneakyUser) => void;
+  removeListener: (userId: string) => void;
+
   // Reset
   reset: () => void;
 }
@@ -51,6 +71,8 @@ const initialState = {
   isVideoOn: false,
   isHandRaised: false,
   activeSpeakerId: null,
+  coHost: null as RoomMember | null,
+  listeners: [] as RoomMember[],
   isChatOpen: false,
   showEjectModal: false,
   ejectPayload: null,
@@ -77,6 +99,22 @@ export const useRoomStore = create<RoomState>((set) => ({
 
   showEject: (ejectPayload) => set({ showEjectModal: true, ejectPayload }),
   hideEject: () => set({ showEjectModal: false, ejectPayload: null }),
+
+  // Co-host — optimistic: appears in dual view immediately
+  setCoHost: (user) =>
+    set({ coHost: { user, role: "co-host", hasVideo: false } }),
+  removeCoHost: () => set({ coHost: null }),
+
+  // Listeners — optimistic: appear in listener grid immediately
+  addListener: (user) =>
+    set((state) => {
+      if (state.listeners.some((l) => l.user.id === user.id)) return state;
+      return { listeners: [...state.listeners, { user, role: "listener" }] };
+    }),
+  removeListener: (userId) =>
+    set((state) => ({
+      listeners: state.listeners.filter((l) => l.user.id !== userId),
+    })),
 
   reset: () => set(initialState),
 }));

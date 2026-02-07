@@ -1,35 +1,53 @@
 /**
  * Live Room Card Component
- * Gradient card displaying a live Sneaky Lynk room
+ * Gradient card displaying a Sneaky Lynk room (live or ended)
  */
 
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { Video, Users } from "lucide-react-native";
-import type { MockSpace } from "../types";
+import type { SneakyRoom, SneakyUser } from "../types";
 
 interface LiveRoomCardProps {
-  space: MockSpace;
+  space: {
+    id: string;
+    title: string;
+    topic: string;
+    isLive: boolean;
+    hasVideo: boolean;
+    listeners: number;
+    host: SneakyUser;
+    speakers: SneakyUser[];
+    status?: "open" | "ended";
+  };
   onPress: () => void;
 }
 
 export function LiveRoomCard({ space, onPress }: LiveRoomCardProps) {
+  const isEnded = space.status === "ended" || !space.isLive;
+
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.9} style={styles.card}>
       <LinearGradient
-        colors={["#FF5BFC", "#FC253A"]}
+        colors={isEnded ? ["#3a3a3a", "#1a1a1a"] : ["#FF5BFC", "#FC253A"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+        style={[styles.gradient, isEnded && styles.gradientEnded]}
       >
         {/* Header with badges */}
         <View style={styles.header}>
-          <View style={styles.liveBadge}>
-            <View style={styles.liveDot} />
-            <Text style={styles.liveText}>LIVE</Text>
-          </View>
-          {space.hasVideo && (
+          {isEnded ? (
+            <View style={styles.endedBadge}>
+              <Text style={styles.endedText}>Lynk Ended</Text>
+            </View>
+          ) : (
+            <View style={styles.liveBadge}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>LIVE</Text>
+            </View>
+          )}
+          {!isEnded && space.hasVideo && (
             <View style={styles.videoBadge}>
               <Video size={12} color="#fff" />
             </View>
@@ -38,33 +56,49 @@ export function LiveRoomCard({ space, onPress }: LiveRoomCardProps) {
 
         {/* Content */}
         <View style={styles.content}>
-          <Text style={styles.title} numberOfLines={2}>
+          <Text
+            style={[styles.title, isEnded && styles.titleEnded]}
+            numberOfLines={2}
+          >
             {space.title}
           </Text>
-          <Text style={styles.topic}>{space.topic}</Text>
+          <Text style={[styles.topic, isEnded && styles.topicEnded]}>
+            {space.topic}
+          </Text>
         </View>
 
         {/* Footer */}
         <View style={styles.footer}>
-          <View style={styles.speakersRow}>
-            <Image
-              source={{ uri: space.host.avatar }}
-              style={styles.hostAvatar}
-            />
-            {space.speakers.slice(0, 2).map((speaker) => (
-              <Image
-                key={speaker.id}
-                source={{ uri: speaker.avatar }}
-                style={styles.speakerAvatar}
-              />
-            ))}
-          </View>
-          <View style={styles.listenersInfo}>
-            <Users size={14} color="#fff" />
-            <Text style={styles.listenersText}>
-              {space.listeners.toLocaleString()}
-            </Text>
-          </View>
+          {isEnded ? (
+            <View style={styles.listenersInfo}>
+              <Users size={16} color="#888" />
+              <Text style={styles.endedListenersText}>
+                {space.listeners.toLocaleString()} listened
+              </Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.speakersRow}>
+                <Image
+                  source={{ uri: space.host.avatar }}
+                  style={styles.hostAvatar}
+                />
+                {space.speakers.slice(0, 2).map((speaker) => (
+                  <Image
+                    key={speaker.id}
+                    source={{ uri: speaker.avatar }}
+                    style={styles.speakerAvatar}
+                  />
+                ))}
+              </View>
+              <View style={styles.listenersInfo}>
+                <Users size={14} color="#fff" />
+                <Text style={styles.listenersText}>
+                  {space.listeners.toLocaleString()}
+                </Text>
+              </View>
+            </>
+          )}
         </View>
       </LinearGradient>
     </TouchableOpacity>
@@ -79,6 +113,10 @@ const styles = StyleSheet.create({
   gradient: {
     padding: 18,
     minHeight: 180,
+  },
+  gradientEnded: {
+    minHeight: 140,
+    opacity: 0.85,
   },
   header: {
     flexDirection: "row",
@@ -105,6 +143,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
+  endedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  endedText: {
+    color: "#888",
+    fontSize: 11,
+    fontWeight: "700",
+  },
   videoBadge: {
     backgroundColor: "rgba(255,255,255,0.25)",
     padding: 6,
@@ -121,10 +172,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 6,
   },
+  titleEnded: {
+    color: "#aaa",
+  },
   topic: {
     fontSize: 13,
     color: "rgba(255,255,255,0.8)",
     fontWeight: "500",
+  },
+  topicEnded: {
+    color: "#666",
   },
   footer: {
     flexDirection: "row",
@@ -159,5 +216,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
+  },
+  endedListenersText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#888",
   },
 });

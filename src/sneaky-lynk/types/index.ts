@@ -4,9 +4,19 @@
  */
 
 export type RoomStatus = "open" | "ended";
-export type MemberRole = "host" | "moderator" | "speaker" | "listener";
+export type MemberRole =
+  | "host"
+  | "co-host"
+  | "moderator"
+  | "speaker"
+  | "listener";
 export type MemberStatus = "active" | "left" | "kicked" | "banned";
-export type ConnectionState = "connecting" | "connected" | "reconnecting" | "disconnected" | "poor_network";
+export type ConnectionState =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "disconnected"
+  | "poor_network";
 
 export interface SneakyUser {
   id: string;
@@ -51,7 +61,14 @@ export interface RoomMember {
 export interface RoomEvent {
   id: string;
   roomId: string;
-  type: "member_joined" | "member_left" | "eject" | "room_ended" | "role_changed" | "hand_raised" | "hand_lowered";
+  type:
+    | "member_joined"
+    | "member_left"
+    | "eject"
+    | "room_ended"
+    | "role_changed"
+    | "hand_raised"
+    | "hand_lowered";
   actorId: string;
   targetId?: string;
   payload?: Record<string, unknown>;

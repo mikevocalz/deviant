@@ -86,6 +86,8 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     showEjectModal,
     ejectPayload,
     connectionState: storeConnectionState,
+    coHost: storeCoHost,
+    listeners: storeListeners,
     toggleHand,
     setActiveSpeakerId,
     openChat,
@@ -168,22 +170,50 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   }, [router, hideEject]);
 
   const roomTitle = paramTitle || "Sneaky Lynk";
-  const speakers = [
+
+  // Build speakers list — host + co-host
+  const speakers: {
+    id: string;
+    user: SneakyUser;
+    role: "host" | "co-host" | "speaker";
+    isSpeaking: boolean;
+  }[] = [
     {
       id: localUser.id,
       user: localUser,
-      role: "host" as const,
+      role: "host",
       isSpeaking: localUser.id === activeSpeakerId,
     },
   ];
+  if (storeCoHost) {
+    speakers.push({
+      id: storeCoHost.user.id,
+      user: storeCoHost.user,
+      role: "co-host",
+      isSpeaking: storeCoHost.user.id === activeSpeakerId,
+    });
+  }
+
   const featuredSpeaker = {
     id: localUser.id,
     user: localUser,
     isSpeaking: localUser.id === activeSpeakerId,
     hasVideo: effectiveVideoOn,
   };
+
+  // Co-host featured speaker for dual view
+  const coHostFeatured = storeCoHost
+    ? {
+        id: storeCoHost.user.id,
+        user: storeCoHost.user,
+        isSpeaking: storeCoHost.user.id === activeSpeakerId,
+        hasVideo: storeCoHost.hasVideo || false,
+      }
+    : null;
+
   const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
   const cameraStream = fishjamCamera.cameraStream;
+  const participantCount = 1 + (storeCoHost ? 1 : 0) + storeListeners.length;
 
   return (
     <RoomLayout
@@ -191,13 +221,15 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
       connectionState={storeConnectionState}
       isHost={true}
       roomTitle={roomTitle}
-      participantCount={1}
+      participantCount={participantCount}
       featuredSpeaker={featuredSpeaker}
+      coHost={coHostFeatured}
       isLocalUser={true}
       effectiveVideoOn={effectiveVideoOn}
       cameraStream={cameraStream}
       speakers={speakers}
       activeSpeakers={activeSpeakers}
+      storeListeners={storeListeners}
       effectiveMuted={effectiveMuted}
       isHandRaised={isHandRaised}
       isChatOpen={isChatOpen}
@@ -231,6 +263,8 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     isChatOpen,
     showEjectModal,
     ejectPayload,
+    coHost: storeCoHost,
+    listeners: storeListeners,
     toggleHand,
     setActiveSpeakerId,
     openChat,
@@ -342,12 +376,14 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   }
 
   const roomTitle = videoRoom.room?.title || paramTitle || "Room";
-  const participantCount = videoRoom.participants.length + 1;
 
+  // Build participants from Fishjam peers
   const allSpeakers: SneakyUser[] = [localUser];
+  let remoteCoHost: SneakyUser | null = null;
+
   if (videoRoom.participants.length > 0) {
     videoRoom.participants.forEach((p: any) => {
-      allSpeakers.push({
+      const pUser: SneakyUser = {
         id: p.userId || p.oderId || p.odId,
         username: p.username || "User",
         displayName: p.username || "User",
@@ -357,16 +393,27 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
             p.username || "U",
           )}&background=1a1a1a&color=fff&rounded=true`,
         isVerified: false,
-      });
+      };
+      allSpeakers.push(pUser);
+      if (p.role === "co-host") remoteCoHost = pUser;
     });
   }
+
+  // Merge: prefer remote co-host from Fishjam, fall back to optimistic store co-host
+  const effectiveCoHost = remoteCoHost || storeCoHost?.user || null;
 
   const speakers = allSpeakers.map((user, index) => ({
     id: user.id,
     user,
-    role: index === 0 ? ("host" as const) : ("speaker" as const),
+    role:
+      index === 0
+        ? ("host" as const)
+        : user.id === effectiveCoHost?.id
+          ? ("co-host" as const)
+          : ("speaker" as const),
     isSpeaking: user.id === activeSpeakerId,
   }));
+
   const featuredSpeakerUser =
     allSpeakers.find((s) => s.id === activeSpeakerId) || localUser;
   const featuredSpeaker = {
@@ -375,8 +422,20 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     isSpeaking: featuredSpeakerUser.id === activeSpeakerId,
     hasVideo: effectiveVideoOn,
   };
+
+  const coHostFeatured = effectiveCoHost
+    ? {
+        id: effectiveCoHost.id,
+        user: effectiveCoHost,
+        isSpeaking: effectiveCoHost.id === activeSpeakerId,
+        hasVideo: false,
+      }
+    : null;
+
   const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
   const cameraStream = videoRoom.camera?.cameraStream || null;
+  const totalParticipants =
+    videoRoom.participants.length + 1 + storeListeners.length;
 
   return (
     <RoomLayout
@@ -384,13 +443,15 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
       connectionState={connectionState}
       isHost={!!isHost}
       roomTitle={roomTitle}
-      participantCount={participantCount}
+      participantCount={totalParticipants}
       featuredSpeaker={featuredSpeaker}
+      coHost={coHostFeatured}
       isLocalUser={featuredSpeakerUser.id === localUser.id}
       effectiveVideoOn={effectiveVideoOn}
       cameraStream={cameraStream}
       speakers={speakers}
       activeSpeakers={activeSpeakers}
+      storeListeners={storeListeners}
       effectiveMuted={effectiveMuted}
       isHandRaised={isHandRaised}
       isChatOpen={isChatOpen}
@@ -419,11 +480,15 @@ function RoomLayout({
   roomTitle,
   participantCount,
   featuredSpeaker,
+  coHost,
   isLocalUser,
   effectiveVideoOn,
   cameraStream,
+  coHostVideoTrack,
+  isCoHostLocal,
   speakers,
   activeSpeakers,
+  storeListeners,
   effectiveMuted,
   isHandRaised,
   isChatOpen,
@@ -446,11 +511,15 @@ function RoomLayout({
   roomTitle: string;
   participantCount: number;
   featuredSpeaker: any;
+  coHost?: any;
   isLocalUser: boolean;
   effectiveVideoOn: boolean;
   cameraStream: any;
+  coHostVideoTrack?: any;
+  isCoHostLocal?: boolean;
   speakers: any[];
   activeSpeakers: Set<string>;
+  storeListeners?: { user: SneakyUser; role: string }[];
   effectiveMuted: boolean;
   isHandRaised: boolean;
   isChatOpen: boolean;
@@ -467,7 +536,10 @@ function RoomLayout({
   onSendMessage: (content: string) => void;
   onEjectDismiss: () => void;
 }) {
-  const listeners: { id: string; user: SneakyUser }[] = [];
+  const listeners = (storeListeners || []).map((l) => ({
+    id: l.user.id,
+    user: l.user,
+  }));
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -516,10 +588,13 @@ function RoomLayout({
         {/* Video Stage */}
         <VideoStage
           featuredSpeaker={featuredSpeaker}
+          coHost={coHost}
           isSpeaking={featuredSpeaker.isSpeaking}
           isLocalUser={isLocalUser}
           isVideoEnabled={effectiveVideoOn}
           videoTrack={cameraStream ? { stream: cameraStream } : undefined}
+          coHostVideoTrack={coHostVideoTrack}
+          isCoHostLocal={isCoHostLocal}
         />
 
         {/* Speakers Grid */}
