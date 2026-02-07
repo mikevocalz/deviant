@@ -52,6 +52,18 @@ export function VideoStage({
 
   const hasVideoStream = isVideoEnabled && videoTrack?.stream;
 
+  // DEBUG: trace VideoStage rendering decision
+  console.log("[VideoStage] Render:", {
+    isVideoEnabled,
+    hasVideoTrack: !!videoTrack,
+    hasStream: !!videoTrack?.stream,
+    hasVideoStream: !!hasVideoStream,
+    streamHasToURL: videoTrack?.stream
+      ? typeof (videoTrack.stream as any).toURL
+      : "N/A",
+    isLocalUser,
+  });
+
   return (
     <View className="px-4 mb-5">
       <Pressable

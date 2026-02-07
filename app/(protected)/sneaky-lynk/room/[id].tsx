@@ -298,6 +298,16 @@ export default function SneakyLynkRoomScreen() {
     ? videoRoom.camera?.cameraStream
     : fishjamCamera.cameraStream;
 
+  // DEBUG: trace why video doesn't render
+  console.log("[SneakyLynk] Video render check:", {
+    effectiveVideoOn,
+    isCameraOn: fishjamCamera.isCameraOn,
+    hasCameraStream: !!cameraStream,
+    cameraStreamType: cameraStream ? typeof cameraStream : "null",
+    cameraStreamId: cameraStream?.id || "none",
+    videoTrackPassed: cameraStream ? "{ stream }" : "undefined",
+  });
+
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Connection Banner */}
