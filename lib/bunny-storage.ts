@@ -24,7 +24,7 @@ const BUNNY_CDN_URL =
 // Production fallback ensures uploads work even if env var is missing
 const BUNNY_STORAGE_API_KEY =
   process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY ||
-  "a51bbae5-586e-4bc4-a9c6086f6825-4507-484b";
+  "9d508644-f4b7-41a1-af5eee9fe2dd-25f0-499f";
 
 if (!process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY) {
   console.warn(
