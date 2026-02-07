@@ -1,0 +1,801 @@
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+index 2f10101980250a6aa8bedccbb61b2d8407c339b6..d3458e037d38a29395222ccd42bf23f45edc8817 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/PhotoEditorActivity.kt
+@@ -52,6 +52,7 @@ import ja.burhanrashid52.photoeditor.PhotoEditor.OnSaveListener
+ import ja.burhanrashid52.photoeditor.shape.ShapeBuilder
+ import ja.burhanrashid52.photoeditor.shape.ShapeType
+ import java.io.File
++import com.reactnativephotoeditor.activity.filters.CubeLUTParser
+ 
+ 
+ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, View.OnClickListener,
+@@ -68,7 +69,8 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+   private var mRvTools: RecyclerView? = null
+   private var mRvFilters: RecyclerView? = null
+   private val mEditingToolsAdapter = EditingToolsAdapter(this)
+-  private val mFilterViewAdapter = FilterViewAdapter(this)
++  private var mFilterViewAdapter: FilterViewAdapter? = null
++  private var mOriginalBitmap: Bitmap? = null
+   private var mRootView: ConstraintLayout? = null
+   private val mConstraintSet = ConstraintSet()
+   private var mIsFilterVisible = false
+@@ -109,6 +111,7 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+     mRvTools!!.layoutManager = llmTools
+     mRvTools!!.adapter = mEditingToolsAdapter
+ 
++    mFilterViewAdapter = FilterViewAdapter(this, this)
+     val llmFilters = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+     mRvFilters!!.layoutManager = llmFilters
+     mRvFilters!!.adapter = mFilterViewAdapter
+@@ -351,6 +354,24 @@ open class PhotoEditorActivity : AppCompatActivity(), OnPhotoEditorListener, Vie
+     mPhotoEditor!!.setFilterEffect(photoFilter)
+   }
+ 
++  override fun onLUTFilterSelected(cubeLUT: CubeLUTParser.CubeLUT) {
++    // Apply the LUT filter to the original source bitmap
++    val sourceView = mPhotoEditorView?.source
++    if (sourceView != null) {
++      sourceView.isDrawingCacheEnabled = true
++      val currentBitmap = sourceView.drawingCache
++      if (currentBitmap != null) {
++        // Store original bitmap on first LUT application for undo
++        if (mOriginalBitmap == null) {
++          mOriginalBitmap = currentBitmap.copy(Bitmap.Config.ARGB_8888, false)
++        }
++        val filtered = CubeLUTParser.applyLUT(mOriginalBitmap!!, cubeLUT)
++        sourceView.setImageBitmap(filtered)
++      }
++      sourceView.isDrawingCacheEnabled = false
++    }
++  }
++
+   override fun onToolSelected(toolType: ToolType) {
+     when (toolType) {
+       ToolType.SHAPE -> {
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/filters/CubeLUTParser.kt b/android/src/main/java/com/reactnativephotoeditor/activity/filters/CubeLUTParser.kt
+new file mode 100644
+index 0000000000000000000000000000000000000000..c5e69aab9fc096e632bbb33f7da9babf037194d0
+--- /dev/null
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/filters/CubeLUTParser.kt
+@@ -0,0 +1,198 @@
++package com.reactnativephotoeditor.activity.filters
++
++import android.content.Context
++import android.graphics.Bitmap
++import android.graphics.Color
++import android.util.Log
++import java.io.BufferedReader
++import java.io.InputStreamReader
++
++/**
++ * Parses .cube LUT files and applies 3D color lookup table transformations to bitmaps.
++ */
++class CubeLUTParser {
++
++    data class CubeLUT(
++        val name: String,
++        val size: Int,
++        val data: FloatArray // R, G, B triplets (size^3 * 3)
++    )
++
++    companion object {
++        private const val TAG = "CubeLUTParser"
++
++        /**
++         * Parse a .cube file from string contents
++         */
++        fun parseCubeFile(contents: String, name: String): CubeLUT? {
++            var size = 0
++            val data = mutableListOf<Float>()
++
++            for (line in contents.lines()) {
++                val trimmed = line.trim()
++
++                // Skip empty lines and comments
++                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue
++
++                // Parse LUT size
++                if (trimmed.uppercase().startsWith("LUT_3D_SIZE")) {
++                    val parts = trimmed.split("\\s+".toRegex())
++                    if (parts.size >= 2) {
++                        size = parts.last().toIntOrNull() ?: 0
++                    }
++                    continue
++                }
++
++                // Skip metadata lines
++                if (trimmed.uppercase().startsWith("TITLE") ||
++                    trimmed.uppercase().startsWith("LUT_1D_SIZE") ||
++                    trimmed.uppercase().startsWith("DOMAIN_MIN") ||
++                    trimmed.uppercase().startsWith("DOMAIN_MAX") ||
++                    trimmed.uppercase().startsWith("LUT_1D_INPUT_RANGE") ||
++                    trimmed.uppercase().startsWith("LUT_3D_INPUT_RANGE")) {
++                    continue
++                }
++
++                // Parse RGB data values
++                val components = trimmed.split("\\s+".toRegex()).filter { it.isNotEmpty() }
++                if (components.size >= 3) {
++                    val r = components[0].toFloatOrNull()
++                    val g = components[1].toFloatOrNull()
++                    val b = components[2].toFloatOrNull()
++                    if (r != null && g != null && b != null) {
++                        data.add(r)
++                        data.add(g)
++                        data.add(b)
++                    }
++                }
++            }
++
++            val expectedCount = size * size * size * 3
++            if (size <= 0 || data.size != expectedCount) {
++                Log.e(TAG, "Failed to parse $name: size=$size, dataCount=${data.size}, expected=$expectedCount")
++                return null
++            }
++
++            return CubeLUT(name, size, data.toFloatArray())
++        }
++
++        /**
++         * Apply a 3D LUT to a bitmap using trilinear interpolation
++         */
++        fun applyLUT(source: Bitmap, lut: CubeLUT): Bitmap {
++            val width = source.width
++            val height = source.height
++            val result = source.copy(Bitmap.Config.ARGB_8888, true)
++            val pixels = IntArray(width * height)
++            source.getPixels(pixels, 0, width, 0, 0, width, height)
++
++            val size = lut.size
++            val maxIndex = size - 1
++
++            for (i in pixels.indices) {
++                val pixel = pixels[i]
++                val a = Color.alpha(pixel)
++                val r = Color.red(pixel) / 255f
++                val g = Color.green(pixel) / 255f
++                val b = Color.blue(pixel) / 255f
++
++                // Map to LUT coordinates
++                val rIdx = r * maxIndex
++                val gIdx = g * maxIndex
++                val bIdx = b * maxIndex
++
++                // Floor and ceil indices
++                val r0 = rIdx.toInt().coerceIn(0, maxIndex)
++                val r1 = (r0 + 1).coerceIn(0, maxIndex)
++                val g0 = gIdx.toInt().coerceIn(0, maxIndex)
++                val g1 = (g0 + 1).coerceIn(0, maxIndex)
++                val b0 = bIdx.toInt().coerceIn(0, maxIndex)
++                val b1 = (b0 + 1).coerceIn(0, maxIndex)
++
++                // Fractional parts
++                val rf = rIdx - r0
++                val gf = gIdx - g0
++                val bf = bIdx - b0
++
++                // Trilinear interpolation
++                val newR = trilinearInterpolate(lut.data, size, r0, r1, g0, g1, b0, b1, rf, gf, bf, 0)
++                val newG = trilinearInterpolate(lut.data, size, r0, r1, g0, g1, b0, b1, rf, gf, bf, 1)
++                val newB = trilinearInterpolate(lut.data, size, r0, r1, g0, g1, b0, b1, rf, gf, bf, 2)
++
++                pixels[i] = Color.argb(
++                    a,
++                    (newR * 255).toInt().coerceIn(0, 255),
++                    (newG * 255).toInt().coerceIn(0, 255),
++                    (newB * 255).toInt().coerceIn(0, 255)
++                )
++            }
++
++            result.setPixels(pixels, 0, width, 0, 0, width, height)
++            return result
++        }
++
++        private fun trilinearInterpolate(
++            data: FloatArray, size: Int,
++            r0: Int, r1: Int, g0: Int, g1: Int, b0: Int, b1: Int,
++            rf: Float, gf: Float, bf: Float,
++            channel: Int
++        ): Float {
++            // .cube format: R varies fastest, then G, then B
++            fun idx(r: Int, g: Int, b: Int): Int = (b * size * size + g * size + r) * 3 + channel
++
++            val c000 = data[idx(r0, g0, b0)]
++            val c100 = data[idx(r1, g0, b0)]
++            val c010 = data[idx(r0, g1, b0)]
++            val c110 = data[idx(r1, g1, b0)]
++            val c001 = data[idx(r0, g0, b1)]
++            val c101 = data[idx(r1, g0, b1)]
++            val c011 = data[idx(r0, g1, b1)]
++            val c111 = data[idx(r1, g1, b1)]
++
++            val c00 = c000 * (1 - rf) + c100 * rf
++            val c10 = c010 * (1 - rf) + c110 * rf
++            val c01 = c001 * (1 - rf) + c101 * rf
++            val c11 = c011 * (1 - rf) + c111 * rf
++
++            val c0 = c00 * (1 - gf) + c10 * gf
++            val c1 = c01 * (1 - gf) + c11 * gf
++
++            return c0 * (1 - bf) + c1 * bf
++        }
++
++        /**
++         * Load all .cube files from assets/luts/ directory
++         */
++        fun loadAllFromAssets(context: Context): List<CubeLUT> {
++            val luts = mutableListOf<CubeLUT>()
++
++            try {
++                val files = context.assets.list("luts") ?: return luts
++                for (file in files.sorted()) {
++                    if (!file.endsWith(".cube")) continue
++
++                    try {
++                        val inputStream = context.assets.open("luts/$file")
++                        val reader = BufferedReader(InputStreamReader(inputStream))
++                        val contents = reader.readText()
++                        reader.close()
++
++                        val name = file.removeSuffix(".cube").replace("_", " ")
++                        val lut = parseCubeFile(contents, name)
++                        if (lut != null) {
++                            luts.add(lut)
++                            Log.d(TAG, "Loaded LUT: $name (size: ${lut.size})")
++                        }
++                    } catch (e: Exception) {
++                        Log.e(TAG, "Failed to load $file: ${e.message}")
++                    }
++                }
++            } catch (e: Exception) {
++                Log.e(TAG, "Failed to list luts directory: ${e.message}")
++            }
++
++            Log.d(TAG, "Loaded ${luts.size} cube LUT filters")
++            return luts
++        }
++    }
++}
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterListener.java b/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterListener.java
+index 6b2b5891f40855b8fcbc2e4b5ecaa4416b3a0c4a..beb895fb2f6626fcffd3f3a8ea0ac5327424ee86 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterListener.java
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterListener.java
+@@ -4,4 +4,5 @@ import ja.burhanrashid52.photoeditor.PhotoFilter;
+ 
+ public interface FilterListener {
+     void onFilterSelected(PhotoFilter photoFilter);
++    void onLUTFilterSelected(CubeLUTParser.CubeLUT cubeLUT);
+ }
+diff --git a/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterViewAdapter.kt b/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterViewAdapter.kt
+index e502a80c54cc5312c5cef57d36953d4b58a6a300..5f83f381101658326d2fd6ccc1034edc04bb0b6b 100644
+--- a/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterViewAdapter.kt
++++ b/android/src/main/java/com/reactnativephotoeditor/activity/filters/FilterViewAdapter.kt
+@@ -4,6 +4,7 @@ package com.reactnativephotoeditor.activity.filters
+ import android.content.Context
+ import android.graphics.Bitmap
+ import android.graphics.BitmapFactory
++import android.util.Log
+ import android.util.Pair
+ import android.view.LayoutInflater
+ import android.view.View
+@@ -17,23 +18,45 @@ import java.io.IOException
+ import java.io.InputStream
+ import java.util.*
+ 
+-class FilterViewAdapter(private val mFilterListener: FilterListener) :
++class FilterViewAdapter(private val mFilterListener: FilterListener, private val context: Context) :
+   RecyclerView.Adapter<FilterViewAdapter.ViewHolder?>() {
+-  private val mPairList: MutableList<Pair<String, PhotoFilter>> = ArrayList()
++
++  // Sealed class to represent both built-in and LUT filter items
++  sealed class FilterItem {
++    data class BuiltIn(val thumbnailAsset: String, val filter: PhotoFilter) : FilterItem()
++    data class LUT(val name: String, val cubeLUT: CubeLUTParser.CubeLUT) : FilterItem()
++  }
++
++  private val mFilterItems: MutableList<FilterItem> = ArrayList()
++
+   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+     val view = LayoutInflater.from(parent.context).inflate(R.layout.row_filter_view, parent, false)
+     return ViewHolder(view)
+   }
+ 
+   override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+-    val filterPair = mPairList[position]
+-    val fromAsset = getBitmapFromAsset(holder.itemView.context, filterPair.first)
+-    holder.mImageFilterView.setImageBitmap(fromAsset)
+-    holder.mTxtFilterName.text = filterPair.second.name.replace("_", " ")
++    when (val item = mFilterItems[position]) {
++      is FilterItem.BuiltIn -> {
++        val fromAsset = getBitmapFromAsset(holder.itemView.context, item.thumbnailAsset)
++        holder.mImageFilterView.setImageBitmap(fromAsset)
++        holder.mTxtFilterName.text = item.filter.name.replace("_", " ")
++      }
++      is FilterItem.LUT -> {
++        // Use the original image thumbnail with LUT applied as preview
++        val fromAsset = getBitmapFromAsset(holder.itemView.context, "filters/original.jpg")
++        if (fromAsset != null) {
++          // Apply LUT to thumbnail for preview (scaled down for performance)
++          val scaled = Bitmap.createScaledBitmap(fromAsset, 64, 64, true)
++          val preview = CubeLUTParser.applyLUT(scaled, item.cubeLUT)
++          holder.mImageFilterView.setImageBitmap(preview)
++        }
++        holder.mTxtFilterName.text = item.name
++      }
++    }
+   }
+ 
+   override fun getItemCount(): Int {
+-    return mPairList.size
++    return mFilterItems.size
+   }
+ 
+   inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+@@ -41,15 +64,19 @@ class FilterViewAdapter(private val mFilterListener: FilterListener) :
+     var mTxtFilterName: TextView = itemView.findViewById(R.id.txtFilterName)
+ 
+     init {
+-      itemView.setOnClickListener { mFilterListener.onFilterSelected(mPairList[layoutPosition].second) }
++      itemView.setOnClickListener {
++        when (val item = mFilterItems[layoutPosition]) {
++          is FilterItem.BuiltIn -> mFilterListener.onFilterSelected(item.filter)
++          is FilterItem.LUT -> mFilterListener.onLUTFilterSelected(item.cubeLUT)
++        }
++      }
+     }
+   }
+ 
+   private fun getBitmapFromAsset(context: Context, strName: String): Bitmap? {
+     val assetManager = context.assets
+-    var inputStream: InputStream? = null
+     return try {
+-      inputStream = assetManager.open(strName)
++      val inputStream = assetManager.open(strName)
+       BitmapFactory.decodeStream(inputStream)
+     } catch (e: IOException) {
+       e.printStackTrace()
+@@ -58,30 +85,38 @@ class FilterViewAdapter(private val mFilterListener: FilterListener) :
+   }
+ 
+   private fun setupFilters() {
+-    mPairList.add(Pair("filters/original.jpg", PhotoFilter.NONE))
+-    mPairList.add(Pair("filters/auto_fix.png", PhotoFilter.AUTO_FIX))
+-    mPairList.add(Pair("filters/brightness.png", PhotoFilter.BRIGHTNESS))
+-    mPairList.add(Pair("filters/contrast.png", PhotoFilter.CONTRAST))
+-    mPairList.add(Pair("filters/documentary.png", PhotoFilter.DOCUMENTARY))
+-    mPairList.add(Pair("filters/dual_tone.png", PhotoFilter.DUE_TONE))
+-    mPairList.add(Pair("filters/fill_light.png", PhotoFilter.FILL_LIGHT))
+-    mPairList.add(Pair("filters/fish_eye.png", PhotoFilter.FISH_EYE))
+-    mPairList.add(Pair("filters/grain.png", PhotoFilter.GRAIN))
+-    mPairList.add(Pair("filters/gray_scale.png", PhotoFilter.GRAY_SCALE))
+-    mPairList.add(Pair("filters/lomish.png", PhotoFilter.LOMISH))
+-    mPairList.add(Pair("filters/negative.png", PhotoFilter.NEGATIVE))
+-    mPairList.add(Pair("filters/posterize.png", PhotoFilter.POSTERIZE))
+-    mPairList.add(Pair("filters/saturate.png", PhotoFilter.SATURATE))
+-    mPairList.add(Pair("filters/sepia.png", PhotoFilter.SEPIA))
+-    mPairList.add(Pair("filters/sharpen.png", PhotoFilter.SHARPEN))
+-    mPairList.add(Pair("filters/temprature.png", PhotoFilter.TEMPERATURE))
+-    mPairList.add(Pair("filters/tint.png", PhotoFilter.TINT))
+-    mPairList.add(Pair("filters/vignette.png", PhotoFilter.VIGNETTE))
+-    mPairList.add(Pair("filters/cross_process.png", PhotoFilter.CROSS_PROCESS))
+-    mPairList.add(Pair("filters/b_n_w.png", PhotoFilter.BLACK_WHITE))
+-    mPairList.add(Pair("filters/flip_horizental.png", PhotoFilter.FLIP_HORIZONTAL))
+-    mPairList.add(Pair("filters/flip_vertical.png", PhotoFilter.FLIP_VERTICAL))
+-    mPairList.add(Pair("filters/rotate.png", PhotoFilter.ROTATE))
++    // Built-in filters
++    mFilterItems.add(FilterItem.BuiltIn("filters/original.jpg", PhotoFilter.NONE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/auto_fix.png", PhotoFilter.AUTO_FIX))
++    mFilterItems.add(FilterItem.BuiltIn("filters/brightness.png", PhotoFilter.BRIGHTNESS))
++    mFilterItems.add(FilterItem.BuiltIn("filters/contrast.png", PhotoFilter.CONTRAST))
++    mFilterItems.add(FilterItem.BuiltIn("filters/documentary.png", PhotoFilter.DOCUMENTARY))
++    mFilterItems.add(FilterItem.BuiltIn("filters/dual_tone.png", PhotoFilter.DUE_TONE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/fill_light.png", PhotoFilter.FILL_LIGHT))
++    mFilterItems.add(FilterItem.BuiltIn("filters/fish_eye.png", PhotoFilter.FISH_EYE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/grain.png", PhotoFilter.GRAIN))
++    mFilterItems.add(FilterItem.BuiltIn("filters/gray_scale.png", PhotoFilter.GRAY_SCALE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/lomish.png", PhotoFilter.LOMISH))
++    mFilterItems.add(FilterItem.BuiltIn("filters/negative.png", PhotoFilter.NEGATIVE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/posterize.png", PhotoFilter.POSTERIZE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/saturate.png", PhotoFilter.SATURATE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/sepia.png", PhotoFilter.SEPIA))
++    mFilterItems.add(FilterItem.BuiltIn("filters/sharpen.png", PhotoFilter.SHARPEN))
++    mFilterItems.add(FilterItem.BuiltIn("filters/temprature.png", PhotoFilter.TEMPERATURE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/tint.png", PhotoFilter.TINT))
++    mFilterItems.add(FilterItem.BuiltIn("filters/vignette.png", PhotoFilter.VIGNETTE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/cross_process.png", PhotoFilter.CROSS_PROCESS))
++    mFilterItems.add(FilterItem.BuiltIn("filters/b_n_w.png", PhotoFilter.BLACK_WHITE))
++    mFilterItems.add(FilterItem.BuiltIn("filters/flip_horizental.png", PhotoFilter.FLIP_HORIZONTAL))
++    mFilterItems.add(FilterItem.BuiltIn("filters/flip_vertical.png", PhotoFilter.FLIP_VERTICAL))
++    mFilterItems.add(FilterItem.BuiltIn("filters/rotate.png", PhotoFilter.ROTATE))
++
++    // Load .cube LUT filters from assets/luts/
++    val cubeLUTs = CubeLUTParser.loadAllFromAssets(context)
++    for (lut in cubeLUTs) {
++      mFilterItems.add(FilterItem.LUT(lut.name, lut))
++    }
++    Log.d("FilterViewAdapter", "Total filters: ${mFilterItems.size} (built-in: 24, cube LUTs: ${cubeLUTs.size})")
+   }
+ 
+   init {
+diff --git a/android/src/main/res/layout/photo_editor_view.xml b/android/src/main/res/layout/photo_editor_view.xml
+index 6f84a82dc08ecfbf348e048e12525fe0e9b6d745..3625cb15e9e8faab376d20058e2bffcfbdb16129 100644
+--- a/android/src/main/res/layout/photo_editor_view.xml
++++ b/android/src/main/res/layout/photo_editor_view.xml
+@@ -6,6 +6,7 @@
+   android:layout_width="match_parent"
+   android:layout_height="match_parent"
+   android:background="@color/tool_bg"
++  android:fitsSystemWindows="true"
+   app:layout_behavior="@string/appbar_scrolling_view_behavior">
+ 
+ 
+diff --git a/ios/FilterColorCube/CubeLUTLoader.swift b/ios/FilterColorCube/CubeLUTLoader.swift
+new file mode 100644
+index 0000000000000000000000000000000000000000..d751692bdd620053a48152e749d7c0bc2f33edb6
+--- /dev/null
++++ b/ios/FilterColorCube/CubeLUTLoader.swift
+@@ -0,0 +1,164 @@
++import UIKit
++import CoreImage
++
++/// Parses .cube LUT files and creates ZLFilter instances using CIColorCubeWithColorSpace.
++/// Supports both 1D and 3D LUT formats. Only 3D LUTs are used for image filtering.
++public final class CubeLUTLoader {
++
++    public struct CubeLUT {
++        let name: String
++        let size: Int
++        let data: [Float]
++    }
++
++    /// Parse a .cube file from a string contents
++    public static func parseCubeFile(contents: String, name: String) -> CubeLUT? {
++        var size: Int = 0
++        var data: [Float] = []
++
++        let lines = contents.components(separatedBy: .newlines)
++        for line in lines {
++            let trimmed = line.trimmingCharacters(in: .whitespaces)
++
++            // Skip empty lines and comments
++            if trimmed.isEmpty || trimmed.hasPrefix("#") {
++                continue
++            }
++
++            // Parse LUT size
++            if trimmed.uppercased().hasPrefix("LUT_3D_SIZE") {
++                let parts = trimmed.components(separatedBy: .whitespaces)
++                if parts.count >= 2, let s = Int(parts.last ?? "") {
++                    size = s
++                }
++                continue
++            }
++
++            // Skip metadata lines
++            if trimmed.uppercased().hasPrefix("TITLE") ||
++               trimmed.uppercased().hasPrefix("LUT_1D_SIZE") ||
++               trimmed.uppercased().hasPrefix("DOMAIN_MIN") ||
++               trimmed.uppercased().hasPrefix("DOMAIN_MAX") ||
++               trimmed.uppercased().hasPrefix("LUT_1D_INPUT_RANGE") ||
++               trimmed.uppercased().hasPrefix("LUT_3D_INPUT_RANGE") {
++                continue
++            }
++
++            // Parse RGB data values
++            let components = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
++            if components.count >= 3,
++               let r = Float(components[0]),
++               let g = Float(components[1]),
++               let b = Float(components[2]) {
++                data.append(r)
++                data.append(g)
++                data.append(b)
++                data.append(1.0) // Alpha
++            }
++        }
++
++        guard size > 0, data.count == size * size * size * 4 else {
++            print("[CubeLUTLoader] Failed to parse \(name): size=\(size), dataCount=\(data.count), expected=\(size * size * size * 4)")
++            return nil
++        }
++
++        return CubeLUT(name: name, size: size, data: data)
++    }
++
++    /// Create a ZLFilter from a parsed CubeLUT
++    public static func createFilter(from lut: CubeLUT) -> ZLFilter {
++        return ZLFilter(name: lut.name) { image in
++            guard let ciImage = image.toCIImage() else {
++                return image
++            }
++
++            let cubeData = Data(bytes: lut.data, count: lut.data.count * MemoryLayout<Float>.size)
++
++            guard let filter = CIFilter(name: "CIColorCubeWithColorSpace", parameters: [
++                "inputCubeDimension": lut.size,
++                "inputCubeData": cubeData,
++                "inputColorSpace": CGColorSpaceCreateDeviceRGB(),
++                kCIInputImageKey: ciImage
++            ]) else {
++                return image
++            }
++
++            guard let outputImage = filter.outputImage else {
++                return image
++            }
++
++            let context = CIContext()
++            guard let cgImage = context.createCGImage(outputImage, from: outputImage.extent) else {
++                return image
++            }
++
++            return UIImage(cgImage: cgImage)
++        }
++    }
++
++    /// Load all .cube files from the app's CubeLUTs bundle
++    public func loadAll() -> [ZLFilter] {
++        var filters: [ZLFilter] = []
++
++        // Look for CubeLUTs bundle in main bundle
++        guard let bundlePath = Bundle.main.path(forResource: "CubeLUTs", ofType: "bundle"),
++              let bundle = Bundle(path: bundlePath) else {
++            print("[CubeLUTLoader] CubeLUTs.bundle not found, trying direct resource lookup")
++            return loadFromMainBundle()
++        }
++
++        guard let cubeFiles = try? FileManager.default.contentsOfDirectory(atPath: bundlePath) else {
++            print("[CubeLUTLoader] No files found in CubeLUTs.bundle")
++            return filters
++        }
++
++        for file in cubeFiles.sorted() where file.hasSuffix(".cube") {
++            let filePath = (bundlePath as NSString).appendingPathComponent(file)
++            guard let contents = try? String(contentsOfFile: filePath, encoding: .utf8) else {
++                print("[CubeLUTLoader] Failed to read \(file)")
++                continue
++            }
++
++            let name = (file as NSString).deletingPathExtension
++                .replacingOccurrences(of: "_", with: " ")
++
++            if let lut = CubeLUTLoader.parseCubeFile(contents: contents, name: name) {
++                let filter = CubeLUTLoader.createFilter(from: lut)
++                filters.append(filter)
++                print("[CubeLUTLoader] Loaded LUT: \(name) (size: \(lut.size))")
++            }
++        }
++
++        print("[CubeLUTLoader] Loaded \(filters.count) cube LUT filters")
++        return filters
++    }
++
++    /// Fallback: load .cube files directly from main bundle resources
++    private func loadFromMainBundle() -> [ZLFilter] {
++        var filters: [ZLFilter] = []
++
++        guard let resourcePath = Bundle.main.resourcePath else { return filters }
++
++        guard let files = try? FileManager.default.contentsOfDirectory(atPath: resourcePath) else {
++            return filters
++        }
++
++        for file in files.sorted() where file.hasSuffix(".cube") {
++            let filePath = (resourcePath as NSString).appendingPathComponent(file)
++            guard let contents = try? String(contentsOfFile: filePath, encoding: .utf8) else {
++                continue
++            }
++
++            let name = (file as NSString).deletingPathExtension
++                .replacingOccurrences(of: "_", with: " ")
++
++            if let lut = CubeLUTLoader.parseCubeFile(contents: contents, name: name) {
++                let filter = CubeLUTLoader.createFilter(from: lut)
++                filters.append(filter)
++                print("[CubeLUTLoader] Loaded LUT from main bundle: \(name)")
++            }
++        }
++
++        return filters
++    }
++}
+diff --git a/ios/PhotoEditor.swift b/ios/PhotoEditor.swift
+index 0c1e923c856731a18b947710c8dc13c052476ccb..df0bf55537b7d3275aaadc9b02700da69dd96671 100644
+--- a/ios/PhotoEditor.swift
++++ b/ios/PhotoEditor.swift
+@@ -52,11 +52,16 @@ class PhotoEditor: NSObject, ZLEditImageControllerDelegate {
+         self.resolve = resolve;
+         self.reject = reject;
+         
++        // Initial tool to auto-select when editor opens
++        let initialTool = options["initialTool"] as? String
++        print("[PhotoEditor] initialTool from options: \(initialTool ?? "nil")")
++        ZLImageEditorConfiguration.default().initialTool = initialTool
++        print("[PhotoEditor] Set initialTool to config: \(ZLImageEditorConfiguration.default().initialTool ?? "nil")")
++        
+         // Stickers
+         let stickers = options["stickers"] as? [String] ?? []
+         ZLImageEditorConfiguration.default().imageStickerContainerView = StickerView(stickers: stickers)
+         
+-        
+         //Config
+         ZLImageEditorConfiguration.default().editDoneBtnBgColor = UIColor(red:255/255.0, green:238/255.0, blue:101/255.0, alpha:1.0)
+ 
+diff --git a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+index 4b8b44334eb2624ebd3be3a25d195f46d76dd3eb..793fe8c084e38d6a97f72e5b27261b2937eb4963 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLEditImageViewController.swift
+@@ -265,6 +265,36 @@ public class ZLEditImageViewController: UIViewController {
+         if self.tools.contains(.filter) {
+             self.generateFilterImages()
+         }
++        
++        // Auto-select initial tool if specified
++        let initialTool = ZLImageEditorConfiguration.default().initialTool
++        print("[ZLEditImageVC] viewDidLoad - initialTool: \(initialTool ?? "nil")")
++        if let tool = initialTool {
++            // Clear immediately to prevent reuse
++            ZLImageEditorConfiguration.default().initialTool = nil
++            
++            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
++                guard let self = self else { return }
++                print("[ZLEditImageVC] Executing initialTool: \(tool)")
++                switch tool {
++                case "text":
++                    print("[ZLEditImageVC] Opening text tool")
++                    self.textStickerBtnClick()
++                case "stickers":
++                    print("[ZLEditImageVC] Opening stickers tool")
++                    self.imageStickerBtnClick()
++                case "draw":
++                    print("[ZLEditImageVC] Opening draw tool")
++                    self.drawBtnClick()
++                case "filter":
++                    print("[ZLEditImageVC] Opening filter tool")
++                    self.filterBtnClick()
++                default:
++                    print("[ZLEditImageVC] Unknown tool: \(tool)")
++                    break
++                }
++            }
++        }
+     }
+     
+     public override func viewDidLayoutSubviews() {
+diff --git a/ios/ZLImageEditor/Sources/General/ZLFilter.swift b/ios/ZLImageEditor/Sources/General/ZLFilter.swift
+index a57e895dde14e4dd4aa27dd3457f46fd360276f8..e3704aaf0e87e17af18661e1112556f6bf98c04f 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLFilter.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLFilter.swift
+@@ -253,7 +253,14 @@ extension ZLFilter {
+ 
+ extension ZLFilter {
+     
+-    @objc public static let all: [ZLFilter] = [.normal, .clarendon, .nashville, .apply1977, .toaster, .chrome, .fade, .instant, .process, .transfer, .tone, .linear, .sepia, .mono, .noir, .tonal]
++    @objc public static let all: [ZLFilter] = {
++        var filters: [ZLFilter] = [.normal, .clarendon, .nashville, .apply1977, .toaster, .chrome, .fade, .instant, .process, .transfer, .tone, .linear, .sepia, .mono, .noir, .tonal]
++        // Append .cube LUT filters loaded from CubeLUTs bundle
++        let cubeLUTs = CubeLUTLoader().loadAll()
++        filters.append(contentsOf: cubeLUTs)
++        print("[ZLFilter] Total filters: \(filters.count) (built-in: 16, cube LUTs: \(cubeLUTs.count))")
++        return filters
++    }()
+     
+     @objc public static let normal = ZLFilter(name: "Normal", filterType: .normal)
+     
+diff --git a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+index b49b33d405ee2b6dcc962add20bb75c6163de1d8..95b26230e81003332230573b05e319e127270f99 100644
+--- a/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
++++ b/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift
+@@ -111,6 +111,9 @@ public class ZLImageEditorConfiguration: NSObject {
+     /// The default text sticker color. If this color not in textStickerTextColors, will pick the first color in textStickerTextColors as the default.
+     @objc public var textStickerDefaultTextColor = UIColor.white
+     
++    /// Initial tool to auto-select when editor opens (text, stickers, draw, filter)
++    @objc public var initialTool: String? = nil
++    
+     private var pri_filters: [ZLFilter] = ZLFilter.all
+     /// Filters for image editor.
+     @objc public var filters: [ZLFilter] {
+diff --git a/lib/commonjs/index.js b/lib/commonjs/index.js
+index e62f1f30a2f69ee458173335403a3985f8abf52c..bc5c23e9d931a51235ebd4a08f1921bae33afeac 100644
+--- a/lib/commonjs/index.js
++++ b/lib/commonjs/index.js
+@@ -1,22 +1,21 @@
+-"use strict";
++'use strict';
+ 
+-Object.defineProperty(exports, "__esModule", {
+-  value: true
++Object.defineProperty(exports, '__esModule', {
++  value: true,
+ });
+ exports.default = void 0;
+ 
+-var _reactNative = require("react-native");
++var _reactNative = require('react-native');
+ 
+-const {
+-  PhotoEditor
+-} = _reactNative.NativeModules;
+-var _default = PhotoEditor;
+-exports.default = _default;
+-//# sourceMappingURL=index.js.mapt = {
+-  open: optionsEditor => {
+-    const options = { ...defaultOptions,
+-      ...optionsEditor
+-    };
++const { PhotoEditor } = _reactNative.NativeModules;
++
++const defaultOptions = {
++  stickers: [],
++};
++
++const exportObject = {
++  open: (optionsEditor) => {
++    const options = { ...defaultOptions, ...optionsEditor };
+     return new Promise(async (resolve, reject) => {
+       try {
+         const response = await PhotoEditor.open(options);
+@@ -31,7 +30,7 @@ exports.default = _default;
+         reject(e);
+       }
+     });
+-  }
++  },
+ };
+ var _default = exportObject;
+ exports.default = _default;
+diff --git a/lib/module/index.js b/lib/module/index.js
+index 1df5576a156cb7eb1ff6c338a51f849900bf94bc..76c24d3589bd2c41b773ef3452f4f8ddafabfe63 100644
+--- a/lib/module/index.js
++++ b/lib/module/index.js
+@@ -1,15 +1,13 @@
+ import { NativeModules } from 'react-native';
+-const {
+-  PhotoEditor
+-} = NativeModules;
+-export default PhotoEditor;
+-//# sourceMappingURL=index.js.map stickers: []
++const { PhotoEditor } = NativeModules;
++
++const defaultOptions = {
++  stickers: [],
+ };
+-exportObject = {
+-  open: optionsEditor => {
+-    const options = { ...defaultOptions,
+-      ...optionsEditor
+-    };
++
++const exportObject = {
++  open: (optionsEditor) => {
++    const options = { ...defaultOptions, ...optionsEditor };
+     return new Promise(async (resolve, reject) => {
+       try {
+         const response = await PhotoEditor.open(options);
+@@ -24,7 +22,7 @@ exportObject = {
+         reject(e);
+       }
+     });
+-  }
++  },
+ };
+ export default exportObject;
+ //# sourceMappingURL=index.js.map
+\ No newline at end of file
+diff --git a/react-native-photo-editor.podspec b/react-native-photo-editor.podspec
+index 61bc5bcfac7342591b61ba9d36d80172be64e57f..6ea6ea0722832692da99016069cc54f274bbfc14 100644
+--- a/react-native-photo-editor.podspec
++++ b/react-native-photo-editor.podspec
+@@ -17,8 +17,8 @@ Pod::Spec.new do |s|
+   s.source_files = "ios/**/*.{h,m,mm,swift}"
+   
+   s.dependency "React-Core"
+-  s.dependency "SDWebImage", "~> 5.11.1"
+-  s.dependency 'SDWebImageWebPCoder', '~> 0.8.4'
++  s.dependency "SDWebImage"
++  s.dependency 'SDWebImageWebPCoder'
+ 
+   s.subspec 'ZLImageEditor' do |zl|
+     zl.name             = "ZLImageEditor"

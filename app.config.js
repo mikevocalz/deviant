@@ -82,6 +82,7 @@ export default {
     },
     plugins: [
       "./plugins/android-fixes",
+      "./plugins/with-cube-luts",
       "expo-font",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
