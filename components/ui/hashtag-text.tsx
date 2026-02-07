@@ -9,8 +9,8 @@ import { useRouter } from "expo-router";
 import { useMemo } from "react";
 
 // Brand colors for hashtags and mentions
-const HASHTAG_COLOR = "#8A40CF";
-const MENTION_COLOR = "#8A40CF";
+const HASHTAG_COLOR = "#3FDCFF";
+const MENTION_COLOR = "#3FDCFF";
 
 interface HashtagTextProps {
   text: string;
@@ -148,9 +148,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
   },
   hashtag: {
-    fontWeight: "600",
+    fontWeight: "700",
   },
   mention: {
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });

@@ -22,8 +22,8 @@ import { Pressable } from "react-native";
 // CRITICAL: Explicit colors - NEVER rely on theme inheritance
 const CAPTION_TEXT_COLOR = "#FFFFFF";
 const USERNAME_TEXT_COLOR = "#FFFFFF";
-const HASHTAG_COLOR = "#8A40CF";
-const MENTION_COLOR = "#8A40CF";
+const HASHTAG_COLOR = "#3FDCFF";
+const MENTION_COLOR = "#3FDCFF";
 
 interface PostCaptionProps {
   username: string;
@@ -188,10 +188,10 @@ const styles = StyleSheet.create({
   },
   hashtag: {
     color: HASHTAG_COLOR,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   mention: {
     color: MENTION_COLOR,
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
