@@ -1,11 +1,24 @@
 /**
  * Controls Bar Component
- * Bottom bar with Leave, Hand raise, Chat, Mic, Video controls
+ * Floating glass-morphism interaction dock
+ * Clubhouse x Twitter Spaces x TikTok Live aesthetic
  */
 
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Hand, MessageCircle, Mic, MicOff, Video, VideoOff } from "lucide-react-native";
+import {
+  Hand,
+  MessageCircle,
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  LogOut,
+  Share2,
+  Heart,
+} from "lucide-react-native";
+import { useRef, useCallback, useState } from "react";
+import * as Haptics from "expo-haptics";
 
 interface ControlsBarProps {
   isMuted: boolean;
@@ -17,6 +30,130 @@ interface ControlsBarProps {
   onToggleVideo: () => void;
   onToggleHand: () => void;
   onOpenChat: () => void;
+  onShare?: () => void;
+}
+
+// ── Floating emoji reaction ─────────────────────────────────────────
+const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "🙌", "💯"];
+
+function FloatingEmoji({
+  emoji,
+  onComplete,
+}: {
+  emoji: string;
+  onComplete: () => void;
+}) {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(0.5)).current;
+  const translateX = useRef(
+    new Animated.Value((Math.random() - 0.5) * 60),
+  ).current;
+
+  useRef(
+    Animated.parallel([
+      Animated.timing(translateY, {
+        toValue: -200 - Math.random() * 100,
+        duration: 2000,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(scale, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scale, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 2000,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(onComplete),
+  ).current;
+
+  return (
+    <Animated.Text
+      style={{
+        position: "absolute",
+        bottom: 70,
+        right: 20,
+        fontSize: 28,
+        opacity,
+        transform: [{ translateY }, { translateX }, { scale }],
+      }}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+// ── Control button ──────────────────────────────────────────────────
+function ControlButton({
+  onPress,
+  isActive,
+  isDanger,
+  icon,
+  label,
+  size = 48,
+}: {
+  onPress: () => void;
+  isActive?: boolean;
+  isDanger?: boolean;
+  icon: React.ReactNode;
+  label?: string;
+  size?: number;
+}) {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 0.9,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  }, [scaleAnim]);
+
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      speed: 50,
+      bounciness: 4,
+    }).start();
+  }, [scaleAnim]);
+
+  return (
+    <View className="items-center gap-1">
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onPress();
+          }}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          className={`items-center justify-center rounded-full ${
+            isDanger ? "bg-red-500/20" : isActive ? "bg-white/15" : "bg-white/8"
+          }`}
+          style={{ width: size, height: size }}
+        >
+          {icon}
+        </Pressable>
+      </Animated.View>
+      {label && (
+        <Text className="text-[10px] text-white/50 font-medium">{label}</Text>
+      )}
+    </View>
+  );
 }
 
 export function ControlsBar({
@@ -29,71 +166,106 @@ export function ControlsBar({
   onToggleVideo,
   onToggleHand,
   onOpenChat,
+  onShare,
 }: ControlsBarProps) {
   const insets = useSafeAreaInsets();
+  const [floatingEmojis, setFloatingEmojis] = useState<
+    { id: number; emoji: string }[]
+  >([]);
+  const emojiCounter = useRef(0);
+
+  const handleReact = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const emoji =
+      REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)];
+    const id = emojiCounter.current++;
+    setFloatingEmojis((prev) => [...prev, { id, emoji }]);
+  }, []);
+
+  const removeEmoji = useCallback((id: number) => {
+    setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
+  }, []);
 
   return (
-    <View
-      className="flex-row items-center justify-between px-5 pt-4 bg-card border-t border-border"
-      style={{ paddingBottom: insets.bottom + 10 }}
-    >
-      {/* Leave Button */}
-      <Pressable
-        onPress={onLeave}
-        className="bg-destructive px-6 py-3.5 rounded-3xl"
-      >
-        <Text className="text-white text-[15px] font-semibold">Leave</Text>
-      </Pressable>
+    <View style={{ paddingBottom: insets.bottom + 8 }}>
+      {/* Floating reactions */}
+      {floatingEmojis.map((e) => (
+        <FloatingEmoji
+          key={e.id}
+          emoji={e.emoji}
+          onComplete={() => removeEmoji(e.id)}
+        />
+      ))}
 
-      {/* Control Buttons */}
-      <View className="flex-row gap-2.5">
+      {/* Dock */}
+      <View
+        className="mx-4 flex-row items-center justify-between px-4 py-3 rounded-2xl"
+        style={{ backgroundColor: "rgba(20, 20, 20, 0.85)" }}
+      >
+        {/* Mic */}
+        <ControlButton
+          onPress={onToggleMute}
+          isActive={!isMuted}
+          icon={
+            isMuted ? (
+              <MicOff size={20} color="#EF4444" />
+            ) : (
+              <Mic size={20} color="#fff" />
+            )
+          }
+        />
+
+        {/* Video */}
+        {hasVideo && (
+          <ControlButton
+            onPress={onToggleVideo}
+            isActive={isVideoEnabled}
+            icon={
+              isVideoEnabled ? (
+                <Video size={20} color="#fff" />
+              ) : (
+                <VideoOff size={20} color="#EF4444" />
+              )
+            }
+          />
+        )}
+
         {/* Hand Raise */}
-        <Pressable
+        <ControlButton
           onPress={onToggleHand}
-          className={`w-12 h-12 rounded-full items-center justify-center ${
-            handRaised ? "bg-primary" : "bg-secondary"
-          }`}
-        >
-          <Hand size={22} color={handRaised ? "#fff" : "#fff"} />
-        </Pressable>
+          isActive={handRaised}
+          icon={<Hand size={20} color={handRaised ? "#F59E0B" : "#fff"} />}
+        />
+
+        {/* React */}
+        <ControlButton
+          onPress={handleReact}
+          icon={<Heart size={20} color="#FF6DC1" />}
+        />
 
         {/* Chat */}
-        <Pressable
+        <ControlButton
           onPress={onOpenChat}
-          className="w-12 h-12 rounded-full bg-secondary items-center justify-center"
-        >
-          <MessageCircle size={22} color="#fff" />
-        </Pressable>
+          icon={<MessageCircle size={20} color="#fff" />}
+        />
 
-        {/* Mic Toggle */}
-        <Pressable
-          onPress={onToggleMute}
-          className={`w-12 h-12 rounded-full items-center justify-center ${
-            !isMuted ? "bg-primary" : "bg-secondary"
-          }`}
-        >
-          {isMuted ? (
-            <MicOff size={22} color="#fff" />
-          ) : (
-            <Mic size={22} color="#fff" />
-          )}
-        </Pressable>
-
-        {/* Video Toggle (only if room supports video) */}
-        {hasVideo && (
-          <Pressable
-            onPress={onToggleVideo}
-            className={`w-12 h-12 rounded-full items-center justify-center ${
-              isVideoEnabled ? "bg-primary" : "bg-secondary"
-            }`}
-          >
-            {isVideoEnabled ? (
-              <Video size={22} color="#fff" />
-            ) : (
-              <VideoOff size={22} color="#fff" />
-            )}
-          </Pressable>
+        {/* Share */}
+        {onShare && (
+          <ControlButton
+            onPress={onShare}
+            icon={<Share2 size={20} color="#fff" />}
+          />
         )}
+
+        {/* Leave — danger accent */}
+        <ControlButton
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            onLeave();
+          }}
+          isDanger
+          icon={<LogOut size={20} color="#EF4444" />}
+        />
       </View>
     </View>
   );
