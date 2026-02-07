@@ -46,7 +46,7 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     const scaleAnimation = Animated.loop(
@@ -63,7 +63,7 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     );
 
     pulseAnimation.start();
@@ -123,14 +123,14 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
         {isActive && (
           <>
             <Animated.View
-              className="absolute w-[72px] h-[72px] rounded-full border-[3px] border-green-500"
+              className="absolute w-[72px] h-[72px] rounded-2xl border-[3px] border-green-500"
               style={{
                 opacity: pulseOpacityOuter,
                 transform: [{ scale: pulseScaleOuter }],
               }}
             />
             <Animated.View
-              className="absolute w-[72px] h-[72px] rounded-full border-[3px] border-primary"
+              className="absolute w-[72px] h-[72px] rounded-2xl border-[3px] border-primary"
               style={{
                 opacity: pulseOpacityInner,
                 transform: [{ scale: pulseScaleInner }],
@@ -139,14 +139,14 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
           </>
         )}
 
-        {/* Avatar */}
+        {/* Avatar — rounded square */}
         <Animated.View
-          className="w-[72px] h-[72px] rounded-full"
+          className="w-[72px] h-[72px] rounded-2xl"
           style={{ transform: [{ scale: isActive ? scaleAnim : 1 }] }}
         >
           <Image
             source={{ uri: speaker.user.avatar }}
-            className={`w-[72px] h-[72px] rounded-full border-[3px] ${
+            className={`w-[72px] h-[72px] rounded-2xl border-[3px] ${
               isActive ? "border-green-500" : "border-secondary"
             }`}
           />
@@ -161,7 +161,7 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
 
         {/* Speaking indicator */}
         <View
-          className={`absolute bottom-0.5 right-0.5 w-[18px] h-[18px] rounded-[9px] border-[3px] border-background ${
+          className={`absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-[3px] border-background ${
             isActive ? "bg-green-500" : "bg-muted-foreground"
           }`}
         />
@@ -169,7 +169,10 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
 
       {/* Name */}
       <View className="flex-row items-center gap-1">
-        <Text className="text-sm font-semibold text-foreground max-w-[80px]" numberOfLines={1}>
+        <Text
+          className="text-sm font-semibold text-foreground max-w-[80px]"
+          numberOfLines={1}
+        >
           {speaker.user.displayName}
         </Text>
         {speaker.user.isVerified && (
