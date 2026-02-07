@@ -38,6 +38,7 @@ import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -518,7 +519,7 @@ function PostDetailScreenContent() {
           {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
             <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
-              {likeCount.toLocaleString()} likes
+              {formatLikeCount(likeCount)}
             </Text>
             {post.caption && (
               <View className="mt-2">

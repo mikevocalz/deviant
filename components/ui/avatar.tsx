@@ -68,9 +68,9 @@ function AvatarComponent({
   );
   const showImage = Boolean(resolvedUri);
   const usernameInitial =
-    (username && username.trim().length > 0
+    username && username.trim().length > 0
       ? username.trim()[0].toUpperCase()
-      : "U");
+      : "U";
 
   if (__DEV__) {
     console.log(
@@ -89,6 +89,8 @@ function AvatarComponent({
           borderRadius,
           backgroundColor: "#2a2a2a",
           overflow: "hidden",
+          borderWidth: 1.5,
+          borderColor: "#34A2DF",
         },
         style,
       ]}

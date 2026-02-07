@@ -8,10 +8,7 @@
 
 import { forwardRef } from "react";
 import { TextInput, type TextInputProps } from "react-native";
-import {
-  TextInputWrapperView,
-  type PasteEventPayload,
-} from "expo-paste-input";
+import { TextInputWrapperView, type PasteEventPayload } from "expo-paste-input";
 
 export interface PasteInputProps extends TextInputProps {
   /** Called when user pastes an image from clipboard */
@@ -36,8 +33,8 @@ export const PasteInput = forwardRef<TextInput, PasteInputProps>(
     };
 
     return (
-      <TextInputWrapperView onPaste={handlePaste} style={{ flex: 1 }}>
-        <TextInput ref={ref} style={style} {...textInputProps} />
+      <TextInputWrapperView onPaste={handlePaste}>
+        <TextInput ref={ref} style={[{ flex: 1 }, style]} {...textInputProps} />
       </TextInputWrapperView>
     );
   },

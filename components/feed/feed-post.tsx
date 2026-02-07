@@ -46,6 +46,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
+import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 
 const LONG_PRESS_DELAY = 300;
@@ -684,7 +685,7 @@ function FeedPostComponent({
         {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
           <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
-            {likeCount.toLocaleString()} likes
+            {formatLikeCount(likeCount)}
           </Text>
           {caption && (
             <View className="mt-1">

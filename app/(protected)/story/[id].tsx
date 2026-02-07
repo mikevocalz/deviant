@@ -1,12 +1,11 @@
 import {
   View,
   Text,
+  TextInput,
   Pressable,
   Dimensions,
   Keyboard,
-  Platform,
 } from "react-native";
-import { PasteInput } from "@/components/ui/paste-input";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -31,7 +30,7 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import { useStories } from "@/lib/hooks/use-stories";
@@ -842,9 +841,8 @@ export default function StoryViewerScreen() {
 
       {/* Reply input - only show for other users' stories */}
       {!isOwnStory && story && resolvedUserId && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+        <KeyboardStickyView
+          offset={{ closed: 0, opened: 0 }}
           style={{
             position: "absolute",
             bottom: 0,
@@ -875,7 +873,7 @@ export default function StoryViewerScreen() {
                 paddingVertical: 8,
               }}
             >
-              <PasteInput
+              <TextInput
                 style={{
                   flex: 1,
                   color: "#fff",
@@ -917,7 +915,7 @@ export default function StoryViewerScreen() {
               </Pressable>
             )}
           </View>
-        </KeyboardAvoidingView>
+        </KeyboardStickyView>
       )}
     </View>
   );
