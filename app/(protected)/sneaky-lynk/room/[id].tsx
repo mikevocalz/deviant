@@ -35,6 +35,7 @@ import {
 import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
+import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   const authUser = useAuthStore((s) => s.user);
   const fishjamCamera = useCamera();
   const fishjamMic = useMicrophone();
+  const endRoom = useLynkHistoryStore((s) => s.endRoom);
 
   const {
     isHandRaised,
@@ -138,7 +140,10 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const handleLeave = useCallback(() => router.back(), [router]);
+  const handleLeave = useCallback(() => {
+    endRoom(id, storeListeners.length);
+    router.back();
+  }, [router, id, endRoom, storeListeners.length]);
   const handleToggleMic = useCallback(async () => {
     if (fishjamMic.isMicrophoneOn) fishjamMic.stopMicrophone();
     else await fishjamMic.startMicrophone();
@@ -256,6 +261,7 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
   const authUser = useAuthStore((s) => s.user);
+  const endRoomHistory = useLynkHistoryStore((s) => s.endRoom);
 
   const {
     isHandRaised,
@@ -335,7 +341,10 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const handleLeave = useCallback(() => router.back(), [router]);
+  const handleLeave = useCallback(() => {
+    endRoomHistory(id, storeListeners.length);
+    router.back();
+  }, [router, id, endRoomHistory, storeListeners.length]);
   const handleToggleMic = useCallback(
     async () => videoRoom.toggleMic(),
     [videoRoom],

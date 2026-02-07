@@ -18,11 +18,15 @@ import { useRouter } from "expo-router";
 import { ArrowLeft, Radio, Video, Globe, Lock } from "lucide-react-native";
 import { useState, useCallback } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 
 export default function CreateLynkScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+  const authUser = useAuthStore((s) => s.user);
+  const addRoom = useLynkHistoryStore((s) => s.addRoom);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -49,17 +53,55 @@ export default function CreateLynkScreen() {
       // Simulate API call
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
+      const roomId = `space-${Date.now()}`;
+
+      // Record room in local history so it shows on the Lynks tab
+      addRoom({
+        id: roomId,
+        title: title.trim(),
+        topic: description.trim() || "Live conversation",
+        description: description.trim(),
+        isLive: true,
+        hasVideo,
+        isPublic,
+        status: "open",
+        host: {
+          id: authUser?.id || "local",
+          username: authUser?.username || "You",
+          displayName: authUser?.name || authUser?.username || "You",
+          avatar:
+            authUser?.avatar ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.username || "U")}&background=1a1a1a&color=fff&rounded=true`,
+          isVerified: authUser?.isVerified || false,
+        },
+        speakers: [],
+        listeners: 0,
+        createdAt: new Date().toISOString(),
+      });
+
       showToast("success", "Lynk Created", "Your Lynk is now live!");
 
-      // Navigate to the new room (using mock ID for now)
-      router.replace("/(protected)/sneaky-lynk/room/my-room" as any);
+      // Navigate to the new room
+      router.replace({
+        pathname: "/(protected)/sneaky-lynk/room/[id]",
+        params: { id: roomId, title: title.trim() },
+      } as any);
     } catch (error) {
       console.error("[CreateLynk] Error:", error);
       showToast("error", "Error", "Failed to create Lynk");
     } finally {
       setIsCreating(false);
     }
-  }, [title, description, hasVideo, isPublic, router, showToast]);
+  }, [
+    title,
+    description,
+    hasVideo,
+    isPublic,
+    router,
+    showToast,
+    authUser,
+    addRoom,
+  ]);
 
   return (
     <KeyboardAvoidingView

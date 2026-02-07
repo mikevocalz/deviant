@@ -29,6 +29,11 @@ import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
 import PagerView from "react-native-pager-view";
+import {
+  useLynkHistoryStore,
+  type LynkRecord,
+} from "@/src/sneaky-lynk/stores/lynk-history-store";
+import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
 
 interface ConversationItem {
   id: string;
@@ -156,9 +161,23 @@ function SneakyLynkContent({
 }: {
   router: ReturnType<typeof useRouter>;
 }) {
+  const rooms = useLynkHistoryStore((s) => s.rooms);
+
   const handleCreateLynk = useCallback(() => {
     router.push("/(protected)/sneaky-lynk/create" as any);
   }, [router]);
+
+  const handleRoomPress = useCallback(
+    (room: LynkRecord) => {
+      if (room.isLive) {
+        router.push({
+          pathname: "/(protected)/sneaky-lynk/room/[id]",
+          params: { id: room.id, title: room.title },
+        } as any);
+      }
+    },
+    [router],
+  );
 
   return (
     <View style={lynkStyles.container}>
@@ -176,23 +195,34 @@ function SneakyLynkContent({
         </TouchableOpacity>
       </View>
 
-      {/* Empty state — no live rooms yet */}
-      <View style={lynkStyles.emptyStateContainer}>
-        <View style={lynkStyles.emptyState}>
-          <Radio size={48} color="#6B7280" />
-          <Text style={lynkStyles.emptyTitle}>No Live Lynks</Text>
-          <Text style={lynkStyles.emptyText}>
-            Start a live conversation with friends
-          </Text>
-          <TouchableOpacity
-            style={lynkStyles.createLynkButton}
-            onPress={handleCreateLynk}
-          >
-            <Plus size={18} color="#fff" />
-            <Text style={lynkStyles.createLynkText}>Start a Lynk</Text>
-          </TouchableOpacity>
+      {rooms.length > 0 ? (
+        <ScrollView contentContainerStyle={lynkStyles.liveList}>
+          {rooms.map((room) => (
+            <LiveRoomCard
+              key={room.id}
+              space={room}
+              onPress={() => handleRoomPress(room)}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <View style={lynkStyles.emptyStateContainer}>
+          <View style={lynkStyles.emptyState}>
+            <Radio size={48} color="#6B7280" />
+            <Text style={lynkStyles.emptyTitle}>No Lynks Yet</Text>
+            <Text style={lynkStyles.emptyText}>
+              Start a live conversation with friends
+            </Text>
+            <TouchableOpacity
+              style={lynkStyles.createLynkButton}
+              onPress={handleCreateLynk}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={lynkStyles.createLynkText}>Start a Lynk</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      )}
     </View>
   );
 }
