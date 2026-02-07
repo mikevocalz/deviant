@@ -10,6 +10,7 @@ import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
+import { Avatar } from "@/components/ui/avatar";
 import {
   ArrowLeft,
   Send,
@@ -684,9 +685,11 @@ export default function ChatScreen() {
 
             return (
               <View className="flex-row items-end gap-2 mb-2 self-start">
-                <Image
-                  source={{ uri: recipient?.avatar || "" }}
-                  style={{ width: 28, height: 28, borderRadius: 14 }}
+                <Avatar
+                  uri={recipient?.avatar || ""}
+                  username={recipient?.username || ""}
+                  size={28}
+                  variant="roundedSquare"
                 />
                 {bubble}
               </View>

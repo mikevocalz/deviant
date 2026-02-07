@@ -433,22 +433,32 @@ function FeedPostComponent({
     >
       <Article className="mx-1 my-4 overflow-hidden rounded-xl border border-border bg-card">
         <View className="flex-row items-center justify-between p-3">
-          <View className="flex-row items-center gap-2">
-            <View className="flex-row items-center gap-1">
-              {author?.username && (
-                <Pressable onPress={handleProfilePress}>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {author.username}
-                  </Text>
-                </Pressable>
+          <View className="flex-row items-center gap-3">
+            <Pressable onPress={handleProfilePress}>
+              <Avatar
+                uri={author?.avatar}
+                username={author?.username || "User"}
+                size={48}
+                variant="roundedSquare"
+              />
+            </Pressable>
+            <View>
+              <View className="flex-row items-center gap-1">
+                {author?.username && (
+                  <Pressable onPress={handleProfilePress}>
+                    <Text className="text-sm font-semibold text-foreground">
+                      {author.username}
+                    </Text>
+                  </Pressable>
+                )}
+                {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
+              </View>
+              {location && (
+                <Text className="text-xs text-muted-foreground">
+                  {location}
+                </Text>
               )}
-              {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
             </View>
-            {location && (
-              <Text className="text-xs text-muted-foreground">
-                · {location}
-              </Text>
-            )}
           </View>
           <Pressable className="p-2" onPress={() => setShowActionSheet(true)}>
             <MoreHorizontal size={20} color={colors.foreground} />
@@ -460,28 +470,6 @@ function FeedPostComponent({
             style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
             className="bg-muted"
           >
-            {/* Avatar overlay — top-right corner over media */}
-            <Pressable
-              onPress={handleProfilePress}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                zIndex: 50,
-                elevation: 50,
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.4,
-                shadowRadius: 4,
-              }}
-            >
-              <Avatar
-                uri={author?.avatar}
-                username={author?.username || "User"}
-                size={48}
-                variant="roundedSquare"
-              />
-            </Pressable>
             {isVideo ? (
               <View style={{ width: "100%", height: "100%" }}>
                 <Pressable
