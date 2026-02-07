@@ -14,7 +14,7 @@
     "update:preview": "eas update --channel preview",
     "check:secrets": "npx ts-node scripts/check-secrets.ts",
     "check:guardrails": "npx ts-node scripts/check-secrets.ts",
-    "postinstall": "bash scripts/fix-rive-swift.sh"
+    "postinstall": "bash scripts/fix-rive-swift.sh && bash scripts/patch-insta-story.sh"
   },
   "dependencies": {
     "@baronha/react-native-photo-editor": "^1.1.6",
@@ -129,6 +129,7 @@
     "@types/node": "25.0.3",
     "@types/react": "~19.1.17",
     "@types/react-dom": "~19.1.11",
+    "eas-build-cache-provider": "^16.30.0",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.10",
     "sharp": "^0.34.5",

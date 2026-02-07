@@ -444,15 +444,23 @@ export default function CreateStoryScreen() {
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
-                    {/* Tap anywhere to open editor (background layer) */}
+                    {/* Tap anywhere to open editor (background layer — z-0) */}
                     <Pressable
                       onPress={() => handleEditImage(currentIndex)}
-                      className="absolute inset-0"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        zIndex: 0,
+                      }}
                     />
-                    {/* Instagram-style vertical toolbar on right (on top of background) */}
+                    {/* Instagram-style vertical toolbar on right (z-10, above background) */}
                     <View
                       className="absolute right-3 top-10 gap-3"
-                      style={{ zIndex: 10 }}
+                      style={{ zIndex: 10, elevation: 10 }}
+                      pointerEvents="box-none"
                     >
                       {CREATIVE_TOOLS.map((tool) => (
                         <Pressable
