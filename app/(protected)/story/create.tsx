@@ -19,7 +19,7 @@ import {
   Sparkles,
   Download,
 } from "lucide-react-native";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
@@ -35,6 +35,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
 import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
+import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
 // Instagram-style creative tools - vertical toolbar
 const CREATIVE_TOOLS = [
@@ -77,6 +78,8 @@ export default function CreateStoryScreen() {
   const createStory = useCreateStory();
   const showToast = useUIStore((s) => s.showToast);
   const { uploadMultiple } = useMediaUpload({ folder: "stories" });
+
+  const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 
   const [isSharing, setIsSharing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -179,7 +182,25 @@ export default function CreateStoryScreen() {
     }
   };
 
-  const handleRecordVideo = async () => {
+  // Consume camera result when returning from camera screen
+  useFocusEffect(
+    useCallback(() => {
+      const result = consumeCameraResult();
+      if (result) {
+        const media: MediaAsset = {
+          id: result.uri,
+          uri: result.uri,
+          type: result.type,
+          width: result.width,
+          height: result.height,
+          duration: result.duration,
+        };
+        handleMediaSelected([media]);
+      }
+    }, [consumeCameraResult, handleMediaSelected]),
+  );
+
+  const handleOpenCamera = () => {
     if (mediaAssets.length >= MAX_STORY_ITEMS) {
       showToast(
         "warning",
@@ -188,17 +209,14 @@ export default function CreateStoryScreen() {
       );
       return;
     }
-    try {
-      const media = await recordStoryVideo?.({
-        maxDuration: MAX_VIDEO_DURATION,
-        maxFileSizeMB: MAX_FILE_SIZE_MB,
-      });
-      if (media) {
-        handleMediaSelected([media]);
-      }
-    } catch (error) {
-      showToast("error", "Error", "Failed to record video.");
-    }
+    router.push({
+      pathname: "/(protected)/camera",
+      params: {
+        mode: "both",
+        source: "story",
+        maxDuration: String(MAX_VIDEO_DURATION),
+      },
+    });
   };
 
   const handleRemoveMedia = (index: number) => {
@@ -643,7 +661,7 @@ export default function CreateStoryScreen() {
             </Pressable>
 
             <Pressable
-              onPress={handleRecordVideo}
+              onPress={handleOpenCamera}
               disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
               className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
             >

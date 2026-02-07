@@ -16,7 +16,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react-native";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -34,6 +34,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useCallback, useEffect, useState, useLayoutEffect } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { Switch } from "react-native";
+import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -62,6 +63,7 @@ export default function CreateScreen() {
   const { user } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
   const { colors } = useColorScheme();
+  const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
   const {
     uploadMultiple,
     isUploading,
@@ -169,12 +171,37 @@ export default function CreateScreen() {
     }
   };
 
-  const handleTakePhoto = async () => {
-    if (hasVideo) {
+  // Consume camera result when returning from camera screen
+  useFocusEffect(
+    useCallback(() => {
+      const result = consumeCameraResult();
+      if (result) {
+        const media: MediaAsset = {
+          id: result.uri,
+          uri: result.uri,
+          type: result.type,
+          width: result.width,
+          height: result.height,
+          duration: result.duration,
+        };
+        const validMedia = validateMedia([media]);
+        if (validMedia.length > 0) {
+          if (media.type === "video") {
+            setSelectedMedia(validMedia);
+          } else {
+            setSelectedMedia([...selectedMedia, ...validMedia]);
+          }
+        }
+      }
+    }, [consumeCameraResult, validateMedia, selectedMedia, setSelectedMedia]),
+  );
+
+  const handleOpenCamera = (mode: "photo" | "video" | "both" = "both") => {
+    if (mode === "photo" && hasVideo) {
       showToast("warning", "Media Limit", "Remove the video to add photos.");
       return;
     }
-    if (selectedMedia.length >= MAX_PHOTOS) {
+    if (mode === "photo" && selectedMedia.length >= MAX_PHOTOS) {
       showToast(
         "warning",
         "Photo Limit",
@@ -182,55 +209,10 @@ export default function CreateScreen() {
       );
       return;
     }
-
-    const media = await takePhoto();
-    if (media) {
-      setSelectedMedia([...selectedMedia, media]);
-    }
-  };
-
-  const handleRecordVideo = async () => {
-    if (selectedMedia.length > 0) {
-      Alert.alert(
-        "Clear Media?",
-        "Adding a video will replace all current photos. Continue?",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Continue",
-            onPress: async () => {
-              setSelectedMedia([]);
-              const media = await recordVideo();
-              if (media) {
-                if (media.duration && media.duration > MAX_VIDEO_DURATION) {
-                  showToast(
-                    "warning",
-                    "Video Too Long",
-                    `Videos must be ${MAX_VIDEO_DURATION} seconds or less.`,
-                  );
-                  return;
-                }
-                setSelectedMedia([media]);
-              }
-            },
-          },
-        ],
-      );
-      return;
-    }
-
-    const media = await recordVideo();
-    if (media) {
-      if (media.duration && media.duration > MAX_VIDEO_DURATION) {
-        showToast(
-          "warning",
-          "Video Too Long",
-          `Videos must be ${MAX_VIDEO_DURATION} seconds or less.`,
-        );
-        return;
-      }
-      setSelectedMedia([media]);
-    }
+    router.push({
+      pathname: "/(protected)/camera",
+      params: { mode, source: "post", maxDuration: String(MAX_VIDEO_DURATION) },
+    });
   };
 
   const handleRemoveMedia = (id: string) => {
@@ -605,7 +587,7 @@ export default function CreateScreen() {
           </Pressable>
 
           <Pressable
-            onPress={handleTakePhoto}
+            onPress={() => handleOpenCamera("photo")}
             disabled={hasVideo || selectedMedia.length >= MAX_PHOTOS}
             style={{
               flex: 1,
@@ -624,7 +606,7 @@ export default function CreateScreen() {
           </Pressable>
 
           <Pressable
-            onPress={handleRecordVideo}
+            onPress={() => handleOpenCamera("video")}
             style={{
               flex: 1,
               flexDirection: "row",

@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Video,
   Phone,
+  Camera,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -41,6 +42,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
+import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
 // Empty array - messages will come from backend
 const emptyMessages: Message[] = [];
@@ -492,6 +494,32 @@ export default function ChatScreen() {
     }
   }, [router, recipient]);
 
+  const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
+
+  // Consume camera result when returning from camera screen
+  useFocusEffect(
+    useCallback(() => {
+      const result = consumeCameraResult();
+      if (result) {
+        const media: MediaAttachment = {
+          type: result.type,
+          uri: result.uri,
+          width: result.width,
+          height: result.height,
+          duration: result.duration,
+        };
+        setPendingMedia(media);
+      }
+    }, [consumeCameraResult, setPendingMedia]),
+  );
+
+  const handleOpenCamera = useCallback(() => {
+    router.push({
+      pathname: "/(protected)/camera",
+      params: { mode: "both", source: "chat", maxDuration: "60" },
+    });
+  }, [router]);
+
   const handlePickMedia = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
@@ -698,6 +726,12 @@ export default function ChatScreen() {
           )}
 
           <View className="flex-row items-center gap-2 border-t border-border px-3 py-3">
+            <Pressable
+              onPress={handleOpenCamera}
+              className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+            >
+              <Camera size={22} color="#3EA4E5" />
+            </Pressable>
             <Pressable
               onPress={handlePickMedia}
               className="w-10 h-10 rounded-full bg-secondary justify-center items-center"

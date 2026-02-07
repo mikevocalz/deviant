@@ -80,6 +80,10 @@ export default function ProtectedLayout() {
         options={{ presentation: "fullScreenModal", animation: "fade" }}
       />
       <Stack.Screen name="comments" options={modalTransitionConfig} />
+      <Stack.Screen
+        name="camera"
+        options={{ ...fullScreenModalConfig, animation: "fade" }}
+      />
     </Stack>
   );
 }
