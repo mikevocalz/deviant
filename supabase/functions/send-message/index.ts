@@ -129,7 +129,7 @@ serve(async (req: Request) => {
     // Get user's integer ID
     const { data: userData, error: userError } = await supabaseAdmin
       .from("users")
-      .select("id")
+      .select("id, username")
       .eq("auth_id", odUserId)
       .single();
 
@@ -138,6 +138,7 @@ serve(async (req: Request) => {
     }
 
     const userId = userData.id;
+    const senderUsername = userData.username || "Someone";
 
     // Verify user is a member of the conversation
     // conversations_rels.users_id is TEXT (auth_id), not integer
@@ -201,6 +202,63 @@ serve(async (req: Request) => {
       .eq("id", conversationId);
 
     console.log("[Edge:send-message] Message sent:", message.id);
+
+    // --- Push notification to recipient (fire-and-forget) ---
+    try {
+      // Find other members of this conversation
+      const { data: members } = await supabaseAdmin
+        .from("conversations_rels")
+        .select("users_id")
+        .eq("parent_id", conversationId)
+        .neq("users_id", odUserId);
+
+      if (members && members.length > 0) {
+        const recipientAuthIds = members.map((m: any) => m.users_id);
+
+        // Look up push tokens for recipients
+        const { data: tokens } = await supabaseAdmin
+          .from("push_tokens")
+          .select("token")
+          .in("user_id", recipientAuthIds);
+
+        if (tokens && tokens.length > 0) {
+          const messagePreview = mediaUrl
+            ? "📷 Sent a photo"
+            : (content || "").trim().slice(0, 100);
+
+          const pushMessages = tokens.map((t: any) => ({
+            to: t.token,
+            sound: "default",
+            title: senderUsername,
+            body: messagePreview,
+            data: {
+              type: "message",
+              conversationId: String(conversationId),
+              senderId: String(userId),
+            },
+          }));
+
+          // Send via Expo Push API
+          await fetch("https://exp.host/--/api/v2/push/send", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify(pushMessages),
+          });
+
+          console.log(
+            "[Edge:send-message] Push sent to",
+            tokens.length,
+            "device(s)",
+          );
+        }
+      }
+    } catch (pushError) {
+      // Never fail the message send because of push notification errors
+      console.error("[Edge:send-message] Push notification error:", pushError);
+    }
 
     return jsonResponse({
       ok: true,
