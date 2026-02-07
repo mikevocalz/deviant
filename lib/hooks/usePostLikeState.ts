@@ -102,24 +102,59 @@ export function usePostLikeState(
       const previousState =
         queryClient.getQueryData<LikeState>(likeStateQueryKey);
 
-      // Optimistic update
-      const newState: LikeState = {
-        hasLiked: action === "like",
-        likes:
-          action === "like"
-            ? (previousState?.likes || 0) + 1
-            : Math.max((previousState?.likes || 0) - 1, 0),
-      };
+      // Optimistic update on likeState cache
+      const newHasLiked = action === "like";
+      const newLikes =
+        action === "like"
+          ? (previousState?.likes || 0) + 1
+          : Math.max((previousState?.likes || 0) - 1, 0);
+      const newState: LikeState = { hasLiked: newHasLiked, likes: newLikes };
 
       logCacheMutation("setQueryData", likeStateQueryKey);
       queryClient.setQueryData(likeStateQueryKey, newState);
 
-      return { previousState };
+      // CRITICAL: Also update infinite feed cache so feed props stay in sync
+      const prevFeedData = queryClient.getQueryData<any>(
+        postKeys.feedInfinite(),
+      );
+      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data?.map((post: any) =>
+              String(post.id) === normalizedPostId
+                ? {
+                    ...post,
+                    likes: newLikes,
+                    viewerHasLiked: newHasLiked,
+                  }
+                : post,
+            ),
+          })),
+        };
+      });
+
+      // Update post detail cache
+      queryClient.setQueryData(
+        ["posts", "detail", normalizedPostId],
+        (old: any) => {
+          if (!old) return old;
+          return { ...old, likes: newLikes, viewerHasLiked: newHasLiked };
+        },
+      );
+
+      return { previousState, prevFeedData };
     },
     onError: (_err, _variables, context) => {
-      // Rollback on error
+      // Rollback likeState cache
       if (context?.previousState) {
         queryClient.setQueryData(likeStateQueryKey, context.previousState);
+      }
+      // Rollback feed cache
+      if (context?.prevFeedData) {
+        queryClient.setQueryData(postKeys.feedInfinite(), context.prevFeedData);
       }
     },
     onSuccess: (data) => {
@@ -273,7 +308,7 @@ export function usePostLikeState(
  * Initialize like state for a post from server data
  * Call this when post data is fetched to seed the cache
  *
- * CRITICAL: Always updates the cache with server data to ensure correct likes display
+ * CRITICAL: Only seeds if no existing cache entry — never overwrites optimistic updates
  */
 export function seedLikeState(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -292,12 +327,15 @@ export function seedLikeState(
     return;
   }
 
-  // CRITICAL: Always update with server data - this overwrites initialData from usePostLikeState
-  // This ensures that when we fetch real like states, they take precedence over defaults
-  queryClient.setQueryData<LikeState>(
-    likeStateKeys.forPost(viewerId, normalizedPostId),
-    { hasLiked, likes },
-  );
+  const key = likeStateKeys.forPost(viewerId, normalizedPostId);
+
+  // CRITICAL: Only seed if no existing cache — never overwrite optimistic updates
+  const existing = queryClient.getQueryData<LikeState>(key);
+  if (existing) {
+    return;
+  }
+
+  queryClient.setQueryData<LikeState>(key, { hasLiked, likes });
 
   if (__DEV__) {
     console.log(

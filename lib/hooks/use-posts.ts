@@ -8,6 +8,7 @@ import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
@@ -227,8 +228,11 @@ export function useLikePost() {
   };
 }
 
-// Sync liked posts from server to Zustand store
+// Sync liked posts from server to Zustand store AND React Query likeState cache
 export function useSyncLikedPosts() {
+  const queryClient = useQueryClient();
+  const viewerId = useAuthStore((state) => state.user?.id) || "";
+
   return useQuery({
     queryKey: ["likedPosts"],
     queryFn: async () => {
@@ -238,6 +242,26 @@ export function useSyncLikedPosts() {
       // Sync to Zustand store
       const { usePostStore } = await import("@/lib/stores/post-store");
       usePostStore.getState().syncLikedPosts(likedPosts);
+
+      // CRITICAL: Seed React Query likeState cache for each liked post
+      // This ensures heart color is correct on initial load
+      if (viewerId) {
+        const { likeStateKeys } = await import("@/lib/hooks/usePostLikeState");
+        for (const postId of likedPosts) {
+          const key = likeStateKeys.forPost(viewerId, postId);
+          const existing = queryClient.getQueryData(key);
+          if (!existing) {
+            // Seed with hasLiked=true; likes count will be set when post renders
+            queryClient.setQueryData(key, { hasLiked: true, likes: 0 });
+          } else {
+            // Update hasLiked but preserve existing likes count
+            queryClient.setQueryData(key, {
+              ...(existing as any),
+              hasLiked: true,
+            });
+          }
+        }
+      }
 
       console.log("[useSyncLikedPosts] Synced liked posts:", likedPosts.length);
       return likedPosts;

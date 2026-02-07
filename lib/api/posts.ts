@@ -31,6 +31,7 @@ function transformPost(dbPost: any): Post {
   return {
     id: String(dbPost[DB.posts.id]),
     author: {
+      id: author[DB.users.id] ? String(author[DB.users.id]) : undefined,
       username: author[DB.users.username] || "unknown",
       avatar: author.avatar?.url || "",
       verified: author[DB.users.verified] || false,
