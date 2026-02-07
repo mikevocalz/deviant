@@ -431,34 +431,56 @@ function FeedPostComponent({
       }}
       className="w-full"
     >
-      <Article className="mx-1 my-4 overflow-hidden rounded-xl border border-border bg-card">
-        <View className="flex-row items-center justify-between p-3">
-          <View className="flex-row items-center gap-3">
-            <Pressable onPress={handleProfilePress}>
-              <Avatar
-                uri={author?.avatar}
-                username={author?.username || "User"}
-                size={48}
-                variant="roundedSquare"
-              />
-            </Pressable>
-            <View>
-              <View className="flex-row items-center gap-1">
-                {author?.username && (
-                  <Pressable onPress={handleProfilePress}>
-                    <Text className="text-sm font-semibold text-foreground">
-                      {author.username}
-                    </Text>
-                  </Pressable>
-                )}
-                {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
-              </View>
-              {location && (
-                <Text className="text-xs text-muted-foreground">
-                  {location}
-                </Text>
+      <Article
+        style={{
+          marginHorizontal: 4,
+          marginVertical: 16,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          position: "relative",
+        }}
+      >
+        {/* Avatar — absolute top-left, overlaps onto the image */}
+        <Pressable
+          onPress={handleProfilePress}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            zIndex: 50,
+            elevation: 50,
+          }}
+        >
+          <Avatar
+            uri={author?.avatar}
+            username={author?.username || "User"}
+            size={48}
+            variant="roundedSquare"
+          />
+        </Pressable>
+
+        <View
+          className="flex-row items-center justify-between p-3"
+          style={{ paddingLeft: 56 }}
+        >
+          <View className="flex-row items-center gap-2">
+            <View className="flex-row items-center gap-1">
+              {author?.username && (
+                <Pressable onPress={handleProfilePress}>
+                  <Text className="text-sm font-semibold text-foreground">
+                    {author.username}
+                  </Text>
+                </Pressable>
               )}
+              {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
             </View>
+            {location && (
+              <Text className="text-xs text-muted-foreground">
+                · {location}
+              </Text>
+            )}
           </View>
           <Pressable className="p-2" onPress={() => setShowActionSheet(true)}>
             <MoreHorizontal size={20} color={colors.foreground} />
@@ -467,7 +489,12 @@ function FeedPostComponent({
 
         {hasMedia && (
           <View
-            style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
+            style={{
+              width: mediaSize,
+              height: PORTRAIT_HEIGHT,
+              borderRadius: 12,
+              overflow: "hidden",
+            }}
             className="bg-muted"
           >
             {isVideo ? (
