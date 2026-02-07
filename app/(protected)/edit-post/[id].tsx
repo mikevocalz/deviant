@@ -17,6 +17,7 @@
 import {
   View,
   Text,
+  TextInput,
   Pressable,
   ActivityIndicator,
   Dimensions,
@@ -42,7 +43,6 @@ import {
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
-import { PasteInput } from "@/components/ui/paste-input";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -491,7 +491,7 @@ export default function EditPostScreen() {
             className="rounded-2xl bg-card border border-border overflow-hidden"
             style={{ minHeight: 140 }}
           >
-            <PasteInput
+            <TextInput
               value={caption}
               onChangeText={setCaption}
               placeholder="Write a caption..."
@@ -500,7 +500,7 @@ export default function EditPostScreen() {
               maxLength={MAX_CAPTION + 100}
               textAlignVertical="top"
               className="px-4 pt-4 pb-3 text-foreground text-[15px] leading-[22px]"
-              style={{ minHeight: 120 }}
+              style={{ minHeight: 120, color: "#fff" }}
             />
             <View className="flex-row items-center justify-between px-4 pb-3">
               <View className="flex-row items-center gap-1.5">
@@ -571,12 +571,13 @@ export default function EditPostScreen() {
           </Text>
           <View className="flex-row items-center rounded-2xl bg-card border border-border px-4 py-3.5">
             <MapPin size={18} color="rgba(255,255,255,0.35)" />
-            <PasteInput
+            <TextInput
               value={location}
               onChangeText={setLocation}
               placeholder="Add a location..."
               placeholderTextColor="rgba(255,255,255,0.3)"
               className="flex-1 ml-3 text-foreground text-[15px]"
+              style={{ color: "#fff" }}
               returnKeyType="done"
             />
             {location.length > 0 && (

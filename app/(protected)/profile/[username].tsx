@@ -303,7 +303,7 @@ function UserProfileScreenComponent() {
   }, [(userData as any)?.isFollowing]);
 
   // Use API data or fallback to mock data - cast to any for flexibility with API response
-  const user: {
+  const rawUser: {
     id?: string;
     username: string;
     fullName?: string;
@@ -325,6 +325,13 @@ function UserProfileScreenComponent() {
       followersCount: 0,
       followingCount: 0,
     };
+
+  // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
+  // over the useUser cache which may be stale after an avatar change
+  const user =
+    isOwnProfile && currentUser?.avatar
+      ? { ...rawUser, avatar: currentUser.avatar }
+      : rawUser;
 
   // Create a followMutation-like object for compatibility
   const followMutation = {

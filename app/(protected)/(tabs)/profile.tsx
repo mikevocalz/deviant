@@ -191,6 +191,14 @@ function ProfileScreenContent() {
             return { ...old, avatar: newAvatarUrl, avatarUrl: newAvatarUrl };
           },
         );
+        // Also patch useUser cache (used by [username].tsx profile screen)
+        queryClient.setQueryData(
+          ["users", "username", username],
+          (old: any) => {
+            if (!old) return old;
+            return { ...old, avatar: newAvatarUrl };
+          },
+        );
       }
 
       // 2. Patch feed cache - update my posts' author avatar
