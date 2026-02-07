@@ -35,8 +35,8 @@ export default function TabsLayout() {
         headerTitle: () => (
           <Logo
             width={100}
-            height={50}
-            style={{ marginBottom: Platform.OS === "android" ? 4 : 12 }}
+            height={36}
+            style={{ marginBottom: Platform.OS === "android" ? 4 : 4 }}
           />
         ),
         headerRight: () => (
