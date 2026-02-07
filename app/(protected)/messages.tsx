@@ -340,7 +340,7 @@ export default function MessagesScreen() {
             `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.username)}&background=3EA4E5&color=fff`,
         },
         lastMessage: conv.lastMessage || "",
-        timeAgo: formatTimeAgo(conv.timestamp),
+        timeAgo: conv.timestamp || "",
         unread: conv.unread || false,
       };
     },
