@@ -24,6 +24,12 @@ export const commentsApi = {
     try {
       console.log("[Comments] getComments, postId:", postId);
 
+      const postIdInt = parseInt(postId, 10);
+      if (isNaN(postIdInt)) {
+        console.warn("[Comments] Invalid postId:", postId);
+        return [];
+      }
+
       const { data, error } = await supabase
         .from(DB.comments.table)
         .select(
@@ -37,7 +43,7 @@ export const commentsApi = {
           )
         `,
         )
-        .eq(DB.comments.postId, parseInt(postId))
+        .eq(DB.comments.postId, postIdInt)
         .order(DB.comments.createdAt, { ascending: false })
         .limit(limit);
 

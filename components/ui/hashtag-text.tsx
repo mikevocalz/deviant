@@ -4,7 +4,7 @@
  * Renders text with clickable hashtag badges (like Instagram)
  */
 
-import { Text, Pressable, StyleSheet } from "react-native";
+import { Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 
@@ -112,31 +112,23 @@ export function HashtagText({
       {parts.map((part, index) => {
         if (part.type === "hashtag") {
           return (
-            <Pressable
+            <Text
               key={index}
               onPress={() => handleHashtagPress(part.value)}
-              hitSlop={4}
+              style={[styles.hashtag, { color: HASHTAG_COLOR }, textStyle]}
             >
-              <Text
-                style={[styles.hashtag, { color: HASHTAG_COLOR }, textStyle]}
-              >
-                {part.content}
-              </Text>
-            </Pressable>
+              {part.content}
+            </Text>
           );
         } else if (part.type === "mention") {
           return (
-            <Pressable
+            <Text
               key={index}
               onPress={() => handleMentionPress(part.value)}
-              hitSlop={4}
+              style={[styles.mention, { color: MENTION_COLOR }, textStyle]}
             >
-              <Text
-                style={[styles.mention, { color: MENTION_COLOR }, textStyle]}
-              >
-                {part.content}
-              </Text>
-            </Pressable>
+              {part.content}
+            </Text>
           );
         } else {
           // CRITICAL: Explicit color for regular text to ensure visibility
