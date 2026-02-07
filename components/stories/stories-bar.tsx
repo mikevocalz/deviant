@@ -158,7 +158,7 @@ export function StoriesBar() {
     <Section className="border-b border-border">
       <View style={{ height: 154, flexDirection: "row" }}>
         {/* Your Story */}
-        <View style={{ paddingTop: 8, paddingLeft: 4, paddingRight: 10 }}>
+        <View style={{ paddingTop: 10, paddingLeft: 4, paddingRight: 10 }}>
           <View style={{ alignItems: "center", gap: 6 }}>
             {hasMyStory && myStory ? (
               <View className="relative">
@@ -227,7 +227,6 @@ export function StoriesBar() {
               avatarFlatListProps={{
                 showsHorizontalScrollIndicator: false,
                 contentContainerStyle: {
-                  paddingTop: 8,
                   paddingRight: 40,
                   gap: 4,
                 },
@@ -273,12 +272,16 @@ const avatarStyles = StyleSheet.create({
     maxWidth: 64,
   },
   image: {
-    borderRadius: 14,
+    borderRadius: 12,
     width: 80,
     height: 104,
   },
   wrapper: {
-    paddingHorizontal: 4,
+    height: 108,
+    width: 84,
+    borderRadius: 14,
+    borderWidth: 2,
+    padding: 0,
   },
 });
 
