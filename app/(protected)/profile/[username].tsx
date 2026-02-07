@@ -327,12 +327,13 @@ function UserProfileScreenComponent() {
 
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
   // over the useUser cache which may be stale after an avatar change.
-  // Also handle empty string from API join (avatar_id NULL → avatar: "")
-  const resolvedAvatar =
-    (isOwnProfile && currentUser?.avatar) ||
-    (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null) ||
-    currentUser?.avatar ||
-    null;
+  // NEVER use currentUser.avatar as fallback for OTHER users — that leaks viewer's avatar
+  const resolvedAvatar = isOwnProfile
+    ? currentUser?.avatar ||
+      (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null)
+    : rawUser.avatar && rawUser.avatar.length > 0
+      ? rawUser.avatar
+      : null;
   const user = { ...rawUser, avatar: resolvedAvatar || undefined };
 
   // Create a followMutation-like object for compatibility
