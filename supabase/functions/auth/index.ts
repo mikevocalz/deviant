@@ -103,6 +103,7 @@ async function getAuth() {
     const { betterAuth } = await import("npm:better-auth@1.2.7");
     const { expo } = await import("npm:@better-auth/expo@1.2.7");
     const { username } = await import("npm:better-auth@1.2.7/plugins");
+    const { passkey } = await import("npm:@better-auth/passkey@1.2.7");
 
     // Import npm:pg — Deno supports Node built-ins (node:net, node:tls) needed by pg
     const pgModule = await import("npm:pg@8.13.1");
@@ -143,7 +144,7 @@ async function getAuth() {
         "http://localhost:8081",
         AUTH_BASE_URL,
       ],
-      plugins: [expo(), username()],
+      plugins: [expo(), username(), passkey()],
       emailAndPassword: {
         enabled: true,
         minPasswordLength: 8,
