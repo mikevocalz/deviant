@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
 import React, { useEffect, useCallback, useRef } from "react";
-import { Camera } from "react-native-vision-camera";
+import { useCamera, useMicrophone } from "@fishjam-cloud/react-native-client";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import {
   mockSpaces,
@@ -41,9 +41,9 @@ export default function SneakyLynkRoomScreen() {
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
 
-  // Camera & mic permissions (VisionCamera)
-  const cameraPermissionRef = useRef<string | null>(null);
-  const micPermissionRef = useRef<string | null>(null);
+  // Fishjam camera & mic hooks (used for ALL rooms including mock)
+  const fishjamCamera = useCamera();
+  const fishjamMic = useMicrophone();
 
   // Room store
   const {
@@ -116,8 +116,12 @@ export default function SneakyLynkRoomScreen() {
   const isHost = isMockRoom
     ? mockSpace?.host.id === currentUserMock.id
     : videoRoom.localUser?.role === "host";
-  const effectiveMuted = isMockRoom ? isMuted : !videoRoom.isMicOn;
-  const effectiveVideoOn = isMockRoom ? isVideoOn : videoRoom.isCameraOn;
+  const effectiveMuted = isMockRoom
+    ? !fishjamMic.isMicrophoneOn
+    : !videoRoom.isMicOn;
+  const effectiveVideoOn = isMockRoom
+    ? fishjamCamera.isCameraOn
+    : videoRoom.isCameraOn;
   const connectionState = isMockRoom
     ? storeConnectionState
     : videoRoom.connectionState.status === "error"
@@ -143,15 +147,17 @@ export default function SneakyLynkRoomScreen() {
     return () => clearInterval(interval);
   }, [isMockRoom, mockSpace]);
 
-  // Join real room on mount (only for non-mock rooms)
+  // Join room on mount
   const hasJoinedRef = useRef(false);
   useEffect(() => {
-    if (!isMockRoom && id && !hasJoinedRef.current) {
-      hasJoinedRef.current = true;
-      (async () => {
+    if (hasJoinedRef.current) return;
+    hasJoinedRef.current = true;
+
+    (async () => {
+      if (!isMockRoom && id) {
+        // Real room: join via Fishjam edge function
         const joined = await videoRoom.join();
         if (joined) {
-          // Auto-start camera for host
           try {
             await videoRoom.toggleCamera();
             await videoRoom.toggleMic();
@@ -159,13 +165,28 @@ export default function SneakyLynkRoomScreen() {
             console.warn("[SneakyLynk] Failed to start media:", e);
           }
         }
-      })();
-    }
-    return () => {
-      if (!isMockRoom && hasJoinedRef.current) {
-        videoRoom.leave();
-        hasJoinedRef.current = false;
+      } else {
+        // Mock room: start local camera & mic directly via Fishjam hooks
+        try {
+          console.log("[SneakyLynk] Starting local camera & mic for mock room");
+          await fishjamCamera.startCamera();
+          await fishjamMic.startMicrophone();
+          setIsVideoOn(true);
+          setIsMuted(false);
+        } catch (e) {
+          console.warn("[SneakyLynk] Failed to start local media:", e);
+        }
       }
+    })();
+
+    return () => {
+      if (!isMockRoom) {
+        videoRoom.leave();
+      } else {
+        fishjamCamera.stopCamera();
+        fishjamMic.stopMicrophone();
+      }
+      hasJoinedRef.current = false;
     };
   }, [isMockRoom, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -175,31 +196,27 @@ export default function SneakyLynkRoomScreen() {
 
   const handleToggleMic = useCallback(async () => {
     if (isMockRoom) {
-      // Request mic permission if not granted yet
-      if (micPermissionRef.current !== "granted") {
-        const result = await Camera.requestMicrophonePermission();
-        micPermissionRef.current = result;
-        if (result !== "granted") return;
+      if (fishjamMic.isMicrophoneOn) {
+        fishjamMic.stopMicrophone();
+      } else {
+        await fishjamMic.startMicrophone();
       }
-      toggleMute();
     } else {
       await videoRoom.toggleMic();
     }
-  }, [isMockRoom, videoRoom, toggleMute]);
+  }, [isMockRoom, videoRoom, fishjamMic]);
 
   const handleToggleVideo = useCallback(async () => {
     if (isMockRoom) {
-      // Request camera permission if not granted yet
-      if (cameraPermissionRef.current !== "granted") {
-        const result = await Camera.requestCameraPermission();
-        cameraPermissionRef.current = result;
-        if (result !== "granted") return;
+      if (fishjamCamera.isCameraOn) {
+        fishjamCamera.stopCamera();
+      } else {
+        await fishjamCamera.startCamera();
       }
-      toggleVideo();
     } else {
       await videoRoom.toggleCamera();
     }
-  }, [isMockRoom, videoRoom, toggleVideo]);
+  }, [isMockRoom, videoRoom, fishjamCamera]);
 
   const handleToggleHand = useCallback(() => {
     toggleHand();
@@ -366,9 +383,13 @@ export default function SneakyLynkRoomScreen() {
             isLocalUser={isHost}
             isVideoEnabled={effectiveVideoOn}
             videoTrack={
-              !isMockRoom && videoRoom.camera?.cameraStream
-                ? { stream: videoRoom.camera.cameraStream }
-                : undefined
+              isMockRoom
+                ? fishjamCamera.cameraStream
+                  ? { stream: fishjamCamera.cameraStream }
+                  : undefined
+                : videoRoom.camera?.cameraStream
+                  ? { stream: videoRoom.camera.cameraStream }
+                  : undefined
             }
           />
         )}

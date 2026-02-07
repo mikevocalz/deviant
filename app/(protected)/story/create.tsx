@@ -495,7 +495,6 @@ export default function CreateStoryScreen() {
                     <View
                       className="absolute right-3 top-10 gap-3"
                       style={{ zIndex: 10, elevation: 10 }}
-                      pointerEvents="box-none"
                     >
                       {CREATIVE_TOOLS.map((tool) => (
                         <Pressable

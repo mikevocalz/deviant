@@ -63,8 +63,7 @@ export function VideoStage({
         {/* Fishjam RTCView for video tracks (local or remote) */}
         {hasVideoStream ? (
           <RTCView
-            // @ts-expect-error - RTCView types may vary between versions
-            stream={videoTrack.stream}
+            mediaStream={videoTrack.stream}
             style={StyleSheet.absoluteFill}
             objectFit="cover"
             mirror={isLocalUser}
