@@ -140,7 +140,6 @@ serve(async (req: Request) => {
       .from("media")
       .insert({
         url: mediaUrl,
-        owner_id: userId,
         mime_type: mediaType === "video" ? "video/mp4" : "image/jpeg",
       })
       .select()
@@ -167,7 +166,6 @@ serve(async (req: Request) => {
         media_id: mediaRecord.id,
         expires_at: expiresAt.toISOString(),
         visibility: visibility || "public",
-        duration: duration || (mediaType === "video" ? 15 : 5),
       })
       .select()
       .single();

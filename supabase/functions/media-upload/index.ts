@@ -364,9 +364,7 @@ serve(async (req: Request) => {
   }
 
   // Insert media record into database using existing schema
-  // Actual columns: id (serial), url, filename, mime_type, filesize, width, height, owner_id, type, created_at, updated_at
   const mediaRecord = {
-    owner_id: userId,
     url: publicUrl,
     filename: key,
     mime_type: mime,
