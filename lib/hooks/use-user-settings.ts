@@ -1,13 +1,16 @@
 /**
- * Hooks for managing user settings (notifications, privacy)
- * Uses TanStack Query for data fetching and mutations with optimistic updates
+ * Hooks for managing user settings (notifications, privacy, messages, likes/comments)
+ * Uses TanStack Query for data fetching and mutations with optimistic updates.
+ * Persisted via the user-settings edge function → user_settings JSONB table.
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-// TODO: Create user-settings.ts API
-// import { userSettingsApi } from "@/lib/api/user-settings";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { supabase } from "@/lib/supabase/client";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
+
+// ─── Types ───────────────────────────────────────────────────────────
 
 export interface NotificationPrefs {
   pauseAll: boolean;
@@ -27,6 +30,29 @@ export interface PrivacySettings {
   showLikes: boolean;
 }
 
+export interface MessagesPrefs {
+  allowAll: boolean;
+  messageRequests: boolean;
+  groupRequests: boolean;
+  readReceipts: boolean;
+}
+
+export interface LikesCommentsPrefs {
+  hideLikeCounts: boolean;
+  allowComments: boolean;
+  filterComments: boolean;
+  manualFilter: boolean;
+}
+
+export interface AllUserSettings {
+  notifications: NotificationPrefs;
+  privacy: PrivacySettings;
+  messages: MessagesPrefs;
+  likesComments: LikesCommentsPrefs;
+}
+
+// ─── Defaults ────────────────────────────────────────────────────────
+
 const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   pauseAll: false,
   likes: true,
@@ -45,34 +71,93 @@ const DEFAULT_PRIVACY_SETTINGS: PrivacySettings = {
   showLikes: true,
 };
 
-/**
- * Hook to fetch and manage notification preferences
- */
-export function useNotificationPrefs() {
-  const { user } = useAuthStore();
+const DEFAULT_MESSAGES_PREFS: MessagesPrefs = {
+  allowAll: false,
+  messageRequests: true,
+  groupRequests: true,
+  readReceipts: true,
+};
 
+const DEFAULT_LIKES_COMMENTS_PREFS: LikesCommentsPrefs = {
+  hideLikeCounts: false,
+  allowComments: true,
+  filterComments: true,
+  manualFilter: false,
+};
+
+// ─── API Layer ───────────────────────────────────────────────────────
+
+async function fetchUserSettings(): Promise<Record<string, unknown>> {
+  const token = await requireBetterAuthToken();
+  const { data, error } = await supabase.functions.invoke<{
+    ok: boolean;
+    data?: { settings: Record<string, unknown> };
+    error?: { code: string; message: string };
+  }>("user-settings", {
+    body: { action: "get" },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (error) throw new Error(error.message || "Failed to fetch settings");
+  if (!data?.ok)
+    throw new Error(data?.error?.message || "Failed to fetch settings");
+  return data?.data?.settings || {};
+}
+
+async function updateUserSettings(
+  partial: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const token = await requireBetterAuthToken();
+  const { data, error } = await supabase.functions.invoke<{
+    ok: boolean;
+    data?: { settings: Record<string, unknown> };
+    error?: { code: string; message: string };
+  }>("user-settings", {
+    body: { action: "update", settings: partial },
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (error) throw new Error(error.message || "Failed to save settings");
+  if (!data?.ok)
+    throw new Error(data?.error?.message || "Failed to save settings");
+  return data?.data?.settings || {};
+}
+
+// ─── Query Keys ──────────────────────────────────────────────────────
+
+export const settingsKeys = {
+  all: (userId: string) => ["user-settings", userId] as const,
+};
+
+// ─── Generic Settings Hook ───────────────────────────────────────────
+
+function useAllSettings() {
+  const { user } = useAuthStore();
   return useQuery({
-    queryKey: ["notification-prefs", user?.id],
-    queryFn: async () => {
-      try {
-        // TODO: Implement Supabase user settings API
-        // const response = await userSettingsApi.getNotificationPrefs();
-        return DEFAULT_NOTIFICATION_PREFS;
-      } catch (error) {
-        // Return defaults if endpoint doesn't exist yet
-        console.log("[useNotificationPrefs] Using defaults:", error);
-        return DEFAULT_NOTIFICATION_PREFS;
-      }
-    },
+    queryKey: settingsKeys.all(user?.id || "__none__"),
+    queryFn: fetchUserSettings,
     enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    placeholderData: DEFAULT_NOTIFICATION_PREFS,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
-/**
- * Hook to update notification preferences
- */
+// ─── Scoped Hooks: Notifications ─────────────────────────────────────
+
+export function useNotificationPrefs() {
+  const { user } = useAuthStore();
+  const allSettings = useAllSettings();
+
+  const data: NotificationPrefs = {
+    ...DEFAULT_NOTIFICATION_PREFS,
+    ...((allSettings.data as any)?.notifications || {}),
+  };
+
+  return {
+    ...allSettings,
+    data,
+  };
+}
+
 export function useUpdateNotificationPrefs() {
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
@@ -80,92 +165,56 @@ export function useUpdateNotificationPrefs() {
 
   return useMutation({
     mutationFn: async (prefs: Partial<NotificationPrefs>) => {
-      // TODO: Implement Supabase user settings API
-      // return await userSettingsApi.updateNotificationPrefs(prefs);
-      console.log("[useUpdateNotificationPrefs] Not yet implemented");
-      return prefs as NotificationPrefs;
+      return updateUserSettings({ notifications: prefs });
     },
     onMutate: async (newPrefs) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: ["notification-prefs", user?.id],
-      });
-
-      // Snapshot previous value
-      const previousPrefs = queryClient.getQueryData<NotificationPrefs>([
-        "notification-prefs",
-        user?.id,
-      ]);
-
-      // Optimistically update
-      if (previousPrefs) {
-        queryClient.setQueryData<NotificationPrefs>(
-          ["notification-prefs", user?.id],
-          {
-            ...previousPrefs,
-            ...newPrefs,
-          },
-        );
-      }
-
-      return { previousPrefs };
+      const key = settingsKeys.all(user?.id || "");
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Record<string, unknown>>(key);
+      queryClient.setQueryData(key, (old: any) => ({
+        ...old,
+        notifications: {
+          ...DEFAULT_NOTIFICATION_PREFS,
+          ...(old?.notifications || {}),
+          ...newPrefs,
+        },
+      }));
+      return { previous };
     },
-    onError: (error: any, variables, context) => {
-      // Rollback on error
-      if (context?.previousPrefs) {
+    onError: (_err: any, _vars, context) => {
+      if (context?.previous) {
         queryClient.setQueryData(
-          ["notification-prefs", user?.id],
-          context.previousPrefs,
+          settingsKeys.all(user?.id || ""),
+          context.previous,
         );
       }
-      showToast(
-        "error",
-        "Error",
-        error?.message || "Failed to update notification settings",
-      );
-    },
-    onSuccess: () => {
-      // Silent success - no toast needed for toggles
+      showToast("error", "Error", "Failed to update notification settings");
     },
     onSettled: () => {
-      // Refetch to ensure sync - use scoped key with userId
-      if (user?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ["notification-prefs", user.id],
-        });
-      }
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.all(user?.id || ""),
+      });
     },
   });
 }
 
-/**
- * Hook to fetch and manage privacy settings
- */
+// ─── Scoped Hooks: Privacy ───────────────────────────────────────────
+
 export function usePrivacySettings() {
   const { user } = useAuthStore();
+  const allSettings = useAllSettings();
 
-  return useQuery({
-    queryKey: ["privacy-settings", user?.id],
-    queryFn: async () => {
-      try {
-        // TODO: Implement Supabase user settings API
-        // const response = await userSettingsApi.getPrivacySettings();
-        return DEFAULT_PRIVACY_SETTINGS;
-      } catch (error) {
-        // Return defaults if endpoint doesn't exist yet
-        console.log("[usePrivacySettings] Using defaults:", error);
-        return DEFAULT_PRIVACY_SETTINGS;
-      }
-    },
-    enabled: !!user?.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    placeholderData: DEFAULT_PRIVACY_SETTINGS,
-  });
+  const data: PrivacySettings = {
+    ...DEFAULT_PRIVACY_SETTINGS,
+    ...((allSettings.data as any)?.privacy || {}),
+  };
+
+  return {
+    ...allSettings,
+    data,
+  };
 }
 
-/**
- * Hook to update privacy settings
- */
 export function useUpdatePrivacySettings() {
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
@@ -173,60 +222,149 @@ export function useUpdatePrivacySettings() {
 
   return useMutation({
     mutationFn: async (settings: Partial<PrivacySettings>) => {
-      // TODO: Implement Supabase user settings API
-      // return await userSettingsApi.updatePrivacySettings(settings);
-      console.log("[useUpdatePrivacySettings] Not yet implemented");
-      return settings as PrivacySettings;
+      return updateUserSettings({ privacy: settings });
     },
     onMutate: async (newSettings) => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: ["privacy-settings", user?.id],
-      });
-
-      // Snapshot previous value
-      const previousSettings = queryClient.getQueryData<PrivacySettings>([
-        "privacy-settings",
-        user?.id,
-      ]);
-
-      // Optimistically update
-      if (previousSettings) {
-        queryClient.setQueryData<PrivacySettings>(
-          ["privacy-settings", user?.id],
-          {
-            ...previousSettings,
-            ...newSettings,
-          },
-        );
-      }
-
-      return { previousSettings };
+      const key = settingsKeys.all(user?.id || "");
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Record<string, unknown>>(key);
+      queryClient.setQueryData(key, (old: any) => ({
+        ...old,
+        privacy: {
+          ...DEFAULT_PRIVACY_SETTINGS,
+          ...(old?.privacy || {}),
+          ...newSettings,
+        },
+      }));
+      return { previous };
     },
-    onError: (error: any, variables, context) => {
-      // Rollback on error
-      if (context?.previousSettings) {
+    onError: (_err: any, _vars, context) => {
+      if (context?.previous) {
         queryClient.setQueryData(
-          ["privacy-settings", user?.id],
-          context.previousSettings,
+          settingsKeys.all(user?.id || ""),
+          context.previous,
         );
       }
-      showToast(
-        "error",
-        "Error",
-        error?.message || "Failed to update privacy settings",
-      );
-    },
-    onSuccess: () => {
-      // Silent success - no toast needed for toggles
+      showToast("error", "Error", "Failed to update privacy settings");
     },
     onSettled: () => {
-      // Refetch to ensure sync - use scoped key with userId
-      if (user?.id) {
-        queryClient.invalidateQueries({
-          queryKey: ["privacy-settings", user.id],
-        });
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.all(user?.id || ""),
+      });
+    },
+  });
+}
+
+// ─── Scoped Hooks: Messages ──────────────────────────────────────────
+
+export function useMessagesPrefs() {
+  const { user } = useAuthStore();
+  const allSettings = useAllSettings();
+
+  const data: MessagesPrefs = {
+    ...DEFAULT_MESSAGES_PREFS,
+    ...((allSettings.data as any)?.messages || {}),
+  };
+
+  return {
+    ...allSettings,
+    data,
+  };
+}
+
+export function useUpdateMessagesPrefs() {
+  const queryClient = useQueryClient();
+  const showToast = useUIStore((s) => s.showToast);
+  const { user } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (prefs: Partial<MessagesPrefs>) => {
+      return updateUserSettings({ messages: prefs });
+    },
+    onMutate: async (newPrefs) => {
+      const key = settingsKeys.all(user?.id || "");
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Record<string, unknown>>(key);
+      queryClient.setQueryData(key, (old: any) => ({
+        ...old,
+        messages: {
+          ...DEFAULT_MESSAGES_PREFS,
+          ...(old?.messages || {}),
+          ...newPrefs,
+        },
+      }));
+      return { previous };
+    },
+    onError: (_err: any, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          settingsKeys.all(user?.id || ""),
+          context.previous,
+        );
       }
+      showToast("error", "Error", "Failed to update message settings");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.all(user?.id || ""),
+      });
+    },
+  });
+}
+
+// ─── Scoped Hooks: Likes & Comments ──────────────────────────────────
+
+export function useLikesCommentsPrefs() {
+  const { user } = useAuthStore();
+  const allSettings = useAllSettings();
+
+  const data: LikesCommentsPrefs = {
+    ...DEFAULT_LIKES_COMMENTS_PREFS,
+    ...((allSettings.data as any)?.likesComments || {}),
+  };
+
+  return {
+    ...allSettings,
+    data,
+  };
+}
+
+export function useUpdateLikesCommentsPrefs() {
+  const queryClient = useQueryClient();
+  const showToast = useUIStore((s) => s.showToast);
+  const { user } = useAuthStore();
+
+  return useMutation({
+    mutationFn: async (prefs: Partial<LikesCommentsPrefs>) => {
+      return updateUserSettings({ likesComments: prefs });
+    },
+    onMutate: async (newPrefs) => {
+      const key = settingsKeys.all(user?.id || "");
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<Record<string, unknown>>(key);
+      queryClient.setQueryData(key, (old: any) => ({
+        ...old,
+        likesComments: {
+          ...DEFAULT_LIKES_COMMENTS_PREFS,
+          ...(old?.likesComments || {}),
+          ...newPrefs,
+        },
+      }));
+      return { previous };
+    },
+    onError: (_err: any, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          settingsKeys.all(user?.id || ""),
+          context.previous,
+        );
+      }
+      showToast("error", "Error", "Failed to update likes & comments settings");
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({
+        queryKey: settingsKeys.all(user?.id || ""),
+      });
     },
   });
 }
