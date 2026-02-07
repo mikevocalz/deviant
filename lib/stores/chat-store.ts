@@ -59,6 +59,12 @@ interface ChatState {
   initializeChat: (chatId: string, initialMessages: Message[]) => void;
   loadMessages: (conversationId: string) => Promise<void>;
   insertMention: (username: string) => void;
+  deleteMessage: (conversationId: string, messageId: string) => Promise<void>;
+  editMessage: (
+    conversationId: string,
+    messageId: string,
+    newText: string,
+  ) => Promise<void>;
 }
 
 // Empty array - messages will come from backend
@@ -385,6 +391,54 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [chatId]: initialMessages,
         },
       });
+    }
+  },
+
+  deleteMessage: async (conversationId, messageId) => {
+    try {
+      // Optimistic: remove from local state immediately
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: (state.messages[conversationId] || []).filter(
+            (m) => m.id !== messageId,
+          ),
+        },
+      }));
+
+      // Delete from backend
+      await messagesApiClient.deleteMessage(messageId);
+    } catch (error) {
+      console.error("[ChatStore] deleteMessage error:", error);
+      // Reload messages to restore correct state on failure
+      await get().loadMessages(conversationId);
+    }
+  },
+
+  editMessage: async (conversationId, messageId, newText) => {
+    const oldMessages = get().messages[conversationId] || [];
+    try {
+      // Optimistic: update local state immediately
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: (state.messages[conversationId] || []).map((m) =>
+            m.id === messageId ? { ...m, text: newText } : m,
+          ),
+        },
+      }));
+
+      // Update on backend
+      await messagesApiClient.editMessage(messageId, newText);
+    } catch (error) {
+      console.error("[ChatStore] editMessage error:", error);
+      // Restore old messages on failure
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: oldMessages,
+        },
+      }));
     }
   },
 

@@ -137,15 +137,13 @@ export async function savePushTokenToBackend(
   try {
     // Import supabase client dynamically to avoid circular dependencies
     const { supabase } = await import("@/lib/supabase/client");
-    const { getCurrentUserAuthId } = await import("@/lib/api/auth-helper");
+    const { getCurrentUserIdInt } = await import("@/lib/api/auth-helper");
 
-    // Get the auth_id (UUID) — supabase.auth.getUser() returns null with Better Auth
-    // Fall back to the userId parameter if auth_id isn't synced yet
-    const authId = await getCurrentUserAuthId();
-    const effectiveUserId = authId || userId;
-    if (!effectiveUserId) {
+    // push_tokens.user_id is INTEGER referencing users(id)
+    const intId = getCurrentUserIdInt();
+    if (!intId) {
       console.error(
-        "[Notifications] No authenticated user (no auth_id or userId)",
+        "[Notifications] No authenticated user (no integer userId)",
       );
       return false;
     }
@@ -153,7 +151,7 @@ export async function savePushTokenToBackend(
     // Upsert the push token
     const { error } = await supabase.from("push_tokens").upsert(
       {
-        user_id: effectiveUserId,
+        user_id: intId,
         token,
         platform: Platform.OS,
         updated_at: new Date().toISOString(),

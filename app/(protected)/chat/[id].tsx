@@ -5,6 +5,8 @@ import {
   Pressable,
   Animated,
   Platform,
+  Modal,
+  Alert,
 } from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -21,6 +23,9 @@ import {
   Video,
   Phone,
   Camera,
+  Trash2,
+  Pencil,
+  Copy,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -573,6 +578,70 @@ export default function ChatScreen() {
 
   const canSend = (currentMessage.trim() || pendingMedia) && !isSending;
 
+  // Message action sheet state
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [showMessageActions, setShowMessageActions] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [editText, setEditText] = useState("");
+
+  const { deleteMessage, editMessage } = useChatStore();
+
+  const handleLongPressMessage = useCallback((message: Message) => {
+    setSelectedMessage(message);
+    setShowMessageActions(true);
+  }, []);
+
+  const handleUnsendMessage = useCallback(() => {
+    if (!selectedMessage) return;
+    setShowMessageActions(false);
+
+    Alert.alert(
+      "Unsend Message",
+      "This message will be removed for everyone in the chat.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unsend",
+          style: "destructive",
+          onPress: () => {
+            deleteMessage(chatId, selectedMessage.id);
+            showToast("success", "Unsent", "Message removed");
+            setSelectedMessage(null);
+          },
+        },
+      ],
+    );
+  }, [selectedMessage, chatId, deleteMessage, showToast]);
+
+  const handleStartEdit = useCallback(() => {
+    if (!selectedMessage) return;
+    setShowMessageActions(false);
+    setEditingMessage(selectedMessage);
+    setEditText(selectedMessage.text);
+    setSelectedMessage(null);
+  }, [selectedMessage]);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!editingMessage || !editText.trim()) return;
+    editMessage(chatId, editingMessage.id, editText.trim());
+    showToast("success", "Edited", "Message updated");
+    setEditingMessage(null);
+    setEditText("");
+  }, [editingMessage, editText, chatId, editMessage, showToast]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessage(null);
+    setEditText("");
+  }, []);
+
+  const handleCopyMessage = useCallback(() => {
+    if (!selectedMessage?.text) return;
+    // Copy not available without expo-clipboard — show toast only
+    showToast("info", "Copy", selectedMessage.text.slice(0, 100));
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  }, [selectedMessage, showToast]);
+
   // Show loading while loading screen state OR loading recipient
   if (isLoading || isLoadingRecipient) {
     return (
@@ -684,11 +753,23 @@ export default function ChatScreen() {
             );
 
             if (isMe) {
-              return <View className="self-end mb-2">{bubble}</View>;
+              return (
+                <Pressable
+                  className="self-end mb-2"
+                  onLongPress={() => handleLongPressMessage(item)}
+                  delayLongPress={400}
+                >
+                  {bubble}
+                </Pressable>
+              );
             }
 
             return (
-              <View className="flex-row items-end gap-2 mb-2 self-start">
+              <Pressable
+                className="flex-row items-end gap-2 mb-2 self-start"
+                onLongPress={() => handleLongPressMessage(item)}
+                delayLongPress={400}
+              >
                 <Avatar
                   uri={recipient?.avatar || ""}
                   username={recipient?.username || ""}
@@ -696,7 +777,7 @@ export default function ChatScreen() {
                   variant="roundedSquare"
                 />
                 {bubble}
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -804,6 +885,221 @@ export default function ChatScreen() {
           onClose={handleClosePreview}
           media={previewMedia}
         />
+
+        {/* Edit Message Bar */}
+        {editingMessage && (
+          <View
+            style={{
+              backgroundColor: "#1a1a1a",
+              borderTopWidth: 1,
+              borderTopColor: "#333",
+              paddingHorizontal: 16,
+              paddingVertical: 10,
+            }}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 8,
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+              >
+                <Pencil size={16} color="#3EA4E5" />
+                <Text
+                  style={{ color: "#3EA4E5", fontSize: 13, fontWeight: "600" }}
+                >
+                  Editing message
+                </Text>
+              </View>
+              <Pressable onPress={handleCancelEdit} hitSlop={8}>
+                <X size={18} color="#999" />
+              </Pressable>
+            </View>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
+              <TextInput
+                value={editText}
+                onChangeText={setEditText}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#262626",
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  color: "#fff",
+                  fontSize: 15,
+                }}
+                autoFocus
+                multiline
+                maxLength={500}
+              />
+              <Pressable
+                onPress={handleSaveEdit}
+                disabled={!editText.trim()}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: editText.trim() ? "#3EA4E5" : "#333",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Send size={18} color={editText.trim() ? "#fff" : "#666"} />
+              </Pressable>
+            </View>
+          </View>
+        )}
+
+        {/* Message Action Sheet */}
+        <Modal
+          visible={showMessageActions}
+          transparent
+          animationType="fade"
+          onRequestClose={() => {
+            setShowMessageActions(false);
+            setSelectedMessage(null);
+          }}
+        >
+          <Pressable
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              justifyContent: "flex-end",
+            }}
+            onPress={() => {
+              setShowMessageActions(false);
+              setSelectedMessage(null);
+            }}
+          >
+            <Pressable onPress={(e) => e.stopPropagation()}>
+              <View
+                style={{
+                  backgroundColor: "#1a1a1a",
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  paddingBottom: 40,
+                }}
+              >
+                {/* Handle */}
+                <View
+                  style={{
+                    alignItems: "center",
+                    paddingVertical: 10,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 4,
+                      borderRadius: 2,
+                      backgroundColor: "#555",
+                    }}
+                  />
+                </View>
+
+                {/* Message preview */}
+                {selectedMessage && (
+                  <View
+                    style={{
+                      paddingHorizontal: 20,
+                      paddingBottom: 12,
+                      borderBottomWidth: 1,
+                      borderBottomColor: "#333",
+                    }}
+                  >
+                    <Text
+                      style={{ color: "#999", fontSize: 13 }}
+                      numberOfLines={2}
+                    >
+                      {selectedMessage.text || "(media)"}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Actions */}
+                <View style={{ paddingTop: 4 }}>
+                  {/* Copy — available for all messages */}
+                  {selectedMessage?.text ? (
+                    <Pressable
+                      onPress={handleCopyMessage}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                      }}
+                    >
+                      <Copy size={22} color="#fff" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#fff",
+                          marginLeft: 16,
+                        }}
+                      >
+                        Copy
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  {/* Edit — only for own messages with text */}
+                  {selectedMessage?.sender === "me" && selectedMessage?.text ? (
+                    <Pressable
+                      onPress={handleStartEdit}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                      }}
+                    >
+                      <Pencil size={22} color="#fff" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#fff",
+                          marginLeft: 16,
+                        }}
+                      >
+                        Edit
+                      </Text>
+                    </Pressable>
+                  ) : null}
+
+                  {/* Unsend — only for own messages */}
+                  {selectedMessage?.sender === "me" ? (
+                    <Pressable
+                      onPress={handleUnsendMessage}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingHorizontal: 20,
+                        paddingVertical: 16,
+                      }}
+                    >
+                      <Trash2 size={22} color="#ef4444" />
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          color: "#ef4444",
+                          marginLeft: 16,
+                        }}
+                      >
+                        Unsend
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );

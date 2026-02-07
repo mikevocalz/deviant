@@ -397,6 +397,53 @@ export const messagesApi = {
   },
 
   /**
+   * Delete (unsend) a message — only the sender can delete their own message
+   */
+  async deleteMessage(messageId: string) {
+    try {
+      const visitorIntId = getCurrentUserIdInt();
+      if (!visitorIntId) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from(DB.messages.table)
+        .delete()
+        .eq(DB.messages.id, parseInt(messageId))
+        .eq(DB.messages.senderId, visitorIntId);
+
+      if (error) throw error;
+      console.log("[Messages] deleteMessage success:", messageId);
+    } catch (error) {
+      console.error("[Messages] deleteMessage error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Edit a message — only the sender can edit their own message
+   */
+  async editMessage(messageId: string, newContent: string) {
+    try {
+      const visitorIntId = getCurrentUserIdInt();
+      if (!visitorIntId) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from(DB.messages.table)
+        .update({ [DB.messages.content]: newContent })
+        .eq(DB.messages.id, parseInt(messageId))
+        .eq(DB.messages.senderId, visitorIntId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      console.log("[Messages] editMessage success:", messageId);
+      return data;
+    } catch (error) {
+      console.error("[Messages] editMessage error:", error);
+      throw error;
+    }
+  },
+
+  /**
    * Get filtered conversations (primary = from followed users, requests = from others)
    */
   async getFilteredConversations(filter: "primary" | "requests") {
