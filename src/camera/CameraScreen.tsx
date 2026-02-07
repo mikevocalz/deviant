@@ -85,9 +85,19 @@ export function CameraScreen({
   const [zoom, setZoom] = useState(1);
   const [lastGalleryThumb, setLastGalleryThumb] = useState<string | null>(null);
   const [permissionsReady, setPermissionsReady] = useState(false);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const device = useCameraDevice(position);
+
+  const handleCameraInitialized = useCallback(() => {
+    console.log("[Camera] Native session initialized");
+    setIsCameraReady(true);
+  }, []);
+
+  const handleCameraError = useCallback((error: any) => {
+    console.error("[Camera] Native error:", error);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -219,7 +229,7 @@ export function CameraScreen({
   }, [isRecording]);
 
   const startRecording = useCallback(async () => {
-    if (!cameraRef.current || isRecording || !device) return;
+    if (!cameraRef.current || isRecording || !device || !isCameraReady) return;
     if (!hasCamPerm || !hasMicPerm) {
       console.warn("[Camera] Missing permissions for recording");
       return;
@@ -268,6 +278,7 @@ export function CameraScreen({
     device,
     hasCamPerm,
     hasMicPerm,
+    isCameraReady,
   ]);
 
   const handleCapture = useCallback(() => {
@@ -330,6 +341,8 @@ export function CameraScreen({
           torch={position === "back" && flash === "on" ? "on" : "off"}
           zoom={zoom}
           enableZoomGesture={true}
+          onInitialized={handleCameraInitialized}
+          onError={handleCameraError}
         />
 
         {/* Snapchat-style screen flash for front camera */}
