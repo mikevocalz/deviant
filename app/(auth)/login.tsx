@@ -239,7 +239,12 @@ export default function LoginScreen() {
 
             <View className="items-end">
               <Pressable
-                onPress={() => router.push("/(auth)/forgot-password" as any)}
+                onPress={() =>
+                  router.push({
+                    pathname: "/(auth)/forgot-password",
+                    params: { email: form.getFieldValue("email") || "" },
+                  } as any)
+                }
               >
                 <Text className="text-primary text-sm">Forgot password?</Text>
               </Pressable>

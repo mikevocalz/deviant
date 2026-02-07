@@ -5,18 +5,19 @@ import { useForm } from "@tanstack/react-form";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { authClient } from "@/lib/auth-client";
 import { ArrowLeft, Mail } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 
 export default function ForgotPasswordScreen() {
+  const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const { colors } = useColorScheme();
 
   const form = useForm({
-    defaultValues: { email: "" },
+    defaultValues: { email: emailParam || "" },
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
 
