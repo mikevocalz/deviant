@@ -97,9 +97,13 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
 
   // Keep refs to the latest camera/mic so effects never use stale closures.
   const cameraRef = useRef(fishjamCamera);
-  cameraRef.current = fishjamCamera;
   const micRef = useRef(fishjamMic);
-  micRef.current = fishjamMic;
+  useEffect(() => {
+    cameraRef.current = fishjamCamera;
+  }, [fishjamCamera]);
+  useEffect(() => {
+    micRef.current = fishjamMic;
+  }, [fishjamMic]);
 
   const {
     isHandRaised,
