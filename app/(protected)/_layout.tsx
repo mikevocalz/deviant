@@ -82,7 +82,12 @@ export default function ProtectedLayout() {
       <Stack.Screen name="comments" options={modalTransitionConfig} />
       <Stack.Screen
         name="camera"
-        options={{ ...fullScreenModalConfig, animation: "fade" }}
+        options={{
+          presentation: "containedModal",
+          animation: "fade",
+          animationDuration: 250,
+          headerShown: false,
+        }}
       />
     </Stack>
   );
