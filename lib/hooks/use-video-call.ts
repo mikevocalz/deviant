@@ -36,6 +36,7 @@
  */
 
 import { useCallback, useRef, useEffect } from "react";
+import { Platform } from "react-native";
 import {
   useConnection,
   useCamera,
@@ -45,6 +46,10 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { videoApi } from "@/src/video/api";
 import { callSignalsApi } from "@/lib/api/call-signals";
+import {
+  enableSpeakerphone,
+  disableSpeakerphone,
+} from "@/lib/utils/audio-route";
 import {
   useVideoRoomStore,
   type CallType,
@@ -87,6 +92,8 @@ export function useVideoCall() {
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+  const hadPeersRef = useRef(false);
+  const leaveCallRef = useRef<() => void>(() => {});
 
   // ── Zustand store access ────────────────────────────────────────────
   const store = useVideoRoomStore();
@@ -141,6 +148,31 @@ export function useVideoCall() {
       audioTrack: peer.audioTrack,
     }));
     getStore().setParticipants(participants);
+
+    // Track if we ever had remote peers
+    if (participants.length > 0) {
+      hadPeersRef.current = true;
+    }
+
+    // Auto-end call when all remote peers leave after being connected
+    const s = getStore();
+    if (
+      hadPeersRef.current &&
+      participants.length === 0 &&
+      s.callPhase === "connected"
+    ) {
+      log("All remote peers left — auto-ending call");
+      // Small delay to avoid race with peer reconnection
+      setTimeout(() => {
+        const current = getStore();
+        if (
+          current.participants.length === 0 &&
+          current.callPhase === "connected"
+        ) {
+          leaveCallRef.current();
+        }
+      }, 2000);
+    }
   }, [peers, getStore]);
 
   // ── Duration timer ──────────────────────────────────────────────────
@@ -249,6 +281,9 @@ export function useVideoCall() {
         );
         s.setCameraOn(false);
       }
+
+      // ── Step 3: Enable speaker output (iOS defaults to earpiece) ────
+      enableSpeakerphone();
 
       s.setCallPhase("connected");
       log(`[${type.toUpperCase()}] Media started, call is now connected`);
@@ -456,6 +491,9 @@ export function useVideoCall() {
     s.setCallEnded(duration);
     log(`[${mode.toUpperCase()}] Call ended, duration:`, duration);
   }, [stopDurationTimer, getStore]);
+
+  // Keep leaveCallRef in sync for auto-end timeout
+  leaveCallRef.current = leaveCall;
 
   // ── Toggle mute ────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {

@@ -7,12 +7,6 @@ const FISHJAM_APP_ID =
   process.env.EXPO_PUBLIC_FISHJAM_APP_ID ??
   "";
 
-console.log("[CallLayout] FISHJAM_APP_ID:", FISHJAM_APP_ID);
-console.log(
-  "[CallLayout] Constants.expoConfig?.extra:",
-  JSON.stringify(Constants.expoConfig?.extra),
-);
-
 export default function CallLayout() {
   return (
     <FishjamProvider fishjamId={FISHJAM_APP_ID}>
