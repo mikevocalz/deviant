@@ -34,11 +34,7 @@ patch_package() {
   local config_swift="$pkg_dir/ios/ZLImageEditor/Sources/General/ZLImageEditorConfiguration.swift"
   if [ -f "$config_swift" ]; then
     if ! grep -q "initialTool" "$config_swift" 2>/dev/null; then
-      sed -i.bak '/public var textStickerDefaultTextColor/a\
-    \
-    /// Initial tool to auto-select when editor opens (text, stickers, draw, filter)\
-    @objc public var initialTool: String? = nil' "$config_swift" 2>/dev/null || true
-      rm -f "${config_swift}.bak"
+      perl -i -pe 's/(public var textStickerDefaultTextColor.*)/$1\n\n    \/\/\/ Initial tool to auto-select when editor opens (text, stickers, draw, filter)\n    \@objc public var initialTool: String? = nil/' "$config_swift" 2>/dev/null || true
       echo "[patch-photo-editor-core] $label iOS: ZLImageEditorConfiguration.swift (initialTool)"
     fi
   fi
@@ -46,12 +42,13 @@ patch_package() {
   # --- iOS: Add initialTool to PhotoEditor.swift ---
   local editor_swift="$pkg_dir/ios/PhotoEditor.swift"
   if [ -f "$editor_swift" ]; then
+    # Fix broken concatenation from previous sed append (two statements on one line)
+    if grep -q "initialTool = initialTool.*self\.reject" "$editor_swift" 2>/dev/null; then
+      perl -i -pe 's/(initialTool = initialTool)\s+(self\.reject)/$1\n        $2/' "$editor_swift" 2>/dev/null || true
+      echo "[patch-photo-editor-core] $label iOS: PhotoEditor.swift (repaired broken line)"
+    fi
     if ! grep -q "initialTool" "$editor_swift" 2>/dev/null; then
-      sed -i.bak '/self.resolve = resolve/a\
-        \
-        let initialTool = options["initialTool"] as? String\
-        ZLImageEditorConfiguration.default().initialTool = initialTool' "$editor_swift" 2>/dev/null || true
-      rm -f "${editor_swift}.bak"
+      perl -i -pe 's/(self\.resolve = resolve;)/$1\n\n        let initialTool = options["initialTool"] as? String\n        ZLImageEditorConfiguration.default().initialTool = initialTool/' "$editor_swift" 2>/dev/null || true
       echo "[patch-photo-editor-core] $label iOS: PhotoEditor.swift (initialTool)"
     fi
   fi
