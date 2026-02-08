@@ -56,6 +56,7 @@ import {
   type SafeProfileData,
   type SafeGridTile,
 } from "@/lib/utils/safe-profile-mappers";
+import { getFallbackAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
 const { width } = Dimensions.get("window");
@@ -289,10 +290,15 @@ function ProfileScreenContent() {
 
   // PHASE 0: Compute display values from profileData (API) with user (auth store) fallback
   // CRITICAL: profileData is the canonical source, user is fallback only
-  const displayAvatar =
-    profileData?.avatar || profileData?.avatarUrl || user?.avatar;
   const displayName =
     profileData?.displayName || profileData?.name || user?.name || "User";
+  const displayAvatar =
+    profileData?.avatar || profileData?.avatarUrl || user?.avatar || "";
+  // CRITICAL: Compute a guaranteed valid avatar URL — never pass empty string to Image
+  const avatarUri =
+    displayAvatar && displayAvatar.startsWith("http")
+      ? displayAvatar
+      : getFallbackAvatarUrl(displayName || user?.username || "User");
   const displayUsername = profileData?.username || user?.username || "";
   const displayBio = profileData?.bio || user?.bio;
   const displayLocation = user?.location; // Only in auth store
@@ -572,14 +578,11 @@ function ProfileScreenContent() {
               >
                 <View className="relative">
                   <Image
-                    source={{
-                      uri:
-                        displayAvatar ||
-                        "https://ui-avatars.com/api/?name=" +
-                          encodeURIComponent(displayName || "User"),
-                    }}
+                    source={{ uri: avatarUri }}
                     className="w-[88px] h-[88px] rounded-full"
+                    style={{ backgroundColor: "#1a1a1a" }}
                     contentFit="cover"
+                    cachePolicy="memory-disk"
                   />
                   {isUpdatingAvatar ? (
                     <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
@@ -643,6 +646,16 @@ function ProfileScreenContent() {
                   <Text className="text-xs text-muted-foreground">
                     Following
                   </Text>
+                </Pressable>
+                <Pressable
+                  className="items-center"
+                  testID={`profile.${user?.id}.eventsCount`}
+                  onPress={() => setActiveTab("events")}
+                >
+                  <Text className="text-xl font-bold text-foreground">
+                    {formatCountSafe(myEvents.length + likedEvents.length)}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">Events</Text>
                 </Pressable>
               </View>
             </View>

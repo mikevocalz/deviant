@@ -246,19 +246,23 @@ export const messagesApi = {
 
       if (!convs || convs.length === 0) return 0;
 
-      // Count unread messages in these conversations
+      // Count distinct conversations that have unread messages (not total messages)
       const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
       let query = supabase
         .from(DB.messages.table)
-        .select("*", { count: "exact", head: true })
+        .select(DB.messages.conversationId)
         .in(DB.messages.conversationId, convIds)
         .is(DB.messages.readAt, null);
       if (visitorIntId) query = query.neq(DB.messages.senderId, visitorIntId);
-      const { count, error } = await query;
+      const { data: unreadMsgs, error } = await query;
 
       if (error) throw error;
 
-      return count || 0;
+      // Count unique conversation IDs
+      const uniqueConvIds = new Set(
+        (unreadMsgs || []).map((m: any) => m[DB.messages.conversationId]),
+      );
+      return uniqueConvIds.size;
     } catch (error) {
       console.error("[Messages] getUnreadCount error:", error);
       return 0;
@@ -287,10 +291,10 @@ export const messagesApi = {
 
       const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
 
-      // Get unread messages from these conversations
+      // Get unread messages from these conversations (need conversationId + senderId)
       let unreadQuery = supabase
         .from(DB.messages.table)
-        .select(`${DB.messages.senderId}`)
+        .select(`${DB.messages.conversationId}, ${DB.messages.senderId}`)
         .in(DB.messages.conversationId, convIds)
         .is(DB.messages.readAt, null);
       if (visitorIntId)
@@ -299,12 +303,17 @@ export const messagesApi = {
 
       if (error) throw error;
 
-      // Count messages from users NOT in followingIds (spam/requests)
-      const spamCount = (unreadMessages || []).filter(
-        (msg) => !followingIds.includes(String(msg[DB.messages.senderId])),
-      ).length;
+      // Count distinct conversations with messages from users NOT in followingIds
+      const spamConvIds = new Set(
+        (unreadMessages || [])
+          .filter(
+            (msg: any) =>
+              !followingIds.includes(String(msg[DB.messages.senderId])),
+          )
+          .map((msg: any) => msg[DB.messages.conversationId]),
+      );
 
-      return spamCount;
+      return spamConvIds.size;
     } catch (error) {
       console.error("[Messages] getSpamUnreadCount error:", error);
       return 0;

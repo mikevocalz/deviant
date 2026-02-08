@@ -1,7 +1,7 @@
 import React, { memo, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ticket, Check } from "lucide-react-native";
+import { Ticket, Check, Clock } from "lucide-react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,6 +15,7 @@ import type { TicketTier } from "../types";
 interface StickyCTAProps {
   selectedTier: TicketTier | null;
   hasTicket: boolean;
+  isPast?: boolean;
   onGetTickets: () => void;
   onViewTicket: () => void;
 }
@@ -22,6 +23,7 @@ interface StickyCTAProps {
 export const StickyCTA = memo(function StickyCTA({
   selectedTier,
   hasTicket,
+  isPast,
   onGetTickets,
   onViewTicket,
 }: StickyCTAProps) {
@@ -54,6 +56,23 @@ export const StickyCTA = memo(function StickyCTA({
   const price = selectedTier?.price ?? 0;
   const tierName = selectedTier?.name ?? "General";
   const glowColor = selectedTier?.glowColor ?? "rgb(62, 164, 229)";
+
+  if (isPast && !hasTicket) {
+    return (
+      <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={styles.inner}>
+          <View
+            style={[styles.ctaButton, { backgroundColor: "#333", flex: 1 }]}
+          >
+            <Clock size={18} color="rgba(255,255,255,0.5)" />
+            <Text style={[styles.ctaText, { color: "rgba(255,255,255,0.5)" }]}>
+              Event Ended
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (hasTicket) {
     return (

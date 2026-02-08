@@ -322,6 +322,20 @@ export default function EventDetailScreen() {
 
   const handleGetTickets = useCallback(() => {
     if (!eventData) return;
+    // Block ticket purchase for past events
+    const now = new Date();
+    if (eventData.endDate && new Date(eventData.endDate) < now) {
+      showToast("warning", "Event Ended", "This event has already ended.");
+      return;
+    }
+    if (!eventData.endDate) {
+      const dayEnd = new Date(eventData.date);
+      dayEnd.setHours(23, 59, 59, 999);
+      if (dayEnd < now) {
+        showToast("warning", "Event Ended", "This event has already ended.");
+        return;
+      }
+    }
     toggleRsvp(eventId);
 
     // Create and store ticket so View Ticket page can find it
@@ -402,6 +416,20 @@ export default function EventDetailScreen() {
   const host = event.host;
   const dateStr = formatEventDate(event.date);
   const timeStr = formatEventTime(event.date);
+
+  // Check if event has ended — use endDate if available, otherwise use start date
+  const isPast = useMemo(() => {
+    try {
+      const now = new Date();
+      if (event.endDate) return new Date(event.endDate) < now;
+      // If no endDate, treat event as ended after the start date's day
+      const start = new Date(event.date);
+      start.setHours(23, 59, 59, 999);
+      return start < now;
+    } catch {
+      return false;
+    }
+  }, [event.date, event.endDate]);
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -739,6 +767,7 @@ export default function EventDetailScreen() {
       <StickyCTA
         selectedTier={selectedTier}
         hasTicket={hasTicket}
+        isPast={isPast}
         onGetTickets={handleGetTickets}
         onViewTicket={handleViewTicket}
       />
