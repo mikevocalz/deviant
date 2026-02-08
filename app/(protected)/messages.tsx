@@ -128,7 +128,9 @@ function ConversationList({
                   {item.user.username}
                 </Text>
               </Pressable>
-              <Text className="text-xs text-muted-foreground">
+              <Text
+                className={`text-xs ${item.unread ? "text-primary font-semibold" : "text-muted-foreground"}`}
+              >
                 {item.timeAgo}
               </Text>
             </View>

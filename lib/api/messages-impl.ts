@@ -81,6 +81,19 @@ export const messagesApi = {
             otherUserData = userData;
           }
 
+          // Check for unread messages (not sent by me, read_at is null)
+          const visitorIntId = getCurrentUserIdInt();
+          let hasUnread = false;
+          if (visitorIntId) {
+            const { count } = await supabase
+              .from(DB.messages.table)
+              .select(DB.messages.id, { count: "exact", head: true })
+              .eq(DB.messages.conversationId, convId)
+              .is(DB.messages.readAt, null)
+              .neq(DB.messages.senderId, visitorIntId);
+            hasUnread = (count ?? 0) > 0;
+          }
+
           return {
             id: String(convId),
             user: {
@@ -96,7 +109,7 @@ export const messagesApi = {
               lastMessage?.[DB.messages.createdAt] ||
                 conv.conversation[DB.conversations.lastMessageAt],
             ),
-            unread: false, // TODO: implement unread logic
+            unread: hasUnread,
           };
         }),
       );
