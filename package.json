@@ -14,6 +14,7 @@
     "update:preview": "eas update --channel preview",
     "check:secrets": "npx ts-node scripts/check-secrets.ts",
     "check:guardrails": "npx ts-node scripts/check-secrets.ts",
+    "eas-build-pre-install": "corepack enable && corepack prepare pnpm@10.28.0 --activate",
     "postinstall": "bash scripts/fix-rive-swift.sh && bash scripts/patch-insta-story.sh && bash scripts/patch-photo-editor-core.sh && bash scripts/patch-photo-editor-luts.sh"
   },
   "dependencies": {
