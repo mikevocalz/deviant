@@ -158,7 +158,7 @@ export function useLikePost() {
       // Update the specific post detail
       queryClient.setQueryData<Post>(postKeys.detail(postId), (old) => {
         if (!old) return old;
-        return { ...old, likes: data.likes };
+        return { ...old, likes: data.likes, viewerHasLiked: data.liked };
       });
 
       // Update posts in feed cache
@@ -167,7 +167,9 @@ export function useLikePost() {
         (old) => {
           if (!old) return old;
           return old.map((post) =>
-            post.id === postId ? { ...post, likes: data.likes } : post,
+            post.id === postId
+              ? { ...post, likes: data.likes, viewerHasLiked: data.liked }
+              : post,
           );
         },
       );
@@ -180,7 +182,9 @@ export function useLikePost() {
           pages: old.pages.map((page: any) => ({
             ...page,
             data: page.data?.map((post: Post) =>
-              post.id === postId ? { ...post, likes: data.likes } : post,
+              post.id === postId
+                ? { ...post, likes: data.likes, viewerHasLiked: data.liked }
+                : post,
             ),
           })),
         };
@@ -249,17 +253,21 @@ export function useSyncLikedPosts() {
         const { likeStateKeys } = await import("@/lib/hooks/usePostLikeState");
         for (const postId of likedPosts) {
           const key = likeStateKeys.forPost(viewerId, postId);
-          const existing = queryClient.getQueryData(key);
-          if (!existing) {
-            // Seed with hasLiked=true; likes count will be set when post renders
-            queryClient.setQueryData(key, { hasLiked: true, likes: 0 });
-          } else {
+          const existing = queryClient.getQueryData(key) as
+            | { hasLiked: boolean; likes: number }
+            | undefined;
+          if (existing) {
             // Update hasLiked but preserve existing likes count
-            queryClient.setQueryData(key, {
-              ...(existing as any),
-              hasLiked: true,
-            });
+            if (!existing.hasLiked) {
+              queryClient.setQueryData(key, {
+                ...existing,
+                hasLiked: true,
+              });
+            }
           }
+          // If no existing cache, do NOT seed with likes: 0.
+          // The feed query now returns viewerHasLiked from the server,
+          // so seedLikeState in feed.tsx will set the correct values.
         }
       }
 

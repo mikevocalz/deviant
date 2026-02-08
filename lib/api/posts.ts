@@ -13,9 +13,41 @@ interface CreatePostResponse {
 const PAGE_SIZE = 10;
 
 /**
+ * Batch-fetch which post IDs the current viewer has liked.
+ * Returns a Set of post IDs (as strings) that the viewer liked.
+ * Returns empty set on failure — never breaks callers.
+ */
+async function fetchViewerLikedPostIds(
+  postIds: number[],
+): Promise<Set<string>> {
+  try {
+    const viewerIdInt = getCurrentUserIdInt();
+    if (!viewerIdInt || postIds.length === 0) return new Set();
+
+    const { data, error } = await supabase
+      .from(DB.likes.table)
+      .select(DB.likes.postId)
+      .eq(DB.likes.userId, viewerIdInt)
+      .in(DB.likes.postId, postIds);
+
+    if (error) {
+      console.error("[Posts] fetchViewerLikedPostIds error:", error);
+      return new Set();
+    }
+
+    return new Set(
+      (data || []).map((row: any) => String(row[DB.likes.postId])),
+    );
+  } catch (err) {
+    console.error("[Posts] fetchViewerLikedPostIds error:", err);
+    return new Set();
+  }
+}
+
+/**
  * Transform database post to app Post type
  */
-function transformPost(dbPost: any): Post {
+function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
   const media = (dbPost.media || []).map((m: any) => ({
     type: m[DB.postsMedia.type] || "image",
@@ -41,6 +73,7 @@ function transformPost(dbPost: any): Post {
     media,
     caption: dbPost[DB.posts.content] || "",
     likes: Number(dbPost[DB.posts.likesCount]) || 0,
+    viewerHasLiked,
     comments: [],
     timeAgo: formatTimeAgo(dbPost[DB.posts.createdAt]),
     location: dbPost[DB.posts.location],
@@ -117,7 +150,13 @@ export const postsApi = {
         throw error;
       }
 
-      const transformed = (posts || []).map(transformPost);
+      const postIds = (posts || []).map((p: any) => Number(p[DB.posts.id]));
+      const likedSet = await fetchViewerLikedPostIds(postIds);
+
+      const transformed = (posts || []).map((p: any) => {
+        const pid = String(p[DB.posts.id]);
+        return transformPost(p, likedSet.has(pid));
+      });
       const hasMore = (count || 0) > cursor + PAGE_SIZE;
       const nextCursor = hasMore ? cursor + PAGE_SIZE : null;
 
@@ -171,7 +210,8 @@ export const postsApi = {
         return null;
       }
 
-      return transformPost(data);
+      const likedSet = await fetchViewerLikedPostIds([Number(id)]);
+      return transformPost(data, likedSet.has(String(data[DB.posts.id])));
     } catch (error) {
       console.error("[Posts] getPostById error:", error);
       return null;
@@ -251,7 +291,13 @@ export const postsApi = {
         return [];
       }
 
-      return (data || []).map(transformPost);
+      const postIds = (data || []).map((p: any) => Number(p[DB.posts.id]));
+      const likedSet = await fetchViewerLikedPostIds(postIds);
+
+      return (data || []).map((p: any) => {
+        const pid = String(p[DB.posts.id]);
+        return transformPost(p, likedSet.has(pid));
+      });
     } catch (error) {
       console.error("[Posts] getProfilePosts error:", error);
       return [];
