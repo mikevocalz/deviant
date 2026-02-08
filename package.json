@@ -34,7 +34,7 @@
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/native": "^7.1.8",
     "@regulaforensics/react-native-face-api": "^7.1.628",
-    "@rive-app/react-native": "^0.1.2",
+    "@rive-app/react-native": "0.2.1",
     "@rn-primitives/portal": "^1.3.0",
     "@rn-primitives/progress": "^1.2.0",
     "@rn-primitives/slot": "^1.2.0",
