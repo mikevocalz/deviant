@@ -7,6 +7,7 @@ import {
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { supabase } from "@/lib/supabase/client";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { followsApi } from "@/lib/api/follows";
 
 // Activity types (excludes 'message' - messages are handled separately)
 export type ActivityType =
@@ -62,6 +63,7 @@ interface ActivityState {
   getRouteForActivity: (activity: Activity) => string;
   syncUnreadCount: () => void;
   subscribeToNotifications: () => (() => void) | undefined;
+  fetchFollowingState: () => Promise<void>;
   reset: () => void;
 }
 
@@ -140,7 +142,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   setRefreshing: (refreshing) => set({ refreshing }),
 
-  toggleFollowUser: (username) =>
+  toggleFollowUser: (username) => {
+    // Optimistic toggle
+    const wasFollowed = get().followedUsers.has(username);
     set((state) => {
       const newFollowedUsers = new Set(state.followedUsers);
       if (newFollowedUsers.has(username)) {
@@ -149,7 +153,24 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         newFollowedUsers.add(username);
       }
       return { followedUsers: newFollowedUsers };
-    }),
+    });
+
+    // Find the user's integer ID from activities and call real API
+    const activity = get().activities.find((a) => a.user.username === username);
+    const targetUserId = activity?.user?.id;
+    if (targetUserId) {
+      followsApi.toggleFollow(targetUserId).catch((err) => {
+        console.error("[ActivityStore] toggleFollow API error:", err);
+        // Revert on failure
+        set((state) => {
+          const reverted = new Set(state.followedUsers);
+          if (wasFollowed) reverted.add(username);
+          else reverted.delete(username);
+          return { followedUsers: reverted };
+        });
+      });
+    }
+  },
 
   isUserFollowed: (username) => get().followedUsers.has(username),
 
@@ -233,6 +254,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         isLoading: false,
       });
       get().syncUnreadCount();
+
+      // Fetch real follow state for notification actors
+      get().fetchFollowingState();
     } catch (error) {
       console.error("[ActivityStore] fetchFromBackend error:", error);
       set({ isLoading: false });
@@ -284,6 +308,31 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     const unreadCount = get().getUnreadCount();
     useUnreadCountsStore.getState().setNotificationsUnread(unreadCount);
     console.log("[ActivityStore] syncUnreadCount:", unreadCount);
+  },
+
+  // Fetch the current user's following list and seed followedUsers
+  fetchFollowingState: async () => {
+    try {
+      const userId = String(getCurrentUserIdInt() || "");
+      if (!userId) return;
+
+      const following = await followsApi.getFollowing(userId);
+      const followedUsernames = new Set(
+        following.map((u: { username: string }) => u.username),
+      );
+
+      // Replace with DB truth — optimistic toggles from toggleFollowUser
+      // will override after if the user taps follow/unfollow
+      set({ followedUsers: followedUsernames });
+
+      console.log(
+        "[ActivityStore] Loaded follow state:",
+        followedUsernames.size,
+        "following",
+      );
+    } catch (err) {
+      console.error("[ActivityStore] fetchFollowingState error:", err);
+    }
   },
 
   // Subscribe to realtime notifications for instant updates
