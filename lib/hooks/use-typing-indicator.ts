@@ -1,24 +1,21 @@
 /**
  * Typing Indicator Hook
  *
- * Senior engineer approach:
+ * Uses Supabase Realtime broadcast channels for cross-device typing events.
  * - Debounced typing events using TanStack Pacer
  * - Auto-clear after timeout (like FB/Instagram)
- * - Polling for real-time updates (WebSocket would be better for scale)
+ * - Supabase Realtime broadcast for real-time updates
  * - Memory-efficient with cleanup on unmount
  */
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { supabase } from "@/lib/supabase/client";
 import { Debouncer } from "@tanstack/pacer";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 const TYPING_TIMEOUT = 3000; // Clear typing status after 3s of no typing
-const DEBOUNCE_DELAY = 500; // Debounce typing events by 500ms
-const POLL_INTERVAL = 2000; // Poll for typing status every 2s
-
-// In-memory typing status store (would be Redis in production)
-// Format: { conversationId: { usersTyping: { [userId]: timestamp } } }
-const typingStatusStore: Record<string, Record<string, number>> = {};
+const DEBOUNCE_DELAY = 300; // Debounce typing events by 300ms
 
 interface TypingIndicatorOptions {
   conversationId: string;
@@ -33,7 +30,7 @@ interface TypingIndicatorReturn {
 }
 
 /**
- * Hook to manage typing indicator state
+ * Hook to manage typing indicator state via Supabase Realtime broadcast
  */
 export function useTypingIndicator({
   conversationId,
@@ -44,40 +41,31 @@ export function useTypingIndicator({
   const user = useAuthStore((s) => s.user);
 
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const remoteTimeoutsRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
   const lastTextRef = useRef<string>("");
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
-  // Initialize conversation in store
-  useEffect(() => {
-    if (!typingStatusStore[conversationId]) {
-      typingStatusStore[conversationId] = {};
-    }
-  }, [conversationId]);
-
-  // Broadcast typing status
+  // Broadcast typing status via Supabase Realtime
   const broadcastTyping = useCallback(
     (typing: boolean) => {
-      if (!user?.id || !enabled) return;
+      if (!user?.id || !enabled || !channelRef.current) return;
 
-      if (typing) {
-        typingStatusStore[conversationId] = {
-          ...typingStatusStore[conversationId],
-          [user.id]: Date.now(),
-        };
-      } else {
-        const { [user.id]: _, ...rest } =
-          typingStatusStore[conversationId] || {};
-        typingStatusStore[conversationId] = rest;
-      }
+      channelRef.current.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId: user.id, username: user.username, typing },
+      });
 
       setIsTyping(typing);
     },
-    [conversationId, user?.id, enabled],
+    [user?.id, user?.username, enabled],
   );
 
   // Set typing status with auto-clear
-  const setTyping = useCallback(
+  const setTypingState = useCallback(
     (typing: boolean) => {
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
@@ -100,64 +88,85 @@ export function useTypingIndicator({
   // Create debounced typing trigger using TanStack Pacer
   const debouncedSetTyping = useMemo(
     () =>
-      new Debouncer(() => setTyping(true), {
+      new Debouncer(() => setTypingState(true), {
         wait: DEBOUNCE_DELAY,
       }),
-    [setTyping],
+    [setTypingState],
   );
 
   // Handle input change with debouncing
   const handleInputChange = useCallback(
     (text: string) => {
-      // Only trigger if text actually changed
       if (text === lastTextRef.current) return;
       lastTextRef.current = text;
 
       if (text.length > 0) {
-        // Debounce the typing indicator using TanStack Pacer
         debouncedSetTyping.maybeExecute();
       } else {
-        // Immediately clear if text is empty
         debouncedSetTyping.cancel();
-        setTyping(false);
+        setTypingState(false);
       }
     },
-    [setTyping, debouncedSetTyping],
+    [setTypingState, debouncedSetTyping],
   );
 
-  // Poll for typing status from other users
+  // Subscribe to Supabase Realtime broadcast channel
   useEffect(() => {
-    if (!enabled || !user?.id) return;
+    if (!enabled || !user?.id || !conversationId) return;
 
-    const pollTypingStatus = () => {
-      const conversationTyping = typingStatusStore[conversationId] || {};
-      const now = Date.now();
+    const channelName = `typing:${conversationId}`;
+    const channel = supabase.channel(channelName);
 
-      // Get users who are typing (excluding self, within timeout)
-      const activeTypingUsers = Object.entries(conversationTyping)
-        .filter(([userId, timestamp]) => {
-          return userId !== user.id && now - timestamp < TYPING_TIMEOUT;
-        })
-        .map(([userId]) => userId);
+    channel
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const { userId, typing } = payload.payload as {
+          userId: string;
+          username?: string;
+          typing: boolean;
+        };
 
-      setTypingUsers(activeTypingUsers);
+        // Ignore own typing events
+        if (userId === user.id) return;
 
-      // Clean up expired entries
-      Object.entries(conversationTyping).forEach(([userId, timestamp]) => {
-        if (now - timestamp >= TYPING_TIMEOUT) {
-          delete typingStatusStore[conversationId][userId];
+        if (typing) {
+          setTypingUsers((prev) =>
+            prev.includes(userId) ? prev : [...prev, userId],
+          );
+
+          // Auto-clear remote user after timeout
+          if (remoteTimeoutsRef.current[userId]) {
+            clearTimeout(remoteTimeoutsRef.current[userId]);
+          }
+          remoteTimeoutsRef.current[userId] = setTimeout(() => {
+            setTypingUsers((prev) => prev.filter((id) => id !== userId));
+            delete remoteTimeoutsRef.current[userId];
+          }, TYPING_TIMEOUT);
+        } else {
+          setTypingUsers((prev) => prev.filter((id) => id !== userId));
+          if (remoteTimeoutsRef.current[userId]) {
+            clearTimeout(remoteTimeoutsRef.current[userId]);
+            delete remoteTimeoutsRef.current[userId];
+          }
         }
-      });
-    };
+      })
+      .subscribe();
 
-    // Initial poll
-    pollTypingStatus();
-
-    // Set up polling interval
-    const pollInterval = setInterval(pollTypingStatus, POLL_INTERVAL);
+    channelRef.current = channel;
 
     return () => {
-      clearInterval(pollInterval);
+      // Broadcast stop typing before leaving
+      channel.send({
+        type: "broadcast",
+        event: "typing",
+        payload: { userId: user.id, typing: false },
+      });
+
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+
+      // Clear all remote timeouts
+      Object.values(remoteTimeoutsRef.current).forEach(clearTimeout);
+      remoteTimeoutsRef.current = {};
     };
   }, [conversationId, user?.id, enabled]);
 
@@ -167,50 +176,14 @@ export function useTypingIndicator({
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      // Cancel debounced typing on cleanup
       debouncedSetTyping.cancel();
-      // Clear typing status when leaving conversation
-      if (user?.id && typingStatusStore[conversationId]) {
-        delete typingStatusStore[conversationId][user.id];
-      }
     };
-  }, [conversationId, user?.id, debouncedSetTyping]);
+  }, [debouncedSetTyping]);
 
   return {
     isTyping,
     typingUsers,
-    setTyping,
+    setTyping: setTypingState,
     handleInputChange,
   };
 }
-
-/**
- * API functions for typing indicator (for future WebSocket/server integration)
- */
-export const typingIndicatorApi = {
-  // Send typing status to server
-  async sendTypingStatus(
-    conversationId: string,
-    isTyping: boolean,
-  ): Promise<void> {
-    try {
-      // TODO: Implement WebSocket or API call for real-time typing
-      // For now, using in-memory store above
-      console.log(
-        `[TypingIndicator] ${isTyping ? "Started" : "Stopped"} typing in ${conversationId}`,
-      );
-    } catch (error) {
-      console.error("[TypingIndicator] Failed to send status:", error);
-    }
-  },
-
-  // Subscribe to typing events (would use WebSocket in production)
-  subscribeToTyping(
-    conversationId: string,
-    callback: (typingUsers: string[]) => void,
-  ): () => void {
-    // TODO: Implement WebSocket subscription
-    // For now, return no-op unsubscribe
-    return () => {};
-  },
-};
