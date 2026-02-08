@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@fishjam-cloud/react-native-webrtc': 0.25.0
+
 importers:
 
   .:
@@ -29,6 +32,9 @@ importers:
       '@fishjam-cloud/react-native-client':
         specifier: 0.25.0-rc.3
         version: 0.25.0-rc.3(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+      '@fishjam-cloud/react-native-webrtc':
+        specifier: 0.25.0
+        version: 0.25.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
       '@gorhom/bottom-sheet':
         specifier: ^5.2.8
         version: 5.2.8(@types/react@19.1.17)(react-native-gesture-handler@2.28.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native-reanimated@4.1.6(@babel/core@7.29.0)(react-native-worklets@0.5.1(@babel/core@7.29.0)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -1249,11 +1255,10 @@ packages:
       react: '*'
       react-native: '*'
 
-  '@fishjam-cloud/react-native-webrtc@https://codeload.github.com/fishjam-cloud/fishjam-react-native-webrtc/tar.gz/9753272f9e6c992d8a05263e668e2198ec858160':
-    resolution: {tarball: https://codeload.github.com/fishjam-cloud/fishjam-react-native-webrtc/tar.gz/9753272f9e6c992d8a05263e668e2198ec858160}
-    version: 0.24.0
+  '@fishjam-cloud/react-native-webrtc@0.25.0':
+    resolution: {integrity: sha512-VGeZci0c1KEUpvcFjugc6bd64RFMtXEkmcUI037jA+z0aij0BpATn4ZvuC6QJTVBXhuWRwQdTrDktEehoy4cCw==}
     peerDependencies:
-      react-native: '>=0.60.0'
+      react-native: '*'
 
   '@fishjam-cloud/ts-client@0.25.0-rc.3':
     resolution: {integrity: sha512-XK0r6o3aLvDA0jb5GHhT2++Aw1rfV5CB43rvw3hl17I19CGClILbPuF+VWkd2C7w2f0EeUj2FWHBn6jG4vez/w==}
@@ -7125,7 +7130,7 @@ snapshots:
   '@fishjam-cloud/react-native-client@0.25.0-rc.3(expo@54.0.33)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)':
     dependencies:
       '@fishjam-cloud/react-client': 0.25.0-rc.3(react@19.1.0)
-      '@fishjam-cloud/react-native-webrtc': https://codeload.github.com/fishjam-cloud/fishjam-react-native-webrtc/tar.gz/9753272f9e6c992d8a05263e668e2198ec858160(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
+      '@fishjam-cloud/react-native-webrtc': 0.25.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))
       expo: 54.0.33(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       promise-fs: 2.1.1
       react: 19.1.0
@@ -7134,7 +7139,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@fishjam-cloud/react-native-webrtc@https://codeload.github.com/fishjam-cloud/fishjam-react-native-webrtc/tar.gz/9753272f9e6c992d8a05263e668e2198ec858160(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))':
+  '@fishjam-cloud/react-native-webrtc@0.25.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))':
     dependencies:
       base64-js: 1.5.1
       debug: 4.3.4

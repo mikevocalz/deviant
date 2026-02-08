@@ -25,6 +25,7 @@
     "@config-plugins/react-native-webrtc": "13.0.0",
     "@expo/html-elements": "^0.13.8",
     "@fishjam-cloud/react-native-client": "0.25.0-rc.3",
+    "@fishjam-cloud/react-native-webrtc": "0.25.0",
     "@gorhom/bottom-sheet": "^5.2.8",
     "@legendapp/list": "beta",
     "@legendapp/motion": "^2.5.3",
@@ -145,6 +146,9 @@
     "staticFeatureFlags": {
       "ENABLE_SHARED_ELEMENT_TRANSITIONS": true
     }
+  },
+  "resolutions": {
+    "@fishjam-cloud/react-native-webrtc": "0.25.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
