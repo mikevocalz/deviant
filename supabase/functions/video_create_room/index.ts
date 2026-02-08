@@ -190,7 +190,8 @@ serve(async (req: Request) => {
       ok: true,
       data: {
         room: {
-          id: room.id,
+          id: room.uuid || room.id,
+          internalId: room.id,
           title: room.title,
           isPublic: room.is_public,
           maxParticipants: room.max_participants,

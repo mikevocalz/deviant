@@ -138,11 +138,11 @@ serve(async (req: Request) => {
       p_room_id: roomId,
     });
 
-    // Check room exists and is open
+    // Check room exists and is open (lookup by uuid)
     const { data: room, error: roomError } = await supabase
       .from("video_rooms")
       .select("*")
-      .eq("id", roomId)
+      .eq("uuid", roomId)
       .single();
 
     if (roomError || !room) {
@@ -153,10 +153,12 @@ serve(async (req: Request) => {
       return errorResponse("conflict", "Room is no longer open", 409);
     }
 
+    const internalRoomId = room.id;
+
     // Check if user is banned
     const { data: isBanned } = await supabase.rpc("is_user_banned_from_room", {
       p_user_id: userId,
-      p_room_id: roomId,
+      p_room_id: internalRoomId,
     });
 
     if (isBanned) {
@@ -167,7 +169,7 @@ serve(async (req: Request) => {
     const { data: participantCount } = await supabase.rpc(
       "count_active_participants",
       {
-        p_room_id: roomId,
+        p_room_id: internalRoomId,
       },
     );
 
@@ -179,7 +181,7 @@ serve(async (req: Request) => {
     const { data: existingMember } = await supabase
       .from("video_room_members")
       .select("*")
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", userId)
       .single();
 
@@ -200,7 +202,7 @@ serve(async (req: Request) => {
             joined_at: new Date().toISOString(),
             left_at: null,
           })
-          .eq("room_id", roomId)
+          .eq("room_id", internalRoomId)
           .eq("user_id", userId);
 
         if (updateError) {
@@ -214,7 +216,7 @@ serve(async (req: Request) => {
       const { error: insertError } = await supabase
         .from("video_room_members")
         .insert({
-          room_id: roomId,
+          room_id: internalRoomId,
           user_id: userId,
           role: "participant",
           status: "active",
@@ -263,7 +265,7 @@ serve(async (req: Request) => {
       await supabase
         .from("video_rooms")
         .update({ fishjam_room_id: fishjamRoomId })
-        .eq("id", roomId);
+        .eq("id", internalRoomId);
     }
 
     // Create peer in Fishjam and get token
@@ -305,7 +307,7 @@ serve(async (req: Request) => {
     const { error: tokenError } = await supabase
       .from("video_room_tokens")
       .insert({
-        room_id: roomId,
+        room_id: internalRoomId,
         user_id: userId,
         token_jti: jti,
         expires_at: expiresAt.toISOString(),
@@ -320,7 +322,7 @@ serve(async (req: Request) => {
 
     // Log event
     await supabase.from("video_room_events").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       type: "member_joined",
       actor_id: userId,
       payload: { role: memberRole, peerId: peer.id },
@@ -329,7 +331,7 @@ serve(async (req: Request) => {
     // Get user profile for display
     const { data: profile } = await supabase
       .from("users")
-      .select("username, avatar")
+      .select("username, avatar:avatar_id(url)")
       .eq("auth_id", userId)
       .single();
 
@@ -339,7 +341,8 @@ serve(async (req: Request) => {
       ok: true,
       data: {
         room: {
-          id: room.id,
+          id: room.uuid || room.id,
+          internalId: room.id,
           title: room.title,
           fishjamRoomId,
         },
