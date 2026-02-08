@@ -65,6 +65,7 @@ interface ChatState {
     messageId: string,
     newText: string,
   ) => Promise<void>;
+  addSystemMessage: (chatId: string, text: string) => void;
 }
 
 // Empty array - messages will come from backend
@@ -444,6 +445,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
         },
       }));
     }
+  },
+
+  addSystemMessage: (chatId, text) => {
+    const existing = get().messages[chatId] || [];
+    const systemMsg: Message = {
+      id: `system-${Date.now()}`,
+      text,
+      sender: "them",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    set({
+      messages: {
+        ...get().messages,
+        [chatId]: [...existing, systemMsg],
+      },
+    });
   },
 
   insertMention: (username) => {

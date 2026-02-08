@@ -50,6 +50,7 @@ import {
   enableSpeakerphone,
   disableSpeakerphone,
 } from "@/lib/utils/audio-route";
+import { useChatStore } from "@/lib/stores/chat-store";
 import {
   useVideoRoomStore,
   type CallType,
@@ -487,6 +488,19 @@ export function useVideoCall() {
 
     stopDurationTimer();
     leaveRoomRef.current();
+
+    // Add "Call ended" system message to the linked chat
+    const chatId = s.chatId;
+    if (chatId) {
+      const durationStr =
+        duration > 0
+          ? ` · ${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, "0")}`
+          : "";
+      const label = mode === "audio" ? "Audio call ended" : "Video call ended";
+      useChatStore
+        .getState()
+        .addSystemMessage(chatId, `📞 ${label}${durationStr}`);
+    }
 
     s.setCallEnded(duration);
     log(`[${mode.toUpperCase()}] Call ended, duration:`, duration);
