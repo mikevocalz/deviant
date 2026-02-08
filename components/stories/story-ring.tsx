@@ -17,7 +17,7 @@ interface StoryRingProps {
 
 const sizeStyles = {
   sm: { height: 88, width: 56 },
-  md: { height: 104, width: 80 },
+  md: { height: 114, width: 80 },
   lg: { height: 120, width: 96 },
 };
 
@@ -49,7 +49,7 @@ export function StoryRing({
       style={{
         height: dimensions.height - padding * 2,
         width: dimensions.width - padding * 2,
-        borderRadius: 10,
+        borderRadius: 13,
         borderWidth: 2,
         borderColor: "#0c0a09",
         overflow: "hidden",
@@ -82,7 +82,7 @@ export function StoryRing({
         start={{ x: 0, y: 1 }}
         end={{ x: 1, y: 0 }}
         style={{
-          borderRadius: 12,
+          borderRadius: 16,
           padding: padding,
           height: dimensions.height,
           width: dimensions.width,
@@ -96,7 +96,7 @@ export function StoryRing({
   return (
     <View
       style={{
-        borderRadius: 12,
+        borderRadius: 16,
         padding: padding,
         height: dimensions.height,
         width: dimensions.width,
