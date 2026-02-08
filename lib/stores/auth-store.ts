@@ -111,10 +111,17 @@ export const useAuthStore = create<AuthStore>()(
             // CRITICAL: Identity isolation check
             // If persisted user doesn't match the current session, clear stale data
             // This prevents User A's data from showing when User B logs in
+            // NOTE: persistedUser.id is the integer PK, session.user.id is the Better Auth UUID
+            // — they are DIFFERENT ID systems. Compare using email which is stable across both.
             const persistedUser = get().user;
-            if (persistedUser && persistedUser.id !== sessionAuthId) {
+            if (
+              persistedUser &&
+              persistedUser.email &&
+              session.user.email &&
+              persistedUser.email !== session.user.email
+            ) {
               console.warn(
-                `[AuthStore] IDENTITY MISMATCH: persisted=${persistedUser.id} (${persistedUser.username}) vs session=${sessionAuthId}. Clearing stale data.`,
+                `[AuthStore] IDENTITY MISMATCH: persisted=${persistedUser.email} vs session=${session.user.email}. Clearing stale data.`,
               );
               set({ user: null, isAuthenticated: false });
               clearUserRowCache();
