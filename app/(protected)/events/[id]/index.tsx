@@ -83,7 +83,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
         maxPerOrder: 4,
         isSoldOut: remaining === 0,
         tier: "free",
-        glowColor: "#22c55e",
+        glowColor: "#3FDCFF",
       },
     ];
   }

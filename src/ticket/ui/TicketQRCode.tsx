@@ -15,10 +15,10 @@ interface TicketQRCodeProps {
 }
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
-  free: "#a3a3a3",
-  ga: "#60a5fa",
-  vip: "#fbbf24",
-  table: "#c084fc",
+  free: "#3FDCFF",
+  ga: "#34A2DF",
+  vip: "#8A40CF",
+  table: "#FF5BFC",
 };
 
 function formatCheckedInTime(dateString: string) {
@@ -58,10 +58,7 @@ export const TicketQRCode = memo(function TicketQRCode({
                 duration: 2000,
                 repeatCount: Infinity,
               }}
-              style={[
-                styles.pulseRing,
-                { borderColor: accent },
-              ]}
+              style={[styles.pulseRing, { borderColor: accent }]}
             />
             <Motion.View
               initial={{ opacity: 0.4, scale: 1 }}
@@ -72,10 +69,7 @@ export const TicketQRCode = memo(function TicketQRCode({
                 delay: 600,
                 repeatCount: Infinity,
               }}
-              style={[
-                styles.pulseRing,
-                { borderColor: accent },
-              ]}
+              style={[styles.pulseRing, { borderColor: accent }]}
             />
           </>
         )}
@@ -91,7 +85,7 @@ export const TicketQRCode = memo(function TicketQRCode({
               foregroundColor="#000000"
               logo={true}
               logoSize={48}
-              logoBackgroundColor="#FFFFFF"
+              logoBackgroundColor="#000"
             />
           </View>
 
@@ -100,12 +94,12 @@ export const TicketQRCode = memo(function TicketQRCode({
             <View style={styles.blockedOverlay}>
               {ticket.status === "checked_in" ? (
                 <View style={styles.blockedBadge}>
-                  <CheckCircle size={28} color="#22c55e" />
+                  <CheckCircle size={28} color="#3FDCFF" />
                   <Text style={styles.blockedTextGreen}>Checked In</Text>
                 </View>
               ) : ticket.status === "revoked" ? (
                 <View style={styles.blockedBadge}>
-                  <XCircle size={28} color="#ef4444" />
+                  <XCircle size={28} color="#FC253A" />
                   <Text style={styles.blockedTextRed}>Revoked</Text>
                 </View>
               ) : (
@@ -122,15 +116,13 @@ export const TicketQRCode = memo(function TicketQRCode({
       {/* Check-in status */}
       {ticket.status === "checked_in" && ticket.checkedInAt ? (
         <View style={styles.statusRow}>
-          <CheckCircle size={14} color="#22c55e" />
+          <CheckCircle size={14} color="#3FDCFF" />
           <Text style={styles.statusTextGreen}>
             Checked in at {formatCheckedInTime(ticket.checkedInAt)}
           </Text>
         </View>
       ) : ticket.status === "valid" ? (
-        <Text style={styles.helperText}>
-          Present this at the door
-        </Text>
+        <Text style={styles.helperText}>Present this at the door</Text>
       ) : null}
 
       {/* Ticket ID */}
@@ -189,12 +181,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   blockedTextGreen: {
-    color: "#22c55e",
+    color: "#3FDCFF",
     fontSize: 16,
     fontWeight: "700",
   },
   blockedTextRed: {
-    color: "#ef4444",
+    color: "#FC253A",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -209,7 +201,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   statusTextGreen: {
-    color: "#22c55e",
+    color: "#3FDCFF",
     fontSize: 13,
     fontWeight: "600",
   },

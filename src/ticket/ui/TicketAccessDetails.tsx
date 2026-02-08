@@ -3,18 +3,9 @@
  * Entry window, dress code, perks, door policy, table number
  */
 
-import React, { memo, useCallback, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
-import {
-  Clock,
-  Shirt,
-  ShieldCheck,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Hash,
-} from "lucide-react-native";
-import { Motion } from "@legendapp/motion";
+import React, { memo } from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { Clock, Shirt, ShieldCheck, Sparkles, Hash } from "lucide-react-native";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketAccessDetailsProps {
@@ -22,10 +13,10 @@ interface TicketAccessDetailsProps {
 }
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
-  free: "#a3a3a3",
-  ga: "#60a5fa",
-  vip: "#fbbf24",
-  table: "#c084fc",
+  free: "#3FDCFF",
+  ga: "#34A2DF",
+  vip: "#8A40CF",
+  table: "#FF5BFC",
 };
 
 interface DetailRowProps {
@@ -49,7 +40,6 @@ function DetailRow({ icon, label, value }: DetailRowProps) {
 export const TicketAccessDetails = memo(function TicketAccessDetails({
   ticket,
 }: TicketAccessDetailsProps) {
-  const [expanded, setExpanded] = useState(false);
   const tier = ticket.tier || "ga";
   const accent = TIER_ACCENT[tier];
 
@@ -61,10 +51,6 @@ export const TicketAccessDetails = memo(function TicketAccessDetails({
     (ticket.perks && ticket.perks.length > 0);
 
   if (!hasDetails) return null;
-
-  const handleToggle = useCallback(() => {
-    setExpanded((prev) => !prev);
-  }, []);
 
   // Primary details always shown
   const primaryDetails: DetailRowProps[] = [];
@@ -85,26 +71,21 @@ export const TicketAccessDetails = memo(function TicketAccessDetails({
     });
   }
 
-  // Secondary details (collapsible)
-  const secondaryDetails: DetailRowProps[] = [];
-
   if (ticket.dressCode) {
-    secondaryDetails.push({
-      icon: <Shirt size={16} color="rgba(255,255,255,0.4)" />,
+    primaryDetails.push({
+      icon: <Shirt size={16} color={accent} />,
       label: "Dress Code",
       value: ticket.dressCode,
     });
   }
 
   if (ticket.doorPolicy) {
-    secondaryDetails.push({
-      icon: <ShieldCheck size={16} color="rgba(255,255,255,0.4)" />,
+    primaryDetails.push({
+      icon: <ShieldCheck size={16} color={accent} />,
       label: "Door Policy",
       value: ticket.doorPolicy,
     });
   }
-
-  const hasSecondary = secondaryDetails.length > 0 || (ticket.perks && ticket.perks.length > 0);
 
   return (
     <View style={styles.container}>
@@ -126,7 +107,10 @@ export const TicketAccessDetails = memo(function TicketAccessDetails({
               <Text style={styles.rowLabel}>Included</Text>
               <View style={styles.perksWrap}>
                 {ticket.perks.map((perk, i) => (
-                  <View key={i} style={[styles.perkChip, { borderColor: `${accent}30` }]}>
+                  <View
+                    key={i}
+                    style={[styles.perkChip, { borderColor: `${accent}30` }]}
+                  >
                     <Text style={[styles.perkText, { color: accent }]}>
                       {perk}
                     </Text>
@@ -135,34 +119,6 @@ export const TicketAccessDetails = memo(function TicketAccessDetails({
               </View>
             </View>
           </View>
-        )}
-
-        {/* Collapsible secondary details */}
-        {hasSecondary && (
-          <>
-            {expanded &&
-              secondaryDetails.map((detail, i) => (
-                <Motion.View
-                  key={i}
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                >
-                  <DetailRow {...detail} />
-                </Motion.View>
-              ))}
-
-            <Pressable onPress={handleToggle} style={styles.toggleRow}>
-              <Text style={styles.toggleText}>
-                {expanded ? "Show less" : "More details"}
-              </Text>
-              {expanded ? (
-                <ChevronUp size={14} color="rgba(255,255,255,0.4)" />
-              ) : (
-                <ChevronDown size={14} color="rgba(255,255,255,0.4)" />
-              )}
-            </Pressable>
-          </>
         )}
       </View>
     </View>
@@ -230,18 +186,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   perkText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    paddingTop: 4,
-  },
-  toggleText: {
-    color: "rgba(255,255,255,0.4)",
     fontSize: 12,
     fontWeight: "600",
   },

@@ -28,35 +28,35 @@ const TIER_CONFIG: Record<
 > = {
   free: {
     label: "FREE",
-    gradient: ["#1a1a2e", "#16213e", "#0f3460"],
-    accent: "#a3a3a3",
-    glowColor: "rgba(163,163,163,0.15)",
+    gradient: ["#0a1a2e", "#0c2030", "#0a1520"],
+    accent: "#3FDCFF",
+    glowColor: "rgba(63,220,255,0.15)",
     icon: TicketIcon,
-    badgeBg: "rgba(163,163,163,0.15)",
+    badgeBg: "rgba(63,220,255,0.15)",
   },
   ga: {
     label: "GENERAL",
-    gradient: ["#1a1a2e", "#16213e", "#0f3460"],
-    accent: "#60a5fa",
-    glowColor: "rgba(96,165,250,0.12)",
+    gradient: ["#0a1a2e", "#0c2030", "#0a1520"],
+    accent: "#34A2DF",
+    glowColor: "rgba(52,162,223,0.12)",
     icon: Star,
-    badgeBg: "rgba(96,165,250,0.15)",
+    badgeBg: "rgba(52,162,223,0.15)",
   },
   vip: {
     label: "VIP",
-    gradient: ["#1a1a0e", "#2a1f0a", "#1a1508"],
-    accent: "#fbbf24",
-    glowColor: "rgba(251,191,36,0.18)",
+    gradient: ["#1a0a2e", "#200e38", "#150830"],
+    accent: "#8A40CF",
+    glowColor: "rgba(138,64,207,0.18)",
     icon: Crown,
-    badgeBg: "rgba(251,191,36,0.18)",
+    badgeBg: "rgba(138,64,207,0.18)",
   },
   table: {
     label: "TABLE",
-    gradient: ["#1a0a2e", "#200e38", "#150830"],
-    accent: "#c084fc",
-    glowColor: "rgba(192,132,252,0.18)",
+    gradient: ["#1a0a20", "#200e28", "#180820"],
+    accent: "#FF5BFC",
+    glowColor: "rgba(255,91,252,0.18)",
     icon: Gem,
-    badgeBg: "rgba(192,132,252,0.18)",
+    badgeBg: "rgba(255,91,252,0.18)",
   },
 };
 
@@ -107,11 +107,7 @@ export const TicketHeroCard = memo(function TicketHeroCard({
 
       {/* Gradient overlay */}
       <LinearGradient
-        colors={[
-          "rgba(0,0,0,0.3)",
-          "rgba(0,0,0,0.7)",
-          "rgba(0,0,0,0.92)",
-        ]}
+        colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.92)"]}
         style={StyleSheet.absoluteFill}
       />
 
@@ -203,9 +199,7 @@ export const TicketHeroCard = memo(function TicketHeroCard({
 
         {/* Promoter */}
         {ticket.promoter && (
-          <Text style={styles.promoterText}>
-            Guest of @{ticket.promoter}
-          </Text>
+          <Text style={styles.promoterText}>Guest of @{ticket.promoter}</Text>
         )}
       </View>
     </View>

@@ -26,10 +26,10 @@ import {
 } from "@/src/ticket/ui";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
-  free: "#a3a3a3",
-  ga: "#60a5fa",
-  vip: "#fbbf24",
-  table: "#c084fc",
+  free: "#3FDCFF",
+  ga: "#34A2DF",
+  vip: "#8A40CF",
+  table: "#FF5BFC",
 };
 
 export default function ViewTicketScreen() {
@@ -147,7 +147,7 @@ export default function ViewTicketScreen() {
               styles.transferBadge,
               {
                 borderColor: ticket.transferable
-                  ? "rgba(34,197,94,0.2)"
+                  ? "rgba(63,220,255,0.2)"
                   : "rgba(255,255,255,0.08)",
               },
             ]}
@@ -157,7 +157,7 @@ export default function ViewTicketScreen() {
                 styles.transferText,
                 {
                   color: ticket.transferable
-                    ? "rgba(34,197,94,0.7)"
+                    ? "#3FDCFF"
                     : "rgba(255,255,255,0.25)",
                 },
               ]}

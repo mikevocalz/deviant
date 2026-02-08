@@ -27,10 +27,10 @@ interface TicketActionsBarProps {
 }
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
-  free: "#a3a3a3",
-  ga: "#60a5fa",
-  vip: "#fbbf24",
-  table: "#c084fc",
+  free: "#3FDCFF",
+  ga: "#34A2DF",
+  vip: "#8A40CF",
+  table: "#FF5BFC",
 };
 
 type ActionState = "idle" | "loading" | "success" | "error";
@@ -136,7 +136,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
         {walletState === "loading" ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : walletState === "success" ? (
-          <Check size={16} color="#22c55e" />
+          <Check size={16} color="#3FDCFF" />
         ) : (
           <Wallet size={16} color="#fff" />
         )}
@@ -163,7 +163,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
         {calendarState === "loading" ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : calendarState === "success" ? (
-          <Check size={16} color="#22c55e" />
+          <Check size={16} color="#3FDCFF" />
         ) : (
           <CalendarPlus size={16} color="#fff" />
         )}
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
   },
   successButton: {
-    backgroundColor: "rgba(34,197,94,0.1)",
+    backgroundColor: "rgba(63,220,255,0.1)",
   },
   actionLabel: {
     color: "#fff",
@@ -226,6 +226,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   successLabel: {
-    color: "#22c55e",
+    color: "#3FDCFF",
   },
 });
