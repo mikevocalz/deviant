@@ -1,5 +1,5 @@
 /**
- * useVideoCall — Production-Grade Video Call Hook (Fishjam SDK)
+ * useVideoCall — Production-Grade Call Hook (Fishjam SDK)
  *
  * ╔══════════════════════════════════════════════════════════════════════╗
  * ║  ARCHITECTURE INVARIANTS (NEVER VIOLATE):                          ║
@@ -7,18 +7,31 @@
  * ║  1. ALL call state lives in Zustand (useVideoRoomStore).           ║
  * ║     NO useState for room, participants, tracks, call status.       ║
  * ║                                                                    ║
- * ║  2. DETERMINISTIC JOIN ORDER (non-negotiable):                     ║
- * ║     a) Request permissions (await, block on denial)                ║
- * ║     b) Create/join room (edge function)                            ║
- * ║     c) Connect Fishjam peer (peerToken)                            ║
- * ║     d) Start camera (front-facing default)                         ║
- * ║     e) Start microphone                                            ║
- * ║     f) Verify tracks are publishing                                ║
- * ║     g) Render video                                                ║
+ * ║  2. DETERMINISTIC JOIN ORDER — MODE-AWARE:                         ║
+ * ║                                                                    ║
+ * ║     AUDIO:                                                         ║
+ * ║       a) Request mic permission (ONLY — no camera)                 ║
+ * ║       b) Create/join room                                          ║
+ * ║       c) Connect Fishjam peer                                      ║
+ * ║       d) Start microphone                                          ║
+ * ║       e) Render audio UI (NO RTCView)                              ║
+ * ║                                                                    ║
+ * ║     VIDEO:                                                         ║
+ * ║       a) Request mic + camera permissions                          ║
+ * ║       b) Create/join room                                          ║
+ * ║       c) Connect Fishjam peer                                      ║
+ * ║       d) Start microphone                                          ║
+ * ║       e) Start camera (front-facing default)                       ║
+ * ║       f) Verify cameraStream !== null                               ║
+ * ║       g) Render video UI                                           ║
  * ║                                                                    ║
  * ║  3. NO SILENT FAILURES. Every error surfaces to store + logs.      ║
  * ║                                                                    ║
- * ║  4. RTCView NEVER renders without a resolved video track.          ║
+ * ║  4. AUDIO MODE MUST NEVER touch camera.                            ║
+ * ║     Camera enable in audio mode = INVARIANT VIOLATION.             ║
+ * ║     Use escalateToVideo() for explicit audio → video upgrade.      ║
+ * ║                                                                    ║
+ * ║  5. RTCView NEVER renders without a resolved video track.          ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
@@ -162,19 +175,24 @@ export function useVideoCall() {
     return front?.deviceId;
   }, []);
 
-  // ── Start media (Step 5 in join order) ─────────────────────────────
+  // ── Start media — MODE-AWARE ──────────────────────────────────────
+  // AUDIO: mic only. Camera MUST NOT be touched.
+  // VIDEO: mic + camera (front-facing default).
   const startMedia = useCallback(
     async (type: CallType) => {
       const s = getStore();
       s.setCallPhase("starting_media");
+      log(`Starting media for ${type.toUpperCase()} call`);
 
-      // Always start microphone
+      // ── Step 1: Start microphone (ALWAYS, both modes) ──────────────
       try {
         await micRef.current.startMicrophone();
         s.setMicOn(true);
-        log("Microphone started successfully");
+        log(
+          `[${type.toUpperCase()}] Microphone started — audio track publishing`,
+        );
       } catch (micErr) {
-        logError("FAILED to start microphone:", micErr);
+        logError(`[${type.toUpperCase()}] FAILED to start microphone:`, micErr);
         s.setError(
           "Microphone failed to start. Check permissions.",
           "mic_start_failed",
@@ -182,7 +200,7 @@ export function useVideoCall() {
         return false;
       }
 
-      // Start camera for video calls
+      // ── Step 2: Start camera (VIDEO ONLY) ──────────────────────────
       if (type === "video") {
         try {
           const frontId = getFrontCameraId();
@@ -190,7 +208,7 @@ export function useVideoCall() {
             frontId || null,
           );
           if (err) {
-            logError("Camera startCamera returned error:", err);
+            logError("[VIDEO] Camera startCamera returned error:", err);
             s.setError(
               "Camera failed to start: " + (err.name || "unknown"),
               "camera_start_failed",
@@ -199,7 +217,7 @@ export function useVideoCall() {
           }
           s.setCameraOn(true);
           log(
-            "Camera started, track:",
+            "[VIDEO] Camera started, track:",
             !!track,
             "stream:",
             !!cameraRef.current.cameraStream,
@@ -208,7 +226,7 @@ export function useVideoCall() {
           // VERIFY: camera stream must exist after startCamera
           if (!cameraRef.current.cameraStream) {
             logError(
-              "CRITICAL: Camera started but cameraStream is null — black screen will occur",
+              "[VIDEO] CRITICAL: Camera started but cameraStream is null — black screen will occur",
             );
             s.setError(
               "Camera stream not available after start",
@@ -217,17 +235,23 @@ export function useVideoCall() {
             return false;
           }
         } catch (camErr) {
-          logError("FAILED to start camera:", camErr);
+          logError("[VIDEO] FAILED to start camera:", camErr);
           s.setError(
             "Camera failed to start. Check permissions.",
             "camera_start_failed",
           );
           return false;
         }
+      } else {
+        // AUDIO MODE: Explicitly do NOT touch camera
+        log(
+          "[AUDIO] Skipping camera — audio-only mode. Camera will NOT be enabled.",
+        );
+        s.setCameraOn(false);
       }
 
       s.setCallPhase("connected");
-      log("Media started, call is now connected");
+      log(`[${type.toUpperCase()}] Media started, call is now connected`);
       return true;
     },
     [getFrontCameraId, getStore],
@@ -403,8 +427,9 @@ export function useVideoCall() {
     const s = getStore();
     const currentRoomId = s.roomId;
     const duration = s.callDuration;
+    const mode = s.callType;
 
-    log("Leaving call, roomId:", currentRoomId, "duration:", duration);
+    log(`Leaving ${mode} call, roomId:`, currentRoomId, "duration:", duration);
 
     // End call signals
     if (currentRoomId) {
@@ -413,10 +438,14 @@ export function useVideoCall() {
       });
     }
 
-    // Stop media
+    // Stop media — only stop camera if it was a video call
     try {
-      cameraRef.current.stopCamera();
+      if (mode === "video" || s.isCameraOn) {
+        cameraRef.current.stopCamera();
+        log("Camera stopped");
+      }
       micRef.current.stopMicrophone();
+      log("Microphone stopped");
     } catch (e) {
       logWarn("Error stopping media:", e);
     }
@@ -425,7 +454,7 @@ export function useVideoCall() {
     leaveRoomRef.current();
 
     s.setCallEnded(duration);
-    log("Call ended, duration:", duration);
+    log(`[${mode.toUpperCase()}] Call ended, duration:`, duration);
   }, [stopDurationTimer, getStore]);
 
   // ── Toggle mute ────────────────────────────────────────────────────
@@ -448,27 +477,79 @@ export function useVideoCall() {
     }
   }, [getStore]);
 
-  // ── Toggle video (also upgrades audio → video) ─────────────────────
-  const toggleVideo = useCallback(() => {
+  // ── Escalate audio → video (explicit, permission-gated) ────────────
+  // This is the ONLY way to enable camera during an audio call.
+  // It requests camera permission, starts camera, then transitions mode.
+  const escalateToVideo = useCallback(async (): Promise<boolean> => {
     const s = getStore();
-    if (!s.isCameraOn) {
-      const frontId = getFrontCameraId();
-      cameraRef.current
-        .startCamera(frontId || null)
-        .then(() => {
+    if (s.callType === "video") {
+      log("Already in video mode, toggling camera");
+      // Already video — just toggle camera on/off
+      if (s.isCameraOn) {
+        cameraRef.current.stopCamera();
+        s.setCameraOn(false);
+        log("Camera stopped");
+      } else {
+        try {
+          const frontId = getFrontCameraId();
+          await cameraRef.current.startCamera(frontId || null);
           s.setCameraOn(true);
-          s.setCallType("video");
-          log("Camera started (video upgrade)");
-        })
-        .catch((e) => {
-          logError("Failed to start camera:", e);
-        });
-    } else {
-      cameraRef.current.stopCamera();
-      s.setCameraOn(false);
-      log("Camera stopped");
+          log("Camera restarted");
+        } catch (e) {
+          logError("Failed to restart camera:", e);
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Audio → Video escalation
+    log("[ESCALATION] Audio → Video: requesting camera permission...");
+
+    // Step 1: Request camera permission
+    const hasCamPerm = cameraRef.current.cameraDevices?.length > 0;
+    // We need to use the permission hook externally — for now, try starting camera
+    // If permission was never granted, startCamera will fail and we surface the error
+
+    // Step 2: Start camera
+    try {
+      const frontId = getFrontCameraId();
+      const [track, err] = await cameraRef.current.startCamera(frontId || null);
+      if (err) {
+        logError("[ESCALATION] Camera permission denied or start failed:", err);
+        s.setError(
+          "Camera permission required to switch to video. Open Settings to grant access.",
+          "escalation_camera_denied",
+        );
+        return false;
+      }
+
+      // Verify stream
+      if (!cameraRef.current.cameraStream) {
+        logError("[ESCALATION] Camera started but stream is null");
+        s.setError("Camera stream not available", "escalation_stream_null");
+        return false;
+      }
+
+      // Step 3: Transition mode THEN enable camera
+      s.escalateToVideo(); // callType: audio → video
+      s.setCameraOn(true); // Now safe — callType is "video"
+      log("[ESCALATION] Successfully upgraded to video call");
+      return true;
+    } catch (e) {
+      logError("[ESCALATION] Failed to start camera:", e);
+      s.setError(
+        "Failed to enable camera. Check permissions.",
+        "escalation_failed",
+      );
+      return false;
     }
   }, [getFrontCameraId, getStore]);
+
+  // ── Toggle video — delegates to escalation for audio mode ──────────
+  const toggleVideo = useCallback(() => {
+    escalateToVideo();
+  }, [escalateToVideo]);
 
   // ── Switch camera (front/back) ─────────────────────────────────────
   const switchCamera = useCallback(() => {
@@ -503,6 +584,8 @@ export function useVideoCall() {
   }, [stopDurationTimer]);
 
   // ── Derived state for consumers ────────────────────────────────────
+  const isAudioMode = store.callType === "audio";
+
   return {
     // State from store
     callPhase: store.callPhase,
@@ -522,12 +605,16 @@ export function useVideoCall() {
     cameraPermission: store.cameraPermission,
     micPermission: store.micPermission,
 
+    // Derived
+    isAudioMode,
+
     // Actions
     createCall,
     joinCall,
     leaveCall,
     toggleMute,
     toggleVideo,
+    escalateToVideo,
     switchCamera,
     resetCallEnded,
   };

@@ -146,11 +146,13 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-// ── Phase label for connecting states ────────────────────────────────
-function getPhaseLabel(phase: string): string {
+// ── Phase label for connecting states (mode-aware) ──────────────────
+function getPhaseLabel(phase: string, mode: string): string {
   switch (phase) {
     case "requesting_perms":
-      return "Requesting permissions...";
+      return mode === "audio"
+        ? "Requesting microphone..."
+        : "Requesting permissions...";
     case "creating_room":
       return "Creating call...";
     case "joining_room":
@@ -158,7 +160,7 @@ function getPhaseLabel(phase: string): string {
     case "connecting_peer":
       return "Connecting...";
     case "starting_media":
-      return "Starting camera...";
+      return mode === "audio" ? "Starting microphone..." : "Starting camera...";
     default:
       return "Connecting...";
   }
@@ -205,11 +207,13 @@ export default function VideoCallScreen() {
     errorCode,
     cameraPermission,
     micPermission,
+    isAudioMode,
     createCall,
     joinCall,
     leaveCall,
     toggleMute,
     toggleVideo,
+    escalateToVideo,
     switchCamera,
     resetCallEnded,
   } = useVideoCall();
@@ -266,6 +270,19 @@ export default function VideoCallScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleVideo();
   }, [toggleVideo]);
+
+  // Explicit escalation: audio → video (requests camera permission)
+  const handleEscalateToVideo = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const ok = await escalateToVideo();
+    if (!ok) {
+      showToast(
+        "error",
+        "Camera Unavailable",
+        "Could not enable camera. Check permissions in Settings.",
+      );
+    }
+  }, [escalateToVideo, showToast]);
 
   const handleSwitchCamera = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -404,7 +421,7 @@ export default function VideoCallScreen() {
           <View className="bg-card/90 px-5 py-2.5 rounded-full border border-border/30 flex-row items-center gap-2">
             <ActivityIndicator size="small" color="#3EA4E5" />
             <Text className="text-foreground text-sm font-medium">
-              {getPhaseLabel(callPhase)}
+              {getPhaseLabel(callPhase, callType)}
             </Text>
           </View>
         </View>
@@ -421,8 +438,13 @@ export default function VideoCallScreen() {
         </View>
       )}
 
-      {/* Video Grid / Audio UI */}
-      {callType === "audio" && isVideoOff ? (
+      {/* ════════════════════════════════════════════════════════════
+          AUDIO MODE: Avatar-based UI. NO RTCView. NO camera.
+          VIDEO MODE: Grid of VideoTiles with RTCView.
+          ════════════════════════════════════════════════════════════ */}
+      {isAudioMode ? (
+        // ── AUDIO CALL UI ──────────────────────────────────────────
+        // Explicitly excludes: RTCView, camera buttons, video layout
         <View className="flex-1 items-center justify-center gap-6">
           <View className="items-center gap-4">
             {user?.avatar ? (
@@ -447,15 +469,23 @@ export default function VideoCallScreen() {
             </Text>
           </View>
 
+          {/* Remote participant avatars */}
           {participants.length > 0 && (
             <View className="flex-row gap-4 mt-4">
               {participants.map((p) => (
                 <View key={p.oderId} className="items-center gap-2">
-                  <View className="w-16 h-16 rounded-full bg-card items-center justify-center border border-border">
-                    <Text className="text-foreground text-xl font-bold">
-                      {p.username?.charAt(0).toUpperCase() || "?"}
-                    </Text>
-                  </View>
+                  {p.avatar ? (
+                    <Image
+                      source={{ uri: p.avatar }}
+                      className="w-16 h-16 rounded-full border border-border"
+                    />
+                  ) : (
+                    <View className="w-16 h-16 rounded-full bg-card items-center justify-center border border-border">
+                      <Text className="text-foreground text-xl font-bold">
+                        {p.username?.charAt(0).toUpperCase() || "?"}
+                      </Text>
+                    </View>
+                  )}
                   <Text className="text-muted-foreground text-xs">
                     {p.username}
                   </Text>
@@ -468,6 +498,7 @@ export default function VideoCallScreen() {
           )}
         </View>
       ) : (
+        // ── VIDEO CALL UI ─────────────────────────────────────────
         <View className="flex-1 flex-row flex-wrap justify-center items-center p-2">
           <VideoTile
             stream={localStream}
@@ -500,11 +531,16 @@ export default function VideoCallScreen() {
         </View>
       )}
 
-      {/* Floating Controls Bar */}
+      {/* ════════════════════════════════════════════════════════════
+          FLOATING CONTROLS BAR — MODE-AWARE
+          AUDIO: Mic | Upgrade to Video | Participants | End
+          VIDEO: Mic | Camera | Switch Camera | Participants | End
+          ════════════════════════════════════════════════════════════ */}
       <View
         className="absolute left-4 right-4 flex-row items-center justify-center gap-4 px-6 py-4 bg-card/90 rounded-full border border-border/50"
         style={{ bottom: insets.bottom + 16 }}
       >
+        {/* Mic toggle — always present */}
         <Pressable
           className={`w-12 h-12 rounded-full items-center justify-center ${
             isMuted ? "bg-destructive" : "bg-muted/80"
@@ -518,26 +554,40 @@ export default function VideoCallScreen() {
           )}
         </Pressable>
 
-        <Pressable
-          className="w-12 h-12 rounded-full items-center justify-center bg-muted/80"
-          onPress={handleToggleVideo}
-        >
-          {isVideoOff ? (
-            <VideoOff size={22} color="rgba(255,255,255,0.5)" />
-          ) : (
-            <Video size={22} color="#fff" />
-          )}
-        </Pressable>
-
-        {!isVideoOff && (
+        {isAudioMode ? (
+          // AUDIO MODE: "Upgrade to Video" button (explicit escalation)
           <Pressable
             className="w-12 h-12 rounded-full items-center justify-center bg-muted/80"
-            onPress={handleSwitchCamera}
+            onPress={handleEscalateToVideo}
           >
-            <SwitchCamera size={22} color="#fff" />
+            <Video size={22} color="rgba(255,255,255,0.5)" />
           </Pressable>
+        ) : (
+          // VIDEO MODE: Camera toggle + Switch camera
+          <>
+            <Pressable
+              className="w-12 h-12 rounded-full items-center justify-center bg-muted/80"
+              onPress={handleToggleVideo}
+            >
+              {isVideoOff ? (
+                <VideoOff size={22} color="rgba(255,255,255,0.5)" />
+              ) : (
+                <Video size={22} color="#fff" />
+              )}
+            </Pressable>
+
+            {!isVideoOff && (
+              <Pressable
+                className="w-12 h-12 rounded-full items-center justify-center bg-muted/80"
+                onPress={handleSwitchCamera}
+              >
+                <SwitchCamera size={22} color="#fff" />
+              </Pressable>
+            )}
+          </>
         )}
 
+        {/* Participants — always present */}
         <Pressable
           className="w-12 h-12 rounded-full items-center justify-center bg-muted/80 relative"
           onPress={() => {
@@ -555,6 +605,7 @@ export default function VideoCallScreen() {
           )}
         </Pressable>
 
+        {/* End call — always present */}
         <Pressable
           className="w-14 h-14 rounded-full items-center justify-center bg-destructive"
           onPress={handleEndCall}

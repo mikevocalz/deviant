@@ -120,6 +120,9 @@ interface VideoRoomStoreActions {
   toggleFrontCamera: () => void;
   setLocalStream: (stream: MediaStream | null) => void;
 
+  // Escalation (audio → video)
+  escalateToVideo: () => void;
+
   // Error
   setError: (message: string, code?: string) => void;
   clearError: () => void;
@@ -217,13 +220,41 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
   setCameraPermission: (cameraPermission) => set({ cameraPermission }),
   setMicPermission: (micPermission) => set({ micPermission }),
 
-  // Media
-  setCameraOn: (isCameraOn) => set({ isCameraOn }),
+  // Media — with audio-mode guard
+  setCameraOn: (isCameraOn) => {
+    const { callType } = get();
+    if (isCameraOn && callType === "audio") {
+      console.error(
+        "[VideoStore] INVARIANT VIOLATION: setCameraOn(true) called in audio mode. " +
+          "Camera MUST NOT be enabled during audio calls. Use escalateToVideo() first.",
+      );
+      return; // Block — do NOT enable camera in audio mode
+    }
+    set({ isCameraOn });
+  },
   setMicOn: (isMicOn) => set({ isMicOn }),
-  toggleCamera: () => set((s) => ({ isCameraOn: !s.isCameraOn })),
+  toggleCamera: () => {
+    const { callType, isCameraOn } = get();
+    if (!isCameraOn && callType === "audio") {
+      console.error(
+        "[VideoStore] INVARIANT VIOLATION: toggleCamera() in audio mode. " +
+          "Use escalateToVideo() to upgrade call first.",
+      );
+      return;
+    }
+    set({ isCameraOn: !isCameraOn });
+  },
   toggleMic: () => set((s) => ({ isMicOn: !s.isMicOn })),
   toggleFrontCamera: () => set((s) => ({ isFrontCamera: !s.isFrontCamera })),
   setLocalStream: (localStream) => set({ localStream }),
+
+  // Escalation (audio → video) — explicit mode transition
+  escalateToVideo: () => {
+    const prev = get();
+    if (prev.callType === "video") return; // already video
+    console.log("[VideoStore] Escalating call: audio → video");
+    set({ callType: "video" });
+  },
 
   // Error
   setError: (message, code) => {
