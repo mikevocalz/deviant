@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { storage } from "@/lib/utils/storage";
+import {
+  storage,
+  clearAuthStorage,
+  clearUserDataFromStorage,
+} from "@/lib/utils/storage";
 import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
 import { syncAuthUser } from "@/lib/api/privileged";
@@ -78,7 +82,12 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           console.error("[AuthStore] logout error:", error);
         }
+        // CRITICAL: Clear persisted state immediately to prevent identity leak
+        // If another user logs in on this device, they must NOT see stale data
         set({ user: null, isAuthenticated: false });
+        clearAuthStorage();
+        clearUserDataFromStorage();
+        clearUserRowCache();
       },
 
       loadAuthState: async () => {
@@ -96,7 +105,20 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           if (session?.user) {
-            console.log("[AuthStore] Found session for user:", session.user.id);
+            const sessionAuthId = session.user.id;
+            console.log("[AuthStore] Found session for user:", sessionAuthId);
+
+            // CRITICAL: Identity isolation check
+            // If persisted user doesn't match the current session, clear stale data
+            // This prevents User A's data from showing when User B logs in
+            const persistedUser = get().user;
+            if (persistedUser && persistedUser.id !== sessionAuthId) {
+              console.warn(
+                `[AuthStore] IDENTITY MISMATCH: persisted=${persistedUser.id} (${persistedUser.username}) vs session=${sessionAuthId}. Clearing stale data.`,
+              );
+              set({ user: null, isAuthenticated: false });
+              clearUserRowCache();
+            }
 
             // Sync user via Edge Function - this ensures we have a valid users row
             // with the correct auth_id mapping

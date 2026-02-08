@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase/client";
+import { getBetterAuthToken } from "@/lib/auth/identity";
 import type {
   VideoRoom,
   JoinRoomResponse,
@@ -25,28 +26,37 @@ async function callEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<ApiResponse<T>> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const token = await getBetterAuthToken();
 
-  if (!session?.access_token) {
+  if (!token) {
     return {
       ok: false,
       error: { code: "unauthorized", message: "Not authenticated" },
     };
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/${functionName}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/functions/v1/${functionName}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      },
+    );
 
-  const data = await response.json();
-  return data as ApiResponse<T>;
+    const data = await response.json();
+    return data as ApiResponse<T>;
+  } catch (error) {
+    console.error(`[VideoApi] ${functionName} error:`, error);
+    return {
+      ok: false,
+      error: { code: "internal_error", message: "Network error" },
+    };
+  }
 }
 
 export const videoApi = {

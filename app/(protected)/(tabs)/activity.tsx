@@ -164,6 +164,7 @@ export default function ActivityScreen() {
     fetchFromBackend,
     getUnreadCount,
     getRouteForActivity,
+    subscribeToNotifications,
   } = useActivityStore();
   const { loadingScreens, setScreenLoading } = useUIStore();
   const isLoading = loadingScreens.activity;
@@ -180,6 +181,14 @@ export default function ActivityScreen() {
     };
     loadActivities();
   }, [loadInitialActivities, setScreenLoading]);
+
+  // Realtime subscription for instant notifications (follow, like, comment, etc.)
+  useEffect(() => {
+    const unsubscribe = subscribeToNotifications();
+    return () => {
+      unsubscribe?.();
+    };
+  }, [subscribeToNotifications]);
 
   // Refetch when tab is focused (ensures new follow notifications appear)
   useFocusEffect(

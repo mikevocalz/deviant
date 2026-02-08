@@ -9,7 +9,8 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -19,7 +20,12 @@ const CreateRoomSchema = z.object({
   maxParticipants: z.number().int().min(2).max(50).default(10),
 });
 
-type ErrorCode = "unauthorized" | "forbidden" | "rate_limited" | "validation_error" | "internal_error";
+type ErrorCode =
+  | "unauthorized"
+  | "forbidden"
+  | "rate_limited"
+  | "validation_error"
+  | "internal_error";
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -34,7 +40,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string, status = 400): Response {
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  status = 400,
+): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
@@ -50,23 +60,35 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-    if (authError || !user) {
-      console.error("[video_create_room] Auth error:", authError?.message);
-      return errorResponse("unauthorized", "Invalid token", 401);
+    // Verify Better Auth session via direct DB lookup
+    const { data: session, error: sessionError } = await supabase
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", jwt)
+      .single();
+
+    if (sessionError || !session) {
+      console.error("[video_create_room] Auth error: no valid session");
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
+    }
+    if (new Date(session.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired", 401);
     }
 
-    const userId = user.id;
+    const userId = session.userId;
 
     // Parse and validate input
     let body: unknown;
@@ -78,7 +100,11 @@ serve(async (req: Request) => {
 
     const parsed = CreateRoomSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse("validation_error", parsed.error.errors[0].message, 400);
+      return errorResponse(
+        "validation_error",
+        parsed.error.errors[0].message,
+        400,
+      );
     }
 
     const { title, isPublic, maxParticipants } = parsed.data;
@@ -93,7 +119,11 @@ serve(async (req: Request) => {
     });
 
     if (!canCreate) {
-      return errorResponse("rate_limited", "Too many room creations. Try again later.", 429);
+      return errorResponse(
+        "rate_limited",
+        "Too many room creations. Try again later.",
+        429,
+      );
     }
 
     // Record rate limit attempt
@@ -117,7 +147,10 @@ serve(async (req: Request) => {
       .single();
 
     if (roomError) {
-      console.error("[video_create_room] Room creation error:", roomError.message);
+      console.error(
+        "[video_create_room] Room creation error:",
+        roomError.message,
+      );
       return errorResponse("internal_error", "Failed to create room", 500);
     }
 
@@ -132,7 +165,10 @@ serve(async (req: Request) => {
       });
 
     if (memberError) {
-      console.error("[video_create_room] Member creation error:", memberError.message);
+      console.error(
+        "[video_create_room] Member creation error:",
+        memberError.message,
+      );
       // Cleanup room on failure
       await supabase.from("video_rooms").delete().eq("id", room.id);
       return errorResponse("internal_error", "Failed to add host to room", 500);
@@ -146,7 +182,9 @@ serve(async (req: Request) => {
       payload: { title, isPublic, maxParticipants },
     });
 
-    console.log(`[video_create_room] Room created: ${room.id} by user ${userId}`);
+    console.log(
+      `[video_create_room] Room created: ${room.id} by user ${userId}`,
+    );
 
     return jsonResponse({
       ok: true,

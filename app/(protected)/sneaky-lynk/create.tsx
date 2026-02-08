@@ -20,6 +20,7 @@ import { useState, useCallback } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
+import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 
 export default function CreateLynkScreen() {
   const router = useRouter();
@@ -42,7 +43,6 @@ export default function CreateLynkScreen() {
 
     setIsCreating(true);
     try {
-      // TODO: Call API to create room
       console.log("[CreateLynk] Creating room:", {
         title: title.trim(),
         description: description.trim(),
@@ -50,10 +50,20 @@ export default function CreateLynkScreen() {
         isPublic,
       });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Create room via Edge Function (persists to DB, visible to all users)
+      const result = await sneakyLynkApi.createRoom({
+        title: title.trim(),
+        topic: description.trim() || "Live conversation",
+        description: description.trim(),
+        hasVideo,
+        isPublic,
+      });
 
-      const roomId = `space-${Date.now()}`;
+      if (!result.ok || !result.data) {
+        throw new Error(result.error?.message || "Failed to create room");
+      }
+
+      const roomId = result.data.room?.id || `space-${Date.now()}`;
 
       // Record room in local history so it shows on the Lynks tab
       addRoom({

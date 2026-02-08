@@ -82,16 +82,21 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(jwt);
-    if (authError || !user) {
-      return errorResponse("unauthorized", "Invalid token", 401);
+    // Verify Better Auth session via direct DB lookup
+    const { data: session, error: sessionError } = await supabase
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", jwt)
+      .single();
+
+    if (sessionError || !session) {
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
+    }
+    if (new Date(session.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired", 401);
     }
 
-    const userId = user.id;
+    const userId = session.userId;
 
     // Parse input
     let body: unknown;

@@ -40,6 +40,7 @@ import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
+import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
@@ -167,7 +168,15 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
+    // Local rooms are always hosted by the creator — end in DB too
+    try {
+      await sneakyLynkApi.endRoom(id);
+      console.log("[SneakyLynk:Local] Room ended in DB:", id);
+    } catch (e) {
+      // Non-fatal: room may not exist in DB (legacy local-only rooms)
+      console.warn("[SneakyLynk:Local] Failed to end room in DB:", e);
+    }
     endRoom(id, storeListeners.length);
     router.back();
   }, [router, id, endRoom, storeListeners.length]);
@@ -367,10 +376,19 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const handleLeave = useCallback(() => {
+  const handleLeave = useCallback(async () => {
+    // If host, end the room in the database so all users see it as ended
+    if (isHost) {
+      try {
+        await sneakyLynkApi.endRoom(id);
+        console.log("[SneakyLynk:Server] Room ended in DB:", id);
+      } catch (e) {
+        console.error("[SneakyLynk:Server] Failed to end room in DB:", e);
+      }
+    }
     endRoomHistory(id, storeListeners.length);
     router.back();
-  }, [router, id, endRoomHistory, storeListeners.length]);
+  }, [router, id, endRoomHistory, storeListeners.length, isHost]);
   const handleToggleMic = useCallback(
     async () => videoRoom.toggleMic(),
     [videoRoom],

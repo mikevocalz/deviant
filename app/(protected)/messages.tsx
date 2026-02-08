@@ -35,6 +35,8 @@ import {
   type LynkRecord,
 } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
+import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { useFocusEffect } from "expo-router";
 
 interface ConversationItem {
   id: string;
@@ -164,7 +166,60 @@ function SneakyLynkContent({
 }: {
   router: ReturnType<typeof useRouter>;
 }) {
-  const rooms = useLynkHistoryStore((s) => s.rooms);
+  const localRooms = useLynkHistoryStore((s) => s.rooms);
+  const endRoom = useLynkHistoryStore((s) => s.endRoom);
+  const addRoom = useLynkHistoryStore((s) => s.addRoom);
+  const [dbRooms, setDbRooms] = useState<LynkRecord[]>([]);
+
+  // Fetch live rooms from database on focus so all users see them
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const liveRooms = await sneakyLynkApi.getLiveRooms();
+          if (cancelled) return;
+          const mapped: LynkRecord[] = liveRooms.map((r) => ({
+            id: r.id,
+            title: r.title,
+            topic: r.topic,
+            description: r.description,
+            isLive: r.status === "open",
+            hasVideo: r.hasVideo,
+            isPublic: r.isPublic,
+            status: r.status,
+            host: r.host,
+            speakers: r.speakers || [],
+            listeners: r.listeners || 0,
+            createdAt: r.createdAt,
+            endedAt: r.endedAt,
+          }));
+          setDbRooms(mapped);
+
+          // Sync: mark local rooms as ended if they're no longer open in DB
+          const liveIds = new Set(liveRooms.map((r) => r.id));
+          for (const local of localRooms) {
+            if (local.isLive && !liveIds.has(local.id)) {
+              endRoom(local.id);
+            }
+          }
+        } catch (err) {
+          console.error("[SneakyLynk] Failed to fetch live rooms:", err);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [localRooms, endRoom]),
+  );
+
+  // Merge: DB rooms take priority, then local-only rooms
+  const allRooms = useCallback(() => {
+    const dbIds = new Set(dbRooms.map((r) => r.id));
+    const localOnly = localRooms.filter((r) => !dbIds.has(r.id));
+    // DB rooms first (live), then local-only (may include ended)
+    return [...dbRooms, ...localOnly];
+  }, [dbRooms, localRooms])();
 
   const handleCreateLynk = useCallback(() => {
     router.push("/(protected)/sneaky-lynk/create" as any);
@@ -198,9 +253,9 @@ function SneakyLynkContent({
         </TouchableOpacity>
       </View>
 
-      {rooms.length > 0 ? (
+      {allRooms.length > 0 ? (
         <ScrollView contentContainerStyle={lynkStyles.liveList}>
-          {rooms.map((room) => (
+          {allRooms.map((room) => (
             <LiveRoomCard
               key={room.id}
               space={room}

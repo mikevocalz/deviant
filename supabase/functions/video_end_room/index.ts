@@ -76,16 +76,34 @@ serve(async (req: Request) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Verify user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(jwt);
-    if (authError || !user) {
-      return errorResponse("unauthorized", "Invalid token", 401);
+    // Verify Better Auth session via direct DB lookup
+    const { data: session, error: sessionError } = await supabase
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", jwt)
+      .single();
+
+    if (sessionError || !session) {
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
+    }
+    if (new Date(session.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired", 401);
     }
 
-    const actorId = user.id;
+    const actorAuthId = session.userId;
+
+    // Get the user's integer ID for room membership checks
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", actorAuthId)
+      .single();
+
+    if (userError || !userData) {
+      return errorResponse("not_found", "User not found", 404);
+    }
+
+    const actorId = actorAuthId;
 
     // Parse input
     let body: unknown;

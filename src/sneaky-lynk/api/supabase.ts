@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase/client";
+import { getBetterAuthToken } from "@/lib/auth/identity";
 import type { CreateRoomParams, JoinRoomResponse, SneakyRoom } from "../types";
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
@@ -23,18 +24,11 @@ interface ApiResponse<T = unknown> {
   error?: { code: ErrorCode; message: string };
 }
 
-async function getAuthToken(): Promise<string | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
-
 async function callEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<ApiResponse<T>> {
-  const token = await getAuthToken();
+  const token = await getBetterAuthToken();
   if (!token) {
     return {
       ok: false,
@@ -149,36 +143,102 @@ export const sneakyLynkApi = {
   },
 
   /**
-   * Get live rooms list
-   * TODO: Replace with real Supabase query
+   * Get live rooms list from video_rooms table
    */
-  async getLiveRooms(topic?: string): Promise<SneakyRoom[]> {
-    // TODO: Implement real query
-    // const { data, error } = await supabase
-    //   .from("sneaky_rooms")
-    //   .select(`
-    //     *,
-    //     host:created_by(id, username, avatar, is_verified),
-    //     members:sneaky_room_members(
-    //       user:user_id(id, username, avatar, is_verified),
-    //       role
-    //     )
-    //   `)
-    //   .eq("is_live", true)
-    //   .eq("status", "open")
-    //   .order("created_at", { ascending: false });
+  async getLiveRooms(): Promise<SneakyRoom[]> {
+    try {
+      const { data, error } = await supabase
+        .from("video_rooms")
+        .select(
+          `
+          *,
+          creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
+        `,
+        )
+        .eq("status", "open")
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-    console.log("[SneakyLynk] getLiveRooms - using mock data");
-    return [];
+      if (error) {
+        console.error("[SneakyLynk] getLiveRooms error:", error.message);
+        return [];
+      }
+
+      return (data || []).map((r: any) => ({
+        id: String(r.id),
+        createdBy: r.created_by || "",
+        title: r.title || "Untitled Lynk",
+        topic: r.topic || "",
+        description: r.description || "",
+        isLive: r.status === "open",
+        hasVideo: r.has_video ?? false,
+        isPublic: r.is_public ?? true,
+        status: r.status as "open" | "ended",
+        createdAt: r.created_at,
+        endedAt: r.ended_at || undefined,
+        host: {
+          id: String(r.creator?.id || ""),
+          username: r.creator?.username || "unknown",
+          displayName:
+            r.creator?.first_name || r.creator?.username || "unknown",
+          avatar: r.creator?.avatar?.url || "",
+          isVerified: r.creator?.verified || false,
+        },
+        speakers: [],
+        listeners: 0,
+        fishjamRoomId: r.fishjam_room_id || undefined,
+      }));
+    } catch (error) {
+      console.error("[SneakyLynk] getLiveRooms error:", error);
+      return [];
+    }
   },
 
   /**
    * Get room by ID
-   * TODO: Replace with real Supabase query
    */
   async getRoomById(roomId: string): Promise<SneakyRoom | null> {
-    // TODO: Implement real query
-    console.log("[SneakyLynk] getRoomById - using mock data", roomId);
-    return null;
+    try {
+      const { data, error } = await supabase
+        .from("video_rooms")
+        .select(
+          `
+          *,
+          creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
+        `,
+        )
+        .eq("id", roomId)
+        .single();
+
+      if (error || !data) return null;
+
+      return {
+        id: String(data.id),
+        createdBy: data.created_by || "",
+        title: data.title || "Untitled Lynk",
+        topic: data.topic || "",
+        description: data.description || "",
+        isLive: data.status === "open",
+        hasVideo: data.has_video ?? false,
+        isPublic: data.is_public ?? true,
+        status: data.status as "open" | "ended",
+        createdAt: data.created_at,
+        endedAt: data.ended_at || undefined,
+        host: {
+          id: String(data.creator?.id || ""),
+          username: data.creator?.username || "unknown",
+          displayName:
+            data.creator?.first_name || data.creator?.username || "unknown",
+          avatar: data.creator?.avatar?.url || "",
+          isVerified: data.creator?.verified || false,
+        },
+        speakers: [],
+        listeners: 0,
+        fishjamRoomId: data.fishjam_room_id || undefined,
+      };
+    } catch (error) {
+      console.error("[SneakyLynk] getRoomById error:", error);
+      return null;
+    }
   },
 };

@@ -5,6 +5,8 @@ import {
   type NotificationType,
 } from "@/lib/api/notifications";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { supabase } from "@/lib/supabase/client";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 
 // Activity types (excludes 'message' - messages are handled separately)
 export type ActivityType =
@@ -59,6 +61,7 @@ interface ActivityState {
   getUnreadCount: () => number;
   getRouteForActivity: (activity: Activity) => string;
   syncUnreadCount: () => void;
+  subscribeToNotifications: () => (() => void) | undefined;
   reset: () => void;
 }
 
@@ -259,7 +262,6 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         }
         return `/(protected)/events`;
     }
-
   },
 
   // Sync unread count to the unified store
@@ -267,6 +269,48 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     const unreadCount = get().getUnreadCount();
     useUnreadCountsStore.getState().setNotificationsUnread(unreadCount);
     console.log("[ActivityStore] syncUnreadCount:", unreadCount);
+  },
+
+  // Subscribe to realtime notifications for instant updates
+  subscribeToNotifications: () => {
+    const userId = getCurrentUserIdInt();
+    if (!userId) {
+      console.log("[ActivityStore] No user ID for realtime subscription");
+      return undefined;
+    }
+
+    console.log(
+      "[ActivityStore] Subscribing to realtime notifications for user:",
+      userId,
+    );
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `recipient_id=eq.${userId}`,
+        },
+        async (payload) => {
+          console.log(
+            "[ActivityStore] Realtime notification received:",
+            payload.new?.type,
+          );
+          // Refetch all notifications to get full actor data (the INSERT payload
+          // doesn't include the joined actor info)
+          await get().fetchFromBackend();
+        },
+      )
+      .subscribe((status) => {
+        console.log("[ActivityStore] Realtime subscription status:", status);
+      });
+
+    return () => {
+      console.log("[ActivityStore] Unsubscribing from realtime notifications");
+      supabase.removeChannel(channel);
+    };
   },
 
   reset: () => {

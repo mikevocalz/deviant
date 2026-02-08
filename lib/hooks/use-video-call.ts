@@ -85,13 +85,15 @@ export function useVideoCall() {
 
   // Sync remote peers into participants
   useEffect(() => {
-    const remoteParticipants: Participant[] = peers.map((peer: any) => ({
-      oderId: peer.metadata?.userId ?? peer.id,
-      username: peer.metadata?.username ?? "?",
-      isMuted: !peer.audioTrack,
-      isVideoOff: !peer.videoTrack,
-      stream: peer.videoTrack?.stream ?? peer.audioTrack?.stream ?? undefined,
-    }));
+    const remoteParticipants: Participant[] = (peers.remotePeers || []).map(
+      (peer: any) => ({
+        oderId: peer.metadata?.userId ?? peer.id,
+        username: peer.metadata?.username ?? "?",
+        isMuted: !peer.audioTrack,
+        isVideoOff: !peer.videoTrack,
+        stream: peer.videoTrack?.stream ?? peer.audioTrack?.stream ?? undefined,
+      }),
+    );
     setState((s) => ({ ...s, participants: remoteParticipants }));
   }, [peers]);
 
@@ -238,8 +240,13 @@ export function useVideoCall() {
   // Switch camera
   const switchCamera = useCallback(async () => {
     const cam = cameraRef.current;
-    if (typeof cam.switchCamera === "function") {
-      cam.switchCamera();
+    // Fishjam SDK doesn't expose switchCamera directly;
+    // toggle camera off then on to cycle device
+    try {
+      cam.stopCamera();
+      await cam.startCamera();
+    } catch (e) {
+      console.warn("[VideoCall] switchCamera fallback error:", e);
     }
   }, []);
 
