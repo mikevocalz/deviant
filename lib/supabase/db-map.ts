@@ -116,6 +116,13 @@ export const DB = {
     isOnline: "is_online",
     createdAt: "created_at",
   },
+  eventLikes: {
+    table: "event_likes",
+    id: "id",
+    eventId: "event_id",
+    userId: "user_id",
+    createdAt: "created_at",
+  },
   eventRsvps: {
     table: "event_rsvps",
     id: "id",

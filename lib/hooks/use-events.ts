@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 
 // Event type for components
 export interface Event {
@@ -39,6 +40,7 @@ export const eventKeys = {
   detail: (id: string) => [...eventKeys.all, "detail", id] as const,
   byCategory: (category: string) =>
     [...eventKeys.all, "category", category] as const,
+  liked: (userId: number) => [...eventKeys.all, "liked", userId] as const,
 };
 
 // Fetch all events
@@ -217,6 +219,16 @@ export function useDeleteEvent() {
       );
       // No need to invalidate - optimistic update already removed the event
     },
+  });
+}
+
+// Fetch events liked/saved by the current user
+export function useLikedEvents() {
+  const userId = getCurrentUserIdInt();
+  return useQuery({
+    queryKey: eventKeys.liked(userId || 0),
+    queryFn: () => eventsApiClient.getLikedEvents(userId!),
+    enabled: !!userId,
   });
 }
 

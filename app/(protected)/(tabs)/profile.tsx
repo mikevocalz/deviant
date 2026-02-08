@@ -19,6 +19,7 @@ import {
   Camera,
   Grid3x3,
   CalendarDays,
+  Heart,
 } from "lucide-react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -39,7 +40,7 @@ import { Motion } from "@legendapp/motion";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
 import { useMyProfile } from "@/lib/hooks/use-profile";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
-import { useMyEvents } from "@/lib/hooks/use-events";
+import { useMyEvents, useLikedEvents } from "@/lib/hooks/use-events";
 import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
@@ -518,6 +519,9 @@ function ProfileScreenContent() {
   // Fetch user's events (hosting + RSVP'd)
   const { data: myEvents = [] } = useMyEvents();
 
+  // Fetch user's liked/saved events
+  const { data: likedEvents = [] } = useLikedEvents();
+
   // Select display posts based on active tab - fully typed
   const displayPosts: SafeGridTile[] = useMemo(() => {
     switch (activeTab) {
@@ -796,93 +800,234 @@ function ProfileScreenContent() {
           testID={`profile.${user?.id}.grid`}
         >
           {activeTab === "events" ? (
-            myEvents.length > 0 ? (
-              <View className="px-4 gap-3 pt-2">
-                {myEvents.map((event: any, index: number) => (
-                  <Motion.View
-                    key={`event-${event.id}-${index}`}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{
-                      type: "spring",
-                      damping: 20,
-                      stiffness: 100,
-                      delay: index * 0.05,
+            <View className="px-4 pt-2">
+              {/* My Events Section */}
+              {myEvents.length > 0 && (
+                <View className="mb-4">
+                  <Text
+                    style={{
+                      color: "#a3a3a3",
+                      fontSize: 13,
+                      fontWeight: "600",
+                      marginBottom: 8,
+                      textTransform: "uppercase",
+                      letterSpacing: 0.5,
                     }}
                   >
-                    <Pressable
-                      onPress={() =>
-                        router.push(`/(protected)/events/${event.id}` as any)
-                      }
-                      className="flex-row items-center gap-3 p-3 rounded-xl"
+                    My Events
+                  </Text>
+                  <View style={{ gap: 10 }}>
+                    {myEvents.map((event: any, index: number) => (
+                      <Motion.View
+                        key={`myevent-${event.id}-${index}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{
+                          type: "spring",
+                          damping: 20,
+                          stiffness: 100,
+                          delay: index * 0.05,
+                        }}
+                      >
+                        <Pressable
+                          onPress={() =>
+                            router.push(
+                              `/(protected)/events/${event.id}` as any,
+                            )
+                          }
+                          className="flex-row items-center gap-3 p-3 rounded-xl"
+                          style={{
+                            backgroundColor: "rgba(28, 28, 28, 0.6)",
+                            borderColor: "rgba(62, 164, 229, 0.15)",
+                            borderWidth: 1,
+                          }}
+                        >
+                          {event.image ? (
+                            <Image
+                              source={{ uri: event.image }}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 10,
+                                backgroundColor: "#1a1a1a",
+                              }}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 10,
+                                backgroundColor: "#1a1a1a",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <CalendarDays size={24} color="#737373" />
+                            </View>
+                          )}
+                          <View className="flex-1">
+                            <Text
+                              className="text-foreground font-semibold text-sm"
+                              numberOfLines={1}
+                            >
+                              {event.title}
+                            </Text>
+                            {event.date && (
+                              <Text className="text-muted-foreground text-xs mt-0.5">
+                                {new Date(event.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  },
+                                )}
+                              </Text>
+                            )}
+                            {event.location && (
+                              <Text
+                                className="text-muted-foreground text-xs mt-0.5"
+                                numberOfLines={1}
+                              >
+                                {event.location}
+                              </Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      </Motion.View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Liked Events Section */}
+              {likedEvents.length > 0 && (
+                <View className="mb-4">
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Heart size={13} color="#FF5BFC" fill="#FF5BFC" />
+                    <Text
                       style={{
-                        backgroundColor: "rgba(28, 28, 28, 0.6)",
-                        borderColor: "rgba(68, 68, 68, 0.5)",
-                        borderWidth: 1,
+                        color: "#a3a3a3",
+                        fontSize: 13,
+                        fontWeight: "600",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
                       }}
                     >
-                      {event.image ? (
-                        <Image
-                          source={{ uri: event.image }}
+                      Liked Events
+                    </Text>
+                  </View>
+                  <View style={{ gap: 10 }}>
+                    {likedEvents.map((event: any, index: number) => (
+                      <Motion.View
+                        key={`liked-${event.id}-${index}`}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{
+                          type: "spring",
+                          damping: 20,
+                          stiffness: 100,
+                          delay: index * 0.05,
+                        }}
+                      >
+                        <Pressable
+                          onPress={() =>
+                            router.push(
+                              `/(protected)/events/${event.id}` as any,
+                            )
+                          }
+                          className="flex-row items-center gap-3 p-3 rounded-xl"
                           style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 10,
-                            backgroundColor: "#1a1a1a",
-                          }}
-                          contentFit="cover"
-                        />
-                      ) : (
-                        <View
-                          style={{
-                            width: 56,
-                            height: 56,
-                            borderRadius: 10,
-                            backgroundColor: "#1a1a1a",
-                            alignItems: "center",
-                            justifyContent: "center",
+                            backgroundColor: "rgba(28, 28, 28, 0.6)",
+                            borderColor: "rgba(255, 91, 252, 0.15)",
+                            borderWidth: 1,
                           }}
                         >
-                          <CalendarDays size={24} color="#737373" />
-                        </View>
-                      )}
-                      <View className="flex-1">
-                        <Text
-                          className="text-foreground font-semibold text-sm"
-                          numberOfLines={1}
-                        >
-                          {event.title}
-                        </Text>
-                        {event.date && (
-                          <Text className="text-muted-foreground text-xs mt-0.5">
-                            {new Date(event.date).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </Text>
-                        )}
-                        {event.location && (
-                          <Text
-                            className="text-muted-foreground text-xs mt-0.5"
-                            numberOfLines={1}
-                          >
-                            {event.location}
-                          </Text>
-                        )}
-                      </View>
-                    </Pressable>
-                  </Motion.View>
-                ))}
-              </View>
-            ) : (
-              <View className="items-center justify-center py-16">
-                <CalendarDays size={48} color={colors.mutedForeground} />
-                <Text className="mt-4 text-base text-muted-foreground">
-                  No events yet
-                </Text>
-              </View>
-            )
+                          {event.image ? (
+                            <Image
+                              source={{ uri: event.image }}
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 10,
+                                backgroundColor: "#1a1a1a",
+                              }}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: 56,
+                                height: 56,
+                                borderRadius: 10,
+                                backgroundColor: "#1a1a1a",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Heart size={24} color="#FF5BFC" />
+                            </View>
+                          )}
+                          <View className="flex-1">
+                            <Text
+                              className="text-foreground font-semibold text-sm"
+                              numberOfLines={1}
+                            >
+                              {event.title}
+                            </Text>
+                            {event.date && (
+                              <Text className="text-muted-foreground text-xs mt-0.5">
+                                {new Date(event.date).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  },
+                                )}
+                              </Text>
+                            )}
+                            {event.location && (
+                              <Text
+                                className="text-muted-foreground text-xs mt-0.5"
+                                numberOfLines={1}
+                              >
+                                {event.location}
+                              </Text>
+                            )}
+                          </View>
+                          <Heart
+                            size={16}
+                            color="#FF5BFC"
+                            fill="#FF5BFC"
+                            style={{ marginRight: 4 }}
+                          />
+                        </Pressable>
+                      </Motion.View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Empty state */}
+              {myEvents.length === 0 && likedEvents.length === 0 && (
+                <View className="items-center justify-center py-16">
+                  <CalendarDays size={48} color={colors.mutedForeground} />
+                  <Text className="mt-4 text-base text-muted-foreground">
+                    No events yet
+                  </Text>
+                </View>
+              )}
+            </View>
           ) : displayPosts.length > 0 ? (
             <View className="flex-row flex-wrap">
               {displayPosts.map((item: SafeGridTile, index: number) => (

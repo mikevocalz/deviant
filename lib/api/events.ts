@@ -487,6 +487,143 @@ export const eventsApi = {
   },
 
   /**
+   * Like an event (save it)
+   */
+  async likeEvent(eventId: string): Promise<boolean> {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) throw new Error("Not authenticated");
+
+      const { error } = await supabase.from(DB.eventLikes.table).upsert(
+        {
+          [DB.eventLikes.eventId]: parseInt(eventId),
+          [DB.eventLikes.userId]: userId,
+        },
+        { onConflict: "event_id,user_id" },
+      );
+
+      if (error) throw error;
+      console.log("[Events] likeEvent:", eventId);
+      return true;
+    } catch (error) {
+      console.error("[Events] likeEvent error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Unlike an event (unsave it)
+   */
+  async unlikeEvent(eventId: string): Promise<boolean> {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from(DB.eventLikes.table)
+        .delete()
+        .eq(DB.eventLikes.eventId, parseInt(eventId))
+        .eq(DB.eventLikes.userId, userId);
+
+      if (error) throw error;
+      console.log("[Events] unlikeEvent:", eventId);
+      return true;
+    } catch (error) {
+      console.error("[Events] unlikeEvent error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Check if current user has liked an event
+   */
+  async isEventLiked(eventId: string): Promise<boolean> {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) return false;
+
+      const { data, error } = await supabase
+        .from(DB.eventLikes.table)
+        .select("id")
+        .eq(DB.eventLikes.eventId, parseInt(eventId))
+        .eq(DB.eventLikes.userId, userId)
+        .maybeSingle();
+
+      return !!data && !error;
+    } catch (error) {
+      return false;
+    }
+  },
+
+  /**
+   * Get events liked by a user (for profile)
+   */
+  async getLikedEvents(userId: number, limit: number = 20) {
+    try {
+      const { data: likes, error } = await supabase
+        .from(DB.eventLikes.table)
+        .select(DB.eventLikes.eventId)
+        .eq(DB.eventLikes.userId, userId)
+        .order(DB.eventLikes.createdAt, { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      if (!likes || likes.length === 0) return [];
+
+      const eventIds = likes.map((l: any) => l[DB.eventLikes.eventId]);
+
+      const { data: events, error: eventsError } = await supabase
+        .from(DB.events.table)
+        .select("*")
+        .in(DB.events.id, eventIds);
+
+      if (eventsError) throw eventsError;
+
+      // Fetch host data
+      const hostIds = [
+        ...new Set(
+          (events || []).map((e: any) => e[DB.events.hostId]).filter(Boolean),
+        ),
+      ];
+      let hostsMap = new Map();
+
+      if (hostIds.length > 0) {
+        const { data: hosts } = await supabase
+          .from(DB.users.table)
+          .select(
+            `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+          )
+          .in(DB.users.authId, hostIds);
+
+        hostsMap = new Map(
+          (hosts || []).map((h: any) => [h[DB.users.authId], h]),
+        );
+      }
+
+      return (events || []).map((event: any) => {
+        const host = hostsMap.get(event[DB.events.hostId]);
+        return {
+          id: String(event[DB.events.id]),
+          title: event[DB.events.title],
+          description: event[DB.events.description],
+          date: event[DB.events.startDate],
+          location: event[DB.events.location],
+          image: event[DB.events.coverImageUrl] || "",
+          price: Number(event[DB.events.price]) || 0,
+          attendees: Number(event[DB.events.totalAttendees]) || 0,
+          host: {
+            username: host?.[DB.users.username] || "unknown",
+            avatar: host?.avatar?.url || "",
+          },
+        };
+      });
+    } catch (error) {
+      console.error("[Events] getLikedEvents error:", error);
+      return [];
+    }
+  },
+
+  /**
    * Get event comments (placeholder - schema may not support this yet)
    */
   async getEventComments(_eventId: string, _limit: number = 10) {

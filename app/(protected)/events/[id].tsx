@@ -8,6 +8,9 @@ import {
   StatusBar,
 } from "react-native";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { eventKeys } from "@/lib/hooks/use-events";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -186,6 +189,7 @@ export default function EventDetailScreen() {
   const { hasValidTicket, setTicket } = useTicketStore();
   const showToast = useUIStore((s) => s.showToast);
   const { user } = useAuthStore();
+  const queryClient = useQueryClient();
 
   // ── Local UI state ──────────────────────────────────────────────────
   const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null);
@@ -193,6 +197,7 @@ export default function EventDetailScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [eventData, setEventData] = useState<EventDetail | null>(null);
+  const [isLiked, setIsLiked] = useState(false);
   const scrollY = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -262,6 +267,36 @@ export default function EventDetailScreen() {
   useEffect(() => {
     fetchEvent();
   }, [fetchEvent]);
+
+  // Check if user has liked this event
+  useEffect(() => {
+    if (!eventId) return;
+    eventsApi
+      .isEventLiked(eventId)
+      .then(setIsLiked)
+      .catch(() => {});
+  }, [eventId]);
+
+  const handleToggleLike = useCallback(async () => {
+    if (!eventId) return;
+    const wasLiked = isLiked;
+    setIsLiked(!wasLiked);
+    try {
+      if (wasLiked) {
+        await eventsApi.unlikeEvent(eventId);
+      } else {
+        await eventsApi.likeEvent(eventId);
+        showToast("success", "Saved", "Event added to your liked events");
+      }
+      // Invalidate liked events cache so profile updates
+      const uid = getCurrentUserIdInt();
+      if (uid)
+        queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
+    } catch (err) {
+      setIsLiked(wasLiked);
+      showToast("error", "Error", "Failed to update like");
+    }
+  }, [eventId, isLiked, showToast, queryClient]);
 
   // ── Derived data ────────────────────────────────────────────────────
   const ticketTiers = useMemo(
@@ -390,8 +425,12 @@ export default function EventDetailScreen() {
             <Pressable onPress={handleShare} style={s.headerButton}>
               <Share2 size={20} color="#fff" />
             </Pressable>
-            <Pressable style={s.headerButton}>
-              <Heart size={20} color="#fff" />
+            <Pressable onPress={handleToggleLike} style={s.headerButton}>
+              <Heart
+                size={20}
+                color={isLiked ? "#FF5BFC" : "#fff"}
+                fill={isLiked ? "#FF5BFC" : "transparent"}
+              />
             </Pressable>
           </View>
         </View>
@@ -464,7 +503,7 @@ export default function EventDetailScreen() {
 
             {/* Venue + City */}
             <View style={s.venueRow}>
-              <MapPin size={16} color="rgba(255,255,255,0.5)" />
+              <MapPin size={16} color="rgb(62, 164, 229)" />
               <Text style={s.venueText}>{event.location}</Text>
             </View>
 
@@ -587,7 +626,7 @@ export default function EventDetailScreen() {
               onPress={() => setShowRatingModal(true)}
               style={s.rateButton}
             >
-              <Star size={16} color="rgb(255, 109, 193)" />
+              <Star size={16} color="#FF5BFC" />
               <Text style={s.rateButtonText}>Rate This Event</Text>
             </Pressable>
 
@@ -749,11 +788,11 @@ const s = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   headerTitle: {
     flex: 1,
@@ -818,11 +857,11 @@ const s = StyleSheet.create({
     letterSpacing: 1,
   },
   chipFree: {
-    backgroundColor: "rgba(34,197,94,0.2)",
-    borderColor: "rgba(34,197,94,0.3)",
+    backgroundColor: "rgba(62, 164, 229, 0.2)",
+    borderColor: "rgba(62, 164, 229, 0.3)",
   },
   chipFreeText: {
-    color: "#22c55e",
+    color: "rgb(62, 164, 229)",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
@@ -852,7 +891,7 @@ const s = StyleSheet.create({
     marginBottom: 14,
   },
   venueText: {
-    color: "rgba(255,255,255,0.6)",
+    color: "rgba(255,255,255,0.7)",
     fontSize: 15,
   },
   hostRow: {
@@ -866,7 +905,7 @@ const s = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(62, 164, 229, 0.3)",
   },
   hostName: {
     color: "#fff",
@@ -921,15 +960,15 @@ const s = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "rgba(255,109,193,0.12)",
+    backgroundColor: "rgba(255, 91, 252, 0.1)",
     paddingVertical: 12,
     borderRadius: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,109,193,0.15)",
+    borderColor: "rgba(255, 91, 252, 0.15)",
   },
   rateButtonText: {
-    color: "rgb(255, 109, 193)",
+    color: "#FF5BFC",
     fontSize: 14,
     fontWeight: "600",
   },
@@ -1006,7 +1045,8 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(62, 164, 229, 0.15)",
+    backgroundColor: "rgba(62, 164, 229, 0.06)",
   },
   addCommentText: {
     color: "rgb(62, 164, 229)",
@@ -1049,11 +1089,11 @@ const s = StyleSheet.create({
     backgroundColor: "rgb(62, 164, 229)",
     paddingHorizontal: 32,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 16,
     marginBottom: 12,
   },
   retryText: {
-    color: "#000",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "700",
   },
