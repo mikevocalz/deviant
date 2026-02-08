@@ -17,7 +17,7 @@ const corsHeaders = {
 
 const KickUserSchema = z.object({
   roomId: z.string().uuid(),
-  targetUserId: z.string().uuid(),
+  targetUserId: z.string().min(1),
   reason: z.string().max(500).optional(),
 });
 
@@ -118,16 +118,18 @@ serve(async (req: Request) => {
       return errorResponse("validation_error", "Cannot kick yourself", 400);
     }
 
-    // Check room exists and is open
+    // Check room exists and is open — look up by uuid
     const { data: room, error: roomError } = await supabase
       .from("video_rooms")
       .select("*")
-      .eq("id", roomId)
+      .eq("uuid", roomId)
       .single();
 
     if (roomError || !room) {
       return errorResponse("not_found", "Room not found", 404);
     }
+
+    const internalRoomId = room.id;
 
     if (room.status !== "open") {
       return errorResponse("conflict", "Room is no longer open", 409);
@@ -136,7 +138,7 @@ serve(async (req: Request) => {
     // Check actor has permission to kick
     const { data: canModerate } = await supabase.rpc("can_user_moderate_room", {
       p_user_id: actorId,
-      p_room_id: roomId,
+      p_room_id: internalRoomId,
     });
 
     if (!canModerate) {
@@ -151,7 +153,7 @@ serve(async (req: Request) => {
     const { data: targetMember } = await supabase
       .from("video_room_members")
       .select("*")
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", targetUserId)
       .single();
 
@@ -171,7 +173,7 @@ serve(async (req: Request) => {
     // Get actor's role to check hierarchy
     const { data: actorRole } = await supabase.rpc("get_user_room_role", {
       p_user_id: actorId,
-      p_room_id: roomId,
+      p_room_id: internalRoomId,
     });
 
     // Moderators cannot kick other moderators
@@ -190,7 +192,7 @@ serve(async (req: Request) => {
         status: "kicked",
         left_at: new Date().toISOString(),
       })
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", targetUserId);
 
     if (updateError) {
@@ -202,7 +204,7 @@ serve(async (req: Request) => {
     const { error: revokeError } = await supabase
       .from("video_room_tokens")
       .update({ revoked_at: new Date().toISOString() })
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", targetUserId)
       .is("revoked_at", null);
 
@@ -215,7 +217,7 @@ serve(async (req: Request) => {
 
     // 3. Record kick in audit table
     await supabase.from("video_room_kicks").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       user_id: targetUserId,
       kicked_by: actorId,
       reason,
@@ -258,7 +260,7 @@ serve(async (req: Request) => {
     const { error: eventError } = await supabase
       .from("video_room_events")
       .insert({
-        room_id: roomId,
+        room_id: internalRoomId,
         type: "eject",
         actor_id: actorId,
         target_id: targetUserId,
@@ -274,7 +276,7 @@ serve(async (req: Request) => {
 
     // Also insert member_kicked for audit
     await supabase.from("video_room_events").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       type: "member_kicked",
       actor_id: actorId,
       target_id: targetUserId,

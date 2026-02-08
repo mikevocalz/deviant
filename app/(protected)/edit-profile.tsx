@@ -336,7 +336,7 @@ export default function EditProfileScreen() {
                 uri={newAvatarUri || user?.avatar || ""}
                 username={user?.username || "User"}
                 size={96}
-                variant="circle"
+                variant="roundedSquare"
               />
               {isUploading ? (
                 <View
@@ -346,7 +346,7 @@ export default function EditProfileScreen() {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    borderRadius: 48,
+                    borderRadius: 20,
                     backgroundColor: "rgba(0,0,0,0.5)",
                     alignItems: "center",
                     justifyContent: "center",

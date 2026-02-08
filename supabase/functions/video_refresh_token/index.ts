@@ -140,16 +140,18 @@ serve(async (req: Request) => {
       p_room_id: roomId,
     });
 
-    // Check room exists and is open
+    // Check room exists and is open — look up by uuid
     const { data: room, error: roomError } = await supabase
       .from("video_rooms")
       .select("*")
-      .eq("id", roomId)
+      .eq("uuid", roomId)
       .single();
 
     if (roomError || !room) {
       return errorResponse("not_found", "Room not found", 404);
     }
+
+    const internalRoomId = room.id;
 
     if (room.status !== "open") {
       return errorResponse("conflict", "Room is no longer open", 409);
@@ -159,7 +161,7 @@ serve(async (req: Request) => {
     const { data: member } = await supabase
       .from("video_room_members")
       .select("*")
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", userId)
       .single();
 
@@ -174,7 +176,7 @@ serve(async (req: Request) => {
     // Check if user is banned
     const { data: isBanned } = await supabase.rpc("is_user_banned_from_room", {
       p_user_id: userId,
-      p_room_id: roomId,
+      p_room_id: internalRoomId,
     });
 
     if (isBanned) {
@@ -199,7 +201,7 @@ serve(async (req: Request) => {
     const { data: recentKickBan } = await supabase
       .from("video_room_events")
       .select("*")
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("target_id", userId)
       .in("type", ["member_kicked", "member_banned", "eject"])
       .order("created_at", { ascending: false })
@@ -211,7 +213,7 @@ serve(async (req: Request) => {
       const { data: latestToken } = await supabase
         .from("video_room_tokens")
         .select("*")
-        .eq("room_id", roomId)
+        .eq("room_id", internalRoomId)
         .eq("user_id", userId)
         .is("revoked_at", null)
         .order("issued_at", { ascending: false })
@@ -234,7 +236,7 @@ serve(async (req: Request) => {
     await supabase
       .from("video_room_tokens")
       .update({ revoked_at: new Date().toISOString() })
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("user_id", userId)
       .is("revoked_at", null);
 
@@ -278,7 +280,7 @@ serve(async (req: Request) => {
 
     // Store new token
     await supabase.from("video_room_tokens").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       user_id: userId,
       token_jti: jti,
       expires_at: expiresAt.toISOString(),
@@ -286,7 +288,7 @@ serve(async (req: Request) => {
 
     // Log event
     await supabase.from("video_room_events").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       type: "token_issued",
       actor_id: userId,
       payload: { jti, peerId: peer.id },

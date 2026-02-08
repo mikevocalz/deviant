@@ -769,6 +769,18 @@ export default function StoryViewerScreen() {
       <View style={{ flex: 1 }}>
         {isVideo && videoUrl && player ? (
           <View style={{ flex: 1 }}>
+            {currentItem?.thumbnail ? (
+              <Image
+                source={{ uri: currentItem.thumbnail }}
+                style={{
+                  position: "absolute",
+                  width: "100%",
+                  height: "100%",
+                  zIndex: 0,
+                }}
+                contentFit="cover"
+              />
+            ) : null}
             <VideoView
               player={player}
               style={{ width: "100%", height: "100%" }}

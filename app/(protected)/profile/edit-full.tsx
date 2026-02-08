@@ -162,7 +162,7 @@ export default function EditProfileScreen() {
                   avatar ||
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || username || "User")}`,
               }}
-              className="h-24 w-24 rounded-full"
+              className="h-24 w-24 rounded-[20px]"
               contentFit="cover"
             />
             <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">

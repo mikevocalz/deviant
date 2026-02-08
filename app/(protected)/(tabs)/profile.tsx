@@ -599,7 +599,7 @@ function ProfileScreenContent() {
                       style={{
                         width: 88,
                         height: 88,
-                        borderRadius: 44,
+                        borderRadius: 20,
                         backgroundColor: "#1a1a1a",
                       }}
                       contentFit="cover"
@@ -611,7 +611,7 @@ function ProfileScreenContent() {
                       style={{
                         width: 88,
                         height: 88,
-                        borderRadius: 44,
+                        borderRadius: 20,
                         backgroundColor: "rgb(62, 164, 229)",
                         alignItems: "center",
                         justifyContent: "center",

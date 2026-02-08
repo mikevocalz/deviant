@@ -716,6 +716,27 @@ export default function ChatScreen() {
               <Text className="text-xs text-muted-foreground">Active now</Text>
             </View>
           </Pressable>
+          {/* Audio Call Button */}
+          <Pressable
+            onPress={() => {
+              if (recipient?.id) {
+                router.push({
+                  pathname: "/(protected)/call/[roomId]",
+                  params: {
+                    roomId: `call-${Date.now()}`,
+                    isOutgoing: "true",
+                    participantIds: recipient.id,
+                    callType: "audio",
+                    chatId: chatId,
+                  },
+                });
+              }
+            }}
+            className="p-2 rounded-full bg-primary/20"
+            hitSlop={8}
+          >
+            <Phone size={22} color="#3EA4E5" />
+          </Pressable>
           {/* Video Call Button */}
           <Pressable
             onPress={() => {
@@ -726,6 +747,8 @@ export default function ChatScreen() {
                     roomId: `call-${Date.now()}`,
                     isOutgoing: "true",
                     participantIds: recipient.id,
+                    callType: "video",
+                    chatId: chatId,
                   },
                 });
               }

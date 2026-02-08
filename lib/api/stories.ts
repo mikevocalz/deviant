@@ -34,7 +34,8 @@ export const storiesApi = {
         .select(
           `
           *,
-          media:${DB.stories.mediaId}(url, mime_type)
+          media:${DB.stories.mediaId}(url, mime_type),
+          thumbnail:${DB.stories.thumbnailId}(url)
         `,
         )
         .gt(DB.stories.expiresAt, now)

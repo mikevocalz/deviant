@@ -36,6 +36,7 @@ export type Post = {
 
 export type StoryItem = {
   url?: string;
+  thumbnail?: string;
   type: "image" | "video" | "text";
   duration: number;
   visibility?: "public" | "close_friends";

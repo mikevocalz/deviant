@@ -124,16 +124,18 @@ serve(async (req: Request) => {
 
     const { roomId } = parsed.data;
 
-    // Check room exists
+    // Check room exists — look up by uuid (what video_create_room returns)
     const { data: room, error: roomError } = await supabase
       .from("video_rooms")
       .select("*")
-      .eq("id", roomId)
+      .eq("uuid", roomId)
       .single();
 
     if (roomError || !room) {
       return errorResponse("not_found", "Room not found", 404);
     }
+
+    const internalRoomId = room.id;
 
     if (room.status === "ended") {
       return errorResponse("conflict", "Room is already ended", 409);
@@ -142,7 +144,7 @@ serve(async (req: Request) => {
     // Only host can end room
     const { data: actorRole } = await supabase.rpc("get_user_room_role", {
       p_user_id: actorId,
-      p_room_id: roomId,
+      p_room_id: internalRoomId,
     });
 
     if (actorRole !== "host") {
@@ -168,7 +170,7 @@ serve(async (req: Request) => {
         status: "ended",
         ended_at: new Date().toISOString(),
       })
-      .eq("id", roomId);
+      .eq("id", internalRoomId);
 
     if (updateError) {
       console.error("[video_end_room] Room update error:", updateError.message);
@@ -182,19 +184,19 @@ serve(async (req: Request) => {
         status: "left",
         left_at: new Date().toISOString(),
       })
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("status", "active");
 
     // 4. Revoke all active tokens
     await supabase
       .from("video_room_tokens")
       .update({ revoked_at: new Date().toISOString() })
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .is("revoked_at", null);
 
     // 5. Insert room_ended event (triggers realtime broadcast)
     await supabase.from("video_room_events").insert({
-      room_id: roomId,
+      room_id: internalRoomId,
       type: "room_ended",
       actor_id: actorId,
       payload: { endedAt: new Date().toISOString() },

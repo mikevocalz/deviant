@@ -42,7 +42,11 @@ import {
   useCameraPermission,
   useMicrophonePermission,
 } from "react-native-vision-camera";
-import { useVideoCall, type Participant } from "@/lib/hooks/use-video-call";
+import {
+  useVideoCall,
+  type Participant,
+  type CallType,
+} from "@/lib/hooks/use-video-call";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 
@@ -127,11 +131,25 @@ function VideoTile({
 }
 
 // ── Main Screen ─────────────────────────────────────────────────────
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 export default function VideoCallScreen() {
-  const { roomId, isOutgoing, participantIds } = useLocalSearchParams<{
+  const {
+    roomId,
+    isOutgoing,
+    participantIds,
+    callType: callTypeParam,
+    chatId,
+  } = useLocalSearchParams<{
     roomId?: string;
     isOutgoing?: string;
     participantIds?: string;
+    callType?: string;
+    chatId?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -149,11 +167,14 @@ export default function VideoCallScreen() {
   const {
     isConnected,
     isInCall,
+    callType,
     localStream,
     participants,
     speakerId,
     isMuted,
     isVideoOff,
+    callEnded,
+    callDuration,
     error,
     connect,
     createCall,
@@ -164,7 +185,11 @@ export default function VideoCallScreen() {
     switchCamera,
     addParticipant,
     setSpeaker,
+    resetCallEnded,
   } = useVideoCall();
+
+  const initialCallType: CallType =
+    callTypeParam === "audio" ? "audio" : "video";
 
   // Request permissions then connect and start/join call on mount
   useEffect(() => {
@@ -177,9 +202,9 @@ export default function VideoCallScreen() {
 
       if (isOutgoing === "true" && participantIds) {
         const ids = participantIds.split(",");
-        await createCall(ids, ids.length > 1);
+        await createCall(ids, ids.length > 1, initialCallType, chatId);
       } else if (roomId) {
-        await joinCall(roomId);
+        await joinCall(roomId, initialCallType);
       }
     };
 
@@ -196,8 +221,21 @@ export default function VideoCallScreen() {
   const handleEndCall = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     leaveCall();
+  }, [leaveCall]);
+
+  // Navigate back after showing call ended UI
+  const handleDismissCallEnded = useCallback(() => {
+    resetCallEnded();
     router.back();
-  }, [leaveCall, router]);
+  }, [resetCallEnded, router]);
+
+  // Auto-dismiss call ended after 3 seconds
+  useEffect(() => {
+    if (callEnded) {
+      const timer = setTimeout(handleDismissCallEnded, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [callEnded, handleDismissCallEnded]);
 
   const handleToggleMute = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -224,6 +262,36 @@ export default function VideoCallScreen() {
   const tileWidth = (SCREEN_WIDTH - 24) / cols;
   const tileHeight = (SCREEN_HEIGHT - 200) / rows;
 
+  // Call Ended UI
+  if (callEnded) {
+    return (
+      <View
+        className="flex-1 bg-background items-center justify-center"
+        style={{ paddingTop: insets.top }}
+      >
+        <View className="items-center gap-4">
+          <View className="w-20 h-20 rounded-full bg-destructive/20 items-center justify-center">
+            <PhoneOff size={36} color="#FF3B30" />
+          </View>
+          <Text className="text-foreground text-2xl font-bold">Call Ended</Text>
+          {callDuration > 0 && (
+            <Text className="text-muted-foreground text-base">
+              {formatDuration(callDuration)}
+            </Text>
+          )}
+          <Pressable
+            className="mt-6 px-8 py-3 bg-card rounded-full border border-border"
+            onPress={handleDismissCallEnded}
+          >
+            <Text className="text-foreground text-base font-medium">
+              Back to Chat
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Connection Status */}
@@ -237,38 +305,99 @@ export default function VideoCallScreen() {
         </View>
       )}
 
-      {/* Video Grid */}
-      <View className="flex-1 flex-row flex-wrap justify-center items-center p-2">
-        {/* Local Video */}
-        <VideoTile
-          stream={localStream}
-          isVideoOff={isVideoOff}
-          isMuted={isMuted}
-          isSpeaker={speakerId === user?.id}
-          label="You"
-          avatar={
-            user?.avatar ||
-            `https://ui-avatars.com/api/?name=${user?.username}&background=1a1a1a&color=fff`
-          }
-          mirror={true}
-          width={tileWidth - 8}
-          height={tileHeight - 8}
-        />
+      {/* Call Duration */}
+      {isInCall && callDuration > 0 && (
+        <View className="absolute top-4 left-0 right-0 z-40 items-center">
+          <View className="bg-card/80 px-4 py-1.5 rounded-full border border-border/30">
+            <Text className="text-muted-foreground text-sm font-medium">
+              {formatDuration(callDuration)}
+            </Text>
+          </View>
+        </View>
+      )}
 
-        {/* Remote Videos */}
-        {participants.map((p) => (
+      {/* Video Grid / Audio UI */}
+      {callType === "audio" && isVideoOff ? (
+        // Audio-only UI — show avatars centered
+        <View className="flex-1 items-center justify-center gap-6">
+          <View className="items-center gap-4">
+            {user?.avatar ? (
+              <Image
+                source={{ uri: user.avatar }}
+                className="w-28 h-28 rounded-full border-2 border-primary"
+              />
+            ) : (
+              <View className="w-28 h-28 rounded-full bg-primary items-center justify-center">
+                <Text className="text-white text-4xl font-bold">
+                  {user?.username?.charAt(0).toUpperCase() || "?"}
+                </Text>
+              </View>
+            )}
+            <Text className="text-foreground text-xl font-semibold">
+              {participants.length > 0
+                ? participants.map((p) => p.username).join(", ")
+                : "Calling..."}
+            </Text>
+            <Text className="text-muted-foreground text-sm">
+              {isInCall ? "Audio Call" : "Connecting..."}
+            </Text>
+          </View>
+
+          {/* Remote participant avatars */}
+          {participants.length > 0 && (
+            <View className="flex-row gap-4 mt-4">
+              {participants.map((p) => (
+                <View key={p.oderId} className="items-center gap-2">
+                  <View className="w-16 h-16 rounded-full bg-card items-center justify-center border border-border">
+                    <Text className="text-foreground text-xl font-bold">
+                      {p.username?.charAt(0).toUpperCase() || "?"}
+                    </Text>
+                  </View>
+                  <Text className="text-muted-foreground text-xs">
+                    {p.username}
+                  </Text>
+                  {p.isMuted && (
+                    <MicOff size={12} color="rgba(255,255,255,0.4)" />
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      ) : (
+        // Video Grid
+        <View className="flex-1 flex-row flex-wrap justify-center items-center p-2">
+          {/* Local Video */}
           <VideoTile
-            key={p.oderId}
-            stream={p.stream}
-            isVideoOff={p.isVideoOff}
-            isMuted={p.isMuted}
-            isSpeaker={speakerId === p.oderId}
-            label={p.username || "?"}
+            stream={localStream}
+            isVideoOff={isVideoOff}
+            isMuted={isMuted}
+            isSpeaker={speakerId === user?.id}
+            label="You"
+            avatar={
+              user?.avatar ||
+              `https://ui-avatars.com/api/?name=${user?.username}&background=1a1a1a&color=fff`
+            }
+            mirror={true}
             width={tileWidth - 8}
             height={tileHeight - 8}
           />
-        ))}
-      </View>
+
+          {/* Remote Videos */}
+          {participants.map((p) => (
+            <VideoTile
+              key={p.oderId}
+              stream={p.stream}
+              isVideoOff={p.isVideoOff}
+              isMuted={p.isMuted}
+              isSpeaker={speakerId === p.oderId}
+              label={p.username || "?"}
+              width={tileWidth - 8}
+              height={tileHeight - 8}
+            />
+          ))}
+        </View>
+      )}
 
       {/* Floating Controls Bar */}
       <View
@@ -289,15 +418,15 @@ export default function VideoCallScreen() {
           )}
         </Pressable>
 
-        {/* Camera */}
+        {/* Camera / Upgrade to Video */}
         <Pressable
           className={`w-12 h-12 rounded-full items-center justify-center ${
-            isVideoOff ? "bg-destructive" : "bg-muted/80"
+            isVideoOff ? "bg-muted/80" : "bg-muted/80"
           }`}
           onPress={handleToggleVideo}
         >
           {isVideoOff ? (
-            <VideoOff size={22} color="#fff" />
+            <VideoOff size={22} color="rgba(255,255,255,0.5)" />
           ) : (
             <Video size={22} color="#fff" />
           )}

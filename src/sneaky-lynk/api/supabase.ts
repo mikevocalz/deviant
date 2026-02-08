@@ -174,7 +174,7 @@ export const sneakyLynkApi = {
       }
 
       return (data || []).map((r: any) => ({
-        id: String(r.id),
+        id: r.uuid || String(r.id),
         createdBy: r.created_by || "",
         title: r.title || "Untitled Lynk",
         topic: r.topic || "",
@@ -208,6 +208,12 @@ export const sneakyLynkApi = {
    */
   async getRoomById(roomId: string): Promise<SneakyRoom | null> {
     try {
+      // Try uuid first (new rooms), fall back to integer id (legacy)
+      const isUuid =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          roomId,
+        );
+      const lookupColumn = isUuid ? "uuid" : "id";
       const { data, error } = await supabase
         .from("video_rooms")
         .select(
@@ -216,13 +222,13 @@ export const sneakyLynkApi = {
           creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
         `,
         )
-        .eq("id", roomId)
+        .eq(lookupColumn, roomId)
         .single();
 
       if (error || !data) return null;
 
       return {
-        id: String(data.id),
+        id: data.uuid || String(data.id),
         createdBy: data.created_by || "",
         title: data.title || "Untitled Lynk",
         topic: data.topic || "",

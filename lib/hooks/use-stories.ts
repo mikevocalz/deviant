@@ -55,6 +55,7 @@ export function useCreateStory() {
             id: `temp-item-${index}`,
             type: item.type as "image" | "video" | "text",
             url: item.url,
+            thumbnail: (item as any).thumbnail,
             text: item.text,
             textColor: item.textColor,
             backgroundColor: item.backgroundColor,

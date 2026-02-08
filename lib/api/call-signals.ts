@@ -16,6 +16,7 @@ export interface CallSignal {
   callee_id: string;
   status: "ringing" | "accepted" | "declined" | "missed" | "ended";
   is_group: boolean;
+  call_type: "audio" | "video";
   created_at: string;
 }
 
@@ -30,6 +31,7 @@ export const callSignalsApi = {
     callerUsername?: string;
     callerAvatar?: string;
     isGroup?: boolean;
+    callType?: "audio" | "video";
   }): Promise<void> {
     const callerId = params.callerId;
     if (!callerId) throw new Error("Not authenticated");
@@ -42,6 +44,7 @@ export const callSignalsApi = {
       callee_id: calleeId,
       status: "ringing" as const,
       is_group: params.isGroup || false,
+      call_type: params.callType || "video",
     }));
 
     const { error } = await supabase.from("call_signals").insert(signals);

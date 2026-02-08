@@ -133,7 +133,8 @@ serve(async (req: Request) => {
       p_room_id: null,
     });
 
-    // Create room
+    // Create room — always generate a uuid so video_join_room can look it up
+    const roomUuid = crypto.randomUUID();
     const { data: room, error: roomError } = await supabase
       .from("video_rooms")
       .insert({
@@ -142,6 +143,7 @@ serve(async (req: Request) => {
         is_public: isPublic,
         max_participants: maxParticipants,
         status: "open",
+        uuid: roomUuid,
       })
       .select()
       .single();
@@ -190,7 +192,7 @@ serve(async (req: Request) => {
       ok: true,
       data: {
         room: {
-          id: room.uuid || room.id,
+          id: roomUuid,
           internalId: room.id,
           title: room.title,
           isPublic: room.is_public,

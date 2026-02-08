@@ -10,7 +10,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet, Modal } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Phone, PhoneOff } from "lucide-react-native";
+import { Phone, PhoneOff, Video } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -56,8 +56,12 @@ export function IncomingCallOverlay() {
     } catch {}
 
     const roomId = incomingCall.room_id;
+    const callType = incomingCall.call_type || "video";
     setIncomingCall(null);
-    router.push(`/(protected)/call/${roomId}`);
+    router.push({
+      pathname: "/(protected)/call/[roomId]",
+      params: { roomId, callType },
+    });
   }, [incomingCall, router]);
 
   const handleDecline = useCallback(async () => {
@@ -99,7 +103,11 @@ export function IncomingCallOverlay() {
           )}
           <Text style={styles.callerName}>{callerName}</Text>
           <Text style={styles.callType}>
-            {incomingCall.is_group ? "Group Video Call" : "Video Call"}
+            {incomingCall.is_group
+              ? "Group Call"
+              : incomingCall.call_type === "audio"
+                ? "Audio Call"
+                : "Video Call"}
           </Text>
         </View>
 
@@ -116,7 +124,11 @@ export function IncomingCallOverlay() {
           {/* Accept */}
           <View style={styles.actionItem}>
             <Pressable style={styles.acceptButton} onPress={handleAccept}>
-              <Phone size={28} color="#fff" />
+              {incomingCall.call_type === "audio" ? (
+                <Phone size={28} color="#fff" />
+              ) : (
+                <Video size={28} color="#fff" />
+              )}
             </Pressable>
             <Text style={styles.actionLabel}>Accept</Text>
           </View>
