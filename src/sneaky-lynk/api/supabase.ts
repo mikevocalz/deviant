@@ -4,10 +4,8 @@
  */
 
 import { supabase } from "@/lib/supabase/client";
-import { getBetterAuthToken } from "@/lib/auth/identity";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 import type { CreateRoomParams, JoinRoomResponse, SneakyRoom } from "../types";
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 
 type ErrorCode =
   | "unauthorized"
@@ -28,34 +26,37 @@ async function callEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<ApiResponse<T>> {
-  const token = await getBetterAuthToken();
-  if (!token) {
-    return {
-      ok: false,
-      error: { code: "unauthorized", message: "Not authenticated" },
-    };
-  }
-
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/${functionName}`,
+    const token = await requireBetterAuthToken();
+
+    const { data, error } = await supabase.functions.invoke<ApiResponse<T>>(
+      functionName,
       {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+        body,
+        headers: { Authorization: `Bearer ${token}` },
       },
     );
 
-    const data = await response.json();
+    if (error) {
+      console.error(`[SneakyLynk] ${functionName} invoke error:`, error);
+      return {
+        ok: false,
+        error: {
+          code: "internal_error",
+          message: error.message || "Edge function error",
+        },
+      };
+    }
+
     return data as ApiResponse<T>;
-  } catch (error) {
-    console.error(`[SneakyLynk] ${functionName} error:`, error);
+  } catch (err: any) {
+    console.error(`[SneakyLynk] ${functionName} error:`, err);
     return {
       ok: false,
-      error: { code: "internal_error", message: "Network error" },
+      error: {
+        code: "internal_error",
+        message: err.message || "Network error",
+      },
     };
   }
 }

@@ -5,16 +5,47 @@ import {
   SkeletonText,
 } from "@/components/ui/skeleton";
 
-function MessageBubbleSkeleton({ isMe }: { isMe: boolean }) {
+// Simulate a realistic conversation with varied bubble widths
+const MESSAGES: { isMe: boolean; width: number; lines: number }[] = [
+  { isMe: false, width: 200, lines: 2 },
+  { isMe: true, width: 160, lines: 1 },
+  { isMe: false, width: 120, lines: 1 },
+  { isMe: true, width: 220, lines: 2 },
+  { isMe: false, width: 180, lines: 1 },
+  { isMe: true, width: 140, lines: 1 },
+  { isMe: false, width: 240, lines: 2 },
+  { isMe: true, width: 100, lines: 1 },
+];
+
+function MessageBubbleSkeleton({
+  isMe,
+  width,
+  lines,
+}: {
+  isMe: boolean;
+  width: number;
+  lines: number;
+}) {
   return (
-    <View
-      style={[
-        styles.messageBubble,
-        isMe ? styles.myMessage : styles.theirMessage,
-      ]}
-    >
-      <SkeletonText width={isMe ? 140 : 180} height={14} />
-      <SkeletonText width={40} height={10} style={styles.messageTime} />
+    <View style={[styles.messageRow, isMe ? styles.myRow : styles.theirRow]}>
+      {!isMe && <SkeletonCircle size={28} />}
+      <View
+        style={[
+          styles.bubble,
+          isMe ? styles.myBubble : styles.theirBubble,
+          { width },
+        ]}
+      >
+        <SkeletonText width={width - 32} height={14} />
+        {lines > 1 && (
+          <SkeletonText
+            width={width * 0.6}
+            height={14}
+            style={{ marginTop: 4 }}
+          />
+        )}
+        <SkeletonText width={36} height={10} style={styles.time} />
+      </View>
     </View>
   );
 }
@@ -22,31 +53,40 @@ function MessageBubbleSkeleton({ isMe }: { isMe: boolean }) {
 export function ChatSkeleton() {
   return (
     <View style={styles.container}>
+      {/* Header: back | avatar + name/status | phone | video */}
       <View style={styles.header}>
-        <Skeleton style={{ width: 24, height: 24, borderRadius: 12 }} />
+        <Skeleton style={styles.iconBtn} />
         <View style={styles.headerProfile}>
           <SkeletonCircle size={40} />
           <View style={styles.headerInfo}>
             <SkeletonText width={100} height={14} />
-            <SkeletonText width={60} height={12} style={styles.headerStatus} />
+            <SkeletonText width={64} height={11} style={{ marginTop: 4 }} />
           </View>
+        </View>
+        <View style={styles.headerCallBtns}>
+          <Skeleton style={styles.callBtn} />
+          <Skeleton style={styles.callBtn} />
         </View>
       </View>
 
+      {/* Messages */}
       <View style={styles.messagesList}>
-        <MessageBubbleSkeleton isMe={false} />
-        <MessageBubbleSkeleton isMe={true} />
-        <MessageBubbleSkeleton isMe={false} />
-        <MessageBubbleSkeleton isMe={true} />
-        <MessageBubbleSkeleton isMe={false} />
+        {MESSAGES.map((msg, i) => (
+          <MessageBubbleSkeleton
+            key={i}
+            isMe={msg.isMe}
+            width={msg.width}
+            lines={msg.lines}
+          />
+        ))}
       </View>
 
-      <View style={styles.inputContainer}>
-        <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
-        <Skeleton
-          style={[{ height: 40, borderRadius: 20, flex: 1 }, styles.input]}
-        />
-        <Skeleton style={{ width: 40, height: 40, borderRadius: 20 }} />
+      {/* Input bar: camera | gallery | text field | send */}
+      <View style={styles.inputBar}>
+        <Skeleton style={styles.inputIcon} />
+        <Skeleton style={styles.inputIcon} />
+        <Skeleton style={styles.textField} />
+        <Skeleton style={styles.sendBtn} />
       </View>
     </View>
   );
@@ -66,6 +106,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  iconBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+  },
   headerProfile: {
     flexDirection: "row",
     alignItems: "center",
@@ -75,32 +120,50 @@ const styles = StyleSheet.create({
   headerInfo: {
     flex: 1,
   },
-  headerStatus: {
-    marginTop: 4,
+  headerCallBtns: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  callBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   messagesList: {
     flex: 1,
     padding: 16,
+    gap: 6,
   },
-  messageBubble: {
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+    marginBottom: 4,
+  },
+  myRow: {
+    justifyContent: "flex-end",
+  },
+  theirRow: {
+    justifyContent: "flex-start",
+  },
+  bubble: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    maxWidth: "80%",
-    marginBottom: 8,
   },
-  myMessage: {
-    alignSelf: "flex-end",
-    backgroundColor: "rgba(62,164,229,0.2)",
+  myBubble: {
+    backgroundColor: "rgba(62,164,229,0.15)",
+    borderBottomRightRadius: 6,
   },
-  theirMessage: {
-    alignSelf: "flex-start",
+  theirBubble: {
     backgroundColor: "#1a1a1a",
+    borderBottomLeftRadius: 6,
   },
-  messageTime: {
-    marginTop: 4,
+  time: {
+    marginTop: 6,
   },
-  inputContainer: {
+  inputBar: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -109,7 +172,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
-  input: {
+  inputIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  textField: {
     flex: 1,
+    height: 40,
+    borderRadius: 20,
+  },
+  sendBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
 });
