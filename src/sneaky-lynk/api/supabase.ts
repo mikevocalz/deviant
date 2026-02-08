@@ -143,10 +143,16 @@ export const sneakyLynkApi = {
   },
 
   /**
-   * Get live rooms list from video_rooms table
+   * Get recent rooms list from video_rooms table
+   * Includes both live (open) and recently ended rooms (last 24h)
+   * so ALL users can see active and ended Sneaky Lynks.
    */
   async getLiveRooms(): Promise<SneakyRoom[]> {
     try {
+      const twentyFourHoursAgo = new Date(
+        Date.now() - 24 * 60 * 60 * 1000,
+      ).toISOString();
+
       const { data, error } = await supabase
         .from("video_rooms")
         .select(
@@ -155,7 +161,10 @@ export const sneakyLynkApi = {
           creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
         `,
         )
-        .eq("status", "open")
+        .or(
+          `status.eq.open,and(status.eq.ended,ended_at.gte.${twentyFourHoursAgo})`,
+        )
+        .order("status", { ascending: true }) // "open" before "ended"
         .order("created_at", { ascending: false })
         .limit(50);
 

@@ -34,8 +34,7 @@ export const storiesApi = {
         .select(
           `
           *,
-          media:${DB.stories.mediaId}(url, mime_type),
-          thumbnail:${DB.stories.thumbnailId}(url)
+          media:${DB.stories.mediaId}(url, mime_type)
         `,
         )
         .gt(DB.stories.expiresAt, now)
@@ -49,11 +48,21 @@ export const storiesApi = {
       // so we can filter close_friends stories appropriately.
       let closeFriendOfSet = new Set<string>(); // auth_ids of owners who have me as close friend
       if (userIdInt) {
-        const { data: cfRows } = await supabase
-          .from("close_friends")
-          .select("owner_id")
-          .eq("friend_id", userIdInt);
-        closeFriendOfSet = new Set((cfRows || []).map((r: any) => r.owner_id));
+        try {
+          const { data: cfRows } = await supabase
+            .from("close_friends")
+            .select("owner_id")
+            .eq("friend_id", userIdInt);
+          closeFriendOfSet = new Set(
+            (cfRows || []).map((r: any) => r.owner_id),
+          );
+        } catch (cfError) {
+          // close_friends table may not exist yet — continue without filtering
+          console.warn(
+            "[Stories] close_friends query failed, skipping:",
+            cfError,
+          );
+        }
       }
 
       // Filter: remove close_friends stories the viewer isn't allowed to see
