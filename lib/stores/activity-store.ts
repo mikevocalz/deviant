@@ -248,15 +248,16 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         unread: activities.filter((a) => !a.isRead).length,
       });
 
+      // Fetch real follow state BEFORE setting activities
+      // so buttons render correctly on first paint
+      await get().fetchFollowingState();
+
       set({
         activities,
         lastFetchTime: Date.now(),
         isLoading: false,
       });
       get().syncUnreadCount();
-
-      // Fetch real follow state for notification actors
-      get().fetchFollowingState();
     } catch (error) {
       console.error("[ActivityStore] fetchFromBackend error:", error);
       set({ isLoading: false });
@@ -313,12 +314,17 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   // Fetch the current user's following list and seed followedUsers
   fetchFollowingState: async () => {
     try {
-      const userId = String(getCurrentUserIdInt() || "");
-      if (!userId) return;
+      const userIdInt = getCurrentUserIdInt();
+      if (!userIdInt) {
+        console.warn(
+          "[ActivityStore] fetchFollowingState: no userId, skipping",
+        );
+        return;
+      }
 
-      const following = await followsApi.getFollowing(userId);
+      const following = await followsApi.getFollowing(String(userIdInt));
       const followedUsernames = new Set(
-        following.map((u: { username: string }) => u.username),
+        following.map((u: { username: string }) => u.username).filter(Boolean),
       );
 
       // Replace with DB truth — optimistic toggles from toggleFollowUser
@@ -328,7 +334,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       console.log(
         "[ActivityStore] Loaded follow state:",
         followedUsernames.size,
-        "following",
+        "following, usernames:",
+        Array.from(followedUsernames).join(", "),
       );
     } catch (err) {
       console.error("[ActivityStore] fetchFollowingState error:", err);
