@@ -38,6 +38,10 @@ import {
 import { Image } from "expo-image";
 import { Motion, AnimatePresence } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
+import {
+  useCameraPermission,
+  useMicrophonePermission,
+} from "react-native-vision-camera";
 import { useVideoCall, type Participant } from "@/lib/hooks/use-video-call";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -136,6 +140,12 @@ export default function VideoCallScreen() {
 
   const [showParticipants, setShowParticipants] = useState(false);
 
+  // Request camera & mic permissions on mount
+  const { hasPermission: hasCamPerm, requestPermission: reqCamPerm } =
+    useCameraPermission();
+  const { hasPermission: hasMicPerm, requestPermission: reqMicPerm } =
+    useMicrophonePermission();
+
   const {
     isConnected,
     isInCall,
@@ -156,9 +166,13 @@ export default function VideoCallScreen() {
     setSpeaker,
   } = useVideoCall();
 
-  // Connect and start/join call on mount
+  // Request permissions then connect and start/join call on mount
   useEffect(() => {
     const initCall = async () => {
+      // Ensure OS-level camera & mic permissions before starting media
+      if (!hasCamPerm) await reqCamPerm();
+      if (!hasMicPerm) await reqMicPerm();
+
       await connect();
 
       if (isOutgoing === "true" && participantIds) {

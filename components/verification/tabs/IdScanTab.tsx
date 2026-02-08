@@ -1,4 +1,5 @@
-import { View, Text, Image, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { Image } from "expo-image";
 import { useRef, useState, useEffect } from "react";
 import { Camera, useCameraDevice } from "react-native-vision-camera";
 // TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
@@ -106,8 +107,8 @@ export default function IdScanTab() {
       >
         <Image
           source={{ uri: storedImageUri }}
-          className="flex-1"
-          resizeMode="contain"
+          style={{ flex: 1 }}
+          contentFit="contain"
         />
         <View className="absolute top-3 right-3">
           <TouchableOpacity
@@ -298,8 +299,8 @@ export default function IdScanTab() {
       >
         <Image
           source={{ uri: imageUri }}
-          className="flex-1"
-          resizeMode="contain"
+          style={{ flex: 1 }}
+          contentFit="contain"
         />
 
         <View className="absolute bottom-6 left-0 right-0 px-6 gap-3">

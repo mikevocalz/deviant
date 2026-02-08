@@ -121,6 +121,10 @@ export function useVideoCall() {
           title,
           maxParticipants: Math.max(participantIds.length + 1, 10),
         });
+        console.log(
+          "[VideoCall] createRoom result:",
+          JSON.stringify(createResult),
+        );
 
         if (!createResult.ok || !createResult.data) {
           setState((s) => ({
@@ -131,9 +135,12 @@ export function useVideoCall() {
         }
 
         const newRoomId = createResult.data.room.id;
+        console.log("[VideoCall] Room created, joining:", newRoomId);
 
         // Join the room we just created
         const joinResult = await videoApi.joinRoom(newRoomId);
+        console.log("[VideoCall] joinRoom result:", JSON.stringify(joinResult));
+
         if (!joinResult.ok || !joinResult.data) {
           setState((s) => ({
             ...s,
@@ -143,6 +150,7 @@ export function useVideoCall() {
         }
 
         const { token, user: joinedUser } = joinResult.data;
+        console.log("[VideoCall] Got Fishjam token, joining peer...");
 
         await joinRoomRef.current({
           peerToken: token,
@@ -152,12 +160,17 @@ export function useVideoCall() {
             avatar: joinedUser.avatar,
           },
         });
+        console.log("[VideoCall] Fishjam peer joined, starting camera...");
 
         // Start camera and microphone after joining
         try {
           await cameraRef.current.startCamera();
+          console.log(
+            "[VideoCall] Camera started, stream:",
+            !!cameraRef.current.cameraStream,
+          );
           await micRef.current.startMicrophone();
-          console.log("[VideoCall] Camera and mic started");
+          console.log("[VideoCall] Mic started");
         } catch (mediaErr) {
           console.warn("[VideoCall] Failed to start media:", mediaErr);
         }
@@ -202,6 +215,7 @@ export function useVideoCall() {
       }
 
       const { token, user: joinedUser } = joinResult.data;
+      console.log("[VideoCall] joinCall got token, joining Fishjam peer...");
 
       await joinRoomRef.current({
         peerToken: token,
@@ -211,12 +225,17 @@ export function useVideoCall() {
           avatar: joinedUser.avatar,
         },
       });
+      console.log("[VideoCall] Fishjam peer joined, starting camera...");
 
       // Start camera and microphone after joining
       try {
         await cameraRef.current.startCamera();
+        console.log(
+          "[VideoCall] Camera started, stream:",
+          !!cameraRef.current.cameraStream,
+        );
         await micRef.current.startMicrophone();
-        console.log("[VideoCall] Camera and mic started");
+        console.log("[VideoCall] Mic started");
       } catch (mediaErr) {
         console.warn("[VideoCall] Failed to start media:", mediaErr);
       }
