@@ -7,6 +7,7 @@ export { messagesApi, messagesApi as messagesApiClient } from "./messages-impl";
 export interface Conversation {
   id: string;
   user: {
+    id: string;
     name: string;
     username: string;
     avatar: string;

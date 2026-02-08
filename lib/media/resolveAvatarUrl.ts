@@ -1,70 +1,62 @@
 /**
- * Canonical avatar URL resolver
+ * Canonical avatar URL resolver — SINGLE SOURCE OF TRUTH
  *
- * Handles all possible avatar formats from Payload CMS:
- * - Direct URL string
- * - Media object with url property (from upload field with depth)
- * - null/undefined
+ * Every component that displays an avatar MUST use one of:
+ *   resolveAvatarUrl(avatar)   — low-level: string | object | null → URL | null
+ *   getAvatarUrl(user)         — high-level: user object → URL | null
  *
- * Returns a valid URL string or null (for placeholder rendering)
+ * Cache-busting:
+ *   appendCacheBuster(url)     — appends ?v=<timestamp> to force expo-image refresh
+ *
+ * RULES:
+ * - Returns null when there is no valid avatar (never empty string)
+ * - Callers render a fallback initial when null is returned
+ * - Only local file:// URIs (optimistic pick) bypass the https check
  */
+
+// ── Low-level resolver ─────────────────────────────────────────────
 
 export function resolveAvatarUrl(
   avatar: unknown,
   context?: string,
 ): string | null {
-  // Handle null/undefined
-  if (!avatar) {
-    if (__DEV__ && context) {
-      console.log(`[resolveAvatarUrl] ${context}: avatar is null/undefined`);
-    }
-    return null;
-  }
+  if (!avatar) return null;
 
-  // Handle direct string URL
+  // Direct string URL
   if (typeof avatar === "string") {
-    if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
-      if (__DEV__ && context) {
-        console.log(
-          `[resolveAvatarUrl] ${context}: resolved string URL`,
-          avatar.slice(0, 50),
-        );
-      }
-      return avatar;
+    const trimmed = avatar.trim();
+    if (trimmed.length === 0) return null;
+    // Allow https, http, and local file:// URIs (optimistic pick from camera roll)
+    if (
+      trimmed.startsWith("https://") ||
+      trimmed.startsWith("http://") ||
+      trimmed.startsWith("file://")
+    ) {
+      return trimmed;
     }
-    // Invalid string format
     if (__DEV__ && context) {
-      console.log(
+      console.warn(
         `[resolveAvatarUrl] ${context}: invalid string format`,
-        avatar.slice(0, 30),
+        trimmed.slice(0, 40),
       );
     }
     return null;
   }
 
-  // Handle media object from Payload CMS (upload field with depth)
+  // Media object with url property (Supabase join / Payload CMS)
   if (typeof avatar === "object" && avatar !== null) {
-    const avatarObj = avatar as Record<string, unknown>;
-
-    // Check for url property
-    if (avatarObj.url && typeof avatarObj.url === "string") {
-      const url = avatarObj.url;
-      if (url.startsWith("http://") || url.startsWith("https://")) {
-        if (__DEV__ && context) {
-          console.log(
-            `[resolveAvatarUrl] ${context}: resolved object URL`,
-            url.slice(0, 50),
-          );
-        }
-        return url;
-      }
+    const obj = avatar as Record<string, unknown>;
+    if (typeof obj.url === "string") {
+      return resolveAvatarUrl(obj.url, context);
     }
-
-    // DEV: Log unexpected object structure
+    // Array of media objects (rare but seen in some Supabase joins)
+    if (Array.isArray(obj) && obj.length > 0) {
+      return resolveAvatarUrl(obj[0], context);
+    }
     if (__DEV__ && context) {
-      console.log(
-        `[resolveAvatarUrl] ${context}: unexpected object structure`,
-        JSON.stringify(avatarObj).slice(0, 100),
+      console.warn(
+        `[resolveAvatarUrl] ${context}: unexpected object`,
+        JSON.stringify(obj).slice(0, 80),
       );
     }
   }
@@ -72,9 +64,33 @@ export function resolveAvatarUrl(
   return null;
 }
 
+// ── High-level convenience — pass any user-like object ─────────────
+
+export function getAvatarUrl(
+  user: { avatar?: unknown; avatarUrl?: unknown } | null | undefined,
+): string | null {
+  if (!user) return null;
+  // avatarUrl takes priority (profile API), then avatar (auth store / entity)
+  return resolveAvatarUrl(user.avatarUrl) || resolveAvatarUrl(user.avatar);
+}
+
+// ── Cache-busting ──────────────────────────────────────────────────
+
 /**
- * Generate fallback avatar URL using ui-avatars.com
+ * Append a cache-busting query param to force expo-image to re-download.
+ * Call this ONLY when you know the image at the URL has changed (avatar upload).
+ * Safe to call on null — returns null.
  */
+export function appendCacheBuster(url: string | null): string | null {
+  if (!url) return null;
+  // Don't bust local file URIs
+  if (url.startsWith("file://")) return url;
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}v=${Date.now()}`;
+}
+
+// ── Fallback ───────────────────────────────────────────────────────
+
 export function getFallbackAvatarUrl(name: string): string {
   const safeName = name || "User";
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(safeName)}&background=3EA4E5&color=fff&size=200`;

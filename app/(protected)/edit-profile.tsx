@@ -30,6 +30,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { appendCacheBuster } from "@/lib/media/resolveAvatarUrl";
 
 const PRONOUNS_OPTIONS = [
   "He/Him",
@@ -142,7 +143,8 @@ export default function EditProfileScreen() {
         try {
           const uploadResult = await uploadSingle(newAvatarUri);
           if (uploadResult.success && uploadResult.url) {
-            avatarUrl = uploadResult.url;
+            // CRITICAL: Cache-bust so expo-image re-downloads the new image
+            avatarUrl = appendCacheBuster(uploadResult.url) || uploadResult.url;
           } else {
             showToast(
               "warning",
@@ -199,7 +201,25 @@ export default function EditProfileScreen() {
         avatar: avatarUrl || user.avatar,
       });
 
-      // CRITICAL: Only invalidate the current user's profile cache
+      // CRITICAL: Patch all caches where MY avatar appears
+      if (avatarUrl && avatarUrl !== user.avatar) {
+        const patchStories = (old: any) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((story: any) => {
+            if (
+              String(story.userId) === String(user.id) ||
+              story.username === user.username
+            ) {
+              return { ...story, avatar: avatarUrl };
+            }
+            return story;
+          });
+        };
+        queryClient.setQueryData(["stories"], patchStories);
+        queryClient.setQueryData(["stories", "list"], patchStories);
+      }
+
+      // Invalidate the current user's profile cache
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ["profile", user.id] });

@@ -84,6 +84,9 @@ export const messagesApi = {
           return {
             id: String(convId),
             user: {
+              id: otherUserData?.[DB.users.id]
+                ? String(otherUserData[DB.users.id])
+                : "",
               name: otherUserData?.[DB.users.username] || "Unknown",
               username: otherUserData?.[DB.users.username] || "unknown",
               avatar: otherUserData?.avatar?.url || "",

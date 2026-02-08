@@ -387,6 +387,20 @@ export default function EventDetailScreen() {
     }
   }, [eventId, eventData?.title, showToast]);
 
+  // CRITICAL: useMemo MUST be called before any early returns (React hooks rules)
+  const isPast = useMemo(() => {
+    if (!eventData) return false;
+    try {
+      const now = new Date();
+      if (eventData.endDate) return new Date(eventData.endDate) < now;
+      const start = new Date(eventData.date);
+      start.setHours(23, 59, 59, 999);
+      return start < now;
+    } catch {
+      return false;
+    }
+  }, [eventData]);
+
   // ── Loading state ───────────────────────────────────────────────────
   if (isLoading) {
     return <EventDetailSkeleton />;
@@ -416,20 +430,6 @@ export default function EventDetailScreen() {
   const host = event.host;
   const dateStr = formatEventDate(event.date);
   const timeStr = formatEventTime(event.date);
-
-  // Check if event has ended — use endDate if available, otherwise use start date
-  const isPast = useMemo(() => {
-    try {
-      const now = new Date();
-      if (event.endDate) return new Date(event.endDate) < now;
-      // If no endDate, treat event as ended after the start date's day
-      const start = new Date(event.date);
-      start.setHours(23, 59, 59, 999);
-      return start < now;
-    } catch {
-      return false;
-    }
-  }, [event.date, event.endDate]);
 
   // ── Render ──────────────────────────────────────────────────────────
   return (

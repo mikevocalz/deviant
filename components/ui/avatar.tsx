@@ -72,14 +72,6 @@ function AvatarComponent({
       ? username.trim()[0].toUpperCase()
       : "U";
 
-  if (__DEV__) {
-    console.log(
-      `[UserAvatar] ${username}: raw=${JSON.stringify(
-        uri,
-      )} resolved=${resolvedUri}`,
-    );
-  }
-
   return (
     <View
       style={[

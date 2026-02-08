@@ -56,7 +56,11 @@ import {
   type SafeProfileData,
   type SafeGridTile,
 } from "@/lib/utils/safe-profile-mappers";
-import { getFallbackAvatarUrl } from "@/lib/media/resolveAvatarUrl";
+import {
+  getFallbackAvatarUrl,
+  appendCacheBuster,
+  getAvatarUrl,
+} from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
 const { width } = Dimensions.get("window");
@@ -79,6 +83,7 @@ function ProfileScreenContent() {
 
   // Avatar update state
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
 
@@ -164,7 +169,10 @@ function ProfileScreenContent() {
         return;
       }
 
-      const newAvatarUrl = uploadResult.url;
+      // CRITICAL: Append cache-buster so expo-image re-downloads instead of
+      // serving the stale cached version of the previous avatar at the same CDN path.
+      const newAvatarUrl =
+        appendCacheBuster(uploadResult.url) || uploadResult.url;
 
       // Update local auth store
       if (user) {
@@ -292,13 +300,21 @@ function ProfileScreenContent() {
   // CRITICAL: profileData is the canonical source, user is fallback only
   const displayName =
     profileData?.displayName || profileData?.name || user?.name || "User";
-  const displayAvatar =
-    profileData?.avatar || profileData?.avatarUrl || user?.avatar || "";
+  // CRITICAL: Use canonical resolver — never fall back to empty string.
+  // getAvatarUrl handles string/object/null and returns null (not "") when missing.
+  const displayAvatar = getAvatarUrl(profileData) || getAvatarUrl(user) || null;
   // CRITICAL: Compute a guaranteed valid avatar URL — never pass empty string to Image
+  // Also allow file:// URIs from optimistic local picks
   const avatarUri =
-    displayAvatar && displayAvatar.startsWith("http")
+    displayAvatar &&
+    (displayAvatar.startsWith("http") || displayAvatar.startsWith("file://"))
       ? displayAvatar
-      : getFallbackAvatarUrl(displayName || user?.username || "User");
+      : null;
+
+  // Reset error state when avatar URL changes (new upload or profile refetch)
+  useEffect(() => {
+    setAvatarError(false);
+  }, [avatarUri]);
   const displayUsername = profileData?.username || user?.username || "";
   const displayBio = profileData?.bio || user?.bio;
   const displayLocation = user?.location; // Only in auth store
@@ -577,20 +593,29 @@ function ProfileScreenContent() {
                 disabled={isUpdatingAvatar}
               >
                 <View className="relative">
-                  {avatarUri &&
-                  avatarUri.startsWith("http") &&
-                  !avatarUri.includes("ui-avatars.com") ? (
+                  {avatarUri && !avatarError ? (
                     <Image
                       source={{ uri: avatarUri }}
-                      className="w-[88px] h-[88px] rounded-full"
-                      style={{ backgroundColor: "#1a1a1a" }}
+                      style={{
+                        width: 88,
+                        height: 88,
+                        borderRadius: 44,
+                        backgroundColor: "#1a1a1a",
+                      }}
                       contentFit="cover"
                       cachePolicy="memory-disk"
+                      onError={() => setAvatarError(true)}
                     />
                   ) : (
                     <View
-                      className="w-[88px] h-[88px] rounded-full items-center justify-center"
-                      style={{ backgroundColor: "rgb(62, 164, 229)" }}
+                      style={{
+                        width: 88,
+                        height: 88,
+                        borderRadius: 44,
+                        backgroundColor: "rgb(62, 164, 229)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
                     >
                       <Text
                         style={{

@@ -326,7 +326,7 @@ export default function ChatScreen() {
           if (otherUser) {
             console.log("[Chat] Found recipient:", otherUser.username);
             setRecipient({
-              id: conversation.id,
+              id: otherUser.id,
               username: otherUser.username,
               name: otherUser.name || otherUser.username,
               avatar:
@@ -362,7 +362,7 @@ export default function ChatScreen() {
 
                 if (otherUser) {
                   setRecipient({
-                    id: updatedConversation.id,
+                    id: otherUser.id,
                     username: otherUser.username,
                     name: otherUser.name || otherUser.username,
                     avatar:

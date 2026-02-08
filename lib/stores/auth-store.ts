@@ -10,38 +10,6 @@ import { auth } from "@/lib/api/auth";
 import { syncAuthUser } from "@/lib/api/privileged";
 import { clearUserRowCache } from "@/lib/auth/identity";
 
-/**
- * Extract avatar URL from various formats:
- * - Direct URL string
- * - Media object with url property
- * - null/undefined
- */
-function extractAvatarUrl(avatar: unknown): string | undefined {
-  if (!avatar) return undefined;
-
-  // Direct string URL
-  if (typeof avatar === "string") {
-    if (avatar.startsWith("http://") || avatar.startsWith("https://")) {
-      return avatar;
-    }
-    // Invalid string format
-    return undefined;
-  }
-
-  // Media object with url property
-  if (typeof avatar === "object" && avatar !== null) {
-    const avatarObj = avatar as Record<string, unknown>;
-    if (avatarObj.url && typeof avatarObj.url === "string") {
-      const url = avatarObj.url;
-      if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url;
-      }
-    }
-  }
-
-  return undefined;
-}
-
 interface AuthStore {
   user: AppUser | null;
   hasSeenOnboarding: boolean;
