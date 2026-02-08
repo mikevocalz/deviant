@@ -33,7 +33,7 @@ async function callEdgeFunction<T>(
       functionName,
       {
         body,
-        headers: { "x-better-auth-token": token },
+        headers: { Authorization: `Bearer ${token}` },
       },
     );
 

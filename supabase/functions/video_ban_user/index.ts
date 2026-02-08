@@ -11,7 +11,7 @@ import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-better-auth-token",
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -57,16 +57,16 @@ serve(async (req: Request) => {
   }
 
   try {
-    const betterAuthToken = req.headers.get("x-better-auth-token");
-    if (!betterAuthToken) {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
       return errorResponse(
         "unauthorized",
-        "Missing x-better-auth-token header",
+        "Missing or invalid Authorization header",
         401,
       );
     }
 
-    const jwt = betterAuthToken;
+    const jwt = authHeader.replace("Bearer ", "");
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;

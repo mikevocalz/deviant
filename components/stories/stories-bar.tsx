@@ -156,7 +156,7 @@ export function StoriesBar() {
 
   return (
     <Section className="border-b border-border">
-      <View style={{ height: 164, flexDirection: "row" }}>
+      <View style={{ height: 154, flexDirection: "row" }}>
         {/* Your Story */}
         <View style={{ paddingTop: 5, paddingLeft: 4, paddingRight: 10 }}>
           <View style={{ alignItems: "center", gap: 6 }}>
@@ -191,8 +191,8 @@ export function StoriesBar() {
               <Pressable onPress={handleCreateStory}>
                 <View className="relative">
                   <View
-                    className="items-center justify-center border-2 border-border bg-card"
-                    style={{ height: 114, width: 80, borderRadius: 16 }}
+                    className="items-center justify-center rounded-xl border-2 border-border bg-card"
+                    style={{ height: 104, width: 80 }}
                   >
                     <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
                       <Plus size={24} color="#0c0a09" strokeWidth={3} />
