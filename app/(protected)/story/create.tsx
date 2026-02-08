@@ -103,7 +103,6 @@ export default function CreateStoryScreen() {
     Record<string, string>
   >({});
   const openStickerSheet = useStickerStore((s) => s.openSheet);
-  const isStickerSheetOpen = useStickerStore((s) => s.isSheetOpen);
 
   useEffect(() => {
     requestPermissions();
@@ -818,7 +817,7 @@ export default function CreateStoryScreen() {
       </ScrollView>
 
       {/* Klipy Sticker Picker Sheet */}
-      {isStickerSheetOpen && <StickerPickerSheet onDone={handleStickersDone} />}
+      <StickerPickerSheet onDone={handleStickersDone} />
 
       {/* Tag People Picker */}
       <StoryTagPicker
