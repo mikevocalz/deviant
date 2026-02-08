@@ -7,10 +7,7 @@
  * Place .cube files in assets/luts/ and they will be automatically bundled.
  */
 
-const {
-  withDangerousMod,
-  withXcodeProject,
-} = require("expo/config-plugins");
+const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");
 const fs = require("fs");
 const path = require("path");
 
@@ -30,11 +27,13 @@ function withAndroidCubeLUTs(config) {
         "src",
         "main",
         "assets",
-        "luts"
+        "luts",
       );
 
       if (!fs.existsSync(sourceDir)) {
-        console.log("[with-cube-luts] No assets/luts/ directory found, skipping Android");
+        console.log(
+          "[with-cube-luts] No assets/luts/ directory found, skipping Android",
+        );
         return config;
       }
 
@@ -42,7 +41,9 @@ function withAndroidCubeLUTs(config) {
       fs.mkdirSync(targetDir, { recursive: true });
 
       // Copy .cube files
-      const files = fs.readdirSync(sourceDir).filter((f) => f.endsWith(".cube"));
+      const files = fs
+        .readdirSync(sourceDir)
+        .filter((f) => f.endsWith(".cube"));
       for (const file of files) {
         const src = path.join(sourceDir, file);
         const dst = path.join(targetDir, file);
@@ -50,7 +51,9 @@ function withAndroidCubeLUTs(config) {
         console.log(`[with-cube-luts] Android: copied ${file}`);
       }
 
-      console.log(`[with-cube-luts] Android: ${files.length} .cube files bundled`);
+      console.log(
+        `[with-cube-luts] Android: ${files.length} .cube files bundled`,
+      );
       return config;
     },
   ]);
@@ -67,7 +70,9 @@ function withIOSCubeLUTs(config) {
       const bundleDir = path.join(platformProjectRoot, "CubeLUTs.bundle");
 
       if (!fs.existsSync(sourceDir)) {
-        console.log("[with-cube-luts] No assets/luts/ directory found, skipping iOS");
+        console.log(
+          "[with-cube-luts] No assets/luts/ directory found, skipping iOS",
+        );
         return config;
       }
 
@@ -75,7 +80,9 @@ function withIOSCubeLUTs(config) {
       fs.mkdirSync(bundleDir, { recursive: true });
 
       // Copy .cube files into the bundle
-      const files = fs.readdirSync(sourceDir).filter((f) => f.endsWith(".cube"));
+      const files = fs
+        .readdirSync(sourceDir)
+        .filter((f) => f.endsWith(".cube"));
       for (const file of files) {
         const src = path.join(sourceDir, file);
         const dst = path.join(bundleDir, file);
@@ -83,7 +90,9 @@ function withIOSCubeLUTs(config) {
         console.log(`[with-cube-luts] iOS: copied ${file}`);
       }
 
-      console.log(`[with-cube-luts] iOS: ${files.length} .cube files bundled into CubeLUTs.bundle`);
+      console.log(
+        `[with-cube-luts] iOS: ${files.length} .cube files bundled into CubeLUTs.bundle`,
+      );
       return config;
     },
   ]);
@@ -110,20 +119,29 @@ function withXcodeCubeLUTs(config) {
 
     // Check if already added
     const existingResources = project.pbxResourcesBuildPhaseObj(
-      project.getFirstTarget().uuid
+      project.getFirstTarget().uuid,
     );
 
     if (existingResources) {
-      const alreadyAdded = existingResources.files?.some(
-        (f) => {
-          const fileRef = project.pbxFileReferenceSection()[f.value?.fileRef];
-          return fileRef && fileRef.path && fileRef.path.includes("CubeLUTs");
-        }
-      );
+      const alreadyAdded = existingResources.files?.some((f) => {
+        const fileRef = project.pbxFileReferenceSection()[f.value?.fileRef];
+        return fileRef && fileRef.path && fileRef.path.includes("CubeLUTs");
+      });
 
       if (!alreadyAdded) {
-        project.addResourceFile(bundlePath, { target: project.getFirstTarget().uuid });
-        console.log("[with-cube-luts] iOS: Added CubeLUTs.bundle to Xcode resources");
+        try {
+          project.addResourceFile(bundlePath, {
+            target: project.getFirstTarget().uuid,
+          });
+          console.log(
+            "[with-cube-luts] iOS: Added CubeLUTs.bundle to Xcode resources",
+          );
+        } catch (e) {
+          console.warn(
+            "[with-cube-luts] iOS: Could not add CubeLUTs.bundle to Xcode resources:",
+            e.message,
+          );
+        }
       }
     }
 
