@@ -165,7 +165,7 @@ export default function EditProfileScreen() {
               className="h-24 w-24 rounded-[20px]"
               contentFit="cover"
             />
-            <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-full bg-primary">
+            <View className="absolute bottom-0 right-0 h-8 w-8 items-center justify-center rounded-[8px] bg-primary">
               {isUploading ? (
                 <Loader2
                   size={16}

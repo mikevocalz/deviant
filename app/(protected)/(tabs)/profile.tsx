@@ -631,12 +631,12 @@ function ProfileScreenContent() {
                     </View>
                   )}
                   {isUpdatingAvatar ? (
-                    <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
+                    <View className="absolute inset-0 items-center justify-center rounded-[20px] bg-black/50">
                       <ActivityIndicator size="small" color="#fff" />
                     </View>
                   ) : (
                     <View
-                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-full bg-primary border-2"
+                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-[8px] bg-primary border-2"
                       style={{
                         borderColor: colors.background,
                         transform: [{ translateX: -14 }],
