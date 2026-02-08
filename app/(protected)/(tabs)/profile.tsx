@@ -577,13 +577,34 @@ function ProfileScreenContent() {
                 disabled={isUpdatingAvatar}
               >
                 <View className="relative">
-                  <Image
-                    source={{ uri: avatarUri }}
-                    className="w-[88px] h-[88px] rounded-full"
-                    style={{ backgroundColor: "#1a1a1a" }}
-                    contentFit="cover"
-                    cachePolicy="memory-disk"
-                  />
+                  {avatarUri &&
+                  avatarUri.startsWith("http") &&
+                  !avatarUri.includes("ui-avatars.com") ? (
+                    <Image
+                      source={{ uri: avatarUri }}
+                      className="w-[88px] h-[88px] rounded-full"
+                      style={{ backgroundColor: "#1a1a1a" }}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
+                  ) : (
+                    <View
+                      className="w-[88px] h-[88px] rounded-full items-center justify-center"
+                      style={{ backgroundColor: "rgb(62, 164, 229)" }}
+                    >
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 32,
+                          fontWeight: "800",
+                        }}
+                      >
+                        {(displayName || displayUsername || "U")
+                          .charAt(0)
+                          .toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   {isUpdatingAvatar ? (
                     <View className="absolute inset-0 items-center justify-center rounded-full bg-black/50">
                       <ActivityIndicator size="small" color="#fff" />
