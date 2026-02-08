@@ -18,6 +18,8 @@ export function useStories() {
   return useQuery({
     queryKey: storyKeys.list(),
     queryFn: () => storiesApiClient.getStories(),
+    staleTime: 30 * 1000,
+    refetchOnMount: "always",
   });
 }
 

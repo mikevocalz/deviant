@@ -116,6 +116,15 @@ export const DB = {
     isOnline: "is_online",
     createdAt: "created_at",
   },
+  storyTags: {
+    table: "story_tags",
+    id: "id",
+    storyId: "story_id",
+    taggedUserId: "tagged_user_id",
+    xPosition: "x_position",
+    yPosition: "y_position",
+    createdAt: "created_at",
+  },
   eventLikes: {
     table: "event_likes",
     id: "id",

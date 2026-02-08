@@ -38,6 +38,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usersApi } from "@/lib/api/users";
+import { storyTagsApi, type StoryTag } from "@/lib/api/stories";
 
 const { width, height } = Dimensions.get("window");
 const LONG_PRESS_DELAY = 300;
@@ -70,6 +71,8 @@ export default function StoryViewerScreen() {
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
+  const [storyTags, setStoryTags] = useState<StoryTag[]>([]);
+  const [showTags, setShowTags] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPaused = useRef(false);
   const hasAdvanced = useRef(false);
@@ -156,6 +159,18 @@ export default function StoryViewerScreen() {
       setResolvedUserId(null);
     }
   }, [story?.userId, story?.username]);
+
+  // Fetch tags for current story item
+  useEffect(() => {
+    if (!currentItem?.id) {
+      setStoryTags([]);
+      return;
+    }
+    storyTagsApi
+      .getTagsForStory(String(currentItem.id))
+      .then(setStoryTags)
+      .catch(() => setStoryTags([]));
+  }, [currentItem?.id]);
 
   const hasNextUser = currentStoryIndex < availableStories.length - 1;
   const hasPrevUser = currentStoryIndex > 0;
@@ -813,6 +828,89 @@ export default function StoryViewerScreen() {
           </View>
         )}
       </View>
+
+      {/* Tagged users indicator */}
+      {storyTags.length > 0 && (
+        <Pressable
+          onPress={() => setShowTags((v) => !v)}
+          style={{
+            position: "absolute",
+            bottom: isOwnStory ? 16 : 90,
+            alignSelf: "center",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: showTags ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.5)",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.15)",
+            zIndex: 100,
+          }}
+        >
+          {showTags ? (
+            <View style={{ gap: 4 }}>
+              {storyTags.map((tag) => (
+                <Pressable
+                  key={tag.id}
+                  onPress={() => {
+                    isPaused.current = true;
+                    cancelAnimation(progress);
+                    try {
+                      player?.pause();
+                    } catch {}
+                    if (
+                      tag.username.toLowerCase() ===
+                      currentUser?.username?.toLowerCase()
+                    ) {
+                      router.push("/(protected)/(tabs)/profile");
+                    } else {
+                      router.push(`/(protected)/profile/${tag.username}`);
+                    }
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingVertical: 2,
+                  }}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        tag.avatar ||
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(tag.username)}&background=1a1a1a&color=fff`,
+                    }}
+                    style={{ width: 22, height: 22, borderRadius: 11 }}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}
+                  >
+                    @{tag.username}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <>
+              <Image
+                source={{
+                  uri:
+                    storyTags[0].avatar ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(storyTags[0].username)}&background=1a1a1a&color=fff`,
+                }}
+                style={{ width: 20, height: 20, borderRadius: 10 }}
+              />
+              <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
+                {storyTags.length === 1
+                  ? `@${storyTags[0].username}`
+                  : `@${storyTags[0].username} +${storyTags.length - 1}`}
+              </Text>
+            </>
+          )}
+        </Pressable>
+      )}
 
       {/* Touch areas for navigation - full screen overlay */}
       <View

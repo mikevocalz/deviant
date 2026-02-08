@@ -44,7 +44,10 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
     >
       <Pressable
         onPress={() => {
-          console.log("[Feed] Post pressed, item:", { id: item?.id, caption: item?.caption?.substring(0, 20) });
+          console.log("[Feed] Post pressed, item:", {
+            id: item?.id,
+            caption: item?.caption?.substring(0, 20),
+          });
           if (item?.id) {
             router.push(`/(protected)/post/${item.id}`);
           } else {
@@ -283,8 +286,10 @@ export function Feed() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleRefresh = useCallback(async () => {
+    // Refetch feed posts AND stories on pull-to-refresh
+    queryClient.invalidateQueries({ queryKey: ["stories"] });
     await refetch();
-  }, [refetch]);
+  }, [refetch, queryClient]);
 
   const renderFooter = useCallback(() => {
     if (!isFetchingNextPage) return null;

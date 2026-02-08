@@ -20,6 +20,7 @@ import {
   Download,
   Star,
   Globe,
+  UserPlus,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -35,6 +36,11 @@ import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
+import {
+  StoryTagPicker,
+  type TaggedUser,
+} from "@/components/stories/story-tag-picker";
+import { storyTagsApi } from "@/lib/api/stories";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
 import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
@@ -91,6 +97,8 @@ export default function CreateStoryScreen() {
   const [visibility, setVisibility] = useState<"public" | "close_friends">(
     "public",
   );
+  const [taggedUsers, setTaggedUsers] = useState<TaggedUser[]>([]);
+  const [showTagPicker, setShowTagPicker] = useState(false);
   const [videoThumbnails, setVideoThumbnails] = useState<
     Record<string, string>
   >({});
@@ -340,11 +348,23 @@ export default function CreateStoryScreen() {
       createStory.mutate(
         { items: storyItems, visibility },
         {
-          onSuccess: () => {
+          onSuccess: (newStory: any) => {
+            // Save tags if any users were tagged
+            if (taggedUsers.length > 0 && newStory?.id) {
+              const tags = taggedUsers.map((u) => ({
+                userId: u.id,
+                x: 0.5,
+                y: 0.5,
+              }));
+              storyTagsApi.addTags(String(newStory.id), tags).catch((err) => {
+                console.error("[Story] Failed to save tags:", err);
+              });
+            }
             setIsSharing(false);
             showToast("success", "Success", "Story shared successfully!");
             reset();
             setMediaAssets([]);
+            setTaggedUsers([]);
             router.back();
           },
           onError: (error: any) => {
@@ -719,6 +739,45 @@ export default function CreateStoryScreen() {
           </View>
         )}
 
+        {/* Tag People Button */}
+        {selectedMedia.length > 0 && (
+          <View className="px-4 mt-3 mb-1">
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowTagPicker(true);
+              }}
+              className="flex-row items-center justify-center gap-2 rounded-full py-2.5"
+              style={{
+                backgroundColor:
+                  taggedUsers.length > 0
+                    ? "rgba(62, 164, 229, 0.12)"
+                    : "rgba(255,255,255,0.05)",
+                borderWidth: 1.5,
+                borderColor:
+                  taggedUsers.length > 0
+                    ? "rgba(62, 164, 229, 0.3)"
+                    : "rgba(255,255,255,0.08)",
+              }}
+            >
+              <UserPlus
+                size={16}
+                color={taggedUsers.length > 0 ? "rgb(62, 164, 229)" : "#666"}
+              />
+              <Text
+                className="text-sm font-semibold"
+                style={{
+                  color: taggedUsers.length > 0 ? "rgb(62, 164, 229)" : "#666",
+                }}
+              >
+                {taggedUsers.length > 0
+                  ? `${taggedUsers.length} ${taggedUsers.length === 1 ? "person" : "people"} tagged`
+                  : "Tag People"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
         {/* Action buttons */}
         <View className="px-4 pb-6">
           <View className="flex-row justify-center gap-6">
@@ -760,6 +819,14 @@ export default function CreateStoryScreen() {
 
       {/* Klipy Sticker Picker Sheet */}
       {isStickerSheetOpen && <StickerPickerSheet onDone={handleStickersDone} />}
+
+      {/* Tag People Picker */}
+      <StoryTagPicker
+        visible={showTagPicker}
+        onClose={() => setShowTagPicker(false)}
+        selectedUsers={taggedUsers}
+        onUsersChanged={setTaggedUsers}
+      />
     </>
   );
 }

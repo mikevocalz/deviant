@@ -275,6 +275,135 @@ export const storiesApi = {
   },
 };
 
+export interface StoryTag {
+  id: number;
+  storyId: number;
+  taggedUserId: number;
+  username: string;
+  avatar: string;
+  xPosition: number;
+  yPosition: number;
+}
+
+export const storyTagsApi = {
+  /**
+   * Add tags to a story
+   */
+  async addTags(
+    storyId: string,
+    tags: Array<{ userId: number; x: number; y: number }>,
+  ) {
+    try {
+      if (!tags.length) return [];
+
+      const rows = tags.map((t) => ({
+        [DB.storyTags.storyId]: parseInt(storyId),
+        [DB.storyTags.taggedUserId]: t.userId,
+        [DB.storyTags.xPosition]: t.x,
+        [DB.storyTags.yPosition]: t.y,
+      }));
+
+      const { data, error } = await supabase
+        .from(DB.storyTags.table)
+        .upsert(rows, { onConflict: "story_id,tagged_user_id" })
+        .select();
+
+      if (error) throw error;
+      console.log("[StoryTags] Added", data?.length, "tags to story", storyId);
+      return data || [];
+    } catch (error) {
+      console.error("[StoryTags] addTags error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get tags for a story (with user info)
+   */
+  async getTagsForStory(storyId: string): Promise<StoryTag[]> {
+    try {
+      const { data, error } = await supabase
+        .from(DB.storyTags.table)
+        .select(
+          `
+          ${DB.storyTags.id},
+          ${DB.storyTags.storyId},
+          ${DB.storyTags.taggedUserId},
+          ${DB.storyTags.xPosition},
+          ${DB.storyTags.yPosition},
+          user:${DB.storyTags.taggedUserId}(
+            ${DB.users.id},
+            ${DB.users.username},
+            avatar:${DB.users.avatarId}(url)
+          )
+        `,
+        )
+        .eq(DB.storyTags.storyId, parseInt(storyId));
+
+      if (error) throw error;
+
+      return (data || []).map((tag: any) => ({
+        id: tag[DB.storyTags.id],
+        storyId: tag[DB.storyTags.storyId],
+        taggedUserId: tag[DB.storyTags.taggedUserId],
+        username: tag.user?.[DB.users.username] || "unknown",
+        avatar: tag.user?.avatar?.url || "",
+        xPosition: tag[DB.storyTags.xPosition] || 0.5,
+        yPosition: tag[DB.storyTags.yPosition] || 0.5,
+      }));
+    } catch (error) {
+      console.error("[StoryTags] getTagsForStory error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Remove a tag from a story
+   */
+  async removeTag(storyId: string, taggedUserId: number) {
+    try {
+      const { error } = await supabase
+        .from(DB.storyTags.table)
+        .delete()
+        .eq(DB.storyTags.storyId, parseInt(storyId))
+        .eq(DB.storyTags.taggedUserId, taggedUserId);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error("[StoryTags] removeTag error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Search users for tagging (autocomplete)
+   */
+  async searchUsers(query: string, limit: number = 10) {
+    try {
+      if (!query || query.length < 1) return [];
+
+      const { data, error } = await supabase
+        .from(DB.users.table)
+        .select(
+          `${DB.users.id}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+        )
+        .ilike(DB.users.username, `%${query}%`)
+        .limit(limit);
+
+      if (error) throw error;
+
+      return (data || []).map((u: any) => ({
+        id: u[DB.users.id],
+        username: u[DB.users.username],
+        avatar: u.avatar?.url || "",
+      }));
+    } catch (error) {
+      console.error("[StoryTags] searchUsers error:", error);
+      return [];
+    }
+  },
+};
+
 function formatTimeAgo(dateString: string): string {
   if (!dateString) return "Just now";
   const date = new Date(dateString);
