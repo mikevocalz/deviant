@@ -1,50 +1,53 @@
 /**
- * StickerSheetContent — Tabbed sticker picker (Stickers | GIFs | Memes)
+ * StickerSheetContent — Tabbed sticker picker using local sticker packs
  *
- * Powered by Klipy API. Renders inside a bottom sheet.
- * Selected items are added to the editor's sticker array as remote URIs.
+ * Temporary: Uses Twemoji sticker packs from sticker-packs.ts
+ * until Klipy API key is approved. Supports category tabs and search.
  */
 
-import React, { memo, useCallback, useRef } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
   TextInput,
   Pressable,
   FlatList,
-  ActivityIndicator,
   StyleSheet,
   Dimensions,
-  Keyboard,
+  ScrollView,
 } from "react-native";
 import { Image } from "expo-image";
 import { Search, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { useStickerStore } from "@/src/stickers/stores/sticker-store";
-import {
-  useKlipySearch,
-  useKlipyAutocomplete,
-} from "@/src/stickers/hooks/useKlipySearch";
-import {
-  getItemPreviewUri,
-  getItemImageUri,
-  type KlipyItem,
-  type KlipyTab,
-} from "@/src/stickers/api/klipy";
+
+import { stickerPacks } from "@/lib/constants/sticker-packs";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const GRID_PADDING = 12;
-const GRID_GAP = 6;
-const NUM_COLUMNS = 4;
+const GRID_GAP = 8;
+const NUM_COLUMNS = 5;
 const ITEM_SIZE =
   (SCREEN_WIDTH - GRID_PADDING * 2 - GRID_GAP * (NUM_COLUMNS - 1)) /
   NUM_COLUMNS;
 
-const TABS: { key: KlipyTab; label: string }[] = [
-  { key: "stickers", label: "Stickers" },
-  { key: "gifs", label: "GIFs" },
-  { key: "memes", label: "Memes" },
+type PackKey = keyof typeof stickerPacks;
+
+const CATEGORIES: { key: PackKey | "all"; label: string; emoji: string }[] = [
+  { key: "all", label: "All", emoji: "✨" },
+  { key: "faces", label: "Faces", emoji: "😂" },
+  { key: "gestures", label: "Gestures", emoji: "👍" },
+  { key: "hearts", label: "Hearts", emoji: "❤️" },
+  { key: "symbols", label: "Symbols", emoji: "🔥" },
+  { key: "food", label: "Food", emoji: "🍕" },
+  { key: "animals", label: "Animals", emoji: "🦋" },
+  { key: "nature", label: "Nature", emoji: "🌈" },
+  { key: "flags", label: "Flags", emoji: "🚩" },
 ];
+
+// Build a flat list with category info for search
+const ALL_ITEMS = Object.entries(stickerPacks).flatMap(([category, urls]) =>
+  urls.map((url) => ({ url, category })),
+);
 
 // ── Main Component ─────────────────────────────────────
 
@@ -55,131 +58,107 @@ interface StickerSheetContentProps {
 export const StickerSheetContent = memo(function StickerSheetContent({
   onSelect,
 }: StickerSheetContentProps) {
-  const activeTab = useStickerStore((s) => s.activeTab);
-  const setActiveTab = useStickerStore((s) => s.setActiveTab);
-  const searchInput = useStickerStore((s) => s.searchInput);
-  const setSearchInput = useStickerStore((s) => s.setSearchInput);
-  const clearSearch = useStickerStore((s) => s.clearSearch);
-  const addRecent = useStickerStore((s) => s.addRecent);
+  const [activeCategory, setActiveCategory] = useState<PackKey | "all">("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const { items, isLoading, isFetching, isTrending } = useKlipySearch();
-  const { suggestions } = useKlipyAutocomplete();
+  const filteredStickers = useMemo(() => {
+    let items =
+      activeCategory === "all"
+        ? ALL_ITEMS
+        : ALL_ITEMS.filter((item) => item.category === activeCategory);
 
-  const inputRef = useRef<TextInput>(null);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      items = ALL_ITEMS.filter((item) =>
+        item.category.toLowerCase().includes(q),
+      );
+    }
+
+    return items.map((item) => item.url);
+  }, [activeCategory, searchQuery]);
 
   const handleSelect = useCallback(
-    (item: KlipyItem) => {
+    (uri: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const uri = getItemImageUri(item, activeTab);
-      if (uri) {
-        addRecent(uri);
-        onSelect(uri);
-      }
+      onSelect(uri);
     },
-    [activeTab, addRecent, onSelect],
-  );
-
-  const handleSuggestionTap = useCallback(
-    (suggestion: string) => {
-      setSearchInput(suggestion);
-      Keyboard.dismiss();
-    },
-    [setSearchInput],
+    [onSelect],
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: KlipyItem }) => (
-      <StickerGridItem
-        item={item}
-        tab={activeTab}
-        onPress={handleSelect}
-      />
+    ({ item }: { item: string }) => (
+      <StickerGridItem uri={item} onPress={handleSelect} />
     ),
-    [activeTab, handleSelect],
+    [handleSelect],
   );
 
-  const keyExtractor = useCallback((item: KlipyItem) => item.id, []);
-
-  const showSuggestions =
-    searchInput.trim().length >= 2 && suggestions.length > 0;
+  const keyExtractor = useCallback(
+    (item: string, index: number) => `${item}-${index}`,
+    [],
+  );
 
   return (
     <View style={styles.container}>
-      {/* ── Tab Bar ── */}
-      <View style={styles.tabBar}>
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.key;
+      {/* ── Category Tabs (horizontal scroll) ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabBar}
+      >
+        {CATEGORIES.map((cat) => {
+          const isActive = activeCategory === cat.key;
           return (
             <Pressable
-              key={tab.key}
+              key={cat.key}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveTab(tab.key);
+                setActiveCategory(cat.key);
+                setSearchQuery("");
               }}
               style={[styles.tab, isActive && styles.tabActive]}
             >
+              <Text style={styles.tabEmoji}>{cat.emoji}</Text>
               <Text
                 style={[styles.tabLabel, isActive && styles.tabLabelActive]}
               >
-                {tab.label}
+                {cat.label}
               </Text>
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* ── Search Bar ── */}
       <View style={styles.searchContainer}>
         <Search size={16} color="rgba(255,255,255,0.4)" />
         <TextInput
-          ref={inputRef}
           style={styles.searchInput}
-          placeholder={`Search ${activeTab}...`}
+          placeholder="Search stickers..."
           placeholderTextColor="rgba(255,255,255,0.3)"
-          value={searchInput}
-          onChangeText={setSearchInput}
+          value={searchQuery}
+          onChangeText={(text) => {
+            setSearchQuery(text);
+            if (text.trim()) setActiveCategory("all");
+          }}
           returnKeyType="search"
           autoCorrect={false}
           autoCapitalize="none"
         />
-        {searchInput.length > 0 && (
-          <Pressable onPress={clearSearch} hitSlop={8}>
+        {searchQuery.length > 0 && (
+          <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
             <X size={16} color="rgba(255,255,255,0.4)" />
           </Pressable>
         )}
       </View>
 
-      {/* ── Autocomplete Suggestions ── */}
-      {showSuggestions && (
-        <View style={styles.suggestionsRow}>
-          {suggestions.slice(0, 5).map((s) => (
-            <Pressable
-              key={s}
-              onPress={() => handleSuggestionTap(s)}
-              style={styles.suggestionChip}
-            >
-              <Text style={styles.suggestionText} numberOfLines={1}>
-                {s}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      )}
-
       {/* ── Grid ── */}
-      {isLoading && items.length === 0 ? (
+      {filteredStickers.length === 0 ? (
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="rgba(255,255,255,0.5)" />
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyText}>
-            {isTrending ? "Loading trending..." : "No results found"}
-          </Text>
+          <Text style={styles.emptyText}>No stickers found</Text>
         </View>
       ) : (
         <FlatList
-          data={items}
+          data={filteredStickers}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           numColumns={NUM_COLUMNS}
@@ -188,24 +167,10 @@ export const StickerSheetContent = memo(function StickerSheetContent({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           removeClippedSubviews
-          maxToRenderPerBatch={20}
+          maxToRenderPerBatch={30}
           windowSize={5}
-          ListFooterComponent={
-            isFetching ? (
-              <ActivityIndicator
-                size="small"
-                color="rgba(255,255,255,0.3)"
-                style={{ paddingVertical: 16 }}
-              />
-            ) : null
-          }
         />
       )}
-
-      {/* ── Klipy Attribution ── */}
-      <View style={styles.attribution}>
-        <Text style={styles.attributionText}>Powered by Klipy</Text>
-      </View>
     </View>
   );
 });
@@ -213,27 +178,20 @@ export const StickerSheetContent = memo(function StickerSheetContent({
 // ── Grid Item ──────────────────────────────────────────
 
 const StickerGridItem = memo(function StickerGridItem({
-  item,
-  tab,
+  uri,
   onPress,
 }: {
-  item: KlipyItem;
-  tab: KlipyTab;
-  onPress: (item: KlipyItem) => void;
+  uri: string;
+  onPress: (uri: string) => void;
 }) {
-  const previewUri = getItemPreviewUri(item, tab);
-
   return (
-    <Pressable
-      onPress={() => onPress(item)}
-      style={styles.gridItem}
-    >
+    <Pressable onPress={() => onPress(uri)} style={styles.gridItem}>
       <Image
-        source={{ uri: previewUri }}
+        source={{ uri }}
         style={styles.gridImage}
-        contentFit={tab === "stickers" ? "contain" : "cover"}
-        recyclingKey={item.id}
-        transition={150}
+        contentFit="contain"
+        recyclingKey={uri}
+        transition={100}
         cachePolicy="memory-disk"
       />
     </Pressable>
@@ -249,21 +207,27 @@ const styles = StyleSheet.create({
   },
   // Tabs
   tabBar: {
-    flexDirection: "row",
     paddingHorizontal: GRID_PADDING,
     paddingTop: 8,
     paddingBottom: 4,
     gap: 6,
   },
   tab: {
-    flex: 1,
     paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 10,
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
+    flexDirection: "row",
+    gap: 6,
   },
   tabActive: {
-    backgroundColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(62, 164, 229, 0.2)",
+    borderWidth: 1,
+    borderColor: "rgba(62, 164, 229, 0.3)",
+  },
+  tabEmoji: {
+    fontSize: 16,
   },
   tabLabel: {
     fontSize: 13,
@@ -279,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginHorizontal: GRID_PADDING,
     marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
@@ -291,25 +255,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#fff",
     padding: 0,
-  },
-  // Suggestions
-  suggestionsRow: {
-    flexDirection: "row",
-    paddingHorizontal: GRID_PADDING,
-    paddingVertical: 6,
-    gap: 6,
-    flexWrap: "nowrap",
-  },
-  suggestionChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.08)",
-    maxWidth: 120,
-  },
-  suggestionText: {
-    fontSize: 12,
-    color: "rgba(255,255,255,0.6)",
   },
   // Grid
   gridContent: {
@@ -323,9 +268,12 @@ const styles = StyleSheet.create({
   gridItem: {
     width: ITEM_SIZE,
     height: ITEM_SIZE,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
   },
   gridImage: {
     width: "100%",
@@ -341,14 +289,5 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 14,
     color: "rgba(255,255,255,0.35)",
-  },
-  // Attribution
-  attribution: {
-    paddingVertical: 6,
-    alignItems: "center",
-  },
-  attributionText: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.2)",
   },
 });
