@@ -43,7 +43,7 @@ export default {
           "This app needs access to your photo library to select photos and videos for posts and stories.",
         NSMicrophoneUsageDescription:
           "This app needs access to your microphone to record videos with audio.",
-        UIBackgroundModes: ["audio"],
+        UIBackgroundModes: ["audio", "voip"],
         NSPhotoLibraryAddUsageDescription:
           "Allow $(PRODUCT_NAME) to save photos.",
         NSLocationWhenInUseUsageDescription:
@@ -80,6 +80,10 @@ export default {
         "android.permission.VIBRATE",
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
+        "android.permission.MANAGE_OWN_CALLS",
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
       ],
       config: {
         googleMaps: {
@@ -163,6 +167,7 @@ export default {
             "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
         },
       ],
+      "@config-plugins/react-native-callkeep",
       "expo-secure-store",
       "react-native-compressor",
       [

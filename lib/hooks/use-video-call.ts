@@ -50,6 +50,13 @@ import {
   enableSpeakerphone,
   disableSpeakerphone,
 } from "@/lib/utils/audio-route";
+import {
+  startOutgoingCall,
+  reportOutgoingCallConnected,
+  endCall as callKeepEndCall,
+  persistCallMapping,
+  setMuted as callKeepSetMuted,
+} from "@/src/services/callkeep";
 import { useChatStore } from "@/lib/stores/chat-store";
 import {
   useVideoRoomStore,
@@ -377,7 +384,24 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 5: Signal callees
+      // Step 5: Report outgoing call to CallKeep native UI
+      try {
+        const callUUID = newRoomId;
+        persistCallMapping(newRoomId, callUUID);
+        startOutgoingCall({
+          callUUID,
+          handle: user?.username || "DVNT",
+          displayName: isGroup
+            ? `Group Call (${participantIds.length + 1})`
+            : "DVNT Call",
+          hasVideo: callType === "video",
+        });
+        reportOutgoingCallConnected(callUUID);
+      } catch (ckErr) {
+        logWarn("CallKeep outgoing call report failed (non-fatal):", ckErr);
+      }
+
+      // Step 6: Signal callees
       try {
         await callSignalsApi.sendCallSignal({
           roomId: newRoomId,
@@ -472,6 +496,13 @@ export function useVideoCall() {
       callSignalsApi.endCallSignals(currentRoomId).catch((e) => {
         logWarn("Failed to end call signals:", e);
       });
+
+      // End native call UI (idempotent)
+      try {
+        callKeepEndCall(currentRoomId);
+      } catch (ckErr) {
+        logWarn("CallKeep endCall failed (non-fatal):", ckErr);
+      }
     }
 
     // Stop media — only stop camera if it was a video call
@@ -515,12 +546,16 @@ export function useVideoCall() {
     if (s.isMicOn) {
       micRef.current.stopMicrophone();
       s.setMicOn(false);
+      // Sync mute to native call UI
+      if (s.roomId) callKeepSetMuted(s.roomId, true);
       log("Mic muted");
     } else {
       micRef.current
         .startMicrophone()
         .then(() => {
           s.setMicOn(true);
+          // Sync unmute to native call UI
+          if (s.roomId) callKeepSetMuted(s.roomId, false);
           log("Mic unmuted");
         })
         .catch((e) => {

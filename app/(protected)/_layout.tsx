@@ -2,7 +2,7 @@
 
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
-import { IncomingCallOverlay } from "@/components/call/incoming-call-overlay";
+import { useCallKeepCoordinator } from "@/src/services/callkeep";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -36,9 +36,11 @@ const fullScreenModalConfig = {
 };
 
 export default function ProtectedLayout() {
+  // Initialize CallKeep native call UI — registers listeners ONCE
+  useCallKeepCoordinator();
+
   return (
     <>
-      <IncomingCallOverlay />
       <Stack
         screenOptions={{
           headerShown: false,
