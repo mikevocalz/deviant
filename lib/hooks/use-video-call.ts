@@ -16,6 +16,7 @@ import {
 } from "@fishjam-cloud/react-native-client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { videoApi } from "@/src/video/api";
+import { callSignalsApi, type CallSignal } from "@/lib/api/call-signals";
 
 export interface Participant {
   oderId: string;
@@ -152,6 +153,29 @@ export function useVideoCall() {
           },
         });
 
+        // Start camera and microphone after joining
+        try {
+          await cameraRef.current.startCamera();
+          await micRef.current.startMicrophone();
+          console.log("[VideoCall] Camera and mic started");
+        } catch (mediaErr) {
+          console.warn("[VideoCall] Failed to start media:", mediaErr);
+        }
+
+        // Signal the callees so they get a ring notification
+        try {
+          await callSignalsApi.sendCallSignal({
+            roomId: newRoomId,
+            callerId: user?.id || "",
+            calleeIds: participantIds,
+            callerUsername: user?.username || undefined,
+            callerAvatar: user?.avatar || undefined,
+            isGroup,
+          });
+        } catch (signalErr) {
+          console.warn("[VideoCall] Failed to send call signal:", signalErr);
+        }
+
         setState((s) => ({ ...s, roomId: newRoomId, isInCall: true }));
         console.log("[VideoCall] Call created and joined:", newRoomId);
       } catch (err: any) {
@@ -162,7 +186,7 @@ export function useVideoCall() {
         }));
       }
     },
-    [],
+    [user],
   );
 
   // Join an existing call
@@ -187,6 +211,15 @@ export function useVideoCall() {
           avatar: joinedUser.avatar,
         },
       });
+
+      // Start camera and microphone after joining
+      try {
+        await cameraRef.current.startCamera();
+        await micRef.current.startMicrophone();
+        console.log("[VideoCall] Camera and mic started");
+      } catch (mediaErr) {
+        console.warn("[VideoCall] Failed to start media:", mediaErr);
+      }
 
       setState((s) => ({
         ...s,

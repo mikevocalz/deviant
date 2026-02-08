@@ -2,6 +2,7 @@
 
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
+import { IncomingCallOverlay } from "@/components/call/incoming-call-overlay";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -36,54 +37,60 @@ const fullScreenModalConfig = {
 
 export default function ProtectedLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        ...screenTransitionConfig,
-        contentStyle: { backgroundColor: "#000" },
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
-      <Stack.Screen name="search" />
-      <Stack.Screen name="messages" />
-      <Stack.Screen name="messages/new" options={modalTransitionConfig} />
-      <Stack.Screen name="messages/new-group" options={modalTransitionConfig} />
-      <Stack.Screen
-        name="post/[id]"
-        options={{
-          animation: "fade",
-          animationDuration: 300,
-          animationTypeForReplace: "push",
+    <>
+      <IncomingCallOverlay />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          ...screenTransitionConfig,
+          contentStyle: { backgroundColor: "#000" },
         }}
-      />
-      <Stack.Screen
-        name="profile/[username]"
-        options={{
-          animation: "slide_from_right",
-          animationDuration: 250,
-        }}
-      />
-      <Stack.Screen name="profile/edit" options={modalTransitionConfig} />
-      <Stack.Screen
-        name="events/create"
-        options={{ ...fullScreenModalConfig, headerShown: true }}
-      />
-      <Stack.Screen name="events/[id]" />
-      <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
-      <Stack.Screen
-        name="story/create"
-        options={{ ...fullScreenModalConfig, headerShown: true }}
-      />
-      <Stack.Screen name="chat" />
-      <Stack.Screen
-        name="call/[roomId]"
-        options={{ presentation: "fullScreenModal", animation: "fade" }}
-      />
-      <Stack.Screen name="comments" options={modalTransitionConfig} />
-      <Stack.Screen
-        name="camera"
-        options={{ ...fullScreenModalConfig, animation: "fade" }}
-      />
-    </Stack>
+      >
+        <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="messages" />
+        <Stack.Screen name="messages/new" options={modalTransitionConfig} />
+        <Stack.Screen
+          name="messages/new-group"
+          options={modalTransitionConfig}
+        />
+        <Stack.Screen
+          name="post/[id]"
+          options={{
+            animation: "fade",
+            animationDuration: 300,
+            animationTypeForReplace: "push",
+          }}
+        />
+        <Stack.Screen
+          name="profile/[username]"
+          options={{
+            animation: "slide_from_right",
+            animationDuration: 250,
+          }}
+        />
+        <Stack.Screen name="profile/edit" options={modalTransitionConfig} />
+        <Stack.Screen
+          name="events/create"
+          options={{ ...fullScreenModalConfig, headerShown: true }}
+        />
+        <Stack.Screen name="events/[id]" />
+        <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
+        <Stack.Screen
+          name="story/create"
+          options={{ ...fullScreenModalConfig, headerShown: true }}
+        />
+        <Stack.Screen name="chat" />
+        <Stack.Screen
+          name="call/[roomId]"
+          options={{ presentation: "fullScreenModal", animation: "fade" }}
+        />
+        <Stack.Screen name="comments" options={modalTransitionConfig} />
+        <Stack.Screen
+          name="camera"
+          options={{ ...fullScreenModalConfig, animation: "fade" }}
+        />
+      </Stack>
+    </>
   );
 }
