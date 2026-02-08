@@ -203,12 +203,27 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     try {
       const result = await notificationsApiClient.getNotifications(50);
       // DEFENSIVE: Filter out null values from failed transformations
-      const activities = (result.docs || [])
+      const allActivities = (result.docs || [])
         .map((n: Notification) => notificationToActivity(n))
         .filter((a): a is Activity => a !== null);
 
+      // Deduplicate: first by ID, then by composite key (type + actor + entity)
+      // This catches both exact duplicates and multiple rows for the same action
+      const seenIds = new Set<string>();
+      const seenKeys = new Set<string>();
+      const activities = allActivities.filter((a) => {
+        if (seenIds.has(a.id)) return false;
+        seenIds.add(a.id);
+        // Composite key: same actor doing the same action on the same entity
+        const compositeKey = `${a.type}:${a.user?.id || ""}:${a.entityId || a.post?.id || ""}`;
+        if (seenKeys.has(compositeKey)) return false;
+        seenKeys.add(compositeKey);
+        return true;
+      });
+
       console.log("[ActivityStore] Fetched from backend:", {
         count: activities.length,
+        beforeDedup: allActivities.length,
         unread: activities.filter((a) => !a.isRead).length,
       });
 
