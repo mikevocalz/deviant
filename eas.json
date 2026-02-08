@@ -47,7 +47,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sonoma-14.6-xcode-16.1"
+        "image": "latest"
       },
       "node": "22.14.0",
       "pnpm": "10.28.0",
