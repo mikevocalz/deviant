@@ -93,6 +93,46 @@ npx eas-cli build --platform ios --profile production --auto-submit --non-intera
 - User must force-close + reopen app twice (download then apply)
 - Use `/deploy` workflow in Windsurf to automate this
 
+### EDGE FUNCTION DEPLOYMENT - CRITICAL RULES:
+
+**⚠️ All Edge Functions that use Better Auth tokens MUST be deployed with `--no-verify-jwt`.**
+
+The Supabase API gateway validates the `Authorization` header as a Supabase JWT by default. Since we use Better Auth session tokens (NOT Supabase JWTs), the gateway rejects requests before the function code runs unless `--no-verify-jwt` is set.
+
+```bash
+# CORRECT — all edge functions must use this flag
+npx supabase functions deploy <function-name> --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+
+# WRONG — gateway will reject Better Auth tokens with "Invalid JWT"
+npx supabase functions deploy <function-name> --project-ref npfjanxturvmjyevoyfo
+```
+
+**Video/Lynk Edge Functions (all 6 require `--no-verify-jwt`):**
+
+- `video_create_room`, `video_join_room`, `video_refresh_token`
+- `video_end_room`, `video_kick_user`, `video_ban_user`
+
+**createClient in Edge Functions — MUST include auth options:**
+
+```typescript
+// CORRECT — service role key properly used, bypasses RLS
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+  global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+});
+
+// WRONG — may inherit request's Authorization header, causing "permission denied"
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
+```
+
+**New tables MUST have `GRANT ALL TO service_role`:**
+
+```sql
+-- Without this, edge functions get "permission denied" even with service role key
+GRANT ALL ON public.<table_name> TO service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
+```
+
 ### AFTER EVERY FIX - MANDATORY VERIFICATION:
 
 **ALWAYS verify everything works after making changes. Never assume fixes work.**
