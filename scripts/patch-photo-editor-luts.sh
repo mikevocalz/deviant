@@ -1,7 +1,7 @@
 #!/bin/bash
 # Patch @baronha/react-native-photo-editor to add .cube LUT filter support
 # Copies new native files and overwrites modified files for LUT integration
-set -e
+set +e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LUT_FILES_DIR="$SCRIPT_DIR/photo-editor-lut-files"

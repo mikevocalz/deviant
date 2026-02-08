@@ -4,7 +4,7 @@
 # - Add initialTool support
 # - Remove pinned SDWebImage versions
 # - Fix JS module exports
-set -e
+set +e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

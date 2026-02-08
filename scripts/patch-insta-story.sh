@@ -1,9 +1,15 @@
 #!/bin/bash
 # Patch react-native-insta-story to fix duplicate namespace conflict with regulaforensics
 # Both libraries use 'com.reactlibrary' — we rename insta-story's to 'com.instastory'
-set -e
+set +e
 
-for dir in $(find node_modules -path "*/react-native-insta-story/android" -type d -not -path "*/build/*"); do
+DIRS=$(find node_modules -path "*/react-native-insta-story/android" -type d -not -path "*/build/*" 2>/dev/null)
+if [ -z "$DIRS" ]; then
+  echo "[patch] react-native-insta-story not found, skipping"
+  exit 0
+fi
+
+for dir in $DIRS; do
   echo "[patch] Patching $dir"
 
   # 1. Rename Java package in source files
