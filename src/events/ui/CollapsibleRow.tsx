@@ -28,7 +28,9 @@ export const CollapsibleRow = memo(function CollapsibleRow({
   }, [expanded, progress]);
 
   const chevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg` }],
+    transform: [
+      { rotate: `${interpolate(progress.value, [0, 1], [0, 180])}deg` },
+    ],
   }));
 
   const contentStyle = useAnimatedStyle(() => ({
@@ -44,7 +46,7 @@ export const CollapsibleRow = memo(function CollapsibleRow({
         <Text style={styles.icon}>{icon}</Text>
         <Text style={styles.title}>{title}</Text>
         <Animated.View style={chevronStyle}>
-          <ChevronDown size={18} color="rgba(255,255,255,0.5)" />
+          <ChevronDown size={18} color="#34A2DF" />
         </Animated.View>
       </Pressable>
 
@@ -65,10 +67,10 @@ export const CollapsibleRow = memo(function CollapsibleRow({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "rgba(255,255,255,0.04)",
+    backgroundColor: "rgba(138,64,207,0.06)",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(138,64,207,0.12)",
     overflow: "hidden",
   },
   header: {

@@ -43,7 +43,9 @@ export const SocialProofRow = memo(function SocialProofRow({
                 ]}
               >
                 <Text style={styles.initials}>
-                  {attendee.initials || attendee.username?.charAt(0)?.toUpperCase() || "?"}
+                  {attendee.initials ||
+                    attendee.username?.charAt(0)?.toUpperCase() ||
+                    "?"}
                 </Text>
               </View>
             )}
@@ -58,7 +60,8 @@ export const SocialProofRow = memo(function SocialProofRow({
         </Text>
         {followingCount != null && followingCount > 0 && (
           <Text style={styles.followingText}>
-            {followingCount} {followingCount === 1 ? "person" : "people"} you follow
+            {followingCount} {followingCount === 1 ? "person" : "people"} you
+            follow
           </Text>
         )}
       </View>
@@ -70,11 +73,11 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.06)",
+    backgroundColor: "rgba(138,64,207,0.08)",
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(138,64,207,0.15)",
   },
   facePile: {
     flexDirection: "row",
@@ -111,7 +114,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   followingText: {
-    color: "rgb(255, 109, 193)",
+    color: "#FF5BFC",
     fontSize: 12,
     fontWeight: "500",
     marginTop: 2,

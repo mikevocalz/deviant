@@ -62,21 +62,21 @@ export const CountdownTimer = memo(function CountdownTimer({
 
 const styles = StyleSheet.create({
   chip: {
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(63,220,255,0.1)",
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(63,220,255,0.2)",
   },
   text: {
-    color: "#fff",
+    color: "#3FDCFF",
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.3,
   },
   liveText: {
-    color: "#ff6dc1",
+    color: "#FC253A",
     fontSize: 13,
     fontWeight: "700",
     letterSpacing: 0.5,

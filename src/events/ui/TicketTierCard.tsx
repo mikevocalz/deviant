@@ -22,12 +22,8 @@ export const TicketTierCard = memo(function TicketTierCard({
   }, [tier, onSelect]);
 
   const isVip = tier.tier === "vip" || tier.tier === "table";
-  const borderColor = isSelected
-    ? tier.glowColor
-    : "rgba(255,255,255,0.08)";
-  const bgColor = isSelected
-    ? `${tier.glowColor}15`
-    : "rgba(255,255,255,0.04)";
+  const borderColor = isSelected ? tier.glowColor : "rgba(255,255,255,0.08)";
+  const bgColor = isSelected ? `${tier.glowColor}15` : "rgba(255,255,255,0.04)";
 
   return (
     <Pressable
@@ -43,13 +39,17 @@ export const TicketTierCard = memo(function TicketTierCard({
     >
       {/* Selected indicator */}
       {isSelected && (
-        <View style={[styles.selectedBadge, { backgroundColor: tier.glowColor }]}>
+        <View
+          style={[styles.selectedBadge, { backgroundColor: tier.glowColor }]}
+        >
           <Check size={12} color="#000" strokeWidth={3} />
         </View>
       )}
 
       {/* Tier label */}
-      <View style={[styles.tierBadge, { backgroundColor: `${tier.glowColor}25` }]}>
+      <View
+        style={[styles.tierBadge, { backgroundColor: `${tier.glowColor}25` }]}
+      >
         <Text style={[styles.tierBadgeText, { color: tier.glowColor }]}>
           {tier.tier.toUpperCase()}
         </Text>
@@ -171,13 +171,13 @@ const styles = StyleSheet.create({
     marginTop: "auto",
   },
   soldOut: {
-    color: "#ef4444",
+    color: "#FC253A",
     fontSize: 11,
     fontWeight: "800",
     letterSpacing: 0.5,
   },
   urgency: {
-    color: "#eab308",
+    color: "#FF5BFC",
     fontSize: 12,
     fontWeight: "600",
   },

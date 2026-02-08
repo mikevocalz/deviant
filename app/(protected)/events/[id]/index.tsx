@@ -99,7 +99,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
       maxPerOrder: 6,
       isSoldOut: remaining === 0,
       tier: "ga",
-      glowColor: "rgb(62, 164, 229)",
+      glowColor: "#34A2DF",
     },
     {
       id: "vip",
@@ -111,7 +111,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
       maxPerOrder: 4,
       isSoldOut: remaining === 0,
       tier: "vip",
-      glowColor: "rgb(255, 109, 193)",
+      glowColor: "#8A40CF",
     },
     {
       id: "table",
@@ -127,7 +127,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
       maxPerOrder: 2,
       isSoldOut: remaining === 0,
       tier: "table",
-      glowColor: "#eab308",
+      glowColor: "#FF5BFC",
     },
   ];
 }
@@ -485,12 +485,12 @@ export default function EventDetailScreen() {
           {/* Dark gradient overlay */}
           <LinearGradient
             colors={[
-              "rgba(0,0,0,0.3)",
+              "rgba(52,162,223,0.25)",
               "transparent",
-              "rgba(0,0,0,0.85)",
+              "rgba(138,64,207,0.35)",
               "#000",
             ]}
-            locations={[0, 0.3, 0.7, 1]}
+            locations={[0, 0.25, 0.7, 1]}
             style={s.heroGradient}
           />
 
@@ -531,7 +531,7 @@ export default function EventDetailScreen() {
 
             {/* Venue + City */}
             <View style={s.venueRow}>
-              <MapPin size={16} color="rgb(62, 164, 229)" />
+              <MapPin size={16} color="#3FDCFF" />
               <Text style={s.venueText}>{event.location}</Text>
             </View>
 
@@ -548,9 +548,7 @@ export default function EventDetailScreen() {
               <Text style={s.hostName}>
                 {host?.name || host?.username || "Organizer"}
               </Text>
-              {host?.verified && (
-                <BadgeCheck size={16} color="rgb(62, 164, 229)" />
-              )}
+              {host?.verified && <BadgeCheck size={16} color="#34A2DF" />}
             </Pressable>
           </Animated.View>
 
@@ -692,7 +690,7 @@ export default function EventDetailScreen() {
           <Animated.View entering={FadeInDown.delay(600)} style={s.section}>
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
-                <MessageCircle size={18} color="rgb(62, 164, 229)" />
+                <MessageCircle size={18} color="#34A2DF" />
                 <Text style={s.sectionTitle}>Comments</Text>
                 {comments.length > 0 && (
                   <Text style={s.commentCount}>({comments.length})</Text>
@@ -708,7 +706,7 @@ export default function EventDetailScreen() {
                   style={s.viewAllButton}
                 >
                   <Text style={s.viewAllText}>View All</Text>
-                  <ChevronRight size={14} color="rgb(62, 164, 229)" />
+                  <ChevronRight size={14} color="#34A2DF" />
                 </Pressable>
               )}
             </View>
@@ -756,7 +754,7 @@ export default function EventDetailScreen() {
               }
               style={s.addCommentButton}
             >
-              <MessageCircle size={16} color="rgb(62, 164, 229)" />
+              <MessageCircle size={16} color="#34A2DF" />
               <Text style={s.addCommentText}>Add a Comment</Text>
             </Pressable>
           </Animated.View>
@@ -876,21 +874,21 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
   chipVip: {
-    backgroundColor: "rgba(255,109,193,0.2)",
-    borderColor: "rgba(255,109,193,0.3)",
+    backgroundColor: "rgba(138,64,207,0.2)",
+    borderColor: "rgba(138,64,207,0.3)",
   },
   chipVipText: {
-    color: "rgb(255, 109, 193)",
+    color: "#8A40CF",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
   },
   chipFree: {
-    backgroundColor: "rgba(62, 164, 229, 0.2)",
-    borderColor: "rgba(62, 164, 229, 0.3)",
+    backgroundColor: "rgba(63,220,255,0.15)",
+    borderColor: "rgba(63,220,255,0.3)",
   },
   chipFreeText: {
-    color: "rgb(62, 164, 229)",
+    color: "#3FDCFF",
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 1,
@@ -934,7 +932,7 @@ const s = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(62, 164, 229, 0.3)",
+    borderColor: "rgba(52,162,223,0.3)",
   },
   hostName: {
     color: "#fff",
@@ -1036,7 +1034,7 @@ const s = StyleSheet.create({
     gap: 2,
   },
   viewAllText: {
-    color: "rgb(62, 164, 229)",
+    color: "#34A2DF",
     fontSize: 14,
     fontWeight: "500",
   },
@@ -1074,11 +1072,11 @@ const s = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "rgba(62, 164, 229, 0.15)",
-    backgroundColor: "rgba(62, 164, 229, 0.06)",
+    borderColor: "rgba(52,162,223,0.15)",
+    backgroundColor: "rgba(52,162,223,0.06)",
   },
   addCommentText: {
-    color: "rgb(62, 164, 229)",
+    color: "#34A2DF",
     fontSize: 14,
     fontWeight: "500",
   },
@@ -1115,7 +1113,7 @@ const s = StyleSheet.create({
     lineHeight: 22,
   },
   retryButton: {
-    backgroundColor: "rgb(62, 164, 229)",
+    backgroundColor: "#34A2DF",
     paddingHorizontal: 32,
     paddingVertical: 14,
     borderRadius: 16,
