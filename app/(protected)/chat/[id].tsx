@@ -7,7 +7,13 @@ import {
   Platform,
   Modal,
   Alert,
+  StyleSheet,
 } from "react-native";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
+import Reanimated, {
+  SharedValue,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { FlashList } from "@shopify/flash-list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -149,6 +155,39 @@ function MediaMessage({ media, onPress }: MediaMessageProps) {
     </Pressable>
   );
 }
+
+function SwipeDeleteAction(
+  _prog: SharedValue<number>,
+  drag: SharedValue<number>,
+) {
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: drag.value + 80 }],
+  }));
+
+  return (
+    <Reanimated.View style={[swipeStyles.deleteAction, animStyle]}>
+      <Trash2 size={20} color="#fff" />
+      <Text style={swipeStyles.deleteText}>Delete</Text>
+    </Reanimated.View>
+  );
+}
+
+const swipeStyles = StyleSheet.create({
+  deleteAction: {
+    width: 80,
+    backgroundColor: "#FF3B30",
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 16,
+    marginVertical: 2,
+  },
+  deleteText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+});
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -752,19 +791,15 @@ export default function ChatScreen() {
               </View>
             );
 
-            if (isMe) {
-              return (
-                <Pressable
-                  className="self-end mb-2"
-                  onLongPress={() => handleLongPressMessage(item)}
-                  delayLongPress={400}
-                >
-                  {bubble}
-                </Pressable>
-              );
-            }
-
-            return (
+            const messageContent = isMe ? (
+              <Pressable
+                className="self-end mb-2"
+                onLongPress={() => handleLongPressMessage(item)}
+                delayLongPress={400}
+              >
+                {bubble}
+              </Pressable>
+            ) : (
               <Pressable
                 className="flex-row items-end gap-2 mb-2 self-start"
                 onLongPress={() => handleLongPressMessage(item)}
@@ -779,6 +814,41 @@ export default function ChatScreen() {
                 {bubble}
               </Pressable>
             );
+
+            // Only own messages can be swiped to delete
+            if (isMe) {
+              return (
+                <ReanimatedSwipeable
+                  friction={2}
+                  rightThreshold={40}
+                  renderRightActions={SwipeDeleteAction}
+                  onSwipeableOpen={(direction) => {
+                    if (direction === "right") {
+                      Alert.alert(
+                        "Unsend Message",
+                        "This message will be removed for everyone.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          {
+                            text: "Unsend",
+                            style: "destructive",
+                            onPress: () => {
+                              deleteMessage(chatId, item.id);
+                              showToast("success", "Unsent", "Message removed");
+                            },
+                          },
+                        ],
+                      );
+                    }
+                  }}
+                  overshootRight={false}
+                >
+                  {messageContent}
+                </ReanimatedSwipeable>
+              );
+            }
+
+            return messageContent;
           }}
         />
 

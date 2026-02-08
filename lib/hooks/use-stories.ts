@@ -71,33 +71,12 @@ export function useCreateStory() {
         queryClient.setQueryData(storyKeys.list(), context.previousData);
       }
     },
-    onSuccess: (_newStory, newStoryData) => {
-      // Replace optimistic story with refetched data instead of invalidating
-      // This prevents double stories from appearing
-      const currentUser = useAuthStore.getState().user;
-
-      queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
-        if (!old) return old;
-        // Remove temp stories
-        const filteredData = old.filter((s) => !s.id.startsWith("temp-"));
-        // Add the real story at the beginning (will be fetched on next query)
-        const realStory: Story = {
-          id: String(_newStory?.id || Date.now()),
-          userId: currentUser?.id || "",
-          username: currentUser?.username || "You",
-          avatar: currentUser?.avatar || "",
-          isViewed: false,
-          items: (newStoryData.items || []).map((item, index) => ({
-            id: `item-${index}`,
-            type: item.type as "image" | "video" | "text",
-            url: item.url,
-            text: item.text,
-            textColor: item.textColor,
-            backgroundColor: item.backgroundColor,
-          })),
-        };
-        return [realStory, ...filteredData];
-      });
+    onSuccess: () => {
+      // CRITICAL: Invalidate to refetch from server so avatar comes from
+      // entity data (author record), NOT authUser. Building a story object
+      // here with currentUser.avatar would leak the user's latest profile
+      // avatar into the story display — a SEV-0 data isolation violation.
+      queryClient.invalidateQueries({ queryKey: storyKeys.all });
     },
   });
 }
