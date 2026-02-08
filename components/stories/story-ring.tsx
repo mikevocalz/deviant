@@ -17,7 +17,7 @@ interface StoryRingProps {
 
 const sizeStyles = {
   sm: { height: 88, width: 56 },
-  md: { height: 104, width: 80 },
+  md: { height: 104, width: 74 },
   lg: { height: 120, width: 96 },
 };
 

@@ -192,7 +192,7 @@ export function StoriesBar() {
                 <View className="relative">
                   <View
                     className="items-center justify-center rounded-xl border-2 border-border bg-card"
-                    style={{ height: 104, width: 80 }}
+                    style={{ height: 104, width: 74 }}
                   >
                     <View className="h-10 w-10 items-center justify-center rounded-full bg-primary">
                       <Plus size={24} color="#0c0a09" strokeWidth={3} />
@@ -278,12 +278,12 @@ const avatarStyles = StyleSheet.create({
   },
   image: {
     borderRadius: 10,
-    width: 76,
-    height: 100,
+    width: 70,
+    height: 98,
   },
   wrapper: {
     height: 104,
-    width: 80,
+    width: 74,
     borderRadius: 12,
     borderWidth: 2,
     padding: 0,
