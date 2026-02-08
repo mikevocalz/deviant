@@ -42,12 +42,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: ErrorCode, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 function generateJti(): string {
@@ -60,7 +56,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -90,10 +86,10 @@ serve(async (req: Request) => {
       .single();
 
     if (sessionError || !session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired", 401);
+      return errorResponse("unauthorized", "Session expired");
     }
 
     const userId = session.userId;
@@ -103,7 +99,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = RefreshTokenSchema.safeParse(body);
@@ -148,13 +144,13 @@ serve(async (req: Request) => {
       .single();
 
     if (roomError || !room) {
-      return errorResponse("not_found", "Room not found", 404);
+      return errorResponse("not_found", "Room not found");
     }
 
     const internalRoomId = room.id;
 
     if (room.status !== "open") {
-      return errorResponse("conflict", "Room is no longer open", 409);
+      return errorResponse("conflict", "Room is no longer open");
     }
 
     // Check membership is active
@@ -180,7 +176,7 @@ serve(async (req: Request) => {
     });
 
     if (isBanned) {
-      return errorResponse("forbidden", "You are banned from this room", 403);
+      return errorResponse("forbidden", "You are banned from this room");
     }
 
     // If currentJti provided, check it's not revoked
@@ -193,7 +189,7 @@ serve(async (req: Request) => {
         .single();
 
       if (existingToken?.revoked_at) {
-        return errorResponse("forbidden", "Your session has been revoked", 403);
+        return errorResponse("forbidden", "Your session has been revoked");
       }
     }
 
@@ -272,7 +268,7 @@ serve(async (req: Request) => {
         "[video_refresh_token] Fishjam peer creation failed:",
         errText,
       );
-      return errorResponse("internal_error", "Failed to refresh token", 500);
+      return errorResponse("internal_error", "Failed to refresh token");
     }
 
     const peerData = await addPeerRes.json();
@@ -311,6 +307,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[video_refresh_token] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

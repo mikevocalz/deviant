@@ -40,12 +40,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: ErrorCode, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 serve(async (req: Request) => {
@@ -54,7 +50,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -63,7 +59,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
     }
 
@@ -82,10 +77,10 @@ serve(async (req: Request) => {
 
     if (sessionError || !session) {
       console.error("[video_create_room] Auth error: no valid session");
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired", 401);
+      return errorResponse("unauthorized", "Session expired");
     }
 
     const userId = session.userId;
@@ -95,16 +90,12 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = CreateRoomSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        "validation_error",
-        parsed.error.errors[0].message,
-        400,
-      );
+      return errorResponse("validation_error", parsed.error.errors[0].message);
     }
 
     const { title, isPublic, maxParticipants } = parsed.data;
@@ -122,7 +113,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "rate_limited",
         "Too many room creations. Try again later.",
-        429,
       );
     }
 
@@ -153,7 +143,7 @@ serve(async (req: Request) => {
         "[video_create_room] Room creation error:",
         roomError.message,
       );
-      return errorResponse("internal_error", "Failed to create room", 500);
+      return errorResponse("internal_error", "Failed to create room");
     }
 
     // Add creator as host
@@ -173,7 +163,7 @@ serve(async (req: Request) => {
       );
       // Cleanup room on failure
       await supabase.from("video_rooms").delete().eq("id", room.id);
-      return errorResponse("internal_error", "Failed to add host to room", 500);
+      return errorResponse("internal_error", "Failed to add host to room");
     }
 
     // Log event
@@ -204,6 +194,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[video_create_room] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

@@ -40,12 +40,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: ErrorCode, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 serve(async (req: Request) => {
@@ -54,7 +50,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -84,10 +80,10 @@ serve(async (req: Request) => {
       .single();
 
     if (sessionError || !session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired", 401);
+      return errorResponse("unauthorized", "Session expired");
     }
 
     const actorAuthId = session.userId;
@@ -100,7 +96,7 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     const actorId = actorAuthId;
@@ -110,7 +106,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = EndRoomSchema.safeParse(body);
@@ -132,13 +128,13 @@ serve(async (req: Request) => {
       .single();
 
     if (roomError || !room) {
-      return errorResponse("not_found", "Room not found", 404);
+      return errorResponse("not_found", "Room not found");
     }
 
     const internalRoomId = room.id;
 
     if (room.status === "ended") {
-      return errorResponse("conflict", "Room is already ended", 409);
+      return errorResponse("conflict", "Room is already ended");
     }
 
     // Only host can end room
@@ -148,7 +144,7 @@ serve(async (req: Request) => {
     });
 
     if (actorRole !== "host") {
-      return errorResponse("forbidden", "Only the host can end the room", 403);
+      return errorResponse("forbidden", "Only the host can end the room");
     }
 
     // 1. Delete Fishjam room (removes all peers)
@@ -174,7 +170,7 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error("[video_end_room] Room update error:", updateError.message);
-      return errorResponse("internal_error", "Failed to end room", 500);
+      return errorResponse("internal_error", "Failed to end room");
     }
 
     // 3. Update all active members to 'left'
@@ -213,6 +209,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[video_end_room] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

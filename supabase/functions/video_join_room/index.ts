@@ -40,12 +40,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: ErrorCode, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 function generateJti(): string {
@@ -58,7 +54,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -67,7 +63,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
     }
 
@@ -88,10 +83,10 @@ serve(async (req: Request) => {
       .single();
 
     if (sessionError || !session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired", 401);
+      return errorResponse("unauthorized", "Session expired");
     }
 
     const userId = session.userId;
@@ -101,16 +96,12 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = JoinRoomSchema.safeParse(body);
     if (!parsed.success) {
-      return errorResponse(
-        "validation_error",
-        parsed.error.errors[0].message,
-        400,
-      );
+      return errorResponse("validation_error", parsed.error.errors[0].message);
     }
 
     const { roomId } = parsed.data;
@@ -128,7 +119,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "rate_limited",
         "Too many join attempts. Try again later.",
-        429,
       );
     }
 
@@ -146,11 +136,11 @@ serve(async (req: Request) => {
       .single();
 
     if (roomError || !room) {
-      return errorResponse("not_found", "Room not found", 404);
+      return errorResponse("not_found", "Room not found");
     }
 
     if (room.status !== "open") {
-      return errorResponse("conflict", "Room is no longer open", 409);
+      return errorResponse("conflict", "Room is no longer open");
     }
 
     const internalRoomId = room.id;
@@ -162,7 +152,7 @@ serve(async (req: Request) => {
     });
 
     if (isBanned) {
-      return errorResponse("forbidden", "You are banned from this room", 403);
+      return errorResponse("forbidden", "You are banned from this room");
     }
 
     // Check participant count
@@ -174,7 +164,7 @@ serve(async (req: Request) => {
     );
 
     if (participantCount >= room.max_participants) {
-      return errorResponse("conflict", "Room is full", 409);
+      return errorResponse("conflict", "Room is full");
     }
 
     // Check existing membership
@@ -192,7 +182,7 @@ serve(async (req: Request) => {
         // Already in room, just refresh token
         memberRole = existingMember.role;
       } else if (existingMember.status === "banned") {
-        return errorResponse("forbidden", "You are banned from this room", 403);
+        return errorResponse("forbidden", "You are banned from this room");
       } else {
         // Rejoin (was kicked or left)
         const { error: updateError } = await supabase
@@ -207,7 +197,7 @@ serve(async (req: Request) => {
 
         if (updateError) {
           console.error("[video_join_room] Rejoin error:", updateError.message);
-          return errorResponse("internal_error", "Failed to rejoin room", 500);
+          return errorResponse("internal_error", "Failed to rejoin room");
         }
         memberRole = existingMember.role;
       }
@@ -224,7 +214,7 @@ serve(async (req: Request) => {
 
       if (insertError) {
         console.error("[video_join_room] Insert error:", insertError.message);
-        return errorResponse("internal_error", "Failed to join room", 500);
+        return errorResponse("internal_error", "Failed to join room");
       }
     }
 
@@ -251,11 +241,7 @@ serve(async (req: Request) => {
           "[video_join_room] Fishjam room creation failed:",
           errText,
         );
-        return errorResponse(
-          "internal_error",
-          "Failed to create video room",
-          500,
-        );
+        return errorResponse("internal_error", "Failed to create video room");
       }
 
       const fishjamRoom = await createRoomRes.json();
@@ -297,7 +283,7 @@ serve(async (req: Request) => {
     if (!addPeerRes.ok) {
       const errText = await addPeerRes.text();
       console.error("[video_join_room] Fishjam peer creation failed:", errText);
-      return errorResponse("internal_error", "Failed to join video room", 500);
+      return errorResponse("internal_error", "Failed to join video room");
     }
 
     const peerData = await addPeerRes.json();
@@ -361,6 +347,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[video_join_room] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

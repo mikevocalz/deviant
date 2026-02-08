@@ -42,12 +42,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: ErrorCode, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 serve(async (req: Request) => {
@@ -56,7 +52,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -86,10 +82,10 @@ serve(async (req: Request) => {
       .single();
 
     if (sessionError || !session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired", 401);
+      return errorResponse("unauthorized", "Session expired");
     }
 
     const actorId = session.userId;
@@ -99,7 +95,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = KickUserSchema.safeParse(body);
@@ -115,7 +111,7 @@ serve(async (req: Request) => {
 
     // Cannot kick yourself
     if (actorId === targetUserId) {
-      return errorResponse("validation_error", "Cannot kick yourself", 400);
+      return errorResponse("validation_error", "Cannot kick yourself");
     }
 
     // Check room exists and is open — look up by uuid
@@ -126,13 +122,13 @@ serve(async (req: Request) => {
       .single();
 
     if (roomError || !room) {
-      return errorResponse("not_found", "Room not found", 404);
+      return errorResponse("not_found", "Room not found");
     }
 
     const internalRoomId = room.id;
 
     if (room.status !== "open") {
-      return errorResponse("conflict", "Room is no longer open", 409);
+      return errorResponse("conflict", "Room is no longer open");
     }
 
     // Check actor has permission to kick
@@ -167,7 +163,7 @@ serve(async (req: Request) => {
 
     // Cannot kick the host
     if (targetMember.role === "host") {
-      return errorResponse("forbidden", "Cannot kick the room host", 403);
+      return errorResponse("forbidden", "Cannot kick the room host");
     }
 
     // Get actor's role to check hierarchy
@@ -197,7 +193,7 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error("[video_kick_user] Update error:", updateError.message);
-      return errorResponse("internal_error", "Failed to kick user", 500);
+      return errorResponse("internal_error", "Failed to kick user");
     }
 
     // 2. Revoke all active tokens for this user in this room
@@ -297,6 +293,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[video_kick_user] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });
