@@ -152,7 +152,6 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "sharp",
       "esbuild",
       "@swc/core"
     ]
