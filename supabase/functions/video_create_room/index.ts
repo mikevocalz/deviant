@@ -66,7 +66,10 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
     // Verify Better Auth session via direct DB lookup
     const { data: session, error: sessionError } = await supabase
@@ -141,7 +144,7 @@ serve(async (req: Request) => {
     if (roomError) {
       console.error(
         "[video_create_room] Room creation error:",
-        roomError.message,
+        JSON.stringify(roomError),
       );
       return errorResponse("internal_error", "Failed to create room");
     }
