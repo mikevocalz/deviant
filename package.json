@@ -145,5 +145,11 @@
       "ENABLE_SHARED_ELEMENT_TRANSITIONS": true
     }
   },
-  "pnpm": {}
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "esbuild",
+      "@swc/core"
+    ]
+  }
 }
