@@ -220,10 +220,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     gap: 6,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   tabActive: {
     backgroundColor: "rgba(62, 164, 229, 0.2)",
-    borderWidth: 1,
     borderColor: "rgba(62, 164, 229, 0.3)",
   },
   tabEmoji: {
