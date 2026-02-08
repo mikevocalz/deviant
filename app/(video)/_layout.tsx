@@ -7,7 +7,6 @@ import React from "react";
 import { Stack } from "expo-router";
 import { FishjamProvider } from "@fishjam-cloud/react-native-client";
 
-// Fishjam App ID from environment
 const FISHJAM_APP_ID = process.env.EXPO_PUBLIC_FISHJAM_APP_ID ?? "";
 
 export default function VideoLayout() {
