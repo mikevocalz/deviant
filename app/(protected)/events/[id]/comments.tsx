@@ -22,7 +22,10 @@ import { Image } from "expo-image";
 import { ArrowLeft, Send, MessageCircle } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useEventComments, useCreateEventComment } from "@/lib/hooks/use-event-comments";
+import {
+  useEventComments,
+  useCreateEventComment,
+} from "@/lib/hooks/use-event-comments";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 export default function EventCommentsScreen() {
@@ -37,7 +40,11 @@ export default function EventCommentsScreen() {
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: comments = [], isLoading, refetch } = useEventComments(eventId, 100);
+  const {
+    data: comments = [],
+    isLoading,
+    refetch,
+  } = useEventComments(eventId, 100);
   const createComment = useCreateEventComment();
 
   // Set up header
@@ -45,7 +52,7 @@ export default function EventCommentsScreen() {
     navigation.setOptions({
       headerShown: true,
       headerTitle: "Comments",
-      headerTitleAlign: "center" as const,
+      headerTitleAlign: "left" as const,
       headerStyle: {
         backgroundColor: colors.background,
       },
@@ -75,7 +82,7 @@ export default function EventCommentsScreen() {
       showToast("info", "Wait", "Already sending...");
       return;
     }
-    
+
     if (!user) {
       showToast("error", "Error", "You must be logged in to comment");
       return;
@@ -84,7 +91,7 @@ export default function EventCommentsScreen() {
     // Show sending feedback
     showToast("info", "Sending", `Posting as @${user.username}...`);
     setIsSubmitting(true);
-    
+
     try {
       await createComment.mutateAsync({
         eventId,
@@ -96,12 +103,21 @@ export default function EventCommentsScreen() {
       refetch();
     } catch (error: any) {
       console.error("[EventComments] Error:", error);
-      const errorMessage = error?.error || error?.message || "Failed to post comment";
+      const errorMessage =
+        error?.error || error?.message || "Failed to post comment";
       showToast("error", "Failed", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
-  }, [commentText, isSubmitting, eventId, createComment, refetch, showToast, user]);
+  }, [
+    commentText,
+    isSubmitting,
+    eventId,
+    createComment,
+    refetch,
+    showToast,
+    user,
+  ]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -129,11 +145,20 @@ export default function EventCommentsScreen() {
     >
       <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
         {isLoading ? (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <View
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : comments.length === 0 ? (
-          <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 40 }}>
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "center",
+              alignItems: "center",
+              padding: 40,
+            }}
+          >
             <MessageCircle size={48} color={colors.mutedForeground} />
             <Text
               style={{
@@ -176,13 +201,15 @@ export default function EventCommentsScreen() {
                     uri:
                       comment.author?.avatar ||
                       `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        comment.author?.username || comment.author?.name || "User",
+                        comment.author?.username ||
+                          comment.author?.name ||
+                          "User",
                       )}`,
                   }}
                   style={{
                     width: 40,
                     height: 40,
-                    borderRadius: 20,
+                    borderRadius: Math.min(Math.round(40 * 0.18), 16),
                   }}
                 />
                 <View style={{ flex: 1 }}>
@@ -201,7 +228,9 @@ export default function EventCommentsScreen() {
                         color: colors.foreground,
                       }}
                     >
-                      {comment.author?.username || comment.author?.name || "User"}
+                      {comment.author?.username ||
+                        comment.author?.name ||
+                        "User"}
                     </Text>
                     <Text
                       style={{
@@ -260,7 +289,7 @@ export default function EventCommentsScreen() {
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 16,
+                borderRadius: Math.min(Math.round(32 * 0.18), 16),
               }}
             />
             <View

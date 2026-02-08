@@ -88,7 +88,7 @@ function ShimmerPlaceholder({ size }: { size: number }) {
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: Math.min(Math.round(size * 0.18), 16),
         backgroundColor: "#2a2a2a",
         opacity,
       }}
@@ -97,7 +97,13 @@ function ShimmerPlaceholder({ size }: { size: number }) {
 }
 
 // ── Speaker ring animation ──────────────────────────────────────────
-function SpeakerRing({ size, children }: { size: number; children: React.ReactNode }) {
+function SpeakerRing({
+  size,
+  children,
+}: {
+  size: number;
+  children: React.ReactNode;
+}) {
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -134,13 +140,20 @@ function SpeakerRing({ size, children }: { size: number; children: React.ReactNo
   const ringSize = size + 8;
 
   return (
-    <View style={{ width: ringSize, height: ringSize, alignItems: "center", justifyContent: "center" }}>
+    <View
+      style={{
+        width: ringSize,
+        height: ringSize,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
       <Animated.View
         style={{
           position: "absolute",
           width: ringSize,
           height: ringSize,
-          borderRadius: ringSize / 2,
+          borderRadius: Math.min(Math.round(ringSize * 0.18), 18),
           borderWidth: 2,
           borderColor: "#22C55E",
           opacity: ringOpacity,
@@ -151,7 +164,7 @@ function SpeakerRing({ size, children }: { size: number; children: React.ReactNo
         style={{
           width: size + 4,
           height: size + 4,
-          borderRadius: (size + 4) / 2,
+          borderRadius: Math.min(Math.round((size + 4) * 0.18), 18),
           borderWidth: 2,
           borderColor: "#22C55E",
           alignItems: "center",
@@ -221,9 +234,8 @@ function UserAvatarComponent({
   const resolvedUri = resolveAvatarUrl(uri);
   const showImage = Boolean(resolvedUri) && !hasError;
 
-  const initial = username.trim().length > 0
-    ? username.trim()[0].toUpperCase()
-    : "U";
+  const initial =
+    username.trim().length > 0 ? username.trim()[0].toUpperCase() : "U";
 
   const gradient = getGradient(username);
   const fontSize = Math.round(sizeValue * 0.4);
@@ -240,7 +252,7 @@ function UserAvatarComponent({
         {
           width: sizeValue,
           height: sizeValue,
-          borderRadius: sizeValue / 2,
+          borderRadius: Math.min(Math.round(sizeValue * 0.18), 16),
           overflow: "hidden",
         },
         style,
@@ -258,7 +270,15 @@ function UserAvatarComponent({
             onError={handleError}
           />
           {isLoading && (
-            <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            >
               <ShimmerPlaceholder size={sizeValue} />
             </View>
           )}

@@ -21,14 +21,6 @@ import type { Comment } from "@/lib/types";
 import { Avatar as UserAvatar } from "@/components/ui/avatar";
 import { CommentLikeButton } from "@/components/comments/threaded-comment";
 
-export const unstable_settings = {
-  options: {
-    detents: ["medium", "large"],
-    cornerRadius: 16,
-    grabber: true,
-  },
-};
-
 export default function RepliesScreen() {
   const { commentId, postId } = useLocalSearchParams<{
     commentId: string;
@@ -106,8 +98,8 @@ export default function RepliesScreen() {
         <Pressable onPress={() => router.back()}>
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <Text style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}>
-          Replies
+        <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>
+          Comments
         </Text>
       </View>
 
@@ -129,7 +121,7 @@ export default function RepliesScreen() {
                   uri={item.avatar}
                   username={item.username}
                   size={36}
-                  variant="circle"
+                  variant="roundedSquare"
                 />
                 <View style={{ flex: 1 }}>
                   <View

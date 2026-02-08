@@ -1,6 +1,6 @@
 /**
  * Avatar Image Component
- * 
+ *
  * Uses expo-image with loading placeholder for avatars.
  * Dark theme, rounded corners, consistent styling.
  */
@@ -37,7 +37,7 @@ export function AvatarImage({
         style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: Math.min(Math.round(size * 0.18), 16),
         }}
       >
         <User size={size * 0.5} color="#666" />
@@ -52,7 +52,7 @@ export function AvatarImage({
         style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: Math.min(Math.round(size * 0.18), 16),
         }}
       />
     );
@@ -63,7 +63,7 @@ export function AvatarImage({
       style={{
         width: size,
         height: size,
-        borderRadius: size / 2,
+        borderRadius: Math.min(Math.round(size * 0.18), 16),
         overflow: "hidden",
       }}
       className={className}
@@ -107,27 +107,51 @@ export function AvatarImage({
 /**
  * Small avatar for lists and comments
  */
-export function SmallAvatar({ uri, className }: { uri?: string | null; className?: string }) {
+export function SmallAvatar({
+  uri,
+  className,
+}: {
+  uri?: string | null;
+  className?: string;
+}) {
   return <AvatarImage uri={uri} size={32} className={className} />;
 }
 
 /**
  * Medium avatar for feed posts
  */
-export function MediumAvatar({ uri, className }: { uri?: string | null; className?: string }) {
+export function MediumAvatar({
+  uri,
+  className,
+}: {
+  uri?: string | null;
+  className?: string;
+}) {
   return <AvatarImage uri={uri} size={40} className={className} />;
 }
 
 /**
  * Large avatar for profile headers
  */
-export function LargeAvatar({ uri, className }: { uri?: string | null; className?: string }) {
+export function LargeAvatar({
+  uri,
+  className,
+}: {
+  uri?: string | null;
+  className?: string;
+}) {
   return <AvatarImage uri={uri} size={80} className={className} />;
 }
 
 /**
  * Extra large avatar for profile edit
  */
-export function XLargeAvatar({ uri, className }: { uri?: string | null; className?: string }) {
+export function XLargeAvatar({
+  uri,
+  className,
+}: {
+  uri?: string | null;
+  className?: string;
+}) {
   return <AvatarImage uri={uri} size={120} className={className} />;
 }

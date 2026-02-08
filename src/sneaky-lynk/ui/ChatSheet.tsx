@@ -54,7 +54,7 @@ function MessageBubble({
       {!isOwnMessage && (
         <Image
           source={{ uri: message.user.avatar }}
-          className="w-8 h-8 rounded-full"
+          className="w-8 h-8 rounded-lg"
         />
       )}
       <View

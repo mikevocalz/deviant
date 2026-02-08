@@ -32,14 +32,6 @@ import {
   type CommentData,
 } from "@/components/comments/threaded-comment";
 
-export const unstable_settings = {
-  options: {
-    detents: ["large"],
-    cornerRadius: 16,
-    grabber: true,
-  },
-};
-
 // Generate unique client mutation ID for idempotency
 function generateMutationId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -67,22 +59,8 @@ export default function CommentsScreen() {
   const submitCooldownMs = 2000; // 2 second cooldown between submits
 
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: "Comments",
-      headerTitleAlign: "center" as const,
-      headerStyle: { backgroundColor: colors.background },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600" as const,
-        fontSize: 18,
-      },
-      headerBackVisible: true,
-      headerBackTitle: "",
-      headerTintColor: colors.foreground,
-      headerRight: () => null,
-    });
-  }, [navigation, colors]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
@@ -245,6 +223,28 @@ export default function CommentsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      {/* Header */}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          paddingHorizontal: 16,
+          paddingVertical: 14,
+          borderBottomWidth: 1,
+          borderBottomColor: "#1a1a1a",
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: colors.foreground,
+          }}
+        >
+          Comments
+        </Text>
+      </View>
+
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}

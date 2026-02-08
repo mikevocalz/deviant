@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   parentAvatar: {
     width: PARENT_AVATAR_SIZE,
     height: PARENT_AVATAR_SIZE,
-    borderRadius: PARENT_AVATAR_SIZE / 2,
+    borderRadius: Math.min(Math.round(PARENT_AVATAR_SIZE * 0.18), 16),
   },
   parentContent: {
     flex: 1,
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
   replyAvatar: {
     width: REPLY_AVATAR_SIZE,
     height: REPLY_AVATAR_SIZE,
-    borderRadius: REPLY_AVATAR_SIZE / 2,
+    borderRadius: Math.min(Math.round(REPLY_AVATAR_SIZE * 0.18), 16),
   },
   replyContent: {
     flex: 1,
