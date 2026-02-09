@@ -47,11 +47,12 @@ export const eventsApi = {
     try {
       console.log("[Events] getEvents");
 
-      // Fetch ALL events — UI tabs handle upcoming/past filtering client-side
+      // Fetch ALL events with a valid start_date — UI tabs handle upcoming/past filtering
       const { data, error } = await supabase
         .from(DB.events.table)
         .select("*")
-        .order(DB.events.startDate, { ascending: false, nullsFirst: false })
+        .not(DB.events.startDate, "is", null)
+        .order(DB.events.startDate, { ascending: true })
         .limit(limit);
 
       if (error) throw error;
@@ -77,18 +78,68 @@ export const eventsApi = {
         );
       }
 
+      // Fetch RSVP attendees with avatars for event card avatar stacks
+      const eventIds = (data || []).map((e: any) => e[DB.events.id]);
+      const attendeesMap = new Map<
+        number,
+        { image?: string; initials?: string }[]
+      >();
+
+      if (eventIds.length > 0) {
+        const { data: rsvps } = await supabase
+          .from(DB.eventRsvps.table)
+          .select(`${DB.eventRsvps.eventId}, ${DB.eventRsvps.userId}`)
+          .in(DB.eventRsvps.eventId, eventIds)
+          .eq(DB.eventRsvps.status, "going");
+
+        if (rsvps && rsvps.length > 0) {
+          const rsvpAuthIds = [
+            ...new Set(rsvps.map((r: any) => r[DB.eventRsvps.userId])),
+          ];
+          const { data: rsvpUsers } = await supabase
+            .from(DB.users.table)
+            .select(
+              `${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+            )
+            .in(DB.users.authId, rsvpAuthIds);
+
+          const userMap = new Map(
+            (rsvpUsers || []).map((u: any) => [u[DB.users.authId], u]),
+          );
+
+          for (const rsvp of rsvps) {
+            const eid = rsvp[DB.eventRsvps.eventId];
+            const u = userMap.get(rsvp[DB.eventRsvps.userId]);
+            const attendee = {
+              image: (u?.avatar as any)?.url || "",
+              initials:
+                u?.[DB.users.username]?.slice(0, 2)?.toUpperCase() || "??",
+            };
+            if (!attendeesMap.has(eid)) attendeesMap.set(eid, []);
+            attendeesMap.get(eid)!.push(attendee);
+          }
+        }
+      }
+
       return (data || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
         const dateParts = formatEventDate(event[DB.events.startDate]);
+        const eid = event[DB.events.id];
+        const rsvpAttendees = attendeesMap.get(eid) || [];
+        const totalCount = Math.max(
+          Number(event[DB.events.totalAttendees]) || 0,
+          rsvpAttendees.length,
+        );
         return {
-          id: String(event[DB.events.id]),
+          id: String(eid),
           title: event[DB.events.title],
           description: event[DB.events.description],
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
           price: Number(event[DB.events.price]) || 0,
-          attendees: Number(event[DB.events.totalAttendees]) || 0,
+          attendees: rsvpAttendees.length > 0 ? rsvpAttendees : totalCount,
+          totalAttendees: totalCount,
           host: {
             username: host?.[DB.users.username] || "unknown",
             avatar: host?.avatar?.url || "",

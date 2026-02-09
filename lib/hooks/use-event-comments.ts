@@ -46,23 +46,23 @@ export function useCreateEventComment() {
         eventCommentKeys.event(variables.eventId),
       );
 
+      const optimisticComment = {
+        id: `temp-${Date.now()}`,
+        content: variables.text,
+        author: {
+          id: "optimistic",
+          username: variables.authorUsername || "You",
+          avatar: variables.authorAvatar || "",
+        },
+        createdAt: new Date().toISOString(),
+        parentId: variables.parent || null,
+      };
+
       queryClient.setQueryData(
         eventCommentKeys.event(variables.eventId),
-        (old: any[]) => {
-          if (!old) return old;
-          const optimisticComment = {
-            id: `temp-${Date.now()}`,
-            content: variables.text,
-            author: {
-              id: "optimistic",
-              username: variables.authorUsername || "You",
-              avatar: variables.authorAvatar || "",
-            },
-            createdAt: new Date().toISOString(),
-            parentId: variables.parent || null,
-          };
+        (old: any[] | undefined) => {
           // Prepend: query orders DESC by created_at
-          return [optimisticComment, ...old];
+          return [optimisticComment, ...(old || [])];
         },
       );
 
