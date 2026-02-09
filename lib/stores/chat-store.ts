@@ -114,7 +114,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Transform to local message format
       const localMessages: Message[] = backendMessages.map((msg: any) => {
         const content = msg.content || msg.text || "";
-        // API returns sender as "user" (me) or "other" (them)
+
+        // INVARIANT: API MUST return sender as "user" or "other" (string literals).
+        // Any other value (object, ID, undefined) = broken contract → default to "other"
+        // to prevent showing YOUR messages as theirs. SEE: CLAUDE.md messages section.
+        if (__DEV__ && msg.sender !== "user" && msg.sender !== "other") {
+          console.error(
+            `[ChatStore] INVARIANT VIOLATION: msg.sender must be "user" or "other", got:`,
+            JSON.stringify(msg.sender),
+            `(type: ${typeof msg.sender}). Message ID: ${msg.id}`,
+          );
+        }
         const isSender = msg.sender === "user";
 
         // Detect story reply messages via metadata (preferred) or legacy content prefix

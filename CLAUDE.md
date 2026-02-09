@@ -465,7 +465,47 @@ This is a **React Native/Expo** project using:
 
 ---
 
-## �️ SEV-0 Regression Prevention - MANDATORY
+## 💬 Messages — SENDER ISOLATION (SEV-0, Feb 2026)
+
+**⚠️ NEVER change how message sender is determined. This caused a SEV-0 where ALL messages appeared as sent by the other person.**
+
+### The Contract
+
+```
+messages-impl.ts getMessages() → returns sender: "user" | "other"  (string literals)
+chat-store.ts    loadMessages() → checks:  msg.sender === "user"   (exact string match)
+```
+
+### Rules
+
+1. **`messages-impl.ts` MUST return `sender: "user"` or `sender: "other"`** — string literals, NEVER an ID, object, or integer
+2. **`chat-store.ts` MUST compare `msg.sender === "user"`** — NEVER compare against `user.id`, `user.authId`, or any other identifier
+3. **The `sender` field is a pre-resolved label**, not a raw ID — the resolution happens in `messages-impl.ts` using `getCurrentUserIdInt()` vs `msg.sender_id`
+4. **If `msg.sender` is anything other than `"user"` or `"other"`, default to `"them"`** — safe fallback prevents showing YOUR messages as theirs
+
+### Forbidden Patterns
+
+```typescript
+// ❌ FORBIDDEN — caused SEV-0 regression
+const isSender = (msg.sender?.id || msg.sender) === user?.id;
+const isSender = msg.senderId === user.id;
+const isSender = msg.sender === currentUser.authId;
+
+// ✅ CORRECT — the ONLY allowed pattern
+const isSender = msg.sender === "user";
+```
+
+### Key Files
+
+| File                                     | Rule                                                       |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `lib/api/messages-impl.ts:154`           | Returns `"user"` or `"other"` — NEVER change this contract |
+| `lib/stores/chat-store.ts:128`           | Compares `=== "user"` — NEVER compare against IDs          |
+| `tests/message-sender-isolation.spec.ts` | Regression tests — NEVER delete                            |
+
+---
+
+## 🛡️ SEV-0 Regression Prevention - MANDATORY
 
 **⚠️ READ `PREVENTION.md` before making changes to likes, follows, bookmarks, avatars, or query keys.**
 
