@@ -801,7 +801,12 @@ export default function EventDetailScreen() {
         onClose={() => setShowRatingModal(false)}
         eventId={eventId}
         onSubmit={async (rating, comment) => {
-          await createReview.mutateAsync({ eventId, rating, comment });
+          await createReview.mutateAsync({
+            eventId,
+            rating,
+            comment,
+            authorUsername: user?.username,
+          });
         }}
       />
     </View>

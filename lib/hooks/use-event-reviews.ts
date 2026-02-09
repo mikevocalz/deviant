@@ -32,6 +32,7 @@ export function useCreateEventReview() {
       eventId: string;
       rating: number;
       comment?: string;
+      authorUsername?: string;
     }) => {
       return eventsApi.addEventReview(
         data.eventId,
@@ -67,6 +68,9 @@ export function useCreateEventReview() {
             id: `temp-${Date.now()}`,
             rating: variables.rating,
             comment: variables.comment,
+            user: {
+              username: variables.authorUsername || "You",
+            },
             createdAt: new Date().toISOString(),
           };
           return [...old, optimisticReview];

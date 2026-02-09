@@ -154,51 +154,47 @@ export default function EventCommentsScreen() {
     [commentText, cursorPos],
   );
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(() => {
     if (!commentText.trim()) {
       showToast("warning", "Empty", "Please enter a comment");
       return;
     }
-    if (isSubmitting) {
-      showToast("info", "Wait", "Already sending...");
-      return;
-    }
+    if (isSubmitting) return;
 
     if (!user) {
       showToast("error", "Error", "You must be logged in to comment");
       return;
     }
 
-    // Show sending feedback
-    showToast("info", "Sending", `Posting as @${user.username}...`);
+    const text = commentText.trim();
+
+    // Clear input immediately — optimistic update in hook handles the rest
+    setCommentText("");
     setIsSubmitting(true);
 
-    try {
-      await createComment.mutateAsync({
+    createComment.mutate(
+      {
         eventId,
-        text: commentText.trim(),
+        text,
         authorUsername: user.username,
-      });
-      setCommentText("");
-      showToast("success", "Posted!", "Your comment was added");
-      refetch();
-    } catch (error: any) {
-      console.error("[EventComments] Error:", error);
-      const errorMessage =
-        error?.error || error?.message || "Failed to post comment";
-      showToast("error", "Failed", errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [
-    commentText,
-    isSubmitting,
-    eventId,
-    createComment,
-    refetch,
-    showToast,
-    user,
-  ]);
+        authorAvatar: user.avatar,
+      },
+      {
+        onSuccess: () => {
+          setIsSubmitting(false);
+        },
+        onError: (error: any) => {
+          console.error("[EventComments] Error:", error);
+          const errorMessage =
+            error?.error || error?.message || "Failed to post comment";
+          showToast("error", "Failed", errorMessage);
+          // Restore text so user can retry
+          setCommentText(text);
+          setIsSubmitting(false);
+        },
+      },
+    );
+  }, [commentText, isSubmitting, eventId, createComment, showToast, user]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);

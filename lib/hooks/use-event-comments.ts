@@ -33,6 +33,7 @@ export function useCreateEventComment() {
       text: string;
       parent?: string;
       authorUsername?: string;
+      authorAvatar?: string;
     }) => {
       return eventsApi.addEventComment(data.eventId, data.text);
     },
@@ -51,8 +52,11 @@ export function useCreateEventComment() {
           if (!old) return old;
           const optimisticComment = {
             id: `temp-${Date.now()}`,
-            text: variables.text,
-            authorUsername: variables.authorUsername || "You",
+            content: variables.text,
+            author: {
+              username: variables.authorUsername || "You",
+              avatar: variables.authorAvatar || "",
+            },
             createdAt: new Date().toISOString(),
             parent: variables.parent,
           };

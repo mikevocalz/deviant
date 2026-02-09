@@ -131,9 +131,6 @@ function ConversationList({
                 size={56}
                 variant="roundedSquare"
               />
-              {item.unread && (
-                <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />
-              )}
               <PresenceDot oderpantId={item.oderpantId} />
             </View>
           </Pressable>

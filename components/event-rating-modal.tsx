@@ -41,25 +41,27 @@ export function EventRatingModal({
   const [comment, setComment] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (rating === 0) {
       showToast("error", "Rating Required", "Please select a rating");
       return;
     }
 
-    setIsSubmitting(true);
-    try {
-      await onSubmit(rating, comment.trim() || undefined);
-      showToast("success", "Thank You", "Your rating has been submitted");
-      setRating(0);
-      setComment("");
-      onClose();
-    } catch (error: any) {
-      const errorMessage = error?.error || error?.message || "Failed to submit rating";
+    const submittedRating = rating;
+    const submittedComment = comment.trim() || undefined;
+
+    // Close immediately — optimistic update in hook handles the rest
+    setRating(0);
+    setComment("");
+    onClose();
+    showToast("success", "Thank You", "Your rating has been submitted");
+
+    // Fire-and-forget — errors are handled by the hook's onError rollback
+    onSubmit(submittedRating, submittedComment).catch((error: any) => {
+      const errorMessage =
+        error?.error || error?.message || "Failed to submit rating";
       showToast("error", "Error", errorMessage);
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const handleClose = () => {
@@ -124,7 +126,11 @@ export function EventRatingModal({
                 >
                   Rate This Event
                 </Text>
-                <Pressable onPress={handleClose} hitSlop={12} disabled={isSubmitting}>
+                <Pressable
+                  onPress={handleClose}
+                  hitSlop={12}
+                  disabled={isSubmitting}
+                >
                   <X size={24} color={colors.mutedForeground} />
                 </Pressable>
               </View>
@@ -221,7 +227,10 @@ export function EventRatingModal({
                     style={{
                       fontSize: 16,
                       fontWeight: "600",
-                      color: rating === 0 || isSubmitting ? colors.mutedForeground : "#fff",
+                      color:
+                        rating === 0 || isSubmitting
+                          ? colors.mutedForeground
+                          : "#fff",
                     }}
                   >
                     {isSubmitting ? "Submitting..." : "Submit Rating"}
