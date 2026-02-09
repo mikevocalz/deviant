@@ -2,7 +2,7 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { Heart, Share2, Bookmark, Plus } from "lucide-react-native";
+import { Heart, Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
@@ -164,7 +164,11 @@ function EventCard({
                 {event.title}
               </Text>
               <Text className="text-white/80 text-sm mb-4">
-                {event.time} • {event.totalAttendees} participants
+                {event.time} •{" "}
+                {Array.isArray(event.attendees)
+                  ? event.attendees.length
+                  : event.attendees || 0}{" "}
+                participants
               </Text>
 
               <View className="flex-row items-center justify-between">
@@ -174,12 +178,6 @@ function EventCard({
                     <Text className="text-white text-sm font-medium">
                       {formatLikes(event.likes ?? 0)}
                     </Text>
-                  </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-full">
-                    <Share2 size={16} color="#fff" />
-                  </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-full">
-                    <Bookmark size={16} color="#fff" />
                   </Pressable>
                 </View>
                 <View className="bg-primary px-5 py-2 rounded-full">
