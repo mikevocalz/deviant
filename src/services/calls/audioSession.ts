@@ -52,7 +52,7 @@ export const audioSession = {
       // iOS: AVAudioSession category = playAndRecord, mode = voiceChat
       //      options = allowBluetooth | defaultToSpeaker (auto=true)
       // Android: AudioManager mode = MODE_IN_COMMUNICATION, requests audio focus
-      InCallManager.start({ media: "audio", auto: true, ringback: "" });
+      InCallManager.start({ media: "audio", auto: true });
 
       // iOS: Notify WebRTC that CallKit has activated the audio session.
       // This MUST happen before setForceSpeakerphoneOn — the audio route
@@ -70,6 +70,20 @@ export const audioSession = {
       _isMicMuted = false;
 
       _isActive = true;
+
+      // iOS: CallKit may activate the audio session AFTER our eager call above.
+      // Re-apply activation + speaker route after a delay to catch the async case.
+      if (Platform.OS === "ios") {
+        setTimeout(() => {
+          try {
+            RTCAudioSession.audioSessionDidActivate();
+            InCallManager.setForceSpeakerphoneOn(_isSpeakerOn);
+            CT.trace("AUDIO", "audioSession_ios_retry_applied");
+          } catch (retryErr) {
+            CT.warn("AUDIO", "audioSession_ios_retry_failed");
+          }
+        }, 500);
+      }
 
       CT.trace("AUDIO", "audioSession_started", { speakerOn });
       console.log(`[AudioSession] Started (speaker=${speakerOn})`);
