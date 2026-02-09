@@ -51,6 +51,7 @@ import { postsApi } from "@/lib/api/posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
+import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -121,6 +122,7 @@ function FeedPostComponent({
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [showLikesSheet, setShowLikesSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
 
   const isOwner = currentUser?.username === author.username;
@@ -761,9 +763,11 @@ function FeedPostComponent({
 
         {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
-          <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
-            {formatLikeCount(likeCount)}
-          </Text>
+          <Pressable onPress={() => setShowLikesSheet(true)}>
+            <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
+              {formatLikeCount(likeCount)}
+            </Text>
+          </Pressable>
           {caption && (
             <View className="mt-1">
               <HashtagText
@@ -830,6 +834,12 @@ function FeedPostComponent({
         onEdit={handleEdit}
         onDelete={handleDelete}
         onShareToStory={handleShareToStory}
+      />
+
+      <LikesSheet
+        postId={id}
+        isOpen={showLikesSheet}
+        onClose={() => setShowLikesSheet(false)}
       />
 
       <ShareToInboxSheet

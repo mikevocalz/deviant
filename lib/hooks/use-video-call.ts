@@ -285,14 +285,46 @@ export function useVideoCall() {
       log(`Starting media for ${type.toUpperCase()} call`);
 
       // ── Step 1: Start microphone (ALWAYS, both modes) ──────────────
+      // REF: https://docs.fishjam.io/how-to/react-native/start-streaming
+      //   "startMicrophone() creates and publishes the local audio track."
+      // REF: https://docs.fishjam.io/how-to/react-native/connecting
+      //   "After joining, start media devices to publish tracks."
       try {
-        await micRef.current.startMicrophone();
+        const micResult = await micRef.current.startMicrophone();
         s.setMicOn(true);
+
+        // Verify the mic stream is actually available
+        const micStream = micRef.current.microphoneStream;
+        const isMicOn = micRef.current.isMicrophoneOn;
+        const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
+
+        CT.trace("MEDIA", "mic_started", {
+          hasStream: !!micStream,
+          isMicOn,
+          audioTrackCount,
+          callType: type,
+        });
         log(
-          `[${type.toUpperCase()}] Microphone started — audio track publishing`,
+          `[${type.toUpperCase()}] Microphone started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
         );
+
+        if (!micStream || audioTrackCount === 0) {
+          // Mic started but no stream yet — this can happen if the SDK
+          // populates the stream asynchronously. Log a warning but don't fail.
+          CT.warn("MEDIA", "mic_started_no_stream", {
+            hasStream: !!micStream,
+            audioTrackCount,
+          });
+          logWarn(
+            `[${type.toUpperCase()}] Mic started but stream not yet available — may populate async`,
+          );
+        }
       } catch (micErr) {
         logError(`[${type.toUpperCase()}] FAILED to start microphone:`, micErr);
+        CT.error("MEDIA", "mic_start_failed", {
+          error: (micErr as any)?.message,
+          callType: type,
+        });
         s.setError(
           "Microphone failed to start. Check permissions.",
           "mic_start_failed",
@@ -682,6 +714,10 @@ export function useVideoCall() {
   // which is unreliable mid-call.
   // Instead, toggle MediaStreamTrack.enabled which keeps the track published
   // but silences/unsilences it. This is how Instagram/Snapchat mute works.
+  //
+  // REF: https://docs.fishjam.io/how-to/react-native/start-streaming
+  //   "startMicrophone() publishes the audio track. To mute without
+  //    unpublishing, toggle MediaStreamTrack.enabled."
   const toggleMute = useCallback(() => {
     const s = getStore();
     const wantMuted = s.isMicOn; // if currently on, we want to mute
@@ -691,26 +727,46 @@ export function useVideoCall() {
     });
 
     // Track-level toggle (keeps track published, silences/unsilences)
+    // REF: Fishjam SDK useMicrophone().microphoneStream: MediaStream | null
     const stream = micRef.current.microphoneStream;
+    let trackToggled = false;
     if (stream) {
       const audioTracks = stream.getAudioTracks();
+      CT.trace("MUTE", "track_toggle_attempt", {
+        trackCount: audioTracks.length,
+        wantMuted,
+      });
       if (audioTracks.length > 0) {
         for (const track of audioTracks) {
           track.enabled = !wantMuted;
         }
+        trackToggled = true;
+      } else {
+        CT.warn("MUTE", "mic_stream_has_no_audio_tracks");
+        logWarn("Mic stream exists but has 0 audio tracks");
       }
     } else {
-      CT.warn("MUTE", "no_mic_stream_for_toggle");
-      logWarn("No mic stream available for mute toggle");
+      CT.warn("MUTE", "no_mic_stream_for_toggle", {
+        isMicrophoneOn: micRef.current.isMicrophoneOn,
+      });
+      logWarn(
+        "No mic stream available for mute toggle (isMicOn=" +
+          micRef.current.isMicrophoneOn +
+          ")",
+      );
     }
 
-    // Update all state sources in sync
+    // Update all state sources in sync — even if track toggle failed,
+    // the hardware mute via audioSession is a reliable fallback.
     s.setMicOn(!wantMuted);
     if (s.roomId) callKeepSetMuted(s.roomId, wantMuted);
     audioSession.setMicMuted(wantMuted);
 
-    CT.trace("MUTE", wantMuted ? "muted" : "unmuted");
-    log(wantMuted ? "Mic muted" : "Mic unmuted");
+    CT.trace("MUTE", wantMuted ? "muted" : "unmuted", { trackToggled });
+    log(
+      wantMuted ? "Mic muted" : "Mic unmuted",
+      `(trackToggled=${trackToggled})`,
+    );
   }, [getStore]);
 
   // ── Escalate audio → video (explicit, permission-gated) ────────────

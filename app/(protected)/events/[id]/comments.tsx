@@ -27,6 +27,7 @@ import {
   useCreateEventComment,
 } from "@/lib/hooks/use-event-comments";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { MENTION_COLOR } from "@/src/constants/mentions";
 
 export default function EventCommentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -259,7 +260,7 @@ export default function EventCommentsScreen() {
                                 `/(protected)/profile/${part.slice(1)}` as any,
                               )
                             }
-                            style={{ color: "#3EA4E5", fontWeight: "600" }}
+                            style={{ color: MENTION_COLOR, fontWeight: "600" }}
                           >
                             {part}
                           </Text>

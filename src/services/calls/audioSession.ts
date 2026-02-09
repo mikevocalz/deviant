@@ -6,12 +6,27 @@
  * ║    - Start/stop in-call audio mode                                 ║
  * ║    - Set speaker on/off                                            ║
  * ║    - Set mic mute on/off                                           ║
+ * ║    - Signal RTCAudioSession activation/deactivation                ║
  * ║                                                                    ║
  * ║  Uses react-native-incall-manager for cross-platform audio         ║
- * ║  session management. RTCAudioSession from Fishjam is used only     ║
- * ║  for CallKit activation/deactivation signals.                      ║
+ * ║  session management. RTCAudioSession from Fishjam is used ONLY     ║
+ * ║  for CallKit activation/deactivation signals on iOS.               ║
  * ║                                                                    ║
  * ║  INVARIANT: No other file may call InCallManager directly.         ║
+ * ║  INVARIANT: No other file may call RTCAudioSession directly.       ║
+ * ║                                                                    ║
+ * ║  iOS AUDIO SESSION LIFECYCLE (CRITICAL):                           ║
+ * ║    1. start() → InCallManager.start() configures AVAudioSession    ║
+ * ║       category/mode but does NOT call audioSessionDidActivate().   ║
+ * ║    2. CallKit fires didActivateAudioSession → coordinator calls    ║
+ * ║       audioSession.activateFromCallKit() which calls               ║
+ * ║       RTCAudioSession.audioSessionDidActivate() + applies speaker. ║
+ * ║    3. Only AFTER step 2 is audio actually flowing on iOS.          ║
+ * ║                                                                    ║
+ * ║  On Android, start() handles everything (no CallKit).              ║
+ * ║                                                                    ║
+ * ║  REF: https://docs.fishjam.io/how-to/react-native/connecting      ║
+ * ║  REF: https://docs.fishjam.io/how-to/react-native/start-streaming ║
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
@@ -23,8 +38,10 @@ import { CT } from "@/src/services/calls/callTrace";
 // ── Internal state ──────────────────────────────────────────────────
 
 let _isActive = false;
+let _isCallKitActivated = false;
 let _isSpeakerOn = false;
 let _isMicMuted = false;
+let _pendingSpeakerOn: boolean | null = null;
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -32,8 +49,13 @@ export const audioSession = {
   /**
    * Start in-call audio session. Call when entering CONNECTING or IN_CALL.
    *
-   * iOS: Sets AVAudioSession to playAndRecord with allowBluetooth + defaultToSpeaker.
-   * Android: Sets audio mode to IN_COMMUNICATION and acquires audio focus.
+   * iOS: Configures AVAudioSession category/mode via InCallManager.
+   *      Does NOT call RTCAudioSession.audioSessionDidActivate() — that
+   *      MUST come from the CallKeep didActivateAudioSession handler via
+   *      activateFromCallKit(). Speaker routing is deferred until activation.
+   *
+   * Android: Sets audio mode to IN_COMMUNICATION, acquires audio focus,
+   *          and applies speaker routing immediately (no CallKit on Android).
    *
    * @param speakerOn - Whether to default to speaker (true for video calls, false for audio)
    */
@@ -41,55 +63,89 @@ export const audioSession = {
     CT.trace("AUDIO", "audioSession_starting", {
       speakerOn,
       wasActive: _isActive,
+      platform: Platform.OS,
     });
 
     try {
       // ALWAYS call InCallManager.start — even if _isActive is true.
-      // A previous call may not have cleaned up, or CallKeep may have
-      // already activated the audio session. Re-calling is safe and
-      // ensures the audio category/mode is correct.
+      // A previous call may not have cleaned up properly.
       //
       // iOS: AVAudioSession category = playAndRecord, mode = voiceChat
       //      options = allowBluetooth | defaultToSpeaker (auto=true)
       // Android: AudioManager mode = MODE_IN_COMMUNICATION, requests audio focus
       InCallManager.start({ media: "audio", auto: true });
 
-      // iOS: Notify WebRTC that CallKit has activated the audio session.
-      // This MUST happen before setForceSpeakerphoneOn — the audio route
-      // can only be changed after the session is active.
-      if (Platform.OS === "ios") {
-        RTCAudioSession.audioSessionDidActivate();
-      }
-
-      // Set speaker state AFTER session activation
-      InCallManager.setForceSpeakerphoneOn(speakerOn);
-      _isSpeakerOn = speakerOn;
-
-      // Ensure mic is not muted on start
-      InCallManager.setMicrophoneMute(false);
-      _isMicMuted = false;
-
       _isActive = true;
 
-      // iOS: CallKit may activate the audio session AFTER our eager call above.
-      // Re-apply activation + speaker route after a delay to catch the async case.
-      if (Platform.OS === "ios") {
-        setTimeout(() => {
-          try {
-            RTCAudioSession.audioSessionDidActivate();
-            InCallManager.setForceSpeakerphoneOn(_isSpeakerOn);
-            CT.trace("AUDIO", "audioSession_ios_retry_applied");
-          } catch (retryErr) {
-            CT.warn("AUDIO", "audioSession_ios_retry_failed");
-          }
-        }, 500);
+      if (Platform.OS === "android") {
+        // Android: No CallKit, so apply speaker + mic state immediately.
+        InCallManager.setForceSpeakerphoneOn(speakerOn);
+        _isSpeakerOn = speakerOn;
+        InCallManager.setMicrophoneMute(false);
+        _isMicMuted = false;
+        CT.trace("AUDIO", "audioSession_android_ready", { speakerOn });
+      } else {
+        // iOS: Defer speaker routing until CallKit activates the audio session.
+        // Store the desired speaker state so activateFromCallKit() can apply it.
+        _pendingSpeakerOn = speakerOn;
+        _isMicMuted = false;
+        CT.trace("AUDIO", "audioSession_ios_waiting_for_callkit", {
+          pendingSpeaker: speakerOn,
+        });
       }
 
       CT.trace("AUDIO", "audioSession_started", { speakerOn });
-      console.log(`[AudioSession] Started (speaker=${speakerOn})`);
+      console.log(
+        `[AudioSession] Started (speaker=${speakerOn}, platform=${Platform.OS})`,
+      );
     } catch (e: any) {
       CT.error("AUDIO", "audioSession_start_failed", { error: e?.message });
       console.error("[AudioSession] Start failed:", e);
+    }
+  },
+
+  /**
+   * Called ONLY from the CallKeep didActivateAudioSession handler.
+   * This is when iOS CallKit has actually activated the audio session
+   * and WebRTC can start using it.
+   *
+   * CRITICAL: This is the moment audio starts flowing on iOS.
+   * Without this call, the mic track is created on a dead session.
+   */
+  activateFromCallKit(): void {
+    CT.trace("AUDIO", "activateFromCallKit_called", {
+      wasActive: _isActive,
+      wasCallKitActivated: _isCallKitActivated,
+      pendingSpeaker: _pendingSpeakerOn ?? undefined,
+    });
+
+    if (Platform.OS !== "ios") {
+      CT.warn("AUDIO", "activateFromCallKit_not_ios");
+      return;
+    }
+
+    try {
+      // Signal WebRTC that the audio session is now active
+      RTCAudioSession.audioSessionDidActivate();
+      _isCallKitActivated = true;
+
+      // Apply deferred speaker routing now that session is active
+      const speakerOn = _pendingSpeakerOn ?? true;
+      InCallManager.setForceSpeakerphoneOn(speakerOn);
+      _isSpeakerOn = speakerOn;
+      _pendingSpeakerOn = null;
+
+      // Ensure mic is not muted
+      InCallManager.setMicrophoneMute(false);
+      _isMicMuted = false;
+
+      CT.trace("AUDIO", "activateFromCallKit_done", { speakerOn });
+      console.log(
+        `[AudioSession] CallKit activated — audio session live (speaker=${speakerOn})`,
+      );
+    } catch (e: any) {
+      CT.error("AUDIO", "activateFromCallKit_failed", { error: e?.message });
+      console.error("[AudioSession] activateFromCallKit failed:", e);
     }
   },
 
@@ -109,8 +165,10 @@ export const audioSession = {
       }
 
       _isActive = false;
+      _isCallKitActivated = false;
       _isSpeakerOn = false;
       _isMicMuted = false;
+      _pendingSpeakerOn = null;
 
       CT.trace("AUDIO", "audioSession_stopped");
       console.log("[AudioSession] Stopped");
@@ -121,11 +179,21 @@ export const audioSession = {
   },
 
   /**
-   * Set speaker on/off. Only effective when session is active.
+   * Set speaker on/off.
+   * On iOS, if CallKit hasn't activated yet, stores the value for deferred apply.
    */
   setSpeakerOn(on: boolean): void {
     if (!_isActive) {
       CT.warn("AUDIO", "setSpeakerOn_inactive_attempting", { on });
+    }
+
+    // iOS: If CallKit hasn't activated yet, defer
+    if (Platform.OS === "ios" && !_isCallKitActivated) {
+      _pendingSpeakerOn = on;
+      _isSpeakerOn = on; // Update state for UI, actual routing deferred
+      CT.trace("SPEAKER", "speaker_deferred_until_callkit", { on });
+      console.log(`[AudioSession] Speaker ${on ? "ON" : "OFF"} (deferred)`);
+      return;
     }
 
     try {
@@ -166,9 +234,15 @@ export const audioSession = {
   /**
    * Get current state (for DEV HUD / diagnostics).
    */
-  getState(): { isActive: boolean; isSpeakerOn: boolean; isMicMuted: boolean } {
+  getState(): {
+    isActive: boolean;
+    isCallKitActivated: boolean;
+    isSpeakerOn: boolean;
+    isMicMuted: boolean;
+  } {
     return {
       isActive: _isActive,
+      isCallKitActivated: _isCallKitActivated,
       isSpeakerOn: _isSpeakerOn,
       isMicMuted: _isMicMuted,
     };

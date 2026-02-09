@@ -1,12 +1,22 @@
 /**
  * DevHud — Debug overlay for call screen (DEV only).
  *
- * Shows: role, phase, remote peer count, speaker/mic state,
- * audio session active, remote audio tracks, local audio published.
+ * Shows comprehensive audio/video diagnostics:
+ * - Role, phase, UI mode
+ * - Remote peer count + audio track status
+ * - Speaker/mic state (UI + hardware)
+ * - Audio session state + CallKit activation (iOS)
+ * - Local mic stream status + track count
+ * - Video track status (when in video mode)
+ *
+ * REF: https://docs.fishjam.io/how-to/react-native/start-streaming
+ * REF: https://docs.fishjam.io/how-to/react-native/list-other-peers
  */
 
-import { View, Text, StyleSheet } from "react-native";
+import { useState } from "react";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMicrophone } from "@fishjam-cloud/react-native-client";
 import { audioSession } from "@/src/services/calls/audioSession";
 import type { CallUiMode } from "./deriveCallUiMode";
 import type { Participant } from "@/src/video/types";
@@ -37,12 +47,33 @@ export function DevHud({
   if (!__DEV__) return null;
 
   const insets = useSafeAreaInsets();
+  const [expanded, setExpanded] = useState(true);
   const audioState = audioSession.getState();
+  const mic = useMicrophone();
   const remotePeer = participants[0];
   const remoteAudioCount = participants.filter((p) => p.isMicOn).length;
 
+  // Local mic diagnostics
+  const micStream = mic.microphoneStream;
+  const localAudioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
+  const isMicStreamActive = !!micStream;
+
+  if (!expanded) {
+    return (
+      <Pressable
+        style={[styles.collapsed, { top: insets.top + 44 }]}
+        onPress={() => setExpanded(true)}
+      >
+        <Text style={styles.line1}>🔊 HUD</Text>
+      </Pressable>
+    );
+  }
+
   return (
-    <View style={[styles.container, { top: insets.top + 44 }]}>
+    <Pressable
+      style={[styles.container, { top: insets.top + 44 }]}
+      onPress={() => setExpanded(false)}
+    >
       <Text style={styles.line1}>
         {callRole}/{callPhase} → {mode}
       </Text>
@@ -51,9 +82,16 @@ export function DevHud({
         {isSpeakerOn ? "Y" : "N"} | mic={isMuted ? "OFF" : "ON"}
       </Text>
       <Text style={styles.line2}>
-        audioSess={audioState.isActive ? "ON" : "OFF"} | hwMute=
-        {audioState.isMicMuted ? "Y" : "N"} | hwSpk=
+        audioSess={audioState.isActive ? "ON" : "OFF"}
+        {Platform.OS === "ios"
+          ? ` | CK=${audioState.isCallKitActivated ? "ACT" : "WAIT"}`
+          : ""}{" "}
+        | hwMute={audioState.isMicMuted ? "Y" : "N"} | hwSpk=
         {audioState.isSpeakerOn ? "Y" : "N"}
+      </Text>
+      <Text style={styles.line3}>
+        micStream={isMicStreamActive ? "Y" : "N"} | lAudTrk=
+        {localAudioTrackCount} | sdkMicOn={mic.isMicrophoneOn ? "Y" : "N"}
       </Text>
       {!isAudioMode && (
         <Text style={styles.line2}>
@@ -63,7 +101,14 @@ export function DevHud({
             : ""}
         </Text>
       )}
-    </View>
+      {remotePeer && (
+        <Text style={styles.line3}>
+          rPeer={remotePeer.userId?.slice(0, 8)} | rAudStrm=
+          {remotePeer.audioTrack?.stream ? "Y" : "N"} | rAudTrk=
+          {remotePeer.audioTrack?.track ? "Y" : "N"}
+        </Text>
+      )}
+    </Pressable>
   );
 }
 
@@ -72,9 +117,19 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 4,
     zIndex: 100,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.75)",
     paddingHorizontal: 6,
     paddingVertical: 3,
+    borderRadius: 4,
+    maxWidth: 300,
+  },
+  collapsed: {
+    position: "absolute",
+    left: 4,
+    zIndex: 100,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
   },
   line1: {
@@ -84,6 +139,11 @@ const styles = StyleSheet.create({
   },
   line2: {
     color: "#facc15",
+    fontSize: 10,
+    fontFamily: "monospace",
+  },
+  line3: {
+    color: "#38bdf8",
     fontSize: 10,
     fontFamily: "monospace",
   },

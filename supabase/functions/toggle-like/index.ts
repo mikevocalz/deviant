@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +31,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -66,7 +70,11 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -96,7 +104,11 @@ serve(async (req: Request) => {
 
     const { postId } = body;
     if (!postId || typeof postId !== "number") {
-      return errorResponse("validation_error", "postId is required and must be a number", 400);
+      return errorResponse(
+        "validation_error",
+        "postId is required and must be a number",
+        400,
+      );
     }
 
     // Get Supabase admin client
@@ -125,7 +137,7 @@ serve(async (req: Request) => {
       .single();
 
     let liked: boolean;
-    
+
     if (existingLike) {
       // Unlike - delete the like
       const { error: deleteError } = await supabaseAdmin
@@ -156,6 +168,82 @@ serve(async (req: Request) => {
       // Increment likes count
       await supabaseAdmin.rpc("increment_post_likes", { post_id: postId });
       liked = true;
+
+      // ── Send like notification to post author (fire-and-forget) ──
+      try {
+        // Get post author
+        const { data: postAuthor } = await supabaseAdmin
+          .from("posts")
+          .select("author_id")
+          .eq("id", postId)
+          .single();
+
+        if (
+          postAuthor &&
+          postAuthor.author_id &&
+          postAuthor.author_id !== userId
+        ) {
+          // Insert notification
+          await supabaseAdmin.from("notifications").insert({
+            recipient_id: postAuthor.author_id,
+            actor_id: userId,
+            type: "like",
+            entity_type: "post",
+            entity_id: String(postId),
+          });
+
+          // Send push notification
+          const { data: likerData } = await supabaseAdmin
+            .from("users")
+            .select("username")
+            .eq("id", userId)
+            .single();
+
+          const likerUsername = likerData?.username || "Someone";
+
+          const { data: tokens } = await supabaseAdmin
+            .from("push_tokens")
+            .select("token")
+            .eq("user_id", postAuthor.author_id);
+
+          if (tokens && tokens.length > 0) {
+            const messages = tokens.map((t: { token: string }) => ({
+              to: t.token,
+              title: "New Like",
+              body: `${likerUsername} liked your post`,
+              data: {
+                type: "like",
+                senderId: String(userId),
+                senderUsername: likerUsername,
+                entityType: "post",
+                entityId: String(postId),
+              },
+              sound: "default",
+              channelId: "default",
+            }));
+
+            await fetch("https://exp.host/--/api/v2/push/send", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+              },
+              body: JSON.stringify(messages),
+            });
+            console.log(
+              "[Edge:toggle-like] Push notification sent to",
+              tokens.length,
+              "device(s)",
+            );
+          }
+        }
+      } catch (notifErr) {
+        // Don't fail the like if notification fails
+        console.error(
+          "[Edge:toggle-like] Notification error (non-fatal):",
+          notifErr,
+        );
+      }
     }
 
     // Get updated likes count

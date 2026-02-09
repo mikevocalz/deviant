@@ -15,6 +15,7 @@ import { Heart } from "lucide-react-native";
 import { memo, useCallback } from "react";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useCommentLikeState } from "@/lib/hooks/use-comment-like-state";
+import { MENTION_COLOR } from "@/src/constants/mentions";
 
 // Render comment text with tappable @mentions
 function renderCommentText(
@@ -33,7 +34,7 @@ function renderCommentText(
             <Text
               key={i}
               onPress={() => onProfilePress(username)}
-              style={{ color: "#3EA4E5", fontWeight: "600" }}
+              style={{ color: MENTION_COLOR, fontWeight: "600" }}
             >
               {part}
             </Text>

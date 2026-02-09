@@ -47,6 +47,7 @@ import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { MENTION_COLOR } from "@/src/constants/mentions";
 import {
   CountdownTimer,
   SocialProofRow,
@@ -732,7 +733,30 @@ export default function EventDetailScreen() {
                           comment.author?.name ||
                           "User"}
                       </Text>
-                      <Text style={s.commentContent}>{comment.content}</Text>
+                      <Text style={s.commentContent}>
+                        {(comment.content || "")
+                          .split(/(@\w+)/g)
+                          .map((part: string, i: number) =>
+                            part.startsWith("@") ? (
+                              <Text
+                                key={i}
+                                onPress={() =>
+                                  router.push(
+                                    `/(protected)/profile/${part.slice(1)}` as any,
+                                  )
+                                }
+                                style={{
+                                  color: MENTION_COLOR,
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {part}
+                              </Text>
+                            ) : (
+                              <Text key={i}>{part}</Text>
+                            ),
+                          )}
+                      </Text>
                       {comment.createdAt && (
                         <Text style={s.commentDate}>
                           {new Date(comment.createdAt).toLocaleDateString(

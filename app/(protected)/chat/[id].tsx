@@ -48,6 +48,7 @@ import {
 } from "@/lib/stores/chat-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
+import { MENTION_COLOR } from "@/src/constants/mentions";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
 import {
   useRef,
@@ -125,7 +126,7 @@ function renderMessageText(
         <Text
           key={index}
           onPress={() => onMentionPress(username)}
-          style={{ color: "#8E8E93", fontWeight: "600" }}
+          style={{ color: MENTION_COLOR, fontWeight: "600" }}
         >
           {part}
         </Text>

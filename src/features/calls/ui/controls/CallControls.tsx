@@ -1,15 +1,22 @@
 /**
  * CallControls — Floating bottom control bar for in-call and pre-call states.
  *
+ * ╔══════════════════════════════════════════════════════════════════════╗
+ * ║  INVARIANT: The End/Leave button is ALWAYS visible during a call.  ║
+ * ║  When the full controls bar auto-hides in video mode, a small     ║
+ * ║  persistent red End pill remains visible (FaceTime/IG style).     ║
+ * ║  Tapping anywhere on the video brings the full controls back.     ║
+ * ╚══════════════════════════════════════════════════════════════════════╝
+ *
  * Renders role-correct controls based on CallUiMode:
  * - CALLER_DIALING / CALLER_RINGING: Cancel + optional Flip Camera
  * - RECEIVER_CONNECTING: Cancel only
- * - IN_CALL_VIDEO: Mute, Speaker, Video, Flip, End
- * - IN_CALL_AUDIO: Mute, Speaker, Escalate-to-Video, End
+ * - IN_CALL_VIDEO: Mute, Speaker, Video, Flip, End (auto-hide with persistent End pill)
+ * - IN_CALL_AUDIO: Mute, Speaker, Escalate-to-Video, End (never auto-hides)
  */
 
 import { useCallback, useRef, useState, useEffect } from "react";
-import { View, Pressable, StyleSheet } from "react-native";
+import { View, Pressable, Text, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   PhoneOff,
@@ -20,6 +27,7 @@ import {
   SwitchCamera,
   Volume2,
   VolumeX,
+  ChevronUp,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import type { CallUiMode } from "../deriveCallUiMode";
@@ -55,15 +63,15 @@ export function CallControls({
   const [visible, setVisible] = useState(true);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Auto-hide controls after 4s in IN_CALL modes, show on tap
-  const isInCall = mode === "IN_CALL_VIDEO" || mode === "IN_CALL_AUDIO";
+  // Auto-hide controls after 5s in IN_CALL_VIDEO only (audio never hides)
+  const isInCallVideo = mode === "IN_CALL_VIDEO";
 
   const resetHideTimer = useCallback(() => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (isInCall && mode === "IN_CALL_VIDEO") {
-      hideTimerRef.current = setTimeout(() => setVisible(false), 4000);
+    if (isInCallVideo) {
+      hideTimerRef.current = setTimeout(() => setVisible(false), 5000);
     }
-  }, [isInCall, mode]);
+  }, [isInCallVideo]);
 
   useEffect(() => {
     setVisible(true);
@@ -73,12 +81,10 @@ export function CallControls({
     };
   }, [mode, resetHideTimer]);
 
-  const handleTap = useCallback(() => {
-    if (!visible) {
-      setVisible(true);
-      resetHideTimer();
-    }
-  }, [visible, resetHideTimer]);
+  const showControls = useCallback(() => {
+    setVisible(true);
+    resetHideTimer();
+  }, [resetHideTimer]);
 
   const wrap = useCallback(
     (fn: () => void) => () => {
@@ -120,17 +126,35 @@ export function CallControls({
     );
   }
 
-  // In-call controls
-  if (!visible && mode === "IN_CALL_VIDEO") {
-    // Invisible tap target to bring controls back
+  // ── Video in-call: controls hidden → show persistent End pill + tap overlay ──
+  if (!visible && isInCallVideo) {
     return (
-      <Pressable
-        style={[styles.container, { paddingBottom: insets.bottom + 20 }]}
-        onPress={handleTap}
-      />
+      <>
+        {/* Full-screen tap target to bring controls back */}
+        <Pressable style={styles.tapOverlay} onPress={showControls}>
+          {/* Small chevron hint at bottom center */}
+          <View style={[styles.chevronHint, { bottom: insets.bottom + 80 }]}>
+            <ChevronUp size={16} color="rgba(255,255,255,0.4)" />
+          </View>
+        </Pressable>
+
+        {/* ALWAYS-VISIBLE: Persistent floating End button (small pill) */}
+        <View
+          style={[
+            styles.persistentEndContainer,
+            { bottom: insets.bottom + 20 },
+          ]}
+        >
+          <Pressable style={styles.persistentEndPill} onPress={wrapEnd}>
+            <PhoneOff size={18} color="#fff" />
+            <Text style={styles.persistentEndText}>End</Text>
+          </Pressable>
+        </View>
+      </>
     );
   }
 
+  // ── Full controls bar (visible) ──────────────────────────────────────
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 20 }]}>
       <View style={styles.row}>
@@ -148,10 +172,7 @@ export function CallControls({
 
         {/* Speaker */}
         <Pressable
-          style={[
-            styles.btn,
-            isSpeakerOn ? styles.btnActive : styles.btnDim,
-          ]}
+          style={[styles.btn, isSpeakerOn ? styles.btnActive : styles.btnDim]}
           onPress={wrap(onToggleSpeaker)}
         >
           {isSpeakerOn ? (
@@ -247,5 +268,48 @@ const styles = StyleSheet.create({
     height: 62,
     borderRadius: 31,
     backgroundColor: "#FF3B30",
+  },
+  // ── Persistent End pill (always visible when controls auto-hide) ────
+  persistentEndContainer: {
+    position: "absolute",
+    right: 20,
+    zIndex: 50,
+  },
+  persistentEndPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#FF3B30",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    // Subtle shadow for visibility over video
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  persistentEndText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  // ── Tap overlay to bring controls back ──────────────────────────────
+  tapOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 40,
+  },
+  chevronHint: {
+    position: "absolute",
+    alignSelf: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
   },
 });

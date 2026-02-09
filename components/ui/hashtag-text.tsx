@@ -7,10 +7,7 @@
 import { Text, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-
-// Brand colors for hashtags and mentions
-const HASHTAG_COLOR = "#3FDCFF";
-const MENTION_COLOR = "#3FDCFF";
+import { MENTION_COLOR, HASHTAG_COLOR } from "@/src/constants/mentions";
 
 interface HashtagTextProps {
   text: string;

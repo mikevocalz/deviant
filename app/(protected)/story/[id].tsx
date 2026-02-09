@@ -451,15 +451,48 @@ export default function StoryViewerScreen() {
     isOwnStory ? storyParentId : undefined,
   );
 
-  // Record view when viewing someone else's story (once per story parent)
+  // Record view when viewing someone else's story (once per story parent).
+  // Uses a 500ms debounce to avoid recording flicker-views (e.g. fast swipe past).
+  // The Set prevents duplicate calls for the same story within this session.
   const recordView = useRecordStoryView();
   const recordedViewsRef = useRef<Set<string>>(new Set());
+  const viewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Clear any pending timer from previous story
+    if (viewTimerRef.current) {
+      clearTimeout(viewTimerRef.current);
+      viewTimerRef.current = null;
+    }
+
     if (!storyParentId || isOwnStory) return;
-    if (recordedViewsRef.current.has(storyParentId)) return;
-    recordedViewsRef.current.add(storyParentId);
-    recordView.mutate(storyParentId);
+    if (recordedViewsRef.current.has(storyParentId)) {
+      if (__DEV__) {
+        console.log(
+          `[StoryViewer] View already recorded for story ${storyParentId}, skipping`,
+        );
+      }
+      return;
+    }
+
+    // Debounce: wait 500ms before recording to ensure user actually viewed the story
+    const capturedId = storyParentId;
+    viewTimerRef.current = setTimeout(() => {
+      if (__DEV__) {
+        console.log(
+          `[StoryViewer] Recording view for story ${capturedId} after debounce`,
+        );
+      }
+      recordedViewsRef.current.add(capturedId);
+      recordView.mutate(capturedId);
+    }, 500);
+
+    return () => {
+      if (viewTimerRef.current) {
+        clearTimeout(viewTimerRef.current);
+        viewTimerRef.current = null;
+      }
+    };
   }, [storyParentId, isOwnStory]);
 
   const handleNext = useCallback(() => {

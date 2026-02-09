@@ -29,7 +29,7 @@ import {
   backToForeground,
 } from "./callkeep";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
-import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
+import { audioSession } from "@/src/services/calls/audioSession";
 import { CT } from "@/src/services/calls/callTrace";
 
 // Track active signal so we can update its status on answer/decline
@@ -203,8 +203,12 @@ export function useCallKeepCoordinator(): void {
 
         onAudioSessionActivated: () => {
           CT.guard("AUDIO", "onAudioSessionActivated", () => {
-            CT.trace("AUDIO", "audioSessionActivated");
-            RTCAudioSession.audioSessionDidActivate();
+            CT.trace("AUDIO", "audioSessionActivated_fromCallKit");
+            // CRITICAL: This is the ONLY place where iOS audio session activation
+            // should happen. audioSession.activateFromCallKit() calls
+            // RTCAudioSession.audioSessionDidActivate() + applies deferred speaker routing.
+            // REF: https://docs.fishjam.io/how-to/react-native/connecting
+            audioSession.activateFromCallKit();
           });
         },
       });

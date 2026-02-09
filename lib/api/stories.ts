@@ -426,30 +426,70 @@ export interface StoryViewer {
 
 export const storyViewsApi = {
   /**
-   * Record that the current user viewed a story
-   * Uses upsert so duplicate views are ignored (composite PK: story_id, user_id)
+   * Record that the current user viewed a story.
+   * Uses upsert so duplicate views are idempotent (composite unique: story_id, user_id).
+   * Updates viewed_at on re-view so the timestamp stays fresh.
+   *
+   * CRITICAL: Retries up to 3 times if getIdentityUserId() returns null,
+   * which can happen when the auth store hasn't resolved the integer user ID yet
+   * (race condition with Better Auth string IDs needing async DB lookup).
    */
   async recordView(storyId: string) {
-    try {
-      // Use async identity lookup — getCurrentUserIdInt() fails when
-      // user.id is a Better Auth string (parseInt returns NaN)
-      const userIdInt = await getIdentityUserId();
-      if (!userIdInt) return;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 500;
 
-      const { error } = await supabase.from(DB.storyViews.table).upsert(
-        {
-          [DB.storyViews.storyId]: parseInt(storyId),
-          [DB.storyViews.userId]: userIdInt,
-        },
-        { onConflict: "story_id,user_id" },
-      );
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const userIdInt = await getIdentityUserId();
 
-      if (error) {
-        // Silently fail — view tracking is non-critical
-        console.warn("[StoryViews] recordView error:", error.message);
+        if (!userIdInt) {
+          if (__DEV__) {
+            console.warn(
+              `[StoryViews] recordView: userId null on attempt ${attempt}/${MAX_RETRIES} for story ${storyId}`,
+            );
+          }
+          if (attempt < MAX_RETRIES) {
+            await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+            continue;
+          }
+          console.warn(
+            "[StoryViews] recordView: giving up — userId null after all retries",
+          );
+          return;
+        }
+
+        const storyIdInt = parseInt(storyId);
+        if (isNaN(storyIdInt)) {
+          console.warn("[StoryViews] recordView: invalid storyId:", storyId);
+          return;
+        }
+
+        const { error } = await supabase.from(DB.storyViews.table).upsert(
+          {
+            [DB.storyViews.storyId]: storyIdInt,
+            [DB.storyViews.userId]: userIdInt,
+            [DB.storyViews.viewedAt]: new Date().toISOString(),
+          },
+          { onConflict: "story_id,user_id" },
+        );
+
+        if (error) {
+          console.warn("[StoryViews] recordView upsert error:", error.message);
+        } else if (__DEV__) {
+          console.log(
+            `[StoryViews] recordView OK: story=${storyIdInt}, user=${userIdInt}`,
+          );
+        }
+        return;
+      } catch (error) {
+        console.warn(
+          `[StoryViews] recordView error (attempt ${attempt}):`,
+          error,
+        );
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        }
       }
-    } catch (error) {
-      console.warn("[StoryViews] recordView error:", error);
     }
   },
 

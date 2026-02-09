@@ -14,16 +14,14 @@
  * - Hashtags and mentions are clickable
  */
 
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import { Pressable } from "react-native";
+import { MENTION_COLOR, HASHTAG_COLOR } from "@/src/constants/mentions";
 
 // CRITICAL: Explicit colors - NEVER rely on theme inheritance
 const CAPTION_TEXT_COLOR = "#FFFFFF";
 const USERNAME_TEXT_COLOR = "#FFFFFF";
-const HASHTAG_COLOR = "#3FDCFF";
-const MENTION_COLOR = "#3FDCFF";
 
 interface PostCaptionProps {
   username: string;

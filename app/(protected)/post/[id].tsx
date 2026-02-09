@@ -40,6 +40,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
+import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for portrait-friendly display
@@ -62,8 +63,8 @@ function PostDetailScreenContent() {
   const { colors } = useColorScheme();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
-  const showActionSheet = useUIStore((state) => state.showActionSheet);
-  const setShowActionSheet = useUIStore((state) => state.setShowActionSheet);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showLikesSheet, setShowLikesSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
 
   // Like state from centralized hook
@@ -519,9 +520,13 @@ function PostDetailScreenContent() {
 
           {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
-            <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}>
-              {formatLikeCount(likeCount)}
-            </Text>
+            <Pressable onPress={() => setShowLikesSheet(true)}>
+              <Text
+                style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
+              >
+                {formatLikeCount(likeCount)}
+              </Text>
+            </Pressable>
             {post.caption && (
               <View className="mt-2">
                 <HashtagText
@@ -689,6 +694,12 @@ function PostDetailScreenContent() {
           )}
         </View>
       </ScrollView>
+
+      <LikesSheet
+        postId={postIdString}
+        isOpen={showLikesSheet}
+        onClose={() => setShowLikesSheet(false)}
+      />
     </SafeAreaView>
   );
 }

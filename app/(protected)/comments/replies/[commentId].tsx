@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
 import { Send, Heart } from "lucide-react-native";
+import { MENTION_COLOR } from "@/src/constants/mentions";
 import {
   useEffect,
   useLayoutEffect,
@@ -241,7 +242,7 @@ export default function RepliesScreen() {
                                 `/(protected)/profile/${part.slice(1)}` as any,
                               )
                             }
-                            style={{ color: "#3EA4E5", fontWeight: "600" }}
+                            style={{ color: MENTION_COLOR, fontWeight: "600" }}
                           >
                             {part}
                           </Text>

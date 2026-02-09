@@ -6,6 +6,33 @@ import {
   getCurrentUserAuthId,
 } from "./auth-helper";
 
+/** Format a raw ISO date into the fields the EventCard UI expects */
+function formatEventDate(isoDate: string | null | undefined) {
+  if (!isoDate) {
+    return {
+      date: "--",
+      month: "---",
+      fullDate: undefined as string | undefined,
+      time: "",
+    };
+  }
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) {
+    return {
+      date: "--",
+      month: "---",
+      fullDate: undefined as string | undefined,
+      time: "",
+    };
+  }
+  return {
+    date: d.getDate().toString().padStart(2, "0"),
+    month: d.toLocaleString("en-US", { month: "short" }).toUpperCase(),
+    fullDate: d.toISOString(),
+    time: d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
 export const eventsApi = {
   /**
    * Get upcoming events
@@ -48,11 +75,12 @@ export const eventsApi = {
 
       return (data || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
+        const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
           id: String(event[DB.events.id]),
           title: event[DB.events.title],
           description: event[DB.events.description],
-          date: event[DB.events.startDate],
+          ...dateParts,
           location: event[DB.events.location],
           image: event[DB.events.coverImageUrl] || "",
           price: Number(event[DB.events.price]) || 0,
@@ -114,16 +142,19 @@ export const eventsApi = {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((event: any) => ({
-        id: String(event[DB.events.id]),
-        title: event[DB.events.title],
-        description: event[DB.events.description],
-        date: event[DB.events.startDate],
-        location: event[DB.events.location],
-        image: event[DB.events.coverImageUrl] || "",
-        price: Number(event[DB.events.price]) || 0,
-        attendees: Number(event[DB.events.totalAttendees]) || 0,
-      }));
+      return (data || []).map((event: any) => {
+        const dateParts = formatEventDate(event[DB.events.startDate]);
+        return {
+          id: String(event[DB.events.id]),
+          title: event[DB.events.title],
+          description: event[DB.events.description],
+          ...dateParts,
+          location: event[DB.events.location],
+          image: event[DB.events.coverImageUrl] || "",
+          price: Number(event[DB.events.price]) || 0,
+          attendees: Number(event[DB.events.totalAttendees]) || 0,
+        };
+      });
     } catch (error) {
       console.error("[Events] getMyEvents error:", error);
       return [];
@@ -168,11 +199,12 @@ export const eventsApi = {
 
       return (data || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
+        const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
           id: String(event[DB.events.id]),
           title: event[DB.events.title],
           description: event[DB.events.description],
-          date: event[DB.events.startDate],
+          ...dateParts,
           location: event[DB.events.location],
           image: event[DB.events.coverImageUrl] || "",
           price: Number(event[DB.events.price]) || 0,
@@ -215,11 +247,12 @@ export const eventsApi = {
         host = hostData;
       }
 
+      const dateParts = formatEventDate(data[DB.events.startDate]);
       return {
         id: String(data[DB.events.id]),
         title: data[DB.events.title],
         description: data[DB.events.description],
-        date: data[DB.events.startDate],
+        ...dateParts,
         location: data[DB.events.location],
         image: data[DB.events.coverImageUrl] || "",
         price: Number(data[DB.events.price]) || 0,
@@ -351,22 +384,30 @@ export const eventsApi = {
       console.log("[Events] Event created:", data?.id);
 
       // Return formatted event data for optimistic updates
+      const dateParts = formatEventDate(data[DB.events.startDate]);
       return {
         id: String(data[DB.events.id]),
         title: data[DB.events.title],
         description: data[DB.events.description],
-        date: data[DB.events.startDate],
+        ...dateParts,
         location: data[DB.events.location],
         image: data[DB.events.coverImageUrl] || "",
         price: Number(data[DB.events.price]) || 0,
         attendees: 0,
+        totalAttendees: 0,
+        category: "Event",
+        likes: 0,
         host: {
           username: "You",
           avatar: "",
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Events] createEvent error:", error);
+      console.error("[Events] createEvent error code:", error?.code);
+      console.error("[Events] createEvent error message:", error?.message);
+      console.error("[Events] createEvent error details:", error?.details);
+      console.error("[Events] createEvent error hint:", error?.hint);
       throw error;
     }
   },

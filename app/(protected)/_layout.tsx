@@ -89,7 +89,12 @@ export default function ProtectedLayout() {
         />
         <Stack.Screen
           name="comments"
-          options={{ headerShown: false, animation: "none" }}
+          options={{
+            headerShown: false,
+            presentation: "transparentModal",
+            animation: "none",
+            contentStyle: { backgroundColor: "transparent" },
+          }}
         />
         <Stack.Screen
           name="camera"
