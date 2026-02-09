@@ -9,10 +9,10 @@ import {
   Pressable,
   TextInput,
   Switch,
-  KeyboardAvoidingView,
   ScrollView,
   Platform,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Radio, Video, Globe, Lock } from "lucide-react-native";

@@ -6,10 +6,10 @@ import {
   Pressable,
   StyleSheet,
   Modal,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { X, Search, UserPlus, Check } from "lucide-react-native";

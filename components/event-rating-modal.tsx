@@ -11,10 +11,10 @@ import {
   Modal,
   Pressable,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import StarRating from "react-native-star-rating-widget";
 import { X } from "lucide-react-native";

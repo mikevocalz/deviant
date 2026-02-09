@@ -47,13 +47,11 @@ export const eventsApi = {
     try {
       console.log("[Events] getEvents");
 
-      const now = new Date().toISOString();
-      // Don't use join since host_id is UUID without foreign key
+      // Fetch ALL events — UI tabs handle upcoming/past filtering client-side
       const { data, error } = await supabase
         .from(DB.events.table)
         .select("*")
-        .gte(DB.events.startDate, now)
-        .order(DB.events.startDate, { ascending: true })
+        .order(DB.events.startDate, { ascending: false, nullsFirst: false })
         .limit(limit);
 
       if (error) throw error;

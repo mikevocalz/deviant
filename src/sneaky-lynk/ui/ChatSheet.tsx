@@ -5,14 +5,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  KeyboardAvoidingView,
-  Platform,
-} from "react-native";
+import { View, Text, TextInput, Pressable, Platform } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LegendList } from "@/components/list";
 import { PasteInput } from "@/components/ui/paste-input";
 import { useSafeAreaInsets } from "react-native-safe-area-context";

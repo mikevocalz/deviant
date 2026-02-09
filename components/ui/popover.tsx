@@ -12,10 +12,10 @@ import {
   StyleSheet,
   Dimensions,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   BackHandler,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Motion } from "@legendapp/motion";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect } from "react";

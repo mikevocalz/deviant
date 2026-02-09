@@ -321,7 +321,7 @@ export default function EventDetailScreen() {
     setSelectedTier(tier);
   }, []);
 
-  const handleGetTickets = useCallback(() => {
+  const handleGetTickets = useCallback(async () => {
     if (!eventData) return;
     // Block ticket purchase for past events
     const now = new Date();
@@ -338,6 +338,19 @@ export default function EventDetailScreen() {
       }
     }
     toggleRsvp(eventId);
+
+    // Optimistically update local attendee count
+    setEventData((prev) =>
+      prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+    );
+
+    // Persist RSVP to database (increments total_attendees via RPC)
+    eventsApi.rsvpEvent(eventId, "going").catch((err) => {
+      console.error("[EventDetail] rsvpEvent error:", err);
+    });
+
+    // Invalidate event queries so lists refresh
+    queryClient.invalidateQueries({ queryKey: eventKeys.all });
 
     // Create and store ticket so View Ticket page can find it
     const tierLevel = selectedTier?.tier || "ga";
@@ -372,6 +385,7 @@ export default function EventDetailScreen() {
     toggleRsvp,
     setTicket,
     showToast,
+    queryClient,
   ]);
 
   const handleViewTicket = useCallback(() => {
