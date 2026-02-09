@@ -2,6 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt, getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
+import { useAuthStore } from "../stores/auth-store";
 
 interface SendMessageResponse {
   ok: boolean;
@@ -464,6 +465,64 @@ export const messagesApi = {
       return data;
     } catch (error) {
       console.error("[Messages] editMessage error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * React to a message with an emoji (toggle)
+   * Stores reactions in the metadata JSONB column as an array
+   */
+  async reactToMessage(messageId: string, emoji: string) {
+    try {
+      const visitorIntId = getCurrentUserIdInt();
+      const authId = await getCurrentUserAuthId();
+      if (!visitorIntId || !authId) throw new Error("Not authenticated");
+
+      // Fetch current metadata
+      const { data: msg, error: fetchError } = await supabase
+        .from(DB.messages.table)
+        .select(`${DB.messages.metadata}`)
+        .eq(DB.messages.id, parseInt(messageId))
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const meta = msg?.[DB.messages.metadata] || {};
+      const reactions: Array<{
+        emoji: string;
+        userId: string;
+        username: string;
+      }> = Array.isArray(meta.reactions) ? meta.reactions : [];
+
+      // Toggle: remove if already reacted with same emoji, otherwise add
+      const existingIdx = reactions.findIndex(
+        (r) => r.emoji === emoji && r.userId === authId,
+      );
+
+      const user = useAuthStore.getState().user;
+      if (existingIdx >= 0) {
+        reactions.splice(existingIdx, 1);
+      } else {
+        reactions.push({
+          emoji,
+          userId: authId,
+          username: user?.username || "user",
+        });
+      }
+
+      // Update metadata with new reactions
+      const { error: updateError } = await supabase
+        .from(DB.messages.table)
+        .update({
+          [DB.messages.metadata]: { ...meta, reactions },
+        })
+        .eq(DB.messages.id, parseInt(messageId));
+
+      if (updateError) throw updateError;
+      console.log("[Messages] reactToMessage success:", messageId, emoji);
+    } catch (error) {
+      console.error("[Messages] reactToMessage error:", error);
       throw error;
     }
   },

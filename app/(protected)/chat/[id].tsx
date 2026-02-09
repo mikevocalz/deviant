@@ -645,12 +645,43 @@ export default function ChatScreen() {
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [editText, setEditText] = useState("");
 
-  const { deleteMessage, editMessage } = useChatStore();
+  const { deleteMessage, editMessage, reactToMessage } = useChatStore();
+
+  // Reaction emojis (Instagram-style)
+  const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
+
+  // Double-tap tracking
+  const lastTapRef = useRef<{ id: string; time: number }>({ id: "", time: 0 });
 
   const handleLongPressMessage = useCallback((message: Message) => {
     setSelectedMessage(message);
     setShowMessageActions(true);
   }, []);
+
+  const handleDoubleTap = useCallback(
+    (message: Message) => {
+      const now = Date.now();
+      const last = lastTapRef.current;
+      if (last.id === message.id && now - last.time < 300) {
+        // Double tap detected — heart react
+        reactToMessage(chatId, message.id, "❤️");
+        lastTapRef.current = { id: "", time: 0 };
+      } else {
+        lastTapRef.current = { id: message.id, time: now };
+      }
+    },
+    [chatId, reactToMessage],
+  );
+
+  const handleReaction = useCallback(
+    (emoji: string) => {
+      if (!selectedMessage) return;
+      reactToMessage(chatId, selectedMessage.id, emoji);
+      setShowMessageActions(false);
+      setSelectedMessage(null);
+    },
+    [selectedMessage, chatId, reactToMessage],
+  );
 
   const handleUnsendMessage = useCallback(() => {
     if (!selectedMessage) return;
@@ -787,6 +818,17 @@ export default function ChatScreen() {
           contentContainerStyle={{ padding: 16 }}
           renderItem={({ item }) => {
             const isMe = item.sender === "me";
+            const hasReactions = item.reactions && item.reactions.length > 0;
+
+            // Group reactions by emoji for display
+            const groupedReactions = (item.reactions || []).reduce(
+              (acc, r) => {
+                acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                return acc;
+              },
+              {} as Record<string, number>,
+            );
+
             const bubble = (
               <View style={{ maxWidth: "80%" }}>
                 {item.media && (
@@ -833,17 +875,67 @@ export default function ChatScreen() {
               </View>
             );
 
+            const reactionPills = hasReactions ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 4,
+                  marginTop: 2,
+                  alignSelf: isMe ? "flex-end" : "flex-start",
+                  marginLeft: isMe ? 0 : 40,
+                }}
+              >
+                {Object.entries(groupedReactions).map(([emoji, count]) => (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => reactToMessage(chatId, item.id, emoji)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                      borderRadius: 12,
+                      paddingHorizontal: 6,
+                      paddingVertical: 2,
+                      borderWidth: 1,
+                      borderColor: (item.reactions || []).some(
+                        (r) =>
+                          r.emoji === emoji && r.userId === currentUser?.id,
+                      )
+                        ? "#3EA4E5"
+                        : "transparent",
+                    }}
+                  >
+                    <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                    {(count as number) > 1 && (
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "#999",
+                          marginLeft: 2,
+                        }}
+                      >
+                        {count}
+                      </Text>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ) : null;
+
             const messageContent = isMe ? (
               <Pressable
                 className="self-end mb-2"
+                onPress={() => handleDoubleTap(item)}
                 onLongPress={() => handleLongPressMessage(item)}
                 delayLongPress={400}
               >
                 {bubble}
+                {reactionPills}
               </Pressable>
             ) : (
               <Pressable
                 className="flex-row items-end gap-2 mb-2 self-start"
+                onPress={() => handleDoubleTap(item)}
                 onLongPress={() => handleLongPressMessage(item)}
                 delayLongPress={400}
               >
@@ -853,7 +945,10 @@ export default function ChatScreen() {
                   size={28}
                   variant="roundedSquare"
                 />
-                {bubble}
+                <View>
+                  {bubble}
+                  {reactionPills}
+                </View>
               </Pressable>
             );
 
@@ -1115,12 +1210,46 @@ export default function ChatScreen() {
                   />
                 </View>
 
+                {/* Emoji Reaction Bar */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-evenly",
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#333",
+                  }}
+                >
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <Pressable
+                      key={emoji}
+                      onPress={() => handleReaction(emoji)}
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 22,
+                        backgroundColor: selectedMessage?.reactions?.some(
+                          (r) =>
+                            r.emoji === emoji && r.userId === currentUser?.id,
+                        )
+                          ? "rgba(62,164,229,0.2)"
+                          : "rgba(255,255,255,0.08)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+
                 {/* Message preview */}
                 {selectedMessage && (
                   <View
                     style={{
                       paddingHorizontal: 20,
-                      paddingBottom: 12,
+                      paddingVertical: 8,
                       borderBottomWidth: 1,
                       borderBottomColor: "#333",
                     }}

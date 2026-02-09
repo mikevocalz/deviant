@@ -19,6 +19,12 @@ export interface StoryReplyContext {
   isExpired?: boolean;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  userId: string;
+  username: string;
+}
+
 export interface Message {
   id: string;
   text: string;
@@ -27,6 +33,7 @@ export interface Message {
   mentions?: string[];
   media?: MediaAttachment;
   storyReply?: StoryReplyContext;
+  reactions?: MessageReaction[];
 }
 
 export interface User {
@@ -64,6 +71,11 @@ interface ChatState {
     conversationId: string,
     messageId: string,
     newText: string,
+  ) => Promise<void>;
+  reactToMessage: (
+    conversationId: string,
+    messageId: string,
+    emoji: string,
   ) => Promise<void>;
   addSystemMessage: (chatId: string, text: string) => void;
 }
@@ -192,6 +204,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   }
                 : undefined,
           storyReply,
+          reactions: (() => {
+            const r = meta?.reactions;
+            return Array.isArray(r) ? r : [];
+          })(),
         };
       });
 
@@ -455,6 +471,46 @@ export const useChatStore = create<ChatState>((set, get) => ({
           [conversationId]: oldMessages,
         },
       }));
+    }
+  },
+
+  reactToMessage: async (conversationId, messageId, emoji) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    const reaction: MessageReaction = {
+      emoji,
+      userId: user.id,
+      username: user.username,
+    };
+
+    // Optimistic update
+    set((state) => ({
+      messages: {
+        ...state.messages,
+        [conversationId]: (state.messages[conversationId] || []).map((m) => {
+          if (m.id !== messageId) return m;
+          const existing = m.reactions || [];
+          // Toggle: remove if same emoji from same user, otherwise add
+          const alreadyReacted = existing.find(
+            (r) => r.emoji === emoji && r.userId === user.id,
+          );
+          const newReactions = alreadyReacted
+            ? existing.filter(
+                (r) => !(r.emoji === emoji && r.userId === user.id),
+              )
+            : [...existing, reaction];
+          return { ...m, reactions: newReactions };
+        }),
+      },
+    }));
+
+    try {
+      await messagesApiClient.reactToMessage(messageId, emoji);
+    } catch (error) {
+      console.error("[ChatStore] reactToMessage error:", error);
+      // Reload messages to restore correct state on failure
+      await get().loadMessages(conversationId);
     }
   },
 
