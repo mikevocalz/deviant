@@ -161,7 +161,38 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 
 ---
 
-## 🔧 SEV-0 FIXES (2026-02-01)
+## � UI INVARIANTS — NEVER REGRESS
+
+### Stories — THUMBNAIL MUST BE MOST RECENT ITEM
+
+**Story thumbnails in the stories bar MUST always show the MOST RECENT (last) story item's thumbnail/url.**
+
+```
+✅ CORRECT: story.items[story.items.length - 1].thumbnail || .url
+❌ WRONG:   story.items[0].thumbnail || .url
+❌ WRONG:   story.avatar (profile picture)
+```
+
+- **Other users' stories** (`stories-bar.tsx` → `instaData`): `user_image` = last item's thumbnail/url, fallback to avatar only if no items
+- **Own story** (`stories-bar.tsx` → `StoryRing`): `storyThumbnail` = last item's thumbnail/url
+- **Regression test**: `tests/story-thumbnail-regression.spec.ts`
+- Avatar fallback is ONLY allowed when `items` array is empty
+
+### Messages — SENDER ISOLATION
+
+- `msg.sender` is `"user"` or `"other"` (string literals from `messages-impl.ts`)
+- Check: `msg.sender === "user"` — NEVER compare against `user.id`
+- Regression test: `tests/message-sender-isolation.spec.ts`
+
+### Data Isolation — AVATAR OWNERSHIP
+
+- Story/Post/Comment avatar → `entity.author.avatar` (NEVER authUser)
+- Settings avatar → `authUser.avatar` (ONLY allowed place)
+- Regression test: `tests/identity-ownership.spec.ts`
+
+---
+
+## �🔧 SEV-0 FIXES (2026-02-01)
 
 **Critical production fixes applied for database connectivity and app stability.**
 
