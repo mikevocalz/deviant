@@ -796,6 +796,9 @@ export default function ChatScreen() {
     >
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+          <Pressable onPress={() => router.back()} hitSlop={8}>
+            <ArrowLeft size={24} color="#fff" />
+          </Pressable>
           <Pressable
             onPress={handleProfilePress}
             className="flex-row items-center gap-3 flex-1"

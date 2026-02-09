@@ -158,23 +158,12 @@ export function useCommentLikeState(
         updatedComments,
       );
 
-      // Invalidate all related queries for immediate updates across all screens
-      const invalidations = [
-        // Invalidate the post itself (might show comment count)
-        queryClient.invalidateQueries({ queryKey: ["post", postId] }),
-        // Invalidate feed (might show comment likes)
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        // Invalidate posts (general cache)
-        queryClient.invalidateQueries({ queryKey: ["posts"] }),
-        // Invalidate any comment-related queries
-        queryClient.invalidateQueries({ queryKey: ["comments"] }),
-      ];
-
-      // Execute all invalidations in parallel for instant updates
-      Promise.all(invalidations).then(() => {
-        console.log(
-          "[useCommentLikeState] All comment like caches invalidated for instant updates",
-        );
+      // Only invalidate the specific comment query for this post.
+      // Do NOT invalidate ["feed"], ["posts"], or broad ["comments"] —
+      // those cause full re-renders that flash stale state (flickering).
+      // The optimistic update + onSuccess setQueryData above is sufficient.
+      queryClient.invalidateQueries({
+        queryKey: commentKeys.byPost(postId),
       });
     },
   });

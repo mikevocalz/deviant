@@ -96,11 +96,9 @@ export function CommentLikeButton({
         color={hasLiked ? "#FF5BFC" : "#666"}
         fill={hasLiked ? "#FF5BFC" : "none"}
       />
-      {likesCount > 0 && (
-        <Text style={[styles.likeCount, hasLiked && styles.likeCountActive]}>
-          {likesCount}
-        </Text>
-      )}
+      <Text style={[styles.likeCount, hasLiked && styles.likeCountActive]}>
+        {likesCount > 0 ? likesCount : ""}
+      </Text>
     </Pressable>
   );
 }

@@ -54,7 +54,9 @@ import {
   startOutgoingCall,
   reportOutgoingCallConnected,
   endCall as callKeepEndCall,
+  endAllCalls as callKeepEndAllCalls,
   persistCallMapping,
+  clearCallMapping,
   setMuted as callKeepSetMuted,
 } from "@/src/services/callkeep";
 import { useChatStore } from "@/lib/stores/chat-store";
@@ -509,12 +511,20 @@ export function useVideoCall() {
         logWarn("Failed to end call signals:", e);
       });
 
-      // End native call UI (idempotent)
+      // End native call UI — try specific UUID first, then endAll as safety net
       try {
         callKeepEndCall(currentRoomId);
+        clearCallMapping(currentRoomId);
       } catch (ckErr) {
         logWarn("CallKeep endCall failed (non-fatal):", ckErr);
       }
+    }
+
+    // Safety net: always end ALL CallKit calls to prevent orphaned native UI
+    try {
+      callKeepEndAllCalls();
+    } catch (ckErr) {
+      logWarn("CallKeep endAllCalls failed (non-fatal):", ckErr);
     }
 
     // Stop media — only stop camera if it was a video call
