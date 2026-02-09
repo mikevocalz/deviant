@@ -148,6 +148,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   mention: {
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });

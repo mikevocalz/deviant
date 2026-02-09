@@ -190,6 +190,6 @@ const styles = StyleSheet.create({
   },
   mention: {
     color: MENTION_COLOR,
-    fontWeight: "700",
+    fontWeight: "800",
   },
 });
