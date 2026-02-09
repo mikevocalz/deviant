@@ -69,11 +69,14 @@ export function useCreateEventReview() {
             rating: variables.rating,
             comment: variables.comment,
             user: {
+              id: "optimistic",
               username: variables.authorUsername || "You",
+              avatar: "",
             },
             createdAt: new Date().toISOString(),
           };
-          return [...old, optimisticReview];
+          // Prepend: query orders DESC by created_at
+          return [optimisticReview, ...old];
         },
       );
 

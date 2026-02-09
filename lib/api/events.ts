@@ -683,11 +683,11 @@ export const eventsApi = {
         .select(
           `
           id,
-          text,
+          content,
           created_at,
-          user_id,
+          author_id,
           parent_id,
-          author:user_id(
+          author:author_id(
             id,
             username,
             avatar:avatar_id(url)
@@ -705,7 +705,7 @@ export const eventsApi = {
 
       return (data || []).map((c: any) => ({
         id: String(c.id),
-        content: c.text || "",
+        content: c.content || "",
         createdAt: c.created_at,
         parentId: c.parent_id ? String(c.parent_id) : null,
         author: c.author
@@ -725,7 +725,7 @@ export const eventsApi = {
   /**
    * Add event comment
    */
-  async addEventComment(eventId: string, content: string) {
+  async addEventComment(eventId: string, commentContent: string) {
     try {
       const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
@@ -734,8 +734,8 @@ export const eventsApi = {
         .from("event_comments")
         .insert({
           event_id: parseInt(eventId),
-          user_id: userId,
-          text: content,
+          author_id: userId,
+          content: commentContent,
         })
         .select()
         .single();
@@ -743,7 +743,7 @@ export const eventsApi = {
       if (error) throw error;
       return {
         id: String(data.id),
-        content: data.text,
+        content: data.content,
         createdAt: data.created_at,
       };
     } catch (error) {

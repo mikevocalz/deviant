@@ -54,13 +54,15 @@ export function useCreateEventComment() {
             id: `temp-${Date.now()}`,
             content: variables.text,
             author: {
+              id: "optimistic",
               username: variables.authorUsername || "You",
               avatar: variables.authorAvatar || "",
             },
             createdAt: new Date().toISOString(),
-            parent: variables.parent,
+            parentId: variables.parent || null,
           };
-          return [...old, optimisticComment];
+          // Prepend: query orders DESC by created_at
+          return [optimisticComment, ...old];
         },
       );
 
