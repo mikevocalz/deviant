@@ -86,9 +86,14 @@ export function StoriesBar() {
         });
       }
 
+      // Use first story item thumbnail/url for the circle image (Instagram-style)
+      const firstItem = story.items?.[0];
+      const storyThumb =
+        firstItem?.thumbnail || firstItem?.url || story.avatar || undefined;
+
       return {
         user_id: idx,
-        user_image: story.avatar || undefined,
+        user_image: storyThumb,
         user_name: story.username || "Unknown",
         seen: story.isViewed,
         stories: (story.items || []).map((item: any, itemIdx: number) => {

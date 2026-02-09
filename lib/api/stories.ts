@@ -5,7 +5,10 @@ import {
   getCurrentUserIdInt,
   getCurrentUserAuthId,
 } from "./auth-helper";
-import { requireBetterAuthToken } from "../auth/identity";
+import {
+  requireBetterAuthToken,
+  getCurrentUserId as getIdentityUserId,
+} from "../auth/identity";
 
 interface CreateStoryResponse {
   ok: boolean;
@@ -428,7 +431,9 @@ export const storyViewsApi = {
    */
   async recordView(storyId: string) {
     try {
-      const userIdInt = getCurrentUserIdInt();
+      // Use async identity lookup — getCurrentUserIdInt() fails when
+      // user.id is a Better Auth string (parseInt returns NaN)
+      const userIdInt = await getIdentityUserId();
       if (!userIdInt) return;
 
       const { error } = await supabase.from(DB.storyViews.table).upsert(

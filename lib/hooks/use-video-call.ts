@@ -104,6 +104,7 @@ export function useVideoCall() {
     null,
   );
   const hadPeersRef = useRef(false);
+  const reportedConnectedRef = useRef(false);
   const leaveCallRef = useRef<() => void>(() => {});
 
   // ── Zustand store access ────────────────────────────────────────────
@@ -163,6 +164,32 @@ export function useVideoCall() {
     // Track if we ever had remote peers
     if (participants.length > 0) {
       hadPeersRef.current = true;
+
+      // Report outgoing call as connected when callee actually joins
+      // This defers the "connected" state until the callee answers
+      if (!reportedConnectedRef.current) {
+        reportedConnectedRef.current = true;
+        const currentStore = getStore();
+        const currentRoomId = currentStore.roomId;
+        if (currentRoomId) {
+          try {
+            reportOutgoingCallConnected(currentRoomId);
+            enableSpeakerphone(currentRoomId);
+            log("Callee joined — reported outgoing call connected");
+          } catch (ckErr) {
+            logWarn("CallKeep reportConnected on peer join failed:", ckErr);
+          }
+          // Activate audio session now that call is truly connected
+          if (Platform.OS === "ios") {
+            try {
+              RTCAudioSession.audioSessionDidActivate();
+              log("[iOS] RTCAudioSession activated on peer join");
+            } catch (audioErr) {
+              logWarn("RTCAudioSession activation failed:", audioErr);
+            }
+          }
+        }
+      }
     }
 
     // Auto-end call when all remote peers leave after being connected
@@ -426,27 +453,10 @@ export function useVideoCall() {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
       }
 
-      // Step 7: Now report connected to CallKeep + enable speaker
-      try {
-        reportOutgoingCallConnected(callUUID);
-        enableSpeakerphone(callUUID);
-      } catch (ckErr) {
-        logWarn("CallKeep reportConnected failed (non-fatal):", ckErr);
-      }
-
-      // Step 8: Explicitly activate WebRTC audio session on iOS.
-      // The onAudioSessionActivated CallKeep callback may not fire reliably
-      // for outgoing calls, so we manually bridge it here as a safety net.
-      if (Platform.OS === "ios") {
-        try {
-          RTCAudioSession.audioSessionDidActivate();
-          log(
-            "[iOS] RTCAudioSession.audioSessionDidActivate() called explicitly",
-          );
-        } catch (audioErr) {
-          logWarn("RTCAudioSession activation failed (non-fatal):", audioErr);
-        }
-      }
+      // Step 7: DO NOT report connected yet — wait for callee to actually join.
+      // reportOutgoingCallConnected is deferred to the peer sync effect
+      // when we detect the first remote participant.
+      reportedConnectedRef.current = false;
 
       startDurationTimer();
       log("Call fully connected:", newRoomId);
