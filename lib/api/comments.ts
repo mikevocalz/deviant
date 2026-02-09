@@ -112,7 +112,7 @@ export const commentsApi = {
     authorId?: string;
     clientMutationId?: string;
   }) {
-    return this.addComment(data.post, data.text);
+    return commentsApi.addComment(data.post, data.text);
   },
 
   /**
