@@ -141,17 +141,14 @@ export default function RepliesScreen() {
     };
   }, []);
 
-  // Set TrueSheet header with styled title and close button
+  // Hide default header — we render SheetHeader inline
   useLayoutEffect(() => {
-    navigation.setOptions({
-      header: () => (
-        <SheetHeader title="Replies" onClose={() => router.back()} />
-      ),
-    });
-  }, [navigation, router]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <SheetHeader title="Replies" onClose={() => router.back()} />
       {/* Replies List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
         {isLoading ? (

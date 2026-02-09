@@ -143,22 +143,47 @@ export function useVideoCall() {
   }, [cameraHook.cameraStream, getStore]);
 
   // ── Sync remote peers → store participants ──────────────────────────
+  // REF: Fishjam SDK v0.25 PeerWithTracks exposes distinguished tracks:
+  //   peer.cameraTrack, peer.microphoneTrack (Track | undefined)
+  //   Track = { stream: MediaStream | null, trackId, metadata, track: MediaStreamTrack | null }
+  // REF: https://docs.fishjam.io/tutorials/react-native-quick-start
   useEffect(() => {
     const remotePeers = peers.remotePeers || [];
-    const participants: Participant[] = remotePeers.map((peer: any) => ({
-      odId: peer.id,
-      oderId: peer.metadata?.userId ?? peer.id,
-      userId: peer.metadata?.userId ?? peer.id,
-      username: peer.metadata?.username ?? "?",
-      avatar: peer.metadata?.avatar,
-      role: peer.metadata?.role || "participant",
-      isLocal: false,
-      isCameraOn: !!peer.videoTrack,
-      isMicOn: !!peer.audioTrack,
-      isScreenSharing: false,
-      videoTrack: peer.videoTrack,
-      audioTrack: peer.audioTrack,
-    }));
+
+    if (__DEV__) {
+      for (const peer of remotePeers) {
+        const camTrack = (peer as any).cameraTrack;
+        const micTrack = (peer as any).microphoneTrack;
+        log(
+          `[FISHJAM] Remote peer ${peer.id}:`,
+          `camera=${!!camTrack} (stream=${!!camTrack?.stream}, track=${!!camTrack?.track})`,
+          `mic=${!!micTrack} (stream=${!!micTrack?.stream})`,
+          `metadata=${JSON.stringify(peer.metadata)}`,
+        );
+      }
+    }
+
+    const participants: Participant[] = remotePeers.map((peer: any) => {
+      // Fishjam SDK v0.25: use cameraTrack/microphoneTrack (distinguished)
+      // Fallback to legacy videoTrack/audioTrack for compatibility
+      const videoTrack = peer.cameraTrack ?? peer.videoTrack ?? null;
+      const audioTrack = peer.microphoneTrack ?? peer.audioTrack ?? null;
+
+      return {
+        odId: peer.id,
+        oderId: peer.metadata?.userId ?? peer.id,
+        userId: peer.metadata?.userId ?? peer.id,
+        username: peer.metadata?.username ?? "?",
+        avatar: peer.metadata?.avatar,
+        role: peer.metadata?.role || "participant",
+        isLocal: false,
+        isCameraOn: !!(videoTrack?.stream || videoTrack?.track),
+        isMicOn: !!(audioTrack?.stream || audioTrack?.track),
+        isScreenSharing: false,
+        videoTrack,
+        audioTrack,
+      };
+    });
     getStore().setParticipants(participants);
 
     // Track if we ever had remote peers
@@ -211,7 +236,7 @@ export function useVideoCall() {
         }
       }, 2000);
     }
-  }, [peers, getStore]);
+  }, [peers.remotePeers, getStore]);
 
   // ── Duration timer ──────────────────────────────────────────────────
   const startDurationTimer = useCallback(() => {
@@ -386,8 +411,12 @@ export function useVideoCall() {
         return;
       }
 
-      const { token, user: joinedUser } = joinResult.data;
+      const { token, user: joinedUser, room: joinedRoom } = joinResult.data;
       log("Got Fishjam token for user:", joinedUser.id);
+      // [SESSION] Assertion: verify roomId + fishjamRoomId for debugging
+      log(
+        `[SESSION] roomId=${newRoomId}, fishjamRoomId=${joinedRoom?.fishjamRoomId}, userId=${joinedUser.id}`,
+      );
 
       // Step 3: Connect Fishjam peer
       s.setCallPhase("connecting_peer");
@@ -402,7 +431,7 @@ export function useVideoCall() {
             avatar: joinedUser.avatar,
           },
         });
-        log("Fishjam peer join initiated");
+        log("Fishjam peer connected successfully");
       } catch (peerErr: any) {
         logError("Fishjam peer join failed:", peerErr);
         s.setError(
@@ -484,8 +513,12 @@ export function useVideoCall() {
         return;
       }
 
-      const { token, user: joinedUser } = joinResult.data;
+      const { token, user: joinedUser, room: joinedRoom } = joinResult.data;
       log("Got Fishjam token for user:", joinedUser.id);
+      // [SESSION] Assertion: verify roomId + fishjamRoomId for debugging
+      log(
+        `[SESSION] roomId=${roomId}, fishjamRoomId=${joinedRoom?.fishjamRoomId}, userId=${joinedUser.id}`,
+      );
 
       // Step 2: Connect Fishjam peer
       s.setCallPhase("connecting_peer");
@@ -500,7 +533,7 @@ export function useVideoCall() {
             avatar: joinedUser.avatar,
           },
         });
-        log("Fishjam peer join initiated");
+        log("Fishjam peer connected successfully");
       } catch (peerErr: any) {
         logError("Fishjam peer join failed:", peerErr);
         s.setError(

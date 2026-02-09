@@ -64,14 +64,10 @@ export default function CommentsScreen() {
   const [cursorPos, setCursorPos] = useState(0);
   const inputRef = useRef<TextInput>(null);
 
-  // Set TrueSheet header with styled title and close button
+  // Hide default header — we render SheetHeader inline
   useLayoutEffect(() => {
-    navigation.setOptions({
-      header: () => (
-        <SheetHeader title="Comments" onClose={() => router.back()} />
-      ),
-    });
-  }, [navigation, router]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
@@ -285,6 +281,7 @@ export default function CommentsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <SheetHeader title="Comments" onClose={() => router.back()} />
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}

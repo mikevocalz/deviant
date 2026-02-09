@@ -97,6 +97,14 @@ function VideoTile({
     }
   })();
 
+  // [FISHJAM] Instrumentation: log track resolution per tile
+  if (__DEV__) {
+    const trackCount = stream?.getVideoTracks?.()?.length ?? 0;
+    console.log(
+      `[VIDEO] Tile "${label}": stream=${!!stream}, isVideoOff=${isVideoOff}, tracks=${trackCount}, willRender=${hasResolvedVideoTrack}`,
+    );
+  }
+
   return (
     <View
       className={`rounded-2xl overflow-hidden bg-card relative ${

@@ -390,12 +390,23 @@ export function useVideoRoom({
   }, [roomId]);
 
   // ── Participants sync ──────────────────────────────────────────────
-  // Only fires when Fishjam peer list changes (referential identity from SDK).
+  // REF: Fishjam SDK v0.25 PeerWithTracks exposes distinguished tracks:
+  //   peer.cameraTrack, peer.microphoneTrack (Track | undefined)
+  // REF: https://docs.fishjam.io/tutorials/react-native-quick-start
   useEffect(() => {
-    const allPeers = peersHook.peers || [];
-    const participants: Participant[] = allPeers.map((peer) => {
+    // Use remotePeers (peers is deprecated in v0.25)
+    const allPeers = peersHook.remotePeers || peersHook.peers || [];
+    const participants: Participant[] = allPeers.map((peer: any) => {
       const metadata = (peer.metadata as Record<string, unknown>) || {};
-      const tracks = peer.tracks || [];
+      // Fishjam SDK v0.25: use distinguished tracks, fallback to legacy
+      const videoTrack =
+        peer.cameraTrack ??
+        peer.tracks?.find((t: any) => t.metadata?.type === "camera") ??
+        null;
+      const audioTrack =
+        peer.microphoneTrack ??
+        peer.tracks?.find((t: any) => t.metadata?.type === "microphone") ??
+        null;
 
       return {
         odId: peer.id,
@@ -405,22 +416,16 @@ export function useVideoRoom({
         avatar: metadata.avatar as string | undefined,
         role: (metadata.role as MemberRole) || "participant",
         isLocal: false,
-        isCameraOn: tracks.some(
-          (t) => t.metadata?.type === "camera" && t.stream,
-        ),
-        isMicOn: tracks.some(
-          (t) => t.metadata?.type === "microphone" && t.stream,
-        ),
-        isScreenSharing: tracks.some(
-          (t) => t.metadata?.type === "screenShareVideo",
-        ),
-        videoTrack: tracks.find((t) => t.metadata?.type === "camera"),
-        audioTrack: tracks.find((t) => t.metadata?.type === "microphone"),
+        isCameraOn: !!(videoTrack?.stream || videoTrack?.track),
+        isMicOn: !!(audioTrack?.stream || audioTrack?.track),
+        isScreenSharing: !!peer.screenShareVideoTrack,
+        videoTrack,
+        audioTrack,
       };
     });
 
     getStore().setParticipants(participants);
-  }, [peersHook.peers, getStore]);
+  }, [peersHook.remotePeers, peersHook.peers, getStore]);
 
   // ── App state listener ─────────────────────────────────────────────
   // One-time subscription. Reads connection status from store.

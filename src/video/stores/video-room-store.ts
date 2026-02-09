@@ -175,14 +175,18 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
 
   setParticipants: (participants) => {
     const prev = get().participants;
-    // Bail out if same users with same track states
+    // Bail out if same users with same track states AND same track stream identity.
+    // CRITICAL: Must compare videoTrack/audioTrack stream refs — when a remote peer
+    // publishes video, the Track object changes even if isCameraOn was already true.
     if (
       prev.length === participants.length &&
       prev.every(
         (p, i) =>
           p.userId === participants[i]?.userId &&
           p.isCameraOn === participants[i]?.isCameraOn &&
-          p.isMicOn === participants[i]?.isMicOn,
+          p.isMicOn === participants[i]?.isMicOn &&
+          p.videoTrack?.stream === participants[i]?.videoTrack?.stream &&
+          p.audioTrack?.stream === participants[i]?.audioTrack?.stream,
       )
     ) {
       return; // no-op, prevents unnecessary re-renders
