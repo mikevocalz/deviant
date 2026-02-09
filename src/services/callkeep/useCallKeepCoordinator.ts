@@ -29,6 +29,7 @@ import {
   backToForeground,
 } from "./callkeep";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
+import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
 
 // Track active signal so we can update its status on answer/decline
 const _activeSignals = new Map<string, CallSignal>();
@@ -118,8 +119,7 @@ export function useCallKeepCoordinator(): void {
 
           if (signal) {
             // Determine if this was a decline (still ringing) or end (already accepted)
-            const status =
-              signal.status === "ringing" ? "declined" : "ended";
+            const status = signal.status === "ringing" ? "declined" : "ended";
             callSignalsApi
               .updateSignalStatus(signal.id, status)
               .catch((err) =>
@@ -132,10 +132,7 @@ export function useCallKeepCoordinator(): void {
 
           // If there's an active Fishjam call, trigger leave
           const store = useVideoRoomStore.getState();
-          if (
-            store.callPhase !== "idle" &&
-            store.callPhase !== "call_ended"
-          ) {
+          if (store.callPhase !== "idle" && store.callPhase !== "call_ended") {
             store.setCallPhase("call_ended");
           }
 
@@ -157,11 +154,7 @@ export function useCallKeepCoordinator(): void {
         },
 
         onToggleMute: ({ callUUID, muted }) => {
-          console.log(
-            "[CallKeepCoordinator] Mute toggled:",
-            callUUID,
-            muted,
-          );
+          console.log("[CallKeepCoordinator] Mute toggled:", callUUID, muted);
           // Sync mute state to Zustand store
           const store = useVideoRoomStore.getState();
           store.setMicOn(!muted);
@@ -169,7 +162,10 @@ export function useCallKeepCoordinator(): void {
         },
 
         onAudioSessionActivated: () => {
-          console.log("[CallKeepCoordinator] Audio session activated");
+          console.log(
+            "[CallKeepCoordinator] Audio session activated — notifying WebRTC",
+          );
+          RTCAudioSession.audioSessionDidActivate();
         },
       });
 

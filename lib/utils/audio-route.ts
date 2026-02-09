@@ -2,46 +2,33 @@
  * Audio Route Utility
  *
  * Configures audio session to route audio through the speaker
- * during WebRTC calls. Uses RNCallKeep on iOS since CallKeep owns
- * the audio session via CallKit. On Android, uses InCallManager-style
- * approach via NativeModules.
+ * during WebRTC calls.
+ *
+ * iOS: CallKeep setup has `defaultToSpeaker` (0x8) in categoryOptions,
+ *      so speaker is the default when CallKit activates the audio session.
+ *      Runtime toggle uses RNCallKeep.setAudioRoute().
+ *
+ * Android: Uses RNCallKeep.toggleAudioRouteSpeaker() for runtime toggle.
  */
 
-import { NativeModules, Platform } from "react-native";
+import { Platform } from "react-native";
 import RNCallKeep from "react-native-callkeep";
 
 /**
  * Force audio output to speaker.
  *
- * iOS: CallKeep owns the audio session — use RNCallKeep.toggleAudioRouteSpeaker
- * Android: WebRTC defaults to speakerphone, but we set it explicitly
- *
- * @param callUUID - The active call UUID (required for CallKeep on iOS/Android)
+ * @param callUUID - The active call UUID (used on Android for CallKeep routing)
  */
 export function enableSpeakerphone(callUUID?: string): void {
   try {
     if (Platform.OS === "ios") {
-      // CallKeep manages the CXProvider audio session on iOS
-      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", true);
-      console.log("[AudioRoute] Speaker enabled via CallKeep");
+      // iOS: use setAudioRoute which works on both platforms
+      RNCallKeep.setAudioRoute(callUUID || "", "SPEAKER");
+      console.log("[AudioRoute] Speaker enabled via CallKeep.setAudioRoute");
     } else {
-      // Android: use CallKeep if UUID available, else try WebRTCModule
-      if (callUUID) {
-        RNCallKeep.toggleAudioRouteSpeaker(callUUID, true);
-        console.log("[AudioRoute] Speaker enabled via CallKeep (Android)");
-      } else {
-        const { WebRTCModule } = NativeModules;
-        if (WebRTCModule?.setSpeakerPhone) {
-          WebRTCModule.setSpeakerPhone(true);
-          console.log(
-            "[AudioRoute] Speaker enabled via WebRTCModule (Android)",
-          );
-        } else {
-          console.log(
-            "[AudioRoute] Android defaults to speaker — no action needed",
-          );
-        }
-      }
+      // Android: toggleAudioRouteSpeaker is Android-specific
+      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", true);
+      console.log("[AudioRoute] Speaker enabled via CallKeep (Android)");
     }
   } catch (e) {
     console.warn("[AudioRoute] enableSpeakerphone failed:", e);
@@ -51,26 +38,16 @@ export function enableSpeakerphone(callUUID?: string): void {
 /**
  * Reset audio output to earpiece/default.
  *
- * @param callUUID - The active call UUID (required for CallKeep on iOS/Android)
+ * @param callUUID - The active call UUID
  */
 export function disableSpeakerphone(callUUID?: string): void {
   try {
     if (Platform.OS === "ios") {
-      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", false);
-      console.log("[AudioRoute] Speaker disabled via CallKeep");
+      RNCallKeep.setAudioRoute(callUUID || "", "PHONE");
+      console.log("[AudioRoute] Speaker disabled via CallKeep.setAudioRoute");
     } else {
-      if (callUUID) {
-        RNCallKeep.toggleAudioRouteSpeaker(callUUID, false);
-        console.log("[AudioRoute] Speaker disabled via CallKeep (Android)");
-      } else {
-        const { WebRTCModule } = NativeModules;
-        if (WebRTCModule?.setSpeakerPhone) {
-          WebRTCModule.setSpeakerPhone(false);
-          console.log(
-            "[AudioRoute] Speaker disabled via WebRTCModule (Android)",
-          );
-        }
-      }
+      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", false);
+      console.log("[AudioRoute] Speaker disabled via CallKeep (Android)");
     }
   } catch (e) {
     console.warn("[AudioRoute] disableSpeakerphone failed:", e);

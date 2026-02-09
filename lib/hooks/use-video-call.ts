@@ -291,7 +291,16 @@ export function useVideoCall() {
       }
 
       // ── Step 3: Enable speaker output (iOS defaults to earpiece) ────
-      enableSpeakerphone(s.roomId || undefined);
+      // Wrapped in try-catch: speaker routing is non-fatal.
+      // CallKeep may not have registered the call yet at this point.
+      try {
+        enableSpeakerphone(s.roomId || undefined);
+      } catch (speakerErr) {
+        logWarn(
+          "Speaker enable failed (non-fatal, will retry after CallKeep):",
+          speakerErr,
+        );
+      }
 
       s.setCallPhase("connected");
       log(`[${type.toUpperCase()}] Media started, call is now connected`);
@@ -397,6 +406,9 @@ export function useVideoCall() {
           hasVideo: callType === "video",
         });
         reportOutgoingCallConnected(callUUID);
+
+        // Now that CallKeep knows about the call, re-enable speaker
+        enableSpeakerphone(callUUID);
       } catch (ckErr) {
         logWarn("CallKeep outgoing call report failed (non-fatal):", ckErr);
       }
