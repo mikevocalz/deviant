@@ -178,6 +178,25 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 - **Regression test**: `tests/story-thumbnail-regression.spec.ts`
 - Avatar fallback is ONLY allowed when `items` array is empty
 
+### Stories — VIEWER COUNT MUST ALWAYS BE CURRENT
+
+**Story viewer count MUST poll every 5s and show unique viewers across ALL story items (1 view per user per story).**
+
+```
+✅ CORRECT: staleTime: 0, refetchInterval: 5000
+✅ CORRECT: useStoryViewerCountTotal — deduplicates by userId across all items
+✅ CORRECT: onSuccess invalidates storyViewKeys.all (broad)
+❌ WRONG:  staleTime > 0 (count goes stale)
+❌ WRONG:  no refetchInterval (count fetches once and never updates)
+❌ WRONG:  per-item count only (misses viewers of other slides)
+❌ WRONG:  invalidating only a single storyId key (misses total aggregation)
+```
+
+- **Hooks**: `useStoryViewerCount`, `useStoryViewerCountTotal`, `useStoryViewers` — ALL must have `staleTime: 0` + `refetchInterval: 5000`
+- **Recording**: `recordView` uses upsert with `onConflict: "story_id,user_id"` — 1 view per user per item
+- **Display**: Story screen uses `useStoryViewerCountTotal(allItemIds)` — unique viewers across ALL items
+- **Regression test**: `tests/story-viewer-count-regression.spec.ts`
+
 ### Messages — SENDER ISOLATION
 
 - `msg.sender` is `"user"` or `"other"` (string literals from `messages-impl.ts`)

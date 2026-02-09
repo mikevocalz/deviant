@@ -129,23 +129,49 @@ export function useDeleteStory() {
   });
 }
 
-// Fetch viewers for a story (only useful for own stories)
+// Fetch viewers for a story (only useful for own stories) — polls every 5s
 export function useStoryViewers(storyId: string | undefined) {
   return useQuery({
     queryKey: storyViewKeys.viewers(storyId || ""),
     queryFn: () => storyViewsApi.getViewers(storyId!),
     enabled: !!storyId,
-    staleTime: 10 * 1000,
+    staleTime: 0,
+    refetchInterval: 5000,
   });
 }
 
-// Fetch viewer count for a story
+// Fetch viewer count for a story — polls every 5s to stay current
 export function useStoryViewerCount(storyId: string | undefined) {
   return useQuery({
     queryKey: storyViewKeys.count(storyId || ""),
     queryFn: () => storyViewsApi.getViewerCount(storyId!),
     enabled: !!storyId,
-    staleTime: 10 * 1000,
+    staleTime: 0,
+    refetchInterval: 5000,
+  });
+}
+
+// Fetch total viewer count across ALL story items for a user
+export function useStoryViewerCountTotal(storyItemIds: string[]) {
+  return useQuery({
+    queryKey: [...storyViewKeys.all, "countTotal", ...storyItemIds],
+    queryFn: async () => {
+      if (!storyItemIds.length) return 0;
+      // Get unique viewers across all items
+      const allViewerSets = await Promise.all(
+        storyItemIds.map((id) => storyViewsApi.getViewers(id)),
+      );
+      const uniqueUserIds = new Set<number>();
+      for (const viewers of allViewerSets) {
+        for (const v of viewers) {
+          uniqueUserIds.add(v.userId);
+        }
+      }
+      return uniqueUserIds.size;
+    },
+    enabled: storyItemIds.length > 0,
+    staleTime: 0,
+    refetchInterval: 5000,
   });
 }
 
@@ -156,11 +182,9 @@ export function useRecordStoryView() {
   return useMutation({
     mutationFn: (storyId: string) => storyViewsApi.recordView(storyId),
     onSuccess: (_result, storyId) => {
-      // Invalidate viewer counts so the owner sees updated numbers
-      queryClient.invalidateQueries({ queryKey: storyViewKeys.count(storyId) });
-      queryClient.invalidateQueries({
-        queryKey: storyViewKeys.viewers(storyId),
-      });
+      // Invalidate ALL viewer queries so the owner sees updated numbers
+      // This covers per-item count, per-item viewers, AND the total aggregation
+      queryClient.invalidateQueries({ queryKey: storyViewKeys.all });
     },
   });
 }

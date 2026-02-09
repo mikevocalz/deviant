@@ -35,7 +35,7 @@ import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
   useStories,
-  useStoryViewerCount,
+  useStoryViewerCountTotal,
   useRecordStoryView,
 } from "@/lib/hooks/use-stories";
 import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
@@ -444,9 +444,14 @@ export default function StoryViewerScreen() {
   // Story viewers (own stories only)
   const [showViewersSheet, setShowViewersSheet] = useState(false);
   const currentItemId = currentItem?.id;
-  const { data: viewerCount = 0 } = useStoryViewerCount(
-    isOwnStory ? currentItemId : undefined,
+  const allItemIds = useMemo(
+    () =>
+      isOwnStory && story?.items
+        ? story.items.map((i: any) => String(i.id)).filter(Boolean)
+        : [],
+    [isOwnStory, story?.items],
   );
+  const { data: viewerCount = 0 } = useStoryViewerCountTotal(allItemIds);
 
   // Record view when viewing someone else's story
   const recordView = useRecordStoryView();
