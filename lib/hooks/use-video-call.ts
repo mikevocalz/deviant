@@ -786,6 +786,36 @@ export function useVideoCall() {
     log("Call state reset");
   }, [getStore]);
 
+  // ── React to external call_ended (e.g. CallKeep coordinator onEnd) ─
+  // When the coordinator sets callPhase='call_ended' from the native UI
+  // (lock screen swipe, notification decline), we must still leave Fishjam
+  // and stop media. The leaveCall function handles all of this, but it
+  // also sets callPhase='call_ended' — so we guard with a ref to avoid loops.
+  const externalEndHandledRef = useRef(false);
+  useEffect(() => {
+    if (store.callPhase === "call_ended" && !externalEndHandledRef.current) {
+      externalEndHandledRef.current = true;
+      // Only do Fishjam/media cleanup — the phase is already set
+      log(
+        "[LIFECYCLE] External call_ended detected — cleaning up Fishjam/media",
+      );
+      try {
+        if (store.callType === "video" || store.isCameraOn) {
+          cameraRef.current.stopCamera();
+        }
+        micRef.current.stopMicrophone();
+      } catch (e) {
+        logWarn("Error stopping media on external end:", e);
+      }
+      stopDurationTimer();
+      leaveRoomRef.current();
+    }
+    // Reset the guard when we go back to idle
+    if (store.callPhase === "idle") {
+      externalEndHandledRef.current = false;
+    }
+  }, [store.callPhase, store.callType, store.isCameraOn, stopDurationTimer]);
+
   // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
     return () => {

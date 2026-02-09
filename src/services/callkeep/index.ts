@@ -35,3 +35,12 @@ export type {
 } from "./callkeep";
 
 export { useCallKeepCoordinator } from "./useCallKeepCoordinator";
+
+export {
+  CALL_DEBUG,
+  callTrace,
+  callTraceWarn,
+  callTraceError,
+  setCallDebugContext,
+  clearCallDebugContext,
+} from "./call-debug";
