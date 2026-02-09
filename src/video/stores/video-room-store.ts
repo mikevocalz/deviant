@@ -31,6 +31,7 @@ export type CallPhase =
   | "joining_room" // Edge function: join room + get token
   | "connecting_peer" // Fishjam: connecting WebRTC peer
   | "starting_media" // Starting camera/mic tracks
+  | "outgoing_ringing" // Caller: media ready, waiting for callee to answer+join
   | "connected" // Fully connected, media flowing
   | "reconnecting" // Temporary disconnect, auto-recovering
   | "call_ended" // Call ended — show summary UI

@@ -174,6 +174,8 @@ function getPhaseLabel(phase: string, mode: string): string {
       return "Connecting...";
     case "starting_media":
       return mode === "audio" ? "Starting microphone..." : "Starting camera...";
+    case "outgoing_ringing":
+      return "Ringing...";
     default:
       return "Connecting...";
   }
@@ -451,6 +453,7 @@ export default function VideoCallScreen() {
     "joining_room",
     "connecting_peer",
     "starting_media",
+    "outgoing_ringing",
   ].includes(callPhase);
 
   return (

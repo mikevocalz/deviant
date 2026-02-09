@@ -820,13 +820,16 @@ export default function ChatScreen() {
           {/* Audio Call Button */}
           <Pressable
             onPress={() => {
-              if (recipient?.authId || recipient?.id) {
+              // CRITICAL: participantIds MUST use integer PK (recipient.id), NOT authId.
+              // The callee's realtime subscription filters on user.id which is the integer PK.
+              // Using authId causes callee_id mismatch and callee never receives the call.
+              if (recipient?.id) {
                 router.push({
                   pathname: "/(protected)/call/[roomId]",
                   params: {
                     roomId: `call-${Date.now()}`,
                     isOutgoing: "true",
-                    participantIds: recipient.authId || recipient.id,
+                    participantIds: recipient.id,
                     callType: "audio",
                     chatId: chatId,
                     recipientUsername: recipient.username,
@@ -843,13 +846,15 @@ export default function ChatScreen() {
           {/* Video Call Button */}
           <Pressable
             onPress={() => {
-              if (recipient?.authId || recipient?.id) {
+              // CRITICAL: participantIds MUST use integer PK (recipient.id), NOT authId.
+              // See audio call button comment above for explanation.
+              if (recipient?.id) {
                 router.push({
                   pathname: "/(protected)/call/[roomId]",
                   params: {
                     roomId: `call-${Date.now()}`,
                     isOutgoing: "true",
-                    participantIds: recipient.authId || recipient.id,
+                    participantIds: recipient.id,
                     callType: "video",
                     chatId: chatId,
                     recipientUsername: recipient.username,

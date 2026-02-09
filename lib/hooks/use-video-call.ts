@@ -190,12 +190,25 @@ export function useVideoCall() {
     if (participants.length > 0) {
       hadPeersRef.current = true;
 
-      // Report outgoing call as connected when callee actually joins
-      // This defers the "connected" state until the callee answers
+      // PHASE TRANSITION: outgoing_ringing → connected when callee actually joins Fishjam.
+      // This is the ONLY place where an outgoing call becomes 'connected'.
+      // REF: Mandatory principle #4 — call is NOT confirmed until callee joined Fishjam.
       if (!reportedConnectedRef.current) {
         reportedConnectedRef.current = true;
         const currentStore = getStore();
         const currentRoomId = currentStore.roomId;
+
+        // Transition to connected
+        if (currentStore.callPhase === "outgoing_ringing") {
+          currentStore.setCallPhase("connected");
+          log(
+            "[LIFECYCLE] Callee joined Fishjam — outgoing_ringing → connected",
+          );
+        }
+
+        // Start duration timer NOW (not when caller joins)
+        startDurationTimer();
+
         if (currentRoomId) {
           try {
             reportOutgoingCallConnected(currentRoomId);
@@ -353,8 +366,10 @@ export function useVideoCall() {
         );
       }
 
-      s.setCallPhase("connected");
-      log(`[${type.toUpperCase()}] Media started, call is now connected`);
+      // NOTE: Do NOT set callPhase here — the caller sets it to 'outgoing_ringing'
+      // and the callee sets it to 'connected'. The phase transition is the caller's
+      // responsibility after startMedia returns.
+      log(`[${type.toUpperCase()}] Media started successfully`);
       return true;
     },
     [getFrontCameraId, getStore],
@@ -441,14 +456,10 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 4: Start media
-      const mediaOk = await startMedia(callType);
-      if (!mediaOk) {
-        logError("Media start failed, aborting call");
-        return;
-      }
-
-      // Step 5: Register outgoing call with CallKeep (shows "calling..." in native UI)
+      // Step 4: Register outgoing call with CallKeep BEFORE starting media.
+      // On iOS, CallKit must activate the audio session before we start the mic,
+      // otherwise the audio track is created on a dead/inactive session.
+      // REF: https://www.npmjs.com/package/@react-native-oh-tpl/react-native-callkeep
       const callUUID = newRoomId;
       try {
         persistCallMapping(newRoomId, callUUID);
@@ -460,13 +471,16 @@ export function useVideoCall() {
             : "DVNT Call",
           hasVideo: callType === "video",
         });
+        log(
+          "[CALLKEEP] Outgoing call registered, waiting for audio session activation",
+        );
         // DO NOT call reportOutgoingCallConnected here — the callee hasn't
         // answered yet. CallKit will show "Calling..." until we report connected.
       } catch (ckErr) {
         logWarn("CallKeep startOutgoingCall failed (non-fatal):", ckErr);
       }
 
-      // Step 6: Signal callees
+      // Step 5: Signal callees immediately so they get the incoming call ASAP
       try {
         await callSignalsApi.sendCallSignal({
           roomId: newRoomId,
@@ -477,18 +491,33 @@ export function useVideoCall() {
           isGroup,
           callType,
         });
-        log("Call signal sent to", participantIds.length, "users");
+        log("[CALL] Signal sent to", participantIds.length, "users");
       } catch (signalErr) {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
       }
 
-      // Step 7: DO NOT report connected yet — wait for callee to actually join.
-      // reportOutgoingCallConnected is deferred to the peer sync effect
-      // when we detect the first remote participant.
-      reportedConnectedRef.current = false;
+      // Step 6: Small delay on iOS to let CallKit activate the audio session
+      // before we start the mic. Without this, the mic track may be on a dead session.
+      if (Platform.OS === "ios") {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
 
-      startDurationTimer();
-      log("Call fully connected:", newRoomId);
+      // Step 7: Start media (mic + camera) — now audio session should be active
+      const mediaOk = await startMedia(callType);
+      if (!mediaOk) {
+        logError("Media start failed, aborting call");
+        return;
+      }
+
+      // Step 8: Transition to outgoing_ringing — caller is ready but callee hasn't joined yet.
+      // The peer sync effect will transition to 'connected' when the first remote peer joins.
+      // DO NOT call startDurationTimer here — it starts when callee actually joins.
+      s.setCallPhase("outgoing_ringing");
+      reportedConnectedRef.current = false;
+      log(
+        "[LIFECYCLE] Outgoing call ringing, waiting for callee to join:",
+        newRoomId,
+      );
     },
     [user, startMedia, startDurationTimer, getStore],
   );
@@ -562,8 +591,10 @@ export function useVideoCall() {
         }
       }
 
+      // Callee is now connected — media is flowing
+      s.setCallPhase("connected");
       startDurationTimer();
-      log("Joined call:", roomId);
+      log("[LIFECYCLE] Callee joined and media started — connected");
     },
     [startMedia, startDurationTimer, getStore],
   );
@@ -778,7 +809,8 @@ export function useVideoCall() {
     error: store.error,
     errorCode: store.errorCode,
     isConnected: store.connectionState.status === "connected",
-    isInCall: store.callPhase === "connected",
+    isInCall:
+      store.callPhase === "connected" || store.callPhase === "outgoing_ringing",
     isMuted: !store.isMicOn,
     isVideoOff: !store.isCameraOn,
     localStream: store.localStream,
