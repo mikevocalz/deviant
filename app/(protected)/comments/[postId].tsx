@@ -18,6 +18,7 @@ import {
   useEffect,
   useCallback,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -27,6 +28,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { Image } from "expo-image";
 import {
   ThreadedComment,
   type CommentData,
@@ -57,6 +59,10 @@ export default function CommentsScreen() {
   const [isSubmitLocked, setIsSubmitLocked] = useState(false);
   const lastSubmitTimeRef = useRef<number>(0);
   const submitCooldownMs = 2000; // 2 second cooldown between submits
+
+  // @mention autocomplete state
+  const [cursorPos, setCursorPos] = useState(0);
+  const inputRef = useRef<TextInput>(null);
 
   // Set TrueSheet header with styled title and close button
   useLayoutEffect(() => {
@@ -199,6 +205,57 @@ export default function CommentsScreen() {
     };
   }, [setReplyingTo]);
 
+  // Extract unique commenters for @mention autocomplete
+  const commenters = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { username: string; avatar?: string }[] = [];
+    const addUser = (u: string, a?: string) => {
+      if (u && !seen.has(u) && u !== user?.username) {
+        seen.add(u);
+        result.push({ username: u, avatar: a });
+      }
+    };
+    for (const c of comments) {
+      addUser(c.username, c.avatar);
+      if (c.replies) {
+        for (const r of c.replies) addUser(r.username, r.avatar);
+      }
+    }
+    return result;
+  }, [comments, user?.username]);
+
+  // Detect @mention query from cursor position
+  const mentionQuery = useMemo(() => {
+    const before = comment.slice(0, cursorPos);
+    const match = before.match(/@(\w*)$/);
+    return match ? match[1] : null;
+  }, [comment, cursorPos]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    if (!mentionQuery) return commenters.slice(0, 5);
+    return commenters
+      .filter((c) =>
+        c.username.toLowerCase().includes(mentionQuery.toLowerCase()),
+      )
+      .slice(0, 5);
+  }, [mentionQuery, commenters]);
+
+  const handleInsertMention = useCallback(
+    (username: string) => {
+      const before = comment.slice(0, cursorPos);
+      const after = comment.slice(cursorPos);
+      const atIdx = before.lastIndexOf("@");
+      const newBefore = before.slice(0, atIdx);
+      const newText = `${newBefore}@${username} ${after}`;
+      const newCursor = newBefore.length + username.length + 2;
+      setComment(newText);
+      setCursorPos(newCursor);
+      inputRef.current?.focus();
+    },
+    [comment, cursorPos, setComment],
+  );
+
   const handleReply = useCallback(
     (username: string, commentIdParam: string) => {
       if (!username || !commentIdParam) return;
@@ -332,11 +389,67 @@ export default function CommentsScreen() {
               </Pressable>
             </View>
           )}
+          {/* @mention autocomplete dropdown */}
+          {mentionSuggestions.length > 0 && (
+            <View
+              style={{
+                backgroundColor: "#1a1a1a",
+                borderRadius: 12,
+                marginBottom: 8,
+                maxHeight: 180,
+                overflow: "hidden",
+              }}
+            >
+              <Text
+                style={{
+                  color: "#666",
+                  fontSize: 11,
+                  paddingHorizontal: 12,
+                  paddingTop: 8,
+                  paddingBottom: 4,
+                }}
+              >
+                Mention a user
+              </Text>
+              {mentionSuggestions.map((u) => (
+                <Pressable
+                  key={u.username}
+                  onPress={() => handleInsertMention(u.username)}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        u.avatar ||
+                        `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}&background=1a1a1a&color=fff`,
+                    }}
+                    style={{ width: 28, height: 28, borderRadius: 6 }}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}
+                  >
+                    {u.username}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <TextInput
+              ref={inputRef}
               value={comment}
               onChangeText={setComment}
-              placeholder="Add a comment..."
+              onSelectionChange={(e) =>
+                setCursorPos(e.nativeEvent.selection.end)
+              }
+              placeholder="Add a comment... (@ to mention)"
               placeholderTextColor="#666"
               multiline
               returnKeyType="send"

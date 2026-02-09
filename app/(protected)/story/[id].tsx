@@ -9,7 +9,7 @@ import {
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { X, Send } from "lucide-react-native";
+import { X, Send, Eye } from "lucide-react-native";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import Animated, {
   useSharedValue,
@@ -33,7 +33,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
-import { useStories } from "@/lib/hooks/use-stories";
+import {
+  useStories,
+  useStoryViewerCount,
+  useRecordStoryView,
+} from "@/lib/hooks/use-stories";
+import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -435,6 +440,24 @@ export default function StoryViewerScreen() {
   // Compare by username (case-insensitive) since IDs may not match between auth systems
   const isOwnStory =
     story?.username?.toLowerCase() === currentUser?.username?.toLowerCase();
+
+  // Story viewers (own stories only)
+  const [showViewersSheet, setShowViewersSheet] = useState(false);
+  const currentItemId = currentItem?.id;
+  const { data: viewerCount = 0 } = useStoryViewerCount(
+    isOwnStory ? currentItemId : undefined,
+  );
+
+  // Record view when viewing someone else's story
+  const recordView = useRecordStoryView();
+  const recordedViewsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!currentItemId || isOwnStory) return;
+    if (recordedViewsRef.current.has(currentItemId)) return;
+    recordedViewsRef.current.add(currentItemId);
+    recordView.mutate(currentItemId);
+  }, [currentItemId, isOwnStory]);
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
@@ -941,6 +964,50 @@ export default function StoryViewerScreen() {
         {/* Right tap area - next */}
         <Pressable onPress={handleNext} style={{ flex: 1 }} />
       </View>
+
+      {/* Viewer count — own stories only (Instagram-style bottom-left) */}
+      {isOwnStory && (
+        <Pressable
+          onPress={() => {
+            isPaused.current = true;
+            cancelAnimation(progress);
+            try {
+              player?.pause();
+            } catch {}
+            setShowViewersSheet(true);
+          }}
+          style={{
+            position: "absolute",
+            bottom: insets.bottom + 16,
+            left: 16,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 6,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.15)",
+            zIndex: 100,
+          }}
+        >
+          <Eye size={18} color="#fff" />
+          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
+            {viewerCount}
+          </Text>
+        </Pressable>
+      )}
+
+      {/* Story Viewers Sheet */}
+      <StoryViewersSheet
+        storyId={currentItemId}
+        visible={showViewersSheet}
+        onClose={() => {
+          setShowViewersSheet(false);
+          isPaused.current = false;
+        }}
+      />
 
       {/* Reply input - only show for other users' stories */}
       {!isOwnStory && story && resolvedUserId && (

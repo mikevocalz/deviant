@@ -73,7 +73,6 @@ import { SheetHeader } from "@/components/ui/sheet-header";
 
 export const unstable_settings = {
   options: {
-    detents: ["large"],
     cornerRadius: 16,
     grabber: true,
   },

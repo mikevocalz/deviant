@@ -414,6 +414,94 @@ export const storyTagsApi = {
   },
 };
 
+export interface StoryViewer {
+  userId: number;
+  username: string;
+  avatar: string;
+  viewedAt: string;
+}
+
+export const storyViewsApi = {
+  /**
+   * Record that the current user viewed a story
+   * Uses upsert so duplicate views are ignored (composite PK: story_id, user_id)
+   */
+  async recordView(storyId: string) {
+    try {
+      const userIdInt = getCurrentUserIdInt();
+      if (!userIdInt) return;
+
+      const { error } = await supabase.from(DB.storyViews.table).upsert(
+        {
+          [DB.storyViews.storyId]: parseInt(storyId),
+          [DB.storyViews.userId]: userIdInt,
+        },
+        { onConflict: "story_id,user_id" },
+      );
+
+      if (error) {
+        // Silently fail — view tracking is non-critical
+        console.warn("[StoryViews] recordView error:", error.message);
+      }
+    } catch (error) {
+      console.warn("[StoryViews] recordView error:", error);
+    }
+  },
+
+  /**
+   * Get list of users who viewed a story (only the story owner should call this)
+   */
+  async getViewers(storyId: string): Promise<StoryViewer[]> {
+    try {
+      const { data, error } = await supabase
+        .from(DB.storyViews.table)
+        .select(
+          `
+          ${DB.storyViews.userId},
+          ${DB.storyViews.viewedAt},
+          user:${DB.storyViews.userId}(
+            ${DB.users.id},
+            ${DB.users.username},
+            avatar:${DB.users.avatarId}(url)
+          )
+        `,
+        )
+        .eq(DB.storyViews.storyId, parseInt(storyId))
+        .order(DB.storyViews.viewedAt, { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((row: any) => ({
+        userId: row[DB.storyViews.userId],
+        username: row.user?.[DB.users.username] || "unknown",
+        avatar: row.user?.avatar?.url || "",
+        viewedAt: row[DB.storyViews.viewedAt],
+      }));
+    } catch (error) {
+      console.error("[StoryViews] getViewers error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get viewer count for a story
+   */
+  async getViewerCount(storyId: string): Promise<number> {
+    try {
+      const { count, error } = await supabase
+        .from(DB.storyViews.table)
+        .select("*", { count: "exact", head: true })
+        .eq(DB.storyViews.storyId, parseInt(storyId));
+
+      if (error) throw error;
+      return count || 0;
+    } catch (error) {
+      console.error("[StoryViews] getViewerCount error:", error);
+      return 0;
+    }
+  },
+};
+
 function formatTimeAgo(dateString: string): string {
   if (!dateString) return "Just now";
   const date = new Date(dateString);

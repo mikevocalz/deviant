@@ -1046,7 +1046,7 @@ const s = StyleSheet.create({
   commentAvatar: {
     width: 30,
     height: 30,
-    borderRadius: 15,
+    borderRadius: 8,
   },
   commentAuthor: {
     color: "#fff",

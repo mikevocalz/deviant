@@ -3,7 +3,10 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { storiesApi as storiesApiClient } from "@/lib/api/stories";
+import {
+  storiesApi as storiesApiClient,
+  storyViewsApi,
+} from "@/lib/api/stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { Story } from "@/lib/types";
 
@@ -11,6 +14,13 @@ import type { Story } from "@/lib/types";
 export const storyKeys = {
   all: ["stories"] as const,
   list: () => [...storyKeys.all, "list"] as const,
+};
+
+export const storyViewKeys = {
+  all: ["story-views"] as const,
+  viewers: (storyId: string) =>
+    [...storyViewKeys.all, "viewers", storyId] as const,
+  count: (storyId: string) => [...storyViewKeys.all, "count", storyId] as const,
 };
 
 // Fetch all stories
@@ -115,6 +125,42 @@ export function useDeleteStory() {
         deletedStoryId,
       );
       // No need to invalidate - optimistic update already removed the story
+    },
+  });
+}
+
+// Fetch viewers for a story (only useful for own stories)
+export function useStoryViewers(storyId: string | undefined) {
+  return useQuery({
+    queryKey: storyViewKeys.viewers(storyId || ""),
+    queryFn: () => storyViewsApi.getViewers(storyId!),
+    enabled: !!storyId,
+    staleTime: 10 * 1000,
+  });
+}
+
+// Fetch viewer count for a story
+export function useStoryViewerCount(storyId: string | undefined) {
+  return useQuery({
+    queryKey: storyViewKeys.count(storyId || ""),
+    queryFn: () => storyViewsApi.getViewerCount(storyId!),
+    enabled: !!storyId,
+    staleTime: 10 * 1000,
+  });
+}
+
+// Record a story view (fire-and-forget mutation)
+export function useRecordStoryView() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (storyId: string) => storyViewsApi.recordView(storyId),
+    onSuccess: (_result, storyId) => {
+      // Invalidate viewer counts so the owner sees updated numbers
+      queryClient.invalidateQueries({ queryKey: storyViewKeys.count(storyId) });
+      queryClient.invalidateQueries({
+        queryKey: storyViewKeys.viewers(storyId),
+      });
     },
   });
 }

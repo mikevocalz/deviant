@@ -16,6 +16,35 @@ import { memo, useCallback } from "react";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useCommentLikeState } from "@/lib/hooks/use-comment-like-state";
 
+// Render comment text with tappable @mentions
+function renderCommentText(
+  text: string,
+  style: any,
+  onProfilePress: (username: string) => void,
+) {
+  if (!text) return null;
+  const parts = text.split(/(@\w+)/g);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) => {
+        if (part.startsWith("@")) {
+          const username = part.slice(1);
+          return (
+            <Text
+              key={i}
+              onPress={() => onProfilePress(username)}
+              style={{ color: "#3EA4E5", fontWeight: "600" }}
+            >
+              {part}
+            </Text>
+          );
+        }
+        return <Text key={i}>{part}</Text>;
+      })}
+    </Text>
+  );
+}
+
 // Thread line color - more visible
 const THREAD_LINE_COLOR = "#555";
 const THREAD_LINE_WIDTH = 2;
@@ -110,7 +139,7 @@ const ReplyItem = memo(function ReplyItem({
           uri={reply.avatar}
           username={reply.username}
           size={REPLY_AVATAR_SIZE}
-          variant="circle"
+          variant="roundedSquare"
         />
       </Pressable>
 
@@ -122,7 +151,7 @@ const ReplyItem = memo(function ReplyItem({
           <Text style={styles.replyTime}>{reply.timeAgo || ""}</Text>
         </View>
 
-        <Text style={styles.replyText}>{reply.text}</Text>
+        {renderCommentText(reply.text, styles.replyText, onProfilePress)}
 
         {/* Reply actions - Like only, NO reply button (2-level limit) */}
         <View style={styles.replyActions}>
@@ -225,7 +254,7 @@ function ThreadedCommentComponent({
             uri={comment.avatar}
             username={comment.username}
             size={PARENT_AVATAR_SIZE}
-            variant="circle"
+            variant="roundedSquare"
           />
         </Pressable>
 
@@ -237,7 +266,7 @@ function ThreadedCommentComponent({
             <Text style={styles.parentTime}>{comment.timeAgo || ""}</Text>
           </View>
 
-          <Text style={styles.parentText}>{comment.text}</Text>
+          {renderCommentText(comment.text, styles.parentText, onProfilePress)}
 
           {/* Parent actions - Like AND Reply */}
           <View style={styles.parentActions}>

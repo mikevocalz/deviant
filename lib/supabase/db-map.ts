@@ -163,6 +163,12 @@ export const DB = {
     readAt: "read_at",
     createdAt: "created_at",
   },
+  storyViews: {
+    table: "story_views",
+    storyId: "story_id",
+    userId: "user_id",
+    viewedAt: "viewed_at",
+  },
   media: {
     table: "media",
     id: "id",
