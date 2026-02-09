@@ -555,19 +555,33 @@ export default function VideoCallScreen() {
             height={tileHeight - 8}
           />
 
-          {participants.map((p) => (
+          {participants.length === 0 && recipientUsername ? (
+            // Show recipient placeholder tile while waiting for them to join
             <VideoTile
-              key={p.oderId}
-              stream={p.videoTrack?.stream}
-              isVideoOff={!p.isCameraOn}
-              isMuted={!p.isMicOn}
+              stream={undefined}
+              isVideoOff={true}
+              isMuted={false}
               isSpeaker={false}
-              label={p.username || "?"}
-              avatar={p.avatar}
+              label={recipientUsername}
+              avatar={recipientAvatar || undefined}
               width={tileWidth - 8}
               height={tileHeight - 8}
             />
-          ))}
+          ) : (
+            participants.map((p) => (
+              <VideoTile
+                key={p.oderId}
+                stream={p.videoTrack?.stream}
+                isVideoOff={!p.isCameraOn}
+                isMuted={!p.isMicOn}
+                isSpeaker={false}
+                label={p.username || "?"}
+                avatar={p.avatar}
+                width={tileWidth - 8}
+                height={tileHeight - 8}
+              />
+            ))
+          )}
         </View>
       )}
 

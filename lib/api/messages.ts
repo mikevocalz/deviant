@@ -8,6 +8,7 @@ export interface Conversation {
   id: string;
   user: {
     id: string;
+    authId?: string;
     name: string;
     username: string;
     avatar: string;

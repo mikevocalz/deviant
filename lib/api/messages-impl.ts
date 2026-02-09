@@ -75,7 +75,7 @@ export const messagesApi = {
             const { data: userData } = await supabase
               .from(DB.users.table)
               .select(
-                `${DB.users.id}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+                `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
               )
               .eq(DB.users.authId, otherAuthId)
               .single();
@@ -106,6 +106,7 @@ export const messagesApi = {
               id: otherUserData?.[DB.users.id]
                 ? String(otherUserData[DB.users.id])
                 : "",
+              authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
               name: otherUserData?.[DB.users.username] || "Unknown",
               username: otherUserData?.[DB.users.username] || "unknown",
               avatar: otherUserData?.avatar?.url || "",

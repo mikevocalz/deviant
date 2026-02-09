@@ -350,6 +350,7 @@ export default function ChatScreen() {
   // Chat recipient info loaded from conversation
   const [recipient, setRecipient] = useState<{
     id: string;
+    authId?: string;
     username: string;
     name: string;
     avatar: string;
@@ -394,6 +395,7 @@ export default function ChatScreen() {
             console.log("[Chat] Found recipient:", otherUser.username);
             setRecipient({
               id: otherUser.id,
+              authId: otherUser.authId || "",
               username: otherUser.username,
               name: otherUser.name || otherUser.username,
               avatar:
@@ -430,6 +432,7 @@ export default function ChatScreen() {
                 if (otherUser) {
                   setRecipient({
                     id: otherUser.id,
+                    authId: otherUser.authId || "",
                     username: otherUser.username,
                     name: otherUser.name || otherUser.username,
                     avatar:
@@ -817,13 +820,13 @@ export default function ChatScreen() {
           {/* Audio Call Button */}
           <Pressable
             onPress={() => {
-              if (recipient?.id) {
+              if (recipient?.authId || recipient?.id) {
                 router.push({
                   pathname: "/(protected)/call/[roomId]",
                   params: {
                     roomId: `call-${Date.now()}`,
                     isOutgoing: "true",
-                    participantIds: recipient.id,
+                    participantIds: recipient.authId || recipient.id,
                     callType: "audio",
                     chatId: chatId,
                     recipientUsername: recipient.username,
@@ -840,13 +843,13 @@ export default function ChatScreen() {
           {/* Video Call Button */}
           <Pressable
             onPress={() => {
-              if (recipient?.id) {
+              if (recipient?.authId || recipient?.id) {
                 router.push({
                   pathname: "/(protected)/call/[roomId]",
                   params: {
                     roomId: `call-${Date.now()}`,
                     isOutgoing: "true",
-                    participantIds: recipient.id,
+                    participantIds: recipient.authId || recipient.id,
                     callType: "video",
                     chatId: chatId,
                     recipientUsername: recipient.username,

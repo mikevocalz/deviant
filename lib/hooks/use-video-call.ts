@@ -43,6 +43,7 @@ import {
   useMicrophone,
   usePeers,
 } from "@fishjam-cloud/react-native-client";
+import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { videoApi } from "@/src/video/api";
 import { callSignalsApi } from "@/lib/api/call-signals";
@@ -433,6 +434,20 @@ export function useVideoCall() {
         logWarn("CallKeep reportConnected failed (non-fatal):", ckErr);
       }
 
+      // Step 8: Explicitly activate WebRTC audio session on iOS.
+      // The onAudioSessionActivated CallKeep callback may not fire reliably
+      // for outgoing calls, so we manually bridge it here as a safety net.
+      if (Platform.OS === "ios") {
+        try {
+          RTCAudioSession.audioSessionDidActivate();
+          log(
+            "[iOS] RTCAudioSession.audioSessionDidActivate() called explicitly",
+          );
+        } catch (audioErr) {
+          logWarn("RTCAudioSession activation failed (non-fatal):", audioErr);
+        }
+      }
+
       startDurationTimer();
       log("Call fully connected:", newRoomId);
     },
@@ -490,6 +505,18 @@ export function useVideoCall() {
       if (!mediaOk) {
         logError("Media start failed, aborting call");
         return;
+      }
+
+      // Explicitly activate WebRTC audio session on iOS for incoming calls too
+      if (Platform.OS === "ios") {
+        try {
+          RTCAudioSession.audioSessionDidActivate();
+          log(
+            "[iOS] RTCAudioSession.audioSessionDidActivate() called for incoming call",
+          );
+        } catch (audioErr) {
+          logWarn("RTCAudioSession activation failed (non-fatal):", audioErr);
+        }
       }
 
       startDurationTimer();
