@@ -44,11 +44,13 @@ import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
 import { Input } from "@/components/ui/input";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
+import { ImageTagger } from "@/components/post/image-tagger";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { postsApi } from "@/lib/api/posts";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { postTagsApi, type PostTag } from "@/lib/api/post-tags";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Post } from "@/lib/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -73,6 +75,20 @@ export default function EditPostScreen() {
   const [originalCaption, setOriginalCaption] = useState("");
   const [originalLocation, setOriginalLocation] = useState("");
   const [mediaIndex, setMediaIndex] = useState(0);
+
+  // ─── Post tags (Instagram-style) ───
+  const { data: postTags = [], refetch: refetchTags } = useQuery({
+    queryKey: ["postTags", id],
+    queryFn: () => postTagsApi.getTagsForPost(id!),
+    enabled: !!id,
+  });
+
+  const handleTagsChanged = useCallback(
+    (tags: PostTag[]) => {
+      refetchTags();
+    },
+    [refetchTags],
+  );
 
   // Initialize form from post data
   useEffect(() => {
@@ -430,11 +446,13 @@ export default function EditPostScreen() {
                       </View>
                     </View>
                   ) : (
-                    <Image
-                      source={{ uri: media.url }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      transition={200}
+                    <ImageTagger
+                      postId={id!}
+                      mediaUrl={media.url}
+                      mediaIndex={index}
+                      height={MEDIA_HEIGHT}
+                      existingTags={postTags}
+                      onTagsChanged={handleTagsChanged}
                     />
                   )}
                 </View>

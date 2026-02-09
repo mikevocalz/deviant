@@ -409,28 +409,34 @@ export default function MessagesScreen() {
 
   const loadConversations = useCallback(async () => {
     try {
-      console.log("[Messages] Loading filtered conversations...");
+      console.log("[Messages] Loading inbox conversations...");
 
-      const [inboxConvs, spamConvs] = await Promise.all([
-        messagesApiClient.getFilteredConversations("primary"),
-        messagesApiClient.getFilteredConversations("requests"),
-      ]);
-
-      console.log("[Messages] Loaded:", {
-        inbox: inboxConvs.length,
-        spam: spamConvs.length,
-      });
+      // Load inbox first — unblocks UI immediately
+      const inboxConvs =
+        await messagesApiClient.getFilteredConversations("primary");
 
       const transformedInbox = inboxConvs
         .map(transformConversation)
         .filter((c): c is ConversationItem => c !== null);
 
-      const transformedSpam = spamConvs
-        .map(transformConversation)
-        .filter((c): c is ConversationItem => c !== null);
-
       setInboxConversations(transformedInbox);
-      setSpamConversations(transformedSpam);
+      setScreenLoading("messages", false);
+
+      console.log("[Messages] Inbox loaded:", inboxConvs.length);
+
+      // Load requests in background (user rarely sees this tab first)
+      messagesApiClient
+        .getFilteredConversations("requests")
+        .then((spamConvs) => {
+          const transformedSpam = spamConvs
+            .map(transformConversation)
+            .filter((c): c is ConversationItem => c !== null);
+          setSpamConversations(transformedSpam);
+          console.log("[Messages] Requests loaded:", spamConvs.length);
+        })
+        .catch((err) => {
+          console.error("[Messages] Error loading requests:", err);
+        });
     } catch (error) {
       console.error("[Messages] Error loading conversations:", error);
     } finally {
@@ -587,6 +593,7 @@ export default function MessagesScreen() {
         style={{ flex: 1 }}
         initialPage={0}
         onPageSelected={handlePageSelected}
+        scrollEnabled={false}
       >
         <View key="inbox" style={{ flex: 1 }}>
           <ConversationList

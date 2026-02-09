@@ -391,6 +391,7 @@ export default function VideoCallScreen() {
           <Pressable
             className="mt-4 px-8 py-3 bg-card rounded-full border border-border"
             onPress={() => {
+              leaveCall();
               resetCallEnded();
               router.back();
             }}
