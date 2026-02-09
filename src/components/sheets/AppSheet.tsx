@@ -2,7 +2,7 @@
  * AppSheet — Standardized TrueSheet wrapper.
  *
  * Enforces:
- * - Default max snap point = 70% screen height
+ * - Default max snap point = 75% screen height
  * - Handle indicator color = white
  * - Corner radius = 16
  * - Grabber visible
@@ -15,12 +15,12 @@ import { Dimensions } from "react-native";
 import TrueSheetNavigator from "@/components/navigation/true-sheet-navigator";
 
 const SCREEN_HEIGHT = Dimensions.get("window").height;
-const MAX_SNAP_RATIO = 0.7;
+const MAX_SNAP_RATIO = 0.75;
 
 interface AppSheetProps {
-  /** Override max snap ratio (clamped to 0.7 unless allowOverflow is true) */
+  /** Override max snap ratio (clamped to 0.75 unless allowOverflow is true) */
   maxSnapRatio?: number;
-  /** Allow snap ratio > 0.7 (use sparingly) */
+  /** Allow snap ratio > 0.75 (use sparingly) */
   allowOverflow?: boolean;
   /** Corner radius (default 16) */
   cornerRadius?: number;

@@ -94,6 +94,11 @@ function deriveCallUiMode(p: {
     if (p.phase === "outgoing_ringing") return "caller_ringing";
     return "caller_dialing";
   }
+  // Runtime assert: callee must never be in caller modes
+  if (__DEV__ && p.phase === "outgoing_ringing") {
+    console.error(`[CallUI] INVARIANT VIOLATION: callee in phase=${p.phase}`);
+    CT.error("UI", "callee_in_caller_phase", { phase: p.phase });
+  }
   return "callee_connecting";
 }
 
@@ -516,17 +521,41 @@ export default function VideoCallScreen() {
         </View>
       )}
 
-      {/* ── STATUS OVERLAY (role-correct) ─────────────────────────── */}
-      {isPreCall && (
+      {/* ── STATUS OVERLAY (role-correct, prominent) ────────────── */}
+      {isPreCall && !isAudioMode && (
         <View
           className="absolute top-0 left-0 right-0 items-center"
-          style={{ top: insets.top + 16 }}
+          style={{ top: insets.top + 60 }}
         >
-          <View className="bg-black/60 px-5 py-2.5 rounded-full flex-row items-center gap-2">
-            <ActivityIndicator size="small" color="#fff" />
-            <Text className="text-white text-sm font-medium">
-              {statusLabel}
+          <View className="items-center gap-3">
+            {recipientAvatar ? (
+              <Image
+                source={{ uri: recipientAvatar }}
+                style={{ width: 80, height: 80, borderRadius: 40 }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 80,
+                  height: 80,
+                  borderRadius: 40,
+                  backgroundColor: "#333",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text className="text-white text-2xl font-bold">
+                  {(recipientUsername || "?").charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text className="text-white text-xl font-semibold">
+              {recipientUsername || "Unknown"}
             </Text>
+            <View className="flex-row items-center gap-2">
+              <ActivityIndicator size="small" color="#fff" />
+              <Text className="text-white/70 text-base">{statusLabel}</Text>
+            </View>
           </View>
         </View>
       )}
@@ -565,58 +594,91 @@ export default function VideoCallScreen() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════
-          FLOATING CONTROLS — Instagram/Snapchat style
+          FLOATING CONTROLS — Role-correct per UI mode
+          ═══════════════════════════════════════════════════════════
+          CALLER_DIALING / CALLER_RINGING: Cancel + Flip Camera only
+          CALLEE_CONNECTING: Cancel only
+          IN_CALL: Full controls (Mute, Speaker, Video, Flip, PiP, End)
           ═══════════════════════════════════════════════════════════ */}
       <View
         className="absolute left-4 right-4 flex-row items-center justify-center gap-3 px-4 py-3"
         style={{ bottom: insets.bottom + 20 }}
       >
-        {/* Mute */}
-        <Pressable
-          className={`w-14 h-14 rounded-full items-center justify-center ${isMuted ? "bg-red-500" : "bg-white/20"}`}
-          onPress={handleToggleMute}
-        >
-          {isMuted ? (
-            <MicOff size={24} color="#fff" />
-          ) : (
-            <Mic size={24} color="#fff" />
-          )}
-        </Pressable>
-
-        {/* Speaker */}
-        <Pressable
-          className={`w-14 h-14 rounded-full items-center justify-center ${isSpeakerOn ? "bg-white/30" : "bg-white/10"}`}
-          onPress={handleToggleSpeaker}
-        >
-          {isSpeakerOn ? (
-            <Volume2 size={24} color="#fff" />
-          ) : (
-            <VolumeX size={24} color="rgba(255,255,255,0.5)" />
-          )}
-        </Pressable>
-
-        {isAudioMode ? (
-          // Audio: escalate to video
-          <Pressable
-            className="w-14 h-14 rounded-full items-center justify-center bg-white/10"
-            onPress={handleEscalateToVideo}
-          >
-            <Video size={24} color="rgba(255,255,255,0.5)" />
-          </Pressable>
-        ) : (
-          // Video: camera toggle + flip + PiP
+        {uiMode === "in_call" ? (
+          // ── IN-CALL: Full controls ──────────────────────────────
           <>
+            {/* Mute */}
             <Pressable
-              className="w-14 h-14 rounded-full items-center justify-center bg-white/20"
-              onPress={handleToggleVideo}
+              className={`w-14 h-14 rounded-full items-center justify-center ${isMuted ? "bg-red-500" : "bg-white/20"}`}
+              onPress={handleToggleMute}
             >
-              {isVideoOff ? (
-                <VideoOff size={24} color="rgba(255,255,255,0.5)" />
+              {isMuted ? (
+                <MicOff size={24} color="#fff" />
               ) : (
-                <Video size={24} color="#fff" />
+                <Mic size={24} color="#fff" />
               )}
             </Pressable>
-            {!isVideoOff && (
+
+            {/* Speaker */}
+            <Pressable
+              className={`w-14 h-14 rounded-full items-center justify-center ${isSpeakerOn ? "bg-white/30" : "bg-white/10"}`}
+              onPress={handleToggleSpeaker}
+            >
+              {isSpeakerOn ? (
+                <Volume2 size={24} color="#fff" />
+              ) : (
+                <VolumeX size={24} color="rgba(255,255,255,0.5)" />
+              )}
+            </Pressable>
+
+            {isAudioMode ? (
+              <Pressable
+                className="w-14 h-14 rounded-full items-center justify-center bg-white/10"
+                onPress={handleEscalateToVideo}
+              >
+                <Video size={24} color="rgba(255,255,255,0.5)" />
+              </Pressable>
+            ) : (
+              <>
+                <Pressable
+                  className="w-14 h-14 rounded-full items-center justify-center bg-white/20"
+                  onPress={handleToggleVideo}
+                >
+                  {isVideoOff ? (
+                    <VideoOff size={24} color="rgba(255,255,255,0.5)" />
+                  ) : (
+                    <Video size={24} color="#fff" />
+                  )}
+                </Pressable>
+                {!isVideoOff && (
+                  <Pressable
+                    className="w-14 h-14 rounded-full items-center justify-center bg-white/20"
+                    onPress={handleSwitchCamera}
+                  >
+                    <SwitchCamera size={24} color="#fff" />
+                  </Pressable>
+                )}
+                <Pressable
+                  className="w-14 h-14 rounded-full items-center justify-center bg-white/10"
+                  onPress={handleTogglePiP}
+                >
+                  <Minimize2 size={22} color="#fff" />
+                </Pressable>
+              </>
+            )}
+
+            {/* End call */}
+            <Pressable
+              className="w-16 h-16 rounded-full items-center justify-center bg-red-500"
+              onPress={handleEndCall}
+            >
+              <PhoneOff size={28} color="#fff" />
+            </Pressable>
+          </>
+        ) : uiMode === "caller_dialing" || uiMode === "caller_ringing" ? (
+          // ── CALLER PRE-CONNECT: Flip camera + Cancel ───────────
+          <>
+            {!isAudioMode && !isVideoOff && (
               <Pressable
                 className="w-14 h-14 rounded-full items-center justify-center bg-white/20"
                 onPress={handleSwitchCamera}
@@ -624,25 +686,22 @@ export default function VideoCallScreen() {
                 <SwitchCamera size={24} color="#fff" />
               </Pressable>
             )}
-            {/* PiP button — video calls only */}
-            {uiMode === "in_call" && (
-              <Pressable
-                className="w-14 h-14 rounded-full items-center justify-center bg-white/10"
-                onPress={handleTogglePiP}
-              >
-                <Minimize2 size={22} color="#fff" />
-              </Pressable>
-            )}
+            <Pressable
+              className="w-16 h-16 rounded-full items-center justify-center bg-red-500"
+              onPress={handleEndCall}
+            >
+              <PhoneOff size={28} color="#fff" />
+            </Pressable>
           </>
+        ) : (
+          // ── CALLEE CONNECTING: Cancel only ─────────────────────
+          <Pressable
+            className="w-16 h-16 rounded-full items-center justify-center bg-red-500"
+            onPress={handleEndCall}
+          >
+            <PhoneOff size={28} color="#fff" />
+          </Pressable>
         )}
-
-        {/* End call */}
-        <Pressable
-          className="w-16 h-16 rounded-full items-center justify-center bg-red-500"
-          onPress={handleEndCall}
-        >
-          <PhoneOff size={28} color="#fff" />
-        </Pressable>
       </View>
     </View>
   );

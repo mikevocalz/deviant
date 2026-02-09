@@ -28,7 +28,8 @@ type Tag =
   | "CRASH"
   | "MEDIA"
   | "MUTE"
-  | "SPEAKER";
+  | "SPEAKER"
+  | "UI";
 
 type Level = "trace" | "warn" | "error";
 
@@ -125,7 +126,13 @@ export const CT = {
    */
   trace(tag: Tag, event: string, ctx?: TraceContext): void {
     const merged = { ..._globalCtx, ...ctx };
-    const entry: TraceEvent = { ts: Date.now(), level: "trace", tag, event, ctx: merged };
+    const entry: TraceEvent = {
+      ts: Date.now(),
+      level: "trace",
+      tag,
+      event,
+      ctx: merged,
+    };
     push(entry);
     if (__DEV__) console.log(fmt(entry));
   },
@@ -135,7 +142,13 @@ export const CT = {
    */
   warn(tag: Tag, event: string, ctx?: TraceContext): void {
     const merged = { ..._globalCtx, ...ctx };
-    const entry: TraceEvent = { ts: Date.now(), level: "warn", tag, event, ctx: merged };
+    const entry: TraceEvent = {
+      ts: Date.now(),
+      level: "warn",
+      tag,
+      event,
+      ctx: merged,
+    };
     push(entry);
     if (__DEV__) console.warn(fmt(entry));
   },
@@ -145,7 +158,13 @@ export const CT = {
    */
   error(tag: Tag, event: string, ctx?: TraceContext): void {
     const merged = { ..._globalCtx, ...ctx };
-    const entry: TraceEvent = { ts: Date.now(), level: "error", tag, event, ctx: merged };
+    const entry: TraceEvent = {
+      ts: Date.now(),
+      level: "error",
+      tag,
+      event,
+      ctx: merged,
+    };
     push(entry);
     console.error(fmt(entry));
   },
@@ -169,7 +188,12 @@ export const CT = {
    * Safe wrapper — runs fn inside try/catch, traces error + returns undefined on throw.
    * Use for all CallKeep / Fishjam lifecycle handlers.
    */
-  guard<T>(tag: Tag, event: string, fn: () => T, ctx?: TraceContext): T | undefined {
+  guard<T>(
+    tag: Tag,
+    event: string,
+    fn: () => T,
+    ctx?: TraceContext,
+  ): T | undefined {
     try {
       return fn();
     } catch (e: any) {
@@ -206,14 +230,16 @@ export const CT = {
 
 // Capture unhandled JS errors
 const originalHandler = (globalThis as any).ErrorUtils?.getGlobalHandler?.();
-(globalThis as any).ErrorUtils?.setGlobalHandler?.((error: Error, isFatal?: boolean) => {
-  CT.error("CRASH", "unhandledJSError", {
-    error: error?.message || String(error),
-    fatal: isFatal ? "true" : "false",
-    stack: error?.stack?.slice(0, 200),
-  });
-  originalHandler?.(error, isFatal);
-});
+(globalThis as any).ErrorUtils?.setGlobalHandler?.(
+  (error: Error, isFatal?: boolean) => {
+    CT.error("CRASH", "unhandledJSError", {
+      error: error?.message || String(error),
+      fatal: isFatal ? "true" : "false",
+      stack: error?.stack?.slice(0, 200),
+    });
+    originalHandler?.(error, isFatal);
+  },
+);
 
 // Capture unhandled promise rejections
 if (typeof globalThis !== "undefined") {

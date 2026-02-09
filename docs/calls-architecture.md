@@ -5,15 +5,15 @@
 
 ## Module Responsibilities
 
-| Module | Path | Responsibility |
-|--------|------|----------------|
-| **audioSession** | `src/services/calls/audioSession.ts` | ONLY module that starts/stops in-call audio, sets speaker, sets mic mute (hardware). Uses `react-native-incall-manager` + `RTCAudioSession`. |
-| **callTrace (CT)** | `src/services/calls/callTrace.ts` | MMKV ring-buffer logger. `CT.trace`, `CT.warn`, `CT.error`, `CT.guard` for crash hardening. |
-| **callkeep** | `src/services/callkeep/callkeep.ts` | ONLY module touching `react-native-callkeep`. Setup, start/end calls, mute, audio route for CallKit/Android Telecom. |
-| **useCallKeepCoordinator** | `src/services/callkeep/useCallKeepCoordinator.ts` | Hook that registers CallKeep listeners and subscribes to Supabase `call_signals` for incoming calls. Mounted once in `(protected)/_layout.tsx`. |
-| **useVideoCall** | `lib/hooks/use-video-call.ts` | Core hook: `createCall`, `joinCall`, `leaveCall`, `toggleMute`, `toggleVideo`, `escalateToVideo`, `switchCamera`. Orchestrates Fishjam SDK + audioSession + CallKeep. |
-| **video-room-store** | `src/video/stores/video-room-store.ts` | Zustand store — single source of truth for all call state. No `useState` for call data anywhere. |
-| **call screen** | `app/(protected)/call/[roomId].tsx` | UI. Derives mode from `deriveCallUiMode()`. Never mutates call state directly — only calls hook actions. |
+| Module                     | Path                                              | Responsibility                                                                                                                                                        |
+| -------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **audioSession**           | `src/services/calls/audioSession.ts`              | ONLY module that starts/stops in-call audio, sets speaker, sets mic mute (hardware). Uses `react-native-incall-manager` + `RTCAudioSession`.                          |
+| **callTrace (CT)**         | `src/services/calls/callTrace.ts`                 | MMKV ring-buffer logger. `CT.trace`, `CT.warn`, `CT.error`, `CT.guard` for crash hardening.                                                                           |
+| **callkeep**               | `src/services/callkeep/callkeep.ts`               | ONLY module touching `react-native-callkeep`. Setup, start/end calls, mute, audio route for CallKit/Android Telecom.                                                  |
+| **useCallKeepCoordinator** | `src/services/callkeep/useCallKeepCoordinator.ts` | Hook that registers CallKeep listeners and subscribes to Supabase `call_signals` for incoming calls. Mounted once in `(protected)/_layout.tsx`.                       |
+| **useVideoCall**           | `lib/hooks/use-video-call.ts`                     | Core hook: `createCall`, `joinCall`, `leaveCall`, `toggleMute`, `toggleVideo`, `escalateToVideo`, `switchCamera`. Orchestrates Fishjam SDK + audioSession + CallKeep. |
+| **video-room-store**       | `src/video/stores/video-room-store.ts`            | Zustand store — single source of truth for all call state. No `useState` for call data anywhere.                                                                      |
+| **call screen**            | `app/(protected)/call/[roomId].tsx`               | UI. Derives mode from `deriveCallUiMode()`. Never mutates call state directly — only calls hook actions.                                                              |
 
 ## State Machine
 
@@ -97,6 +97,33 @@ speaker toggle (UI)
 7. `audioSession.start(speakerOn)` — activate audio
 8. `startMedia(callType)` — mic (+ camera for video)
 9. Phase → `connected` immediately
+
+## Role-Based UI Modes
+
+`deriveCallUiMode({ role, phase })` is the SINGLE source of UI state. It returns one of:
+
+| Mode                | Who    | When                                   | Controls Available                         |
+| ------------------- | ------ | -------------------------------------- | ------------------------------------------ |
+| `caller_dialing`    | Caller | Creating room → connecting peer        | Cancel, Flip Camera (video only)           |
+| `caller_ringing`    | Caller | `outgoing_ringing` phase               | Cancel, Flip Camera (video only)           |
+| `callee_connecting` | Callee | Answered via CallKeep, joining Fishjam | Cancel only                                |
+| `in_call`           | Both   | `connected` phase                      | Full: Mute, Speaker, Video, Flip, PiP, End |
+| `call_ended`        | Both   | Call terminated                        | Back to Chat                               |
+| `error`             | Both   | Error occurred                         | Go Back                                    |
+| `perms_denied`      | Both   | Permissions denied                     | Open Settings, Go Back                     |
+
+### Navigation Gating
+
+- **Incoming call**: Callee sees ONLY CallKeep native UI until they accept. The app does NOT navigate to the call screen until `onAnswer` fires.
+- **Outgoing call**: Caller navigates to call screen immediately but sees `caller_dialing` / `caller_ringing` UI — NOT the in-call UI.
+- **Connected**: Both see `in_call` UI with full controls only after `connected` phase.
+
+### Runtime Invariants
+
+- Callee MUST NEVER be in `caller_dialing` or `caller_ringing` mode.
+- Caller MUST NEVER be in `callee_connecting` mode.
+- `in_call` mode requires `callPhase === "connected"`.
+- DEV mode logs `INVARIANT VIOLATION` if these are violated.
 
 ## Debugging Checklist
 

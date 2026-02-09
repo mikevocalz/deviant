@@ -33,6 +33,8 @@ import {
   ThreadedComment,
   type CommentData,
 } from "@/components/comments/threaded-comment";
+import { usersApi } from "@/lib/api/users";
+import { useQuery } from "@tanstack/react-query";
 
 // Generate unique client mutation ID for idempotency
 function generateMutationId(): string {
@@ -201,7 +203,7 @@ export default function CommentsScreen() {
     };
   }, [setReplyingTo]);
 
-  // Extract unique commenters for @mention autocomplete
+  // Extract unique commenters for @mention autocomplete (instant local results)
   const commenters = useMemo(() => {
     const seen = new Set<string>();
     const result: { username: string; avatar?: string }[] = [];
@@ -227,15 +229,46 @@ export default function CommentsScreen() {
     return match ? match[1] : null;
   }, [comment, cursorPos]);
 
+  // API-backed user search for @mentions (searches all users, not just commenters)
+  const { data: apiMentionResults = [] } = useQuery({
+    queryKey: ["users", "mention-search", mentionQuery],
+    queryFn: async () => {
+      if (!mentionQuery || mentionQuery.length < 1) return [];
+      const result = await usersApi.searchUsers(mentionQuery.toLowerCase(), 8);
+      return (result.docs || []).map((u: any) => ({
+        username: u.username,
+        avatar: u.avatar,
+      }));
+    },
+    enabled: !!mentionQuery && mentionQuery.length >= 1,
+    staleTime: 10_000,
+  });
+
+  // Merge local commenters + API results, deduplicated
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
+    // No query yet (just typed @) — show local commenters
     if (!mentionQuery) return commenters.slice(0, 5);
-    return commenters
-      .filter((c) =>
-        c.username.toLowerCase().includes(mentionQuery.toLowerCase()),
-      )
-      .slice(0, 5);
-  }, [mentionQuery, commenters]);
+    // Merge: local matches first, then API results
+    const seen = new Set<string>();
+    const merged: { username: string; avatar?: string }[] = [];
+    const localMatches = commenters.filter((c) =>
+      c.username.toLowerCase().includes(mentionQuery.toLowerCase()),
+    );
+    for (const u of localMatches) {
+      if (!seen.has(u.username)) {
+        seen.add(u.username);
+        merged.push(u);
+      }
+    }
+    for (const u of apiMentionResults) {
+      if (!seen.has(u.username) && u.username !== user?.username) {
+        seen.add(u.username);
+        merged.push(u);
+      }
+    }
+    return merged.slice(0, 8);
+  }, [mentionQuery, commenters, apiMentionResults, user?.username]);
 
   const handleInsertMention = useCallback(
     (username: string) => {

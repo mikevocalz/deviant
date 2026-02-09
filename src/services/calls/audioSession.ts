@@ -38,21 +38,30 @@ export const audioSession = {
    * @param speakerOn - Whether to default to speaker (true for video calls, false for audio)
    */
   start(speakerOn: boolean = true): void {
-    if (_isActive) {
-      CT.trace("AUDIO", "audioSession_already_active");
-      return;
-    }
-
-    CT.trace("AUDIO", "audioSession_starting", { speakerOn });
+    CT.trace("AUDIO", "audioSession_starting", {
+      speakerOn,
+      wasActive: _isActive,
+    });
 
     try {
-      // InCallManager.start sets the audio session category and mode correctly:
+      // ALWAYS call InCallManager.start — even if _isActive is true.
+      // A previous call may not have cleaned up, or CallKeep may have
+      // already activated the audio session. Re-calling is safe and
+      // ensures the audio category/mode is correct.
+      //
       // iOS: AVAudioSession category = playAndRecord, mode = voiceChat
-      //      options = allowBluetooth | defaultToSpeaker (when auto=true)
+      //      options = allowBluetooth | defaultToSpeaker (auto=true)
       // Android: AudioManager mode = MODE_IN_COMMUNICATION, requests audio focus
-      InCallManager.start({ media: "audio" });
+      InCallManager.start({ media: "audio", auto: true, ringback: "" });
 
-      // Set speaker state
+      // iOS: Notify WebRTC that CallKit has activated the audio session.
+      // This MUST happen before setForceSpeakerphoneOn — the audio route
+      // can only be changed after the session is active.
+      if (Platform.OS === "ios") {
+        RTCAudioSession.audioSessionDidActivate();
+      }
+
+      // Set speaker state AFTER session activation
       InCallManager.setForceSpeakerphoneOn(speakerOn);
       _isSpeakerOn = speakerOn;
 
@@ -61,12 +70,6 @@ export const audioSession = {
       _isMicMuted = false;
 
       _isActive = true;
-
-      // iOS: Notify WebRTC that CallKit has activated the audio session
-      // This is critical — without it, WebRTC audio tracks are created on a dead session
-      if (Platform.OS === "ios") {
-        RTCAudioSession.audioSessionDidActivate();
-      }
 
       CT.trace("AUDIO", "audioSession_started", { speakerOn });
       console.log(`[AudioSession] Started (speaker=${speakerOn})`);
@@ -108,8 +111,7 @@ export const audioSession = {
    */
   setSpeakerOn(on: boolean): void {
     if (!_isActive) {
-      CT.warn("AUDIO", "setSpeakerOn_inactive", { on });
-      return;
+      CT.warn("AUDIO", "setSpeakerOn_inactive_attempting", { on });
     }
 
     try {
@@ -131,15 +133,16 @@ export const audioSession = {
    */
   setMicMuted(muted: boolean): void {
     if (!_isActive) {
-      CT.warn("AUDIO", "setMicMuted_inactive", { muted });
-      return;
+      CT.warn("AUDIO", "setMicMuted_inactive_attempting", { muted });
     }
 
     try {
       InCallManager.setMicrophoneMute(muted);
       _isMicMuted = muted;
       CT.trace("MUTE", muted ? "mic_muted_hw" : "mic_unmuted_hw");
-      console.log(`[AudioSession] Mic ${muted ? "MUTED" : "UNMUTED"} (hardware)`);
+      console.log(
+        `[AudioSession] Mic ${muted ? "MUTED" : "UNMUTED"} (hardware)`,
+      );
     } catch (e: any) {
       CT.error("MUTE", "setMicMuted_failed", { muted, error: e?.message });
       console.error("[AudioSession] setMicMuted failed:", e);
