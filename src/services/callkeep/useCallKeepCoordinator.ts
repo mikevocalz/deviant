@@ -35,6 +35,21 @@ import { CT } from "@/src/services/calls/callTrace";
 // Track active signal so we can update its status on answer/decline
 const _activeSignals = new Map<string, CallSignal>();
 
+// ── Mute dedupe lock ────────────────────────────────────────────────
+// Prevents feedback loop: UI toggleMute → callKeepSetMuted → didPerformSetMutedCallAction → setMicOn → re-render
+// The lock is set when we programmatically call setMuted on CallKeep, and cleared after 500ms.
+// During the lock window, inbound CallKeep mute events are ignored.
+let _muteLockUntil = 0;
+
+/** Call this before programmatically calling callkeep.setMuted to suppress the echo event. */
+export function lockMuteEcho(): void {
+  _muteLockUntil = Date.now() + 500;
+}
+
+function isMuteLocked(): boolean {
+  return Date.now() < _muteLockUntil;
+}
+
 export function useCallKeepCoordinator(): void {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
@@ -195,9 +210,24 @@ export function useCallKeepCoordinator(): void {
 
         onToggleMute: ({ callUUID, muted }) => {
           CT.guard("AUDIO", "onToggleMute", () => {
-            CT.trace("MUTE", "callkeepMuteToggled", { callUUID, muted });
+            // CRITICAL: Check dedupe lock to prevent feedback loop.
+            // When toggleMute() in use-video-call.ts calls callKeepSetMuted(),
+            // CallKeep fires didPerformSetMutedCallAction which lands here.
+            // Without the lock, we'd re-set the store → re-render → potential loop.
+            if (isMuteLocked()) {
+              CT.trace("MUTE", "callkeepMuteToggled_IGNORED_locked", {
+                callUUID,
+                muted,
+              });
+              return;
+            }
+            CT.trace("MUTE", "callkeepMuteToggled_fromNativeUI", {
+              callUUID,
+              muted,
+            });
+            // This is a genuine user action from the native CallKit/ConnectionService UI
             useVideoRoomStore.getState().setMicOn(!muted);
-            setMuted(callUUID, muted);
+            audioSession.setMicMuted(muted);
           });
         },
 

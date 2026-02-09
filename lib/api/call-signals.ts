@@ -102,6 +102,10 @@ export const callSignalsApi = {
   ): () => void {
     console.log("[CallSignals] Subscribing to calls for:", userAuthId);
 
+    // Dedupe: track room_ids we've already shown incoming UI for
+    // to prevent multiple signals for the same call from canceling each other
+    const _seenRoomIds = new Set<string>();
+
     const channel = supabase
       .channel(`call_signals:${userAuthId}`)
       .on(
@@ -115,9 +119,23 @@ export const callSignalsApi = {
         (payload) => {
           const signal = payload.new as CallSignal;
           if (signal.status === "ringing") {
+            // Dedupe: skip if we already showed incoming UI for this room
+            if (_seenRoomIds.has(signal.room_id)) {
+              console.log(
+                "[CallSignals] Duplicate signal for room, ignoring:",
+                signal.room_id,
+              );
+              return;
+            }
+            _seenRoomIds.add(signal.room_id);
+            // Auto-clear after 60s to prevent memory leak
+            setTimeout(() => _seenRoomIds.delete(signal.room_id), 60000);
+
             console.log(
               "[CallSignals] Incoming call from:",
               signal.caller_username,
+              "room:",
+              signal.room_id,
             );
             onIncomingCall(signal);
           }
@@ -125,10 +143,16 @@ export const callSignalsApi = {
       )
       .subscribe((status) => {
         console.log("[CallSignals] Subscription status:", status);
+        if (status === "CHANNEL_ERROR") {
+          console.error(
+            "[CallSignals] Channel error — incoming calls may not ring!",
+          );
+        }
       });
 
     return () => {
       console.log("[CallSignals] Unsubscribing from calls");
+      _seenRoomIds.clear();
       supabase.removeChannel(channel);
     };
   },

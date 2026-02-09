@@ -14,10 +14,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { useRouter } from "expo-router";
-import {
-  startPIP,
-  stopPIP,
-} from "@fishjam-cloud/react-native-client";
+import { startPIP, stopPIP } from "@fishjam-cloud/react-native-client";
 import { useVideoCall } from "@/lib/hooks/use-video-call";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -141,7 +138,11 @@ export function CallScreen({
         if (nextState === "background" && !isPiPActive && pipViewRef.current) {
           startPIP(pipViewRef);
           setIsPiPActive(true);
-        } else if (nextState === "active" && isPiPActive && pipViewRef.current) {
+        } else if (
+          nextState === "active" &&
+          isPiPActive &&
+          pipViewRef.current
+        ) {
           stopPIP(pipViewRef);
           setIsPiPActive(false);
         }
@@ -308,6 +309,7 @@ export function CallScreen({
         isAudioMode={isAudioMode}
         hasLocalVideo={hasLocalVideo}
         hasRemoteVideo={hasRemoteVideo}
+        roomId={useVideoRoomStore((s) => s.roomId)}
       />
     </>
   );

@@ -56,6 +56,7 @@ import {
   clearCallMapping,
   setMuted as callKeepSetMuted,
 } from "@/src/services/callkeep";
+import { lockMuteEcho } from "@/src/services/callkeep/useCallKeepCoordinator";
 import { useChatStore } from "@/lib/stores/chat-store";
 import {
   useVideoRoomStore,
@@ -150,15 +151,39 @@ export function useVideoCall() {
   useEffect(() => {
     const remotePeers = peers.remotePeers || [];
 
-    if (__DEV__) {
-      for (const peer of remotePeers) {
-        const camTrack = (peer as any).cameraTrack;
-        const micTrack = (peer as any).microphoneTrack;
+    // [CALL/TRACK] Comprehensive remote track logging (Phase 0 diagnostic)
+    for (const peer of remotePeers) {
+      const p = peer as any;
+      const camTrack = p.cameraTrack;
+      const micTrack = p.microphoneTrack;
+      const camStream = camTrack?.stream;
+      const micStream = micTrack?.stream;
+      const camMediaTrack =
+        camTrack?.track ?? camStream?.getVideoTracks?.()?.[0];
+      const micMediaTrack =
+        micTrack?.track ?? micStream?.getAudioTracks?.()?.[0];
+
+      CT.trace("CALL", "remote_peer_tracks", {
+        peerId: p.id,
+        userId: p.metadata?.userId,
+        hasCamTrack: !!camTrack,
+        hasCamStream: !!camStream,
+        hasCamMediaTrack: !!camMediaTrack,
+        camEnabled: camMediaTrack?.enabled,
+        hasMicTrack: !!micTrack,
+        hasMicStream: !!micStream,
+        hasMicMediaTrack: !!micMediaTrack,
+        micEnabled: micMediaTrack?.enabled,
+      });
+
+      if (camTrack) {
         log(
-          `[FISHJAM] Remote peer ${peer.id}:`,
-          `camera=${!!camTrack} (stream=${!!camTrack?.stream}, track=${!!camTrack?.track})`,
-          `mic=${!!micTrack} (stream=${!!micTrack?.stream})`,
-          `metadata=${JSON.stringify(peer.metadata)}`,
+          `[CALL/VIDEO] remote video ${camMediaTrack ? "added" : "pending"} peerId=${p.id} trackId=${camMediaTrack?.id ?? "none"} enabled=${camMediaTrack?.enabled}`,
+        );
+      }
+      if (micTrack) {
+        log(
+          `[CALL/AUDIO] remote audio ${micMediaTrack ? "added" : "pending"} peerId=${p.id} trackId=${micMediaTrack?.id ?? "none"} enabled=${micMediaTrack?.enabled}`,
         );
       }
     }
@@ -169,6 +194,21 @@ export function useVideoCall() {
       const videoTrack = peer.cameraTrack ?? peer.videoTrack ?? null;
       const audioTrack = peer.microphoneTrack ?? peer.audioTrack ?? null;
 
+      // CRITICAL: Check for the track object existing at all — the SDK may have
+      // a track wrapper with null stream initially that populates async.
+      // isCameraOn/isMicOn should be true if the track wrapper exists (even if stream is null yet)
+      // because the remote peer HAS published that track.
+      const hasCam = !!(
+        videoTrack?.stream ||
+        videoTrack?.track ||
+        videoTrack?.trackId
+      );
+      const hasMic = !!(
+        audioTrack?.stream ||
+        audioTrack?.track ||
+        audioTrack?.trackId
+      );
+
       return {
         odId: peer.id,
         oderId: peer.metadata?.userId ?? peer.id,
@@ -177,8 +217,8 @@ export function useVideoCall() {
         avatar: peer.metadata?.avatar,
         role: peer.metadata?.role || "participant",
         isLocal: false,
-        isCameraOn: !!(videoTrack?.stream || videoTrack?.track),
-        isMicOn: !!(audioTrack?.stream || audioTrack?.track),
+        isCameraOn: hasCam,
+        isMicOn: hasMic,
         isScreenSharing: false,
         videoTrack,
         audioTrack,
@@ -522,7 +562,10 @@ export function useVideoCall() {
       // This configures iOS AVAudioSession (playAndRecord + allowBluetooth)
       // and Android AudioManager (IN_COMMUNICATION mode + audio focus).
       // Without this, mic tracks are created on a dead/inactive audio session.
-      audioSession.start(callType === "video");
+      // CRITICAL: mediaType must match callType so iOS uses correct AVAudioSession mode:
+      //   video → videoChat (speaker default, echo cancellation for speaker)
+      //   audio → voiceChat (earpiece default)
+      audioSession.start(callType === "video", callType);
 
       // Small delay on iOS to let audio session stabilize
       if (Platform.OS === "ios") {
@@ -610,7 +653,8 @@ export function useVideoCall() {
 
       // Step 3: Start in-call audio session BEFORE starting media.
       // This is the callee path — audio session must be active before mic starts.
-      audioSession.start(callType === "video");
+      // CRITICAL: mediaType must match callType for correct AVAudioSession mode.
+      audioSession.start(callType === "video", callType);
 
       // Small delay to let audio session stabilize
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -759,6 +803,12 @@ export function useVideoCall() {
     // Update all state sources in sync — even if track toggle failed,
     // the hardware mute via audioSession is a reliable fallback.
     s.setMicOn(!wantMuted);
+
+    // CRITICAL: Lock mute echo BEFORE calling callKeepSetMuted.
+    // callKeepSetMuted fires didPerformSetMutedCallAction which would
+    // re-enter the coordinator's onToggleMute handler → feedback loop.
+    // The lock suppresses that echo for 500ms.
+    lockMuteEcho();
     if (s.roomId) callKeepSetMuted(s.roomId, wantMuted);
     audioSession.setMicMuted(wantMuted);
 

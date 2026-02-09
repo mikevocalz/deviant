@@ -31,6 +31,7 @@ export interface DevHudProps {
   isAudioMode: boolean;
   hasLocalVideo: boolean;
   hasRemoteVideo: boolean;
+  roomId?: string | null;
 }
 
 export function DevHud({
@@ -43,6 +44,7 @@ export function DevHud({
   isAudioMode,
   hasLocalVideo,
   hasRemoteVideo,
+  roomId,
 }: DevHudProps) {
   if (!__DEV__) return null;
 
@@ -52,6 +54,7 @@ export function DevHud({
   const mic = useMicrophone();
   const remotePeer = participants[0];
   const remoteAudioCount = participants.filter((p) => p.isMicOn).length;
+  const remoteVideoCount = participants.filter((p) => p.isCameraOn).length;
 
   // Local mic diagnostics
   const micStream = mic.microphoneStream;
@@ -77,8 +80,10 @@ export function DevHud({
       <Text style={styles.line1}>
         {callRole}/{callPhase} → {mode}
       </Text>
+      {roomId && <Text style={styles.line3}>room={roomId.slice(0, 12)}…</Text>}
       <Text style={styles.line1}>
-        rem={participants.length} | rAud={remoteAudioCount} | spk=
+        rem={participants.length} | rAud={remoteAudioCount} | rVid=
+        {remoteVideoCount} | spk=
         {isSpeakerOn ? "Y" : "N"} | mic={isMuted ? "OFF" : "ON"}
       </Text>
       <Text style={styles.line2}>

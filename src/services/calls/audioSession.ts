@@ -59,9 +59,13 @@ export const audioSession = {
    *
    * @param speakerOn - Whether to default to speaker (true for video calls, false for audio)
    */
-  start(speakerOn: boolean = true): void {
+  start(
+    speakerOn: boolean = true,
+    mediaType: "audio" | "video" = "audio",
+  ): void {
     CT.trace("AUDIO", "audioSession_starting", {
       speakerOn,
+      mediaType,
       wasActive: _isActive,
       platform: Platform.OS,
     });
@@ -70,10 +74,12 @@ export const audioSession = {
       // ALWAYS call InCallManager.start — even if _isActive is true.
       // A previous call may not have cleaned up properly.
       //
-      // iOS: AVAudioSession category = playAndRecord, mode = voiceChat
-      //      options = allowBluetooth | defaultToSpeaker (auto=true)
+      // CRITICAL: mediaType controls AVAudioSession mode on iOS:
+      //   "audio" → voiceChat (earpiece default)
+      //   "video" → videoChat (speaker default, echo cancellation tuned for speaker)
       // Android: AudioManager mode = MODE_IN_COMMUNICATION, requests audio focus
-      InCallManager.start({ media: "audio", auto: true });
+      // REF: https://docs.fishjam.io/how-to/react-native/connecting
+      InCallManager.start({ media: mediaType, auto: true });
 
       _isActive = true;
 
