@@ -193,8 +193,9 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 ```
 
 - **Hooks**: `useStoryViewerCount`, `useStoryViewerCountTotal`, `useStoryViewers` — ALL must have `staleTime: 0` + `refetchInterval: 5000`
-- **Recording**: `recordView` uses upsert with `onConflict: "story_id,user_id"` — 1 view per user per item
-- **Display**: Story screen uses `useStoryViewerCountTotal(allItemIds)` — unique viewers across ALL items
+- **CRITICAL**: `story_views.story_id` = `stories.id` (integer parent ID). NEVER pass `stories_items.id` (hex string like `69790936232d46000414b30c`) — `parseInt` on hex produces garbage that violates the FK
+- **Recording**: `recordView` receives `story.id` (parent), uses upsert with `onConflict: "story_id,user_id"` — 1 view per user per story
+- **Display**: Story screen uses `useStoryViewerCount(storyParentId)` — count for the parent story
 - **Regression test**: `tests/story-viewer-count-regression.spec.ts`
 
 ### Messages — SENDER ISOLATION

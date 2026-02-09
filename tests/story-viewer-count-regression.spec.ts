@@ -3,10 +3,12 @@
  *
  * INVARIANTS:
  * 1. Viewer count MUST poll every 5s (refetchInterval: 5000) — NEVER stale
- * 2. Viewer count MUST be unique per user across ALL story items (deduplicated)
- * 3. 1 view per user per story — upsert on (story_id, user_id) composite key
- * 4. staleTime MUST be 0 — always refetch, never serve cached count
- * 5. recordView MUST invalidate ALL story-view queries (storyViewKeys.all)
+ * 2. 1 view per user per story — upsert on (story_id, user_id) composite key
+ * 3. staleTime MUST be 0 — always refetch, never serve cached count
+ * 4. recordView MUST invalidate ALL story-view queries (storyViewKeys.all)
+ * 5. story_views.story_id = stories.id (integer parent ID)
+ *    NEVER use stories_items.id (hex string like "69790936232d46000414b30c")
+ *    parseInt on a hex string produces a garbage number that violates the FK
  *
  * If you are changing use-stories.ts or story/[id].tsx, run this test.
  */
@@ -15,15 +17,40 @@
 
 const mockViewers = {
   item1: [
-    { userId: 1, username: "alice", avatar: "", viewedAt: "2026-02-08T10:00:00Z" },
-    { userId: 2, username: "bob", avatar: "", viewedAt: "2026-02-08T10:01:00Z" },
+    {
+      userId: 1,
+      username: "alice",
+      avatar: "",
+      viewedAt: "2026-02-08T10:00:00Z",
+    },
+    {
+      userId: 2,
+      username: "bob",
+      avatar: "",
+      viewedAt: "2026-02-08T10:01:00Z",
+    },
   ],
   item2: [
-    { userId: 1, username: "alice", avatar: "", viewedAt: "2026-02-08T10:02:00Z" }, // same user
-    { userId: 3, username: "charlie", avatar: "", viewedAt: "2026-02-08T10:03:00Z" },
+    {
+      userId: 1,
+      username: "alice",
+      avatar: "",
+      viewedAt: "2026-02-08T10:02:00Z",
+    }, // same user
+    {
+      userId: 3,
+      username: "charlie",
+      avatar: "",
+      viewedAt: "2026-02-08T10:03:00Z",
+    },
   ],
   item3: [
-    { userId: 2, username: "bob", avatar: "", viewedAt: "2026-02-08T10:04:00Z" }, // same user
+    {
+      userId: 2,
+      username: "bob",
+      avatar: "",
+      viewedAt: "2026-02-08T10:04:00Z",
+    }, // same user
   ],
 };
 

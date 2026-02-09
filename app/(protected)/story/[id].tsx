@@ -35,7 +35,7 @@ import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
   useStories,
-  useStoryViewerCountTotal,
+  useStoryViewerCount,
   useRecordStoryView,
 } from "@/lib/hooks/use-stories";
 import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
@@ -444,25 +444,23 @@ export default function StoryViewerScreen() {
   // Story viewers (own stories only)
   const [showViewersSheet, setShowViewersSheet] = useState(false);
   const currentItemId = currentItem?.id;
-  const allItemIds = useMemo(
-    () =>
-      isOwnStory && story?.items
-        ? story.items.map((i: any) => String(i.id)).filter(Boolean)
-        : [],
-    [isOwnStory, story?.items],
+  // story_views.story_id is an integer FK to stories.id (parent),
+  // NOT the hex string item ID from stories_items
+  const storyParentId = story?.id ? String(story.id) : undefined;
+  const { data: viewerCount = 0 } = useStoryViewerCount(
+    isOwnStory ? storyParentId : undefined,
   );
-  const { data: viewerCount = 0 } = useStoryViewerCountTotal(allItemIds);
 
-  // Record view when viewing someone else's story
+  // Record view when viewing someone else's story (once per story parent)
   const recordView = useRecordStoryView();
   const recordedViewsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!currentItemId || isOwnStory) return;
-    if (recordedViewsRef.current.has(currentItemId)) return;
-    recordedViewsRef.current.add(currentItemId);
-    recordView.mutate(currentItemId);
-  }, [currentItemId, isOwnStory]);
+    if (!storyParentId || isOwnStory) return;
+    if (recordedViewsRef.current.has(storyParentId)) return;
+    recordedViewsRef.current.add(storyParentId);
+    recordView.mutate(storyParentId);
+  }, [storyParentId, isOwnStory]);
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
@@ -1006,7 +1004,7 @@ export default function StoryViewerScreen() {
 
       {/* Story Viewers Sheet */}
       <StoryViewersSheet
-        storyId={currentItemId}
+        storyId={storyParentId}
         visible={showViewersSheet}
         onClose={() => {
           setShowViewersSheet(false);
