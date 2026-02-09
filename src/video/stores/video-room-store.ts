@@ -39,7 +39,15 @@ export type CallPhase =
 
 export type CallType = "audio" | "video";
 
+export type CallRole = "caller" | "callee";
+export type CallDirection = "incoming" | "outgoing";
+
 export type PermissionState = "pending" | "granted" | "denied";
+
+export interface RecipientInfo {
+  username: string;
+  avatar?: string;
+}
 
 // ── State shape ──────────────────────────────────────────────────────
 
@@ -64,10 +72,13 @@ interface VideoRoomStoreState {
   // Call lifecycle
   callPhase: CallPhase;
   callType: CallType;
+  callRole: CallRole;
+  callDirection: CallDirection;
   chatId: string | null;
   callEnded: boolean;
   callDuration: number;
   callStartedAt: number | null;
+  recipientInfo: RecipientInfo | null;
 
   // Permissions
   cameraPermission: PermissionState;
@@ -77,7 +88,11 @@ interface VideoRoomStoreState {
   isCameraOn: boolean;
   isMicOn: boolean;
   isFrontCamera: boolean;
+  isSpeakerOn: boolean;
   localStream: MediaStream | null;
+
+  // PiP
+  isPiPActive: boolean;
 
   // Error
   error: string | null;
@@ -104,6 +119,9 @@ interface VideoRoomStoreActions {
   // Call lifecycle
   setCallPhase: (phase: CallPhase) => void;
   setCallType: (type: CallType) => void;
+  setCallRole: (role: CallRole) => void;
+  setCallDirection: (direction: CallDirection) => void;
+  setRecipientInfo: (info: RecipientInfo | null) => void;
   setChatId: (chatId: string | null) => void;
   setCallEnded: (duration: number) => void;
   setCallDuration: (duration: number) => void;
@@ -119,7 +137,11 @@ interface VideoRoomStoreActions {
   toggleCamera: () => void;
   toggleMic: () => void;
   toggleFrontCamera: () => void;
+  setSpeakerOn: (on: boolean) => void;
   setLocalStream: (stream: MediaStream | null) => void;
+
+  // PiP
+  setIsPiPActive: (active: boolean) => void;
 
   // Escalation (audio → video)
   escalateToVideo: () => void;
@@ -148,16 +170,21 @@ const initialState: VideoRoomStoreState = {
   connectionState: { status: "disconnected" },
   callPhase: "idle",
   callType: "video",
+  callRole: "caller",
+  callDirection: "outgoing",
   chatId: null,
   callEnded: false,
   callDuration: 0,
   callStartedAt: null,
+  recipientInfo: null,
   cameraPermission: "pending",
   micPermission: "pending",
   isCameraOn: false,
   isMicOn: false,
   isFrontCamera: true,
+  isSpeakerOn: true,
   localStream: null,
+  isPiPActive: false,
   error: null,
   errorCode: null,
   isEjected: false,
@@ -209,6 +236,9 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
     set({ callPhase });
   },
   setCallType: (callType) => set({ callType }),
+  setCallRole: (callRole) => set({ callRole }),
+  setCallDirection: (callDirection) => set({ callDirection }),
+  setRecipientInfo: (recipientInfo) => set({ recipientInfo }),
   setChatId: (chatId) => set({ chatId }),
   setCallEnded: (duration) =>
     set({
@@ -251,7 +281,11 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
   },
   toggleMic: () => set((s) => ({ isMicOn: !s.isMicOn })),
   toggleFrontCamera: () => set((s) => ({ isFrontCamera: !s.isFrontCamera })),
+  setSpeakerOn: (isSpeakerOn) => set({ isSpeakerOn }),
   setLocalStream: (localStream) => set({ localStream }),
+
+  // PiP
+  setIsPiPActive: (isPiPActive) => set({ isPiPActive }),
 
   // Escalation (audio → video) — explicit mode transition
   escalateToVideo: () => {

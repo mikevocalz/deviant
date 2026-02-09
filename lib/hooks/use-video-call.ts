@@ -65,11 +65,15 @@ import {
   useVideoRoomStore,
   type CallType,
   type CallPhase,
+  type CallRole,
+  type CallDirection,
+  type RecipientInfo,
 } from "@/src/video/stores/video-room-store";
 import type { Participant } from "@/src/video/types";
+import { CT } from "@/src/services/calls/callTrace";
 
 // Re-export for consumers
-export type { CallType, CallPhase };
+export type { CallType, CallPhase, CallRole, CallDirection, RecipientInfo };
 export type { Participant };
 
 const LOG_PREFIX = "[VideoCall]";
@@ -386,7 +390,14 @@ export function useVideoCall() {
       const s = getStore();
       s.clearError();
       s.setCallType(callType);
+      s.setCallRole("caller");
+      s.setCallDirection("outgoing");
       s.setChatId(chatId || null);
+      CT.setContext({ userId: user?.id });
+      CT.trace("LIFECYCLE", "createCall_start", {
+        callType,
+        participantCount: participantIds.length,
+      });
 
       // Step 1: Create room (edge function)
       s.setCallPhase("creating_room");
@@ -528,7 +539,11 @@ export function useVideoCall() {
       const s = getStore();
       s.clearError();
       s.setCallType(callType);
+      s.setCallRole("callee");
+      s.setCallDirection("incoming");
       s.setRoomId(roomId);
+      CT.setContext({ userId: user?.id, roomId });
+      CT.trace("LIFECYCLE", "joinCall_start", { roomId, callType });
 
       // Step 1: Join room (edge function → get Fishjam token)
       s.setCallPhase("joining_room");
@@ -539,12 +554,12 @@ export function useVideoCall() {
         const msg = joinResult.error?.message || "Failed to join room";
         logError("Room join failed:", msg);
         s.setError(msg, joinResult.error?.code || "join_room_failed");
+        CT.error("FISHJAM", "joinRoom_failed", { roomId, error: msg });
         return;
       }
 
       const { token, user: joinedUser, room: joinedRoom } = joinResult.data;
       log("Got Fishjam token for user:", joinedUser.id);
-      // [SESSION] Assertion: verify roomId + fishjamRoomId for debugging
       log(
         `[SESSION] roomId=${roomId}, fishjamRoomId=${joinedRoom?.fishjamRoomId}, userId=${joinedUser.id}`,
       );
@@ -563,40 +578,54 @@ export function useVideoCall() {
           },
         });
         log("Fishjam peer connected successfully");
+        CT.trace("FISHJAM", "peerConnected", { roomId });
       } catch (peerErr: any) {
         logError("Fishjam peer join failed:", peerErr);
         s.setError(
           peerErr.message || "WebRTC connection failed",
           "peer_join_failed",
         );
+        CT.error("FISHJAM", "peerJoin_crashed", {
+          roomId,
+          error: peerErr?.message,
+        });
         return;
       }
 
-      // Step 3: Start media
+      // Step 3: Activate audio session on iOS BEFORE starting media
+      // REF: https://www.npmjs.com/package/@react-native-oh-tpl/react-native-callkeep
+      // CallKit must activate the audio session before mic track is created
+      if (Platform.OS === "ios") {
+        CT.guard("AUDIO", "audioSessionActivate_callee", () => {
+          RTCAudioSession.audioSessionDidActivate();
+          log("[iOS] RTCAudioSession activated for incoming call");
+        });
+        // Small delay to let audio session stabilize
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      // Step 4: Start media
       const mediaOk = await startMedia(callType);
       if (!mediaOk) {
         logError("Media start failed, aborting call");
+        CT.error("MEDIA", "startMedia_failed_callee", { roomId, callType });
         return;
       }
 
-      // Explicitly activate WebRTC audio session on iOS for incoming calls too
-      if (Platform.OS === "ios") {
-        try {
-          RTCAudioSession.audioSessionDidActivate();
-          log(
-            "[iOS] RTCAudioSession.audioSessionDidActivate() called for incoming call",
-          );
-        } catch (audioErr) {
-          logWarn("RTCAudioSession activation failed (non-fatal):", audioErr);
-        }
-      }
+      // Step 5: Enable speaker for callee (was MISSING — root cause of no audio output)
+      // The caller enables speaker in peer-sync effect, but callee never did.
+      CT.guard("SPEAKER", "enableSpeaker_callee", () => {
+        enableSpeakerphone(roomId);
+        log("[AUDIO] Speaker enabled for callee");
+      });
 
       // Callee is now connected — media is flowing
       s.setCallPhase("connected");
       startDurationTimer();
+      CT.trace("LIFECYCLE", "callee_connected", { roomId });
       log("[LIFECYCLE] Callee joined and media started — connected");
     },
-    [startMedia, startDurationTimer, getStore],
+    [user, startMedia, startDurationTimer, getStore],
   );
 
   // ── Leave current call ─────────────────────────────────────────────
@@ -606,6 +635,10 @@ export function useVideoCall() {
     const duration = s.callDuration;
     const mode = s.callType;
 
+    CT.trace("LIFECYCLE", "leaveCall", {
+      roomId: currentRoomId ?? undefined,
+      phase: s.callPhase,
+    });
     log(`Leaving ${mode} call, roomId:`, currentRoomId, "duration:", duration);
 
     // End call signals
@@ -614,36 +647,33 @@ export function useVideoCall() {
         logWarn("Failed to end call signals:", e);
       });
 
-      // End native call UI — try specific UUID first, then endAll as safety net
-      try {
+      CT.guard("CALLKEEP", "endCall", () => {
         callKeepEndCall(currentRoomId);
         clearCallMapping(currentRoomId);
-      } catch (ckErr) {
-        logWarn("CallKeep endCall failed (non-fatal):", ckErr);
-      }
+      });
     }
 
     // Safety net: always end ALL CallKit calls to prevent orphaned native UI
-    try {
+    CT.guard("CALLKEEP", "endAllCalls", () => {
       callKeepEndAllCalls();
-    } catch (ckErr) {
-      logWarn("CallKeep endAllCalls failed (non-fatal):", ckErr);
-    }
+    });
 
-    // Stop media — only stop camera if it was a video call
-    try {
+    // Stop media — wrapped in guard to prevent crash if refs are stale
+    CT.guard("MEDIA", "stopMedia", () => {
       if (mode === "video" || s.isCameraOn) {
         cameraRef.current.stopCamera();
         log("Camera stopped");
       }
       micRef.current.stopMicrophone();
       log("Microphone stopped");
-    } catch (e) {
-      logWarn("Error stopping media:", e);
-    }
+    });
 
     stopDurationTimer();
-    leaveRoomRef.current();
+
+    // Leave Fishjam room — can throw if peer was never connected
+    CT.guard("FISHJAM", "leaveRoom", () => {
+      leaveRoomRef.current();
+    });
 
     // Add "Call ended" system message to the linked chat
     const chatId = s.chatId;
@@ -659,6 +689,8 @@ export function useVideoCall() {
     }
 
     s.setCallEnded(duration);
+    CT.trace("LIFECYCLE", "callEnded", { duration });
+    CT.clearContext();
     log(`[${mode.toUpperCase()}] Call ended, duration:`, duration);
   }, [stopDurationTimer, getStore]);
 
@@ -666,25 +698,59 @@ export function useVideoCall() {
   leaveCallRef.current = leaveCall;
 
   // ── Toggle mute ────────────────────────────────────────────────────
+  // CRITICAL FIX: Do NOT use stopMicrophone/startMicrophone for mute toggle.
+  // stopMicrophone() UNPUBLISHES the audio track entirely — the remote side
+  // loses the track and may never get it back. startMicrophone() re-publishes
+  // which is unreliable mid-call.
+  // Instead, toggle MediaStreamTrack.enabled which keeps the track published
+  // but silences/unsilences it. This is how Instagram/Snapchat mute works.
   const toggleMute = useCallback(() => {
     const s = getStore();
-    if (s.isMicOn) {
-      micRef.current.stopMicrophone();
+    const wantMuted = s.isMicOn; // if currently on, we want to mute
+
+    CT.trace("MUTE", wantMuted ? "muting" : "unmuting", {
+      roomId: s.roomId ?? undefined,
+    });
+
+    // Try track-level toggle first (preferred — keeps track published)
+    const stream = micRef.current.microphoneStream;
+    if (stream) {
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length > 0) {
+        for (const track of audioTracks) {
+          track.enabled = !wantMuted;
+        }
+        s.setMicOn(!wantMuted);
+        if (s.roomId) callKeepSetMuted(s.roomId, wantMuted);
+        CT.trace("MUTE", wantMuted ? "muted_via_track" : "unmuted_via_track");
+        log(
+          wantMuted
+            ? "Mic muted (track.enabled=false)"
+            : "Mic unmuted (track.enabled=true)",
+        );
+        return;
+      }
+    }
+
+    // Fallback: stop/start (only if stream unavailable)
+    if (wantMuted) {
+      CT.guard("MUTE", "stopMicrophone_fallback", () => {
+        micRef.current.stopMicrophone();
+      });
       s.setMicOn(false);
-      // Sync mute to native call UI
       if (s.roomId) callKeepSetMuted(s.roomId, true);
-      log("Mic muted");
+      log("Mic muted (fallback: stopMicrophone)");
     } else {
       micRef.current
         .startMicrophone()
         .then(() => {
           s.setMicOn(true);
-          // Sync unmute to native call UI
           if (s.roomId) callKeepSetMuted(s.roomId, false);
-          log("Mic unmuted");
+          log("Mic unmuted (fallback: startMicrophone)");
         })
-        .catch((e) => {
+        .catch((e: any) => {
           logError("Failed to unmute mic:", e);
+          CT.error("MUTE", "unmute_failed", { error: e?.message });
         });
     }
   }, [getStore]);
@@ -832,6 +898,9 @@ export function useVideoCall() {
     // State from store
     callPhase: store.callPhase,
     callType: store.callType,
+    callRole: store.callRole,
+    callDirection: store.callDirection,
+    recipientInfo: store.recipientInfo,
     roomId: store.roomId,
     chatId: store.chatId,
     callEnded: store.callEnded,
@@ -847,9 +916,13 @@ export function useVideoCall() {
     participants: store.participants,
     cameraPermission: store.cameraPermission,
     micPermission: store.micPermission,
+    isSpeakerOn: store.isSpeakerOn,
+    isPiPActive: store.isPiPActive,
 
     // Derived
     isAudioMode,
+    isCaller: store.callRole === "caller",
+    isCallee: store.callRole === "callee",
 
     // Actions
     createCall,

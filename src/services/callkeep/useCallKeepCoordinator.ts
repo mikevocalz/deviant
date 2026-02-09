@@ -30,12 +30,7 @@ import {
 } from "./callkeep";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
-import {
-  callTrace,
-  callTraceError,
-  setCallDebugContext,
-  clearCallDebugContext,
-} from "./call-debug";
+import { CT } from "@/src/services/calls/callTrace";
 
 // Track active signal so we can update its status on answer/decline
 const _activeSignals = new Map<string, CallSignal>();
@@ -52,187 +47,202 @@ export function useCallKeepCoordinator(): void {
   const userRef = useRef(user);
   userRef.current = user;
 
-  // Track if we've initialized to prevent double-init in strict mode
-  const initializedRef = useRef(false);
+  // Track if we've initialized — keyed by userId to allow re-init on auth change
+  const initializedForUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
-    if (initializedRef.current) return;
-    initializedRef.current = true;
+    // Allow re-init if user changed (e.g., logout/login)
+    if (initializedForUserRef.current === user.id) return;
+    initializedForUserRef.current = user.id;
 
     let cleanupListeners: (() => void) | undefined;
     let unsubscribeSignals: (() => void) | undefined;
 
     const init = async () => {
       // 1. Setup CallKeep
+      // REF: https://www.npmjs.com/package/@react-native-oh-tpl/react-native-callkeep
       try {
         await setupCallKeep();
-      } catch (err) {
-        console.error("[CallKeepCoordinator] Setup failed:", err);
-        // Don't block — CallKeep may not be available in dev/simulator
+        CT.trace("CALLKEEP", "setupComplete");
+      } catch (err: any) {
+        CT.error("CALLKEEP", "setupFailed", { error: err?.message });
         return;
       }
 
-      // 2. Register CallKeep event listeners
+      // 2. Register CallKeep event listeners — all wrapped with CT.guard
       cleanupListeners = registerCallKeepListeners({
         onAnswer: ({ callUUID }) => {
-          callTrace("CALLKEEP", "answerPressed", callUUID, { callUUID });
+          CT.guard(
+            "CALLKEEP",
+            "onAnswer",
+            () => {
+              CT.trace("CALLKEEP", "answerPressed", { callUUID });
 
-          // Look up the session ID from the mapping
-          const callSessionId = getSessionIdFromUUID(callUUID);
-          const signal = _activeSignals.get(callUUID);
+              const callSessionId = getSessionIdFromUUID(callUUID);
+              const signal = _activeSignals.get(callUUID);
 
-          if (signal) {
-            // Update signal status to accepted
-            callSignalsApi
-              .updateSignalStatus(signal.id, "accepted")
-              .catch((err) =>
-                callTraceError("CALLKEEP", "updateSignalFailed", String(err), {
+              if (signal) {
+                callSignalsApi
+                  .updateSignalStatus(signal.id, "accepted")
+                  .catch((err) =>
+                    CT.error("CALLKEEP", "updateSignalFailed", {
+                      callUUID,
+                      error: String(err),
+                    }),
+                  );
+              }
+
+              setCallActive(callUUID);
+              backToForeground();
+
+              // Navigate to call screen — callee joins Fishjam ONLY after this navigation
+              // REF: Mandatory principle #3 — MUST NOT join Fishjam until AFTER CallKeep answer
+              const roomId = signal?.room_id || callSessionId;
+              const callType = signal?.call_type || "video";
+
+              if (roomId) {
+                CT.setContext({
+                  sessionId: roomId,
                   callUUID,
-                }),
-              );
-          }
-
-          // Mark call active in OS
-          setCallActive(callUUID);
-
-          // Bring app to foreground (Android)
-          backToForeground();
-
-          // Navigate to call screen — callee joins Fishjam ONLY after this navigation
-          // REF: Mandatory principle #3 — MUST NOT join Fishjam until AFTER CallKeep answer
-          const roomId = signal?.room_id || callSessionId;
-          const callType = signal?.call_type || "video";
-
-          if (roomId) {
-            setCallDebugContext({
-              sessionId: roomId,
-              callUUID,
-              userId: userRef.current?.id,
-            });
-            callTrace(
-              "LIFECYCLE",
-              "navigatingToCallScreen",
-              `roomId=${roomId} callType=${callType}`,
-              { callUUID },
-            );
-            routerRef.current.push({
-              pathname: "/(protected)/call/[roomId]",
-              params: { roomId, callType },
-            });
-          } else {
-            callTraceError("CALLKEEP", "noRoomIdForUUID", callUUID, {
-              callUUID,
-            });
-            endCall(callUUID);
-          }
+                  userId: userRef.current?.id,
+                });
+                CT.trace("LIFECYCLE", "navigatingToCallScreen", {
+                  roomId,
+                  callType,
+                });
+                routerRef.current.push({
+                  pathname: "/(protected)/call/[roomId]",
+                  params: {
+                    roomId,
+                    callType,
+                    recipientUsername: signal?.caller_username || "Unknown",
+                    recipientAvatar: signal?.caller_avatar || "",
+                  },
+                });
+              } else {
+                CT.error("CALLKEEP", "noRoomIdForUUID", { callUUID });
+                endCall(callUUID);
+              }
+            },
+            { callUUID },
+          );
         },
 
         onEnd: ({ callUUID }) => {
-          callTrace("CALLKEEP", "endPressed", callUUID, { callUUID });
+          CT.guard(
+            "CALLKEEP",
+            "onEnd",
+            () => {
+              CT.trace("CALLKEEP", "endPressed", { callUUID });
 
-          const signal = _activeSignals.get(callUUID);
+              const signal = _activeSignals.get(callUUID);
 
-          if (signal) {
-            // Determine if this was a decline (still ringing) or end (already accepted)
-            const status = signal.status === "ringing" ? "declined" : "ended";
-            callTrace(
-              "SESSION",
-              "statusChanged",
-              `${signal.status} → ${status}`,
-              { callUUID },
-            );
-            callSignalsApi
-              .updateSignalStatus(signal.id, status)
-              .catch((err) =>
-                callTraceError("CALLKEEP", "updateSignalFailed", String(err), {
+              if (signal) {
+                const status =
+                  signal.status === "ringing" ? "declined" : "ended";
+                CT.trace("SESSION", "statusChanged", {
+                  from: signal.status,
+                  to: status,
                   callUUID,
-                }),
-              );
-            // Also end all ringing signals for this room (so caller sees decline)
-            callSignalsApi.endCallSignals(signal.room_id).catch(() => {});
-          }
+                });
+                callSignalsApi
+                  .updateSignalStatus(signal.id, status)
+                  .catch((err) =>
+                    CT.error("CALLKEEP", "updateSignalFailed", {
+                      callUUID,
+                      error: String(err),
+                    }),
+                  );
+                callSignalsApi.endCallSignals(signal.room_id).catch(() => {});
+              }
 
-          // If there's an active Fishjam call, trigger leave
-          // The use-video-call.ts external end effect will handle Fishjam cleanup
-          const store = useVideoRoomStore.getState();
-          if (store.callPhase !== "idle" && store.callPhase !== "call_ended") {
-            callTrace(
-              "LIFECYCLE",
-              "externalEnd",
-              `phase=${store.callPhase} → call_ended`,
-              { callUUID },
-            );
-            store.setCallPhase("call_ended");
-          }
+              // If there's an active Fishjam call, trigger leave
+              // The use-video-call.ts external end effect will handle Fishjam cleanup
+              const store = useVideoRoomStore.getState();
+              if (
+                store.callPhase !== "idle" &&
+                store.callPhase !== "call_ended"
+              ) {
+                CT.trace("LIFECYCLE", "externalEnd", {
+                  from: store.callPhase,
+                  to: "call_ended",
+                  callUUID,
+                });
+                store.setCallPhase("call_ended");
+              }
 
-          // Cleanup
-          _activeSignals.delete(callUUID);
-          clearCallMapping(callUUID);
-          clearCallDebugContext();
+              _activeSignals.delete(callUUID);
+              clearCallMapping(callUUID);
+              CT.clearContext();
+            },
+            { callUUID },
+          );
         },
 
-        onDidDisplayIncoming: ({ callUUID, error }) => {
-          if (error) {
-            callTraceError("CALLKEEP", "displayIncomingFailed", error, {
+        onDidDisplayIncoming: ({ callUUID, error: displayError }) => {
+          if (displayError) {
+            CT.error("CALLKEEP", "displayIncomingFailed", {
               callUUID,
+              error: displayError,
             });
             _activeSignals.delete(callUUID);
             clearCallMapping(callUUID);
           } else {
-            callTrace("CALLKEEP", "displayedIncoming", callUUID, { callUUID });
+            CT.trace("CALLKEEP", "displayedIncoming", { callUUID });
           }
         },
 
         onToggleMute: ({ callUUID, muted }) => {
-          callTrace("AUDIO", "muteToggled", `muted=${muted}`, { callUUID });
-          const store = useVideoRoomStore.getState();
-          store.setMicOn(!muted);
-          setMuted(callUUID, muted);
+          CT.guard("AUDIO", "onToggleMute", () => {
+            CT.trace("MUTE", "callkeepMuteToggled", { callUUID, muted });
+            useVideoRoomStore.getState().setMicOn(!muted);
+            setMuted(callUUID, muted);
+          });
         },
 
         onAudioSessionActivated: () => {
-          callTrace("AUDIO", "audioSessionActivated", "notifying WebRTC");
-          RTCAudioSession.audioSessionDidActivate();
+          CT.guard("AUDIO", "onAudioSessionActivated", () => {
+            CT.trace("AUDIO", "audioSessionActivated");
+            RTCAudioSession.audioSessionDidActivate();
+          });
         },
       });
 
       // 3. Subscribe to incoming call signals from Supabase
+      // REF: Supabase Realtime postgres_changes for call_signals table
       const userId = user.id;
-      callTrace("CALL", "subscribingToSignals", `userId=${userId}`);
+      CT.trace("CALL", "subscribingToSignals", { userId });
       unsubscribeSignals = callSignalsApi.subscribeToIncomingCalls(
         userId,
         (signal: CallSignal) => {
-          callTrace(
-            "CALL",
-            "incomingDetected",
-            `from=${signal.caller_username} room=${signal.room_id} type=${signal.call_type}`,
-          );
+          CT.guard("CALL", "incomingSignalHandler", () => {
+            CT.trace("CALL", "incomingDetected", {
+              caller: signal.caller_username ?? undefined,
+              roomId: signal.room_id,
+              callType: signal.call_type,
+            });
 
-          // Generate a callUUID from the signal's room_id
-          // Use room_id as the UUID since it's unique per call session
-          const callUUID = signal.room_id;
+            // Use room_id as the UUID since it's unique per call session
+            const callUUID = signal.room_id;
 
-          // Persist the mapping
-          persistCallMapping(signal.room_id, callUUID);
+            persistCallMapping(signal.room_id, callUUID);
+            _activeSignals.set(callUUID, signal);
 
-          // Store the signal for later reference
-          _activeSignals.set(callUUID, signal);
-
-          // Display native incoming call UI
-          // REF: Mandatory principle #3 — MUST NOT join Fishjam here, only show UI
-          showIncomingCall({
-            callUUID,
-            handle: signal.caller_username || "Unknown",
-            displayName: signal.caller_username || "Unknown Caller",
-            hasVideo: signal.call_type === "video",
+            // Display native incoming call UI
+            // REF: Mandatory principle #3 — MUST NOT join Fishjam here, only show UI
+            // REF: https://www.npmjs.com/package/@react-native-oh-tpl/react-native-callkeep
+            showIncomingCall({
+              callUUID,
+              handle: signal.caller_username || "Unknown",
+              displayName: signal.caller_username || "Unknown Caller",
+              hasVideo: signal.call_type === "video",
+            });
+            CT.trace("CALLKEEP", "showIncomingCalled", {
+              callUUID,
+              hasVideo: signal.call_type === "video",
+            });
           });
-          callTrace(
-            "CALLKEEP",
-            "displayedIncoming",
-            `uuid=${callUUID} video=${signal.call_type === "video"}`,
-            { callUUID },
-          );
         },
       );
     };
@@ -240,7 +250,7 @@ export function useCallKeepCoordinator(): void {
     init();
 
     return () => {
-      initializedRef.current = false;
+      initializedForUserRef.current = null;
       cleanupListeners?.();
       unsubscribeSignals?.();
       _activeSignals.clear();
