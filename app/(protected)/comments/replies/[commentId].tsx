@@ -172,16 +172,21 @@ export default function RepliesScreen() {
     };
   }, []);
 
-  // Hide default header — we render SheetHeader inline
+  // Set TrueSheet header prop — fixed above scrollable content
   useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+    navigation.setOptions({
+      header: <SheetHeader title="Replies" onClose={() => router.back()} />,
+    });
+  }, [navigation, router]);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
-      <SheetHeader title="Replies" onClose={() => router.back()} />
       {/* Replies List */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16 }}
+        nestedScrollEnabled
+      >
         {isLoading ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
             <Text style={{ color: "#999" }}>Loading replies...</Text>

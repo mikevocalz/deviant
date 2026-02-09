@@ -1,7 +1,7 @@
 "use client";
 
-import AppSheet from "@/src/components/sheets/AppSheet";
+import { CommentSheet } from "@/src/components/sheets/AppSheet";
 
 export default function CommentsLayout() {
-  return <AppSheet />;
+  return <CommentSheet />;
 }

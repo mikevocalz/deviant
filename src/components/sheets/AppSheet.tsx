@@ -1,53 +1,110 @@
 /**
- * AppSheet — Standardized TrueSheet wrapper.
+ * AppSheet — Standardized TrueSheet navigator wrapper.
  *
- * Enforces:
- * - Default max snap point = 75% screen height
- * - Handle indicator color = white
- * - Corner radius = 16
- * - Grabber visible
+ * Uses the official TrueSheet API:
+ * - `detents` for height control (NOT maxHeight/snapPoints)
+ * - `grabber` + `grabberOptions` for white drag handle
+ * - `cornerRadius` for rounded corners
+ * - `scrollable` for proper scroll behavior
  *
- * All TrueSheet-based layouts should use this wrapper
- * instead of configuring TrueSheetNavigator directly.
+ * Variants:
+ * - AppSheet (default): general-purpose, detents=[0.75]
+ * - CommentSheet: comment-specific, detents=[0.7], never full-screen
  */
 
-import { Dimensions } from "react-native";
+import type { ReactElement } from "react";
 import TrueSheetNavigator from "@/components/navigation/true-sheet-navigator";
 
-const SCREEN_HEIGHT = Dimensions.get("window").height;
-const MAX_SNAP_RATIO = 0.75;
+/** Shared grabber config — white, 48×6, 10px top margin */
+const GRABBER_OPTIONS = {
+  width: 48,
+  height: 6,
+  topMargin: 10,
+  color: "#FFFFFF",
+} as const;
+
+const DEFAULT_CORNER_RADIUS = 16;
+
+// ── AppSheet (general-purpose) ───────────────────────────────────────
 
 interface AppSheetProps {
-  /** Override max snap ratio (clamped to 0.75 unless allowOverflow is true) */
-  maxSnapRatio?: number;
-  /** Allow snap ratio > 0.75 (use sparingly) */
-  allowOverflow?: boolean;
+  /** Detents array (fractional 0–1). Default: [0.75] */
+  detents?: number[];
   /** Corner radius (default 16) */
   cornerRadius?: number;
+  /** Enable scrollable content pinning (default true) */
+  scrollable?: boolean;
+  /** Fixed header element rendered above scrollable content */
+  header?: ReactElement;
 }
 
 export default function AppSheet({
-  maxSnapRatio = MAX_SNAP_RATIO,
-  allowOverflow = false,
-  cornerRadius = 16,
+  detents = [0.75],
+  cornerRadius = DEFAULT_CORNER_RADIUS,
+  scrollable = true,
+  header,
 }: AppSheetProps) {
-  const clampedRatio = allowOverflow
-    ? maxSnapRatio
-    : Math.min(maxSnapRatio, MAX_SNAP_RATIO);
+  return (
+    <TrueSheetNavigator
+      screenOptions={
+        {
+          detents,
+          detentIndex: detents.length - 1,
+          cornerRadius,
+          grabber: true,
+          grabberOptions: GRABBER_OPTIONS,
+          scrollable,
+          ...(header ? { header } : {}),
+        } as any
+      }
+    />
+  );
+}
+
+// ── CommentSheet (comment-specific, max 70%) ─────────────────────────
+
+const COMMENT_MAX_DETENT = 0.7;
+
+interface CommentSheetProps {
+  /**
+   * Detents for the comment sheet. All numeric values are clamped to <= 0.7
+   * unless `allowLargerDetents` is true (comments should NOT set this).
+   * Default: [0.7]
+   */
+  detents?: number[];
+  /** Escape hatch — do NOT use in comment sheets */
+  allowLargerDetents?: boolean;
+  /** Corner radius (default 16) */
+  cornerRadius?: number;
+  /** Fixed header element rendered above scrollable content */
+  header?: ReactElement;
+}
+
+export function CommentSheet({
+  detents = [COMMENT_MAX_DETENT],
+  allowLargerDetents = false,
+  cornerRadius = DEFAULT_CORNER_RADIUS,
+  header,
+}: CommentSheetProps) {
+  // Clamp all numeric detents to <= 0.7 unless explicitly overridden
+  const clampedDetents = allowLargerDetents
+    ? detents
+    : detents.map((d) => Math.min(d, COMMENT_MAX_DETENT));
+
+  // initialDetentIndex points at the largest detent (last in sorted array)
+  const initialIdx = clampedDetents.length - 1;
 
   return (
     <TrueSheetNavigator
       screenOptions={
         {
-          maxHeight: Math.round(SCREEN_HEIGHT * clampedRatio),
+          detents: clampedDetents,
+          detentIndex: initialIdx,
           cornerRadius,
           grabber: true,
-          grabberProps: {
-            color: "#FFFFFF",
-          },
-          handleIndicatorStyle: {
-            backgroundColor: "#FFFFFF",
-          },
+          grabberOptions: GRABBER_OPTIONS,
+          scrollable: true,
+          ...(header ? { header } : {}),
         } as any
       }
     />
