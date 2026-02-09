@@ -1,5 +1,4 @@
 import {
-  FlatList,
   View,
   Text,
   Platform,
@@ -8,6 +7,8 @@ import {
   Animated as RNAnimated,
   Pressable,
 } from "react-native";
+import { LegendList } from "@/components/list";
+import type { LegendListRef } from "@/components/list";
 import { FeedPost } from "./feed-post";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { FeedSkeleton } from "@/components/skeletons";
@@ -368,16 +369,18 @@ export function Feed() {
   }
 
   return (
-    <FlatList
+    <LegendList
       data={filteredPosts}
       keyExtractor={keyExtractor}
       renderItem={renderItem}
-      contentContainerClassName="pb-20"
       contentContainerStyle={
-        filteredPosts.length === 0 ? { flex: 1 } : undefined
+        filteredPosts.length === 0
+          ? { flex: 1, paddingBottom: 80 }
+          : { paddingBottom: 80 }
       }
       showsVerticalScrollIndicator={false}
-      removeClippedSubviews={false}
+      recycleItems
+      estimatedItemSize={500}
       onEndReached={handleEndReached}
       onEndReachedThreshold={0.5}
       ListHeaderComponent={StoriesBar}
@@ -385,19 +388,8 @@ export function Feed() {
       ListEmptyComponent={ListEmpty}
       viewabilityConfig={viewabilityConfig}
       onViewableItemsChanged={onViewableItemsChanged}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={handleRefresh}
-          tintColor={Platform.OS === "ios" ? "transparent" : REFRESH_COLORS[1]}
-          colors={REFRESH_COLORS}
-          progressBackgroundColor="#ffffff"
-        >
-          {Platform.OS === "ios" && (
-            <GradientRefreshIndicator refreshing={isRefetching} />
-          )}
-        </RefreshControl>
-      }
+      refreshing={isRefetching}
+      onRefresh={handleRefresh}
     />
   );
 }

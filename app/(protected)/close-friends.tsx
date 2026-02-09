@@ -8,9 +8,9 @@ import {
   Text,
   Pressable,
   TextInput,
-  FlatList,
   ActivityIndicator,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Search, Star, X } from "lucide-react-native";
@@ -197,12 +197,14 @@ export default function ManageCloseFriendsScreen() {
           <ActivityIndicator size="large" color={CF_ACCENT} />
         </View>
       ) : (
-        <FlatList
+        <LegendList
           data={displayData}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          className="mt-2"
+          style={{ marginTop: 8 }}
           contentContainerStyle={{ paddingBottom: 40 }}
+          recycleItems
+          estimatedItemSize={72}
           ListHeaderComponent={
             debouncedQuery.length === 0 && closeFriends.length > 0 ? (
               <Text className="px-4 pb-2 pt-4 text-xs font-semibold text-muted-foreground">

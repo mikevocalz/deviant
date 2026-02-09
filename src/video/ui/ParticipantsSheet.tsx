@@ -84,12 +84,29 @@ export function ParticipantsSheet({
     >
       <BottomSheetView className="flex-1 px-4">
         {/* Header */}
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className={c.textTitle}>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#34A2DF" }}>
             Participants ({participants.length})
           </Text>
-          <Pressable onPress={onClose} className="p-2">
-            <X size={20} color="rgb(var(--muted-foreground))" />
+          <Pressable
+            onPress={onClose}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "rgba(255,255,255,0.1)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={22} color="#fff" />
           </Pressable>
         </View>
 

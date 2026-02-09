@@ -4,9 +4,9 @@ import {
   Pressable,
   StyleSheet,
   Dimensions,
-  FlatList,
   StatusBar,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
@@ -609,12 +609,13 @@ export default function EventDetailScreen() {
           {/* ── 5. TICKET TIERS ──────────────────────────────────── */}
           <Animated.View entering={FadeInDown.delay(400)} style={s.section}>
             <Text style={s.sectionTitle}>Select Your Tier</Text>
-            <FlatList
+            <LegendList
               data={ticketTiers}
               horizontal
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item) => item.id}
               contentContainerStyle={s.tierList}
+              estimatedItemSize={200}
               renderItem={({ item }) => (
                 <TicketTierCard
                   tier={item}

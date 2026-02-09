@@ -12,8 +12,8 @@ import {
   Pressable,
   KeyboardAvoidingView,
   Platform,
-  FlatList,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { PasteInput } from "@/components/ui/paste-input";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
@@ -151,15 +151,38 @@ export function ChatSheet({
         keyboardVerticalOffset={100}
       >
         {/* Header */}
-        <View className="flex-row items-center justify-between px-4 pb-3 border-b border-border">
-          <Text className="text-lg font-bold text-foreground">Chat</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <X size={24} color="#6B7280" />
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 16,
+            paddingBottom: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: "rgba(255,255,255,0.06)",
+          }}
+        >
+          <Text style={{ fontSize: 18, fontWeight: "700", color: "#34A2DF" }}>
+            Chat
+          </Text>
+          <Pressable
+            onPress={onClose}
+            hitSlop={12}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "rgba(255,255,255,0.1)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={22} color="#fff" />
           </Pressable>
         </View>
 
         {/* Messages */}
-        <FlatList
+        <LegendList
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
@@ -169,8 +192,11 @@ export function ChatSheet({
             />
           )}
           contentContainerStyle={{ padding: 16, flexGrow: 1 }}
-          inverted
+          alignItemsAtEnd
+          maintainScrollAtEnd
           showsVerticalScrollIndicator={false}
+          estimatedItemSize={60}
+          recycleItems
           ListEmptyComponent={
             <View className="flex-1 items-center justify-center py-10">
               <Text className="text-muted-foreground text-center">

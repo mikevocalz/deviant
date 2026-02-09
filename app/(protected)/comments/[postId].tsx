@@ -12,12 +12,12 @@ import {
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
 import {
   useEffect,
   useCallback,
   useLayoutEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -58,9 +58,14 @@ export default function CommentsScreen() {
   const lastSubmitTimeRef = useRef<number>(0);
   const submitCooldownMs = 2000; // 2 second cooldown between submits
 
+  // Set TrueSheet header with styled title and close button
   useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+    navigation.setOptions({
+      header: () => (
+        <SheetHeader title="Comments" onClose={() => router.back()} />
+      ),
+    });
+  }, [navigation, router]);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
@@ -223,28 +228,6 @@ export default function CommentsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: 16,
-          paddingVertical: 14,
-          borderBottomWidth: 1,
-          borderBottomColor: "#1a1a1a",
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 18,
-            fontWeight: "700",
-            color: colors.foreground,
-          }}
-        >
-          Comments
-        </Text>
-      </View>
-
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}

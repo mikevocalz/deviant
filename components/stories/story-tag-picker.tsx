@@ -4,13 +4,13 @@ import {
   Text,
   TextInput,
   Pressable,
-  FlatList,
   StyleSheet,
   Modal,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { X, Search, UserPlus, Check } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -165,9 +165,7 @@ export function StoryTagPicker({
         {/* Selected tags */}
         {selectedUsers.length > 0 && (
           <View style={s.selectedSection}>
-            <Text style={s.selectedLabel}>
-              Tagged ({selectedUsers.length})
-            </Text>
+            <Text style={s.selectedLabel}>Tagged ({selectedUsers.length})</Text>
             <View style={s.chipRow}>
               {selectedUsers.map((user) => (
                 <Pressable
@@ -189,12 +187,14 @@ export function StoryTagPicker({
             <ActivityIndicator color="rgb(62, 164, 229)" />
           </View>
         ) : results.length > 0 ? (
-          <FlatList
+          <LegendList
             data={results}
             renderItem={renderUser}
             keyExtractor={(item) => String(item.id)}
             style={s.list}
             keyboardShouldPersistTaps="handled"
+            estimatedItemSize={64}
+            recycleItems
           />
         ) : query.length > 0 ? (
           <View style={s.centered}>

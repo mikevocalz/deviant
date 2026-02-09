@@ -8,10 +8,11 @@ import {
   Platform,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
-import { ArrowLeft, Send, Heart } from "lucide-react-native";
-import { useEffect } from "react";
+import { Send, Heart } from "lucide-react-native";
+import { useEffect, useLayoutEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReplies, useCreateComment } from "@/lib/hooks/use-comments";
 import { useCommentsStore } from "@/lib/stores/comments-store";
@@ -27,6 +28,7 @@ export default function RepliesScreen() {
     postId?: string;
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const { newComment: reply, setNewComment: setReply } = useCommentsStore();
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
@@ -81,28 +83,17 @@ export default function RepliesScreen() {
     };
   }, []);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 12,
-          borderBottomWidth: 1,
-          borderBottomColor: "#333",
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-        }}
-      >
-        <Pressable onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#fff" />
-        </Pressable>
-        <Text style={{ fontSize: 18, fontWeight: "700", color: "#fff" }}>
-          Comments
-        </Text>
-      </View>
+  // Set TrueSheet header with styled title and close button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      header: () => (
+        <SheetHeader title="Replies" onClose={() => router.back()} />
+      ),
+    });
+  }, [navigation, router]);
 
+  return (
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
       {/* Replies List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
         {isLoading ? (

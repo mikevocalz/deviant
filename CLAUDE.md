@@ -962,7 +962,47 @@ npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
 
 ---
 
-## 📍 Location Autocomplete & Maps
+## � Lists Policy — LegendList ONLY (MANDATORY)
+
+**⚠️ LegendList (`@legendapp/list`) is the ONLY allowed list component in this project.**
+
+### Banned Components (CI will block)
+
+- ❌ `FlatList` from `react-native`
+- ❌ `SectionList` from `react-native`
+- ❌ `VirtualizedList` from `react-native`
+- ❌ `FlashList` from `@shopify/flash-list` (package REMOVED)
+
+### Single Blessed Import Path
+
+```tsx
+// ✅ CORRECT — always import from the blessed path
+import { LegendList } from "@/components/list";
+import type { LegendListRef, LegendListProps } from "@/components/list";
+
+// ❌ WRONG — direct import from @legendapp/list
+import { LegendList } from "@legendapp/list";
+
+// ❌ WRONG — FlatList/FlashList
+import { FlatList } from "react-native";
+import { FlashList } from "@shopify/flash-list";
+```
+
+### Required Props
+
+- **`recycleItems`** — Enable recycling for performance
+- **`estimatedItemSize`** — Provide a pixel estimate for item height
+- **`keyExtractor`** — Stable unique key per item
+
+### Enforcement
+
+- **ESLint** `no-restricted-imports` blocks FlatList/FlashList/direct @legendapp/list imports
+- **DEV runtime guard** throws if `@shopify/flash-list` is detected at boot
+- **No exceptions** — not for "small lists", not for conditional fallbacks
+
+---
+
+## �📍 Location Autocomplete & Maps
 
 ### Google Places Autocomplete
 

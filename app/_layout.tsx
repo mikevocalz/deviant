@@ -24,6 +24,10 @@ import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { enforceListPolicy } from "@/lib/guards/list-guard";
+
+// DEV-only: Enforce LegendList-only policy on app boot
+enforceListPolicy();
 
 SplashScreen.preventAutoHideAsync();
 

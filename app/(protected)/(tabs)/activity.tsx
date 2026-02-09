@@ -1,5 +1,5 @@
 import { View, Text, Pressable, RefreshControl } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -384,20 +384,17 @@ export default function ActivityScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      <FlashList
+      <LegendList
         data={filteredActivities}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primary}
-          />
-        }
+        recycleItems
+        estimatedItemSize={80}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
       />
     </View>
   );

@@ -11,11 +11,11 @@ import {
   Text,
   TextInput,
   Pressable,
-  FlatList,
   StyleSheet,
   Dimensions,
   ScrollView,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { Search, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -157,18 +157,17 @@ export const StickerSheetContent = memo(function StickerSheetContent({
           <Text style={styles.emptyText}>No stickers found</Text>
         </View>
       ) : (
-        <FlatList
+        <LegendList
           data={filteredStickers}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           numColumns={NUM_COLUMNS}
           contentContainerStyle={styles.gridContent}
-          columnWrapperStyle={styles.gridRow}
+          columnWrapperStyle={{ gap: GRID_GAP, rowGap: GRID_GAP }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          removeClippedSubviews
-          maxToRenderPerBatch={30}
-          windowSize={5}
+          recycleItems
+          estimatedItemSize={ITEM_SIZE}
         />
       )}
     </View>

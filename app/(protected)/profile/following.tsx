@@ -6,7 +6,7 @@ import {
   TextInput,
   RefreshControl,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
+import { LegendList } from "@/components/list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
@@ -285,7 +285,7 @@ export default function FollowingScreen() {
           </Pressable>
         </View>
       ) : (
-        <FlashList
+        <LegendList
           data={filteredFollowing}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
@@ -294,15 +294,12 @@ export default function FollowingScreen() {
           ListFooterComponent={renderFooter}
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          recycleItems
+          estimatedItemSize={72}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.5}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              tintColor={colors.primary}
-            />
-          }
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
         />
       )}
     </SafeAreaView>

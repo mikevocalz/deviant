@@ -14,9 +14,15 @@ import Reanimated, {
   SharedValue,
   useAnimatedStyle,
 } from "react-native-reanimated";
-import { FlashList } from "@shopify/flash-list";
+import { LegendList } from "@/components/list";
+import type { LegendListRef } from "@/components/list";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
+import {
+  useLocalSearchParams,
+  useRouter,
+  useFocusEffect,
+  useNavigation,
+} from "expo-router";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -43,7 +49,14 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
-import { useRef, useCallback, useMemo, useEffect, useState } from "react";
+import {
+  useRef,
+  useCallback,
+  useMemo,
+  useEffect,
+  useLayoutEffect,
+  useState,
+} from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
@@ -56,6 +69,7 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
+import { SheetHeader } from "@/components/ui/sheet-header";
 
 export const unstable_settings = {
   options: {
@@ -192,7 +206,15 @@ const swipeStyles = StyleSheet.create({
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const chatId = id || "1";
+
+  // Set TrueSheet header with styled title and close button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      header: () => <SheetHeader title="Chat" onClose={() => router.back()} />,
+    });
+  }, [navigation, router]);
   const {
     messages,
     currentMessage,
@@ -428,14 +450,14 @@ export default function ChatScreen() {
   const isRecipientTyping = typingUsers.length > 0;
 
   const inputRef = useRef<TextInput>(null);
-  const flatListRef = useRef<any>(null);
+  const listRef = useRef<LegendListRef>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (chatMessages.length > 0) {
       setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
+        listRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   }, [chatMessages.length]);
@@ -698,9 +720,6 @@ export default function ChatScreen() {
     >
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={24} color="#fff" />
-          </Pressable>
           <Pressable
             onPress={handleProfilePress}
             className="flex-row items-center gap-3 flex-1"
@@ -760,8 +779,8 @@ export default function ChatScreen() {
           </Pressable>
         </View>
 
-        <FlashList
-          ref={flatListRef}
+        <LegendList
+          ref={listRef}
           data={chatMessages}
           extraData={chatMessages}
           keyExtractor={(item) => item.id}

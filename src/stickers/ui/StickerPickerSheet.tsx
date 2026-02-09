@@ -71,8 +71,19 @@ export const StickerPickerSheet = memo(function StickerPickerSheet({
       >
         {/* Header */}
         <View style={styles.header}>
-          <Pressable onPress={handleClose} hitSlop={12}>
-            <X size={20} color="rgba(255,255,255,0.6)" />
+          <Pressable
+            onPress={handleClose}
+            hitSlop={12}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: "rgba(255,255,255,0.1)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={20} color="#fff" />
           </Pressable>
           <Text style={styles.headerTitle}>
             {selectedStickers.length > 0
@@ -120,7 +131,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#fff",
+    color: "#34A2DF",
   },
   doneButton: {
     flexDirection: "row",

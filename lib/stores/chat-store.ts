@@ -114,7 +114,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       // Transform to local message format
       const localMessages: Message[] = backendMessages.map((msg: any) => {
         const content = msg.content || msg.text || "";
-        const isSender = (msg.sender?.id || msg.sender) === user?.id;
+        // API returns sender as "user" (me) or "other" (them)
+        const isSender = msg.sender === "user";
 
         // Detect story reply messages via metadata (preferred) or legacy content prefix
         let storyReply: StoryReplyContext | undefined;

@@ -1,58 +1,77 @@
-import { View, Text, Pressable, FlatList, Dimensions } from "react-native"
-import { Image } from "expo-image"
-import { Camera, Image as ImageIcon, Video, X } from "lucide-react-native"
-import { useMediaPicker, type MediaAsset } from "@/lib/hooks/use-media-picker"
-import { useEffect } from "react"
+import { View, Text, Pressable, Dimensions } from "react-native";
+import { LegendList } from "@/components/list";
+import { Image } from "expo-image";
+import { Camera, Image as ImageIcon, Video, X } from "lucide-react-native";
+import { useMediaPicker, type MediaAsset } from "@/lib/hooks/use-media-picker";
+import { useEffect } from "react";
 
-const SCREEN_WIDTH = Dimensions.get("window").width
-const NUM_COLUMNS = 4
-const ITEM_SIZE = (SCREEN_WIDTH - 8) / NUM_COLUMNS
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const NUM_COLUMNS = 4;
+const ITEM_SIZE = (SCREEN_WIDTH - 8) / NUM_COLUMNS;
 
 interface MediaPickerNativeProps {
-  selectedMedia: MediaAsset[]
-  onMediaSelected: (media: MediaAsset[]) => void
-  maxSelection?: number
+  selectedMedia: MediaAsset[];
+  onMediaSelected: (media: MediaAsset[]) => void;
+  maxSelection?: number;
 }
 
-export function MediaPickerNative({ selectedMedia, onMediaSelected, maxSelection = 10 }: MediaPickerNativeProps) {
-  const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } = useMediaPicker()
+export function MediaPickerNative({
+  selectedMedia,
+  onMediaSelected,
+  maxSelection = 10,
+}: MediaPickerNativeProps) {
+  const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
+    useMediaPicker();
 
   useEffect(() => {
     // Request permissions on mount
-    ;(async () => {
-      await requestPermissions()
-    })()
-  }, [])
+    (async () => {
+      await requestPermissions();
+    })();
+  }, []);
 
   const handlePickLibrary = async () => {
-    const media = await pickFromLibrary({ maxSelection, allowsMultipleSelection: true })
+    const media = await pickFromLibrary({
+      maxSelection,
+      allowsMultipleSelection: true,
+    });
     if (media) {
-      onMediaSelected([...selectedMedia, ...media])
+      onMediaSelected([...selectedMedia, ...media]);
     }
-  }
+  };
 
   const handleTakePhoto = async () => {
-    const media = await takePhoto()
+    const media = await takePhoto();
     if (media) {
-      onMediaSelected([...selectedMedia, media])
+      onMediaSelected([...selectedMedia, media]);
     }
-  }
+  };
 
   const handleRecordVideo = async () => {
-    const media = await recordVideo()
+    const media = await recordVideo();
     if (media) {
-      onMediaSelected([...selectedMedia, media])
+      onMediaSelected([...selectedMedia, media]);
     }
-  }
+  };
 
   const handleRemove = (id: string) => {
-    onMediaSelected(selectedMedia.filter((item) => item.id !== id))
-  }
+    onMediaSelected(selectedMedia.filter((item) => item.id !== id));
+  };
 
-  const renderMediaItem = ({ item, index }: { item: MediaAsset; index: number }) => (
+  const renderMediaItem = ({
+    item,
+    index,
+  }: {
+    item: MediaAsset;
+    index: number;
+  }) => (
     <View style={{ width: ITEM_SIZE, height: ITEM_SIZE, padding: 2 }}>
       <View className="relative h-full w-full overflow-hidden rounded-lg bg-muted">
-        <Image source={{ uri: item.uri }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+        <Image
+          source={{ uri: item.uri }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+        />
         {item.type === "video" && (
           <View className="absolute bottom-1 left-1">
             <Video size={16} color="white" />
@@ -65,11 +84,13 @@ export function MediaPickerNative({ selectedMedia, onMediaSelected, maxSelection
           <X size={14} color="white" />
         </Pressable>
         <View className="absolute right-1 bottom-1 h-6 w-6 items-center justify-center rounded-full bg-primary">
-          <Text className="text-xs font-bold text-primary-foreground">{index + 1}</Text>
+          <Text className="text-xs font-bold text-primary-foreground">
+            {index + 1}
+          </Text>
         </View>
       </View>
     </View>
-  )
+  );
 
   return (
     <View className="flex-1">
@@ -104,12 +125,13 @@ export function MediaPickerNative({ selectedMedia, onMediaSelected, maxSelection
           <Text className="mb-2 px-2 text-sm font-semibold text-muted-foreground">
             Selected ({selectedMedia.length}/{maxSelection})
           </Text>
-          <FlatList
+          <LegendList
             data={selectedMedia}
             renderItem={renderMediaItem}
             keyExtractor={(item) => item.id}
             numColumns={NUM_COLUMNS}
             scrollEnabled={false}
+            estimatedItemSize={ITEM_SIZE}
           />
         </View>
       )}
@@ -124,5 +146,5 @@ export function MediaPickerNative({ selectedMedia, onMediaSelected, maxSelection
         </View>
       )}
     </View>
-  )
+  );
 }

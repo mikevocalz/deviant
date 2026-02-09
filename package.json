@@ -41,7 +41,6 @@
     "@rn-primitives/switch": "^1.2.0",
     "@rn-primitives/types": "^1.2.0",
     "@rork-ai/toolkit-sdk": "0.2.54",
-    "@shopify/flash-list": "^2.0.2",
     "@shopify/react-native-skia": "2.2.12",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/pacer": "^0.17.3",
