@@ -226,7 +226,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   type: msg.media[0].type,
                   uri: msg.media[0].url,
                 }
-              : meta?.mediaUrl
+              : meta?.mediaUrl &&
+                  meta.type !== "shared_post" &&
+                  meta.type !== "story_reply"
                 ? {
                     type: (meta.mediaType as "image" | "video") || "image",
                     uri: meta.mediaUrl as string,

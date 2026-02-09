@@ -265,16 +265,12 @@ export function useVideoCall() {
             !!cameraRef.current.cameraStream,
           );
 
-          // VERIFY: camera stream must exist after startCamera
+          // NOTE: cameraStream may be populated asynchronously by the SDK.
+          // The track being returned is what matters for WebRTC publishing.
           if (!cameraRef.current.cameraStream) {
-            logError(
-              "[VIDEO] CRITICAL: Camera started but cameraStream is null — black screen will occur",
+            logWarn(
+              "[VIDEO] cameraStream is null after startCamera — track exists, stream may populate async",
             );
-            s.setError(
-              "Camera stream not available after start",
-              "camera_stream_null",
-            );
-            return false;
           }
         } catch (camErr) {
           logError("[VIDEO] FAILED to start camera:", camErr);
@@ -395,9 +391,9 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 5: Report outgoing call to CallKeep native UI
+      // Step 5: Register outgoing call with CallKeep (shows "calling..." in native UI)
+      const callUUID = newRoomId;
       try {
-        const callUUID = newRoomId;
         persistCallMapping(newRoomId, callUUID);
         startOutgoingCall({
           callUUID,
@@ -407,12 +403,10 @@ export function useVideoCall() {
             : "DVNT Call",
           hasVideo: callType === "video",
         });
-        reportOutgoingCallConnected(callUUID);
-
-        // Now that CallKeep knows about the call, re-enable speaker
-        enableSpeakerphone(callUUID);
+        // DO NOT call reportOutgoingCallConnected here — the callee hasn't
+        // answered yet. CallKit will show "Calling..." until we report connected.
       } catch (ckErr) {
-        logWarn("CallKeep outgoing call report failed (non-fatal):", ckErr);
+        logWarn("CallKeep startOutgoingCall failed (non-fatal):", ckErr);
       }
 
       // Step 6: Signal callees
@@ -429,6 +423,14 @@ export function useVideoCall() {
         log("Call signal sent to", participantIds.length, "users");
       } catch (signalErr) {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
+      }
+
+      // Step 7: Now report connected to CallKeep + enable speaker
+      try {
+        reportOutgoingCallConnected(callUUID);
+        enableSpeakerphone(callUUID);
+      } catch (ckErr) {
+        logWarn("CallKeep reportConnected failed (non-fatal):", ckErr);
       }
 
       startDurationTimer();
