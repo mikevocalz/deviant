@@ -19,6 +19,15 @@ export interface StoryReplyContext {
   isExpired?: boolean;
 }
 
+export interface SharedPostContext {
+  postId: string;
+  authorUsername: string;
+  authorAvatar: string;
+  caption?: string;
+  mediaUrl?: string;
+  mediaType?: "image" | "video";
+}
+
 export interface MessageReaction {
   emoji: string;
   userId: string;
@@ -29,10 +38,12 @@ export interface Message {
   id: string;
   text: string;
   sender: "me" | "them";
+  senderId?: string;
   time: string;
   mentions?: string[];
   media?: MediaAttachment;
   storyReply?: StoryReplyContext;
+  sharedPost?: SharedPostContext;
   reactions?: MessageReaction[];
 }
 
@@ -63,6 +74,10 @@ interface ChatState {
     media: MediaAttachment,
     caption?: string,
   ) => void;
+  sendSharedPost: (
+    conversationId: string,
+    post: SharedPostContext,
+  ) => Promise<void>;
   initializeChat: (chatId: string, initialMessages: Message[]) => void;
   loadMessages: (conversationId: string) => Promise<void>;
   insertMention: (username: string) => void;
@@ -172,10 +187,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
           }
         }
 
+        // Detect shared post messages via metadata
+        let sharedPost: SharedPostContext | undefined;
+        if (meta && meta.type === "shared_post") {
+          sharedPost = {
+            postId: meta.postId || "",
+            authorUsername: meta.authorUsername || "",
+            authorAvatar: meta.authorAvatar || "",
+            caption: meta.caption || undefined,
+            mediaUrl: meta.mediaUrl || undefined,
+            mediaType: meta.mediaType || undefined,
+          };
+        }
+
         return {
           id: String(msg.id),
           text: displayText,
           sender: isSender ? ("me" as const) : ("them" as const),
+          senderId: msg.senderId ? String(msg.senderId) : undefined,
           time: (() => {
             try {
               const d = new Date(
@@ -204,6 +233,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   }
                 : undefined,
           storyReply,
+          sharedPost,
           reactions: (() => {
             const r = meta?.reactions;
             return Array.isArray(r) ? r : [];
@@ -412,6 +442,58 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [chatId]: [...existingMsgs, newMessage],
       },
     });
+  },
+
+  sendSharedPost: async (conversationId, post) => {
+    const user = useAuthStore.getState().user;
+    if (!user) return;
+
+    // Optimistic local message
+    const optimisticMsg: Message = {
+      id: `shared-${Date.now()}`,
+      text: "",
+      sender: "me",
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      sharedPost: post,
+    };
+
+    const existing = get().messages[conversationId] || [];
+    set({
+      messages: {
+        ...get().messages,
+        [conversationId]: [...existing, optimisticMsg],
+      },
+    });
+
+    try {
+      await messagesApiClient.sendMessage({
+        conversationId,
+        content: `Shared a post by @${post.authorUsername}`,
+        metadata: {
+          type: "shared_post",
+          postId: post.postId,
+          authorUsername: post.authorUsername,
+          authorAvatar: post.authorAvatar,
+          caption: post.caption || "",
+          mediaUrl: post.mediaUrl || "",
+          mediaType: post.mediaType || "image",
+        },
+      });
+    } catch (error) {
+      console.error("[ChatStore] sendSharedPost error:", error);
+      // Remove optimistic message on failure
+      set((state) => ({
+        messages: {
+          ...state.messages,
+          [conversationId]: (state.messages[conversationId] || []).filter(
+            (m) => m.id !== optimisticMsg.id,
+          ),
+        },
+      }));
+    }
   },
 
   initializeChat: (chatId, initialMessages) => {

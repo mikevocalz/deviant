@@ -7,6 +7,7 @@ import {
   Link,
   Share2,
   BookmarkPlus,
+  ImagePlus,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { Motion } from "@legendapp/motion";
@@ -18,6 +19,7 @@ interface PostActionSheetProps {
   onEdit: () => void;
   onDelete: () => void;
   onReport?: () => void;
+  onShareToStory?: () => void;
 }
 
 export function PostActionSheet({
@@ -27,6 +29,7 @@ export function PostActionSheet({
   onEdit,
   onDelete,
   onReport,
+  onShareToStory,
 }: PostActionSheetProps) {
   const { colors } = useColorScheme();
 
@@ -184,6 +187,30 @@ export function PostActionSheet({
                   }}
                 >
                   Share
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  if (onShareToStory) onShareToStory();
+                  onClose();
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                }}
+              >
+                <ImagePlus size={22} color={colors.foreground} />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    color: colors.foreground,
+                    marginLeft: 16,
+                  }}
+                >
+                  Share to Story
                 </Text>
               </Pressable>
 

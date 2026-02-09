@@ -67,6 +67,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
+import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
@@ -81,6 +82,36 @@ export const unstable_settings = {
 // Empty array - messages will come from backend
 const emptyMessages: Message[] = [];
 
+// Chat bubble color palette
+// 1-on-1: own = #3FDCFF (cyan), theirs = #8A40CF (purple)
+// Group: first two "them" senders get cyan/purple, rest get complementary colors
+const GROUP_BUBBLE_COLORS = [
+  "#8A40CF", // purple
+  "#3FDCFF", // cyan
+  "#E84393", // magenta-pink
+  "#00B894", // mint green
+  "#FDCB6E", // warm gold
+  "#6C5CE7", // indigo
+];
+
+function getGroupBubbleColor(
+  senderId: string | undefined,
+  senderColorMap: Map<string, string>,
+): string {
+  if (!senderId) return GROUP_BUBBLE_COLORS[0];
+  if (senderColorMap.has(senderId)) return senderColorMap.get(senderId)!;
+  const idx = senderColorMap.size % GROUP_BUBBLE_COLORS.length;
+  const color = GROUP_BUBBLE_COLORS[idx];
+  senderColorMap.set(senderId, color);
+  return color;
+}
+
+// Returns true if the bubble bg is light enough to need dark text
+function needsDarkText(hex: string): boolean {
+  const light = ["#3FDCFF", "#FDCB6E", "#00B894"];
+  return light.includes(hex);
+}
+
 function renderMessageText(
   text: string,
   onMentionPress: (username: string) => void,
@@ -94,7 +125,7 @@ function renderMessageText(
         <Text
           key={index}
           onPress={() => onMentionPress(username)}
-          className="text-primary font-semibold"
+          style={{ color: "#8E8E93", fontWeight: "600" }}
         >
           {part}
         </Text>
@@ -324,6 +355,20 @@ export default function ChatScreen() {
     avatar: string;
   } | null>(null);
   const [isLoadingRecipient, setIsLoadingRecipient] = useState(true);
+  const [isGroupChat, setIsGroupChat] = useState(false);
+
+  // Build a stable color map for group chat senders (only "them" messages)
+  const senderColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!isGroupChat) return map;
+    for (const msg of chatMessages) {
+      if (msg.sender === "them" && msg.senderId && !map.has(msg.senderId)) {
+        const idx = map.size % GROUP_BUBBLE_COLORS.length;
+        map.set(msg.senderId, GROUP_BUBBLE_COLORS[idx]);
+      }
+    }
+    return map;
+  }, [isGroupChat, chatMessages]);
 
   // FIXED: Load recipient info from conversation data
   useEffect(() => {
@@ -341,6 +386,7 @@ export default function ChatScreen() {
         const conversation = conversations.find((c) => c.id === chatId);
 
         if (conversation) {
+          setIsGroupChat(!!conversation.isGroup);
           // Use the user object from conversation (the other participant)
           const otherUser = conversation.user;
 
@@ -777,6 +823,8 @@ export default function ChatScreen() {
                     participantIds: recipient.id,
                     callType: "audio",
                     chatId: chatId,
+                    recipientUsername: recipient.username,
+                    recipientAvatar: recipient.avatar || "",
                   },
                 });
               }
@@ -798,6 +846,8 @@ export default function ChatScreen() {
                     participantIds: recipient.id,
                     callType: "video",
                     chatId: chatId,
+                    recipientUsername: recipient.username,
+                    recipientAvatar: recipient.avatar || "",
                   },
                 });
               }
@@ -836,7 +886,21 @@ export default function ChatScreen() {
                     onPress={() => handleMediaPreview(item.media!)}
                   />
                 )}
-                {item.storyReply ? (
+                {item.sharedPost ? (
+                  <View className="mb-1">
+                    <SharedPostBubble
+                      sharedPost={item.sharedPost}
+                      isOwnMessage={isMe}
+                    />
+                    <Text
+                      className={`text-[11px] mt-1 px-1 ${
+                        isMe ? "text-foreground/70" : "text-muted-foreground"
+                      }`}
+                    >
+                      {item.time}
+                    </Text>
+                  </View>
+                ) : item.storyReply ? (
                   <View className="mb-1">
                     <StoryReplyBubble
                       storyReply={item.storyReply}
@@ -852,24 +916,46 @@ export default function ChatScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <View
-                    className={`px-4 py-2.5 rounded-2xl ${
-                      isMe ? "bg-primary" : "bg-secondary"
-                    }`}
-                  >
-                    {item.text ? (
-                      <Text className="text-foreground text-[15px]">
-                        {renderMessageText(item.text, handleMentionPress)}
-                      </Text>
-                    ) : null}
-                    <Text
-                      className={`text-[11px] mt-1 ${
-                        isMe ? "text-foreground/70" : "text-muted-foreground"
-                      }`}
-                    >
-                      {item.time}
-                    </Text>
-                  </View>
+                  (() => {
+                    const bubbleBg = isMe
+                      ? "#3FDCFF"
+                      : isGroupChat
+                        ? getGroupBubbleColor(item.senderId, senderColorMap)
+                        : "#8A40CF";
+                    const darkText = needsDarkText(bubbleBg);
+                    return (
+                      <View
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingVertical: 10,
+                          borderRadius: 16,
+                          backgroundColor: bubbleBg,
+                        }}
+                      >
+                        {item.text ? (
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              color: darkText ? "#000" : "#fff",
+                            }}
+                          >
+                            {renderMessageText(item.text, handleMentionPress)}
+                          </Text>
+                        ) : null}
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            marginTop: 4,
+                            color: darkText
+                              ? "rgba(0,0,0,0.5)"
+                              : "rgba(255,255,255,0.6)",
+                          }}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    );
+                  })()
                 )}
               </View>
             );

@@ -7,6 +7,7 @@ import {
   Heart,
   MessageCircle,
   Share2,
+  Send,
   Bookmark,
   MoreHorizontal,
   Volume2,
@@ -37,10 +38,12 @@ import {
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
+import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { TagBadges } from "@/components/ui/tag-badges";
 import { PostActionSheet } from "@/components/post-action-sheet";
+import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
@@ -117,6 +120,7 @@ function FeedPostComponent({
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showShareSheet, setShowShareSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
 
   const isOwner = currentUser?.username === author.username;
@@ -348,6 +352,8 @@ function FeedPostComponent({
     toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
   }, [id, isSaved, toggleBookmarkMutation]);
 
+  const createStoryMutation = useCreateStory();
+
   const handleShare = useCallback(async () => {
     try {
       await sharePost(id, caption);
@@ -355,6 +361,27 @@ function FeedPostComponent({
       console.error("[FeedPost] Share error:", error);
     }
   }, [id, caption]);
+
+  const handleShareToStory = useCallback(async () => {
+    if (!media?.[0]?.url) {
+      showToast("error", "Error", "This post has no media to share");
+      return;
+    }
+    try {
+      await createStoryMutation.mutateAsync({
+        items: [
+          {
+            type: media[0].type || "image",
+            url: media[0].url,
+          },
+        ],
+      });
+      showToast("success", "Shared", "Post shared to your story!");
+    } catch (error) {
+      console.error("[FeedPost] Share to story error:", error);
+      showToast("error", "Error", "Failed to share to story");
+    }
+  }, [media, createStoryMutation, showToast]);
 
   const handleEdit = useCallback(() => {
     router.push(`/(protected)/edit-post/${id}`);
@@ -469,7 +496,7 @@ function FeedPostComponent({
           className="flex-row items-center justify-between p-3"
           style={{ paddingLeft: 56 }}
         >
-          <View className="flex-row items-center gap-2">
+          <View>
             <View className="flex-row items-center gap-1">
               {author?.username && (
                 <Pressable onPress={handleProfilePress}>
@@ -481,12 +508,14 @@ function FeedPostComponent({
               {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
             </View>
             {location && (
-              <Text className="text-xs text-muted-foreground">
-                · {location}
-              </Text>
+              <Text className="text-xs text-muted-foreground">{location}</Text>
             )}
           </View>
-          <Pressable className="p-2" onPress={() => setShowActionSheet(true)}>
+          <Pressable
+            className="p-2"
+            onPress={() => setShowActionSheet(true)}
+            hitSlop={8}
+          >
             <MoreHorizontal size={20} color={colors.foreground} />
           </Pressable>
         </View>
@@ -660,7 +689,11 @@ function FeedPostComponent({
 
         <View className="flex-row items-center justify-between p-3">
           <View className="flex-row items-center gap-4">
-            <Pressable onPress={handleLike} disabled={isLikePending}>
+            <Pressable
+              onPress={handleLike}
+              disabled={isLikePending}
+              hitSlop={8}
+            >
               <Motion.View
                 animate={{
                   scale: likeAnimating ? 1.3 : 1,
@@ -679,6 +712,7 @@ function FeedPostComponent({
               </Motion.View>
             </Pressable>
             <Pressable
+              hitSlop={8}
               onPress={() => {
                 if (id) {
                   router.push(`/(protected)/comments/${id}`);
@@ -692,7 +726,15 @@ function FeedPostComponent({
                 <MessageCircle size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
-            <Pressable onPress={handleShare}>
+            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={8}>
+              <Motion.View
+                whileTap={{ scale: 0.85 }}
+                transition={{ type: "spring", damping: 15, stiffness: 400 }}
+              >
+                <Send size={24} color={colors.foreground} />
+              </Motion.View>
+            </Pressable>
+            <Pressable onPress={handleShare} hitSlop={8}>
               <Motion.View
                 whileTap={{ scale: 0.85 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -701,7 +743,7 @@ function FeedPostComponent({
               </Motion.View>
             </Pressable>
           </View>
-          <Pressable onPress={handleSave}>
+          <Pressable onPress={handleSave} hitSlop={8}>
             <Motion.View
               whileTap={{ scale: 0.85 }}
               animate={{ rotate: isSaved ? "0deg" : "0deg" }}
@@ -786,6 +828,24 @@ function FeedPostComponent({
         isOwner={isOwner}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onShareToStory={handleShareToStory}
+      />
+
+      <ShareToInboxSheet
+        visible={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        post={
+          showShareSheet
+            ? {
+                id,
+                authorUsername: author.username,
+                authorAvatar: author.avatar,
+                caption,
+                mediaUrl: media?.[0]?.url,
+                mediaType: media?.[0]?.type,
+              }
+            : null
+        }
       />
     </Motion.View>
   );

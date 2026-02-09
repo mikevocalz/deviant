@@ -1,58 +1,78 @@
 /**
  * Audio Route Utility
  *
- * Configures iOS audio session to route audio through the speaker
- * during WebRTC calls. Without this, iOS defaults to earpiece mode.
+ * Configures audio session to route audio through the speaker
+ * during WebRTC calls. Uses RNCallKeep on iOS since CallKeep owns
+ * the audio session via CallKit. On Android, uses InCallManager-style
+ * approach via NativeModules.
  */
 
 import { NativeModules, Platform } from "react-native";
+import RNCallKeep from "react-native-callkeep";
 
 /**
- * Force audio output to speaker on iOS.
- * On Android, WebRTC already defaults to speakerphone.
+ * Force audio output to speaker.
+ *
+ * iOS: CallKeep owns the audio session — use RNCallKeep.toggleAudioRouteSpeaker
+ * Android: WebRTC defaults to speakerphone, but we set it explicitly
+ *
+ * @param callUUID - The active call UUID (required for CallKeep on iOS/Android)
  */
-export function enableSpeakerphone(): void {
-  if (Platform.OS !== "ios") return;
-
+export function enableSpeakerphone(callUUID?: string): void {
   try {
-    const { WebRTCModule } = NativeModules;
-    if (WebRTCModule?.setSpeakerPhone) {
-      WebRTCModule.setSpeakerPhone(true);
-      console.log("[AudioRoute] Speaker enabled via WebRTCModule");
-      return;
+    if (Platform.OS === "ios") {
+      // CallKeep manages the CXProvider audio session on iOS
+      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", true);
+      console.log("[AudioRoute] Speaker enabled via CallKeep");
+    } else {
+      // Android: use CallKeep if UUID available, else try WebRTCModule
+      if (callUUID) {
+        RNCallKeep.toggleAudioRouteSpeaker(callUUID, true);
+        console.log("[AudioRoute] Speaker enabled via CallKeep (Android)");
+      } else {
+        const { WebRTCModule } = NativeModules;
+        if (WebRTCModule?.setSpeakerPhone) {
+          WebRTCModule.setSpeakerPhone(true);
+          console.log(
+            "[AudioRoute] Speaker enabled via WebRTCModule (Android)",
+          );
+        } else {
+          console.log(
+            "[AudioRoute] Android defaults to speaker — no action needed",
+          );
+        }
+      }
     }
   } catch (e) {
-    console.warn("[AudioRoute] WebRTCModule.setSpeakerPhone failed:", e);
+    console.warn("[AudioRoute] enableSpeakerphone failed:", e);
   }
-
-  // Fallback: use AVAudioSession via RNCallKeep or direct native module
-  try {
-    const { AVAudioSession } = NativeModules;
-    if (AVAudioSession?.overrideOutputAudioPort) {
-      AVAudioSession.overrideOutputAudioPort("speaker");
-      console.log("[AudioRoute] Speaker enabled via AVAudioSession");
-      return;
-    }
-  } catch (e) {
-    console.warn("[AudioRoute] AVAudioSession fallback failed:", e);
-  }
-
-  console.warn("[AudioRoute] No native method available to enable speaker");
 }
 
 /**
- * Reset audio output to default (earpiece for calls).
+ * Reset audio output to earpiece/default.
+ *
+ * @param callUUID - The active call UUID (required for CallKeep on iOS/Android)
  */
-export function disableSpeakerphone(): void {
-  if (Platform.OS !== "ios") return;
-
+export function disableSpeakerphone(callUUID?: string): void {
   try {
-    const { WebRTCModule } = NativeModules;
-    if (WebRTCModule?.setSpeakerPhone) {
-      WebRTCModule.setSpeakerPhone(false);
-      console.log("[AudioRoute] Speaker disabled");
+    if (Platform.OS === "ios") {
+      RNCallKeep.toggleAudioRouteSpeaker(callUUID || "", false);
+      console.log("[AudioRoute] Speaker disabled via CallKeep");
+    } else {
+      if (callUUID) {
+        RNCallKeep.toggleAudioRouteSpeaker(callUUID, false);
+        console.log("[AudioRoute] Speaker disabled via CallKeep (Android)");
+      } else {
+        const { WebRTCModule } = NativeModules;
+        if (WebRTCModule?.setSpeakerPhone) {
+          WebRTCModule.setSpeakerPhone(false);
+          console.log(
+            "[AudioRoute] Speaker disabled via WebRTCModule (Android)",
+          );
+        }
+      }
     }
   } catch (e) {
-    console.warn("[AudioRoute] Failed to disable speaker:", e);
+    console.warn("[AudioRoute] disableSpeakerphone failed:", e);
   }
 }

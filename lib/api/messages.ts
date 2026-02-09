@@ -15,4 +15,5 @@ export interface Conversation {
   lastMessage: string;
   timestamp: string;
   unread: boolean;
+  isGroup?: boolean;
 }

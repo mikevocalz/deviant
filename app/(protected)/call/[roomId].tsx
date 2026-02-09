@@ -12,7 +12,7 @@
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -43,9 +43,14 @@ import { Image } from "expo-image";
 import { Motion, AnimatePresence } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
 import { useVideoCall, type CallType } from "@/lib/hooks/use-video-call";
+import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 import { useMediaPermissions } from "@/src/video/hooks/useMediaPermissions";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import {
+  enableSpeakerphone,
+  disableSpeakerphone,
+} from "@/lib/utils/audio-route";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -174,12 +179,16 @@ export default function VideoCallScreen() {
     participantIds,
     callType: callTypeParam,
     chatId,
+    recipientUsername,
+    recipientAvatar,
   } = useLocalSearchParams<{
     roomId?: string;
     isOutgoing?: string;
     participantIds?: string;
     callType?: string;
     chatId?: string;
+    recipientUsername?: string;
+    recipientAvatar?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -188,6 +197,8 @@ export default function VideoCallScreen() {
 
   // Only local UI state allowed
   const [showParticipants, setShowParticipants] = useState(false);
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true); // default speaker on
+  const muteDebounceRef = useRef(false);
 
   // Permission hook (strict state machine)
   const { requestPermissions, openSettings } = useMediaPermissions();
@@ -256,15 +267,35 @@ export default function VideoCallScreen() {
 
   useEffect(() => {
     if (callEnded) {
-      const timer = setTimeout(handleDismissCallEnded, 3000);
+      const timer = setTimeout(handleDismissCallEnded, 1500);
       return () => clearTimeout(timer);
     }
   }, [callEnded, handleDismissCallEnded]);
 
   const handleToggleMute = useCallback(() => {
+    if (muteDebounceRef.current) return;
+    muteDebounceRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleMute();
+    setTimeout(() => {
+      muteDebounceRef.current = false;
+    }, 300);
   }, [toggleMute]);
+
+  // Use the store's roomId (set after room creation) for CallKeep audio routing
+  const storeRoomId = useVideoRoomStore((s) => s.roomId);
+
+  const handleToggleSpeaker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const uuid = storeRoomId || roomId || "";
+    if (isSpeakerOn) {
+      disableSpeakerphone(uuid);
+      setIsSpeakerOn(false);
+    } else {
+      enableSpeakerphone(uuid);
+      setIsSpeakerOn(true);
+    }
+  }, [isSpeakerOn, storeRoomId, roomId]);
 
   const handleToggleVideo = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -444,33 +475,42 @@ export default function VideoCallScreen() {
           ════════════════════════════════════════════════════════════ */}
       {isAudioMode ? (
         // ── AUDIO CALL UI ──────────────────────────────────────────
-        // Explicitly excludes: RTCView, camera buttons, video layout
+        // Shows RECIPIENT info (who you're calling), not local user
         <View className="flex-1 items-center justify-center gap-6">
           <View className="items-center gap-4">
-            {user?.avatar ? (
+            {recipientAvatar ? (
               <Image
-                source={{ uri: user.avatar }}
+                source={{ uri: recipientAvatar }}
                 className="w-28 h-28 rounded-full border-2 border-primary"
               />
             ) : (
               <View className="w-28 h-28 rounded-full bg-primary items-center justify-center">
                 <Text className="text-white text-4xl font-bold">
-                  {user?.username?.charAt(0).toUpperCase() || "?"}
+                  {(recipientUsername || user?.username || "")
+                    .charAt(0)
+                    .toUpperCase()}
                 </Text>
               </View>
             )}
             <Text className="text-foreground text-xl font-semibold">
-              {participants.length > 0
-                ? participants.map((p) => p.username).join(", ")
-                : "Calling..."}
+              {recipientUsername || "Unknown"}
             </Text>
             <Text className="text-muted-foreground text-sm">
-              {isInCall ? "Audio Call" : "Connecting..."}
+              {isInCall
+                ? "Audio Call"
+                : participants.length > 0
+                  ? "Connected"
+                  : "Calling..."}
             </Text>
+            {isInCall && callDuration > 0 && (
+              <Text className="text-muted-foreground text-lg font-mono">
+                {formatDuration(callDuration)}
+              </Text>
+            )}
           </View>
 
-          {/* Remote participant avatars */}
-          {participants.length > 0 && (
+          {/* Remote participant avatars (group calls) */}
+          {participants.length > 1 && (
             <View className="flex-row gap-4 mt-4">
               {participants.map((p) => (
                 <View key={p.oderId} className="items-center gap-2">
@@ -533,11 +573,11 @@ export default function VideoCallScreen() {
 
       {/* ════════════════════════════════════════════════════════════
           FLOATING CONTROLS BAR — MODE-AWARE
-          AUDIO: Mic | Upgrade to Video | Participants | End
-          VIDEO: Mic | Camera | Switch Camera | Participants | End
+          AUDIO: Mic | Speaker | Upgrade to Video | End
+          VIDEO: Mic | Speaker | Camera | Switch Camera | End
           ════════════════════════════════════════════════════════════ */}
       <View
-        className="absolute left-4 right-4 flex-row items-center justify-center gap-4 px-6 py-4 bg-card/90 rounded-full border border-border/50"
+        className="absolute left-4 right-4 flex-row items-center justify-center gap-3 px-5 py-4 bg-card/90 rounded-full border border-border/50"
         style={{ bottom: insets.bottom + 16 }}
       >
         {/* Mic toggle — always present */}
@@ -552,6 +592,19 @@ export default function VideoCallScreen() {
           ) : (
             <Mic size={22} color="#fff" />
           )}
+        </Pressable>
+
+        {/* Speaker toggle — always present */}
+        <Pressable
+          className={`w-12 h-12 rounded-full items-center justify-center ${
+            isSpeakerOn ? "bg-primary/80" : "bg-muted/80"
+          }`}
+          onPress={handleToggleSpeaker}
+        >
+          <Volume2
+            size={22}
+            color={isSpeakerOn ? "#fff" : "rgba(255,255,255,0.5)"}
+          />
         </Pressable>
 
         {isAudioMode ? (
@@ -586,24 +639,6 @@ export default function VideoCallScreen() {
             )}
           </>
         )}
-
-        {/* Participants — always present */}
-        <Pressable
-          className="w-12 h-12 rounded-full items-center justify-center bg-muted/80 relative"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setShowParticipants(true);
-          }}
-        >
-          <Users size={22} color="#fff" />
-          {participants.length > 0 && (
-            <View className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-primary items-center justify-center">
-              <Text className="text-white text-[10px] font-bold">
-                {participants.length + 1}
-              </Text>
-            </View>
-          )}
-        </Pressable>
 
         {/* End call — always present */}
         <Pressable

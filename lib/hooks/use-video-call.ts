@@ -291,7 +291,7 @@ export function useVideoCall() {
       }
 
       // ── Step 3: Enable speaker output (iOS defaults to earpiece) ────
-      enableSpeakerphone();
+      enableSpeakerphone(s.roomId || undefined);
 
       s.setCallPhase("connected");
       log(`[${type.toUpperCase()}] Media started, call is now connected`);

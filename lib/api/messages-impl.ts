@@ -95,6 +95,11 @@ export const messagesApi = {
             hasUnread = (count ?? 0) > 0;
           }
 
+          const rawTs =
+            lastMessage?.[DB.messages.createdAt] ||
+            conv.conversation[DB.conversations.lastMessageAt] ||
+            "";
+
           return {
             id: String(convId),
             user: {
@@ -106,16 +111,23 @@ export const messagesApi = {
               avatar: otherUserData?.avatar?.url || "",
             },
             lastMessage: lastMessage?.[DB.messages.content] || "",
-            timestamp: formatTimeAgo(
-              lastMessage?.[DB.messages.createdAt] ||
-                conv.conversation[DB.conversations.lastMessageAt],
-            ),
+            timestamp: formatTimeAgo(rawTs),
             unread: hasUnread,
+            isGroup: !!conv.conversation[DB.conversations.isGroup],
+            _rawTs: rawTs,
           };
         }),
       );
 
-      return conversations;
+      // Sort by most recent message first
+      conversations.sort((a: any, b: any) => {
+        const tA = new Date(a._rawTs || 0).getTime();
+        const tB = new Date(b._rawTs || 0).getTime();
+        return tB - tA;
+      });
+
+      // Strip internal field before returning
+      return conversations.map(({ _rawTs, ...rest }: any) => rest);
     } catch (error) {
       console.error("[Messages] getConversations error:", error);
       return [];
@@ -153,6 +165,7 @@ export const messagesApi = {
         id: String(msg[DB.messages.id]),
         text: msg[DB.messages.content],
         sender: msg[DB.messages.senderId] === visitorId ? "user" : "other",
+        senderId: String(msg[DB.messages.senderId]),
         timestamp: formatTimeAgo(msg[DB.messages.createdAt]),
         metadata: msg[DB.messages.metadata] || null,
       }));
