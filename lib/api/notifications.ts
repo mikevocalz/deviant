@@ -62,6 +62,7 @@ export const notificationsApi = {
           type,
           entity_type,
           entity_id,
+          actor_id,
           read_at,
           created_at,
           actor:actor_id(
@@ -99,32 +100,94 @@ export const notificationsApi = {
         );
       }
 
-      const docs = (data || []).map((n: any) => ({
-        id: String(n.id),
-        type: n.type,
-        message: "",
-        read: !!n.read_at,
-        readAt: n.read_at || undefined,
-        createdAt: n.created_at,
-        entityType: n.entity_type || undefined,
-        entityId: n.entity_id || undefined,
-        sender: n.actor
+      // Collect post IDs for thumbnail lookup
+      const postIds = (data || [])
+        .filter((n: any) => n.entity_type === "post" && n.entity_id)
+        .map((n: any) => parseInt(n.entity_id))
+        .filter((id: number) => !isNaN(id));
+
+      // Fetch post thumbnails in batch
+      let postMap: Record<string, { thumbnail: string }> = {};
+      if (postIds.length > 0) {
+        const uniquePostIds = [...new Set(postIds)];
+        const { data: posts } = await supabase
+          .from("posts")
+          .select("id, media:media_id(url)")
+          .in("id", uniquePostIds);
+        if (posts) {
+          for (const p of posts) {
+            postMap[String(p.id)] = {
+              thumbnail: (p as any).media?.url || "",
+            };
+          }
+        }
+      }
+
+      // Collect comment IDs to fetch content for comment/mention notifications
+      // For comment/mention types where entity_type is 'post', we need the latest comment
+      // by the actor on that post to show the comment text
+      const commentNotifs = (data || []).filter(
+        (n: any) =>
+          (n.type === "comment" || n.type === "mention") &&
+          n.entity_id &&
+          n.actor_id,
+      );
+      let commentContentMap: Record<string, string> = {};
+      if (commentNotifs.length > 0) {
+        // Fetch latest comment by each actor on each post
+        for (const n of commentNotifs) {
+          const key = `${n.actor_id}:${n.entity_id}`;
+          if (commentContentMap[key]) continue;
+          const { data: commentData } = await supabase
+            .from("comments")
+            .select("content")
+            .eq("post_id", parseInt(n.entity_id))
+            .eq("author_id", n.actor_id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+          if (commentData) {
+            commentContentMap[key] = commentData.content || "";
+          }
+        }
+      }
+
+      const docs = (data || []).map((n: any) => {
+        const actorInfo = n.actor
           ? {
               id: String(n.actor.id),
               username: n.actor.username,
               avatar: n.actor.avatar?.url || "",
             }
-          : null,
-        actor: n.actor
-          ? {
-              id: String(n.actor.id),
-              username: n.actor.username,
-              avatar: n.actor.avatar?.url || "",
-            }
-          : null,
-        postId: n.entity_type === "post" ? n.entity_id : null,
-        commentId: n.entity_type === "comment" ? n.entity_id : null,
-      }));
+          : null;
+
+        const entityId = n.entity_id || undefined;
+        const postData =
+          entityId && postMap[entityId]
+            ? { id: entityId, thumbnail: postMap[entityId].thumbnail }
+            : null;
+
+        // Get comment content for comment/mention notifications
+        const commentKey = `${n.actor_id}:${n.entity_id}`;
+        const commentContent = commentContentMap[commentKey] || undefined;
+
+        return {
+          id: String(n.id),
+          type: n.type,
+          message: "",
+          read: !!n.read_at,
+          readAt: n.read_at || undefined,
+          createdAt: n.created_at,
+          entityType: n.entity_type || undefined,
+          entityId,
+          content: commentContent,
+          sender: actorInfo,
+          actor: actorInfo,
+          post: postData,
+          postId: n.entity_type === "post" ? entityId : null,
+          commentId: n.entity_type === "comment" ? entityId : null,
+        };
+      });
 
       return { docs, totalDocs: count || 0 };
     } catch (error) {

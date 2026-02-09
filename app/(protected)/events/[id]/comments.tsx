@@ -248,7 +248,25 @@ export default function EventCommentsScreen() {
                       lineHeight: 20,
                     }}
                   >
-                    {comment.content}
+                    {(comment.content || "")
+                      .split(/(@\w+)/g)
+                      .map((part: string, i: number) =>
+                        part.startsWith("@") ? (
+                          <Text
+                            key={i}
+                            onPress={() =>
+                              router.push(
+                                `/(protected)/profile/${part.slice(1)}` as any,
+                              )
+                            }
+                            style={{ color: "#3EA4E5", fontWeight: "600" }}
+                          >
+                            {part}
+                          </Text>
+                        ) : (
+                          <Text key={i}>{part}</Text>
+                        ),
+                      )}
                   </Text>
                 </View>
               </View>

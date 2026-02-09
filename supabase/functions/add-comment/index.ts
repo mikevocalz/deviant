@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -30,7 +31,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -66,7 +70,11 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -94,9 +102,17 @@ serve(async (req: Request) => {
 
     const { postId, content } = body;
     if (!postId || typeof postId !== "number") {
-      return errorResponse("validation_error", "postId is required and must be a number", 400);
+      return errorResponse(
+        "validation_error",
+        "postId is required and must be a number",
+        400,
+      );
     }
-    if (!content || typeof content !== "string" || content.trim().length === 0) {
+    if (
+      !content ||
+      typeof content !== "string" ||
+      content.trim().length === 0
+    ) {
       return errorResponse("validation_error", "content is required", 400);
     }
 
@@ -134,6 +150,78 @@ serve(async (req: Request) => {
     await supabaseAdmin.rpc("increment_post_comments", { post_id: postId });
 
     console.log("[Edge:add-comment] Comment added:", comment.id);
+
+    // --- Notifications ---
+
+    // 1. Notify post author about the comment (unless they're the commenter)
+    try {
+      const { data: post } = await supabaseAdmin
+        .from("posts")
+        .select("author_id")
+        .eq("id", postId)
+        .single();
+
+      if (post && post.author_id && post.author_id !== userId) {
+        await supabaseAdmin.from("notifications").insert({
+          recipient_id: post.author_id,
+          actor_id: userId,
+          type: "comment",
+          entity_type: "post",
+          entity_id: String(postId),
+        });
+        console.log(
+          "[Edge:add-comment] Comment notification sent to post author:",
+          post.author_id,
+        );
+      }
+    } catch (notifErr) {
+      console.error("[Edge:add-comment] Comment notification error:", notifErr);
+    }
+
+    // 2. Parse @mentions and notify mentioned users
+    try {
+      const mentionRegex = /@(\w+)/g;
+      const mentions: string[] = [];
+      let match;
+      while ((match = mentionRegex.exec(content)) !== null) {
+        if (!mentions.includes(match[1])) mentions.push(match[1]);
+      }
+
+      if (mentions.length > 0) {
+        console.log("[Edge:add-comment] Found mentions:", mentions);
+
+        // Look up mentioned users by username
+        const { data: mentionedUsers } = await supabaseAdmin
+          .from("users")
+          .select("id, username")
+          .in("username", mentions);
+
+        if (mentionedUsers && mentionedUsers.length > 0) {
+          const notifications = mentionedUsers
+            .filter((u: any) => u.id !== userId) // Don't notify yourself
+            .map((u: any) => ({
+              recipient_id: u.id,
+              actor_id: userId,
+              type: "mention",
+              entity_type: "post",
+              entity_id: String(postId),
+            }));
+
+          if (notifications.length > 0) {
+            await supabaseAdmin.from("notifications").insert(notifications);
+            console.log(
+              "[Edge:add-comment] Mention notifications sent:",
+              notifications.length,
+            );
+          }
+        }
+      }
+    } catch (mentionErr) {
+      console.error(
+        "[Edge:add-comment] Mention notification error:",
+        mentionErr,
+      );
+    }
 
     return jsonResponse({
       ok: true,
