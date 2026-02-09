@@ -4,7 +4,7 @@
  * Full comments page for an event with header title "Comments" and back button
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,8 @@ import {
 } from "@/lib/hooks/use-event-comments";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { MENTION_COLOR } from "@/src/constants/mentions";
+import { usersApi } from "@/lib/api/users";
+import { useQuery } from "@tanstack/react-query";
 
 export default function EventCommentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -40,6 +42,8 @@ export default function EventCommentsScreen() {
 
   const [commentText, setCommentText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [cursorPos, setCursorPos] = useState(0);
+  const inputRef = useRef<TextInput>(null);
 
   const {
     data: comments = [],
@@ -73,6 +77,82 @@ export default function EventCommentsScreen() {
       ),
     });
   }, [navigation, colors, router]);
+
+  // @mention detection
+  const mentionQuery = useMemo(() => {
+    const before = commentText.slice(0, cursorPos);
+    const match = before.match(/@(\w*)$/);
+    return match ? match[1] : null;
+  }, [commentText, cursorPos]);
+
+  // Extract existing commenters for instant local suggestions
+  const commenters = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { username: string; avatar?: string }[] = [];
+    for (const c of comments) {
+      const uname = c.author?.username || (c.author as any)?.name;
+      const avatar = c.author?.avatar;
+      if (uname && !seen.has(uname) && uname !== user?.username) {
+        seen.add(uname);
+        result.push({ username: uname, avatar });
+      }
+    }
+    return result;
+  }, [comments, user?.username]);
+
+  // API-backed user search
+  const { data: apiMentionResults = [] } = useQuery({
+    queryKey: ["users", "mention-search", "event", mentionQuery],
+    queryFn: async () => {
+      if (!mentionQuery || mentionQuery.length < 1) return [];
+      const result = await usersApi.searchUsers(mentionQuery.toLowerCase(), 8);
+      return (result.docs || []).map((u: any) => ({
+        username: u.username,
+        avatar: u.avatar,
+      }));
+    },
+    enabled: !!mentionQuery && mentionQuery.length >= 1,
+    staleTime: 10_000,
+  });
+
+  // Merge local + API results
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    if (!mentionQuery) return commenters.slice(0, 5);
+    const seen = new Set<string>();
+    const merged: { username: string; avatar?: string }[] = [];
+    const localMatches = commenters.filter((c) =>
+      c.username.toLowerCase().includes(mentionQuery.toLowerCase()),
+    );
+    for (const u of localMatches) {
+      if (!seen.has(u.username)) {
+        seen.add(u.username);
+        merged.push(u);
+      }
+    }
+    for (const u of apiMentionResults) {
+      if (!seen.has(u.username) && u.username !== user?.username) {
+        seen.add(u.username);
+        merged.push(u);
+      }
+    }
+    return merged.slice(0, 8);
+  }, [mentionQuery, commenters, apiMentionResults, user?.username]);
+
+  const handleInsertMention = useCallback(
+    (username: string) => {
+      const before = commentText.slice(0, cursorPos);
+      const after = commentText.slice(cursorPos);
+      const atIdx = before.lastIndexOf("@");
+      const newBefore = before.slice(0, atIdx);
+      const newText = `${newBefore}@${username} ${after}`;
+      const newCursor = newBefore.length + username.length + 2;
+      setCommentText(newText);
+      setCursorPos(newCursor);
+      inputRef.current?.focus();
+    },
+    [commentText, cursorPos],
+  );
 
   const handleSend = useCallback(async () => {
     if (!commentText.trim()) {
@@ -275,6 +355,59 @@ export default function EventCommentsScreen() {
           </ScrollView>
         )}
 
+        {/* Mention Suggestions */}
+        {mentionSuggestions.length > 0 && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: Platform.OS === "ios" ? 80 : 70,
+              left: 0,
+              right: 0,
+              backgroundColor: colors.card,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              maxHeight: 200,
+            }}
+          >
+            <Text
+              style={{
+                color: colors.mutedForeground,
+                fontSize: 11,
+                paddingHorizontal: 16,
+                paddingTop: 10,
+                paddingBottom: 6,
+              }}
+            >
+              Mention a user
+            </Text>
+            {mentionSuggestions.map((u) => (
+              <Pressable
+                key={u.username}
+                onPress={() => handleInsertMention(u.username)}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
+                }}
+              >
+                <Image
+                  source={{
+                    uri:
+                      u.avatar ||
+                      `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}`,
+                  }}
+                  style={{ width: 32, height: 32, borderRadius: 16 }}
+                />
+                <Text style={{ color: colors.foreground, fontWeight: "500" }}>
+                  @{u.username}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         {/* Comment Input */}
         <View
           style={{
@@ -324,9 +457,13 @@ export default function EventCommentsScreen() {
               }}
             >
               <TextInput
+                ref={inputRef}
                 value={commentText}
                 onChangeText={setCommentText}
-                placeholder="Add a comment..."
+                onSelectionChange={(e) =>
+                  setCursorPos(e.nativeEvent.selection.end)
+                }
+                placeholder="Add a comment... (@ to mention)"
                 placeholderTextColor={colors.mutedForeground}
                 multiline
                 style={{
@@ -337,27 +474,31 @@ export default function EventCommentsScreen() {
                 editable={!isSubmitting}
               />
             </View>
-            {commentText.trim().length > 0 && (
-              <Pressable
-                onPress={handleSend}
-                disabled={isSubmitting}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor: colors.primary,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: isSubmitting ? 0.5 : 1,
-                }}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Send size={18} color="#fff" />
-                )}
-              </Pressable>
-            )}
+            <Pressable
+              onPress={handleSend}
+              disabled={isSubmitting || !commentText.trim()}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor:
+                  commentText.trim() && !isSubmitting
+                    ? colors.primary
+                    : colors.card,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSubmitting ? 0.5 : 1,
+              }}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Send
+                  size={18}
+                  color={commentText.trim() ? "#fff" : colors.mutedForeground}
+                />
+              )}
+            </Pressable>
           </View>
         </View>
       </SafeAreaView>

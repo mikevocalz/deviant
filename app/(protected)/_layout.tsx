@@ -3,6 +3,7 @@
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
 import { useCallKeepCoordinator } from "@/src/services/callkeep";
+import { usePresenceManager } from "@/lib/hooks/use-presence";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -38,6 +39,8 @@ const fullScreenModalConfig = {
 export default function ProtectedLayout() {
   // Initialize CallKeep native call UI — registers listeners ONCE
   useCallKeepCoordinator();
+  // Track current user's online/offline presence
+  usePresenceManager();
 
   return (
     <>

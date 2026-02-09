@@ -1098,28 +1098,31 @@ export default function StoryViewerScreen() {
               />
             </View>
 
-            {replyText.trim().length > 0 && (
-              <Pressable
-                onPress={() => {
-                  if (!isSendingReply && replyText.trim()) {
-                    handleSendReply();
-                  }
-                }}
-                disabled={isSendingReply}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#8A40CF",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: isSendingReply ? 0.5 : 1,
-                }}
-              >
-                <Send size={18} color="#fff" />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={() => {
+                if (!isSendingReply && replyText.trim()) {
+                  handleSendReply();
+                }
+              }}
+              disabled={isSendingReply || !replyText.trim()}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: replyText.trim()
+                  ? "#8A40CF"
+                  : "rgba(255,255,255,0.1)",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSendingReply ? 0.5 : 1,
+              }}
+            >
+              <Send
+                size={18}
+                color={replyText.trim() ? "#fff" : "rgba(255,255,255,0.4)"}
+              />
+            </Pressable>
           </View>
         </KeyboardStickyView>
       )}

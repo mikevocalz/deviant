@@ -67,6 +67,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
+import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
@@ -233,6 +234,25 @@ const swipeStyles = StyleSheet.create({
     marginTop: 4,
   },
 });
+
+function ChatPresenceText({ recipientId }: { recipientId?: string }) {
+  const { isOnline, lastSeen } = useUserPresence(recipientId);
+  const statusText = isOnline
+    ? "Active now"
+    : lastSeen
+      ? formatLastSeen(lastSeen)
+      : "";
+  return (
+    <Text
+      style={{
+        fontSize: 12,
+        color: isOnline ? "#22C55E" : "#6B7280",
+      }}
+    >
+      {statusText}
+    </Text>
+  );
+}
 
 export default function ChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -815,7 +835,7 @@ export default function ChatScreen() {
               <Text className="text-base font-semibold text-foreground">
                 {recipient?.username || "Loading..."}
               </Text>
-              <Text className="text-xs text-muted-foreground">Active now</Text>
+              <ChatPresenceText recipientId={recipient?.id} />
             </View>
           </Pressable>
           {/* Audio Call Button */}

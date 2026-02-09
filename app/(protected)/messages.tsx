@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import { messagesApiClient, type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
+import { usePresenceStore } from "@/lib/stores/presence-store";
+import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import PagerView from "react-native-pager-view";
 import {
   useLynkHistoryStore,
@@ -45,6 +47,26 @@ interface ConversationItem {
   lastMessage: string;
   timeAgo: string;
   unread: boolean;
+}
+
+function PresenceDot({ oderpantId }: { oderpantId: string }) {
+  const { isOnline } = useUserPresence(oderpantId);
+  if (!isOnline) return null;
+  return (
+    <View
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: "#22C55E",
+        borderWidth: 2,
+        borderColor: "#000",
+      }}
+    />
+  );
 }
 
 function formatTimeAgo(dateString?: string): string {
@@ -112,6 +134,7 @@ function ConversationList({
               {item.unread && (
                 <View className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full border-2 border-background bg-primary" />
               )}
+              <PresenceDot oderpantId={item.oderpantId} />
             </View>
           </Pressable>
 
