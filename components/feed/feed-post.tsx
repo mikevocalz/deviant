@@ -656,7 +656,8 @@ function FeedPostComponent({
                 {media[0]?.url &&
                 (media[0].url.startsWith("http://") ||
                   media[0].url.startsWith("https://")) ? (
-                  <Image
+                  <SharedImage
+                    sharedTag={`post-media-${id}`}
                     source={{ uri: media[0].url }}
                     style={{
                       width: mediaSize,

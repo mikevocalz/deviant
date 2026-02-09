@@ -101,6 +101,7 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-google-places-autocomplete": "^2.6.3",
     "react-native-hole-view": "^4.0.0",
+    "react-native-incall-manager": "^4.2.1",
     "react-native-insta-story": "^2.0.2",
     "react-native-keyboard-controller": "~1.18.5",
     "react-native-mmkv": "^4.1.0",

@@ -431,8 +431,9 @@ function PostDetailScreenContent() {
               ) : post.media?.[0]?.url &&
                 (post.media[0].url.startsWith("http://") ||
                   post.media[0].url.startsWith("https://")) ? (
-                // Single image
-                <Image
+                // Single image — SharedImage for shared element transition from feed
+                <SharedImage
+                  sharedTag={`post-media-${postIdString}`}
                   source={{ uri: post.media[0].url }}
                   style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
                   contentFit="cover"

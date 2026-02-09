@@ -54,10 +54,7 @@ import { useVideoCall, type CallType } from "@/lib/hooks/use-video-call";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 import { useMediaPermissions } from "@/src/video/hooks/useMediaPermissions";
 import { useUIStore } from "@/lib/stores/ui-store";
-import {
-  enableSpeakerphone,
-  disableSpeakerphone,
-} from "@/lib/utils/audio-route";
+import { audioSession } from "@/src/services/calls/audioSession";
 import { CT } from "@/src/services/calls/callTrace";
 
 const PIP_W = 120;
@@ -281,15 +278,10 @@ export default function VideoCallScreen() {
 
   const handleToggleSpeaker = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const uuid = storeRoomId || roomId || "";
-    if (isSpeakerOn) {
-      disableSpeakerphone(uuid);
-      setSpeakerOn(false);
-    } else {
-      enableSpeakerphone(uuid);
-      setSpeakerOn(true);
-    }
-  }, [isSpeakerOn, storeRoomId, roomId, setSpeakerOn]);
+    const newState = !isSpeakerOn;
+    audioSession.setSpeakerOn(newState);
+    setSpeakerOn(newState);
+  }, [isSpeakerOn, setSpeakerOn]);
 
   const handleToggleVideo = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -562,6 +554,11 @@ export default function VideoCallScreen() {
               {isSpeakerOn ? "Y" : "N"} | mic={isMuted ? "OFF" : "ON"}
               {!isAudioMode &&
                 ` | vid=${hasLocalVideo ? "Y" : "N"} | rVid=${hasRemoteVideo ? "Y" : "N"}`}
+            </Text>
+            <Text className="text-yellow-400 text-[10px] font-mono">
+              audio={audioSession.getState().isActive ? "ON" : "OFF"} | rAud=
+              {remotePeer?.isMicOn ? "Y" : "N"} | hwMute=
+              {audioSession.getState().isMicMuted ? "Y" : "N"}
             </Text>
           </View>
         </View>

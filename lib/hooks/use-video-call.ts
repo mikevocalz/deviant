@@ -43,14 +43,10 @@ import {
   useMicrophone,
   usePeers,
 } from "@fishjam-cloud/react-native-client";
-import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { videoApi } from "@/src/video/api";
 import { callSignalsApi } from "@/lib/api/call-signals";
-import {
-  enableSpeakerphone,
-  disableSpeakerphone,
-} from "@/lib/utils/audio-route";
+import { audioSession } from "@/src/services/calls/audioSession";
 import {
   startOutgoingCall,
   reportOutgoingCallConnected,
@@ -216,20 +212,12 @@ export function useVideoCall() {
         if (currentRoomId) {
           try {
             reportOutgoingCallConnected(currentRoomId);
-            enableSpeakerphone(currentRoomId);
             log("Callee joined — reported outgoing call connected");
           } catch (ckErr) {
             logWarn("CallKeep reportConnected on peer join failed:", ckErr);
           }
-          // Activate audio session now that call is truly connected
-          if (Platform.OS === "ios") {
-            try {
-              RTCAudioSession.audioSessionDidActivate();
-              log("[iOS] RTCAudioSession activated on peer join");
-            } catch (audioErr) {
-              logWarn("RTCAudioSession activation failed:", audioErr);
-            }
-          }
+          // Audio session was already started in createCall/joinCall.
+          // No need to re-activate here.
         }
       }
     }
@@ -358,17 +346,8 @@ export function useVideoCall() {
         s.setCameraOn(false);
       }
 
-      // ── Step 3: Enable speaker output (iOS defaults to earpiece) ────
-      // Wrapped in try-catch: speaker routing is non-fatal.
-      // CallKeep may not have registered the call yet at this point.
-      try {
-        enableSpeakerphone(s.roomId || undefined);
-      } catch (speakerErr) {
-        logWarn(
-          "Speaker enable failed (non-fatal, will retry after CallKeep):",
-          speakerErr,
-        );
-      }
+      // NOTE: Speaker routing is handled by audioSession.start() in createCall/joinCall.
+      // Do NOT call enableSpeakerphone here — audioSession is the single source of truth.
 
       // NOTE: Do NOT set callPhase here — the caller sets it to 'outgoing_ringing'
       // and the callee sets it to 'connected'. The phase transition is the caller's
@@ -507,13 +486,18 @@ export function useVideoCall() {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
       }
 
-      // Step 6: Small delay on iOS to let CallKit activate the audio session
-      // before we start the mic. Without this, the mic track may be on a dead session.
+      // Step 6: Start in-call audio session BEFORE starting media.
+      // This configures iOS AVAudioSession (playAndRecord + allowBluetooth)
+      // and Android AudioManager (IN_COMMUNICATION mode + audio focus).
+      // Without this, mic tracks are created on a dead/inactive audio session.
+      audioSession.start(callType === "video");
+
+      // Small delay on iOS to let audio session stabilize
       if (Platform.OS === "ios") {
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
 
-      // Step 7: Start media (mic + camera) — now audio session should be active
+      // Step 7: Start media (mic + camera) — now audio session is active
       const mediaOk = await startMedia(callType);
       if (!mediaOk) {
         logError("Media start failed, aborting call");
@@ -592,17 +576,12 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 3: Activate audio session on iOS BEFORE starting media
-      // REF: https://www.npmjs.com/package/@react-native-oh-tpl/react-native-callkeep
-      // CallKit must activate the audio session before mic track is created
-      if (Platform.OS === "ios") {
-        CT.guard("AUDIO", "audioSessionActivate_callee", () => {
-          RTCAudioSession.audioSessionDidActivate();
-          log("[iOS] RTCAudioSession activated for incoming call");
-        });
-        // Small delay to let audio session stabilize
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
+      // Step 3: Start in-call audio session BEFORE starting media.
+      // This is the callee path — audio session must be active before mic starts.
+      audioSession.start(callType === "video");
+
+      // Small delay to let audio session stabilize
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Step 4: Start media
       const mediaOk = await startMedia(callType);
@@ -612,14 +591,8 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 5: Enable speaker for callee (was MISSING — root cause of no audio output)
-      // The caller enables speaker in peer-sync effect, but callee never did.
-      CT.guard("SPEAKER", "enableSpeaker_callee", () => {
-        enableSpeakerphone(roomId);
-        log("[AUDIO] Speaker enabled for callee");
-      });
-
       // Callee is now connected — media is flowing
+      // Speaker was already set by audioSession.start() above
       s.setCallPhase("connected");
       startDurationTimer();
       CT.trace("LIFECYCLE", "callee_connected", { roomId });
@@ -670,6 +643,11 @@ export function useVideoCall() {
 
     stopDurationTimer();
 
+    // Stop in-call audio session (speaker, mic routing, audio focus)
+    CT.guard("AUDIO", "audioSession_stop", () => {
+      audioSession.stop();
+    });
+
     // Leave Fishjam room — can throw if peer was never connected
     CT.guard("FISHJAM", "leaveRoom", () => {
       leaveRoomRef.current();
@@ -712,7 +690,7 @@ export function useVideoCall() {
       roomId: s.roomId ?? undefined,
     });
 
-    // Try track-level toggle first (preferred — keeps track published)
+    // Track-level toggle (keeps track published, silences/unsilences)
     const stream = micRef.current.microphoneStream;
     if (stream) {
       const audioTracks = stream.getAudioTracks();
@@ -720,39 +698,19 @@ export function useVideoCall() {
         for (const track of audioTracks) {
           track.enabled = !wantMuted;
         }
-        s.setMicOn(!wantMuted);
-        if (s.roomId) callKeepSetMuted(s.roomId, wantMuted);
-        CT.trace("MUTE", wantMuted ? "muted_via_track" : "unmuted_via_track");
-        log(
-          wantMuted
-            ? "Mic muted (track.enabled=false)"
-            : "Mic unmuted (track.enabled=true)",
-        );
-        return;
       }
+    } else {
+      CT.warn("MUTE", "no_mic_stream_for_toggle");
+      logWarn("No mic stream available for mute toggle");
     }
 
-    // Fallback: stop/start (only if stream unavailable)
-    if (wantMuted) {
-      CT.guard("MUTE", "stopMicrophone_fallback", () => {
-        micRef.current.stopMicrophone();
-      });
-      s.setMicOn(false);
-      if (s.roomId) callKeepSetMuted(s.roomId, true);
-      log("Mic muted (fallback: stopMicrophone)");
-    } else {
-      micRef.current
-        .startMicrophone()
-        .then(() => {
-          s.setMicOn(true);
-          if (s.roomId) callKeepSetMuted(s.roomId, false);
-          log("Mic unmuted (fallback: startMicrophone)");
-        })
-        .catch((e: any) => {
-          logError("Failed to unmute mic:", e);
-          CT.error("MUTE", "unmute_failed", { error: e?.message });
-        });
-    }
+    // Update all state sources in sync
+    s.setMicOn(!wantMuted);
+    if (s.roomId) callKeepSetMuted(s.roomId, wantMuted);
+    audioSession.setMicMuted(wantMuted);
+
+    CT.trace("MUTE", wantMuted ? "muted" : "unmuted");
+    log(wantMuted ? "Mic muted" : "Mic unmuted");
   }, [getStore]);
 
   // ── Escalate audio → video (explicit, permission-gated) ────────────
