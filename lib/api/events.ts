@@ -6,6 +6,12 @@ import {
   getCurrentUserAuthId,
 } from "./auth-helper";
 
+/** Resolve event image URL from multiple DB columns */
+function resolveEventImage(event: any): string {
+  // Priority: cover_image_url > image > cover_image_id (would need join)
+  return event[DB.events.coverImageUrl] || event["image"] || "";
+}
+
 /** Format a raw ISO date into the fields the EventCard UI expects */
 function formatEventDate(isoDate: string | null | undefined) {
   if (!isoDate) {
@@ -82,7 +88,7 @@ export const eventsApi = {
           description: event[DB.events.description],
           ...dateParts,
           location: event[DB.events.location],
-          image: event[DB.events.coverImageUrl] || "",
+          image: resolveEventImage(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -150,7 +156,7 @@ export const eventsApi = {
           description: event[DB.events.description],
           ...dateParts,
           location: event[DB.events.location],
-          image: event[DB.events.coverImageUrl] || "",
+          image: resolveEventImage(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
         };
@@ -206,7 +212,7 @@ export const eventsApi = {
           description: event[DB.events.description],
           ...dateParts,
           location: event[DB.events.location],
-          image: event[DB.events.coverImageUrl] || "",
+          image: resolveEventImage(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -254,7 +260,8 @@ export const eventsApi = {
         description: data[DB.events.description],
         ...dateParts,
         location: data[DB.events.location],
-        image: data[DB.events.coverImageUrl] || "",
+        image: resolveEventImage(data),
+        images: Array.isArray(data["images"]) ? data["images"] : [],
         price: Number(data[DB.events.price]) || 0,
         attendees: Number(data[DB.events.totalAttendees]) || 0,
         maxAttendees: Number(data[DB.events.maxAttendees]),
@@ -372,6 +379,8 @@ export const eventsApi = {
           [DB.events.startDate]: eventData.date,
           [DB.events.location]: eventData.location,
           [DB.events.coverImageUrl]: eventData.image,
+          ["image"]: eventData.image,
+          ["images"]: eventData.images || [],
           [DB.events.price]: eventData.price || 0,
           [DB.events.maxAttendees]: eventData.maxAttendees,
           [DB.events.isOnline]: eventData.isOnline || false,
@@ -391,7 +400,7 @@ export const eventsApi = {
         description: data[DB.events.description],
         ...dateParts,
         location: data[DB.events.location],
-        image: data[DB.events.coverImageUrl] || "",
+        image: resolveEventImage(data),
         price: Number(data[DB.events.price]) || 0,
         attendees: 0,
         totalAttendees: 0,
@@ -649,7 +658,7 @@ export const eventsApi = {
           description: event[DB.events.description],
           date: event[DB.events.startDate],
           location: event[DB.events.location],
-          image: event[DB.events.coverImageUrl] || "",
+          image: resolveEventImage(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -665,42 +674,167 @@ export const eventsApi = {
   },
 
   /**
-   * Get event comments (placeholder - schema may not support this yet)
+   * Get event comments
    */
-  async getEventComments(_eventId: string, _limit: number = 10) {
-    console.log(
-      "[Events] getEventComments - not yet implemented in Supabase schema",
-    );
-    return [];
+  async getEventComments(eventId: string, limit: number = 10) {
+    try {
+      const { data, error } = await supabase
+        .from("event_comments")
+        .select(
+          `
+          id,
+          text,
+          created_at,
+          user_id,
+          parent_id,
+          author:user_id(
+            id,
+            username,
+            avatar:avatar_id(url)
+          )
+        `,
+        )
+        .eq("event_id", parseInt(eventId))
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error("[Events] getEventComments error:", error);
+        return [];
+      }
+
+      return (data || []).map((c: any) => ({
+        id: String(c.id),
+        content: c.text || "",
+        createdAt: c.created_at,
+        parentId: c.parent_id ? String(c.parent_id) : null,
+        author: c.author
+          ? {
+              id: String(c.author.id),
+              username: c.author.username,
+              avatar: c.author.avatar?.url || "",
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error("[Events] getEventComments error:", error);
+      return [];
+    }
   },
 
   /**
-   * Add event comment (placeholder - schema may not support this yet)
+   * Add event comment
    */
-  async addEventComment(_eventId: string, _content: string) {
-    console.log(
-      "[Events] addEventComment - not yet implemented in Supabase schema",
-    );
-    throw new Error("Event comments not yet implemented");
+  async addEventComment(eventId: string, content: string) {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase
+        .from("event_comments")
+        .insert({
+          event_id: parseInt(eventId),
+          user_id: userId,
+          text: content,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return {
+        id: String(data.id),
+        content: data.text,
+        createdAt: data.created_at,
+      };
+    } catch (error) {
+      console.error("[Events] addEventComment error:", error);
+      throw error;
+    }
   },
 
   /**
-   * Get event reviews (placeholder - schema may not support this yet)
+   * Get event reviews
    */
-  async getEventReviews(_eventId: string, _limit: number = 10) {
-    console.log(
-      "[Events] getEventReviews - not yet implemented in Supabase schema",
-    );
-    return [];
+  async getEventReviews(eventId: string, limit: number = 10) {
+    try {
+      const { data, error } = await supabase
+        .from("event_reviews")
+        .select(
+          `
+          id,
+          rating,
+          comment,
+          created_at,
+          user_id,
+          user:user_id(
+            id,
+            username,
+            avatar:avatar_id(url)
+          )
+        `,
+        )
+        .eq("event_id", parseInt(eventId))
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        console.error("[Events] getEventReviews error:", error);
+        return [];
+      }
+
+      return (data || []).map((r: any) => ({
+        id: String(r.id),
+        rating: r.rating,
+        comment: r.comment || "",
+        createdAt: r.created_at,
+        user: r.user
+          ? {
+              id: String(r.user.id),
+              username: r.user.username,
+              avatar: r.user.avatar?.url || "",
+            }
+          : null,
+      }));
+    } catch (error) {
+      console.error("[Events] getEventReviews error:", error);
+      return [];
+    }
   },
 
   /**
-   * Add event review (placeholder - schema may not support this yet)
+   * Add event review
    */
-  async addEventReview(_eventId: string, _rating: number, _content: string) {
-    console.log(
-      "[Events] addEventReview - not yet implemented in Supabase schema",
-    );
-    throw new Error("Event reviews not yet implemented");
+  async addEventReview(eventId: string, rating: number, content: string) {
+    try {
+      const userId = getCurrentUserIdInt();
+      if (!userId) throw new Error("Not authenticated");
+
+      // Upsert: one review per user per event
+      const { data, error } = await supabase
+        .from("event_reviews")
+        .upsert(
+          {
+            event_id: parseInt(eventId),
+            user_id: userId,
+            rating,
+            comment: content || null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "event_id,user_id" },
+        )
+        .select()
+        .single();
+
+      if (error) throw error;
+      return {
+        id: String(data.id),
+        rating: data.rating,
+        comment: data.comment,
+        createdAt: data.created_at,
+      };
+    } catch (error) {
+      console.error("[Events] addEventReview error:", error);
+      throw error;
+    }
   },
 };

@@ -11,6 +11,7 @@ export interface EventDetail {
   endDate?: string;
   location: string;
   image: string;
+  images?: { type: string; url: string }[];
   price: number;
   attendees: number;
   maxAttendees?: number;
