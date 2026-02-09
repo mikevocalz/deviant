@@ -141,10 +141,12 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     [],
   );
 
+  if (!isOpen) return null;
+
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={isOpen ? 0 : -1}
+      index={0}
       snapPoints={snapPoints}
       enablePanDownToClose
       enableOverDrag={false}
@@ -159,11 +161,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
           <Heart size={18} color="#FF5BFC" fill="#FF5BFC" />
           <Text style={styles.headerTitle}>Likes</Text>
         </View>
-        <Pressable
-          onPress={onClose}
-          hitSlop={12}
-          style={styles.closeButton}
-        >
+        <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
           <X size={20} color="#fff" />
         </Pressable>
       </View>
