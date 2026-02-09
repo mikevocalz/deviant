@@ -86,10 +86,10 @@ export function StoriesBar() {
         });
       }
 
-      // Use first story item thumbnail/url for the circle image (Instagram-style)
-      const firstItem = story.items?.[0];
+      // Use most recent story item thumbnail/url for the circle image (Instagram-style)
+      const latestItem = story.items?.[story.items.length - 1];
       const storyThumb =
-        firstItem?.thumbnail || firstItem?.url || story.avatar || undefined;
+        latestItem?.thumbnail || latestItem?.url || story.avatar || undefined;
 
       return {
         user_id: idx,
@@ -176,12 +176,12 @@ export function StoriesBar() {
                     hasStory={true}
                     isViewed={myStory.isViewed}
                     isCloseFriends={myStory.hasCloseFriendsStory}
-                    storyThumbnail={
-                      myStory.items?.[0]?.type === "video"
-                        ? myStory.items?.[0]?.thumbnail ||
-                          myStory.items?.[0]?.url
-                        : myStory.items?.[0]?.url
-                    }
+                    storyThumbnail={(() => {
+                      const latest = myStory.items?.[myStory.items.length - 1];
+                      return latest?.type === "video"
+                        ? latest?.thumbnail || latest?.url
+                        : latest?.url;
+                    })()}
                   />
                 </Pressable>
                 {/* Add button overlay - tap to add new story */}
