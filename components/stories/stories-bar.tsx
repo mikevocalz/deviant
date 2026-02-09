@@ -2,12 +2,12 @@ import { View, Text, Pressable, Dimensions, StyleSheet } from "react-native";
 import { Section } from "@expo/html-elements";
 import { Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { StoriesBarSkeleton } from "@/components/skeletons";
 import { StoryRing } from "./story-ring";
 import InstaStory from "react-native-insta-story";
 import type { IUserStory, IUserStoryItem } from "react-native-insta-story";
-import { useStories } from "@/lib/hooks/use-stories";
+import { useStories, useRecordStoryView } from "@/lib/hooks/use-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { assertAvatarSource } from "@/lib/invariants/assertAvatarOwnership";
 import {
@@ -139,14 +139,30 @@ export function StoriesBar() {
     console.log("[StoriesBar] Story viewer closed:", item?.user_name);
   }, []);
 
-  const handleStorySeen = useCallback((userSingleStory: any) => {
-    console.log(
-      "[StoriesBar] Story seen:",
-      userSingleStory?.user_name,
-      "item:",
-      userSingleStory?.story?.story_id,
-    );
-  }, []);
+  // Record views when other users' stories are seen in the InstaStory viewer.
+  // This is the ONLY place views get recorded for the InstaStory modal path.
+  // story/[id].tsx only handles own-story viewing (tap from "Your Story").
+  const recordView = useRecordStoryView();
+  const recordedViewsRef = useRef<Set<string>>(new Set());
+
+  const handleStorySeen = useCallback(
+    (userSingleStory: any) => {
+      const storyId = userSingleStory?.story?.customData?.appStoryId;
+      console.log(
+        "[StoriesBar] Story seen:",
+        userSingleStory?.user_name,
+        "storyId:",
+        storyId,
+      );
+
+      if (!storyId) return;
+      const sid = String(storyId);
+      if (recordedViewsRef.current.has(sid)) return;
+      recordedViewsRef.current.add(sid);
+      recordView.mutate(sid);
+    },
+    [recordView],
+  );
 
   // Handle own story press — navigate to existing viewer route
   const handleMyStoryPress = useCallback(() => {
