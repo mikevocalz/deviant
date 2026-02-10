@@ -627,7 +627,12 @@ function UserProfileScreenComponent() {
                       position: "relative",
                     }}
                   >
-                    <Image
+                    <SharedImage
+                      sharedTag={
+                        !post.type || post.type === "image"
+                          ? `post-media-${post.id}`
+                          : undefined
+                      }
                       source={{ uri: post.thumbnail }}
                       style={{
                         width: "100%",

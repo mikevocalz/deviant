@@ -1,8 +1,14 @@
 import { Platform, ViewStyle, ImageStyle } from "react-native";
 import { Image, ImageProps } from "expo-image";
-import Animated from "react-native-reanimated";
+import Animated, { SharedTransition } from "react-native-reanimated";
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
+
+// Smooth spring transition for shared element animations
+const sharedTransition = SharedTransition.duration(400)
+  .springify()
+  .damping(18)
+  .stiffness(200);
 
 interface SharedImageProps extends Omit<ImageProps, "style"> {
   sharedTag?: string;
@@ -24,6 +30,7 @@ export function SharedImage({ sharedTag, style, ...props }: SharedImageProps) {
     <AnimatedImage
       // @ts-ignore - sharedTransitionTag is valid in Reanimated
       sharedTransitionTag={sharedTag}
+      sharedTransitionStyle={sharedTransition}
       style={style as ImageStyle}
       {...imageProps}
     />

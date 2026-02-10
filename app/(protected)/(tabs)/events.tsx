@@ -1,5 +1,6 @@
 import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
+import { SharedImage } from "@/components/shared-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { Heart, Plus } from "lucide-react-native";
@@ -79,7 +80,8 @@ function EventCard({
                 animatedImageStyle,
               ]}
             >
-              <Image
+              <SharedImage
+                sharedTag={`event-hero-${event.id}`}
                 source={{ uri: event.image }}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="cover"
