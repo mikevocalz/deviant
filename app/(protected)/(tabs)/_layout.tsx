@@ -28,7 +28,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         sceneStyle: {
-          width: isLargeScreen ? Dimensions.get("window").width - 72 : "100%",
+          width: isLargeScreen ? Dimensions.get("screen").width - 72 : "100%",
         },
         headerShown: true,
         headerTitleAlign: "left",
@@ -42,7 +42,7 @@ export default function TabsLayout() {
           <Logo
             width={100}
             height={36}
-            style={{ marginBottom: Platform.OS === "android" ? 4 : 4 }}
+            style={{ marginBottom: Platform.OS === "android" ? 4 : 8 }}
           />
         ),
         headerRight: () => (
