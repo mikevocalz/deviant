@@ -79,7 +79,7 @@ describe("chat-store sender transform", () => {
     const userIntId = 11;
 
     // API returns "user" string, not an ID
-    const apiSender = "user";
+    const apiSender = "user" as string; // Type cast to allow comparison check
 
     // These comparisons are WRONG and must never be used
     expect(apiSender === userId).toBe(false);

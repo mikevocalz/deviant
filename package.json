@@ -133,10 +133,13 @@
   "devDependencies": {
     "@config-plugins/react-native-callkeep": "^12.0.0",
     "@expo/ngrok": "^4.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/mocha": "^10.0.10",
     "@types/node": "25.0.3",
     "@types/react": "~19.2.13",
     "@types/react-dom": "~19.1.11",
     "eas-build-cache-provider": "^16.30.0",
+    "expo-mcp": "~0.2.3",
     "prettier": "^3.4.2",
     "prettier-plugin-tailwindcss": "^0.6.10",
     "sharp": "^0.34.5",

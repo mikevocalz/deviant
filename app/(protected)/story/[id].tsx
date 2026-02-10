@@ -845,7 +845,7 @@ export default function StoryViewerScreen() {
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
               nativeControls={false}
-              allowsFullscreen={false}
+              fullscreenOptions={{ enable: false }}
               allowsPictureInPicture={false}
             />
             <VideoSeekBar
