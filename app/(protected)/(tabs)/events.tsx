@@ -1,6 +1,5 @@
 import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
-import { SharedImage } from "@/components/shared-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { Heart, Plus } from "lucide-react-native";
@@ -70,18 +69,7 @@ function EventCard({
           onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
         >
           <View style={{ height: CARD_HEIGHT }} className="w-full">
-            {/* Static shared-transition image (drives the hero morph) */}
-            <SharedImage
-              sharedTag={`event-hero-${event.id}`}
-              source={{ uri: event.image }}
-              style={{
-                position: "absolute",
-                width: "100%",
-                height: CARD_HEIGHT,
-              }}
-              contentFit="cover"
-            />
-            {/* Parallax layer on top (visual only, no sharedTransitionTag) */}
+            {/* Parallax image layer */}
             <Animated.View
               style={[
                 {

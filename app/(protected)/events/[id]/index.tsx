@@ -15,7 +15,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
-import { SharedImage } from "@/components/shared-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -499,14 +498,7 @@ export default function EventDetailScreen() {
       >
         {/* ── 1. HERO SECTION ──────────────────────────────────── */}
         <View style={s.heroWrapper}>
-          {/* Static shared-transition image (drives the hero morph from event card) */}
-          <SharedImage
-            sharedTag={`event-hero-${eventId}`}
-            source={{ uri: event.image }}
-            style={{ position: "absolute", width: "100%", height: HERO_HEIGHT }}
-            contentFit="cover"
-          />
-          {/* Parallax layer on top (visual only, no sharedTransitionTag) */}
+          {/* Parallax hero image */}
           <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
             <Image
               source={{ uri: event.image }}
