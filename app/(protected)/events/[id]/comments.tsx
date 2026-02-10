@@ -14,7 +14,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { useLayoutEffect } from "react";
@@ -216,201 +216,191 @@ export default function EventCommentsScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <SafeAreaView
+      edges={["bottom"]}
       style={{ flex: 1, backgroundColor: colors.background }}
     >
-      <SafeAreaView edges={["bottom"]} style={{ flex: 1 }}>
-        {isLoading ? (
-          <View
-            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-          >
-            <ActivityIndicator size="large" color={colors.primary} />
-          </View>
-        ) : comments.length === 0 ? (
-          <View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              alignItems: "center",
-              padding: 40,
-            }}
-          >
-            <MessageCircle size={48} color={colors.mutedForeground} />
-            <Text
-              style={{
-                fontSize: 18,
-                fontWeight: "600",
-                color: colors.foreground,
-                marginTop: 16,
-                marginBottom: 8,
-              }}
-            >
-              No Comments Yet
-            </Text>
-            <Text
-              style={{
-                fontSize: 14,
-                color: colors.mutedForeground,
-                textAlign: "center",
-              }}
-            >
-              Be the first to share your thoughts about this event!
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {comments.map((comment: any) => (
-              <View
-                key={comment.id}
-                style={{
-                  flexDirection: "row",
-                  gap: 12,
-                  marginBottom: 20,
-                }}
-              >
-                <Image
-                  source={{
-                    uri:
-                      comment.author?.avatar ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        comment.author?.username ||
-                          comment.author?.name ||
-                          "User",
-                      )}`,
-                  }}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: Math.min(Math.round(40 * 0.18), 16),
-                  }}
-                />
-                <View style={{ flex: 1 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 15,
-                        fontWeight: "600",
-                        color: colors.foreground,
-                      }}
-                    >
-                      {comment.author?.username ||
-                        comment.author?.name ||
-                        "User"}
-                    </Text>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: colors.mutedForeground,
-                      }}
-                    >
-                      {formatDate(comment.createdAt)}
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      color: colors.foreground,
-                      lineHeight: 20,
-                    }}
-                  >
-                    {(comment.content || "")
-                      .split(/(@\w+)/g)
-                      .map((part: string, i: number) =>
-                        part.startsWith("@") ? (
-                          <Text
-                            key={i}
-                            onPress={() =>
-                              router.push(
-                                `/(protected)/profile/${part.slice(1)}` as any,
-                              )
-                            }
-                            style={{ color: MENTION_COLOR, fontWeight: "600" }}
-                          >
-                            {part}
-                          </Text>
-                        ) : (
-                          <Text key={i}>{part}</Text>
-                        ),
-                      )}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Mention Suggestions */}
-        {mentionSuggestions.length > 0 && (
-          <View
-            style={{
-              position: "absolute",
-              bottom: Platform.OS === "ios" ? 80 : 70,
-              left: 0,
-              right: 0,
-              backgroundColor: colors.card,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              maxHeight: 200,
-            }}
-          >
-            <Text
-              style={{
-                color: colors.mutedForeground,
-                fontSize: 11,
-                paddingHorizontal: 16,
-                paddingTop: 10,
-                paddingBottom: 6,
-              }}
-            >
-              Mention a user
-            </Text>
-            {mentionSuggestions.map((u) => (
-              <Pressable
-                key={u.username}
-                onPress={() => handleInsertMention(u.username)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 10,
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                }}
-              >
-                <Image
-                  source={{
-                    uri:
-                      u.avatar ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}`,
-                  }}
-                  style={{ width: 32, height: 32, borderRadius: 16 }}
-                />
-                <Text style={{ color: colors.foreground, fontWeight: "500" }}>
-                  @{u.username}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        {/* Comment Input */}
+      {isLoading ? (
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+        >
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : comments.length === 0 ? (
         <View
           style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
+            flex: 1,
+            justifyContent: "center",
+            alignItems: "center",
+            padding: 40,
+          }}
+        >
+          <MessageCircle size={48} color={colors.mutedForeground} />
+          <Text
+            style={{
+              fontSize: 18,
+              fontWeight: "600",
+              color: colors.foreground,
+              marginTop: 16,
+              marginBottom: 8,
+            }}
+          >
+            No Comments Yet
+          </Text>
+          <Text
+            style={{
+              fontSize: 14,
+              color: colors.mutedForeground,
+              textAlign: "center",
+            }}
+          >
+            Be the first to share your thoughts about this event!
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {comments.map((comment: any) => (
+            <View
+              key={comment.id}
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginBottom: 20,
+              }}
+            >
+              <Image
+                source={{
+                  uri:
+                    comment.author?.avatar ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                      comment.author?.username ||
+                        comment.author?.name ||
+                        "User",
+                    )}`,
+                }}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: Math.min(Math.round(40 * 0.18), 16),
+                }}
+              />
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: 4,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      fontWeight: "600",
+                      color: colors.foreground,
+                    }}
+                  >
+                    {comment.author?.username || comment.author?.name || "User"}
+                  </Text>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: colors.mutedForeground,
+                    }}
+                  >
+                    {formatDate(comment.createdAt)}
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    color: colors.foreground,
+                    lineHeight: 20,
+                  }}
+                >
+                  {(comment.content || "")
+                    .split(/(@\w+)/g)
+                    .map((part: string, i: number) =>
+                      part.startsWith("@") ? (
+                        <Text
+                          key={i}
+                          onPress={() =>
+                            router.push(
+                              `/(protected)/profile/${part.slice(1)}` as any,
+                            )
+                          }
+                          style={{ color: MENTION_COLOR, fontWeight: "600" }}
+                        >
+                          {part}
+                        </Text>
+                      ) : (
+                        <Text key={i}>{part}</Text>
+                      ),
+                    )}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      {/* Mention Suggestions */}
+      {mentionSuggestions.length > 0 && (
+        <View
+          style={{
+            backgroundColor: colors.card,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            maxHeight: 200,
+          }}
+        >
+          <Text
+            style={{
+              color: colors.mutedForeground,
+              fontSize: 11,
+              paddingHorizontal: 16,
+              paddingTop: 10,
+              paddingBottom: 6,
+            }}
+          >
+            Mention a user
+          </Text>
+          {mentionSuggestions.map((u) => (
+            <Pressable
+              key={u.username}
+              onPress={() => handleInsertMention(u.username)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
+              }}
+            >
+              <Image
+                source={{
+                  uri:
+                    u.avatar ||
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}`,
+                }}
+                style={{ width: 32, height: 32, borderRadius: 16 }}
+              />
+              <Text style={{ color: colors.foreground, fontWeight: "500" }}>
+                @{u.username}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Comment Input */}
+      <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+        <View
+          style={{
             backgroundColor: colors.background,
             borderTopWidth: 1,
             borderTopColor: colors.border,
@@ -497,7 +487,7 @@ export default function EventCommentsScreen() {
             </Pressable>
           </View>
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardStickyView>
+    </SafeAreaView>
   );
 }

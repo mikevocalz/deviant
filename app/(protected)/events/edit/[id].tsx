@@ -1,12 +1,12 @@
 import {
   View,
   Text,
-  ScrollView,
   Pressable,
   TextInput,
   Alert,
   Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -236,7 +236,11 @@ export default function EditEventScreen() {
         </Pressable>
       </View>
 
-      <ScrollView className="flex-1 p-4">
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16 }}
+        bottomOffset={40}
+      >
         {/* Title */}
         <View className="mb-4">
           <Text className="mb-2 text-sm font-medium text-foreground">
@@ -381,7 +385,7 @@ export default function EditEventScreen() {
         </Pressable>
 
         <View className="h-8" />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }
