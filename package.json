@@ -148,11 +148,13 @@
     }
   },
   "overrides": {
-    "react-native-worklets": "0.8.0-nightly-20260122-45349f895"
+    "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
+    "hermes-compiler": "250829098.0.4"
   },
   "resolutions": {
     "@fishjam-cloud/react-native-webrtc": "0.25.0",
-    "react-native-worklets": "0.8.0-nightly-20260122-45349f895"
+    "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
+    "hermes-compiler": "250829098.0.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
