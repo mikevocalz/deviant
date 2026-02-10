@@ -40,7 +40,6 @@
     "@rn-primitives/slot": "^1.2.0",
     "@rn-primitives/switch": "^1.2.0",
     "@rn-primitives/types": "^1.2.0",
-    "@rork-ai/toolkit-sdk": "0.2.54",
     "@shopify/react-native-skia": "2.4.18",
     "@supabase/supabase-js": "^2.93.3",
     "@tanstack/pacer": "^0.18.0",

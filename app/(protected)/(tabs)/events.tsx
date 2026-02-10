@@ -20,7 +20,7 @@ import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding each side
+const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
 const CARD_HEIGHT = Math.round(CARD_WIDTH * (4 / 5)); // 5:4 aspect ratio
 
 function EventCard({

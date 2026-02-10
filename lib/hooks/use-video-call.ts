@@ -115,7 +115,14 @@ export function useVideoCall() {
   // ── Sync Fishjam peerStatus → store ─────────────────────────────────
   useEffect(() => {
     const s = getStore();
-    if (peerStatus === "connected" && s.callPhase === "connecting_peer") {
+    // GUARD: Ignore peerStatus changes after call has ended/errored/reset.
+    // Fishjam fires disconnect/error events AFTER leaveRoom() — these must
+    // not overwrite the terminal call_ended phase or set error post-hangup.
+    const phase = s.callPhase;
+    if (phase === "call_ended" || phase === "error" || phase === "idle") {
+      return;
+    }
+    if (peerStatus === "connected" && phase === "connecting_peer") {
       s.setCallPhase("starting_media");
       s.setConnectionStatus("connected");
       log("Peer connected, transitioning to starting_media");
@@ -123,7 +130,7 @@ export function useVideoCall() {
       s.setConnectionStatus("connected");
     } else if (peerStatus === "error") {
       s.setConnectionStatus("error", "Peer connection failed");
-      if (s.callPhase === "connecting_peer") {
+      if (phase === "connecting_peer") {
         s.setError("WebRTC peer connection failed", "peer_error");
       }
     }
@@ -677,8 +684,14 @@ export function useVideoCall() {
     [user, startMedia, startDurationTimer, getStore],
   );
 
+  // Track whether leaveCall() was already invoked by the user (vs external end from CallKeep)
+  const userInitiatedLeaveRef = useRef(false);
+
   // ── Leave current call ─────────────────────────────────────────────
   const leaveCall = useCallback(() => {
+    // Mark as user-initiated so the external end effect skips duplicate cleanup
+    userInitiatedLeaveRef.current = true;
+
     const s = getStore();
     const currentRoomId = s.roomId;
     const duration = s.callDuration;
@@ -925,6 +938,17 @@ export function useVideoCall() {
   useEffect(() => {
     if (store.callPhase === "call_ended" && !externalEndHandledRef.current) {
       externalEndHandledRef.current = true;
+
+      // If leaveCall() already ran (user tapped End), skip duplicate cleanup.
+      // The coordinator's onEnd fires AFTER leaveCall due to callKeepEndAllCalls,
+      // which would otherwise double-fire leaveRoom and cause Fishjam errors.
+      if (userInitiatedLeaveRef.current) {
+        log(
+          "[LIFECYCLE] External call_ended after user-initiated leave — skipping duplicate cleanup",
+        );
+        return;
+      }
+
       // Only do Fishjam/media cleanup — the phase is already set
       log(
         "[LIFECYCLE] External call_ended detected — cleaning up Fishjam/media",
@@ -938,11 +962,14 @@ export function useVideoCall() {
         logWarn("Error stopping media on external end:", e);
       }
       stopDurationTimer();
-      leaveRoomRef.current();
+      CT.guard("FISHJAM", "leaveRoom_external", () => {
+        leaveRoomRef.current();
+      });
     }
     // Reset the guard when we go back to idle
     if (store.callPhase === "idle") {
       externalEndHandledRef.current = false;
+      userInitiatedLeaveRef.current = false;
     }
   }, [store.callPhase, store.callType, store.isCameraOn, stopDurationTimer]);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Tabs, useRouter } from "expo-router";
-import { View, Pressable, Text, Platform } from "react-native";
+import { Dimensions, View, Pressable, Text, Platform } from "react-native";
 import {
   Home,
   Search,
@@ -27,6 +27,9 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
+        sceneStyle: {
+          width: isLargeScreen ? Dimensions.get("window").width - 72 : "100%",
+        },
         headerShown: true,
         headerTitleAlign: "left",
         headerStyle: {
@@ -74,7 +77,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View className="items-center mt-5 justify-center">
+            <View className="items-center justify-center">
               <Home
                 size={24}
                 color={focused ? colors.foreground : colors.mutedForeground}
@@ -88,7 +91,7 @@ export default function TabsLayout() {
         name="events"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View className="items-center mt-5 justify-center">
+            <View className="items-center justify-center">
               <CalendarDays
                 size={24}
                 color={focused ? colors.foreground : colors.mutedForeground}
@@ -120,7 +123,7 @@ export default function TabsLayout() {
         name="activity"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View className="items-center mt-5 justify-center">
+            <View className="items-center justify-center">
               <Heart
                 size={24}
                 color={focused ? colors.foreground : colors.mutedForeground}
@@ -135,7 +138,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           tabBarIcon: ({ focused }) => (
-            <View className="items-center mt-5 justify-center">
+            <View className="items-center justify-center">
               <User
                 size={24}
                 color={focused ? colors.foreground : colors.mutedForeground}

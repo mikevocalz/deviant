@@ -84,8 +84,7 @@ logs/
 .cursor/
 .copilot/
 .qodo/
-.rork
-rork-eslint.config.js
+
 
 # Misc
 .vercel
