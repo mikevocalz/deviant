@@ -147,6 +147,12 @@ export default {
         },
       ],
       [
+        "expo-screen-orientation",
+        {
+          initialOrientation: "PORTRAIT_UP",
+        },
+      ],
+      [
         "expo-camera",
         {
           cameraPermission: "Allow $(PRODUCT_NAME) to access your camera.",
