@@ -12,11 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
-import {
-  isTabVisible,
-  isSpecialTab,
-  PHONE_TAB_BAR_HEIGHT,
-} from "./constants";
+import { isTabVisible, isSpecialTab, PHONE_TAB_BAR_HEIGHT } from "./constants";
 
 export function PhoneTabBar({
   state,
@@ -78,14 +74,16 @@ export function PhoneTabBar({
         // If the route has a custom tabBarButton, render it directly
         if (isSpecialTab(route) && options.tabBarButton) {
           const TabBarButton = options.tabBarButton as React.ComponentType<any>;
-          return <TabBarButton key={route.key} />;
+          return (
+            <View key={route.key} style={styles.tabItem}>
+              <TabBarButton />
+            </View>
+          );
         }
 
         const icon = options.tabBarIcon?.({
           focused: isFocused,
-          color: isFocused
-            ? colors.foreground
-            : colors.mutedForeground,
+          color: isFocused ? colors.foreground : colors.mutedForeground,
           size: 24,
         });
 
@@ -116,7 +114,6 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     borderTopWidth: 1,
-    alignItems: "center",
   },
   tabItem: {
     flex: 1,
