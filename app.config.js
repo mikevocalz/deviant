@@ -114,6 +114,8 @@ export default {
           ios: {
             deploymentTarget: "16.0",
           },
+          buildReactNativeFromSource: true,
+          useHermesV1: true,
         },
       ],
       [

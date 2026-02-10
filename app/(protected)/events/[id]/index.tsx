@@ -61,7 +61,14 @@ import type {
   EventAttendee,
   EventDetail,
 } from "@/src/events/types";
-import { YouTubeEmbed } from "@/components/youtube-embed";
+// Lazy-load YouTubeEmbed — react-native-webview may not be in the native build yet
+let YouTubeEmbed: React.ComponentType<{ url: string; height?: number }> | null =
+  null;
+try {
+  YouTubeEmbed = require("@/components/youtube-embed").YouTubeEmbed;
+} catch {
+  // Native module not available — skip YouTube embed
+}
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -623,7 +630,7 @@ export default function EventDetailScreen() {
           </Animated.View>
 
           {/* ── 4b. YOUTUBE VIDEO ──────────────────────────────── */}
-          {event.youtubeVideoUrl ? (
+          {event.youtubeVideoUrl && YouTubeEmbed ? (
             <Animated.View entering={FadeInDown.delay(350)} style={s.section}>
               <Text style={s.sectionTitle}>Video</Text>
               <YouTubeEmbed url={event.youtubeVideoUrl} height={220} />
