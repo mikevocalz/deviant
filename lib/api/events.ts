@@ -545,22 +545,54 @@ export const eventsApi = {
     try {
       console.log("[Events] deleteEvent:", eventId);
 
-      const authId = await getCurrentUserAuthId();
-      if (!authId) throw new Error("Not authenticated");
-
       const eventIdInt = parseInt(eventId);
 
-      // 1. Fetch event first to get image URLs for cleanup
+      // Resolve all possible user identifiers for ownership check
+      const authId = await getCurrentUserAuthId();
+      const userIdInt = getCurrentUserIdInt();
+      const userId = getCurrentUserId();
+      console.log(
+        "[Events] deleteEvent identifiers — authId:",
+        authId,
+        "userIdInt:",
+        userIdInt,
+        "userId:",
+        userId,
+      );
+
+      if (!authId && !userIdInt && !userId)
+        throw new Error("Not authenticated");
+
+      // 1. Fetch event by ID only (no host filter — we verify ownership in code)
       const { data: event, error: fetchError } = await supabase
         .from(DB.events.table)
         .select("*")
         .eq(DB.events.id, eventIdInt)
-        .eq(DB.events.hostId, authId)
         .single();
 
-      if (fetchError) {
+      if (fetchError || !event) {
         console.error("[Events] deleteEvent fetch error:", fetchError);
-        throw new Error("Event not found or you are not the host");
+        throw new Error("Event not found");
+      }
+
+      // Verify ownership: host_id could be authId (string) or userId (integer as string)
+      const hostId = String(event[DB.events.hostId]);
+      console.log("[Events] deleteEvent hostId from DB:", hostId);
+      const isOwner =
+        (authId && hostId === authId) ||
+        (userId && hostId === userId) ||
+        (userIdInt != null && hostId === String(userIdInt));
+
+      if (!isOwner) {
+        console.error(
+          "[Events] deleteEvent ownership mismatch — hostId:",
+          hostId,
+          "authId:",
+          authId,
+          "userId:",
+          userId,
+        );
+        throw new Error("You are not the host of this event");
       }
 
       // Collect all image URLs for CDN cleanup
@@ -594,20 +626,27 @@ export const eventsApi = {
             `[Events] deleteEvent related delete ${i} failed:`,
             r.reason,
           );
+        } else if (r.status === "fulfilled" && r.value?.error) {
+          console.warn(
+            `[Events] deleteEvent related delete ${i} DB error:`,
+            r.value.error,
+          );
         }
       });
 
-      // 3. Delete the event itself
-      const { error } = await supabase
+      // 3. Delete the event itself using the actual host_id from the DB row
+      const { error, count } = await supabase
         .from(DB.events.table)
         .delete()
         .eq(DB.events.id, eventIdInt)
-        .eq(DB.events.hostId, authId);
+        .eq(DB.events.hostId, hostId);
 
       if (error) {
         console.error("[Events] deleteEvent DB error:", error);
         throw error;
       }
+
+      console.log("[Events] deleteEvent success, deleted count:", count);
 
       // 4. Clean up images from Bunny CDN (best-effort, don't block)
       if (imageUrls.length > 0) {
@@ -616,7 +655,6 @@ export const eventsApi = {
           process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
         Promise.allSettled(
           imageUrls.map((url) => {
-            // Extract path from CDN URL: https://dvnt.b-cdn.net/path/to/file.jpg -> path/to/file.jpg
             const path = url.startsWith(CDN_URL)
               ? url.slice(CDN_URL.length + 1)
               : null;
