@@ -12,6 +12,14 @@ patch_package() {
   local pkg_dir="$1"
   local label="$2"
 
+  # --- Android: Replace jcenter() with mavenCentral() (removed in Gradle 9) ---
+  local build_gradle="$pkg_dir/android/build.gradle"
+  if [ -f "$build_gradle" ]; then
+    sed -i.bak 's/jcenter()/mavenCentral()/g' "$build_gradle" 2>/dev/null || true
+    rm -f "${build_gradle}.bak"
+    echo "[patch-photo-editor-core] $label Android: build.gradle (jcenter → mavenCentral)"
+  fi
+
   # --- Android: Fix currentActivity for RN 0.81 ---
   local module_kt="$pkg_dir/android/src/main/java/com/reactnativephotoeditor/PhotoEditorModule.kt"
   if [ -f "$module_kt" ]; then
