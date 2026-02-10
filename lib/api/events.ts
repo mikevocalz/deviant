@@ -539,6 +539,7 @@ export const eventsApi = {
 
   /**
    * Delete event (only host can delete)
+   * Also cleans up associated images from Bunny CDN
    */
   async deleteEvent(eventId: string) {
     try {
@@ -547,23 +548,95 @@ export const eventsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) throw new Error("Not authenticated");
 
-      // Delete RSVPs
-      await supabase
-        .from(DB.eventRsvps.table)
-        .delete()
-        .eq(DB.eventRsvps.eventId, parseInt(eventId));
+      const eventIdInt = parseInt(eventId);
 
-      // Delete event (only if user is host)
+      // 1. Fetch event first to get image URLs for cleanup
+      const { data: event, error: fetchError } = await supabase
+        .from(DB.events.table)
+        .select("*")
+        .eq(DB.events.id, eventIdInt)
+        .eq(DB.events.hostId, authId)
+        .single();
+
+      if (fetchError) {
+        console.error("[Events] deleteEvent fetch error:", fetchError);
+        throw new Error("Event not found or you are not the host");
+      }
+
+      // Collect all image URLs for CDN cleanup
+      const imageUrls: string[] = [];
+      const coverImage = event[DB.events.coverImageUrl] || event["image"];
+      if (coverImage) imageUrls.push(coverImage);
+      const extraImages = parseJsonbArray(event[DB.events.images]);
+      for (const img of extraImages) {
+        const url = typeof img === "string" ? img : img?.url;
+        if (url) imageUrls.push(url);
+      }
+
+      // 2. Delete related records (in case FK cascade is missing)
+      const relatedDeletes = [
+        supabase
+          .from(DB.eventRsvps.table)
+          .delete()
+          .eq(DB.eventRsvps.eventId, eventIdInt),
+        supabase
+          .from(DB.eventLikes.table)
+          .delete()
+          .eq(DB.eventLikes.eventId, eventIdInt),
+        supabase.from("event_comments").delete().eq("event_id", eventIdInt),
+        supabase.from("event_reviews").delete().eq("event_id", eventIdInt),
+      ];
+
+      const results = await Promise.allSettled(relatedDeletes);
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.warn(
+            `[Events] deleteEvent related delete ${i} failed:`,
+            r.reason,
+          );
+        }
+      });
+
+      // 3. Delete the event itself
       const { error } = await supabase
         .from(DB.events.table)
         .delete()
-        .eq(DB.events.id, parseInt(eventId))
+        .eq(DB.events.id, eventIdInt)
         .eq(DB.events.hostId, authId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("[Events] deleteEvent DB error:", error);
+        throw error;
+      }
+
+      // 4. Clean up images from Bunny CDN (best-effort, don't block)
+      if (imageUrls.length > 0) {
+        const { deleteFromBunny } = await import("../bunny-storage");
+        const CDN_URL =
+          process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
+        Promise.allSettled(
+          imageUrls.map((url) => {
+            // Extract path from CDN URL: https://dvnt.b-cdn.net/path/to/file.jpg -> path/to/file.jpg
+            const path = url.startsWith(CDN_URL)
+              ? url.slice(CDN_URL.length + 1)
+              : null;
+            if (path) {
+              console.log("[Events] Deleting CDN image:", path);
+              return deleteFromBunny(path);
+            }
+            return Promise.resolve(false);
+          }),
+        ).then((cdnResults) => {
+          console.log(
+            "[Events] CDN cleanup results:",
+            cdnResults.map((r) => r.status),
+          );
+        });
+      }
+
       return { success: true };
-    } catch (error) {
-      console.error("[Events] deleteEvent error:", error);
+    } catch (error: any) {
+      console.error("[Events] deleteEvent error:", error?.message || error);
       throw error;
     }
   },
