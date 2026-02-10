@@ -35,6 +35,7 @@ export type {
 } from "./callkeep";
 
 export { useCallKeepCoordinator } from "./useCallKeepCoordinator";
+export { NotificationListener } from "./NotificationListener";
 
 export {
   CALL_DEBUG,

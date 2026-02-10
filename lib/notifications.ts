@@ -20,13 +20,20 @@ if (Platform.OS !== "web") {
 
     // Configure notification handler
     Notifications?.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+      handleNotification: async (notification) => {
+        const notificationType = notification.request.content.data?.type;
+        const isCallNotification = notificationType === "call";
+
+        // CRITICAL: For incoming calls, show alert + sound to wake the app
+        // and trigger CallKeep UI (handled by NotificationListener component)
+        return {
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: !isCallNotification, // Don't badge for calls
+          shouldShowBanner: true,
+          shouldShowList: !isCallNotification, // Don't list calls in notification center
+        };
+      },
     });
   } catch (e) {
     console.log("[Notifications] Native modules not available");
@@ -113,13 +120,28 @@ export async function registerForPushNotificationsAsync(): Promise<
     return null;
   }
 
-  // Set up Android notification channel
+  // Set up Android notification channels
   if (Platform.OS === "android") {
+    // Default channel for regular notifications
     await Notifications.setNotificationChannelAsync("default", {
       name: "Default",
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF6B6B",
+    });
+
+    // CRITICAL: High-priority channel for incoming calls
+    // This ensures calls wake the device and show heads-up notification
+    await Notifications.setNotificationChannelAsync("calls", {
+      name: "Incoming Calls",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 1000, 500, 1000],
+      lightColor: "#4ade80",
+      sound: "default",
+      enableVibrate: true,
+      showBadge: false,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true, // Bypass Do Not Disturb for calls
     });
   }
 

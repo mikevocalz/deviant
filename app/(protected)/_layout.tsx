@@ -1,9 +1,16 @@
 "use client";
 
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
 import { useCallKeepCoordinator } from "@/src/services/callkeep";
+import { NotificationListener } from "@/src/services/callkeep/NotificationListener";
 import { usePresenceManager } from "@/lib/hooks/use-presence";
+import {
+  registerForPushNotificationsAsync,
+  savePushTokenToBackend,
+} from "@/lib/notifications";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -42,8 +49,33 @@ export default function ProtectedLayout() {
   // Track current user's online/offline presence
   usePresenceManager();
 
+  const user = useAuthStore((s) => s.user);
+
+  // ── Register for push notifications on mount ────────────────────────
+  // CRITICAL: This enables incoming calls to ring when app is backgrounded/killed
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const registerPush = async () => {
+      try {
+        const token = await registerForPushNotificationsAsync();
+        if (token) {
+          console.log("[ProtectedLayout] Push token registered:", token);
+          await savePushTokenToBackend(token, user.id, user.username);
+          console.log("[ProtectedLayout] Push token saved to backend");
+        }
+      } catch (error) {
+        console.error("[ProtectedLayout] Push registration failed:", error);
+      }
+    };
+
+    registerPush();
+  }, [user?.id, user?.username]);
+
   return (
     <>
+      {/* CRITICAL: NotificationListener handles incoming call push notifications */}
+      <NotificationListener />
       <Stack
         screenOptions={{
           headerShown: false,

@@ -22,7 +22,8 @@ interface PushNotificationPayload {
     | "mention"
     | "message"
     | "event_invite"
-    | "event_update";
+    | "event_update"
+    | "call"; // NEW: incoming call notification
 }
 
 interface ExpoPushMessage {
@@ -33,6 +34,8 @@ interface ExpoPushMessage {
   sound?: "default" | null;
   badge?: number;
   channelId?: string;
+  priority?: "default" | "normal" | "high"; // For Android
+  categoryId?: string; // For iOS categories
 }
 
 serve(async (req) => {
@@ -104,30 +107,39 @@ serve(async (req) => {
     }
 
     // 2. Store notification in database (matches actual schema)
-    const { error: notifError } = await supabase.from("notifications").insert({
-      recipient_id: recipientId,
-      actor_id: actorId,
-      type,
-      entity_type: data?.entityType || null,
-      entity_id: data?.entityId ? String(data.entityId) : null,
-    });
+    // SKIP storing call notifications in the notifications table —
+    // they're transient and stored in call_signals instead
+    if (type !== "call") {
+      const { error: notifError } = await supabase.from("notifications").insert({
+        recipient_id: recipientId,
+        actor_id: actorId,
+        type,
+        entity_type: data?.entityType || null,
+        entity_id: data?.entityId ? String(data.entityId) : null,
+      });
 
-    if (notifError) {
-      console.error(
-        "[send_notification] Error storing notification:",
-        notifError,
-      );
-      // Continue anyway - push notification is more important
+      if (notifError) {
+        console.error(
+          "[send_notification] Error storing notification:",
+          notifError,
+        );
+        // Continue anyway - push notification is more important
+      }
     }
 
     // 3. Send to Expo Push Service
+    // CRITICAL: For incoming calls, use high priority to ensure delivery
+    // when app is backgrounded or killed (iOS background wake, Android heads-up)
+    const isCallNotification = type === "call";
     const messages: ExpoPushMessage[] = tokens.map((t) => ({
       to: t.token,
       title,
       body,
       data: { ...data, type },
       sound: "default",
-      channelId: "default",
+      channelId: isCallNotification ? "calls" : "default",
+      priority: isCallNotification ? "high" : "default",
+      categoryId: isCallNotification ? "CALL" : undefined,
     }));
 
     const expoResponse = await fetch(EXPO_PUSH_URL, {
