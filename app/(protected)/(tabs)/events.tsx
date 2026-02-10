@@ -1,4 +1,4 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
@@ -17,9 +17,11 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
-import { UserAvatar } from "@/components/ui/user-avatar";
+import { Avatar } from "@/components/ui/avatar";
 
-const CARD_HEIGHT = 333;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const CARD_WIDTH = SCREEN_WIDTH - 32; // 16px padding each side
+const CARD_HEIGHT = Math.round(CARD_WIDTH * (4 / 5)); // 5:4 aspect ratio
 
 function EventCard({
   event,
@@ -88,46 +90,14 @@ function EventCard({
               className="absolute inset-0"
             />
 
-            {/* Attendees */}
-            <View className="absolute top-4 left-4 flex-row items-center">
-              <View className="flex-row items-center">
-                {Array.isArray(event.attendees) ? (
-                  event.attendees
-                    .slice(0, 3)
-                    .map((attendee: any, idx: number) => (
-                      <View
-                        key={idx}
-                        className="border-2 border-background rounded-full overflow-hidden"
-                        style={{
-                          marginLeft: idx === 0 ? 0 : -12,
-                        }}
-                      >
-                        <UserAvatar
-                          uri={attendee.image}
-                          username={attendee.initials || "??"}
-                          size={36}
-                        />
-                      </View>
-                    ))
-                ) : (
-                  <View className="bg-black/40 px-3 py-1.5 rounded-xl">
-                    <Text className="text-white text-xs font-medium">
-                      {typeof event.attendees === "number"
-                        ? event.attendees
-                        : 0}{" "}
-                      attending
-                    </Text>
-                  </View>
-                )}
-                {(event.totalAttendees ?? 0) > 3 &&
-                  Array.isArray(event.attendees) && (
-                    <View className="ml-2 bg-black/40 px-2 py-1 rounded-xl">
-                      <Text className="text-white text-xs font-medium">
-                        +{(event.totalAttendees ?? 0) - 3}
-                      </Text>
-                    </View>
-                  )}
-              </View>
+            {/* Like Button — top-left */}
+            <View className="absolute top-4 left-4">
+              <Pressable className="flex-row items-center gap-1.5 bg-black/40 px-4 py-2 rounded-full">
+                <Heart size={16} color="#fff" />
+                <Text className="text-white text-sm font-medium">
+                  {formatLikes(event.likes ?? 0)}
+                </Text>
+              </Pressable>
             </View>
 
             {/* Date Badge */}
@@ -166,13 +136,45 @@ function EventCard({
               </Text>
 
               <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center gap-3">
-                  <Pressable className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-full">
-                    <Heart size={16} color="#fff" />
-                    <Text className="text-white text-sm font-medium">
-                      {formatLikes(event.likes ?? 0)}
-                    </Text>
-                  </Pressable>
+                <View className="flex-row items-center">
+                  {Array.isArray(event.attendees) ? (
+                    event.attendees
+                      .slice(0, 3)
+                      .map((attendee: any, idx: number) => (
+                        <View
+                          key={idx}
+                          className="border-2 border-background overflow-hidden"
+                          style={{
+                            marginLeft: idx === 0 ? 0 : -10,
+                            borderRadius: 8,
+                          }}
+                        >
+                          <Avatar
+                            uri={attendee.image}
+                            username={attendee.initials || "??"}
+                            size={32}
+                            variant="roundedSquare"
+                          />
+                        </View>
+                      ))
+                  ) : (
+                    <View className="bg-white/20 px-3 py-1.5 rounded-xl">
+                      <Text className="text-white text-xs font-medium">
+                        {typeof event.attendees === "number"
+                          ? event.attendees
+                          : 0}{" "}
+                        attending
+                      </Text>
+                    </View>
+                  )}
+                  {(event.totalAttendees ?? 0) > 3 &&
+                    Array.isArray(event.attendees) && (
+                      <View className="ml-2 bg-white/20 px-2 py-1 rounded-xl">
+                        <Text className="text-white text-xs font-medium">
+                          +{(event.totalAttendees ?? 0) - 3}
+                        </Text>
+                      </View>
+                    )}
                 </View>
                 <View className="bg-primary px-5 py-2 rounded-full">
                   <Text className="text-white text-base font-bold">
