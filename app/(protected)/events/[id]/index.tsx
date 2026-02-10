@@ -61,14 +61,8 @@ import type {
   EventAttendee,
   EventDetail,
 } from "@/src/events/types";
-// Lazy-load YouTubeEmbed — react-native-webview may not be in the native build yet
-let YouTubeEmbed: React.ComponentType<{ url: string; height?: number }> | null =
-  null;
-try {
-  YouTubeEmbed = require("@/components/youtube-embed").YouTubeEmbed;
-} catch {
-  // Native module not available — skip YouTube embed
-}
+// TODO: Re-enable after native build includes react-native-webview
+// import { YouTubeEmbed } from "@/components/youtube-embed";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -629,13 +623,7 @@ export default function EventDetailScreen() {
             ) : null}
           </Animated.View>
 
-          {/* ── 4b. YOUTUBE VIDEO ──────────────────────────────── */}
-          {event.youtubeVideoUrl && YouTubeEmbed ? (
-            <Animated.View entering={FadeInDown.delay(350)} style={s.section}>
-              <Text style={s.sectionTitle}>Video</Text>
-              <YouTubeEmbed url={event.youtubeVideoUrl} height={220} />
-            </Animated.View>
-          ) : null}
+          {/* ── 4b. YOUTUBE VIDEO (disabled until native build includes react-native-webview) ── */}
 
           {/* ── 4c. EVENT IMAGES ───────────────────────────────── */}
           {event.images && event.images.length > 0 ? (
