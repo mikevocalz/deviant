@@ -258,6 +258,11 @@ export default function EventDetailScreen() {
     setHasError(false);
     try {
       const fetched = await eventsApi.getEventById(eventId);
+      console.log(
+        "[EventDetail] fetched images:",
+        JSON.stringify(fetched?.images),
+      );
+      console.log("[EventDetail] fetched image (cover):", fetched?.image);
       if (fetched) {
         setEventData(fetched as EventDetail);
       } else {

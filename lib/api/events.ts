@@ -6,6 +6,20 @@ import {
   getCurrentUserAuthId,
 } from "./auth-helper";
 
+/** Safely parse a JSONB array column (handles string, array, or null) */
+function parseJsonbArray(value: unknown): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 /** Resolve event image URL from multiple DB columns */
 function resolveEventImage(event: any): string {
   // Priority: cover_image_url > image > cover_image_id (would need join)
@@ -137,9 +151,7 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
-          images: Array.isArray(event[DB.events.images])
-            ? event[DB.events.images]
-            : [],
+          images: parseJsonbArray(event[DB.events.images]),
           youtubeVideoUrl: event[DB.events.youtubeVideoUrl] || null,
           price: Number(event[DB.events.price]) || 0,
           likes: Number(event.likes) || 0,
@@ -294,6 +306,13 @@ export const eventsApi = {
 
       if (error) throw error;
 
+      console.log(
+        "[Events] getEventById raw images:",
+        JSON.stringify(data["images"]),
+        "type:",
+        typeof data["images"],
+      );
+
       // Fetch host data separately
       let host = null;
       if (data[DB.events.hostId]) {
@@ -315,9 +334,7 @@ export const eventsApi = {
         ...dateParts,
         location: data[DB.events.location],
         image: resolveEventImage(data),
-        images: Array.isArray(data[DB.events.images])
-          ? data[DB.events.images]
-          : [],
+        images: parseJsonbArray(data[DB.events.images]),
         youtubeVideoUrl: data[DB.events.youtubeVideoUrl] || null,
         price: Number(data[DB.events.price]) || 0,
         likes: Number(data.likes) || 0,
