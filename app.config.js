@@ -174,6 +174,13 @@ export default {
       "expo-secure-store",
       "react-native-compressor",
       [
+        "expo-calendar",
+        {
+          calendarPermission:
+            "Allow $(PRODUCT_NAME) to access your calendar to add event reminders.",
+        },
+      ],
+      [
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
