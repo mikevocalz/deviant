@@ -492,39 +492,6 @@ export default function EventDetailScreen() {
     <View style={s.root}>
       <StatusBar barStyle="light-content" />
 
-      {/* ── Floating Header ──────────────────────────────────────── */}
-      <View style={[s.headerContainer, { paddingTop: insets.top }]}>
-        <Animated.View style={[s.headerBg, headerBgStyle]} />
-        <View style={s.headerInner}>
-          <Pressable onPress={() => router.back()} style={s.headerButton}>
-            <ArrowLeft size={22} color="#fff" />
-          </Pressable>
-          <Animated.Text
-            style={[s.headerTitle, headerTitleStyle]}
-            numberOfLines={1}
-          >
-            {event.title}
-          </Animated.Text>
-          <View style={s.headerActions}>
-            {isHost && (
-              <Pressable onPress={handleDeleteEvent} style={s.headerButton}>
-                <Trash2 size={20} color="#ef4444" />
-              </Pressable>
-            )}
-            <Pressable onPress={handleShare} style={s.headerButton}>
-              <Share2 size={20} color="#fff" />
-            </Pressable>
-            <Pressable onPress={handleToggleLike} style={s.headerButton}>
-              <Heart
-                size={20}
-                color={isLiked ? "#FF5BFC" : "#fff"}
-                fill={isLiked ? "#FF5BFC" : "transparent"}
-              />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
       <Animated.ScrollView
         style={s.scroll}
         showsVerticalScrollIndicator={false}
@@ -883,7 +850,58 @@ export default function EventDetailScreen() {
         </View>
       </Animated.ScrollView>
 
-      {/* ── 6. STICKY CTA BAR ──────────────────────────────────── */}
+      {/* ── Floating Header (rendered AFTER scroll so it's on top for touches) */}
+      <View
+        style={[s.headerContainer, { paddingTop: insets.top }]}
+        pointerEvents="box-none"
+      >
+        <Animated.View
+          style={[s.headerBg, headerBgStyle]}
+          pointerEvents="none"
+        />
+        <View style={s.headerInner} pointerEvents="box-none">
+          <Pressable
+            onPress={() => router.back()}
+            style={s.headerButton}
+            hitSlop={8}
+          >
+            <ArrowLeft size={22} color="#fff" />
+          </Pressable>
+          <Animated.Text
+            style={[s.headerTitle, headerTitleStyle]}
+            numberOfLines={1}
+          >
+            {event.title}
+          </Animated.Text>
+          <View style={s.headerActions}>
+            {isHost && (
+              <Pressable
+                onPress={handleDeleteEvent}
+                style={s.headerButton}
+                hitSlop={8}
+              >
+                <Trash2 size={20} color="#ef4444" />
+              </Pressable>
+            )}
+            <Pressable onPress={handleShare} style={s.headerButton} hitSlop={8}>
+              <Share2 size={20} color="#fff" />
+            </Pressable>
+            <Pressable
+              onPress={handleToggleLike}
+              style={s.headerButton}
+              hitSlop={8}
+            >
+              <Heart
+                size={20}
+                color={isLiked ? "#FF5BFC" : "#fff"}
+                fill={isLiked ? "#FF5BFC" : "transparent"}
+              />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Sticky CTA ─────────────────────────────────────────── */}
       <StickyCTA
         selectedTier={selectedTier}
         hasTicket={hasTicket}
