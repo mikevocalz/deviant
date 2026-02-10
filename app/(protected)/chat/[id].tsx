@@ -911,7 +911,7 @@ export default function ChatScreen() {
             );
 
             const bubble = (
-              <View style={{ maxWidth: "80%" }}>
+              <View style={{ maxWidth: "80%", flexShrink: 1 }}>
                 {item.media && (
                   <MediaMessage
                     media={item.media}
@@ -962,6 +962,7 @@ export default function ChatScreen() {
                           paddingVertical: 10,
                           borderRadius: 16,
                           backgroundColor: bubbleBg,
+                          flexShrink: 1,
                         }}
                       >
                         {item.text ? (
@@ -1041,6 +1042,7 @@ export default function ChatScreen() {
 
             const messageContent = isMe ? (
               <Pressable
+                style={{ maxWidth: "80%" }}
                 className="self-end mb-2"
                 onPress={() => handleDoubleTap(item)}
                 onLongPress={() => handleLongPressMessage(item)}
@@ -1062,7 +1064,7 @@ export default function ChatScreen() {
                   size={28}
                   variant="roundedSquare"
                 />
-                <View>
+                <View style={{ flexShrink: 1, maxWidth: "80%" }}>
                   {bubble}
                   {reactionPills}
                 </View>
