@@ -818,7 +818,10 @@ export default function ChatScreen() {
       style={{ flex: 1 }}
       keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
     >
-      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <SafeAreaView
+        edges={["top"]}
+        className="flex-1 bg-background max-w-3xl w-full self-center"
+      >
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
           <Pressable onPress={() => router.back()} hitSlop={8}>
             <ArrowLeft size={24} color="#fff" />

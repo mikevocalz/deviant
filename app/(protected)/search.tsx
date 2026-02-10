@@ -75,7 +75,10 @@ export default function SearchScreen() {
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View
+        className="flex-1 bg-background max-w-3xl w-full self-center"
+        style={{ paddingTop: insets.top }}
+      >
         {/* Header */}
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
           <Pressable onPress={() => router.back()}>

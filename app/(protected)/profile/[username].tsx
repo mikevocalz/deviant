@@ -424,7 +424,10 @@ function UserProfileScreenComponent() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <SafeAreaView
+      edges={["top"]}
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+    >
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()}>

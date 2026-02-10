@@ -39,7 +39,7 @@ class ErrorBoundary extends Component<
 
 export default function HomeScreen() {
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background max-w-3xl w-full self-center">
       <Main className="flex-1">
         <ErrorBoundary>
           <Feed />

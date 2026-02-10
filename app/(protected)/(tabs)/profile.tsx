@@ -579,7 +579,10 @@ function ProfileScreenContent() {
   }
 
   return (
-    <View className="flex-1 bg-background" testID="screen.profile">
+    <View
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+      testID="screen.profile"
+    >
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-5"

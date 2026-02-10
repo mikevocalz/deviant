@@ -461,7 +461,7 @@ function FeedPostComponent({
         damping: 20,
         stiffness: 300,
       }}
-      className="w-full"
+      className="w-full max-w-2xl self-center"
     >
       <Article
         style={{

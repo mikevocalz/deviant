@@ -289,7 +289,10 @@ function PostDetailScreenContent() {
   const commentCount = comments.length;
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <SafeAreaView
+      edges={["top"]}
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+    >
       <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
         <Pressable onPress={() => router.back()} className="mr-4">
           <ArrowLeft size={24} color={colors.foreground} />

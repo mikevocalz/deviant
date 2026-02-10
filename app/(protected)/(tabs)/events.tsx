@@ -52,6 +52,7 @@ function EventCard({
       entering={FadeInDown.delay(index * 150)
         .duration(800)
         .springify()}
+      className="max-w-2xl w-full self-center"
     >
       <Motion.View
         className="rounded-3xl overflow-hidden mb-5"
@@ -277,7 +278,7 @@ export default function EventsScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background max-w-3xl w-full self-center">
       <Main className="flex-1">
         {/* Header */}
         <View className="flex-row items-center justify-between border-b border-border px-4 py-3">

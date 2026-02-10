@@ -874,6 +874,9 @@ const s = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: "#000",
+    maxWidth: 768,
+    width: "100%",
+    alignSelf: "center",
   },
 
   // Header

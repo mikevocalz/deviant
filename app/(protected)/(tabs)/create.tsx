@@ -475,7 +475,7 @@ export default function CreateScreen() {
   ]);
 
   return (
-    <View className="flex-1 bg-background">
+    <View className="flex-1 bg-background max-w-3xl w-full self-center">
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}
