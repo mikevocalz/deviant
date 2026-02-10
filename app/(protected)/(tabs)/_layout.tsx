@@ -28,7 +28,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         sceneStyle: {
-          width: isLargeScreen ? Dimensions.get("window").width - 72 : "100%",
+          width: isLargeScreen ? Dimensions.get("screen").width - 72 : "100%",
         },
         headerShown: true,
         headerTitleAlign: "left",
