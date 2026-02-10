@@ -963,6 +963,7 @@ export default function ChatScreen() {
                           borderRadius: 16,
                           backgroundColor: bubbleBg,
                           flexShrink: 1,
+                          minWidth: 160,
                         }}
                       >
                         {item.text ? (

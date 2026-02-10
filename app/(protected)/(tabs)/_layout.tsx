@@ -15,11 +15,14 @@ import { useColorScheme } from "@/lib/hooks";
 import Logo from "@/components/logo";
 import { CenterButton } from "@/components/center-button";
 import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
+import { PhoneTabBar, TabletTabBar } from "@/components/tab-bar";
 
 export default function TabsLayout() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const { data: unreadCount = 0 } = useUnreadMessageCount();
+  const isLargeScreen = useIsLargeScreen();
 
   return (
     <Tabs
@@ -62,13 +65,10 @@ export default function TabsLayout() {
         tabBarShowLabel: false,
         tabBarActiveTintColor: colors.foreground,
         tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarStyle: {
-          backgroundColor: colors.background,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          height: 60,
-        },
       }}
+      tabBar={(props) =>
+        isLargeScreen ? <TabletTabBar {...props} /> : <PhoneTabBar {...props} />
+      }
     >
       <Tabs.Screen
         name="index"
