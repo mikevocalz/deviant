@@ -17,6 +17,8 @@ export interface Event {
   price: number;
   attendees: number | { image?: string; initials?: string }[];
   totalAttendees?: number;
+  images?: { type: string; url: string }[];
+  youtubeVideoUrl?: string | null;
   maxAttendees?: number;
   host: {
     id?: string;

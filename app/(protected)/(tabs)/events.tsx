@@ -17,9 +17,9 @@ import { useState, useRef, useCallback, useMemo } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
+import { UserAvatar } from "@/components/ui/user-avatar";
 
 const CARD_HEIGHT = 333;
-const AVATAR_COLORS = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"];
 
 function EventCard({
   event,
@@ -97,24 +97,16 @@ function EventCard({
                     .map((attendee: any, idx: number) => (
                       <View
                         key={idx}
-                        className="w-10 h-10 rounded-full border-2 border-background justify-center items-center overflow-hidden"
+                        className="border-2 border-background rounded-full overflow-hidden"
                         style={{
                           marginLeft: idx === 0 ? 0 : -12,
-                          backgroundColor: attendee.initials
-                            ? AVATAR_COLORS[idx % 5]
-                            : "transparent",
                         }}
                       >
-                        {attendee.image ? (
-                          <Image
-                            source={{ uri: attendee.image }}
-                            style={{ width: "100%", height: "100%" }}
-                          />
-                        ) : (
-                          <Text className="text-white text-xs font-semibold">
-                            {attendee.initials}
-                          </Text>
-                        )}
+                        <UserAvatar
+                          uri={attendee.image}
+                          username={attendee.initials || "??"}
+                          size={36}
+                        />
                       </View>
                     ))
                 ) : (
@@ -165,10 +157,12 @@ function EventCard({
               </Text>
               <Text className="text-white/80 text-sm mb-4">
                 {event.time} •{" "}
-                {Array.isArray(event.attendees)
-                  ? event.attendees.length
-                  : event.attendees || 0}{" "}
-                participants
+                {(() => {
+                  const count = Array.isArray(event.attendees)
+                    ? event.attendees.length
+                    : event.attendees || 0;
+                  return `${count} participant${count === 1 ? "" : "s"}`;
+                })()}
               </Text>
 
               <View className="flex-row items-center justify-between">

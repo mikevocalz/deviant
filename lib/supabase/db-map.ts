@@ -114,6 +114,8 @@ export const DB = {
     maxAttendees: "max_attendees",
     totalAttendees: "total_attendees",
     isOnline: "is_online",
+    images: "images",
+    youtubeVideoUrl: "youtube_video_url",
     createdAt: "created_at",
   },
   storyTags: {

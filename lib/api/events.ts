@@ -137,7 +137,12 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          images: Array.isArray(event[DB.events.images])
+            ? event[DB.events.images]
+            : [],
+          youtubeVideoUrl: event[DB.events.youtubeVideoUrl] || null,
           price: Number(event[DB.events.price]) || 0,
+          likes: Number(event.likes) || 0,
           attendees: rsvpAttendees.length > 0 ? rsvpAttendees : totalCount,
           totalAttendees: totalCount,
           host: {
@@ -310,8 +315,12 @@ export const eventsApi = {
         ...dateParts,
         location: data[DB.events.location],
         image: resolveEventImage(data),
-        images: Array.isArray(data["images"]) ? data["images"] : [],
+        images: Array.isArray(data[DB.events.images])
+          ? data[DB.events.images]
+          : [],
+        youtubeVideoUrl: data[DB.events.youtubeVideoUrl] || null,
         price: Number(data[DB.events.price]) || 0,
+        likes: Number(data.likes) || 0,
         attendees: Number(data[DB.events.totalAttendees]) || 0,
         maxAttendees: Number(data[DB.events.maxAttendees]),
         host: {
@@ -430,6 +439,7 @@ export const eventsApi = {
           [DB.events.coverImageUrl]: eventData.image,
           ["image"]: eventData.image,
           ["images"]: eventData.images || [],
+          [DB.events.youtubeVideoUrl]: eventData.youtubeVideoUrl || null,
           [DB.events.price]: eventData.price || 0,
           [DB.events.maxAttendees]: eventData.maxAttendees,
           [DB.events.isOnline]: eventData.isOnline || false,

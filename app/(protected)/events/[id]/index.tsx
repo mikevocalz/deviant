@@ -61,6 +61,7 @@ import type {
   EventAttendee,
   EventDetail,
 } from "@/src/events/types";
+import { YouTubeEmbed } from "@/components/youtube-embed";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -621,6 +622,37 @@ export default function EventDetailScreen() {
             ) : null}
           </Animated.View>
 
+          {/* ── 4b. YOUTUBE VIDEO ──────────────────────────────── */}
+          {event.youtubeVideoUrl ? (
+            <Animated.View entering={FadeInDown.delay(350)} style={s.section}>
+              <Text style={s.sectionTitle}>Video</Text>
+              <YouTubeEmbed url={event.youtubeVideoUrl} height={220} />
+            </Animated.View>
+          ) : null}
+
+          {/* ── 4c. EVENT IMAGES ───────────────────────────────── */}
+          {event.images && event.images.length > 0 ? (
+            <Animated.View entering={FadeInDown.delay(370)} style={s.section}>
+              <Text style={s.sectionTitle}>Event Images</Text>
+              <View style={s.imageGrid}>
+                {event.images.map((img: any, idx: number) => {
+                  const imageUrl = typeof img === "string" ? img : img?.url;
+                  if (!imageUrl) return null;
+                  return (
+                    <View key={idx} style={s.imageGridItem}>
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={s.imageGridImage}
+                        contentFit="cover"
+                        transition={200}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            </Animated.View>
+          ) : null}
+
           {/* ── 5. TICKET TIERS ──────────────────────────────────── */}
           <Animated.View entering={FadeInDown.delay(400)} style={s.section}>
             <Text style={s.sectionTitle}>Select Your Tier</Text>
@@ -1123,6 +1155,24 @@ const s = StyleSheet.create({
     color: "#34A2DF",
     fontSize: 14,
     fontWeight: "500",
+  },
+
+  // Image grid
+  imageGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  imageGridItem: {
+    width: (SCREEN_WIDTH - 40 - 8) / 2,
+    height: (SCREEN_WIDTH - 40 - 8) / 2,
+    borderRadius: 14,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  imageGridImage: {
+    width: "100%",
+    height: "100%",
   },
 
   // Shared

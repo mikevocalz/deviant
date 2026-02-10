@@ -26,6 +26,7 @@ import {
   DollarSign,
   Users,
   Plus,
+  Youtube,
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
@@ -92,6 +93,7 @@ export default function CreateEventScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [ticketPrice, setTicketPrice] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -249,6 +251,7 @@ export default function CreateEventScreen() {
         images: additionalImageUrls.map((url) => ({ type: "image", url })), // Additional images array
         category: tags[0] || "Event",
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
+        youtubeVideoUrl: youtubeUrl.trim() || undefined,
       };
 
       console.log("[CreateEvent] Creating event with data:", eventData);
@@ -596,6 +599,31 @@ export default function CreateEventScreen() {
               )}
             </View>
           )}
+        </View>
+
+        {/* YouTube Video URL */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            YouTube Video (Optional)
+          </Text>
+          <View className="flex-row items-center bg-card rounded-2xl px-4">
+            <Youtube size={20} color={colors.primary} />
+            <TextInput
+              className="flex-1 ml-3 py-4 text-base text-foreground"
+              placeholder="Paste YouTube URL or video ID"
+              placeholderTextColor={colors.mutedForeground}
+              value={youtubeUrl}
+              onChangeText={setYoutubeUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            {youtubeUrl.trim() !== "" && (
+              <Pressable onPress={() => setYoutubeUrl("")} className="p-2">
+                <X size={18} color={colors.mutedForeground} />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         {/* Event Images */}

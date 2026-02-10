@@ -12,7 +12,9 @@ export interface EventDetail {
   location: string;
   image: string;
   images?: { type: string; url: string }[];
+  youtubeVideoUrl?: string | null;
   price: number;
+  likes?: number;
   attendees: number;
   maxAttendees?: number;
   host: EventHost;
