@@ -107,11 +107,35 @@ export function DevHud({
         </Text>
       )}
       {remotePeer && (
-        <Text style={styles.line3}>
-          rPeer={remotePeer.userId?.slice(0, 8)} | rAudStrm=
-          {remotePeer.audioTrack?.stream ? "Y" : "N"} | rAudTrk=
-          {remotePeer.audioTrack?.track ? "Y" : "N"}
-        </Text>
+        <>
+          <Text style={styles.line3}>
+            rPeer={remotePeer.userId?.slice(0, 8)} | rAudStrm=
+            {remotePeer.audioTrack?.stream ? "Y" : "N"} | rAudTrk=
+            {remotePeer.audioTrack?.track ? "Y" : "N"}
+          </Text>
+          {remotePeer.audioTrack?.track && (
+            <Text style={styles.line3}>
+              rAudTrkId={remotePeer.audioTrack.track.id.slice(0, 12)} | ready=
+              {remotePeer.audioTrack.track.readyState} | enabled=
+              {remotePeer.audioTrack.track.enabled ? "Y" : "N"}
+            </Text>
+          )}
+          {!isAudioMode && remotePeer.videoTrack && (
+            <>
+              <Text style={styles.line2}>
+                rVidStrm={remotePeer.videoTrack.stream ? "Y" : "N"} | rVidTrk=
+                {remotePeer.videoTrack.track ? "Y" : "N"}
+              </Text>
+              {remotePeer.videoTrack.track && (
+                <Text style={styles.line2}>
+                  rVidTrkId={remotePeer.videoTrack.track.id.slice(0, 12)} | ready=
+                  {remotePeer.videoTrack.track.readyState} | enabled=
+                  {remotePeer.videoTrack.track.enabled ? "Y" : "N"}
+                </Text>
+              )}
+            </>
+          )}
+        </>
       )}
     </Pressable>
   );

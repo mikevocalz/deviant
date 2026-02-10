@@ -15,13 +15,15 @@
  * ║  INVARIANT: No other file may call InCallManager directly.         ║
  * ║  INVARIANT: No other file may call RTCAudioSession directly.       ║
  * ║                                                                    ║
- * ║  iOS AUDIO SESSION LIFECYCLE (CRITICAL):                           ║
+ * ║  iOS AUDIO SESSION LIFECYCLE (CRITICAL FIX):                       ║
  * ║    1. start() → InCallManager.start() configures AVAudioSession    ║
  * ║       category/mode but does NOT call audioSessionDidActivate().   ║
  * ║    2. CallKit fires didActivateAudioSession → coordinator calls    ║
  * ║       audioSession.activateFromCallKit() which calls               ║
  * ║       RTCAudioSession.audioSessionDidActivate() + applies speaker. ║
- * ║    3. Only AFTER step 2 is audio actually flowing on iOS.          ║
+ * ║    3. activateFromCallKit() ALSO calls pendingMicStartCallback     ║
+ * ║       which actually starts the microphone AFTER session is live.  ║
+ * ║    4. Only AFTER step 3 is audio actually flowing on iOS.          ║
  * ║                                                                    ║
  * ║  On Android, start() handles everything (no CallKit).              ║
  * ║                                                                    ║
@@ -43,6 +45,9 @@ let _isSpeakerOn = false;
 let _isMicMuted = false;
 let _pendingSpeakerOn: boolean | null = null;
 
+// CRITICAL FIX: Callback to start mic AFTER CallKit activation on iOS
+let _pendingMicStartCallback: (() => Promise<void>) | null = null;
+
 // ── Public API ──────────────────────────────────────────────────────
 
 export const audioSession = {
@@ -53,6 +58,7 @@ export const audioSession = {
    *      Does NOT call RTCAudioSession.audioSessionDidActivate() — that
    *      MUST come from the CallKeep didActivateAudioSession handler via
    *      activateFromCallKit(). Speaker routing is deferred until activation.
+   *      MIC START is also deferred via setPendingMicStart().
    *
    * Android: Sets audio mode to IN_COMMUNICATION, acquires audio focus,
    *          and applies speaker routing immediately (no CallKit on Android).
@@ -111,18 +117,45 @@ export const audioSession = {
   },
 
   /**
+   * CRITICAL FIX (iOS only): Set a callback that will start the microphone
+   * AFTER CallKit activates the audio session. This ensures the mic track
+   * is created on an ACTIVE audio session, not a dead one.
+   *
+   * Call this BEFORE start(), pass a callback that calls microphoneHook.startMicrophone().
+   * On Android, the callback is invoked immediately (no CallKit).
+   *
+   * @param callback - Async function that starts the microphone
+   */
+  setPendingMicStart(callback: () => Promise<void>): void {
+    if (Platform.OS === "android") {
+      // Android: No CallKit, invoke immediately
+      CT.trace("AUDIO", "mic_start_immediate_android");
+      callback().catch((e: any) => {
+        CT.error("AUDIO", "mic_start_failed_android", { error: e?.message });
+      });
+    } else {
+      // iOS: Store for deferred execution in activateFromCallKit()
+      _pendingMicStartCallback = callback;
+      CT.trace("AUDIO", "mic_start_deferred_ios");
+    }
+  },
+
+  /**
    * Called ONLY from the CallKeep didActivateAudioSession handler.
    * This is when iOS CallKit has actually activated the audio session
    * and WebRTC can start using it.
    *
    * CRITICAL: This is the moment audio starts flowing on iOS.
    * Without this call, the mic track is created on a dead session.
+   *
+   * CRITICAL FIX: This now ALSO invokes the pending mic start callback.
    */
   activateFromCallKit(): void {
     CT.trace("AUDIO", "activateFromCallKit_called", {
       wasActive: _isActive,
       wasCallKitActivated: _isCallKitActivated,
       pendingSpeaker: _pendingSpeakerOn ?? undefined,
+      hasPendingMicStart: !!_pendingMicStartCallback,
     });
 
     if (Platform.OS !== "ios") {
@@ -141,7 +174,7 @@ export const audioSession = {
       _isSpeakerOn = speakerOn;
       _pendingSpeakerOn = null;
 
-      // Ensure mic is not muted
+      // Ensure mic is not muted (hardware level)
       InCallManager.setMicrophoneMute(false);
       _isMicMuted = false;
 
@@ -149,6 +182,16 @@ export const audioSession = {
       console.log(
         `[AudioSession] CallKit activated — audio session live (speaker=${speakerOn})`,
       );
+
+      // CRITICAL FIX: NOW start the microphone (audio track is created on ACTIVE session)
+      if (_pendingMicStartCallback) {
+        const cb = _pendingMicStartCallback;
+        _pendingMicStartCallback = null;
+        CT.trace("AUDIO", "invoking_pending_mic_start");
+        cb().catch((e: any) => {
+          CT.error("AUDIO", "pending_mic_start_failed", { error: e?.message });
+        });
+      }
     } catch (e: any) {
       CT.error("AUDIO", "activateFromCallKit_failed", { error: e?.message });
       console.error("[AudioSession] activateFromCallKit failed:", e);
@@ -175,6 +218,7 @@ export const audioSession = {
       _isSpeakerOn = false;
       _isMicMuted = false;
       _pendingSpeakerOn = null;
+      _pendingMicStartCallback = null;
 
       CT.trace("AUDIO", "audioSession_stopped");
       console.log("[AudioSession] Stopped");

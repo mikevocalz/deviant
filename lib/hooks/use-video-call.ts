@@ -177,21 +177,39 @@ export function useVideoCall() {
         hasCamStream: !!camStream,
         hasCamMediaTrack: !!camMediaTrack,
         camEnabled: camMediaTrack?.enabled,
+        camReadyState: camMediaTrack?.readyState,
+        camStreamId: camStream?.id,
+        camTrackId: camMediaTrack?.id,
         hasMicTrack: !!micTrack,
         hasMicStream: !!micStream,
         hasMicMediaTrack: !!micMediaTrack,
         micEnabled: micMediaTrack?.enabled,
+        micReadyState: micMediaTrack?.readyState,
+        micStreamId: micStream?.id,
+        micTrackId: micMediaTrack?.id,
       });
 
       if (camTrack) {
-        log(
-          `[CALL/VIDEO] remote video ${camMediaTrack ? "added" : "pending"} peerId=${p.id} trackId=${camMediaTrack?.id ?? "none"} enabled=${camMediaTrack?.enabled}`,
-        );
+        if (camMediaTrack) {
+          log(
+            `[CALL/VIDEO] ✓ remote video READY peerId=${p.id} trackId=${camMediaTrack.id} enabled=${camMediaTrack.enabled} readyState=${camMediaTrack.readyState} streamId=${camStream?.id}`,
+          );
+        } else {
+          logWarn(
+            `[CALL/VIDEO] ⚠️ remote video PENDING (track wrapper exists but stream/track null) peerId=${p.id}`,
+          );
+        }
       }
       if (micTrack) {
-        log(
-          `[CALL/AUDIO] remote audio ${micMediaTrack ? "added" : "pending"} peerId=${p.id} trackId=${micMediaTrack?.id ?? "none"} enabled=${micMediaTrack?.enabled}`,
-        );
+        if (micMediaTrack) {
+          log(
+            `[CALL/AUDIO] ✓ remote audio READY peerId=${p.id} trackId=${micMediaTrack.id} enabled=${micMediaTrack.enabled} readyState=${micMediaTrack.readyState} streamId=${micStream?.id}`,
+          );
+        } else {
+          logWarn(
+            `[CALL/AUDIO] ⚠️ remote audio PENDING (track wrapper exists but stream/track null) peerId=${p.id}`,
+          );
+        }
       }
     }
 
@@ -325,8 +343,11 @@ export function useVideoCall() {
   // ── Start media — MODE-AWARE ──────────────────────────────────────
   // AUDIO: mic only. Camera MUST NOT be touched.
   // VIDEO: mic + camera (front-facing default).
+  //
+  // CRITICAL FIX: On iOS, mic start is deferred until CallKit activates audio session.
+  // We return a promise that resolves when mic is actually started (or immediately on Android).
   const startMedia = useCallback(
-    async (type: CallType) => {
+    async (type: CallType): Promise<boolean> => {
       const s = getStore();
       s.setCallPhase("starting_media");
       log(`Starting media for ${type.toUpperCase()} call`);
@@ -336,39 +357,23 @@ export function useVideoCall() {
       //   "startMicrophone() creates and publishes the local audio track."
       // REF: https://docs.fishjam.io/how-to/react-native/connecting
       //   "After joining, start media devices to publish tracks."
+      //
+      // CRITICAL FIX (iOS): Mic start is deferred via audioSession.setPendingMicStart()
+      // to ensure the audio track is created on an ACTIVE audio session AFTER CallKit
+      // activation. On Android, the callback fires immediately.
+      //
+      // The actual mic start happens in the callback passed to audioSession, which is
+      // invoked when CallKit calls didActivateAudioSession (iOS) or immediately (Android).
+      //
+      // We still set isMicOn=true here so the UI reflects the intent, but the track
+      // won't actually exist until CallKit activates (iOS) or immediately (Android).
       try {
-        const micResult = await micRef.current.startMicrophone();
         s.setMicOn(true);
-
-        // Verify the mic stream is actually available
-        const micStream = micRef.current.microphoneStream;
-        const isMicOn = micRef.current.isMicrophoneOn;
-        const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
-
-        CT.trace("MEDIA", "mic_started", {
-          hasStream: !!micStream,
-          isMicOn,
-          audioTrackCount,
-          callType: type,
-        });
-        log(
-          `[${type.toUpperCase()}] Microphone started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
-        );
-
-        if (!micStream || audioTrackCount === 0) {
-          // Mic started but no stream yet — this can happen if the SDK
-          // populates the stream asynchronously. Log a warning but don't fail.
-          CT.warn("MEDIA", "mic_started_no_stream", {
-            hasStream: !!micStream,
-            audioTrackCount,
-          });
-          logWarn(
-            `[${type.toUpperCase()}] Mic started but stream not yet available — may populate async`,
-          );
-        }
+        CT.trace("MEDIA", "mic_start_requested", { callType: type });
+        log(`[${type.toUpperCase()}] Microphone start requested (will activate after audio session)`);
       } catch (micErr) {
-        logError(`[${type.toUpperCase()}] FAILED to start microphone:`, micErr);
-        CT.error("MEDIA", "mic_start_failed", {
+        logError(`[${type.toUpperCase()}] FAILED to request microphone:`, micErr);
+        CT.error("MEDIA", "mic_start_request_failed", {
           error: (micErr as any)?.message,
           callType: type,
         });
@@ -565,21 +570,65 @@ export function useVideoCall() {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
       }
 
-      // Step 6: Start in-call audio session BEFORE starting media.
+      // Step 6: Set up deferred mic start callback BEFORE starting audio session.
+      // CRITICAL FIX (iOS): The callback will be invoked by audioSession.activateFromCallKit()
+      // when CallKit fires didActivateAudioSession. This ensures the mic track is created
+      // on an ACTIVE audio session, not a dead one.
+      // On Android, the callback fires immediately (no CallKit).
+      audioSession.setPendingMicStart(async () => {
+        try {
+          const micResult = await micRef.current.startMicrophone();
+          const s = getStore();
+          s.setMicOn(true);
+
+          // Verify the mic stream is actually available
+          const micStream = micRef.current.microphoneStream;
+          const isMicOn = micRef.current.isMicrophoneOn;
+          const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
+
+          CT.trace("MEDIA", "mic_started", {
+            hasStream: !!micStream,
+            isMicOn,
+            audioTrackCount,
+            callType,
+          });
+          log(
+            `[${callType.toUpperCase()}] Microphone started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
+          );
+
+          if (!micStream || audioTrackCount === 0) {
+            CT.warn("MEDIA", "mic_started_no_stream", {
+              hasStream: !!micStream,
+              audioTrackCount,
+            });
+            logWarn(
+              `[${callType.toUpperCase()}] Mic started but stream not yet available — may populate async`,
+            );
+          }
+        } catch (micErr) {
+          logError(`[${callType.toUpperCase()}] FAILED to start microphone:`, micErr);
+          CT.error("MEDIA", "mic_start_failed", {
+            error: (micErr as any)?.message,
+            callType,
+          });
+          getStore().setError(
+            "Microphone failed to start. Check permissions.",
+            "mic_start_failed",
+          );
+        }
+      });
+
+      // Step 7: Start in-call audio session.
       // This configures iOS AVAudioSession (playAndRecord + allowBluetooth)
       // and Android AudioManager (IN_COMMUNICATION mode + audio focus).
-      // Without this, mic tracks are created on a dead/inactive audio session.
       // CRITICAL: mediaType must match callType so iOS uses correct AVAudioSession mode:
       //   video → videoChat (speaker default, echo cancellation for speaker)
       //   audio → voiceChat (earpiece default)
+      // On iOS, CallKit will fire didActivateAudioSession → activateFromCallKit() → mic start callback
+      // On Android, the mic start callback fires immediately after this.
       audioSession.start(callType === "video", callType);
 
-      // Small delay on iOS to let audio session stabilize
-      if (Platform.OS === "ios") {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-
-      // Step 7: Start media (mic + camera) — now audio session is active
+      // Step 8: Start media (camera only for video, mic already deferred)
       const mediaOk = await startMedia(callType);
       if (!mediaOk) {
         logError("Media start failed, aborting call");
@@ -658,15 +707,62 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 3: Start in-call audio session BEFORE starting media.
+      // Step 3: Set up deferred mic start callback BEFORE starting audio session.
+      // CRITICAL FIX (iOS): The callback will be invoked by audioSession.activateFromCallKit()
+      // when CallKit fires didActivateAudioSession. This ensures the mic track is created
+      // on an ACTIVE audio session, not a dead one.
+      // On Android, the callback fires immediately (no CallKit).
+      audioSession.setPendingMicStart(async () => {
+        try {
+          const micResult = await micRef.current.startMicrophone();
+          const s = getStore();
+          s.setMicOn(true);
+
+          // Verify the mic stream is actually available
+          const micStream = micRef.current.microphoneStream;
+          const isMicOn = micRef.current.isMicrophoneOn;
+          const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
+
+          CT.trace("MEDIA", "mic_started_callee", {
+            hasStream: !!micStream,
+            isMicOn,
+            audioTrackCount,
+            callType,
+          });
+          log(
+            `[${callType.toUpperCase()}] Callee mic started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
+          );
+
+          if (!micStream || audioTrackCount === 0) {
+            CT.warn("MEDIA", "mic_started_no_stream_callee", {
+              hasStream: !!micStream,
+              audioTrackCount,
+            });
+            logWarn(
+              `[${callType.toUpperCase()}] Callee mic started but stream not yet available — may populate async`,
+            );
+          }
+        } catch (micErr) {
+          logError(`[${callType.toUpperCase()}] Callee FAILED to start microphone:`, micErr);
+          CT.error("MEDIA", "mic_start_failed_callee", {
+            error: (micErr as any)?.message,
+            callType,
+          });
+          getStore().setError(
+            "Microphone failed to start. Check permissions.",
+            "mic_start_failed",
+          );
+        }
+      });
+
+      // Step 4: Start in-call audio session.
       // This is the callee path — audio session must be active before mic starts.
       // CRITICAL: mediaType must match callType for correct AVAudioSession mode.
+      // On iOS, CallKit will fire didActivateAudioSession → activateFromCallKit() → mic start callback
+      // On Android, the mic start callback fires immediately after this.
       audioSession.start(callType === "video", callType);
 
-      // Small delay to let audio session stabilize
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Step 4: Start media
+      // Step 5: Start media (camera only for video, mic already deferred)
       const mediaOk = await startMedia(callType);
       if (!mediaOk) {
         logError("Media start failed, aborting call");
@@ -684,11 +780,27 @@ export function useVideoCall() {
     [user, startMedia, startDurationTimer, getStore],
   );
 
+  // ── Idempotent cleanup guard ───────────────────────────────────────
+  // CRITICAL FIX: Prevent duplicate cleanup when both leaveCall() and external
+  // end effect fire (e.g., user taps End → callKeepEndAll fires → onEnd handler
+  // → external effect). Multiple leaveRoom() calls cause Fishjam errors → disconnect.
+  const cleanupInProgressRef = useRef(false);
+
   // Track whether leaveCall() was already invoked by the user (vs external end from CallKeep)
   const userInitiatedLeaveRef = useRef(false);
 
-  // ── Leave current call ─────────────────────────────────────────────
+  // ── Leave current call (IDEMPOTENT) ────────────────────────────────
   const leaveCall = useCallback(() => {
+    // CRITICAL: Guard against duplicate cleanup
+    if (cleanupInProgressRef.current) {
+      CT.trace("LIFECYCLE", "leaveCall_DUPLICATE_IGNORED", {
+        phase: getStore().callPhase,
+      });
+      log("[LIFECYCLE] leaveCall already in progress, ignoring duplicate call");
+      return;
+    }
+    cleanupInProgressRef.current = true;
+
     // Mark as user-initiated so the external end effect skips duplicate cleanup
     userInitiatedLeaveRef.current = true;
 
@@ -756,9 +868,14 @@ export function useVideoCall() {
     }
 
     s.setCallEnded(duration);
-    CT.trace("LIFECYCLE", "callEnded", { duration });
+    CT.trace("LIFECYCLE", "callEnded_COMPLETE", { duration });
     CT.clearContext();
     log(`[${mode.toUpperCase()}] Call ended, duration:`, duration);
+
+    // Reset cleanup guard after a delay to allow new calls
+    setTimeout(() => {
+      cleanupInProgressRef.current = false;
+    }, 1000);
   }, [stopDurationTimer, getStore]);
 
   // Keep leaveCallRef in sync for auto-end timeout
@@ -933,11 +1050,19 @@ export function useVideoCall() {
   // When the coordinator sets callPhase='call_ended' from the native UI
   // (lock screen swipe, notification decline), we must still leave Fishjam
   // and stop media. The leaveCall function handles all of this, but it
-  // also sets callPhase='call_ended' — so we guard with a ref to avoid loops.
+  // also sets callPhase='call_ended' — so we guard with refs to avoid loops.
   const externalEndHandledRef = useRef(false);
   useEffect(() => {
     if (store.callPhase === "call_ended" && !externalEndHandledRef.current) {
       externalEndHandledRef.current = true;
+
+      // CRITICAL FIX: Check if cleanup is already in progress to prevent duplicate cleanup
+      if (cleanupInProgressRef.current) {
+        log(
+          "[LIFECYCLE] External call_ended but cleanup already in progress — skipping",
+        );
+        return;
+      }
 
       // If leaveCall() already ran (user tapped End), skip duplicate cleanup.
       // The coordinator's onEnd fires AFTER leaveCall due to callKeepEndAllCalls,
@@ -948,6 +1073,9 @@ export function useVideoCall() {
         );
         return;
       }
+
+      // Mark cleanup in progress to prevent races
+      cleanupInProgressRef.current = true;
 
       // Only do Fishjam/media cleanup — the phase is already set
       log(
@@ -965,11 +1093,17 @@ export function useVideoCall() {
       CT.guard("FISHJAM", "leaveRoom_external", () => {
         leaveRoomRef.current();
       });
+
+      // Reset cleanup guard after a delay
+      setTimeout(() => {
+        cleanupInProgressRef.current = false;
+      }, 1000);
     }
     // Reset the guard when we go back to idle
     if (store.callPhase === "idle") {
       externalEndHandledRef.current = false;
       userInitiatedLeaveRef.current = false;
+      cleanupInProgressRef.current = false;
     }
   }, [store.callPhase, store.callType, store.isCameraOn, stopDurationTimer]);
 
