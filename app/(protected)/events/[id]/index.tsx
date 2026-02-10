@@ -5,6 +5,9 @@ import {
   StyleSheet,
   Dimensions,
   StatusBar,
+  Modal,
+  ScrollView,
+  Platform,
 } from "react-native";
 import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
@@ -201,6 +204,7 @@ export default function EventDetailScreen() {
   const [hasError, setHasError] = useState(false);
   const [eventData, setEventData] = useState<EventDetail | null>(null);
   const [isLiked, setIsLiked] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(-1);
   const scrollY = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -642,20 +646,22 @@ export default function EventDetailScreen() {
           {/* ── 4c. EVENT IMAGES ───────────────────────────────── */}
           {event.images && event.images.length > 0 ? (
             <Animated.View entering={FadeInDown.delay(370)} style={s.section}>
-              <Text style={s.sectionTitle}>Event Images</Text>
+              <Text style={s.sectionTitle}>Photos</Text>
               <View style={s.imageGrid}>
                 {event.images.map((img: any, idx: number) => {
                   const imageUrl = typeof img === "string" ? img : img?.url;
                   if (!imageUrl) return null;
                   return (
-                    <View key={idx} style={s.imageGridItem}>
-                      <Image
-                        source={{ uri: imageUrl }}
-                        style={s.imageGridImage}
-                        contentFit="cover"
-                        transition={200}
-                      />
-                    </View>
+                    <Pressable key={idx} onPress={() => setLightboxIndex(idx)}>
+                      <View style={s.imageGridItem}>
+                        <Image
+                          source={{ uri: imageUrl }}
+                          style={s.imageGridImage}
+                          contentFit="cover"
+                          transition={200}
+                        />
+                      </View>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -864,6 +870,85 @@ export default function EventDetailScreen() {
           });
         }}
       />
+
+      {/* ── Fullscreen Image Lightbox ─────────────────────────── */}
+      {event.images && event.images.length > 0 && (
+        <Modal
+          visible={lightboxIndex >= 0}
+          transparent
+          animationType="fade"
+          statusBarTranslucent
+          onRequestClose={() => setLightboxIndex(-1)}
+        >
+          <View style={s.lightboxOverlay}>
+            <StatusBar barStyle="light-content" />
+            {/* Close button */}
+            <Pressable
+              onPress={() => setLightboxIndex(-1)}
+              style={[s.lightboxClose, { top: insets.top + 12 }]}
+              hitSlop={16}
+            >
+              <Text style={s.lightboxCloseText}>✕</Text>
+            </Pressable>
+
+            {/* Page indicator */}
+            <View style={[s.lightboxCounter, { top: insets.top + 18 }]}>
+              <Text style={s.lightboxCounterText}>
+                {Math.max(lightboxIndex + 1, 1)} / {event.images.length}
+              </Text>
+            </View>
+
+            {/* Swipeable gallery */}
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentOffset={{
+                x: Math.max(lightboxIndex, 0) * SCREEN_WIDTH,
+                y: 0,
+              }}
+              onMomentumScrollEnd={(e) => {
+                const page = Math.round(
+                  e.nativeEvent.contentOffset.x / SCREEN_WIDTH,
+                );
+                setLightboxIndex(page);
+              }}
+              style={{ flex: 1 }}
+            >
+              {event.images.map((img: any, idx: number) => {
+                const imageUrl = typeof img === "string" ? img : img?.url;
+                if (!imageUrl)
+                  return <View key={idx} style={{ width: SCREEN_WIDTH }} />;
+                return (
+                  <View key={idx} style={s.lightboxPage}>
+                    <Image
+                      source={{ uri: imageUrl }}
+                      style={s.lightboxImage}
+                      contentFit="contain"
+                      transition={200}
+                    />
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            {/* Dot indicators */}
+            {event.images.length > 1 && (
+              <View style={[s.lightboxDots, { bottom: insets.bottom + 24 }]}>
+                {event.images.map((_: any, idx: number) => (
+                  <View
+                    key={idx}
+                    style={[
+                      s.lightboxDot,
+                      idx === lightboxIndex && s.lightboxDotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -1185,6 +1270,71 @@ const s = StyleSheet.create({
   imageGridImage: {
     width: "100%",
     height: "100%",
+  },
+
+  // Lightbox
+  lightboxOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+  },
+  lightboxClose: {
+    position: "absolute",
+    left: 16,
+    zIndex: 10,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lightboxCloseText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  lightboxCounter: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  lightboxCounterText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  lightboxPage: {
+    width: SCREEN_WIDTH,
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lightboxImage: {
+    width: SCREEN_WIDTH,
+    height: "80%",
+  },
+  lightboxDots: {
+    position: "absolute",
+    alignSelf: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  lightboxDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: "rgba(255,255,255,0.3)",
+  },
+  lightboxDotActive: {
+    backgroundColor: "#fff",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
 
   // Shared
