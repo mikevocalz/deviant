@@ -6,6 +6,7 @@ import {
   Dimensions,
   StatusBar,
   Platform,
+  Alert,
 } from "react-native";
 import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
@@ -24,6 +25,7 @@ import {
   MessageCircle,
   ChevronRight,
   BadgeCheck,
+  Trash2,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -400,6 +402,37 @@ export default function EventDetailScreen() {
     router.push(`/ticket/${eventId}` as any);
   }, [router, eventId]);
 
+  const isHost = !!(
+    user?.id &&
+    eventData?.host?.id &&
+    String(user.id) === String(eventData.host.id)
+  );
+
+  const handleDeleteEvent = useCallback(() => {
+    Alert.alert(
+      "Delete Event",
+      "Are you sure you want to delete this event? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await eventsApi.deleteEvent(eventId);
+              queryClient.invalidateQueries({ queryKey: eventKeys.all });
+              showToast("success", "Deleted", "Event has been deleted.");
+              router.back();
+            } catch (err) {
+              console.error("[EventDetail] Delete error:", err);
+              showToast("error", "Error", "Failed to delete event.");
+            }
+          },
+        },
+      ],
+    );
+  }, [eventId, queryClient, showToast, router]);
+
   const handleShare = useCallback(async () => {
     try {
       await shareEvent(eventId, eventData?.title || "Event");
@@ -473,6 +506,11 @@ export default function EventDetailScreen() {
             {event.title}
           </Animated.Text>
           <View style={s.headerActions}>
+            {isHost && (
+              <Pressable onPress={handleDeleteEvent} style={s.headerButton}>
+                <Trash2 size={20} color="#ef4444" />
+              </Pressable>
+            )}
             <Pressable onPress={handleShare} style={s.headerButton}>
               <Share2 size={20} color="#fff" />
             </Pressable>

@@ -100,7 +100,7 @@ export function CenterButton({ Icon, onPress }: CenterButtonProps) {
 
   const containerStyle: ViewStyle = {
     position: "absolute",
-    bottom: Platform.OS === "android" ? -30 : -26, // NEGATIVE = above tabbar when used as tabBarButton
+    bottom: Platform.OS === "android" ? -30 : -16, // NEGATIVE = above tabbar when used as tabBarButton
     left: "50%",
     transform: [{ translateX: -30 }], // Center horizontally (half of 60px width)
     width: 60,
