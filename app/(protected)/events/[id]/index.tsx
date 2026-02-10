@@ -12,7 +12,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
-import { SharedImage } from "@/components/shared-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -491,8 +490,7 @@ export default function EventDetailScreen() {
         {/* ── 1. HERO SECTION ──────────────────────────────────── */}
         <View style={s.heroWrapper}>
           <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-            <SharedImage
-              sharedTag={`event-hero-${eventId}`}
+            <Image
               source={{ uri: event.image }}
               style={s.heroImage}
               contentFit="cover"

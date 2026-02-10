@@ -79,13 +79,7 @@ export default function ProtectedLayout() {
           name="events/create"
           options={{ ...fullScreenModalConfig, headerShown: true }}
         />
-        <Stack.Screen
-          name="events/[id]"
-          options={{
-            animation: "fade",
-            animationDuration: 300,
-          }}
-        />
+        <Stack.Screen name="events/[id]" />
         <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
         <Stack.Screen
           name="story/create"
