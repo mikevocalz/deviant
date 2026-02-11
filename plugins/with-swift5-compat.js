@@ -20,13 +20,14 @@ const POST_INSTALL_SNIPPET = `
     # ── Swift 5 compatibility for Expo pods ──────────────────────────
     # ExpoModulesCore is not yet Swift 6 strict-concurrency safe.
     # Force Swift 5 language mode and minimal concurrency checking.
+    # MUST run AFTER react_native_post_install to override its settings.
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] ||= '5.0'
+        config.build_settings['SWIFT_VERSION'] = '5.0'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-        config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['$(inherited)']
-        unless config.build_settings['OTHER_SWIFT_FLAGS'].include?('-swift-version')
-          config.build_settings['OTHER_SWIFT_FLAGS'] << ' -swift-version 5'
+        existing = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+        unless existing.include?('-swift-version')
+          config.build_settings['OTHER_SWIFT_FLAGS'] = existing + ' -swift-version 5'
         end
       end
     end`;
@@ -37,7 +38,7 @@ function withSwift5Compat(config) {
     (config) => {
       const podfilePath = path.join(
         config.modRequest.platformProjectRoot,
-        "Podfile"
+        "Podfile",
       );
 
       let podfile = fs.readFileSync(podfilePath, "utf8");
@@ -45,20 +46,56 @@ function withSwift5Compat(config) {
       const marker = "# ── Swift 5 compatibility for Expo pods";
 
       if (!podfile.includes(marker)) {
-        // Append to existing post_install block, or create one
-        if (podfile.includes("post_install do |installer|")) {
-          // Insert our snippet right after the post_install opening line
-          podfile = podfile.replace(
-            /post_install do \|installer\|/,
-            `post_install do |installer|${POST_INSTALL_SNIPPET}`
+        const lines = podfile.split("\n");
+        let insertIndex = -1;
+
+        // Strategy 1: Find react_native_post_install(...) call and insert AFTER its closing )
+        const startIdx = lines.findIndex((l) =>
+          l.includes("react_native_post_install("),
+        );
+        if (startIdx !== -1) {
+          // Track parens to find the matching close
+          let depth = 0;
+          for (let i = startIdx; i < lines.length; i++) {
+            for (const ch of lines[i]) {
+              if (ch === "(") depth++;
+              if (ch === ")") depth--;
+            }
+            if (depth <= 0) {
+              insertIndex = i + 1;
+              break;
+            }
+          }
+        }
+
+        // Strategy 2: Insert before the closing 'end' of post_install block
+        if (insertIndex === -1) {
+          const postInstallIdx = lines.findIndex((l) =>
+            l.includes("post_install do |installer|"),
           );
+          if (postInstallIdx !== -1) {
+            // Find the 'end' that closes the post_install block
+            for (let i = lines.length - 1; i > postInstallIdx; i--) {
+              if (lines[i].trim() === "end") {
+                insertIndex = i;
+                break;
+              }
+            }
+          }
+        }
+
+        if (insertIndex !== -1) {
+          lines.splice(insertIndex, 0, POST_INSTALL_SNIPPET);
+          podfile = lines.join("\n");
         } else {
-          // No post_install block exists — add one at the end
-          podfile += `\npost_install do |installer|${POST_INSTALL_SNIPPET}\nend\n`;
+          // No post_install block — create one at the end
+          podfile += `\npost_install do |installer|\n${POST_INSTALL_SNIPPET}\nend\n`;
         }
 
         fs.writeFileSync(podfilePath, podfile, "utf8");
-        console.log("[with-swift5-compat] Added Swift 5 compatibility to Podfile");
+        console.log(
+          "[with-swift5-compat] Added Swift 5 compatibility to Podfile (after react_native_post_install)",
+        );
       }
 
       return config;
