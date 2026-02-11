@@ -1,9 +1,12 @@
 /**
  * Biometric Lock
- * Prompts for Face ID/Touch ID when app opens (if enabled)
+ * Prompts for Face ID/Touch ID when app opens (if enabled).
+ *
+ * IMPORTANT: All control-flow guards use refs, NOT state, so that
+ * callback identity never changes and effects never re-fire.
  */
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -11,71 +14,124 @@ import {
   AppState,
   type AppStateStatus,
 } from "react-native";
-import { useBiometrics } from "@/lib/hooks/use-biometrics";
+import * as LocalAuthentication from "expo-local-authentication";
+import * as SecureStore from "expo-secure-store";
 import { Fingerprint, AlertCircle } from "lucide-react-native";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 
+const BIOMETRIC_ENABLED_KEY = "biometric_auth_enabled";
+
 export function BiometricLock() {
   const { colors } = useColorScheme();
-  const { isEnabled, isAvailable, authenticate, getBiometricName } =
-    useBiometrics();
 
   const [isLocked, setIsLocked] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isAuthenticatingRef = useRef(false);
+  const [biometricName, setBiometricName] = useState("Face ID");
 
-  const promptAuthentication = useCallback(async () => {
-    if (!isEnabled || !isAvailable || isAuthenticatingRef.current) return;
+  // Refs for control flow — never cause re-renders or effect re-fires
+  const busyRef = useRef(false);
+  const hasPromptedRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
 
-    isAuthenticatingRef.current = true;
+  // Direct authenticate call — no hooks, no deps, no identity changes
+  const doAuthenticate = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
     setIsAuthenticating(true);
     setError(null);
 
-    const result = await authenticate("Unlock DVNT");
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Unlock DVNT",
+        cancelLabel: "Cancel",
+        disableDeviceFallback: false,
+        fallbackLabel: "Use Password",
+      });
 
-    isAuthenticatingRef.current = false;
-    if (result.success) {
-      setIsLocked(false);
-      setIsAuthenticating(false);
-    } else {
-      setError(result.error || "Authentication failed");
+      if (result.success) {
+        setIsLocked(false);
+      } else {
+        setError(result.error || "Authentication failed");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Authentication error");
+    } finally {
+      busyRef.current = false;
       setIsAuthenticating(false);
     }
-  }, [isEnabled, isAvailable, authenticate]);
+  };
 
-  // Lock on mount if biometrics are enabled
+  // Single mount effect — check if biometrics enabled, lock + prompt once
   useEffect(() => {
-    if (isEnabled && isAvailable) {
-      setIsLocked(true);
-      // Small delay to let the app render first
-      setTimeout(() => {
-        promptAuthentication();
-      }, 300);
-    }
-  }, [isEnabled, isAvailable]);
+    let cancelled = false;
 
-  // Lock when app comes back from background
+    (async () => {
+      try {
+        const compatible = await LocalAuthentication.hasHardwareAsync();
+        const enrolled = await LocalAuthentication.isEnrolledAsync();
+        if (!compatible || !enrolled) return;
+
+        const stored = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
+        if (stored !== "true") return;
+
+        // Determine biometric name
+        const types =
+          await LocalAuthentication.supportedAuthenticationTypesAsync();
+        if (
+          types.includes(
+            LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
+          )
+        ) {
+          setBiometricName("Face ID");
+        } else if (
+          types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+        ) {
+          setBiometricName("Touch ID");
+        }
+
+        if (cancelled || hasPromptedRef.current) return;
+        hasPromptedRef.current = true;
+
+        setIsLocked(true);
+        // Small delay to let the UI render the lock screen first
+        setTimeout(() => {
+          if (!cancelled) doAuthenticate();
+        }, 300);
+      } catch (e) {
+        console.error("[BiometricLock] Init error:", e);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []); // Empty deps — runs exactly once
+
+  // AppState listener — re-lock when app returns from background
   useEffect(() => {
-    if (!isEnabled || !isAvailable) return;
-
     const subscription = AppState.addEventListener(
       "change",
-      (nextAppState: AppStateStatus) => {
-        if (nextAppState === "active" && !isAuthenticatingRef.current) {
-          setIsLocked(true);
-          setTimeout(() => {
-            promptAuthentication();
-          }, 100);
+      (next: AppStateStatus) => {
+        const prev = appStateRef.current;
+        appStateRef.current = next;
+
+        // Only trigger when coming FROM background/inactive TO active
+        if (next === "active" && prev !== "active" && !busyRef.current) {
+          // Re-check if biometrics still enabled (async but fire-and-forget)
+          SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY).then((stored) => {
+            if (stored === "true") {
+              setIsLocked(true);
+              setTimeout(() => doAuthenticate(), 100);
+            }
+          });
         }
       },
     );
 
-    return () => {
-      subscription.remove();
-    };
-  }, [isEnabled, isAvailable, promptAuthentication]);
+    return () => subscription.remove();
+  }, []); // Empty deps — stable listener, never re-subscribes
 
   if (!isLocked) {
     return null;
@@ -141,7 +197,7 @@ export function BiometricLock() {
             marginBottom: 32,
           }}
         >
-          Use {getBiometricName()} to access the app
+          Use {biometricName} to access the app
         </Text>
 
         {/* Error */}
@@ -167,7 +223,7 @@ export function BiometricLock() {
 
         {/* Try Again Button */}
         <Pressable
-          onPress={promptAuthentication}
+          onPress={doAuthenticate}
           disabled={isAuthenticating}
           style={{
             backgroundColor: isAuthenticating

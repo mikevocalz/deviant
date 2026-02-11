@@ -23,6 +23,8 @@ export function useNotificationsQuery() {
       return response.docs || [];
     },
     enabled: !!viewerId,
+    staleTime: 60 * 1000,
+    refetchOnMount: true,
   });
 }
 
