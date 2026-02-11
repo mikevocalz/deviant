@@ -3,8 +3,14 @@
  * Prompts for Face ID/Touch ID when app opens (if enabled)
  */
 
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, Pressable, AppState, type AppStateStatus } from "react-native";
+import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  AppState,
+  type AppStateStatus,
+} from "react-native";
 import { useBiometrics } from "@/lib/hooks/use-biometrics";
 import { Fingerprint, AlertCircle } from "lucide-react-native";
 import { Motion } from "@legendapp/motion";
@@ -12,25 +18,24 @@ import { useColorScheme } from "@/lib/hooks";
 
 export function BiometricLock() {
   const { colors } = useColorScheme();
-  const {
-    isEnabled,
-    isAvailable,
-    authenticate,
-    getBiometricName,
-  } = useBiometrics();
+  const { isEnabled, isAvailable, authenticate, getBiometricName } =
+    useBiometrics();
 
   const [isLocked, setIsLocked] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isAuthenticatingRef = useRef(false);
 
   const promptAuthentication = useCallback(async () => {
-    if (!isEnabled || !isAvailable || isAuthenticating) return;
+    if (!isEnabled || !isAvailable || isAuthenticatingRef.current) return;
 
+    isAuthenticatingRef.current = true;
     setIsAuthenticating(true);
     setError(null);
 
     const result = await authenticate("Unlock DVNT");
 
+    isAuthenticatingRef.current = false;
     if (result.success) {
       setIsLocked(false);
       setIsAuthenticating(false);
@@ -38,7 +43,7 @@ export function BiometricLock() {
       setError(result.error || "Authentication failed");
       setIsAuthenticating(false);
     }
-  }, [isEnabled, isAvailable, isAuthenticating, authenticate]);
+  }, [isEnabled, isAvailable, authenticate]);
 
   // Lock on mount if biometrics are enabled
   useEffect(() => {
@@ -58,8 +63,7 @@ export function BiometricLock() {
     const subscription = AppState.addEventListener(
       "change",
       (nextAppState: AppStateStatus) => {
-        if (nextAppState === "active" && !isLocked) {
-          // App came to foreground - prompt for auth
+        if (nextAppState === "active" && !isAuthenticatingRef.current) {
           setIsLocked(true);
           setTimeout(() => {
             promptAuthentication();
@@ -71,7 +75,7 @@ export function BiometricLock() {
     return () => {
       subscription.remove();
     };
-  }, [isEnabled, isAvailable, isLocked, promptAuthentication]);
+  }, [isEnabled, isAvailable, promptAuthentication]);
 
   if (!isLocked) {
     return null;
