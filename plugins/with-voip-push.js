@@ -171,24 +171,52 @@ function withVoipXcodeProject(config) {
     ensureHeaderSearchPath(config.modResults, voipHeaderPath);
     ensureHeaderSearchPath(config.modResults, callkeepHeaderPath);
 
-    // Add the Objective-C file to the Xcode project build sources
+    // Add the Objective-C file to the Xcode project build sources.
+    // We manually add entries to avoid xcode lib's addFile/addSourceFile
+    // which crashes on getPBXVariantGroupByKey for certain group structures.
     const voipFileName = "AppDelegate+VoIPPush.m";
-    const filePath = `${projectName}/${voipFileName}`;
 
-    // CRITICAL FIX: Don't use addSourceFile - it calls addPluginFile which fails
-    // Instead, check if file already exists to avoid duplicate entries
-    const fileReferences = config.modResults.pbxFileReferenceSection();
-    const alreadyExists = Object.values(fileReferences || {}).some(
-      (ref) => ref.path === voipFileName || ref.name === voipFileName,
-    );
+    // Check if already added to avoid duplicates
+    const hasFile = config.modResults.hasFile(`${projectName}/${voipFileName}`);
+    if (!hasFile) {
+      const project = config.modResults;
+      const fileRefUuid = project.generateUuid();
+      const buildFileUuid = project.generateUuid();
 
-    if (!alreadyExists) {
-      // Manually add file using the same approach as react-native-callkeep
-      // This avoids the addPluginFile path that's causing null errors
-      const file = config.modResults.addFile(filePath, target.uuid);
-      if (file) {
-        config.modResults.addToPbxBuildFileSection(file);
-        config.modResults.addToPbxSourcesBuildPhase(file);
+      // 1. Add to PBXFileReference section
+      project.addToPbxFileReferenceSection({
+        fileRef: fileRefUuid,
+        basename: voipFileName,
+        path: voipFileName,
+        sourceTree: '"<group>"',
+        fileEncoding: 4,
+        lastKnownFileType: "sourcecode.c.objc",
+        group: projectName,
+      });
+
+      // 2. Add to PBXBuildFile section
+      project.addToPbxBuildFileSection({
+        uuid: buildFileUuid,
+        fileRef: fileRefUuid,
+        basename: voipFileName,
+        group: projectName,
+      });
+
+      // 3. Add to PBXSourcesBuildPhase
+      project.addToPbxSourcesBuildPhase({
+        uuid: buildFileUuid,
+        fileRef: fileRefUuid,
+        basename: voipFileName,
+        group: projectName,
+      });
+
+      // 4. Add to the main PBXGroup for the project
+      const mainGroupKey = project.findPBXGroupKey({ name: projectName });
+      if (mainGroupKey) {
+        project.addToPbxGroup(
+          { fileRef: fileRefUuid, basename: voipFileName },
+          mainGroupKey,
+        );
       }
     }
 
