@@ -2,10 +2,19 @@
  * Biometric Lock
  * Prompts for Face ID/Touch ID when app opens (if enabled).
  *
- * CRITICAL: All guards are MODULE-LEVEL variables, NOT refs or state.
- * The parent (RootLayout) can remount this component when isAuthenticated
- * toggles during auth state loading. Refs reset on remount — module vars don't.
- * Once the user unlocks, `sessionUnlocked` stays true for the entire JS session.
+ * ARCHITECTURE (why this is complex):
+ *
+ * On iOS, the Face ID dialog causes AppState transitions:
+ *   active → inactive (dialog appears) → active (dialog dismissed)
+ *
+ * If the AppState listener treats inactive→active as "return from background",
+ * it resets the unlock flag and re-prompts Face ID, creating an INFINITE LOOP.
+ *
+ * Solution:
+ * - Only re-lock on BACKGROUND → active (user actually left the app)
+ * - NEVER re-lock on inactive → active (Face ID dialog, notification center, etc.)
+ * - Add a 3-second cooldown after successful auth to prevent any race conditions
+ * - All guards are MODULE-LEVEL variables that survive component remounts
  */
 
 import { useEffect, useState } from "react";
@@ -19,16 +28,20 @@ import { useColorScheme } from "@/lib/hooks";
 const BIOMETRIC_ENABLED_KEY = "biometric_auth_enabled";
 
 // ── Module-level guards — survive component remounts ──────────────────
-let sessionUnlocked = false; // true after first successful Face ID this session
-let authInProgress = false; // prevents concurrent Face ID prompts
-let initDone = false; // prevents mount effect from re-running
+let sessionUnlocked = false;
+let authInProgress = false;
+let initDone = false;
 let appStateListenerRegistered = false;
+let lastAuthSuccessTime = 0; // timestamp of last successful auth
 // Setter so the AppState listener (module-level) can tell the mounted component to re-lock
 let setLockedFn: ((locked: boolean) => void) | null = null;
+
+const AUTH_COOLDOWN_MS = 3000; // ignore AppState changes for 3s after auth
 
 async function promptBiometric(): Promise<boolean> {
   if (authInProgress || sessionUnlocked) return sessionUnlocked;
   authInProgress = true;
+  console.log("[BiometricLock] Prompting biometric...");
 
   try {
     const result = await LocalAuthentication.authenticateAsync({
@@ -38,11 +51,16 @@ async function promptBiometric(): Promise<boolean> {
       fallbackLabel: "Use Password",
     });
     if (result.success) {
+      console.log("[BiometricLock] Auth SUCCESS");
       sessionUnlocked = true;
+      lastAuthSuccessTime = Date.now();
       setLockedFn?.(false);
+    } else {
+      console.log("[BiometricLock] Auth FAILED:", result.error);
     }
     return result.success;
-  } catch {
+  } catch (e) {
+    console.error("[BiometricLock] Auth ERROR:", e);
     return false;
   } finally {
     authInProgress = false;
@@ -59,13 +77,25 @@ function ensureAppStateListener() {
     const was = prevState;
     prevState = next;
 
-    if (next === "active" && was !== "active" && !authInProgress) {
-      // Reset session unlock so user must re-authenticate after background
+    // CRITICAL: Only re-lock when coming from BACKGROUND, not INACTIVE.
+    // On iOS, Face ID dialog causes active→inactive→active.
+    // Notification center, Control Center also cause inactive transitions.
+    // We must ONLY re-lock when the user actually backgrounded the app.
+    if (next === "active" && was === "background" && !authInProgress) {
+      // Cooldown: don't re-lock if we just authenticated
+      if (Date.now() - lastAuthSuccessTime < AUTH_COOLDOWN_MS) {
+        console.log("[BiometricLock] AppState: skipping re-lock (cooldown)");
+        return;
+      }
+
+      console.log(
+        "[BiometricLock] AppState: background→active, checking re-lock",
+      );
       SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY).then((stored) => {
         if (stored === "true") {
           sessionUnlocked = false;
           setLockedFn?.(true);
-          setTimeout(() => promptBiometric(), 100);
+          setTimeout(() => promptBiometric(), 300);
         }
       });
     }
@@ -92,15 +122,22 @@ export function BiometricLock() {
   useEffect(() => {
     if (initDone || sessionUnlocked) return;
     initDone = true;
+    console.log("[BiometricLock] Init starting...");
 
     (async () => {
       try {
         const compatible = await LocalAuthentication.hasHardwareAsync();
         const enrolled = await LocalAuthentication.isEnrolledAsync();
-        if (!compatible || !enrolled) return;
+        if (!compatible || !enrolled) {
+          console.log("[BiometricLock] Hardware not available or not enrolled");
+          return;
+        }
 
         const stored = await SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY);
-        if (stored !== "true") return;
+        if (stored !== "true") {
+          console.log("[BiometricLock] Biometrics not enabled by user");
+          return;
+        }
 
         // Determine biometric name
         const types =
@@ -120,6 +157,9 @@ export function BiometricLock() {
         // Register AppState listener for background→foreground re-lock
         ensureAppStateListener();
 
+        console.log(
+          "[BiometricLock] Showing lock screen, will prompt in 300ms",
+        );
         setIsLocked(true);
         setTimeout(() => promptBiometric(), 300);
       } catch (e) {
