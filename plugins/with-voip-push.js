@@ -184,10 +184,12 @@ function withVoipXcodeProject(config) {
       const buildFileUuid = project.generateUuid();
 
       // 1. Add to PBXFileReference section
+      // Path must be relative to the ios/ project root (e.g. "DVNT/AppDelegate+VoIPPush.m")
+      // because the DVNT group has no path attribute in the pbxproj.
       project.addToPbxFileReferenceSection({
         fileRef: fileRefUuid,
         basename: voipFileName,
-        path: voipFileName,
+        path: `${projectName}/${voipFileName}`,
         sourceTree: '"<group>"',
         fileEncoding: 4,
         lastKnownFileType: "sourcecode.c.objc",
