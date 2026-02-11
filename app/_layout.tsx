@@ -25,9 +25,13 @@ import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
+import * as ScreenOrientation from "expo-screen-orientation";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
+
+// Lock screen to portrait up
+ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
 
 SplashScreen.preventAutoHideAsync();
 

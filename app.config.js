@@ -177,6 +177,7 @@ export default {
         },
       ],
       "@config-plugins/react-native-callkeep",
+      "./plugins/with-voip-push",
       "expo-secure-store",
       "react-native-compressor",
       [

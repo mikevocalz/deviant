@@ -10,6 +10,10 @@ import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,
 } from "@/lib/notifications";
+import {
+  registerVoipPushToken,
+  saveVoipTokenToBackend,
+} from "@/src/services/callkeep/voipPushService";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 const screenTransitionConfig = Platform.select({
@@ -70,6 +74,21 @@ export default function ProtectedLayout() {
     };
 
     registerPush();
+
+    // Register for iOS VoIP push tokens (separate from Expo push)
+    // This enables the native CallKit UI when app is killed
+    const unsubVoip = registerVoipPushToken(async (voipToken) => {
+      try {
+        await saveVoipTokenToBackend(voipToken, user.id);
+        console.log("[ProtectedLayout] VoIP token saved to backend");
+      } catch (error) {
+        console.error("[ProtectedLayout] VoIP token save failed:", error);
+      }
+    });
+
+    return () => {
+      unsubVoip();
+    };
   }, [user?.id, user?.username]);
 
   return (
