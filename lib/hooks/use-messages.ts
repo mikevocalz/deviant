@@ -1,6 +1,8 @@
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useEffect } from "react";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 
 // Query keys - scoped by viewerId for cache isolation
 export const messageKeys = {
@@ -11,10 +13,6 @@ export const messageKeys = {
     [...messageKeys.all, "spamUnreadCount", viewerId || "__no_user__"] as const,
   conversations: (viewerId?: string) =>
     [...messageKeys.all, "conversations", viewerId || "__no_user__"] as const,
-  filteredConversations: (viewerId: string, filter: string) =>
-    [...messageKeys.all, "filtered", filter, viewerId] as const,
-  chatMessages: (conversationId: string) =>
-    [...messageKeys.all, "chat", conversationId] as const,
 };
 
 /**
@@ -22,28 +20,97 @@ export const messageKeys = {
  *
  * CRITICAL: This count only includes messages from followed users.
  * Spam messages are NOT included in the Messages badge.
- * TanStack Query is the SINGLE source of truth for unread counts.
+ * This is the source of truth for the Messages tab badge.
  *
- * Boot prefetch warms this cache so the badge appears instantly.
- * Background refetch every 30s keeps it fresh.
+ * DEBOUNCED: API calls are debounced to reduce spam
  */
 export function useUnreadMessageCount() {
+  const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
+  const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
   const user = useAuthStore((s) => s.user);
   const viewerId = user?.id;
+
+  // Refs for debouncing
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const DEBOUNCE_DELAY = 2000; // 2 seconds
+  const MIN_FETCH_INTERVAL = 10000; // Minimum 10 seconds between fetches
 
   const query = useQuery<{ inbox: number; spam: number }>({
     queryKey: messageKeys.unreadCount(viewerId),
     queryFn: async () => {
-      const [inboxCount, spamCount] = await Promise.all([
-        messagesApiClient.getUnreadCount(),
-        messagesApiClient.getSpamUnreadCount(),
-      ]);
-      return { inbox: inboxCount, spam: spamCount };
+      const now = Date.now();
+
+      // Debounce: if we fetched recently, return cached data
+      if (now - lastFetchRef.current < MIN_FETCH_INTERVAL) {
+        console.log("[useUnreadMessageCount] Using cached data (debounced)");
+        // Return existing data from store if available
+        return {
+          inbox: useUnreadCountsStore.getState().messagesUnread || 0,
+          spam: useUnreadCountsStore.getState().spamUnread || 0,
+        };
+      }
+
+      // Clear existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      // Debounce the actual API call
+      return new Promise((resolve) => {
+        timeoutRef.current = setTimeout(async () => {
+          try {
+            lastFetchRef.current = Date.now();
+
+            // Get inbox unread count (from followed users only)
+            const inboxCount = await messagesApiClient.getUnreadCount();
+            // Also get spam count for display purposes
+            const spamCount = await messagesApiClient.getSpamUnreadCount();
+
+            console.log("[useUnreadMessageCount] Fetched (debounced):", {
+              inbox: inboxCount,
+              spam: spamCount,
+            });
+
+            resolve({ inbox: inboxCount, spam: spamCount });
+          } catch (error) {
+            console.error(
+              "[useUnreadMessageCount] Error fetching counts:",
+              error,
+            );
+            // Return fallback data
+            resolve({
+              inbox: useUnreadCountsStore.getState().messagesUnread || 0,
+              spam: useUnreadCountsStore.getState().spamUnread || 0,
+            });
+          }
+        }, DEBOUNCE_DELAY);
+      });
     },
-    enabled: !!viewerId,
-    refetchInterval: 30_000,
+    refetchInterval: 30000, // Refetch every 30 seconds (less frequent)
+    staleTime: 15000, // Consider stale after 15 seconds (longer)
+    refetchOnWindowFocus: false, // Don't refetch on window focus
+    refetchOnReconnect: true, // Only refetch on reconnect
   });
 
+  // Sync with unread counts store
+  useEffect(() => {
+    if (query.data) {
+      setMessagesUnread(query.data.inbox);
+      setSpamUnread(query.data.spam);
+    }
+  }, [query.data, setMessagesUnread, setSpamUnread]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Return just the inbox count for backwards compatibility
   return {
     ...query,
     data: query.data?.inbox ?? 0,
@@ -64,173 +131,25 @@ export function useConversations() {
 }
 
 /**
- * Hook to get filtered conversations (inbox or requests).
- * Uses TanStack Query instead of useState + useEffect.
- */
-export function useFilteredConversations(filter: "primary" | "requests") {
-  const user = useAuthStore((s) => s.user);
-  const viewerId = user?.id || "";
-
-  return useQuery({
-    queryKey: messageKeys.filteredConversations(viewerId, filter),
-    queryFn: () => messagesApiClient.getFilteredConversations(filter),
-    enabled: !!viewerId,
-  });
-}
-
-/**
- * Hook to get chat messages for a conversation.
- * TanStack Query owns the data — no Zustand duplication.
- */
-export function useChatMessages(conversationId: string) {
-  return useQuery({
-    queryKey: messageKeys.chatMessages(conversationId),
-    queryFn: () => messagesApiClient.getMessages(conversationId),
-    enabled: !!conversationId,
-    staleTime: 30_000,
-  });
-}
-
-/**
- * Hook to refresh message counts after marking as read.
- * Invalidates TanStack Query cache — the single source of truth.
+ * Hook to refresh message counts after marking as read
+ * Call this after opening a conversation
  */
 export function useRefreshMessageCounts() {
   const queryClient = useQueryClient();
+  const refreshMessagesUnread = useUnreadCountsStore(
+    (s) => s.refreshMessagesUnread,
+  );
   const user = useAuthStore((s) => s.user);
   const viewerId = user?.id;
 
   return async () => {
+    // Invalidate query cache - use scoped key
     if (viewerId) {
       await queryClient.invalidateQueries({
         queryKey: messageKeys.unreadCount(viewerId),
       });
     }
+    // Also refresh store
+    await refreshMessagesUnread();
   };
-}
-
-/**
- * Optimistic Send Message Mutation
- *
- * 1. Instantly appends message to chat cache with temp ID
- * 2. Sends to backend
- * 3. Reconciles temp message with server response
- * 4. Rolls back on error
- */
-export function useSendMessage(conversationId: string) {
-  const queryClient = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-
-  return useMutation({
-    mutationFn: (params: {
-      content: string;
-      media?: Array<{ uri: string; type: "image" | "video" }>;
-    }) =>
-      messagesApiClient.sendMessage({
-        conversationId,
-        content: params.content,
-        media: params.media,
-      }),
-
-    onMutate: async (params) => {
-      await queryClient.cancelQueries({
-        queryKey: messageKeys.chatMessages(conversationId),
-      });
-
-      const prev = queryClient.getQueryData(
-        messageKeys.chatMessages(conversationId),
-      );
-
-      // Optimistic message with temp ID
-      const tempMessage = {
-        id: `temp-${Date.now()}`,
-        content: params.content,
-        text: params.content,
-        sender: "user" as const,
-        senderId: user?.id,
-        createdAt: new Date().toISOString(),
-        media: params.media || [],
-        metadata: null,
-      };
-
-      queryClient.setQueryData(
-        messageKeys.chatMessages(conversationId),
-        (old: any[] | undefined) => [...(old || []), tempMessage],
-      );
-
-      return { prev };
-    },
-
-    onError: (_err, _vars, context) => {
-      // Rollback to previous messages
-      if (context?.prev) {
-        queryClient.setQueryData(
-          messageKeys.chatMessages(conversationId),
-          context.prev,
-        );
-      }
-    },
-
-    onSuccess: (serverMsg) => {
-      // Replace temp message with server response
-      queryClient.setQueryData(
-        messageKeys.chatMessages(conversationId),
-        (old: any[] | undefined) => {
-          if (!old) return old;
-          // Remove temp messages and append server message
-          const withoutTemp = old.filter(
-            (m: any) => !String(m.id).startsWith("temp-"),
-          );
-          return [...withoutTemp, serverMsg];
-        },
-      );
-      // Invalidate conversations list to update lastMessage preview
-      queryClient.invalidateQueries({
-        queryKey: messageKeys.all,
-        predicate: (query) =>
-          query.queryKey[1] === "filtered" ||
-          query.queryKey[1] === "conversations",
-      });
-    },
-  });
-}
-
-/**
- * Optimistic Delete Message Mutation
- */
-export function useDeleteMessage(conversationId: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (messageId: string) =>
-      messagesApiClient.deleteMessage(messageId),
-
-    onMutate: async (messageId) => {
-      await queryClient.cancelQueries({
-        queryKey: messageKeys.chatMessages(conversationId),
-      });
-
-      const prev = queryClient.getQueryData(
-        messageKeys.chatMessages(conversationId),
-      );
-
-      // Optimistically remove the message
-      queryClient.setQueryData(
-        messageKeys.chatMessages(conversationId),
-        (old: any[] | undefined) =>
-          old ? old.filter((m: any) => String(m.id) !== messageId) : old,
-      );
-
-      return { prev };
-    },
-
-    onError: (_err, _vars, context) => {
-      if (context?.prev) {
-        queryClient.setQueryData(
-          messageKeys.chatMessages(conversationId),
-          context.prev,
-        );
-      }
-    },
-  });
 }
