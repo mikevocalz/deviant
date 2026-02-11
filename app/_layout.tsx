@@ -26,12 +26,22 @@ import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
 import * as ScreenOrientation from "expo-screen-orientation";
+import { Dimensions } from "react-native";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
 
-// Lock screen to portrait up
-ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+// Device-aware screen orientation
+// - Phones: Portrait only (better UX for feed scrolling)
+// - Tablets (768px+): Allow landscape (like Instagram web)
+const { width } = Dimensions.get("window");
+const isTablet = width >= 768;
+if (!isTablet) {
+  ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+} else {
+  // Tablets can rotate freely
+  ScreenOrientation.unlockAsync();
+}
 
 SplashScreen.preventAutoHideAsync();
 

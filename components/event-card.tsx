@@ -9,11 +9,17 @@ import Animated, {
 } from "react-native-reanimated";
 import { AVATAR_COLORS } from "@/lib/constants/events";
 import { useRouter } from "expo-router";
-
-const CARD_HEIGHT = 500;
+import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 
 export function EventCard({ event, index, scrollY, formatLikes }: any) {
   const router = useRouter();
+
+  // Responsive sizing: full width on phone, max 614px centered on tablet
+  const {
+    width: cardWidth,
+    height: CARD_HEIGHT,
+    containerClass,
+  } = useResponsiveMedia("square"); // 1:1 aspect ratio for events
   const animatedImageStyle = useAnimatedStyle(() => {
     "worklet";
     const translateY = (scrollY.value - index * (CARD_HEIGHT + 20)) * -0.15;
@@ -27,6 +33,7 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
       entering={FadeInDown.delay(index * 150)
         .duration(800)
         .springify()}
+      className={containerClass}
     >
       <Motion.View
         className="rounded-3xl overflow-hidden mb-5"

@@ -1,4 +1,4 @@
-import { View, Text, Pressable, Dimensions, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { Article } from "@expo/html-elements";
@@ -52,6 +52,7 @@ import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
+import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -76,13 +77,8 @@ interface FeedPostProps {
   isNSFW?: boolean;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_HORIZONTAL_MARGIN = 4; // marginHorizontal on Article
 const CARD_BORDER_WIDTH = 1; // borderWidth on Article
-const mediaSize =
-  SCREEN_WIDTH - (CARD_HORIZONTAL_MARGIN + CARD_BORDER_WIDTH) * 2; // Fit inside card
-// Instagram-like 4:5 aspect ratio for portrait-friendly display (prevents head cropping)
-const PORTRAIT_HEIGHT = Math.round(mediaSize * 1.25); // 4:5 ratio
 
 function FeedPostComponent({
   id,
@@ -98,6 +94,17 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
+
+  // Responsive media sizing (Instagram-like: full width on phone, max 614px centered on tablet)
+  const {
+    width: mediaSize,
+    height: PORTRAIT_HEIGHT,
+    containerClass,
+  } = useResponsiveMedia("portrait", {
+    cardMargin: CARD_HORIZONTAL_MARGIN,
+    cardBorder: CARD_BORDER_WIDTH,
+  });
+
   // CENTRALIZED: Like state from single source of truth (React Query cache)
   // CRITICAL: Use viewerHasLiked from API response, NOT hardcoded false
   // The usePostLikeState hook manages cache internally and will sync with server
@@ -461,7 +468,7 @@ function FeedPostComponent({
         damping: 20,
         stiffness: 300,
       }}
-      className="w-full max-w-2xl self-center"
+      className={containerClass}
     >
       <Article
         style={{
