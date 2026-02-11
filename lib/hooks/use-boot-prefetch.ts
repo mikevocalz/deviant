@@ -67,7 +67,7 @@ export function useBootPrefetch() {
       queryClient
         .prefetchQuery({
           queryKey: messageKeys.conversations(viewerId),
-          queryFn: messagesApiClient.getConversations,
+          queryFn: () => messagesApiClient.getConversations(),
         })
         .then(() => {
           // 5. Auto-prefetch messages for top 3 most recent threads
