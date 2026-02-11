@@ -173,15 +173,24 @@ function withVoipXcodeProject(config) {
 
     // Add the Objective-C file to the Xcode project build sources
     const voipFileName = "AppDelegate+VoIPPush.m";
+    const filePath = `${projectName}/${voipFileName}`;
 
-    // Add file to the project - let xcode library auto-detect the group
-    // CRITICAL: Don't pass group parameter - the library figures out the correct group
-    // based on the file path. Passing group explicitly causes "Cannot read properties
-    // of null" errors in xcode@3.0.1
-    config.modResults.addSourceFile(
-      `${projectName}/${voipFileName}`,
-      { target: target.uuid },
+    // CRITICAL FIX: Don't use addSourceFile - it calls addPluginFile which fails
+    // Instead, check if file already exists to avoid duplicate entries
+    const fileReferences = config.modResults.pbxFileReferenceSection();
+    const alreadyExists = Object.values(fileReferences || {}).some(
+      (ref) => ref.path === voipFileName || ref.name === voipFileName,
     );
+
+    if (!alreadyExists) {
+      // Manually add file using the same approach as react-native-callkeep
+      // This avoids the addPluginFile path that's causing null errors
+      const file = config.modResults.addFile(filePath, target.uuid);
+      if (file) {
+        config.modResults.addToPbxBuildFileSection(file);
+        config.modResults.addToPbxSourcesBuildPhase(file);
+      }
+    }
 
     return config;
   });
