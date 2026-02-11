@@ -109,8 +109,31 @@ export function useVideoCall() {
   const leaveCallRef = useRef<() => void>(() => {});
 
   // ── Zustand store access ────────────────────────────────────────────
-  const store = useVideoRoomStore();
+  // CRITICAL: Use individual selectors to prevent re-render storms.
+  // getStore() for imperative access in callbacks/effects.
   const getStore = useVideoRoomStore.getState;
+
+  // Reactive selectors — only subscribe to what the return block + effects need
+  const callPhase = useVideoRoomStore((s) => s.callPhase);
+  const callType = useVideoRoomStore((s) => s.callType);
+  const callRole = useVideoRoomStore((s) => s.callRole);
+  const callDirection = useVideoRoomStore((s) => s.callDirection);
+  const recipientInfo = useVideoRoomStore((s) => s.recipientInfo);
+  const roomId_store = useVideoRoomStore((s) => s.roomId);
+  const chatId_store = useVideoRoomStore((s) => s.chatId);
+  const callEnded = useVideoRoomStore((s) => s.callEnded);
+  const callDuration = useVideoRoomStore((s) => s.callDuration);
+  const error_store = useVideoRoomStore((s) => s.error);
+  const errorCode_store = useVideoRoomStore((s) => s.errorCode);
+  const connectionStatus = useVideoRoomStore((s) => s.connectionState.status);
+  const isMicOn = useVideoRoomStore((s) => s.isMicOn);
+  const isCameraOn = useVideoRoomStore((s) => s.isCameraOn);
+  const localStream = useVideoRoomStore((s) => s.localStream);
+  const participants = useVideoRoomStore((s) => s.participants);
+  const cameraPermission = useVideoRoomStore((s) => s.cameraPermission);
+  const micPermission = useVideoRoomStore((s) => s.micPermission);
+  const isSpeakerOn = useVideoRoomStore((s) => s.isSpeakerOn);
+  const isPiPActive = useVideoRoomStore((s) => s.isPiPActive);
 
   // ── Sync Fishjam peerStatus → store ─────────────────────────────────
   useEffect(() => {
@@ -370,9 +393,14 @@ export function useVideoCall() {
       try {
         s.setMicOn(true);
         CT.trace("MEDIA", "mic_start_requested", { callType: type });
-        log(`[${type.toUpperCase()}] Microphone start requested (will activate after audio session)`);
+        log(
+          `[${type.toUpperCase()}] Microphone start requested (will activate after audio session)`,
+        );
       } catch (micErr) {
-        logError(`[${type.toUpperCase()}] FAILED to request microphone:`, micErr);
+        logError(
+          `[${type.toUpperCase()}] FAILED to request microphone:`,
+          micErr,
+        );
         CT.error("MEDIA", "mic_start_request_failed", {
           error: (micErr as any)?.message,
           callType: type,
@@ -606,7 +634,10 @@ export function useVideoCall() {
             );
           }
         } catch (micErr) {
-          logError(`[${callType.toUpperCase()}] FAILED to start microphone:`, micErr);
+          logError(
+            `[${callType.toUpperCase()}] FAILED to start microphone:`,
+            micErr,
+          );
           CT.error("MEDIA", "mic_start_failed", {
             error: (micErr as any)?.message,
             callType,
@@ -743,7 +774,10 @@ export function useVideoCall() {
             );
           }
         } catch (micErr) {
-          logError(`[${callType.toUpperCase()}] Callee FAILED to start microphone:`, micErr);
+          logError(
+            `[${callType.toUpperCase()}] Callee FAILED to start microphone:`,
+            micErr,
+          );
           CT.error("MEDIA", "mic_start_failed_callee", {
             error: (micErr as any)?.message,
             callType,
@@ -1053,7 +1087,7 @@ export function useVideoCall() {
   // also sets callPhase='call_ended' — so we guard with refs to avoid loops.
   const externalEndHandledRef = useRef(false);
   useEffect(() => {
-    if (store.callPhase === "call_ended" && !externalEndHandledRef.current) {
+    if (callPhase === "call_ended" && !externalEndHandledRef.current) {
       externalEndHandledRef.current = true;
 
       // CRITICAL FIX: Check if cleanup is already in progress to prevent duplicate cleanup
@@ -1082,7 +1116,7 @@ export function useVideoCall() {
         "[LIFECYCLE] External call_ended detected — cleaning up Fishjam/media",
       );
       try {
-        if (store.callType === "video" || store.isCameraOn) {
+        if (callType === "video" || isCameraOn) {
           cameraRef.current.stopCamera();
         }
         micRef.current.stopMicrophone();
@@ -1100,12 +1134,12 @@ export function useVideoCall() {
       }, 1000);
     }
     // Reset the guard when we go back to idle
-    if (store.callPhase === "idle") {
+    if (callPhase === "idle") {
       externalEndHandledRef.current = false;
       userInitiatedLeaveRef.current = false;
       cleanupInProgressRef.current = false;
     }
-  }, [store.callPhase, store.callType, store.isCameraOn, stopDurationTimer]);
+  }, [callPhase, callType, isCameraOn, stopDurationTimer]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -1117,37 +1151,36 @@ export function useVideoCall() {
   }, [stopDurationTimer]);
 
   // ── Derived state for consumers ────────────────────────────────────
-  const isAudioMode = store.callType === "audio";
+  const isAudioMode = callType === "audio";
 
   return {
-    // State from store
-    callPhase: store.callPhase,
-    callType: store.callType,
-    callRole: store.callRole,
-    callDirection: store.callDirection,
-    recipientInfo: store.recipientInfo,
-    roomId: store.roomId,
-    chatId: store.chatId,
-    callEnded: store.callEnded,
-    callDuration: store.callDuration,
-    error: store.error,
-    errorCode: store.errorCode,
-    isConnected: store.connectionState.status === "connected",
-    isInCall:
-      store.callPhase === "connected" || store.callPhase === "outgoing_ringing",
-    isMuted: !store.isMicOn,
-    isVideoOff: !store.isCameraOn,
-    localStream: store.localStream,
-    participants: store.participants,
-    cameraPermission: store.cameraPermission,
-    micPermission: store.micPermission,
-    isSpeakerOn: store.isSpeakerOn,
-    isPiPActive: store.isPiPActive,
+    // State from store (individual selectors — no re-render storms)
+    callPhase,
+    callType,
+    callRole,
+    callDirection,
+    recipientInfo,
+    roomId: roomId_store,
+    chatId: chatId_store,
+    callEnded,
+    callDuration,
+    error: error_store,
+    errorCode: errorCode_store,
+    isConnected: connectionStatus === "connected",
+    isInCall: callPhase === "connected" || callPhase === "outgoing_ringing",
+    isMuted: !isMicOn,
+    isVideoOff: !isCameraOn,
+    localStream,
+    participants,
+    cameraPermission,
+    micPermission,
+    isSpeakerOn,
+    isPiPActive,
 
     // Derived
     isAudioMode,
-    isCaller: store.callRole === "caller",
-    isCallee: store.callRole === "callee",
+    isCaller: callRole === "caller",
+    isCallee: callRole === "callee",
 
     // Actions
     createCall,
