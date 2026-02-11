@@ -49,6 +49,7 @@
       "ios": {
         "image": "macos-sonoma-14.6-xcode-16.1"
       },
+      "node": "20.18.0",
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
