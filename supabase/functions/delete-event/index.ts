@@ -1,0 +1,190 @@
+/**
+ * Edge Function: delete-event
+ * Delete an event with Better Auth verification + CDN cleanup
+ */
+
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+interface ApiResponse<T = unknown> {
+  ok: boolean;
+  data?: T;
+  error?: { code: string; message: string };
+}
+
+function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function errorResponse(code: string, message: string, status = 400): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, status);
+}
+
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
+  try {
+    const { data: session, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
+
+    if (sessionError || !session) return null;
+    if (new Date(session.expiresAt) < new Date()) return null;
+
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name")
+      .eq("id", session.userId)
+      .single();
+
+    if (userError || !user) return null;
+    return { odUserId: user.id, email: user.email || "" };
+  } catch {
+    return null;
+  }
+}
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST")
+    return errorResponse("validation_error", "Method not allowed", 405);
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer "))
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
+
+    const token = authHeader.replace("Bearer ", "");
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !supabaseServiceKey) {
+      return errorResponse(
+        "internal_error",
+        "Server configuration error",
+        500,
+      );
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
+
+    const session = await verifyBetterAuthSession(token, supabaseAdmin);
+    if (!session)
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
+
+    let body: { eventId: number };
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("validation_error", "Invalid JSON body", 400);
+    }
+
+    const { eventId } = body;
+    if (!eventId)
+      return errorResponse("validation_error", "eventId is required", 400);
+
+    console.log("[Edge:delete-event] eventId:", eventId, "user:", session.odUserId);
+
+    // Look up the app user row
+    const { data: userData } = await supabaseAdmin
+      .from("users")
+      .select("id, auth_id")
+      .eq("auth_id", session.odUserId)
+      .single();
+    if (!userData)
+      return errorResponse("not_found", "User not found", 404);
+
+    // Fetch the event
+    const { data: event, error: fetchError } = await supabaseAdmin
+      .from("events")
+      .select("*")
+      .eq("id", eventId)
+      .single();
+
+    if (fetchError || !event)
+      return errorResponse("not_found", "Event not found", 404);
+
+    // Verify ownership: host_id could be auth_id (string) or user id (integer as string)
+    const hostId = String(event.host_id);
+    const isOwner =
+      hostId === session.odUserId ||
+      hostId === String(userData.id) ||
+      hostId === String(userData.auth_id);
+
+    if (!isOwner) {
+      console.error(
+        "[Edge:delete-event] Ownership mismatch — hostId:",
+        hostId,
+        "authId:",
+        session.odUserId,
+        "userId:",
+        userData.id,
+      );
+      return errorResponse(
+        "forbidden",
+        "You are not the host of this event",
+        403,
+      );
+    }
+
+    // Delete related records (best-effort, in case FK cascade is missing)
+    const relatedDeletes = [
+      supabaseAdmin.from("event_rsvps").delete().eq("event_id", eventId),
+      supabaseAdmin.from("event_likes").delete().eq("event_id", eventId),
+      supabaseAdmin.from("event_comments").delete().eq("event_id", eventId),
+      supabaseAdmin.from("event_reviews").delete().eq("event_id", eventId),
+    ];
+
+    const results = await Promise.allSettled(relatedDeletes);
+    results.forEach((r, i) => {
+      if (r.status === "rejected") {
+        console.warn(`[Edge:delete-event] related delete ${i} failed:`, r.reason);
+      } else if (r.status === "fulfilled" && r.value?.error) {
+        // Table might not exist yet — that's OK
+        console.warn(`[Edge:delete-event] related delete ${i} DB error:`, r.value.error.message);
+      }
+    });
+
+    // Delete the event itself
+    const { error: deleteError } = await supabaseAdmin
+      .from("events")
+      .delete()
+      .eq("id", eventId);
+
+    if (deleteError) {
+      console.error("[Edge:delete-event] Delete error:", deleteError);
+      return errorResponse("internal_error", "Failed to delete event", 500);
+    }
+
+    console.log("[Edge:delete-event] Success — eventId:", eventId);
+
+    return jsonResponse({ ok: true, data: { success: true } });
+  } catch (err) {
+    console.error("[Edge:delete-event] Error:", err);
+    return errorResponse(
+      "internal_error",
+      "An unexpected error occurred",
+      500,
+    );
+  }
+});

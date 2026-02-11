@@ -42,6 +42,7 @@ import { useEventViewStore } from "@/lib/stores/event-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
+import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import {
   useEventReviews,
   useCreateEventReview,
@@ -419,7 +420,7 @@ export default function EventDetailScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await eventsApi.deleteEvent(eventId);
+              await deleteEventPrivileged(parseInt(eventId));
               queryClient.invalidateQueries({ queryKey: eventKeys.all });
               showToast("success", "Deleted", "Event has been deleted.");
               router.back();

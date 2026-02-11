@@ -31,12 +31,19 @@ export function useBiometrics() {
     try {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
-      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const types =
+        await LocalAuthentication.supportedAuthenticationTypesAsync();
 
       let biometricType: BiometricType = "none";
-      if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+      if (
+        types.includes(
+          LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
+        )
+      ) {
         biometricType = "facial";
-      } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
+      } else if (
+        types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)
+      ) {
         biometricType = "fingerprint";
       } else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) {
         biometricType = "iris";
@@ -59,33 +66,6 @@ export function useBiometrics() {
     } catch (error) {
       console.error("[Biometrics] Check availability failed:", error);
       return { isAvailable: false, biometricType: "none" as BiometricType };
-    }
-  }, []);
-
-  // Enable biometric authentication
-  const enable = useCallback(async (): Promise<boolean> => {
-    try {
-      // First verify biometrics work
-      const result = await authenticate("Enable biometric authentication");
-      if (result.success) {
-        await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, "true");
-        setState((prev) => ({ ...prev, isEnabled: true }));
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("[Biometrics] Enable failed:", error);
-      return false;
-    }
-  }, []);
-
-  // Disable biometric authentication
-  const disable = useCallback(async (): Promise<void> => {
-    try {
-      await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
-      setState((prev) => ({ ...prev, isEnabled: false }));
-    } catch (error) {
-      console.error("[Biometrics] Disable failed:", error);
     }
   }, []);
 
@@ -124,6 +104,43 @@ export function useBiometrics() {
     },
     [],
   );
+
+  // Enable biometric authentication
+  const enable = useCallback(async (): Promise<boolean> => {
+    try {
+      // First check availability before prompting
+      const compatible = await LocalAuthentication.hasHardwareAsync();
+      const enrolled = await LocalAuthentication.isEnrolledAsync();
+      if (!compatible || !enrolled) {
+        console.error(
+          "[Biometrics] Enable failed: not available or not enrolled",
+        );
+        return false;
+      }
+
+      // First verify biometrics work
+      const result = await authenticate("Enable biometric authentication");
+      if (result.success) {
+        await SecureStore.setItemAsync(BIOMETRIC_ENABLED_KEY, "true");
+        setState((prev) => ({ ...prev, isEnabled: true }));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("[Biometrics] Enable failed:", error);
+      return false;
+    }
+  }, [authenticate]);
+
+  // Disable biometric authentication
+  const disable = useCallback(async (): Promise<void> => {
+    try {
+      await SecureStore.deleteItemAsync(BIOMETRIC_ENABLED_KEY);
+      setState((prev) => ({ ...prev, isEnabled: false }));
+    } catch (error) {
+      console.error("[Biometrics] Disable failed:", error);
+    }
+  }, []);
 
   // Get friendly name for biometric type
   const getBiometricName = useCallback((): string => {

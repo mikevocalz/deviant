@@ -15,6 +15,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useState, useEffect } from "react";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { getAuthToken } from "@/lib/auth-client";
+import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 
 export default function EditEventScreen() {
   const router = useRouter();
@@ -143,23 +144,7 @@ export default function EditEventScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-              if (!apiUrl) throw new Error("API URL not configured");
-
-              const token = await getAuthToken();
-              if (!token) throw new Error("Not authenticated");
-
-              const response = await fetch(`${apiUrl}/api/events/${eventId}`, {
-                method: "DELETE",
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              });
-
-              if (!response.ok) {
-                throw new Error(`Delete failed: ${response.status}`);
-              }
-
+              await deleteEventPrivileged(parseInt(eventId));
               showToast("success", "Success", "Event deleted successfully!");
               router.replace("/(protected)/(tabs)/events");
             } catch (error) {
