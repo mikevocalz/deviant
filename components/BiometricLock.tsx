@@ -2,18 +2,14 @@
  * Biometric Lock
  * Prompts for Face ID/Touch ID when app opens (if enabled).
  *
- * IMPORTANT: All control-flow guards use refs, NOT state, so that
- * callback identity never changes and effects never re-fire.
+ * CRITICAL: All guards are MODULE-LEVEL variables, NOT refs or state.
+ * The parent (RootLayout) can remount this component when isAuthenticated
+ * toggles during auth state loading. Refs reset on remount — module vars don't.
+ * Once the user unlocks, `sessionUnlocked` stays true for the entire JS session.
  */
 
-import { useEffect, useState, useRef } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  AppState,
-  type AppStateStatus,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, Pressable, AppState } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import { Fingerprint, AlertCircle } from "lucide-react-native";
@@ -21,6 +17,60 @@ import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 
 const BIOMETRIC_ENABLED_KEY = "biometric_auth_enabled";
+
+// ── Module-level guards — survive component remounts ──────────────────
+let sessionUnlocked = false; // true after first successful Face ID this session
+let authInProgress = false; // prevents concurrent Face ID prompts
+let initDone = false; // prevents mount effect from re-running
+let appStateListenerRegistered = false;
+// Setter so the AppState listener (module-level) can tell the mounted component to re-lock
+let setLockedFn: ((locked: boolean) => void) | null = null;
+
+async function promptBiometric(): Promise<boolean> {
+  if (authInProgress || sessionUnlocked) return sessionUnlocked;
+  authInProgress = true;
+
+  try {
+    const result = await LocalAuthentication.authenticateAsync({
+      promptMessage: "Unlock DVNT",
+      cancelLabel: "Cancel",
+      disableDeviceFallback: false,
+      fallbackLabel: "Use Password",
+    });
+    if (result.success) {
+      sessionUnlocked = true;
+      setLockedFn?.(false);
+    }
+    return result.success;
+  } catch {
+    return false;
+  } finally {
+    authInProgress = false;
+  }
+}
+
+// Register AppState listener ONCE at module level — never torn down by remounts
+function ensureAppStateListener() {
+  if (appStateListenerRegistered) return;
+  appStateListenerRegistered = true;
+
+  let prevState = AppState.currentState;
+  AppState.addEventListener("change", (next) => {
+    const was = prevState;
+    prevState = next;
+
+    if (next === "active" && was !== "active" && !authInProgress) {
+      // Reset session unlock so user must re-authenticate after background
+      SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY).then((stored) => {
+        if (stored === "true") {
+          sessionUnlocked = false;
+          setLockedFn?.(true);
+          setTimeout(() => promptBiometric(), 100);
+        }
+      });
+    }
+  });
+}
 
 export function BiometricLock() {
   const { colors } = useColorScheme();
@@ -30,42 +80,18 @@ export function BiometricLock() {
   const [error, setError] = useState<string | null>(null);
   const [biometricName, setBiometricName] = useState("Face ID");
 
-  // Refs for control flow — never cause re-renders or effect re-fires
-  const busyRef = useRef(false);
-  const hasPromptedRef = useRef(false);
-  const appStateRef = useRef(AppState.currentState);
-
-  // Direct authenticate call — no hooks, no deps, no identity changes
-  const doAuthenticate = async () => {
-    if (busyRef.current) return;
-    busyRef.current = true;
-    setIsAuthenticating(true);
-    setError(null);
-
-    try {
-      const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: "Unlock DVNT",
-        cancelLabel: "Cancel",
-        disableDeviceFallback: false,
-        fallbackLabel: "Use Password",
-      });
-
-      if (result.success) {
-        setIsLocked(false);
-      } else {
-        setError(result.error || "Authentication failed");
-      }
-    } catch (e: any) {
-      setError(e?.message || "Authentication error");
-    } finally {
-      busyRef.current = false;
-      setIsAuthenticating(false);
-    }
-  };
-
-  // Single mount effect — check if biometrics enabled, lock + prompt once
+  // Wire up the module-level setter so external code can control lock state
   useEffect(() => {
-    let cancelled = false;
+    setLockedFn = setIsLocked;
+    return () => {
+      setLockedFn = null;
+    };
+  }, []);
+
+  // Single init — skipped if already done this session (survives remounts)
+  useEffect(() => {
+    if (initDone || sessionUnlocked) return;
+    initDone = true;
 
     (async () => {
       try {
@@ -91,49 +117,32 @@ export function BiometricLock() {
           setBiometricName("Touch ID");
         }
 
-        if (cancelled || hasPromptedRef.current) return;
-        hasPromptedRef.current = true;
+        // Register AppState listener for background→foreground re-lock
+        ensureAppStateListener();
 
         setIsLocked(true);
-        // Small delay to let the UI render the lock screen first
-        setTimeout(() => {
-          if (!cancelled) doAuthenticate();
-        }, 300);
+        setTimeout(() => promptBiometric(), 300);
       } catch (e) {
         console.error("[BiometricLock] Init error:", e);
       }
     })();
+  }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, []); // Empty deps — runs exactly once
+  // Manual retry handler
+  const handleRetry = async () => {
+    if (authInProgress) return;
+    setIsAuthenticating(true);
+    setError(null);
 
-  // AppState listener — re-lock when app returns from background
-  useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      (next: AppStateStatus) => {
-        const prev = appStateRef.current;
-        appStateRef.current = next;
+    const success = await promptBiometric();
+    setIsAuthenticating(false);
 
-        // Only trigger when coming FROM background/inactive TO active
-        if (next === "active" && prev !== "active" && !busyRef.current) {
-          // Re-check if biometrics still enabled (async but fire-and-forget)
-          SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY).then((stored) => {
-            if (stored === "true") {
-              setIsLocked(true);
-              setTimeout(() => doAuthenticate(), 100);
-            }
-          });
-        }
-      },
-    );
+    if (!success) {
+      setError("Authentication failed. Tap to try again.");
+    }
+  };
 
-    return () => subscription.remove();
-  }, []); // Empty deps — stable listener, never re-subscribes
-
-  if (!isLocked) {
+  if (!isLocked || sessionUnlocked) {
     return null;
   }
 
@@ -223,7 +232,7 @@ export function BiometricLock() {
 
         {/* Try Again Button */}
         <Pressable
-          onPress={doAuthenticate}
+          onPress={handleRetry}
           disabled={isAuthenticating}
           style={{
             backgroundColor: isAuthenticating
