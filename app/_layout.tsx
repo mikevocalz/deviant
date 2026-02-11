@@ -19,7 +19,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
@@ -82,7 +82,9 @@ setQueryClient(queryClient);
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
-  const { loadAuthState, isAuthenticated, hasSeenOnboarding } = useAuthStore();
+  const loadAuthState = useAuthStore((s) => s.loadAuthState);
+  const authStatus = useAuthStore((s) => s.authStatus);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const {
     appReady,
     splashAnimationFinished,
@@ -115,36 +117,22 @@ export default function RootLayout() {
     "Republica-Minor": require("../assets/fonts/Republica-Minor.ttf"),
   });
 
+  // ── Auth initialization — runs ONCE on mount ──────────────────────────
+  // CRITICAL: No double-call, no 500ms retry. loadAuthState sets authStatus
+  // to 'loading' at the start and transitions to 'authenticated' or
+  // 'unauthenticated' exactly once when it completes.
   useEffect(() => {
-    // Health check to verify network connectivity to Supabase
-    const checkAPIHealth = async () => {
-      console.log("[RootLayout] Checking Supabase health at:", SUPABASE_URL);
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
-          headers: {
-            apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "",
-          },
-        });
-        console.log("[RootLayout] Supabase Health OK - Status:", res.status);
-      } catch (err) {
-        console.error("[RootLayout] Supabase Health FAIL:", err);
-      }
-    };
-    checkAPIHealth();
+    // Health check (fire-and-forget, never blocks boot)
+    fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
+      headers: { apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "" },
+    })
+      .then((res) =>
+        console.log("[RootLayout] Supabase Health OK - Status:", res.status),
+      )
+      .catch((err) => console.error("[RootLayout] Supabase Health FAIL:", err));
 
-    // Load auth state and attempt recovery if needed
-    const initAuth = async () => {
-      await loadAuthState();
-      // Small delay to let persist rehydrate, then check if we need recovery
-      setTimeout(async () => {
-        const { user, isAuthenticated } = useAuthStore.getState();
-        if (!user && !isAuthenticated) {
-          console.log("[RootLayout] No user in store, attempting recovery...");
-          await loadAuthState(); // Try recovery
-        }
-      }, 500);
-    };
-    initAuth();
+    // Load auth state — single call, no retry loop
+    loadAuthState();
   }, [loadAuthState]);
 
   useEffect(() => {
@@ -166,23 +154,23 @@ export default function RootLayout() {
   // IMPORTANT: Always wait for splashAnimationFinished, even if appReady is true
   const showAnimatedSplash = !splashAnimationFinished;
 
-  console.log("[RootLayout] Splash state:", {
-    appReady,
-    splashAnimationFinished,
-    showAnimatedSplash,
-  });
-
   if (showAnimatedSplash) {
     return <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />;
   }
 
-  console.log("[RootLayout] Showing main app");
+  // ── BOOT GATE ─────────────────────────────────────────────────────────
+  // While auth is loading, show a minimal black screen.
+  // This prevents:
+  // - Protected routes mounting before user is verified
+  // - BiometricLock mounting/unmounting as isAuthenticated flickers
+  // - Queries firing with undefined user.id
+  // - ErrorBoundary catching throws from premature renders
+  const authSettled = authStatus !== "loading";
 
   return (
     <ErrorBoundary
       screenName="App"
       onError={(error, errorInfo) => {
-        // Log to crash reporting service
         console.error("[RootLayout] Global crash caught:", error.message);
       }}
     >
@@ -197,47 +185,60 @@ export default function RootLayout() {
         <KeyboardProvider>
           <QueryClientProvider client={queryClient}>
             <ThemeProvider value={NAV_THEME[colorScheme]}>
-              <Animated.View
-                style={{
-                  flex: 1,
-                  paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
-                }}
-                entering={FadeIn.duration(800).easing(Easing.out(Easing.cubic))}
-              >
-                <StatusBar backgroundColor="#000" style="light" animated />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: "fade",
-                    animationDuration: 200,
-                    contentStyle: { backgroundColor: "#8a40cf" },
+              {!authSettled ? (
+                // Minimal loading screen — black, no spinners, no hooks, no queries
+                <View style={{ flex: 1, backgroundColor: "#000" }}>
+                  <StatusBar backgroundColor="#000" style="light" animated />
+                </View>
+              ) : (
+                <Animated.View
+                  style={{
+                    flex: 1,
+                    paddingBottom:
+                      Platform.OS === "android" ? insets.bottom : 0,
                   }}
+                  entering={FadeIn.duration(800).easing(
+                    Easing.out(Easing.cubic),
+                  )}
                 >
-                  <Stack.Protected guard={!isAuthenticated}>
-                    <Stack.Screen
-                      name="(auth)"
-                      options={{ animation: "none" }}
-                    />
-                  </Stack.Protected>
-                  <Stack.Protected guard={isAuthenticated}>
-                    <Stack.Screen
-                      name="(protected)"
-                      options={{ animation: "none" }}
-                    />
-                    <Stack.Screen
-                      name="settings"
-                      options={{
-                        headerShown: true,
-                        presentation: "fullScreenModal",
-                        animation: "slide_from_bottom",
-                        animationDuration: 300,
-                        gestureEnabled: true,
-                        gestureDirection: "vertical",
-                      }}
-                    />
-                  </Stack.Protected>
-                </Stack>
-              </Animated.View>
+                  <StatusBar backgroundColor="#000" style="light" animated />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      animation: "fade",
+                      animationDuration: 200,
+                      contentStyle: { backgroundColor: "#8a40cf" },
+                    }}
+                  >
+                    <Stack.Protected guard={!isAuthenticated}>
+                      <Stack.Screen
+                        name="(auth)"
+                        options={{ animation: "none" }}
+                      />
+                    </Stack.Protected>
+                    <Stack.Protected guard={isAuthenticated}>
+                      <Stack.Screen
+                        name="(protected)"
+                        options={{ animation: "none" }}
+                      />
+                      <Stack.Screen
+                        name="settings"
+                        options={{
+                          headerShown: true,
+                          presentation: "fullScreenModal",
+                          animation: "slide_from_bottom",
+                          animationDuration: 300,
+                          gestureEnabled: true,
+                          gestureDirection: "vertical",
+                        }}
+                      />
+                    </Stack.Protected>
+                  </Stack>
+                  {/* BiometricLock renders ONLY after auth is settled + authenticated.
+                      Since authStatus transitions exactly once, this mounts exactly once. */}
+                  {isAuthenticated && <BiometricLock />}
+                </Animated.View>
+              )}
               <PortalHost />
               <Toaster
                 position="top-center"
@@ -253,7 +254,6 @@ export default function RootLayout() {
                   descriptionStyle: { color: "#a1a1aa" },
                 }}
               />
-              {isAuthenticated && <BiometricLock />}
             </ThemeProvider>
           </QueryClientProvider>
         </KeyboardProvider>

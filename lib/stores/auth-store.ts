@@ -10,13 +10,18 @@ import { auth } from "@/lib/api/auth";
 import { syncAuthUser } from "@/lib/api/privileged";
 import { clearUserRowCache } from "@/lib/auth/identity";
 
+type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+
 interface AuthStore {
   user: AppUser | null;
   hasSeenOnboarding: boolean;
   isAuthenticated: boolean;
+  authStatus: AuthStatus;
+  _hasHydrated: boolean;
   setUser: (user: AppUser | null) => void;
   updateUser: (updates: Partial<AppUser>) => void;
   setHasSeenOnboarding: (seen: boolean) => void;
+  setHasHydrated: (v: boolean) => void;
   logout: () => void;
   loadAuthState: () => Promise<void>;
 }
@@ -27,11 +32,16 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
       hasSeenOnboarding: false,
       isAuthenticated: false,
+      authStatus: "loading" as AuthStatus,
+      _hasHydrated: false,
 
       setUser: (user) => {
         console.log("[AuthStore] setUser:", user?.id || "null");
-        set({ user, isAuthenticated: !!user });
+        const status: AuthStatus = user ? "authenticated" : "unauthenticated";
+        set({ user, isAuthenticated: !!user, authStatus: status });
       },
+
+      setHasHydrated: (v) => set({ _hasHydrated: v }),
 
       updateUser: (updates) => {
         const currentUser = get().user;
@@ -60,6 +70,9 @@ export const useAuthStore = create<AuthStore>()(
 
       loadAuthState: async () => {
         console.log("[AuthStore] loadAuthState");
+        // CRITICAL: Set loading at the START — UI must not render protected routes
+        // until this function completes. Do NOT set isAuthenticated during loading.
+        set({ authStatus: "loading" as AuthStatus });
         try {
           // Check for stored session using Better Auth
           const { data: session, error: sessionError } =
@@ -67,7 +80,11 @@ export const useAuthStore = create<AuthStore>()(
 
           if (sessionError || !session) {
             console.log("[AuthStore] No active session found");
-            set({ user: null, isAuthenticated: false });
+            set({
+              user: null,
+              isAuthenticated: false,
+              authStatus: "unauthenticated" as AuthStatus,
+            });
             clearUserRowCache();
             return;
           }
@@ -91,6 +108,7 @@ export const useAuthStore = create<AuthStore>()(
               console.warn(
                 `[AuthStore] IDENTITY MISMATCH: persisted=${persistedUser.email} vs session=${session.user.email}. Clearing stale data.`,
               );
+              // Don't set authStatus here — let the rest of loadAuthState handle it
               set({ user: null, isAuthenticated: false });
               clearUserRowCache();
             }
@@ -106,6 +124,7 @@ export const useAuthStore = create<AuthStore>()(
               set({
                 user: syncedUser,
                 isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
               });
               return;
             } catch (syncError) {
@@ -129,6 +148,7 @@ export const useAuthStore = create<AuthStore>()(
               set({
                 user: payloadProfile,
                 isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
               });
             } else {
               // Last resort: Use Better Auth data directly
@@ -154,16 +174,37 @@ export const useAuthStore = create<AuthStore>()(
               set({
                 user: profile,
                 isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
               });
             }
           } else {
             console.log("[AuthStore] No active session found");
-            set({ user: null, isAuthenticated: false });
+            set({
+              user: null,
+              isAuthenticated: false,
+              authStatus: "unauthenticated" as AuthStatus,
+            });
             clearUserRowCache();
           }
         } catch (error) {
           console.error("[AuthStore] loadAuthState error:", error);
-          set({ user: null, isAuthenticated: false });
+          // On error, fall back to persisted state if available
+          const persisted = get().user;
+          if (persisted) {
+            console.log(
+              "[AuthStore] Error during load, keeping persisted user",
+            );
+            set({
+              isAuthenticated: true,
+              authStatus: "authenticated" as AuthStatus,
+            });
+          } else {
+            set({
+              user: null,
+              isAuthenticated: false,
+              authStatus: "unauthenticated" as AuthStatus,
+            });
+          }
           clearUserRowCache();
         }
       },
@@ -172,6 +213,12 @@ export const useAuthStore = create<AuthStore>()(
       name: "auth-storage",
       storage: createJSONStorage(() => storage),
       version: 2, // Increment version to force re-hydration
+      // CRITICAL: authStatus and _hasHydrated are runtime-only — never persist them
+      partialize: (state) => ({
+        user: state.user,
+        hasSeenOnboarding: state.hasSeenOnboarding,
+        isAuthenticated: state.isAuthenticated,
+      }),
       onRehydrateStorage: () => {
         console.log("[AuthStore] Starting rehydration");
 
@@ -184,6 +231,8 @@ export const useAuthStore = create<AuthStore>()(
               state.user?.id || "none",
             );
           }
+          // Mark hydration complete regardless of error
+          useAuthStore.getState().setHasHydrated(true);
         };
       },
     },
