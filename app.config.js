@@ -100,7 +100,6 @@ export default {
       "./plugins/android-fixes",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
-      "./plugins/with-swift5-compat",
       "expo-font",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
@@ -110,6 +109,7 @@ export default {
           origin: routerOrigin,
         },
       ],
+      "./plugins/with-swift5-compat",
       [
         "expo-build-properties",
         {
