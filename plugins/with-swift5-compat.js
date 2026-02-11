@@ -17,18 +17,19 @@ const fs = require("fs");
 const path = require("path");
 
 const POST_INSTALL_SNIPPET = `
-    # ── Disable strict concurrency for Expo pods ─────────────────────
-    # ExpoModulesCore.podspec sets swift_version = '6.0' which makes
-    # concurrency violations hard errors. Force Swift 5.9 (supports
-    # @MainActor, async/await, etc.) with minimal concurrency checking.
-    # Only target Expo pods — leave third-party pods (SDWebImage etc.) alone.
+    # ── Disable strict concurrency for all pods ──────────────────────
+    # ExpoModulesCore uses Swift 6 syntax (@MainActor on conformances)
+    # so SWIFT_VERSION must stay at 6.0. Instead, we disable strict
+    # concurrency checking via compiler flags so violations become
+    # warnings instead of errors.
     # MUST run AFTER react_native_post_install to override its settings.
-    expo_pods = ['ExpoModulesCore', 'ExpoModulesJSI', 'Expo', 'ExpoImage', 'ExpoTaskManager']
     installer.pods_project.targets.each do |target|
-      next unless expo_pods.include?(target.name) || target.name.start_with?('Expo')
       target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.9'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+        flags = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
+        unless flags.include?('-strict-concurrency=')
+          config.build_settings['OTHER_SWIFT_FLAGS'] = flags + ' -Xfrontend -strict-concurrency=minimal'
+        end
       end
     end`;
 
@@ -43,7 +44,7 @@ function withSwift5Compat(config) {
 
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
-      const marker = "# ── Disable strict concurrency for Expo pods";
+      const marker = "# ── Disable strict concurrency for all pods";
 
       if (!podfile.includes(marker)) {
         const lines = podfile.split("\n");
