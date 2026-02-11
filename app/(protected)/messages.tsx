@@ -21,14 +21,16 @@ import {
   Plus,
 } from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
-import { useUIStore } from "@/lib/stores/ui-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { messagesApiClient, type Conversation } from "@/lib/api/messages";
+import { type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
+import {
+  useUnreadMessageCount,
+  useFilteredConversations,
+} from "@/lib/hooks/use-messages";
 import { usePresenceStore } from "@/lib/stores/presence-store";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import PagerView from "react-native-pager-view";
@@ -387,20 +389,15 @@ const lynkStyles = StyleSheet.create({
 export default function MessagesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  const isLoading = loadingScreens.messages;
   const currentUser = useAuthStore((s) => s.user);
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
 
-  const [inboxConversations, setInboxConversations] = useState<
-    ConversationItem[]
-  >([]);
-  const [spamConversations, setSpamConversations] = useState<
-    ConversationItem[]
-  >([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // TanStack Query — cache-first, no useState/useEffect fetch chains
+  const inboxQuery = useFilteredConversations("primary");
+  const spamQuery = useFilteredConversations("requests");
+
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<PagerView>(null);
 
@@ -427,52 +424,28 @@ export default function MessagesScreen() {
     [currentUser?.username],
   );
 
-  const loadConversations = useCallback(async () => {
-    try {
-      console.log("[Messages] Loading inbox conversations...");
-
-      // Load inbox first — unblocks UI immediately
-      const inboxConvs =
-        await messagesApiClient.getFilteredConversations("primary");
-
-      const transformedInbox = inboxConvs
+  const inboxConversations = useMemo(
+    () =>
+      (inboxQuery.data || [])
         .map(transformConversation)
-        .filter((c): c is ConversationItem => c !== null);
+        .filter((c): c is ConversationItem => c !== null),
+    [inboxQuery.data, transformConversation],
+  );
 
-      setInboxConversations(transformedInbox);
-      setScreenLoading("messages", false);
+  const spamConversations = useMemo(
+    () =>
+      (spamQuery.data || [])
+        .map(transformConversation)
+        .filter((c): c is ConversationItem => c !== null),
+    [spamQuery.data, transformConversation],
+  );
 
-      console.log("[Messages] Inbox loaded:", inboxConvs.length);
-
-      // Load requests in background (user rarely sees this tab first)
-      messagesApiClient
-        .getFilteredConversations("requests")
-        .then((spamConvs) => {
-          const transformedSpam = spamConvs
-            .map(transformConversation)
-            .filter((c): c is ConversationItem => c !== null);
-          setSpamConversations(transformedSpam);
-          console.log("[Messages] Requests loaded:", spamConvs.length);
-        })
-        .catch((err) => {
-          console.error("[Messages] Error loading requests:", err);
-        });
-    } catch (error) {
-      console.error("[Messages] Error loading conversations:", error);
-    } finally {
-      setScreenLoading("messages", false);
-      setIsRefreshing(false);
-    }
-  }, [transformConversation, setScreenLoading]);
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  const isRefreshing = inboxQuery.isRefetching || spamQuery.isRefetching;
 
   const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    loadConversations();
-  }, [loadConversations]);
+    inboxQuery.refetch();
+    spamQuery.refetch();
+  }, [inboxQuery, spamQuery]);
 
   const handleChatPress = useCallback(
     (id: string) => {
@@ -500,7 +473,8 @@ export default function MessagesScreen() {
     [],
   );
 
-  if (isLoading) {
+  // Show skeleton only on first load with no cached data
+  if (inboxQuery.isLoading && !inboxQuery.data) {
     return (
       <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
         <MessagesSkeleton />

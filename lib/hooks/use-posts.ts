@@ -47,9 +47,6 @@ export function useProfilePosts(userId: string) {
     queryKey: postKeys.profilePosts(userId),
     queryFn: () => postsApi.getProfilePosts(userId),
     enabled: !!userId,
-    staleTime: 0, // Always refetch to ensure fresh data
-    refetchOnMount: "always", // Force refetch when component mounts
-    refetchOnWindowFocus: true, // Refetch when app comes to foreground
   });
 }
 
@@ -58,16 +55,8 @@ export function useProfilePosts(userId: string) {
 export function usePost(id: string) {
   return useQuery({
     queryKey: postKeys.detail(id),
-    queryFn: () => {
-      console.log("[usePost] Fetching post:", id);
-      return postsApi.getPostById(id);
-    },
+    queryFn: () => postsApi.getPostById(id),
     enabled: !!id && id.length > 0,
-    staleTime: 30 * 1000, // 30 seconds - prevents aggressive refetching
-    gcTime: 5 * 60 * 1000, // 5 minutes cache
-    retry: 2, // Retry failed requests twice
-    refetchOnMount: true, // Always fetch fresh data when component mounts
-    refetchOnWindowFocus: false, // Don't refetch on app focus (prevents flicker)
   });
 }
 
@@ -91,14 +80,12 @@ export function isLikePending(postId: string): boolean {
 }
 
 /**
- * STABILIZED Like Post Mutation
+ * Optimistic Like Post Mutation
  *
- * CRITICAL CHANGES:
- * 1. NO optimistic updates - wait for server confirmation
- * 2. Server response is the ONLY source of truth
- * 3. Update React Query cache with server data
- * 4. Update Zustand store with server data
- * 5. Debounce to prevent rapid taps
+ * 1. Instant UI update via onMutate (optimistic)
+ * 2. Rollback on error
+ * 3. Reconcile with server response on success
+ * 4. Debounce to prevent rapid taps
  */
 export function useLikePost() {
   const queryClient = useQueryClient();
@@ -113,65 +100,44 @@ export function useLikePost() {
       postId: string;
       isLiked: boolean;
     }) => {
-      // Check if mutation is already in flight for this post
       if (pendingLikeMutations.has(postId)) {
-        console.log(
-          `[useLikePost] Mutation already in flight for ${postId}, skipping`,
-        );
         throw new Error("DUPLICATE_MUTATION");
       }
-
-      // Mark this post as having an in-flight mutation
       pendingLikeMutations.add(postId);
-
       try {
-        const result = await postsApi.likePost(postId, isLiked);
-        console.log(`[useLikePost] Server response:`, result);
-        return result;
+        return await postsApi.likePost(postId, isLiked);
       } finally {
-        // Always clean up the pending state
         pendingLikeMutations.delete(postId);
       }
     },
-    // NO onMutate - we do NOT do optimistic updates
-    onError: (err, variables) => {
-      if (err.message === "DUPLICATE_MUTATION") {
-        // Silently ignore duplicate mutations
-        return;
-      }
-      console.error(
-        `[useLikePost] Error liking post ${variables.postId}:`,
-        err,
+
+    // OPTIMISTIC: update cache instantly before server responds
+    onMutate: async ({ postId, isLiked }) => {
+      // Cancel in-flight queries for this post
+      await queryClient.cancelQueries({ queryKey: postKeys.detail(postId) });
+
+      // Snapshot for rollback
+      const prevDetail = queryClient.getQueryData<Post>(
+        postKeys.detail(postId),
       );
-    },
-    onSuccess: (data, variables) => {
-      const { postId } = variables;
+      const prevInfinite = queryClient.getQueryData(postKeys.feedInfinite());
 
-      // CRITICAL: Update Zustand store with SERVER state
-      import("@/lib/stores/post-store").then(({ usePostStore }) => {
-        usePostStore.getState().setPostLiked(postId, data.liked);
-      });
+      const optimisticLiked = !isLiked;
+      const likeDelta = optimisticLiked ? 1 : -1;
 
-      // Update React Query cache with server data
-      // Note: postsApi.likePost returns { postId, likes, liked }
-      // (maps response.likesCount to likes internally)
-      // Update the specific post detail
-      queryClient.setQueryData<Post>(postKeys.detail(postId), (old) => {
-        if (!old) return old;
-        return { ...old, likes: data.likes, viewerHasLiked: data.liked };
-      });
+      // Helper to update a post's like state
+      const updatePost = (post: Post): Post =>
+        post.id === postId
+          ? {
+              ...post,
+              viewerHasLiked: optimisticLiked,
+              likes: Math.max(0, (post.likes || 0) + likeDelta),
+            }
+          : post;
 
-      // Update posts in feed cache
-      queryClient.setQueriesData<Post[]>(
-        { queryKey: postKeys.feed() },
-        (old) => {
-          if (!old) return old;
-          return old.map((post) =>
-            post.id === postId
-              ? { ...post, likes: data.likes, viewerHasLiked: data.liked }
-              : post,
-          );
-        },
+      // Update detail cache
+      queryClient.setQueryData<Post>(postKeys.detail(postId), (old) =>
+        old ? updatePost(old) : old,
       );
 
       // Update infinite feed cache
@@ -181,17 +147,72 @@ export function useLikePost() {
           ...old,
           pages: old.pages.map((page: any) => ({
             ...page,
-            data: page.data?.map((post: Post) =>
-              post.id === postId
-                ? { ...post, likes: data.likes, viewerHasLiked: data.liked }
-                : post,
-            ),
+            data: page.data?.map((post: Post) => updatePost(post)),
           })),
         };
       });
 
-      // CRITICAL: Only invalidate the current user's liked posts cache
-      // DO NOT use broad keys like ["users"] as this affects ALL user caches
+      // Update legacy feed cache
+      queryClient.setQueriesData<Post[]>(
+        { queryKey: postKeys.feed() },
+        (old) => (old ? old.map(updatePost) : old),
+      );
+
+      return { prevDetail, prevInfinite };
+    },
+
+    onError: (err, variables, context) => {
+      if (err.message === "DUPLICATE_MUTATION") return;
+
+      // ROLLBACK on error
+      if (context?.prevDetail) {
+        queryClient.setQueryData(
+          postKeys.detail(variables.postId),
+          context.prevDetail,
+        );
+      }
+      if (context?.prevInfinite) {
+        queryClient.setQueryData(postKeys.feedInfinite(), context.prevInfinite);
+      }
+      console.error(
+        `[useLikePost] Error liking post ${variables.postId}:`,
+        err,
+      );
+    },
+
+    onSuccess: (data, variables) => {
+      const { postId } = variables;
+
+      // Reconcile with server truth
+      import("@/lib/stores/post-store").then(({ usePostStore }) => {
+        usePostStore.getState().setPostLiked(postId, data.liked);
+      });
+
+      const updatePost = (post: Post): Post =>
+        post.id === postId
+          ? { ...post, likes: data.likes, viewerHasLiked: data.liked }
+          : post;
+
+      queryClient.setQueryData<Post>(postKeys.detail(postId), (old) =>
+        old ? updatePost(old) : old,
+      );
+
+      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            data: page.data?.map((post: Post) => updatePost(post)),
+          })),
+        };
+      });
+
+      queryClient.setQueriesData<Post[]>(
+        { queryKey: postKeys.feed() },
+        (old) => (old ? old.map(updatePost) : old),
+      );
+
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
       queryClient.invalidateQueries({ queryKey: ["likedPosts"] });
     },
@@ -212,14 +233,7 @@ export function useLikePost() {
   // Safe mutate that checks pending state
   const safeMutate = useCallback(
     (variables: { postId: string; isLiked: boolean }) => {
-      const { postId } = variables;
-
-      // Block if already pending
-      if (pendingLikeMutations.has(postId)) {
-        console.log(`[useLikePost] Blocked: mutation pending for ${postId}`);
-        return;
-      }
-
+      if (pendingLikeMutations.has(variables.postId)) return;
       debouncedMutate(variables);
     },
     [debouncedMutate],

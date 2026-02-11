@@ -51,13 +51,28 @@ const SUPABASE_URL =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   "https://npfjanxturvmjyevoyfo.supabase.co";
 
+/**
+ * ╔══════════════════════════════════════════════════════════════╗
+ * ║  DEVIANT QUERY POLICY — Social-app-tuned QueryClient       ║
+ * ║                                                              ║
+ * ║  Render from cache first, revalidate silently in background. ║
+ * ║  Navigation must NEVER block on network.                     ║
+ * ║  See: .windsurf/workflows/no-waterfall-rules.md              ║
+ * ╚══════════════════════════════════════════════════════════════╝
+ */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60, // 1 minute
-      gcTime: 1000 * 60 * 5, // 5 minutes
-      retry: 2,
-      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 min — cache is "fresh" this long
+      gcTime: 30 * 60 * 1000, // 30 min — keep unused cache in memory
+      refetchOnMount: false, // render from cache, don't refetch
+      refetchOnWindowFocus: false, // no flicker on app resume
+      refetchOnReconnect: true, // revalidate after network recovery
+      retry: 1, // single retry on failure
+      structuralSharing: true, // prevent unnecessary re-renders
+    },
+    mutations: {
+      retry: 0, // mutations never auto-retry
     },
   },
 });
