@@ -127,7 +127,7 @@ export function ThumbnailImage({
 }
 
 /**
- * Feed post image (4:5 aspect ratio)
+ * Feed post image (1:1 square aspect ratio)
  */
 export function FeedImage({
   uri,
@@ -141,7 +141,7 @@ export function FeedImage({
   return (
     <MediaImage
       uri={uri}
-      aspectRatio={4 / 5}
+      aspectRatio={1}
       onPress={onPress}
       className={className}
     />

@@ -10,11 +10,11 @@ import { useWindowDimensions } from "react-native";
 // Instagram feed post max width
 const MAX_CONTENT_WIDTH = 614;
 
-// Standard aspect ratios
+// Standard aspect ratios (height = width × ratio)
 export const ASPECT_RATIOS = {
   square: 1, // 1:1
-  portrait: 1.25, // 4:5 (Instagram portrait)
-  landscape: 0.8, // 5:4
+  portrait: 1, // 1:1 — default for feed (works for all image orientations)
+  landscape: 0.75, // 4:3
   wide: 0.5625, // 16:9
   story: 1.777, // 9:16
 } as const;
