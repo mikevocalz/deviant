@@ -17,18 +17,15 @@ const fs = require("fs");
 const path = require("path");
 
 const POST_INSTALL_SNIPPET = `
-    # ── Swift 5 compatibility for Expo pods ──────────────────────────
+    # ── Disable strict concurrency for Expo pods ─────────────────────
     # ExpoModulesCore is not yet Swift 6 strict-concurrency safe.
-    # Force Swift 5 language mode and minimal concurrency checking.
+    # Set minimal concurrency checking to suppress errors like:
+    #   "capture of 'X' with non-sendable type in a @Sendable closure"
+    # Do NOT downgrade SWIFT_VERSION — @MainActor requires Swift 5.5+.
     # MUST run AFTER react_native_post_install to override its settings.
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
-        config.build_settings['SWIFT_VERSION'] = '5.0'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-        existing = config.build_settings['OTHER_SWIFT_FLAGS'] || '$(inherited)'
-        unless existing.include?('-swift-version')
-          config.build_settings['OTHER_SWIFT_FLAGS'] = existing + ' -swift-version 5'
-        end
       end
     end`;
 
@@ -43,7 +40,7 @@ function withSwift5Compat(config) {
 
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
-      const marker = "# ── Swift 5 compatibility for Expo pods";
+      const marker = "# ── Disable strict concurrency for Expo pods";
 
       if (!podfile.includes(marker)) {
         const lines = podfile.split("\n");
