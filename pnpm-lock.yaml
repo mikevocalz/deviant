@@ -166,6 +166,9 @@ importers:
       expo-linking:
         specifier: ^55.0.4
         version: 55.0.4(expo@55.0.0-preview.10)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
+      expo-local-authentication:
+        specifier: ^17.0.8
+        version: 17.0.8(expo@55.0.0-preview.10)
       expo-location:
         specifier: ~55.0.6
         version: 55.0.6(expo@55.0.0-preview.10)
@@ -3465,6 +3468,11 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
+
+  expo-local-authentication@17.0.8:
+    resolution: {integrity: sha512-Q5fXHhu6w3pVPlFCibU72SYIAN+9wX7QpFn9h49IUqs0Equ44QgswtGrxeh7fdnDqJrrYGPet5iBzjnE70uolA==}
+    peerDependencies:
+      expo: '*'
 
   expo-location@55.0.6:
     resolution: {integrity: sha512-JBArlZRH6P6rJdK0fIcny2bcQJ5Ez+5Ur0UtiPTtVHQLyzPQE951AM6QQTmlfcn5vXgmPXYjahpmdmuYbn9Ryw==}
@@ -9581,6 +9589,11 @@ snapshots:
     transitivePeerDependencies:
       - expo
       - supports-color
+
+  expo-local-authentication@17.0.8(expo@55.0.0-preview.10):
+    dependencies:
+      expo: 55.0.0-preview.10(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.5)(expo-router@55.0.0-preview.7)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
+      invariant: 2.2.4
 
   expo-location@55.0.6(expo@55.0.0-preview.10):
     dependencies:

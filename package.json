@@ -69,6 +69,7 @@
     "expo-image-picker": "~55.0.5",
     "expo-linear-gradient": "~55.0.5",
     "expo-linking": "^55.0.4",
+    "expo-local-authentication": "^17.0.8",
     "expo-location": "~55.0.6",
     "expo-maps": "~55.0.5",
     "expo-media-library": "~55.0.5",

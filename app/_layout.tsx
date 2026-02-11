@@ -27,6 +27,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Dimensions } from "react-native";
+import { BiometricLock } from "@/components/BiometricLock";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
@@ -237,6 +238,7 @@ export default function RootLayout() {
                   descriptionStyle: { color: "#a1a1aa" },
                 }}
               />
+              {isAuthenticated && <BiometricLock />}
             </ThemeProvider>
           </QueryClientProvider>
         </KeyboardProvider>

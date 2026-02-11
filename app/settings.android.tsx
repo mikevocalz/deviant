@@ -36,6 +36,7 @@ import { SettingsListItem } from "@/components/settings/SettingsListItem";
 import { Switch } from "@/components/ui/switch";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner-native";
+import { useBiometrics } from "@/lib/hooks/use-biometrics";
 
 export default function SettingsScreenAndroid() {
   const router = useRouter();
@@ -78,45 +79,37 @@ export default function SettingsScreenAndroid() {
   }, [navigation, colors, router]);
 
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSettingUpPasskey, setIsSettingUpPasskey] = useState(false);
-  const [hasPasskey, setHasPasskey] = useState(false);
 
-  // Check if user has passkey set up
-  const checkPasskeys = async () => {
-    try {
-      const { data } = await authClient.passkey.listUserPasskeys();
-      setHasPasskey(!!(data && data.length > 0));
-    } catch (e) {
-      console.log("[Settings] Could not check passkeys", e);
-    }
-  };
+  // Biometric authentication
+  const {
+    isAvailable: biometricAvailable,
+    biometricType,
+    isEnabled: biometricEnabled,
+    isAuthenticating,
+    enable: enableBiometric,
+    disable: disableBiometric,
+    getBiometricName,
+  } = useBiometrics();
 
-  useLayoutEffect(() => {
-    checkPasskeys();
-  }, []);
-
-  const handleSetupPasskey = async () => {
-    setIsSettingUpPasskey(true);
-    try {
-      const { error } = await authClient.passkey.addPasskey({
-        name: "My Device",
+  const handleToggleBiometric = async () => {
+    if (biometricEnabled) {
+      // Disable biometrics
+      await disableBiometric();
+      toast.success(`${getBiometricName()} disabled`, {
+        description: "Biometric authentication has been turned off",
       });
-      if (error) {
-        toast.error("Failed to set up biometrics", {
-          description: error.message || "Please try again",
+    } else {
+      // Enable biometrics - this will prompt for authentication
+      const success = await enableBiometric();
+      if (success) {
+        toast.success(`${getBiometricName()} enabled`, {
+          description: "App will now require biometric authentication",
         });
       } else {
-        toast.success("Biometrics enabled", {
-          description: "You can now sign in with fingerprint",
+        toast.error("Failed to enable biometrics", {
+          description: "Please check your device settings",
         });
-        setHasPasskey(true);
       }
-    } catch (err: any) {
-      toast.error("Error", {
-        description: err?.message || "Something went wrong",
-      });
-    } finally {
-      setIsSettingUpPasskey(false);
     }
   };
 
@@ -217,35 +210,54 @@ export default function SettingsScreenAndroid() {
 
           {/* Security */}
           <SettingsSection title="Security">
-            <Pressable
-              onPress={handleSetupPasskey}
-              disabled={isSettingUpPasskey || hasPasskey}
-              className="flex-row items-center justify-between px-4 py-3 active:bg-secondary/50"
-            >
-              <View className="flex-row items-center gap-3">
-                <Fingerprint
-                  size={22}
-                  color={hasPasskey ? "#22c55e" : "#666"}
-                />
-                <View>
-                  <Text className="text-base text-foreground">
-                    {hasPasskey ? "Biometrics Enabled" : "Set Up Biometrics"}
+            {biometricAvailable ? (
+              <Pressable
+                onPress={handleToggleBiometric}
+                disabled={isAuthenticating}
+                className="flex-row items-center justify-between px-4 py-3 active:bg-secondary/50"
+              >
+                <View className="flex-row items-center gap-3">
+                  <Fingerprint
+                    size={22}
+                    color={biometricEnabled ? "#22c55e" : "#666"}
+                  />
+                  <View className="flex-1">
+                    <Text className="text-base text-foreground">
+                      {getBiometricName()}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {biometricEnabled
+                        ? "App locked with biometric authentication"
+                        : `Use ${getBiometricName()} to unlock the app`}
+                    </Text>
+                  </View>
+                </View>
+                {isAuthenticating ? (
+                  <Text className="text-sm text-muted-foreground">
+                    Verifying...
                   </Text>
-                  <Text className="text-xs text-muted-foreground">
-                    {hasPasskey
-                      ? "Sign in quickly with fingerprint"
-                      : "Use fingerprint to sign in"}
-                  </Text>
+                ) : (
+                  <Switch
+                    checked={biometricEnabled}
+                    onCheckedChange={handleToggleBiometric}
+                  />
+                )}
+              </Pressable>
+            ) : (
+              <View className="px-4 py-3">
+                <View className="flex-row items-center gap-3">
+                  <Fingerprint size={22} color="#999" />
+                  <View className="flex-1">
+                    <Text className="text-base text-muted-foreground">
+                      Biometrics Not Available
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      Set up fingerprint or face unlock in device settings
+                    </Text>
+                  </View>
                 </View>
               </View>
-              {hasPasskey ? (
-                <CheckCircle size={20} color="#22c55e" />
-              ) : isSettingUpPasskey ? (
-                <Text className="text-sm text-muted-foreground">
-                  Setting up...
-                </Text>
-              ) : null}
-            </Pressable>
+            )}
           </SettingsSection>
 
           {/* Notifications & Interactions */}
