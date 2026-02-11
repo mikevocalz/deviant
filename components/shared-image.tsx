@@ -5,11 +5,6 @@ import Animated, { SharedTransition } from "react-native-reanimated";
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
-// Gentle timing-based transition — avoids spring overshoot that crashes on back navigation
-const sharedTransition = SharedTransition.duration(300)
-  .damping(25)
-  .stiffness(120);
-
 interface SharedImageProps extends Omit<ImageProps, "style"> {
   sharedTag?: string;
   style?: ImageStyle | ViewStyle;
@@ -50,7 +45,8 @@ export function SharedImage({ sharedTag, style, ...props }: SharedImageProps) {
       <AnimatedImage
         // @ts-ignore - sharedTransitionTag is valid in Reanimated
         sharedTransitionTag={sharedTag}
-        sharedTransitionStyle={sharedTransition}
+        // @ts-ignore - SharedTransition.duration returns a builder
+        sharedTransitionStyle={SharedTransition.duration(300)}
         style={style as ImageStyle}
         {...imageProps}
       />
