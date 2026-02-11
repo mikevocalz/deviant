@@ -72,6 +72,27 @@ const FORBIDDEN_PATTERNS = [
     allowedPaths: ["/lib/api/auth-helper.ts"], // Allow in the definition file
     severity: "warning",
   },
+  {
+    pattern: /eyJhbGciOi[A-Za-z0-9_-]{20,}/g,
+    message:
+      "Hardcoded JWT/API key detected! Keys must come from environment variables, NEVER hardcoded in source.",
+    allowedPaths: ["/scripts/check-secrets.ts"],
+    severity: "critical",
+  },
+  {
+    pattern: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4,}[0-9a-f-]{8,}/g,
+    message:
+      "Possible hardcoded API key (UUID-like secret). Keys must come from environment variables.",
+    allowedPaths: [
+      "/scripts/check-secrets.ts",
+      "/supabase/functions/",
+      "/.env",
+      "/app.config.js",
+      "/eas.json",
+      "/public/.well-known/",
+    ],
+    severity: "warning",
+  },
 ];
 
 // Directories to scan (relative to project root)

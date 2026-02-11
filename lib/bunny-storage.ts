@@ -20,15 +20,13 @@ const BUNNY_STORAGE_REGION =
 const BUNNY_CDN_URL =
   process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
 
-// API key - required for uploads
-// Production fallback ensures uploads work even if env var is missing
+// API key - required for uploads (MUST come from env, NEVER hardcode)
 const BUNNY_STORAGE_API_KEY =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY ||
-  "9d508644-f4b7-41a1-af5eee9fe2dd-25f0-499f";
+  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
 
-if (!process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY) {
-  console.warn(
-    "[Bunny] EXPO_PUBLIC_BUNNY_STORAGE_API_KEY not set, using production fallback",
+if (!BUNNY_STORAGE_API_KEY) {
+  console.error(
+    "[Bunny] EXPO_PUBLIC_BUNNY_STORAGE_API_KEY is missing! Set it in .env",
   );
 }
 

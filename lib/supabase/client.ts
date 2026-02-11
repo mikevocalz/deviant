@@ -5,13 +5,11 @@ import { Platform } from "react-native";
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   "https://npfjanxturvmjyevoyfo.supabase.co";
-const supabaseAnonKey =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-  "";
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
-if (!supabaseUrl || !supabaseAnonKey) {
+if (!supabaseAnonKey) {
   console.error(
-    "[Supabase] Missing environment variables — using production fallbacks",
+    "[Supabase] EXPO_PUBLIC_SUPABASE_ANON_KEY is missing! Set it in .env",
   );
 }
 
