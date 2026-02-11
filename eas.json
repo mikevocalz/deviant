@@ -49,7 +49,7 @@
       "ios": {
         "image": "macos-sonoma-14.6-xcode-16.1"
       },
-      "node": "22.14.0",
+      "node": "22.12.0",
       "pnpm": "10.28.0",
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
