@@ -18,14 +18,17 @@ const path = require("path");
 
 const POST_INSTALL_SNIPPET = `
     # ── Disable strict concurrency for Expo pods ─────────────────────
-    # ExpoModulesCore is not yet Swift 6 strict-concurrency safe.
-    # Set minimal concurrency checking to suppress errors like:
-    #   "capture of 'X' with non-sendable type in a @Sendable closure"
-    # Do NOT downgrade SWIFT_VERSION — @MainActor requires Swift 5.5+.
+    # ExpoModulesCore.podspec sets swift_version = '6.0' which makes
+    # concurrency violations hard errors. Force Swift 5.9 (supports
+    # @MainActor, async/await, etc.) with minimal concurrency checking.
     # MUST run AFTER react_native_post_install to override its settings.
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
+        config.build_settings['SWIFT_VERSION'] = '5.9'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
+        # Strip any -swift-version 6 flags that may have been injected
+        flags = config.build_settings['OTHER_SWIFT_FLAGS'] || ''
+        config.build_settings['OTHER_SWIFT_FLAGS'] = flags.gsub(/-swift-version\\s+\\S+/, '')
       end
     end`;
 
