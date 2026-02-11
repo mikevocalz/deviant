@@ -21,14 +21,14 @@ const POST_INSTALL_SNIPPET = `
     # ExpoModulesCore.podspec sets swift_version = '6.0' which makes
     # concurrency violations hard errors. Force Swift 5.9 (supports
     # @MainActor, async/await, etc.) with minimal concurrency checking.
+    # Only target Expo pods — leave third-party pods (SDWebImage etc.) alone.
     # MUST run AFTER react_native_post_install to override its settings.
+    expo_pods = ['ExpoModulesCore', 'ExpoModulesJSI', 'Expo', 'ExpoImage', 'ExpoTaskManager']
     installer.pods_project.targets.each do |target|
+      next unless expo_pods.include?(target.name) || target.name.start_with?('Expo')
       target.build_configurations.each do |config|
         config.build_settings['SWIFT_VERSION'] = '5.9'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
-        # Strip any -swift-version 6 flags that may have been injected
-        flags = config.build_settings['OTHER_SWIFT_FLAGS'] || ''
-        config.build_settings['OTHER_SWIFT_FLAGS'] = flags.gsub(/-swift-version\\s+\\S+/, '')
       end
     end`;
 
