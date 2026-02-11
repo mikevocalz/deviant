@@ -15,6 +15,7 @@ import {
   saveVoipTokenToBackend,
 } from "@/src/services/callkeep/voipPushService";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -48,6 +49,8 @@ const fullScreenModalConfig = {
 };
 
 export default function ProtectedLayout() {
+  // ── Boot Prefetch: warm all critical caches in parallel ──────────────
+  useBootPrefetch();
   // Initialize CallKeep native call UI — registers listeners ONCE
   useCallKeepCoordinator();
   // Track current user's online/offline presence
