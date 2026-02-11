@@ -172,21 +172,16 @@ function withVoipXcodeProject(config) {
     ensureHeaderSearchPath(config.modResults, callkeepHeaderPath);
 
     // Add the Objective-C file to the Xcode project build sources
-    const groupName = projectName;
     const voipFileName = "AppDelegate+VoIPPush.m";
 
-    // Find the main group
-    const mainGroup = config.modResults.pbxGroupByName(groupName);
-    if (mainGroup) {
-      // Add file reference and build file
-      // CRITICAL: Pass mainGroup.uuid (string), not mainGroup (object)
-      // The xcode library's addSourceFile expects a group key, not the group object
-      config.modResults.addSourceFile(
-        `${groupName}/${voipFileName}`,
-        { target: target.uuid },
-        mainGroup.uuid,
-      );
-    }
+    // Add file to the project - let xcode library auto-detect the group
+    // CRITICAL: Don't pass group parameter - the library figures out the correct group
+    // based on the file path. Passing group explicitly causes "Cannot read properties
+    // of null" errors in xcode@3.0.1
+    config.modResults.addSourceFile(
+      `${projectName}/${voipFileName}`,
+      { target: target.uuid },
+    );
 
     return config;
   });
