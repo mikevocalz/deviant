@@ -47,9 +47,8 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sonoma-14.6-xcode-16.1"
+        "image": "latest"
       },
-      "node": "20.18.0",
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
@@ -63,8 +62,7 @@
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "${EXPO_PUBLIC_SUPABASE_ANON_KEY}",
         "EXPO_PUBLIC_KLIPY_API_KEY": "${EXPO_PUBLIC_KLIPY_API_KEY}",
         "RESEND_API_KEY": "${RESEND_API_KEY}",
-        "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}",
-        "RNS_GAMMA_ENABLED": "0"
+        "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}"
       }
     }
   },
