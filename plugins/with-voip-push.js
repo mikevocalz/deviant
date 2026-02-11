@@ -26,7 +26,12 @@ const path = require("path");
 
 // ── Objective-C source for PushKit VoIP handling ────────────────────────
 // This gets written to ios/<ProjectName>/AppDelegate+VoIPPush.m
-const OBJC_VOIP_SOURCE = `//
+function getObjcVoipSource(projectName) {
+  // Expo SDK 55 uses a Swift AppDelegate. To create an ObjC category on it,
+  // we must import the auto-generated Swift header (<ModuleName>-Swift.h).
+  // The module name replaces hyphens with underscores.
+  const moduleName = projectName.replace(/-/g, "_");
+  return `//
 // AppDelegate+VoIPPush.m
 // VoIP Push Notification handler via PushKit
 //
@@ -36,6 +41,7 @@ const OBJC_VOIP_SOURCE = `//
 
 #import <objc/runtime.h>
 #import <PushKit/PushKit.h>
+#import "${moduleName}-Swift.h"
 #import "RNVoipPushNotificationManager.h"
 #import "RNCallKeep.h"
 
@@ -112,6 +118,7 @@ static PKPushRegistry *_voipRegistry = nil;
 
 @end
 `;
+}
 
 /**
  * Ensure a header search path exists in all build configurations
@@ -241,7 +248,7 @@ function withVoipObjcFile(config) {
       const filePath = path.join(iosDir, "AppDelegate+VoIPPush.m");
 
       // Write the Objective-C file
-      fs.writeFileSync(filePath, OBJC_VOIP_SOURCE, "utf-8");
+      fs.writeFileSync(filePath, getObjcVoipSource(projectName), "utf-8");
       console.log(`[with-voip-push] Wrote ${filePath}`);
 
       return config;
