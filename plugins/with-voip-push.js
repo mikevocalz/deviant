@@ -101,7 +101,8 @@ static PKPushRegistry *_voipRegistry = nil;
                    supportsGrouping:YES
                  supportsUngrouping:YES
                         fromPushKit:YES
-                            payload:payloadDict];
+                            payload:payloadDict
+              withCompletionHandler:nil];
 
   // Store completion handler so react-native-voip-push-notification can call it
   [RNVoipPushNotificationManager addCompletionHandler:uuid completionHandler:completion];
