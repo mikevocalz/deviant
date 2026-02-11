@@ -175,14 +175,16 @@ function withVoipXcodeProject(config) {
     const groupName = projectName;
     const voipFileName = "AppDelegate+VoIPPush.m";
 
-    // Find or create the main group
+    // Find the main group
     const mainGroup = config.modResults.pbxGroupByName(groupName);
     if (mainGroup) {
       // Add file reference and build file
+      // CRITICAL: Pass mainGroup.uuid (string), not mainGroup (object)
+      // The xcode library's addSourceFile expects a group key, not the group object
       config.modResults.addSourceFile(
         `${groupName}/${voipFileName}`,
         { target: target.uuid },
-        mainGroup,
+        mainGroup.uuid,
       );
     }
 
