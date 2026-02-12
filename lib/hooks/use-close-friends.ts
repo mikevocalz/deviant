@@ -39,16 +39,19 @@ async function fetchCloseFriendsList(): Promise<{
   friendIds: number[];
 }> {
   const token = await requireBetterAuthToken();
-  const { data, error } = await supabase.functions.invoke<CloseFriendsListResponse>(
-    "close-friends",
-    {
+  const { data, error } =
+    await supabase.functions.invoke<CloseFriendsListResponse>("close-friends", {
       body: { action: "list" },
       headers: { Authorization: `Bearer ${token}` },
-    },
-  );
+    });
 
-  if (error) throw new Error(error.message || "Failed to fetch close friends");
-  if (!data?.ok) throw new Error(data?.error?.message || "Failed to fetch close friends");
+  if (error || !data?.ok) {
+    console.warn(
+      "[close-friends] fetch failed, returning empty:",
+      error?.message || data?.error?.message,
+    );
+    return { friends: [], friendIds: [] };
+  }
   return data?.data || { friends: [], friendIds: [] };
 }
 
@@ -60,7 +63,8 @@ async function addCloseFriend(friendId: number): Promise<void> {
   });
 
   if (error) throw new Error(error.message || "Failed to add close friend");
-  if (!data?.ok) throw new Error(data?.error?.message || "Failed to add close friend");
+  if (!data?.ok)
+    throw new Error(data?.error?.message || "Failed to add close friend");
 }
 
 async function removeCloseFriend(friendId: number): Promise<void> {
@@ -71,7 +75,8 @@ async function removeCloseFriend(friendId: number): Promise<void> {
   });
 
   if (error) throw new Error(error.message || "Failed to remove close friend");
-  if (!data?.ok) throw new Error(data?.error?.message || "Failed to remove close friend");
+  if (!data?.ok)
+    throw new Error(data?.error?.message || "Failed to remove close friend");
 }
 
 // ─── Hooks ───────────────────────────────────────────────────────────

@@ -430,13 +430,13 @@ function UserProfileScreenComponent() {
     >
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-        <Pressable onPress={() => router.back()}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">
           {isLoading ? "Loading..." : user.username || "Profile"}
         </Text>
-        <Pressable>
+        <Pressable hitSlop={12}>
           <MoreHorizontal size={24} color={colors.foreground} />
         </Pressable>
       </View>
