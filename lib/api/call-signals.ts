@@ -96,6 +96,38 @@ export const callSignalsApi = {
   },
 
   /**
+   * Check if there's an existing ringing signal FROM the target user TO the current user.
+   * Used for call collision detection — if both users call each other simultaneously,
+   * the second caller should join the first caller's room instead of creating a new one.
+   * Returns the existing signal if found, null otherwise.
+   */
+  async checkCollision(
+    currentUserId: string,
+    targetUserId: string,
+  ): Promise<CallSignal | null> {
+    const { data, error } = await supabase
+      .from("call_signals")
+      .select("*")
+      .eq("caller_id", targetUserId)
+      .eq("callee_id", currentUserId)
+      .in("status", ["ringing", "accepted"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) return null;
+
+    // Only consider signals from the last 30 seconds to avoid stale collisions
+    const signalAge = Date.now() - new Date(data.created_at).getTime();
+    if (signalAge > 30000) return null;
+
+    console.log(
+      `[CallSignals] COLLISION detected: ${targetUserId} is already calling ${currentUserId} in room ${data.room_id}`,
+    );
+    return data as CallSignal;
+  },
+
+  /**
    * Subscribe to incoming call signals for the current user.
    * Returns an unsubscribe function.
    */
