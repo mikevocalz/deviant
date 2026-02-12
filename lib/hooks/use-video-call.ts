@@ -108,6 +108,9 @@ export function useVideoCall() {
   const hadPeersRef = useRef(false);
   const reportedConnectedRef = useRef(false);
   const leaveCallRef = useRef<() => void>(() => {});
+  const joinCallRef = useRef<
+    (roomId: string, callType?: CallType) => Promise<void>
+  >(async () => {});
 
   // ── Zustand store access ────────────────────────────────────────────
   // CRITICAL: Use individual selectors to prevent re-render storms.
@@ -502,6 +505,46 @@ export function useVideoCall() {
         participantCount: participantIds.length,
       });
 
+      // ── COLLISION DETECTION ──────────────────────────────────────────
+      // If the target user is already calling US, skip room creation and
+      // join their room instead. This prevents the "both users call each
+      // other simultaneously → both end up in separate empty rooms" bug.
+      if (!isGroup && participantIds.length === 1 && user?.id) {
+        try {
+          const collision = await callSignalsApi.checkCollision(
+            user.id,
+            participantIds[0],
+          );
+          if (collision) {
+            log(
+              `[COLLISION] ${participantIds[0]} is already calling us — joining their room: ${collision.room_id}`,
+            );
+            CT.trace("LIFECYCLE", "collision_detected", {
+              existingRoom: collision.room_id,
+              callerId: collision.caller_id,
+            });
+
+            // Accept the incoming signal
+            callSignalsApi
+              .updateSignalStatus(collision.id, "accepted")
+              .catch(() => {});
+
+            // Dismiss any CallKeep incoming UI for this call
+            CT.guard("CALLKEEP", "collision_endIncoming", () => {
+              callKeepEndCall(collision.room_id);
+              clearCallMapping(collision.room_id);
+            });
+
+            // Join the existing room as callee instead
+            await joinCallRef.current(collision.room_id, callType);
+            return;
+          }
+        } catch (collisionErr) {
+          // Non-fatal — proceed with normal call creation
+          logWarn("Collision check failed (non-fatal):", collisionErr);
+        }
+      }
+
       // Step 1: Create room (edge function)
       s.setCallPhase("creating_room");
       log("Creating room...");
@@ -827,6 +870,9 @@ export function useVideoCall() {
     },
     [user, startMedia, startDurationTimer, getStore],
   );
+
+  // Keep joinCallRef in sync so createCall's collision detection can use it
+  joinCallRef.current = joinCall;
 
   // ── Idempotent cleanup guard ───────────────────────────────────────
   // CRITICAL FIX: Prevent duplicate cleanup when both leaveCall() and external
