@@ -48,6 +48,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/posts";
+import { useDeletePost } from "@/lib/hooks/use-posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
@@ -124,6 +125,7 @@ function FeedPostComponent({
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showLikesSheet, setShowLikesSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
+  const deletePostMutation = useDeletePost();
 
   const isOwner = currentUser?.username === author.username;
 
@@ -398,20 +400,21 @@ function FeedPostComponent({
         {
           text: "Delete",
           style: "destructive",
-          onPress: async () => {
-            try {
-              await postsApi.deletePost(id);
-              showToast("success", "Deleted", "Post deleted successfully");
-              // The feed will auto-refresh via React Query
-            } catch (error) {
-              console.error("[FeedPost] Delete error:", error);
-              showToast("error", "Error", "Failed to delete post");
-            }
+          onPress: () => {
+            deletePostMutation.mutate(id, {
+              onSuccess: () => {
+                showToast("success", "Deleted", "Post deleted successfully");
+              },
+              onError: (error) => {
+                console.error("[FeedPost] Delete error:", error);
+                showToast("error", "Error", "Failed to delete post");
+              },
+            });
           },
         },
       ],
     );
-  }, [id, showToast]);
+  }, [id, showToast, deletePostMutation]);
 
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(
