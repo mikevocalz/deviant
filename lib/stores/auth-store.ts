@@ -7,8 +7,8 @@ import {
 } from "@/lib/utils/storage";
 import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
-import { syncAuthUser } from "@/lib/api/privileged";
-import { clearUserRowCache } from "@/lib/auth/identity";
+// NOTE: syncAuthUser and clearUserRowCache are imported LAZILY (inline)
+// to break the require cycle: auth-store -> privileged -> identity -> auth-store
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
@@ -65,6 +65,7 @@ export const useAuthStore = create<AuthStore>()(
         set({ user: null, isAuthenticated: false });
         clearAuthStorage();
         clearUserDataFromStorage();
+        const { clearUserRowCache } = require("@/lib/auth/identity");
         clearUserRowCache();
       },
 
@@ -85,6 +86,7 @@ export const useAuthStore = create<AuthStore>()(
               isAuthenticated: false,
               authStatus: "unauthenticated" as AuthStatus,
             });
+            const { clearUserRowCache } = require("@/lib/auth/identity");
             clearUserRowCache();
             return;
           }
@@ -110,12 +112,16 @@ export const useAuthStore = create<AuthStore>()(
               );
               // Don't set authStatus here — let the rest of loadAuthState handle it
               set({ user: null, isAuthenticated: false });
-              clearUserRowCache();
+              const {
+                clearUserRowCache: clearCache,
+              } = require("@/lib/auth/identity");
+              clearCache();
             }
 
             // Sync user via Edge Function - this ensures we have a valid users row
             // with the correct auth_id mapping
             try {
+              const { syncAuthUser } = require("@/lib/api/privileged");
               const syncedUser = await syncAuthUser();
               console.log(
                 "[AuthStore] User synced via Edge Function, ID:",
@@ -184,7 +190,10 @@ export const useAuthStore = create<AuthStore>()(
               isAuthenticated: false,
               authStatus: "unauthenticated" as AuthStatus,
             });
-            clearUserRowCache();
+            const {
+              clearUserRowCache: clearCache2,
+            } = require("@/lib/auth/identity");
+            clearCache2();
           }
         } catch (error) {
           console.error("[AuthStore] loadAuthState error:", error);
@@ -205,7 +214,10 @@ export const useAuthStore = create<AuthStore>()(
               authStatus: "unauthenticated" as AuthStatus,
             });
           }
-          clearUserRowCache();
+          const {
+            clearUserRowCache: clearCache3,
+          } = require("@/lib/auth/identity");
+          clearCache3();
         }
       },
     }),
@@ -232,7 +244,21 @@ export const useAuthStore = create<AuthStore>()(
             );
           }
           // Mark hydration complete regardless of error
-          useAuthStore.getState().setHasHydrated(true);
+          // NOTE: Cannot use useAuthStore here synchronously — require cycle means
+          // the store variable may not be assigned yet (create() hasn't returned).
+          // Use a polling approach to wait until the store is actually available.
+          const markHydrated = () => {
+            if (typeof useAuthStore !== "undefined" && useAuthStore) {
+              try {
+                useAuthStore.setState({ _hasHydrated: true });
+              } catch (e) {
+                console.warn("[AuthStore] setState fallback failed:", e);
+              }
+            } else {
+              setTimeout(markHydrated, 10);
+            }
+          };
+          setTimeout(markHydrated, 0);
         };
       },
     },
