@@ -96,6 +96,30 @@ export const callSignalsApi = {
   },
 
   /**
+   * Mark all ringing signals for a room as "missed".
+   * Called by the caller when the ring timeout expires (callee didn't answer).
+   */
+  async missCallSignals(roomId: string): Promise<void> {
+    const { error } = await supabase
+      .from("call_signals")
+      .update({ status: "missed", updated_at: new Date().toISOString() })
+      .eq("room_id", roomId)
+      .eq("status", "ringing");
+
+    if (error) {
+      console.error(
+        "[CallSignals] Failed to mark signals as missed:",
+        error.message,
+      );
+    } else {
+      console.log(
+        "[CallSignals] Marked ringing signals as missed for room:",
+        roomId,
+      );
+    }
+  },
+
+  /**
    * Check if there's an existing ringing signal FROM the target user TO the current user.
    * Used for call collision detection — if both users call each other simultaneously,
    * the second caller should join the first caller's room instead of creating a new one.
