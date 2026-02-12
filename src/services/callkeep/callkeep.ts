@@ -93,6 +93,8 @@ export function clearCallMapping(callUUID: string): void {
   if (sessionId) {
     callkeepStorage.remove(`${REVERSE_PREFIX}${sessionId}`);
   }
+  // Also clear the displayed-call dedupe so a new call to the same room works
+  _displayedCallUUIDs.delete(callUUID);
 }
 
 // ---------------------------------------------------------------------------
@@ -101,6 +103,22 @@ export function clearCallMapping(callUUID: string): void {
 
 let _listenersRegistered = false;
 let _setupComplete = false;
+
+// ── Shared dedupe for incoming call display ──────────────────────────
+// Multiple sources (Realtime subscription, push notification, cold start)
+// may try to show the incoming call UI for the same room. This set ensures
+// displayIncomingCall() is only called ONCE per callUUID.
+const _displayedCallUUIDs = new Set<string>();
+
+/** Check if an incoming call UI was already displayed for this UUID */
+export function wasCallDisplayed(callUUID: string): boolean {
+  return _displayedCallUUIDs.has(callUUID);
+}
+
+/** Clear displayed state (call cleanup) */
+export function clearDisplayedCall(callUUID: string): void {
+  _displayedCallUUIDs.delete(callUUID);
+}
 
 // Store references so we can remove them if needed
 const _eventListeners: Array<{ remove: () => void }> = [];
@@ -326,6 +344,20 @@ export function showIncomingCall({
   displayName,
   hasVideo,
 }: ShowIncomingCallParams): void {
+  // CRITICAL DEDUPE: Prevent double incoming call UI.
+  // Both Realtime subscription and push notification may fire for the same call.
+  // Two displayIncomingCall() calls create two native call entries — the second
+  // blocks Accept on the first, causing "call not accepted" bug.
+  if (_displayedCallUUIDs.has(callUUID)) {
+    console.log(
+      `[CallKeep] showIncomingCall SKIPPED (already displayed) uuid=${callUUID}`,
+    );
+    return;
+  }
+  _displayedCallUUIDs.add(callUUID);
+  // Auto-clear after 60s to prevent memory leak
+  setTimeout(() => _displayedCallUUIDs.delete(callUUID), 60000);
+
   console.log(
     `[CallKeep] showIncomingCall uuid=${callUUID} handle=${handle} video=${hasVideo}`,
   );
