@@ -655,10 +655,18 @@ export function useVideoCall() {
         logWarn("Failed to send call signal (non-fatal):", signalErr);
       }
 
-      // Step 6: Set up deferred mic start callback BEFORE starting audio session.
-      // CRITICAL FIX (iOS): The callback will be invoked by audioSession.activateFromCallKit()
-      // when CallKit fires didActivateAudioSession. This ensures the mic track is created
-      // on an ACTIVE audio session, not a dead one.
+      // Step 6: Start in-call audio session FIRST.
+      // This configures iOS AVAudioSession (playAndRecord + allowBluetooth)
+      // and Android AudioManager (IN_COMMUNICATION mode + audio focus).
+      // CRITICAL: Must run BEFORE setPendingMicStart() because start() resets
+      // _isCallKitActivated. If we set the mic callback first and CallKit already
+      // fired, the callback would execute on a stale session, then start() would
+      // reconfigure the session — killing the mic track.
+      audioSession.start(callType === "video", callType);
+
+      // Step 7: Set up deferred mic start callback AFTER audio session is configured.
+      // On iOS, the callback will be invoked by audioSession.activateFromCallKit()
+      // when CallKit fires didActivateAudioSession (or immediately if already fired).
       // On Android, the callback fires immediately (no CallKit).
       audioSession.setPendingMicStart(async () => {
         try {
@@ -705,16 +713,6 @@ export function useVideoCall() {
           );
         }
       });
-
-      // Step 7: Start in-call audio session.
-      // This configures iOS AVAudioSession (playAndRecord + allowBluetooth)
-      // and Android AudioManager (IN_COMMUNICATION mode + audio focus).
-      // CRITICAL: mediaType must match callType so iOS uses correct AVAudioSession mode:
-      //   video → videoChat (speaker default, echo cancellation for speaker)
-      //   audio → voiceChat (earpiece default)
-      // On iOS, CallKit will fire didActivateAudioSession → activateFromCallKit() → mic start callback
-      // On Android, the mic start callback fires immediately after this.
-      audioSession.start(callType === "video", callType);
 
       // Step 8: Start media (camera only for video, mic already deferred)
       const mediaOk = await startMedia(callType);
@@ -795,10 +793,16 @@ export function useVideoCall() {
         return;
       }
 
-      // Step 3: Set up deferred mic start callback BEFORE starting audio session.
-      // CRITICAL FIX (iOS): The callback will be invoked by audioSession.activateFromCallKit()
-      // when CallKit fires didActivateAudioSession. This ensures the mic track is created
-      // on an ACTIVE audio session, not a dead one.
+      // Step 3: Start in-call audio session FIRST.
+      // CRITICAL: Must run BEFORE setPendingMicStart() because start() resets
+      // _isCallKitActivated. If we set the mic callback first and CallKit already
+      // fired (callee answered before joinCall ran), the callback would execute
+      // on a stale session, then start() would reconfigure — killing the mic track.
+      audioSession.start(callType === "video", callType);
+
+      // Step 4: Set up deferred mic start callback AFTER audio session is configured.
+      // On iOS, the callback will be invoked by audioSession.activateFromCallKit()
+      // when CallKit fires didActivateAudioSession (or immediately if already fired).
       // On Android, the callback fires immediately (no CallKit).
       audioSession.setPendingMicStart(async () => {
         try {
@@ -845,13 +849,6 @@ export function useVideoCall() {
           );
         }
       });
-
-      // Step 4: Start in-call audio session.
-      // This is the callee path — audio session must be active before mic starts.
-      // CRITICAL: mediaType must match callType for correct AVAudioSession mode.
-      // On iOS, CallKit will fire didActivateAudioSession → activateFromCallKit() → mic start callback
-      // On Android, the mic start callback fires immediately after this.
-      audioSession.start(callType === "video", callType);
 
       // Step 5: Start media (camera only for video, mic already deferred)
       const mediaOk = await startMedia(callType);
