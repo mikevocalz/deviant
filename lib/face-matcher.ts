@@ -164,8 +164,10 @@ export async function compareFaces(
     // Distance is inverse of similarity
     const distance = 1 - similarity;
 
-    // Match threshold: 75% similarity
-    const MATCH_THRESHOLD = 0.75;
+    // Match threshold: 65% similarity
+    // Lowered from 75% to accommodate real-world appearance changes
+    // (facial hair, glasses, aging, lighting) between ID photo and selfie
+    const MATCH_THRESHOLD = 0.65;
     const match = similarity >= MATCH_THRESHOLD;
 
     console.log("[FaceMatcher] Face verification result:", {
