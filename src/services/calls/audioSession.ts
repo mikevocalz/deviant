@@ -77,6 +77,11 @@ export const audioSession = {
     });
 
     try {
+      // Reset state from any previous call to prevent stale flags
+      _isCallKitActivated = false;
+      _pendingMicStartCallback = null;
+      _pendingSpeakerOn = null;
+
       // ALWAYS call InCallManager.start — even if _isActive is true.
       // A previous call may not have cleaned up properly.
       //
@@ -178,8 +183,13 @@ export const audioSession = {
       RTCAudioSession.audioSessionDidActivate();
       _isCallKitActivated = true;
 
-      // Apply deferred speaker routing now that session is active
-      const speakerOn = _pendingSpeakerOn ?? true;
+      // Apply deferred speaker routing now that session is active.
+      // NOTE: _pendingSpeakerOn is set by start() based on callType:
+      //   video → true (speaker default), audio → false (earpiece default)
+      // If headphones/Bluetooth are connected, the OS will route to them
+      // regardless of this setting — setForceSpeakerphoneOn only affects
+      // the built-in speaker vs earpiece choice.
+      const speakerOn = _pendingSpeakerOn ?? false;
       InCallManager.setForceSpeakerphoneOn(speakerOn);
       _isSpeakerOn = speakerOn;
       _pendingSpeakerOn = null;
