@@ -111,6 +111,7 @@ export function useVideoCall() {
   const joinCallRef = useRef<
     (roomId: string, callType?: CallType) => Promise<void>
   >(async () => {});
+  const micStartedRef = useRef(false);
 
   // ── Zustand store access ────────────────────────────────────────────
   // CRITICAL: Use individual selectors to prevent re-render storms.
@@ -499,6 +500,7 @@ export function useVideoCall() {
       s.setCallRole("caller");
       s.setCallDirection("outgoing");
       s.setChatId(chatId || null);
+      micStartedRef.current = false;
       CT.setContext({ userId: user?.id });
       CT.trace("LIFECYCLE", "createCall_start", {
         callType,
@@ -669,6 +671,11 @@ export function useVideoCall() {
       // when CallKit fires didActivateAudioSession (or immediately if already fired).
       // On Android, the callback fires immediately (no CallKit).
       audioSession.setPendingMicStart(async () => {
+        if (micStartedRef.current) {
+          log("[CALLER] Mic already started, skipping duplicate");
+          return;
+        }
+        micStartedRef.current = true;
         try {
           const micResult = await micRef.current.startMicrophone();
           const s = getStore();
@@ -699,6 +706,7 @@ export function useVideoCall() {
             );
           }
         } catch (micErr) {
+          micStartedRef.current = false;
           logError(
             `[${callType.toUpperCase()}] FAILED to start microphone:`,
             micErr,
@@ -743,6 +751,7 @@ export function useVideoCall() {
       s.setCallRole("callee");
       s.setCallDirection("incoming");
       s.setRoomId(roomId);
+      micStartedRef.current = false;
       CT.setContext({ userId: user?.id, roomId });
       CT.trace("LIFECYCLE", "joinCall_start", { roomId, callType });
 
@@ -805,6 +814,11 @@ export function useVideoCall() {
       // when CallKit fires didActivateAudioSession (or immediately if already fired).
       // On Android, the callback fires immediately (no CallKit).
       audioSession.setPendingMicStart(async () => {
+        if (micStartedRef.current) {
+          log("[CALLEE] Mic already started, skipping duplicate");
+          return;
+        }
+        micStartedRef.current = true;
         try {
           const micResult = await micRef.current.startMicrophone();
           const s = getStore();
@@ -835,6 +849,7 @@ export function useVideoCall() {
             );
           }
         } catch (micErr) {
+          micStartedRef.current = false;
           logError(
             `[${callType.toUpperCase()}] Callee FAILED to start microphone:`,
             micErr,
