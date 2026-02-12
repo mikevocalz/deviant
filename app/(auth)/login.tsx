@@ -45,33 +45,36 @@ export default function LoginScreen() {
       setIsSubmitting(true);
 
       try {
-        console.log("[Login] Attempting login for:", value.email);
+        if (__DEV__) console.log("[Login] Attempting login for:", value.email);
         const { data, error } = await signIn.email({
           email: value.email,
           password: value.password,
         });
 
-        console.log(
-          "[Login] Response - data:",
-          JSON.stringify(data),
-          "error:",
-          JSON.stringify(error),
-        );
+        if (__DEV__)
+          console.log(
+            "[Login] Response - data:",
+            JSON.stringify(data),
+            "error:",
+            JSON.stringify(error),
+          );
 
         if (error) {
           throw new Error(error.message || "Login failed");
         }
 
         if (data?.user) {
-          console.log(
-            "[Login] Better Auth success, user:",
-            data.user.id,
-            data.user.email,
-          );
-          console.log(
-            "[Login] Session token present:",
-            !!(data as any)?.session?.token,
-          );
+          if (__DEV__) {
+            console.log(
+              "[Login] Better Auth success, user:",
+              data.user.id,
+              data.user.email,
+            );
+            console.log(
+              "[Login] Session token present:",
+              !!(data as any)?.session?.token,
+            );
+          }
 
           // Give the expo client a moment to persist the session token to SecureStore
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -79,24 +82,25 @@ export default function LoginScreen() {
           // Sync user to app's users table (creates row if needed, updates auth_id)
           let profile;
           try {
-            console.log("[Login] Calling syncAuthUser...");
+            if (__DEV__) console.log("[Login] Calling syncAuthUser...");
             profile = await syncAuthUser();
-            console.log("[Login] User synced, ID:", profile.id);
+            if (__DEV__) console.log("[Login] User synced, ID:", profile.id);
           } catch (syncError: any) {
             console.warn(
               "[Login] syncAuthUser failed:",
               syncError?.message || syncError,
             );
-            console.log("[Login] Falling back to getProfile...");
+            if (__DEV__) console.log("[Login] Falling back to getProfile...");
             profile = await auth.getProfile(data.user.id, data.user.email);
-            console.log(
-              "[Login] getProfile result:",
-              profile ? profile.id : "null",
-            );
+            if (__DEV__)
+              console.log(
+                "[Login] getProfile result:",
+                profile ? profile.id : "null",
+              );
           }
 
           if (profile) {
-            console.log("[Login] Profile loaded, ID:", profile.id);
+            if (__DEV__) console.log("[Login] Profile loaded, ID:", profile.id);
             setUser({
               id: profile.id,
               email: profile.email,

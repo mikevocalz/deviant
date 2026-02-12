@@ -223,23 +223,15 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
         if (p.isCameraOn !== curr.isCameraOn) return false;
         if (p.isMicOn !== curr.isMicOn) return false;
 
-        // CRITICAL: Check videoTrack stream identity, but treat null → stream as DIFFERENT
-        const prevVidStream = p.videoTrack?.stream;
-        const currVidStream = curr.videoTrack?.stream;
-        if (prevVidStream !== currVidStream) {
-          // Allow null → stream transition (track negotiated)
-          if (prevVidStream === null && currVidStream !== null) return false;
-          if (prevVidStream !== null && currVidStream === null) return false;
-        }
+        // CRITICAL: Detect ANY change in video/audio stream identity.
+        // This catches: null→stream, undefined→stream, streamA→streamB
+        const prevVidStream = p.videoTrack?.stream ?? null;
+        const currVidStream = curr.videoTrack?.stream ?? null;
+        if (prevVidStream !== currVidStream) return false;
 
-        // Same for audioTrack
-        const prevAudStream = p.audioTrack?.stream;
-        const currAudStream = curr.audioTrack?.stream;
-        if (prevAudStream !== currAudStream) {
-          // Allow null → stream transition
-          if (prevAudStream === null && currAudStream !== null) return false;
-          if (prevAudStream !== null && currAudStream === null) return false;
-        }
+        const prevAudStream = p.audioTrack?.stream ?? null;
+        const currAudStream = curr.audioTrack?.stream ?? null;
+        if (prevAudStream !== currAudStream) return false;
 
         return true;
       })

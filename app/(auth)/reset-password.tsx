@@ -28,7 +28,7 @@ export default function ResetPasswordScreen() {
   useEffect(() => {
     const validateToken = async () => {
       try {
-        console.log("[ResetPassword] Params:", params);
+        if (__DEV__) console.log("[ResetPassword] Params:", params);
 
         // Check if we have a valid session (should be set by deep link handler)
         const session = await getSession();
@@ -48,9 +48,10 @@ export default function ResetPasswordScreen() {
 
         if (!session) {
           console.error("[ResetPassword] No session found");
-          console.log(
-            "[ResetPassword] This usually means the deep link wasn't properly handled",
-          );
+          if (__DEV__)
+            console.log(
+              "[ResetPassword] This usually means the deep link wasn't properly handled",
+            );
           toast.error("Session Missing", {
             description: "Please request a new password reset link.",
           });
@@ -60,9 +61,10 @@ export default function ResetPasswordScreen() {
           return;
         }
 
-        console.log(
-          "[ResetPassword] Valid session found, user can reset password",
-        );
+        if (__DEV__)
+          console.log(
+            "[ResetPassword] Valid session found, user can reset password",
+          );
         setIsValidating(false);
       } catch (error) {
         console.error("[ResetPassword] Validation error:", error);
@@ -84,7 +86,7 @@ export default function ResetPasswordScreen() {
       setIsSubmitting(true);
 
       try {
-        console.log("[ResetPassword] Updating password...");
+        if (__DEV__) console.log("[ResetPassword] Updating password...");
 
         const { error } = await authClient.resetPassword({
           newPassword: value.password,
@@ -99,7 +101,8 @@ export default function ResetPasswordScreen() {
           return;
         }
 
-        console.log("[ResetPassword] Password updated successfully");
+        if (__DEV__)
+          console.log("[ResetPassword] Password updated successfully");
         setResetComplete(true);
         toast.success("Success!", {
           description: "Your password has been reset",
