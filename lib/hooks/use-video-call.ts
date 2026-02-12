@@ -501,6 +501,10 @@ export function useVideoCall() {
       s.setCallDirection("outgoing");
       s.setChatId(chatId || null);
       micStartedRef.current = false;
+      hadPeersRef.current = false;
+      reportedConnectedRef.current = false;
+      cleanupInProgressRef.current = false;
+      userInitiatedLeaveRef.current = false;
       CT.setContext({ userId: user?.id });
       CT.trace("LIFECYCLE", "createCall_start", {
         callType,
@@ -752,6 +756,10 @@ export function useVideoCall() {
       s.setCallDirection("incoming");
       s.setRoomId(roomId);
       micStartedRef.current = false;
+      hadPeersRef.current = false;
+      reportedConnectedRef.current = false;
+      cleanupInProgressRef.current = false;
+      userInitiatedLeaveRef.current = false;
       CT.setContext({ userId: user?.id, roomId });
       CT.trace("LIFECYCLE", "joinCall_start", { roomId, callType });
 
@@ -938,7 +946,16 @@ export function useVideoCall() {
       callKeepEndAllCalls();
     });
 
-    // Stop media — wrapped in guard to prevent crash if refs are stale
+    stopDurationTimer();
+
+    // Leave Fishjam room FIRST — disconnects WebRTC peer connection.
+    // Must happen BEFORE stopMicrophone/stopCamera to avoid "Array already
+    // consumed" error from the SDK trying to unpublish on a dead connection.
+    CT.guard("FISHJAM", "leaveRoom", () => {
+      leaveRoomRef.current();
+    });
+
+    // Stop media AFTER leaving room — safe to clean up local tracks now
     CT.guard("MEDIA", "stopMedia", () => {
       if (mode === "video" || s.isCameraOn) {
         cameraRef.current.stopCamera();
@@ -948,16 +965,9 @@ export function useVideoCall() {
       log("Microphone stopped");
     });
 
-    stopDurationTimer();
-
     // Stop in-call audio session (speaker, mic routing, audio focus)
     CT.guard("AUDIO", "audioSession_stop", () => {
       audioSession.stop();
-    });
-
-    // Leave Fishjam room — can throw if peer was never connected
-    CT.guard("FISHJAM", "leaveRoom", () => {
-      leaveRoomRef.current();
     });
 
     // Add "Call ended" system message to the linked chat
@@ -1200,6 +1210,12 @@ export function useVideoCall() {
       log(
         "[LIFECYCLE] External call_ended detected — cleaning up Fishjam/media",
       );
+      stopDurationTimer();
+
+      // Leave Fishjam FIRST, then stop media (same order as leaveCall)
+      CT.guard("FISHJAM", "leaveRoom_external", () => {
+        leaveRoomRef.current();
+      });
       try {
         if (callType === "video" || isCameraOn) {
           cameraRef.current.stopCamera();
@@ -1208,10 +1224,6 @@ export function useVideoCall() {
       } catch (e) {
         logWarn("Error stopping media on external end:", e);
       }
-      stopDurationTimer();
-      CT.guard("FISHJAM", "leaveRoom_external", () => {
-        leaveRoomRef.current();
-      });
 
       // Reset cleanup guard after a delay
       setTimeout(() => {
