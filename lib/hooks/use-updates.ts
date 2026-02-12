@@ -331,8 +331,16 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return Updates.isEnabled;
     }, false);
 
-    if (!isEnabled) {
-      console.log("[Updates] Skip check: expo-updates not enabled");
+    // Dev clients report isEnabled=true but checkForUpdateAsync throws ERR_NOT_AVAILABLE_IN_DEV_CLIENT
+    const isEmbeddedLaunch = safeGet(
+      () => Updates?.isEmbeddedLaunch ?? false,
+      false,
+    );
+
+    if (!isEnabled || isEmbeddedLaunch) {
+      console.log(
+        "[Updates] Skip check: expo-updates not enabled or dev client",
+      );
       globalIsChecking = false;
       return;
     }

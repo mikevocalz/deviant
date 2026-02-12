@@ -96,6 +96,7 @@ export function CallScreen({
 
   const setSpeakerOn = useVideoRoomStore((s) => s.setSpeakerOn);
   const setIsPiPActive = useVideoRoomStore((s) => s.setIsPiPActive);
+  const roomId = useVideoRoomStore((s) => s.roomId);
 
   // ── Derive UI mode ──────────────────────────────────────────────────
   const mode: CallUiMode = deriveCallUiMode({
@@ -309,7 +310,7 @@ export function CallScreen({
         isAudioMode={isAudioMode}
         hasLocalVideo={hasLocalVideo}
         hasRemoteVideo={hasRemoteVideo}
-        roomId={useVideoRoomStore((s) => s.roomId)}
+        roomId={roomId}
       />
     </>
   );
