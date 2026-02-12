@@ -115,14 +115,7 @@ function FeedPostComponent({
     isPending: isLikePending,
   } = usePostLikeState(id, likes, viewerHasLiked, author?.id);
 
-  // DEV: Log like state for debugging sync issues
-  if (__DEV__) {
-    console.log(`[FeedPost:${id?.slice(0, 8)}] Like state:`, {
-      hasLiked,
-      likesCount,
-      isPending: isLikePending,
-    });
-  }
+  // DEV: Like state logging removed — was firing on every re-render causing log spam
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const currentUser = useAuthStore((state) => state.user);
