@@ -319,6 +319,41 @@ export function useVideoCall() {
       }
     }
 
+    // ── MIC SAFETY NET: Force-start mic if it hasn't started after peers join ──
+    // On iOS, the mic start is deferred until CallKit fires didActivateAudioSession.
+    // If that event never fires (e.g., outgoing call where CallKit activation is flaky),
+    // the mic never starts → no audio. This safety net catches that case.
+    if (participants.length > 0 && !micStartedRef.current) {
+      log(
+        "[MIC_SAFETY] Remote peers present but mic not started — force-starting in 3s",
+      );
+      setTimeout(() => {
+        if (micStartedRef.current) return; // Already started
+        const phase = getStore().callPhase;
+        if (
+          phase !== "connected" &&
+          phase !== "outgoing_ringing" &&
+          phase !== "starting_media"
+        )
+          return;
+
+        log(
+          "[MIC_SAFETY] Force-starting microphone (CallKit activation may have been missed)",
+        );
+        micStartedRef.current = true;
+        micRef.current
+          .startMicrophone()
+          .then(() => {
+            getStore().setMicOn(true);
+            log("[MIC_SAFETY] Microphone force-started successfully");
+          })
+          .catch((err: any) => {
+            micStartedRef.current = false;
+            logError("[MIC_SAFETY] Force mic start failed:", err);
+          });
+      }, 3000);
+    }
+
     // Auto-end call when all remote peers leave after being connected
     const s = getStore();
     const currentPhase = s.callPhase;
