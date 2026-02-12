@@ -46,6 +46,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { videoApi } from "@/src/video/api";
 import { callSignalsApi } from "@/lib/api/call-signals";
+import { supabase } from "@/lib/supabase/client";
 import { audioSession } from "@/src/services/calls/audioSession";
 import {
   startOutgoingCall,
@@ -312,20 +313,31 @@ export function useVideoCall() {
 
     // Auto-end call when all remote peers leave after being connected
     const s = getStore();
+    const currentPhase = s.callPhase;
+    log(
+      `[PEER_SYNC] remotePeers=${remotePeers.length} participants=${participants.length} hadPeers=${hadPeersRef.current} phase=${currentPhase}`,
+    );
+
     if (
       hadPeersRef.current &&
       participants.length === 0 &&
-      s.callPhase === "connected"
+      (currentPhase === "connected" || currentPhase === "outgoing_ringing")
     ) {
-      log("All remote peers left — auto-ending call");
+      log("All remote peers left — auto-ending call in 2s");
       // Small delay to avoid race with peer reconnection
       setTimeout(() => {
         const current = getStore();
         if (
           current.participants.length === 0 &&
-          current.callPhase === "connected"
+          (current.callPhase === "connected" ||
+            current.callPhase === "outgoing_ringing")
         ) {
+          log("[AUTO-END] Confirmed: no peers after 2s, ending call");
           leaveCallRef.current();
+        } else {
+          log(
+            `[AUTO-END] Cancelled: participants=${current.participants.length} phase=${current.callPhase}`,
+          );
         }
       }, 2000);
     }
@@ -1143,11 +1155,106 @@ export function useVideoCall() {
     }
   }, [callPhase, callType, isCameraOn, stopDurationTimer]);
 
+  // ── Supabase Realtime fallback: detect remote party ending call ────
+  // The primary mechanism is Fishjam peer disconnect (peers.remotePeers going empty).
+  // This is a FALLBACK in case Fishjam doesn't fire the peer leave event reliably.
+  // When the callee calls leaveCall(), it updates call_signals status to "ended".
+  // We subscribe to UPDATE events on call_signals for our roomId.
+  const signalChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const currentRoomId = roomId_store;
+    const phase = callPhase;
+
+    // Only subscribe when we're in an active call
+    if (
+      !currentRoomId ||
+      (phase !== "connected" &&
+        phase !== "outgoing_ringing" &&
+        phase !== "starting_media" &&
+        phase !== "connecting_peer")
+    ) {
+      // Cleanup if we had a subscription
+      if (signalChannelRef.current) {
+        supabase.removeChannel(signalChannelRef.current);
+        signalChannelRef.current = null;
+      }
+      return;
+    }
+
+    // Don't re-subscribe if already subscribed for this room
+    if (signalChannelRef.current) return;
+
+    log(
+      `[SIGNAL_SUB] Subscribing to call_signals updates for room: ${currentRoomId}`,
+    );
+    const channel = supabase
+      .channel(`call_end:${currentRoomId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "call_signals",
+          filter: `room_id=eq.${currentRoomId}`,
+        },
+        (payload) => {
+          const updated = payload.new as { status: string; room_id: string };
+          log(
+            `[SIGNAL_SUB] Signal updated: status=${updated.status} room=${updated.room_id}`,
+          );
+
+          if (updated.status === "ended") {
+            const current = getStore();
+            // Only auto-end if we're still in an active call phase
+            if (
+              current.callPhase === "connected" ||
+              current.callPhase === "outgoing_ringing"
+            ) {
+              log(
+                "[SIGNAL_SUB] Remote party ended call — triggering leaveCall in 1s",
+              );
+              setTimeout(() => {
+                const recheck = getStore();
+                if (
+                  recheck.callPhase === "connected" ||
+                  recheck.callPhase === "outgoing_ringing"
+                ) {
+                  log(
+                    "[SIGNAL_SUB] Confirmed: ending call via signal fallback",
+                  );
+                  leaveCallRef.current();
+                }
+              }, 1000);
+            }
+          }
+        },
+      )
+      .subscribe((status) => {
+        log(`[SIGNAL_SUB] Subscription status: ${status}`);
+      });
+
+    signalChannelRef.current = channel;
+
+    return () => {
+      if (signalChannelRef.current) {
+        supabase.removeChannel(signalChannelRef.current);
+        signalChannelRef.current = null;
+      }
+    };
+  }, [roomId_store, callPhase, getStore]);
+
   // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
     return () => {
       stopDurationTimer();
       leaveRoomRef.current();
+      if (signalChannelRef.current) {
+        supabase.removeChannel(signalChannelRef.current);
+        signalChannelRef.current = null;
+      }
       // Don't reset store here — call_ended UI may still be showing
     };
   }, [stopDurationTimer]);

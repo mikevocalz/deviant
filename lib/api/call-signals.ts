@@ -81,11 +81,14 @@ export const callSignalsApi = {
    * End all ringing signals for a room
    */
   async endCallSignals(roomId: string): Promise<void> {
+    // Update ALL non-terminal signals for this room to "ended".
+    // Previously only updated "ringing" signals, which meant "accepted" signals
+    // were never marked as ended — the caller's Realtime subscription never fired.
     const { error } = await supabase
       .from("call_signals")
       .update({ status: "ended", updated_at: new Date().toISOString() })
       .eq("room_id", roomId)
-      .eq("status", "ringing");
+      .in("status", ["ringing", "accepted"]);
 
     if (error) {
       console.error("[CallSignals] Failed to end signals:", error.message);
