@@ -6,7 +6,6 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import Animated, { FadeOut } from "react-native-reanimated";
 import {
   RiveView,
   useRiveFile,
@@ -177,7 +176,7 @@ export default function AnimatedSplashScreen({
   };
 
   return (
-    <Animated.View style={styles.container} exiting={FadeOut.duration(500)}>
+    <View style={styles.container}>
       <View style={styles.riveContainer}>
         {riveFile ? (
           <RiveView
@@ -191,7 +190,7 @@ export default function AnimatedSplashScreen({
           <View style={styles.placeholder} />
         )}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 
