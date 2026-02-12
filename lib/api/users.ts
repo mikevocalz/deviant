@@ -172,6 +172,7 @@ export const usersApi = {
         lastName: updates.lastName,
         bio: updates.bio,
         location: updates.location,
+        website: updates.website,
         avatarUrl: updates.avatar,
       });
 

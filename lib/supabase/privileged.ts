@@ -1,10 +1,10 @@
 /**
  * Privileged Database Operations
- * 
+ *
  * This module contains wrappers for database operations that require
  * elevated privileges (service role). These operations are performed
  * via Supabase Edge Functions to keep the service role key secure.
- * 
+ *
  * IMPORTANT: Never use supabase.from("users").update() directly in app code.
  * Always use these wrappers for privileged writes.
  */
@@ -19,6 +19,7 @@ interface UpdateProfileParams {
   lastName?: string;
   bio?: string;
   location?: string;
+  website?: string;
   avatarUrl?: string;
 }
 
@@ -31,12 +32,12 @@ interface PrivilegedResponse<T> {
 /**
  * Update the current user's profile via Edge Function.
  * This bypasses RLS by using the service role key server-side.
- * 
+ *
  * @param updates - Profile fields to update
  * @returns Updated user data or throws error
  */
 export async function updateProfilePrivileged(
-  updates: UpdateProfileParams
+  updates: UpdateProfileParams,
 ): Promise<AppUser> {
   console.log("[Privileged] updateProfilePrivileged called with:", updates);
 
@@ -47,15 +48,14 @@ export async function updateProfilePrivileged(
   }
 
   // Call Edge Function
-  const { data, error } = await supabase.functions.invoke<PrivilegedResponse<{ user: AppUser }>>(
-    "update-profile",
-    {
-      body: updates,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
-  );
+  const { data, error } = await supabase.functions.invoke<
+    PrivilegedResponse<{ user: AppUser }>
+  >("update-profile", {
+    body: updates,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (error) {
     console.error("[Privileged] Edge Function error:", error);
@@ -75,7 +75,7 @@ export async function updateProfilePrivileged(
 /**
  * Delete the current user's account via Edge Function.
  * This is a placeholder for future implementation.
- * 
+ *
  * @returns Success status
  */
 export async function deleteAccountPrivileged(): Promise<boolean> {

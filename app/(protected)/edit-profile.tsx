@@ -169,19 +169,12 @@ export default function EditProfileScreen() {
         location?: string;
         avatar?: string;
       } = {
-        name: editName.trim() || undefined,
-        bio: editBio.trim() || undefined,
-        website: editWebsite.trim() || undefined,
-        location: editLocation.trim() || undefined,
-        avatar: avatarUrl || undefined,
+        name: editName.trim(),
+        bio: editBio.trim(),
+        website: editWebsite.trim(),
+        location: editLocation.trim(),
+        ...(avatarUrl ? { avatar: avatarUrl } : {}),
       };
-
-      // Remove undefined values
-      Object.keys(updateData).forEach((key) => {
-        if (updateData[key as keyof typeof updateData] === undefined) {
-          delete updateData[key as keyof typeof updateData];
-        }
-      });
 
       console.log(
         "[EditProfile] Updating profile:",

@@ -25,7 +25,9 @@ const UpdateProfileSchema = z
     lastName: z.string().max(50).optional(),
     bio: z.string().max(500).optional(),
     location: z.string().max(100).optional(),
-    avatarUrl: z.string().url().optional(),
+    website: z.string().max(200).optional(),
+    avatar: z.string().optional(),
+    avatarUrl: z.string().optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: "At least one field must be provided",
@@ -172,12 +174,16 @@ serve(async (req: Request) => {
     if (updates.location !== undefined) {
       updateData.location = updates.location;
     }
+    if (updates.website !== undefined) {
+      updateData.website = updates.website;
+    }
 
-    // Handle avatar: create media record and set avatar_id
-    if (updates.avatarUrl) {
+    // Handle avatar: accept both 'avatar' and 'avatarUrl' field names
+    const avatarUrl = updates.avatarUrl || updates.avatar;
+    if (avatarUrl) {
       const { data: mediaData, error: mediaError } = await supabaseAdmin
         .from("media")
-        .insert({ url: updates.avatarUrl })
+        .insert({ url: avatarUrl })
         .select("id")
         .single();
 
@@ -212,6 +218,7 @@ serve(async (req: Request) => {
         last_name,
         bio,
         location,
+        website,
         verified,
         followers_count,
         following_count,
@@ -251,6 +258,7 @@ serve(async (req: Request) => {
           lastName: updatedUser.last_name,
           bio: updatedUser.bio,
           location: updatedUser.location,
+          website: updatedUser.website,
           avatar: (updatedUser.avatar as any)?.url,
           isVerified: updatedUser.verified || false,
           postsCount: updatedUser.posts_count || 0,
