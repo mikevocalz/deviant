@@ -219,12 +219,12 @@ export default function SettingsScreenIOS() {
                 disabled={isAuthenticating}
                 className="flex-row items-center justify-between bg-card px-4 py-3 active:bg-secondary/50"
               >
-                <View className="flex-row items-center gap-3">
+                <View className="flex-1 flex-row items-center gap-3 mr-3">
                   <Fingerprint
                     size={20}
                     color={biometricEnabled ? "#22c55e" : "#666"}
                   />
-                  <View className="flex-1">
+                  <View className="flex-1 shrink">
                     <Text className="text-base text-foreground">
                       {getBiometricName()}
                     </Text>
