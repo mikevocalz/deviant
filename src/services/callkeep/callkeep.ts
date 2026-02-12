@@ -12,7 +12,7 @@
  */
 
 import RNCallKeep, { CONSTANTS } from "react-native-callkeep";
-import { Platform } from "react-native";
+import { Platform, PermissionsAndroid } from "react-native";
 import { createMMKV } from "react-native-mmkv";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +106,111 @@ let _setupComplete = false;
 const _eventListeners: Array<{ remove: () => void }> = [];
 
 // ---------------------------------------------------------------------------
+// Android runtime permissions
+// ---------------------------------------------------------------------------
+
+/**
+ * Request all runtime permissions required by CallKeep on Android.
+ * Must be called BEFORE RNCallKeep.setup() to prevent SecurityException
+ * in VoiceConnectionService.createConnection() → telecomManager.getPhoneAccount().
+ *
+ * On Android 30+ (API 30 = Android 11): READ_PHONE_NUMBERS replaces READ_PHONE_STATE
+ * On Android < 30: READ_PHONE_STATE is sufficient
+ *
+ * Returns true if all critical permissions were granted.
+ */
+async function ensureAndroidCallPermissions(): Promise<boolean> {
+  if (Platform.OS !== "android") return true;
+
+  try {
+    const sdkInt = Platform.Version;
+    const permissionsToRequest: string[] = [];
+
+    // READ_PHONE_NUMBERS (Android 30+) or READ_PHONE_STATE (older)
+    if (sdkInt >= 30) {
+      const phoneNumbersStatus = await PermissionsAndroid.check(
+        "android.permission.READ_PHONE_NUMBERS" as any,
+      );
+      if (!phoneNumbersStatus) {
+        permissionsToRequest.push("android.permission.READ_PHONE_NUMBERS");
+      }
+    } else {
+      const phoneStateStatus = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
+      );
+      if (!phoneStateStatus) {
+        permissionsToRequest.push(
+          PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE,
+        );
+      }
+    }
+
+    // CALL_PHONE
+    const callPhoneStatus = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+    );
+    if (!callPhoneStatus) {
+      permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.CALL_PHONE);
+    }
+
+    // RECORD_AUDIO (CallKeep checks this in selfManaged mode)
+    const recordAudioStatus = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    );
+    if (!recordAudioStatus) {
+      permissionsToRequest.push(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    }
+
+    if (permissionsToRequest.length === 0) {
+      console.log("[CallKeep] All Android call permissions already granted");
+      return true;
+    }
+
+    console.log(
+      "[CallKeep] Requesting Android permissions:",
+      permissionsToRequest,
+    );
+    const results = await PermissionsAndroid.requestMultiple(
+      permissionsToRequest as any[],
+    );
+
+    const allGranted = Object.values(results).every(
+      (r) => r === PermissionsAndroid.RESULTS.GRANTED,
+    );
+
+    if (!allGranted) {
+      console.warn("[CallKeep] Some Android call permissions denied:", results);
+    } else {
+      console.log("[CallKeep] All Android call permissions granted");
+    }
+
+    // Return true even if some denied — CallKeep may still partially work
+    // in selfManaged mode. The critical one is READ_PHONE_NUMBERS.
+    const criticalPerm =
+      sdkInt >= 30
+        ? "android.permission.READ_PHONE_NUMBERS"
+        : PermissionsAndroid.PERMISSIONS.READ_PHONE_STATE;
+    const criticalGranted =
+      results[criticalPerm] === PermissionsAndroid.RESULTS.GRANTED ||
+      !permissionsToRequest.includes(criticalPerm);
+
+    if (!criticalGranted) {
+      console.error(
+        `[CallKeep] CRITICAL: ${criticalPerm} denied — CallKeep will likely crash on outgoing calls`,
+      );
+    }
+
+    return criticalGranted;
+  } catch (err) {
+    console.error("[CallKeep] Permission request failed:", err);
+    return false;
+  }
+}
+
+// Track whether Android permissions were granted
+let _androidPermsGranted = false;
+
+// ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
 
@@ -118,6 +223,9 @@ export async function setupCallKeep(): Promise<void> {
     console.log("[CallKeep] Already set up, skipping");
     return;
   }
+
+  // Request Android runtime permissions BEFORE setup
+  _androidPermsGranted = await ensureAndroidCallPermissions();
 
   try {
     await RNCallKeep.setup({
@@ -179,11 +287,17 @@ export function startOutgoingCall({
   console.log(
     `[CallKeep] startOutgoingCall uuid=${callUUID} handle=${handle} video=${hasVideo}`,
   );
-  RNCallKeep.startCall(callUUID, handle, displayName, "generic", hasVideo);
+  try {
+    RNCallKeep.startCall(callUUID, handle, displayName, "generic", hasVideo);
 
-  if (Platform.OS === "ios") {
-    // Report connecting → connected lifecycle on iOS
-    RNCallKeep.reportConnectingOutgoingCallWithUUID(callUUID);
+    if (Platform.OS === "ios") {
+      // Report connecting → connected lifecycle on iOS
+      RNCallKeep.reportConnectingOutgoingCallWithUUID(callUUID);
+    }
+  } catch (err) {
+    // Defense-in-depth: catch native exceptions (e.g. SecurityException on Android)
+    // so the call can still proceed without native call UI
+    console.error("[CallKeep] startOutgoingCall native error:", err);
   }
 }
 
@@ -191,12 +305,16 @@ export function startOutgoingCall({
  * Mark an outgoing call as connected (call answered / media flowing).
  */
 export function reportOutgoingCallConnected(callUUID: string): void {
-  if (Platform.OS === "ios") {
-    RNCallKeep.reportConnectedOutgoingCallWithUUID(callUUID);
-  } else {
-    RNCallKeep.setCurrentCallActive(callUUID);
+  try {
+    if (Platform.OS === "ios") {
+      RNCallKeep.reportConnectedOutgoingCallWithUUID(callUUID);
+    } else {
+      RNCallKeep.setCurrentCallActive(callUUID);
+    }
+    console.log(`[CallKeep] Outgoing call connected uuid=${callUUID}`);
+  } catch (err) {
+    console.error("[CallKeep] reportOutgoingCallConnected native error:", err);
   }
-  console.log(`[CallKeep] Outgoing call connected uuid=${callUUID}`);
 }
 
 /**
@@ -211,13 +329,17 @@ export function showIncomingCall({
   console.log(
     `[CallKeep] showIncomingCall uuid=${callUUID} handle=${handle} video=${hasVideo}`,
   );
-  RNCallKeep.displayIncomingCall(
-    callUUID,
-    handle,
-    displayName,
-    "generic",
-    hasVideo,
-  );
+  try {
+    RNCallKeep.displayIncomingCall(
+      callUUID,
+      handle,
+      displayName,
+      "generic",
+      hasVideo,
+    );
+  } catch (err) {
+    console.error("[CallKeep] showIncomingCall native error:", err);
+  }
 }
 
 /**
@@ -238,7 +360,11 @@ export function endCall(callUUID: string): void {
  */
 export function endAllCalls(): void {
   console.log("[CallKeep] endAllCalls");
-  RNCallKeep.endAllCalls();
+  try {
+    RNCallKeep.endAllCalls();
+  } catch (err) {
+    console.error("[CallKeep] endAllCalls native error:", err);
+  }
 }
 
 /**
@@ -249,28 +375,40 @@ export function reportEndCall(
   reason: keyof typeof CONSTANTS.END_CALL_REASONS,
 ): void {
   console.log(`[CallKeep] reportEndCall uuid=${callUUID} reason=${reason}`);
-  RNCallKeep.reportEndCallWithUUID(
-    callUUID,
-    CONSTANTS.END_CALL_REASONS[reason],
-  );
+  try {
+    RNCallKeep.reportEndCallWithUUID(
+      callUUID,
+      CONSTANTS.END_CALL_REASONS[reason],
+    );
+  } catch (err) {
+    console.error("[CallKeep] reportEndCall native error:", err);
+  }
 }
 
 /**
  * Mark a call as active in the OS (Android only, used after answering).
  */
 export function setCallActive(callUUID: string): void {
-  if (Platform.OS === "android") {
-    RNCallKeep.setCurrentCallActive(callUUID);
+  try {
+    if (Platform.OS === "android") {
+      RNCallKeep.setCurrentCallActive(callUUID);
+    }
+    console.log(`[CallKeep] setCallActive uuid=${callUUID}`);
+  } catch (err) {
+    console.error("[CallKeep] setCallActive native error:", err);
   }
-  console.log(`[CallKeep] setCallActive uuid=${callUUID}`);
 }
 
 /**
  * Set mute state for a call in the OS call UI.
  */
 export function setMuted(callUUID: string, muted: boolean): void {
-  RNCallKeep.setMutedCall(callUUID, muted);
-  console.log(`[CallKeep] setMuted uuid=${callUUID} muted=${muted}`);
+  try {
+    RNCallKeep.setMutedCall(callUUID, muted);
+    console.log(`[CallKeep] setMuted uuid=${callUUID} muted=${muted}`);
+  } catch (err) {
+    console.error("[CallKeep] setMuted native error:", err);
+  }
 }
 
 /**
@@ -281,14 +419,22 @@ export function updateDisplay(
   displayName: string,
   handle: string,
 ): void {
-  RNCallKeep.updateDisplay(callUUID, displayName, handle);
+  try {
+    RNCallKeep.updateDisplay(callUUID, displayName, handle);
+  } catch (err) {
+    console.error("[CallKeep] updateDisplay native error:", err);
+  }
 }
 
 /**
  * Bring the app to the foreground (Android only).
  */
 export function backToForeground(): void {
-  RNCallKeep.backToForeground();
+  try {
+    RNCallKeep.backToForeground();
+  } catch (err) {
+    console.error("[CallKeep] backToForeground native error:", err);
+  }
 }
 
 // ---------------------------------------------------------------------------
