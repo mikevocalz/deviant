@@ -3,10 +3,7 @@ import { Image } from "expo-image";
 import { Heart, Share2, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
-import Animated, {
-  useAnimatedStyle,
-  FadeInDown,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle } from "react-native-reanimated";
 import { AVATAR_COLORS } from "@/lib/constants/events";
 import { useRouter } from "expo-router";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
@@ -29,10 +26,15 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
   });
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 150)
-        .duration(800)
-        .springify()}
+    <Motion.View
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        type: "spring",
+        damping: 20,
+        stiffness: 300,
+        delay: index * 0.15,
+      }}
       className={containerClass}
     >
       <Motion.View
@@ -152,6 +154,6 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
           </View>
         </Pressable>
       </Motion.View>
-    </Animated.View>
+    </Motion.View>
   );
 }

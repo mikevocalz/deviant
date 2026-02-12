@@ -9,7 +9,7 @@ import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
-import Animated, { FadeIn, Easing } from "react-native-reanimated";
+import { Motion } from "@legendapp/motion";
 import { PortalHost } from "@rn-primitives/portal";
 import { ThemeProvider } from "@react-navigation/native";
 import { Toaster } from "sonner-native";
@@ -191,15 +191,15 @@ export default function RootLayout() {
                   <StatusBar backgroundColor="#000" style="light" animated />
                 </View>
               ) : (
-                <Animated.View
+                <Motion.View
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ type: "timing", duration: 800 }}
                   style={{
                     flex: 1,
                     paddingBottom:
                       Platform.OS === "android" ? insets.bottom : 0,
                   }}
-                  entering={FadeIn.duration(800).easing(
-                    Easing.out(Easing.cubic),
-                  )}
                 >
                   <StatusBar backgroundColor="#000" style="light" animated />
                   <Stack
@@ -237,7 +237,7 @@ export default function RootLayout() {
                   {/* BiometricLock renders ONLY after auth is settled + authenticated.
                       Since authStatus transitions exactly once, this mounts exactly once. */}
                   {isAuthenticated && <BiometricLock />}
-                </Animated.View>
+                </Motion.View>
               )}
               <PortalHost />
               <Toaster

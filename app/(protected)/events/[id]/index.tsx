@@ -31,8 +31,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
 import Animated, {
-  FadeInDown,
-  FadeIn,
   useAnimatedScrollHandler,
   useSharedValue,
   useAnimatedStyle,
@@ -525,7 +523,7 @@ export default function EventDetailScreen() {
           />
 
           {/* Floating chips */}
-          <Animated.View entering={FadeIn.delay(200)} style={s.heroChips}>
+          <View style={s.heroChips}>
             {event.price === 0 ? (
               <View style={[s.chip, s.chipFree]}>
                 <Text style={s.chipFreeText}>FREE</Text>
@@ -543,20 +541,17 @@ export default function EventDetailScreen() {
                 <Text style={s.chipText}>{timeStr}</Text>
               </View>
             ) : null}
-          </Animated.View>
+          </View>
 
           {/* Countdown */}
-          <Animated.View
-            entering={FadeInDown.delay(300)}
-            style={s.heroCountdown}
-          >
+          <View style={s.heroCountdown}>
             <CountdownTimer targetDate={event.date} />
-          </Animated.View>
+          </View>
         </View>
 
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
-          <Animated.View entering={FadeInDown.delay(100)}>
+          <View>
             <Text style={s.eventTitle}>{event.title}</Text>
 
             {/* Venue + City */}
@@ -580,22 +575,19 @@ export default function EventDetailScreen() {
               </Text>
               {host?.verified && <BadgeCheck size={16} color="#34A2DF" />}
             </Pressable>
-          </Animated.View>
+          </View>
 
           {/* ── 3. SOCIAL PROOF ──────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(200)} style={s.section}>
+          <View style={s.section}>
             <SocialProofRow
               attendees={mockAttendees}
               totalCount={event.attendees || 0}
               followingCount={0}
             />
-          </Animated.View>
+          </View>
 
           {/* ── 4. COLLAPSIBLE EVENT DETAILS ─────────────────────── */}
-          <Animated.View
-            entering={FadeInDown.delay(300)}
-            style={s.collapsibleSection}
-          >
+          <View style={s.collapsibleSection}>
             {event.description ? (
               <CollapsibleRow
                 icon="📝"
@@ -634,19 +626,19 @@ export default function EventDetailScreen() {
                 content={event.perks}
               />
             ) : null}
-          </Animated.View>
+          </View>
 
           {/* ── 4b. YOUTUBE VIDEO ──────────────────────────────── */}
           {event.youtubeVideoUrl ? (
-            <Animated.View entering={FadeInDown.delay(350)} style={s.section}>
+            <View style={s.section}>
               <Text style={s.sectionTitle}>Video</Text>
               <YouTubeEmbed url={event.youtubeVideoUrl} height={220} />
-            </Animated.View>
+            </View>
           ) : null}
 
           {/* ── 4c. EVENT IMAGES ───────────────────────────────── */}
           {event.images && event.images.length > 0 ? (
-            <Animated.View entering={FadeInDown.delay(370)} style={s.section}>
+            <View style={s.section}>
               <Text style={s.sectionTitle}>Photos</Text>
               <Galeria
                 urls={event.images
@@ -669,11 +661,11 @@ export default function EventDetailScreen() {
                   })}
                 </View>
               </Galeria>
-            </Animated.View>
+            </View>
           ) : null}
 
           {/* ── 5. TICKET TIERS ──────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(400)} style={s.section}>
+          <View style={s.section}>
             <Text style={s.sectionTitle}>Select Your Tier</Text>
             <LegendList
               data={ticketTiers}
@@ -690,10 +682,10 @@ export default function EventDetailScreen() {
                 />
               )}
             />
-          </Animated.View>
+          </View>
 
           {/* ── Ratings & Reviews ─────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(500)} style={s.section}>
+          <View style={s.section}>
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <Star size={18} color="#FFD700" />
@@ -751,10 +743,10 @@ export default function EventDetailScreen() {
             ) : (
               <Text style={s.mutedText}>No ratings yet. Be the first!</Text>
             )}
-          </Animated.View>
+          </View>
 
           {/* ── Comments ──────────────────────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(600)} style={s.section}>
+          <View style={s.section}>
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <MessageCircle size={18} color="#34A2DF" />
@@ -847,7 +839,7 @@ export default function EventDetailScreen() {
               <MessageCircle size={16} color="#34A2DF" />
               <Text style={s.addCommentText}>Add a Comment</Text>
             </Pressable>
-          </Animated.View>
+          </View>
         </View>
       </Animated.ScrollView>
 

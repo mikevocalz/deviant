@@ -11,7 +11,6 @@ import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
   useAnimatedStyle,
-  FadeInDown,
 } from "react-native-reanimated";
 import { useState, useRef, useCallback, useMemo } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
@@ -47,10 +46,15 @@ function EventCard({
   });
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 150)
-        .duration(800)
-        .springify()}
+    <Motion.View
+      initial={{ opacity: 0, y: 30 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        type: "spring",
+        damping: 20,
+        stiffness: 300,
+        delay: index * 0.15,
+      }}
       className="max-w-2xl w-full self-center"
     >
       <Motion.View
@@ -188,7 +192,7 @@ function EventCard({
           </View>
         </Pressable>
       </Motion.View>
-    </Animated.View>
+    </Motion.View>
   );
 }
 

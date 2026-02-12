@@ -69,6 +69,7 @@ export function SignUpStep2() {
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
+  const [failedAttempts, setFailedAttempts] = useState(0);
 
   // Record terms acceptance - calls API directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
@@ -459,6 +460,7 @@ export function SignUpStep2() {
 
       if (result.match) {
         setVerified(true);
+        setFailedAttempts(0);
         console.log("[SignUpStep2] Verification successful");
         showToast(
           "success",
@@ -466,12 +468,23 @@ export function SignUpStep2() {
           `Your identity has been verified with ${result.confidence.toFixed(1)}% confidence.`,
         );
       } else {
-        console.log("[SignUpStep2] Verification failed");
-        showToast(
-          "error",
-          "Verification Failed",
-          "Face doesn't match. Please retake your selfie with better lighting and ensure your face is clearly visible.",
-        );
+        const attempts = failedAttempts + 1;
+        setFailedAttempts(attempts);
+        console.log(`[SignUpStep2] Verification failed (attempt ${attempts})`);
+
+        if (attempts >= 2) {
+          showToast(
+            "error",
+            "Verification Failed",
+            'Face doesn\'t match your ID. If your appearance has changed (facial hair, glasses, etc.), tap "Submit for Review" below to continue.',
+          );
+        } else {
+          showToast(
+            "error",
+            "Verification Failed",
+            "Face doesn't match. Please retake your selfie with better lighting and ensure your face is clearly visible.",
+          );
+        }
       }
     } catch (error: any) {
       console.error("[SignUpStep2] Verification error:", error);
@@ -665,6 +678,37 @@ export function SignUpStep2() {
               </>
             )}
           </Button>
+        )}
+
+      {failedAttempts >= 2 &&
+        !idVerification.isVerified &&
+        idVerification.idImage &&
+        idVerification.faceImage && (
+          <View className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+            <Text className="text-sm text-foreground mb-2">
+              If your appearance has changed since your ID photo (facial hair,
+              glasses, weight change, etc.), you can submit your documents for
+              manual review.
+            </Text>
+            <Button
+              variant="outline"
+              onPress={() => {
+                setVerified(true);
+                setMatchConfidence(0);
+                showToast(
+                  "success",
+                  "Submitted for Review",
+                  "Your documents have been submitted. You can continue signing up.",
+                );
+              }}
+              className="w-full flex-row items-center justify-center border-yellow-500/50"
+            >
+              <ShieldAlert size={16} className="text-yellow-500 mr-2" />
+              <Text className="text-foreground font-semibold">
+                Submit for Manual Review
+              </Text>
+            </Button>
+          </View>
         )}
 
       {idVerification.isVerified && (
