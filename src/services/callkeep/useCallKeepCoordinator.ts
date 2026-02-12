@@ -35,6 +35,10 @@ import { CT } from "@/src/services/calls/callTrace";
 // Track active signal so we can update its status on answer/decline
 const _activeSignals = new Map<string, CallSignal>();
 
+// Cooldown: after ending a call, ignore incoming signals for this room
+// to prevent "keeps calling back" bug from stale/replayed signals
+const _recentlyEndedRooms = new Set<string>();
+
 // ── Mute dedupe lock ────────────────────────────────────────────────
 // Prevents feedback loop: UI toggleMute → callKeepSetMuted → didPerformSetMutedCallAction → setMicOn → re-render
 // The lock is set when we programmatically call setMuted on CallKeep, and cleared after 500ms.
@@ -170,7 +174,19 @@ export function useCallKeepCoordinator(): void {
                     }),
                   );
                 callSignalsApi.endCallSignals(signal.room_id).catch(() => {});
+
+                // Cooldown: ignore incoming signals for this room for 10s
+                // to prevent "keeps calling back" from stale/replayed signals
+                _recentlyEndedRooms.add(signal.room_id);
+                setTimeout(
+                  () => _recentlyEndedRooms.delete(signal.room_id),
+                  10000,
+                );
               }
+
+              // Also cooldown the callUUID (which is the roomId)
+              _recentlyEndedRooms.add(callUUID);
+              setTimeout(() => _recentlyEndedRooms.delete(callUUID), 10000);
 
               // If there's an active Fishjam call, trigger leave
               // The use-video-call.ts external end effect will handle Fishjam cleanup
@@ -251,6 +267,36 @@ export function useCallKeepCoordinator(): void {
         userId,
         (signal: CallSignal) => {
           CT.guard("CALL", "incomingSignalHandler", () => {
+            // Cooldown: ignore signals for rooms we just ended
+            if (_recentlyEndedRooms.has(signal.room_id)) {
+              CT.trace("CALL", "incomingIgnored_recentlyEnded", {
+                roomId: signal.room_id,
+              });
+              console.log(
+                "[CallKeep] Ignoring incoming signal for recently ended room:",
+                signal.room_id,
+              );
+              return;
+            }
+
+            // Ignore if we're already in an active call
+            const currentPhase = useVideoRoomStore.getState().callPhase;
+            if (
+              currentPhase !== "idle" &&
+              currentPhase !== "call_ended" &&
+              currentPhase !== "error"
+            ) {
+              CT.trace("CALL", "incomingIgnored_activeCall", {
+                roomId: signal.room_id,
+                currentPhase,
+              });
+              console.log(
+                "[CallKeep] Ignoring incoming signal — already in call phase:",
+                currentPhase,
+              );
+              return;
+            }
+
             CT.trace("CALL", "incomingDetected", {
               caller: signal.caller_username ?? undefined,
               roomId: signal.room_id,
