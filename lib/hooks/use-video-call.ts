@@ -36,8 +36,7 @@
  */
 
 import { useCallback, useRef, useEffect } from "react";
-import { Platform } from "react-native";
-import { Camera } from "react-native-vision-camera";
+import { Platform, PermissionsAndroid } from "react-native";
 import {
   useConnection,
   useCamera,
@@ -1029,17 +1028,24 @@ export function useVideoCall() {
 
     // Step 0: Request camera permission explicitly — audio calls never request it,
     // so the OS may not have granted it yet. Without this, startCamera() fails silently.
-    try {
-      const camStatus = await Camera.requestCameraPermission();
-      log(`[ESCALATION] Camera permission status: ${camStatus}`);
-      if (camStatus !== "granted") {
-        logError("[ESCALATION] Camera permission denied by user");
+    // NOTE: We do NOT import react-native-vision-camera Camera here — it can crash
+    // the app on import in certain contexts. Instead, use platform-native APIs.
+    if (Platform.OS === "android") {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          logError("[ESCALATION] Camera permission denied by user (Android)");
+          return false;
+        }
+      } catch (permErr) {
+        logError("[ESCALATION] Camera permission request failed:", permErr);
         return false;
       }
-    } catch (permErr) {
-      logError("[ESCALATION] Camera permission request failed:", permErr);
-      return false;
     }
+    // iOS: startCamera() from Fishjam will trigger the OS permission prompt if needed.
+    // No explicit request needed — the SDK handles it.
 
     // Step 1: Start camera
     try {
