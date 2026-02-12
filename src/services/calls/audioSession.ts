@@ -33,9 +33,26 @@
  */
 
 import { Platform } from "react-native";
-import InCallManager from "react-native-incall-manager";
-import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
 import { CT } from "@/src/services/calls/callTrace";
+
+// Safe imports — native modules may not be linked in all builds
+let InCallManager: any = null;
+let RTCAudioSession: any = null;
+
+try {
+  InCallManager = require("react-native-incall-manager").default;
+} catch (e) {
+  console.warn("[AudioSession] react-native-incall-manager not available");
+}
+
+try {
+  RTCAudioSession =
+    require("@fishjam-cloud/react-native-webrtc").RTCAudioSession;
+} catch (e) {
+  console.warn(
+    "[AudioSession] @fishjam-cloud/react-native-webrtc not available",
+  );
+}
 
 // ── Internal state ──────────────────────────────────────────────────
 
@@ -94,15 +111,15 @@ export const audioSession = {
       //   "video" → videoChat (speaker default, echo cancellation tuned for speaker)
       // Android: AudioManager mode = MODE_IN_COMMUNICATION, requests audio focus
       // REF: https://docs.fishjam.io/how-to/react-native/connecting
-      InCallManager.start({ media: mediaType, auto: true });
+      InCallManager?.start({ media: mediaType, auto: true });
 
       _isActive = true;
 
       if (Platform.OS === "android") {
         // Android: No CallKit, so apply speaker + mic state immediately.
-        InCallManager.setForceSpeakerphoneOn(speakerOn);
+        InCallManager?.setForceSpeakerphoneOn(speakerOn);
         _isSpeakerOn = speakerOn;
-        InCallManager.setMicrophoneMute(false);
+        InCallManager?.setMicrophoneMute(false);
         _isMicMuted = false;
         CT.trace("AUDIO", "audioSession_android_ready", { speakerOn });
       } else {
@@ -184,7 +201,7 @@ export const audioSession = {
 
     try {
       // Signal WebRTC that the audio session is now active
-      RTCAudioSession.audioSessionDidActivate();
+      RTCAudioSession?.audioSessionDidActivate();
       _isCallKitActivated = true;
 
       // Apply deferred speaker routing now that session is active.
@@ -194,12 +211,12 @@ export const audioSession = {
       // regardless of this setting — setForceSpeakerphoneOn only affects
       // the built-in speaker vs earpiece choice.
       const speakerOn = _pendingSpeakerOn ?? false;
-      InCallManager.setForceSpeakerphoneOn(speakerOn);
+      InCallManager?.setForceSpeakerphoneOn(speakerOn);
       _isSpeakerOn = speakerOn;
       _pendingSpeakerOn = null;
 
       // Ensure mic is not muted (hardware level)
-      InCallManager.setMicrophoneMute(false);
+      InCallManager?.setMicrophoneMute(false);
       _isMicMuted = false;
 
       CT.trace("AUDIO", "activateFromCallKit_done", { speakerOn });
@@ -231,10 +248,10 @@ export const audioSession = {
     CT.trace("AUDIO", "audioSession_stopping");
 
     try {
-      InCallManager.stop();
+      InCallManager?.stop();
 
       if (Platform.OS === "ios") {
-        RTCAudioSession.audioSessionDidDeactivate();
+        RTCAudioSession?.audioSessionDidDeactivate();
       }
 
       _isActive = false;
@@ -271,7 +288,7 @@ export const audioSession = {
     }
 
     try {
-      InCallManager.setForceSpeakerphoneOn(on);
+      InCallManager?.setForceSpeakerphoneOn(on);
       _isSpeakerOn = on;
       CT.trace("SPEAKER", on ? "speaker_enabled" : "speaker_disabled");
       console.log(`[AudioSession] Speaker ${on ? "ON" : "OFF"}`);
@@ -293,7 +310,7 @@ export const audioSession = {
     }
 
     try {
-      InCallManager.setMicrophoneMute(muted);
+      InCallManager?.setMicrophoneMute(muted);
       _isMicMuted = muted;
       CT.trace("MUTE", muted ? "mic_muted_hw" : "mic_unmuted_hw");
       console.log(

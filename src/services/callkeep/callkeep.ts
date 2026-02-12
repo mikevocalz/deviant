@@ -11,9 +11,33 @@
  * - MMKV for callSessionId <-> callUUID mapping persistence
  */
 
-import RNCallKeep, { CONSTANTS } from "react-native-callkeep";
 import { Platform, PermissionsAndroid } from "react-native";
-import { createMMKV } from "react-native-mmkv";
+
+// Safe imports — native modules may not be linked in all builds
+let RNCallKeep: any = null;
+let CONSTANTS: any = {};
+let callkeepStorage: any = null;
+
+try {
+  const ck = require("react-native-callkeep");
+  RNCallKeep = ck.default || ck;
+  CONSTANTS = ck.CONSTANTS || {};
+} catch (e) {
+  console.warn(
+    "[CallKeep] react-native-callkeep not available:",
+    (e as any)?.message,
+  );
+}
+
+try {
+  const { createMMKV } = require("react-native-mmkv");
+  callkeepStorage = createMMKV({ id: "callkeep-mapping" });
+} catch (e) {
+  console.warn(
+    "[CallKeep] react-native-mmkv not available:",
+    (e as any)?.message,
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,8 +73,6 @@ export type CallKeepAudioSessionHandler = () => void;
 // MMKV storage for callSessionId <-> callUUID mapping
 // ---------------------------------------------------------------------------
 
-const callkeepStorage = createMMKV({ id: "callkeep-mapping" });
-
 const MAPPING_PREFIX = "ck:uuid:";
 const REVERSE_PREFIX = "ck:session:";
 
@@ -61,6 +83,7 @@ export function persistCallMapping(
   callSessionId: string,
   callUUID: string,
 ): void {
+  if (!callkeepStorage) return;
   callkeepStorage.set(`${MAPPING_PREFIX}${callUUID}`, callSessionId);
   callkeepStorage.set(`${REVERSE_PREFIX}${callSessionId}`, callUUID);
   console.log(
@@ -72,7 +95,7 @@ export function persistCallMapping(
  * Look up callSessionId from a device-local callUUID.
  */
 export function getSessionIdFromUUID(callUUID: string): string | undefined {
-  return callkeepStorage.getString(`${MAPPING_PREFIX}${callUUID}`);
+  return callkeepStorage?.getString(`${MAPPING_PREFIX}${callUUID}`);
 }
 
 /**
@@ -81,13 +104,17 @@ export function getSessionIdFromUUID(callUUID: string): string | undefined {
 export function getUUIDFromSessionId(
   callSessionId: string,
 ): string | undefined {
-  return callkeepStorage.getString(`${REVERSE_PREFIX}${callSessionId}`);
+  return callkeepStorage?.getString(`${REVERSE_PREFIX}${callSessionId}`);
 }
 
 /**
  * Remove mapping for a given callUUID.
  */
 export function clearCallMapping(callUUID: string): void {
+  if (!callkeepStorage) {
+    _displayedCallUUIDs.delete(callUUID);
+    return;
+  }
   const sessionId = callkeepStorage.getString(`${MAPPING_PREFIX}${callUUID}`);
   callkeepStorage.remove(`${MAPPING_PREFIX}${callUUID}`);
   if (sessionId) {
@@ -237,6 +264,10 @@ let _androidPermsGranted = false;
  * Safe to call multiple times — subsequent calls are no-ops.
  */
 export async function setupCallKeep(): Promise<void> {
+  if (!RNCallKeep) {
+    console.warn("[CallKeep] Native module not available — skipping setup");
+    return;
+  }
   if (_setupComplete) {
     console.log("[CallKeep] Already set up, skipping");
     return;
