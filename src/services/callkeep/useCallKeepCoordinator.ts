@@ -14,6 +14,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { supabase } from "@/lib/supabase/client";
 import { callSignalsApi, type CallSignal } from "@/lib/api/call-signals";
 import {
   setupCallKeep,
@@ -77,6 +78,7 @@ export function useCallKeepCoordinator(): void {
 
     let cleanupListeners: (() => void) | undefined;
     let unsubscribeSignals: (() => void) | undefined;
+    let signalUpdateChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const init = async () => {
       // 1. Setup CallKeep
@@ -325,6 +327,54 @@ export function useCallKeepCoordinator(): void {
           });
         },
       );
+
+      // 4. Subscribe to signal UPDATEs — dismiss CallKeep UI on missed/ended/declined
+      // When the caller's ring timeout fires and marks the signal as "missed",
+      // or when the caller hangs up (status → "ended"), we need to dismiss
+      // the native ringing UI on the callee's device.
+      signalUpdateChannel = supabase
+        .channel(`call_signal_updates:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "call_signals",
+            filter: `callee_id=eq.${userId}`,
+          },
+          (payload) => {
+            const updated = payload.new as CallSignal;
+            CT.guard("CALL", "signalUpdateHandler", () => {
+              if (
+                updated.status === "missed" ||
+                updated.status === "ended" ||
+                updated.status === "declined"
+              ) {
+                const callUUID = updated.room_id;
+                const activeSignal = _activeSignals.get(callUUID);
+
+                if (activeSignal) {
+                  CT.trace("CALL", "signalDismissed", {
+                    roomId: updated.room_id,
+                    status: updated.status,
+                  });
+                  console.log(
+                    `[CallKeep] Signal ${updated.status} — dismissing incoming call UI for room:`,
+                    updated.room_id,
+                  );
+
+                  // Dismiss the native CallKeep ringing UI
+                  reportEndCall(callUUID, "REMOTE_ENDED");
+                  _activeSignals.delete(callUUID);
+                  clearCallMapping(callUUID);
+                }
+              }
+            });
+          },
+        )
+        .subscribe((status) => {
+          CT.trace("CALL", "signalUpdateSubscription", { status });
+        });
     };
 
     init();
@@ -333,6 +383,9 @@ export function useCallKeepCoordinator(): void {
       initializedForUserRef.current = null;
       cleanupListeners?.();
       unsubscribeSignals?.();
+      if (signalUpdateChannel) {
+        supabase.removeChannel(signalUpdateChannel);
+      }
       _activeSignals.clear();
     };
   }, [isAuthenticated, user?.id]);

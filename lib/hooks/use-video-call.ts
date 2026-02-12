@@ -112,6 +112,10 @@ export function useVideoCall() {
     (roomId: string, callType?: CallType) => Promise<void>
   >(async () => {});
   const micStartedRef = useRef(false);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ring timeout duration (30s like Facebook/Instagram)
+  const RING_TIMEOUT_MS = 30_000;
 
   // ── Zustand store access ────────────────────────────────────────────
   // CRITICAL: Use individual selectors to prevent re-render storms.
@@ -918,6 +922,12 @@ export function useVideoCall() {
     // Mark as user-initiated so the external end effect skips duplicate cleanup
     userInitiatedLeaveRef.current = true;
 
+    // Clear ring timeout if active (caller hung up before timeout)
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+
     const s = getStore();
     const currentRoomId = s.roomId;
     const duration = s.callDuration;
@@ -1237,6 +1247,68 @@ export function useVideoCall() {
       cleanupInProgressRef.current = false;
     }
   }, [callPhase, callType, isCameraOn, stopDurationTimer]);
+
+  // ── Ring timeout: auto-end with "missed" if callee doesn't answer ──
+  // Facebook/Instagram style: ring for 30s, then mark as missed call.
+  // Only applies to the CALLER in outgoing_ringing phase.
+  useEffect(() => {
+    // Start timeout when entering outgoing_ringing
+    if (callPhase === "outgoing_ringing" && callRole === "caller") {
+      // Clear any existing timeout first
+      if (ringTimeoutRef.current) {
+        clearTimeout(ringTimeoutRef.current);
+      }
+
+      log(`[RING_TIMEOUT] Starting ${RING_TIMEOUT_MS / 1000}s ring timeout`);
+      ringTimeoutRef.current = setTimeout(() => {
+        const s = getStore();
+        // Only fire if still ringing (callee may have answered)
+        if (s.callPhase !== "outgoing_ringing") {
+          log("[RING_TIMEOUT] Phase changed, skipping missed call");
+          return;
+        }
+
+        const currentRoomId = s.roomId;
+        const mode = s.callType;
+        log("[RING_TIMEOUT] Callee didn't answer — marking as missed call");
+        CT.trace("LIFECYCLE", "ring_timeout_missed", {
+          roomId: currentRoomId ?? undefined,
+          callType: mode,
+        });
+
+        // Mark signals as "missed" (not "ended")
+        if (currentRoomId) {
+          callSignalsApi.missCallSignals(currentRoomId).catch((e) => {
+            logWarn("Failed to mark signals as missed:", e);
+          });
+        }
+
+        // Add "Missed call" system message to the linked chat
+        const chatId = s.chatId;
+        if (chatId) {
+          const label =
+            mode === "audio" ? "Missed audio call" : "Missed video call";
+          useChatStore.getState().addSystemMessage(chatId, `📞 ${label}`);
+        }
+
+        // End the call
+        leaveCallRef.current();
+      }, RING_TIMEOUT_MS);
+    }
+
+    // Clear timeout when phase changes away from outgoing_ringing
+    if (callPhase !== "outgoing_ringing" && ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+
+    return () => {
+      if (ringTimeoutRef.current) {
+        clearTimeout(ringTimeoutRef.current);
+        ringTimeoutRef.current = null;
+      }
+    };
+  }, [callPhase, callRole, getStore]);
 
   // ── Supabase Realtime fallback: detect remote party ending call ────
   // The primary mechanism is Fishjam peer disconnect (peers.remotePeers going empty).
