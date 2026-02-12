@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
-import { ChevronLeft, UserX, AlertCircle } from "lucide-react-native";
+import { ChevronLeft, UserX } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { Image } from "expo-image";
 import {
@@ -99,26 +99,6 @@ export default function BlockedScreen() {
               <Text className="mt-4 text-muted-foreground">
                 Loading blocked accounts...
               </Text>
-            </View>
-          ) : error ? (
-            <View className="flex-1 items-center justify-center px-8 py-20">
-              <View className="mb-4 rounded-full bg-destructive/10 p-4">
-                <AlertCircle size={48} color={colors.destructive} />
-              </View>
-              <Text className="mb-2 text-lg font-semibold text-foreground">
-                Failed to Load
-              </Text>
-              <Text className="mb-4 text-center text-sm text-muted-foreground">
-                {(error as Error).message || "Something went wrong"}
-              </Text>
-              <Pressable
-                onPress={() => refetch()}
-                className="rounded-lg bg-primary px-6 py-2"
-              >
-                <Text className="font-semibold text-primary-foreground">
-                  Try Again
-                </Text>
-              </Pressable>
             </View>
           ) : !blockedUsers || blockedUsers.length === 0 ? (
             <View className="flex-1 items-center justify-center px-8 py-20">

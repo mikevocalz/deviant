@@ -98,9 +98,13 @@ async function fetchUserSettings(): Promise<Record<string, unknown>> {
     headers: { Authorization: `Bearer ${token}` },
   });
 
-  if (error) throw new Error(error.message || "Failed to fetch settings");
-  if (!data?.ok)
-    throw new Error(data?.error?.message || "Failed to fetch settings");
+  if (error || !data?.ok) {
+    console.warn(
+      "[user-settings] fetch failed, returning defaults:",
+      error?.message || data?.error?.message,
+    );
+    return {};
+  }
   return data?.data?.settings || {};
 }
 
