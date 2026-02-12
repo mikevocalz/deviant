@@ -77,8 +77,12 @@ export const audioSession = {
     });
 
     try {
-      // Reset state from any previous call to prevent stale flags
-      _isCallKitActivated = false;
+      // Reset pending state from any previous call — but do NOT reset
+      // _isCallKitActivated here. CallKit fires didActivateAudioSession
+      // ONCE per call. If it already fired (e.g., caller: after startOutgoingCall,
+      // callee: after answering), resetting it would prevent setPendingMicStart()
+      // from detecting that activation already happened → mic never starts.
+      // _isCallKitActivated is only reset in stop() at end of call.
       _pendingMicStartCallback = null;
       _pendingSpeakerOn = null;
 
