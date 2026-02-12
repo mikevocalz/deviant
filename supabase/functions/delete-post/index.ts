@@ -98,7 +98,7 @@ serve(async (req: Request) => {
 
     const { data: userData } = await supabaseAdmin
       .from("users")
-      .select("id")
+      .select("id, posts_count")
       .eq("auth_id", session.odUserId)
       .single();
     if (!userData) return errorResponse("not_found", "User not found", 404);
@@ -136,8 +136,12 @@ serve(async (req: Request) => {
       return errorResponse("internal_error", "Failed to delete post", 500);
     }
 
-    // Decrement user posts count
-    await supabaseAdmin.rpc("decrement_posts_count", { user_id: userData.id });
+    // Decrement user posts count (floor at 0)
+    const newCount = Math.max(0, (userData.posts_count || 1) - 1);
+    await supabaseAdmin
+      .from("users")
+      .update({ posts_count: newCount })
+      .eq("id", userData.id);
 
     return jsonResponse({ ok: true, data: { success: true } });
   } catch (err) {

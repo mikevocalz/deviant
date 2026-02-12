@@ -477,6 +477,27 @@ export function useDeletePost() {
       // Remove from detail cache
       queryClient.removeQueries({ queryKey: postKeys.detail(deletedPostId) });
 
+      // Optimistically decrement posts_count on all profile caches
+      queryClient.setQueriesData({ queryKey: ["profile"] }, (old: any) => {
+        if (!old || typeof old !== "object") return old;
+        if (typeof old.postsCount === "number") {
+          return { ...old, postsCount: Math.max(0, old.postsCount - 1) };
+        }
+        if (typeof old.posts_count === "number") {
+          return { ...old, posts_count: Math.max(0, old.posts_count - 1) };
+        }
+        return old;
+      });
+
+      // Also update auth store user's postsCount
+      const { user, setUser } = useAuthStore.getState();
+      if (user && typeof (user as any).postsCount === "number") {
+        setUser({
+          ...user,
+          postsCount: Math.max(0, (user as any).postsCount - 1),
+        } as any);
+      }
+
       return { previousInfinite, previousFeed };
     },
     onError: (_err, _deletedPostId, context) => {
@@ -493,7 +514,8 @@ export function useDeletePost() {
     },
     onSuccess: (_result, deletedPostId) => {
       console.log("[useDeletePost] Post deleted successfully:", deletedPostId);
-      // No need to invalidate - optimistic update already removed the post
+      // Invalidate profile to sync server count
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
   });
 }
