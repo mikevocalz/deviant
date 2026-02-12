@@ -22,6 +22,7 @@
 
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { CT } from "@/src/services/calls/callTrace";
 import {
@@ -51,6 +52,9 @@ interface CallNotificationData {
 export function NotificationListener(): null {
   const user = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   // Track seen room IDs to prevent duplicate call UI from both Realtime + Push
   const seenRoomIdsRef = useRef<Set<string>>(new Set());
@@ -60,11 +64,34 @@ export function NotificationListener(): null {
 
     CT.trace("LIFECYCLE", "notificationListener_mounted", { userId: user.id });
 
+    // ── Cold start handler ─────────────────────────────────────────────
+    // When the app is launched from a killed state by tapping a call
+    // notification, the response listeners haven't been registered yet.
+    // getLastNotificationResponseAsync() catches this case.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (!response) return;
+      const data = response.notification.request.content
+        .data as unknown as CallNotificationData;
+      if (data?.type === "call" && data.roomId) {
+        CT.trace("CALL", "cold_start_call_notification", {
+          roomId: data.roomId,
+          caller: data.callerUsername,
+        });
+        console.log(
+          "[NotificationListener] Cold start from call notification:",
+          data.roomId,
+        );
+        // User already tapped the notification — navigate directly to call
+        handleColdStartCallNotification(data);
+      }
+    });
+
     // ── Foreground notification handler ───────────────────────────────
     // Fires when notification received while app is in foreground
     const foregroundSubscription =
       Notifications.addNotificationReceivedListener((notification) => {
-        const data = notification.request.content.data as unknown as CallNotificationData;
+        const data = notification.request.content
+          .data as unknown as CallNotificationData;
         if (data?.type === "call") {
           CT.trace("CALL", "foreground_call_notification", {
             roomId: data.roomId,
@@ -75,7 +102,7 @@ export function NotificationListener(): null {
       });
 
     // ── Background/killed notification handler ────────────────────────
-    // Fires when user taps notification or app wakes from killed state
+    // Fires when user taps notification while app is backgrounded
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content
@@ -85,7 +112,8 @@ export function NotificationListener(): null {
             roomId: data.roomId,
             caller: data.callerUsername,
           });
-          handleIncomingCallNotification(data);
+          // User tapped the notification — navigate directly to call
+          handleColdStartCallNotification(data);
         }
       });
 
@@ -98,10 +126,11 @@ export function NotificationListener(): null {
   }, [isAuthenticated, user?.id]);
 
   /**
-   * Handle incoming call push notification by triggering CallKeep UI
+   * Handle incoming call push notification by triggering CallKeep UI.
+   * Used when the app is in the FOREGROUND and a call notification arrives.
    */
   function handleIncomingCallNotification(data: CallNotificationData): void {
-    const { roomId, callType, callerUsername, callerAvatar } = data;
+    const { roomId, callType, callerUsername } = data;
 
     // Dedupe: If we already showed CallKeep UI for this room, skip
     // (This can happen if both Realtime + Push trigger simultaneously)
@@ -154,6 +183,60 @@ export function NotificationListener(): null {
         "[NotificationListener] Failed to show CallKeep UI:",
         error,
       );
+    }
+  }
+
+  /**
+   * Handle a call notification that the user TAPPED (from killed or background state).
+   * Since the user already interacted with the notification, skip CallKeep incoming UI
+   * and navigate directly to the call screen — this is the Instagram/Facebook behavior.
+   */
+  function handleColdStartCallNotification(data: CallNotificationData): void {
+    const { roomId, callType, callerUsername, callerAvatar } = data;
+
+    if (seenRoomIdsRef.current.has(roomId)) {
+      CT.trace("CALL", "cold_start_duplicate_ignored", { roomId });
+      return;
+    }
+    seenRoomIdsRef.current.add(roomId);
+    setTimeout(() => seenRoomIdsRef.current.delete(roomId), 60000);
+
+    CT.trace("CALL", "cold_start_navigating_to_call", {
+      roomId,
+      callType,
+      caller: callerUsername,
+    });
+
+    // Persist mapping for CallKeep event handling
+    persistCallMapping(roomId, roomId);
+
+    // Navigate directly to the call screen — user already "answered" by tapping
+    try {
+      routerRef.current.push({
+        pathname: "/(protected)/call/[roomId]",
+        params: {
+          roomId,
+          callType: callType || "video",
+          recipientUsername: callerUsername || "Unknown",
+          recipientAvatar: callerAvatar || "",
+        },
+      });
+      console.log(
+        "[NotificationListener] Cold start → navigated to call:",
+        roomId,
+      );
+    } catch (navError: any) {
+      CT.error("CALL", "cold_start_navigation_failed", {
+        roomId,
+        error: navError?.message,
+      });
+      // Fallback: show CallKeep UI instead
+      showIncomingCall({
+        callUUID: roomId,
+        handle: callerUsername || "Unknown",
+        displayName: callerUsername || "Unknown Caller",
+        hasVideo: callType === "video",
+      });
     }
   }
 

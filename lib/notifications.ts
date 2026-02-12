@@ -24,14 +24,26 @@ if (Platform.OS !== "web") {
         const notificationType = notification.request.content.data?.type;
         const isCallNotification = notificationType === "call";
 
-        // CRITICAL: For incoming calls, show alert + sound to wake the app
-        // and trigger CallKeep UI (handled by NotificationListener component)
+        if (isCallNotification) {
+          // CRITICAL: For incoming calls in foreground, suppress the system
+          // notification banner — CallKeep's native ConnectionService/CallKit
+          // UI will be shown instead by NotificationListener.
+          // We still play sound as a fallback in case CallKeep fails.
+          return {
+            shouldShowAlert: false, // CallKeep shows its own UI
+            shouldPlaySound: true,
+            shouldSetBadge: false,
+            shouldShowBanner: false,
+            shouldShowList: false,
+          };
+        }
+
         return {
           shouldShowAlert: true,
           shouldPlaySound: true,
-          shouldSetBadge: !isCallNotification, // Don't badge for calls
+          shouldSetBadge: true,
           shouldShowBanner: true,
-          shouldShowList: !isCallNotification, // Don't list calls in notification center
+          shouldShowList: true,
         };
       },
     });
