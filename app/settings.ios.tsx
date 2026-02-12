@@ -62,7 +62,13 @@ export default function SettingsScreenIOS() {
       headerLeft: () => null,
       headerRight: () => (
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (router.canDismiss()) {
+              router.dismiss();
+            } else {
+              router.back();
+            }
+          }}
           hitSlop={12}
           style={{
             marginRight: 8,

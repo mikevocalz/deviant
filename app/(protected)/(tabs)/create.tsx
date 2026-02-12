@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   X,
   Image as ImageIcon,
@@ -16,6 +17,8 @@ import {
   Trash2,
   Plus,
   Hash,
+  Play,
+  Pause,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -44,6 +47,83 @@ const ASPECT_RATIO = 5 / 4;
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
 const MIN_CAPTION_LENGTH = 20;
+
+function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
+
+  const togglePlay = useCallback(() => {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  }, [isPlaying, player]);
+
+  return (
+    <Pressable onPress={togglePlay} style={{ width: "100%", height: "100%" }}>
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      {/* Play/Pause overlay */}
+      {!isPlaying && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "rgba(0,0,0,0.3)",
+          }}
+        >
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Play size={24} color="#fff" fill="#fff" />
+          </View>
+        </View>
+      )}
+      {/* Duration badge */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 8,
+          left: 8,
+          backgroundColor: "rgba(0,0,0,0.7)",
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          borderRadius: 4,
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        <Video size={12} color="#fff" />
+        <Text style={{ color: "#fff", fontSize: 12 }}>
+          {duration ? `${Math.round(duration)}s` : "Video"}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
 
 export default function CreateScreen() {
   const router = useRouter();
@@ -763,34 +843,14 @@ export default function CreateScreen() {
                     backgroundColor: "#111",
                   }}
                 >
-                  <Image
-                    source={{ uri: media.uri }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-
-                  {media.type === "video" && (
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 8,
-                        left: 8,
-                        backgroundColor: "rgba(0,0,0,0.7)",
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 4,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      <Video size={12} color="#fff" />
-                      <Text style={{ color: "#fff", fontSize: 12 }}>
-                        {media.duration
-                          ? `${Math.round(media.duration)}s`
-                          : "Video"}
-                      </Text>
-                    </View>
+                  {media.type === "video" ? (
+                    <VideoPreview uri={media.uri} duration={media.duration} />
+                  ) : (
+                    <Image
+                      source={{ uri: media.uri }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
                   )}
 
                   <View
