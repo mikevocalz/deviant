@@ -116,16 +116,25 @@ serve(async (req: Request) => {
         403,
       );
 
-    // Delete media first
-    await supabaseAdmin.from("posts_media").delete().eq("parent_id", postId);
+    // Delete all dependent rows first (foreign keys may not have ON DELETE CASCADE)
+    await Promise.all([
+      supabaseAdmin.from("posts_media").delete().eq("parent_id", postId),
+      supabaseAdmin.from("comments").delete().eq("post_id", postId),
+      supabaseAdmin.from("post_likes").delete().eq("post_id", postId),
+      supabaseAdmin.from("bookmarks").delete().eq("post_id", postId),
+      supabaseAdmin.from("post_tags").delete().eq("post_id", postId),
+      supabaseAdmin.from("notifications").delete().eq("post_id", postId),
+    ]);
 
     // Delete post
     const { error } = await supabaseAdmin
       .from("posts")
       .delete()
       .eq("id", postId);
-    if (error)
+    if (error) {
+      console.error("[Edge:delete-post] DB delete error:", error);
       return errorResponse("internal_error", "Failed to delete post", 500);
+    }
 
     // Decrement user posts count
     await supabaseAdmin.rpc("decrement_posts_count", { user_id: userData.id });
