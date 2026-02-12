@@ -29,8 +29,7 @@ export function useBookmarks() {
     queryFn: () => bookmarksApi.getBookmarks(),
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
+    // Inherits global refetchOnMount: false
     enabled: !!viewerId,
   });
 }

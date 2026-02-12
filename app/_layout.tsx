@@ -65,7 +65,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 5 * 60 * 1000, // 5 min — cache is "fresh" this long
       gcTime: 30 * 60 * 1000, // 30 min — keep unused cache in memory
-      refetchOnMount: true, // fetch if stale (safe with 5min staleTime)
+      refetchOnMount: false, // render from cache, never block navigation
       refetchOnWindowFocus: false, // no flicker on app resume
       refetchOnReconnect: true, // revalidate after network recovery
       retry: 1, // single retry on failure

@@ -23,8 +23,8 @@ export function useNotificationsQuery() {
       return response.docs || [];
     },
     enabled: !!viewerId,
-    staleTime: 60 * 1000,
-    refetchOnMount: true,
+    // Inherits global staleTime (5min) + refetchOnMount: false
+    // Boot prefetch primes this cache
   });
 }
 
