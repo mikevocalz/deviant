@@ -68,22 +68,42 @@ export default {
         },
       ],
       permissions: [
+        // ── Media ──
         "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.READ_MEDIA_IMAGES",
         "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_AUDIO",
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
         "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.VIBRATE",
+        // ── Location ──
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
+        // ── Notifications ──
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        // ── CallKeep / Telecom (ConnectionService) ──
+        // READ_PHONE_STATE: required by CallKeep on Android < 30
+        "android.permission.READ_PHONE_STATE",
+        // READ_PHONE_NUMBERS: required by CallKeep on Android 30+ (API 30 = Android 11)
+        // VoiceConnectionService.createConnection() calls telecomManager.getPhoneAccount()
+        // which throws SecurityException without this permission.
+        "android.permission.READ_PHONE_NUMBERS",
+        // CALL_PHONE: required by CallKeep for outgoing call registration
+        "android.permission.CALL_PHONE",
+        // MANAGE_OWN_CALLS: required for self-managed ConnectionService
+        "android.permission.MANAGE_OWN_CALLS",
+        // BIND_TELECOM_CONNECTION_SERVICE: required for VoiceConnectionService
+        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
+        // Foreground service permissions for in-call notification
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.FOREGROUND_SERVICE_PHONE_CALL",
-        "android.permission.MANAGE_OWN_CALLS",
-        "android.permission.BIND_TELECOM_CONNECTION_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_CAMERA",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        // USE_FULL_SCREEN_INTENT: required for incoming call full-screen UI on Android 10+
+        "android.permission.USE_FULL_SCREEN_INTENT",
       ],
       config: {
         googleMaps: {

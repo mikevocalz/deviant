@@ -4,6 +4,7 @@
  * Automatically applies on every `expo prebuild`:
  * 1. Adds Regula Face SDK Maven repository
  * 2. Adds tools:replace="android:allowBackup" to fix manifest merger conflict
+ * 3. Patches CallKeep VoiceConnectionService foregroundServiceType for Android 11+
  */
 
 const {
@@ -19,7 +20,7 @@ function withRegulaMaven(config) {
     if (!contents.includes("maven.regulaforensics.com")) {
       config.modResults.contents = contents.replace(
         "maven { url 'https://www.jitpack.io' }",
-        "maven { url 'https://www.jitpack.io' }\n    maven { url 'https://maven.regulaforensics.com/RegulaDocumentReader' }"
+        "maven { url 'https://www.jitpack.io' }\n    maven { url 'https://maven.regulaforensics.com/RegulaDocumentReader' }",
       );
     }
 
@@ -30,8 +31,7 @@ function withRegulaMaven(config) {
 /** Add tools:replace="android:allowBackup" to <application> */
 function withAllowBackupFix(config) {
   return withAndroidManifest(config, (config) => {
-    const mainApplication =
-      config.modResults.manifest.application?.[0];
+    const mainApplication = config.modResults.manifest.application?.[0];
 
     if (mainApplication) {
       // Ensure tools namespace is declared
@@ -46,8 +46,34 @@ function withAllowBackupFix(config) {
       } else if (
         !mainApplication.$["tools:replace"].includes("android:allowBackup")
       ) {
-        mainApplication.$["tools:replace"] +=
-          ",android:allowBackup";
+        mainApplication.$["tools:replace"] += ",android:allowBackup";
+      }
+    }
+
+    return config;
+  });
+}
+
+/**
+ * Patch CallKeep's VoiceConnectionService to use the correct foregroundServiceType.
+ * The @config-plugins/react-native-callkeep plugin sets "phoneCall" only, but
+ * Android 11+ (API 30) requires "phoneCall|microphone|camera" for video calls
+ * that use foreground services with camera/mic access.
+ */
+function withCallKeepServiceType(config) {
+  return withAndroidManifest(config, (config) => {
+    const mainApplication = config.modResults.manifest.application?.[0];
+
+    if (mainApplication && Array.isArray(mainApplication.service)) {
+      for (const service of mainApplication.service) {
+        if (
+          service.$["android:name"] ===
+          "io.wazo.callkeep.VoiceConnectionService"
+        ) {
+          // Upgrade foregroundServiceType to include microphone + camera
+          service.$["android:foregroundServiceType"] =
+            "phoneCall|microphone|camera";
+        }
       }
     }
 
@@ -59,6 +85,7 @@ function withAllowBackupFix(config) {
 function withAndroidFixes(config) {
   config = withRegulaMaven(config);
   config = withAllowBackupFix(config);
+  config = withCallKeepServiceType(config);
   return config;
 }
 
