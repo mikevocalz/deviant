@@ -21,14 +21,17 @@ import {
   Plus,
 } from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
-import { useUIStore } from "@/lib/stores/ui-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { messagesApiClient, type Conversation } from "@/lib/api/messages";
+import { type Conversation } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
+import {
+  useUnreadMessageCount,
+  useFilteredConversations,
+} from "@/lib/hooks/use-messages";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePresenceStore } from "@/lib/stores/presence-store";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import PagerView from "react-native-pager-view";
@@ -387,20 +390,20 @@ const lynkStyles = StyleSheet.create({
 export default function MessagesScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  const isLoading = loadingScreens.messages;
   const currentUser = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
 
-  const [inboxConversations, setInboxConversations] = useState<
-    ConversationItem[]
-  >([]);
-  const [spamConversations, setSpamConversations] = useState<
-    ConversationItem[]
-  >([]);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  // TanStack Query — renders from cache instantly (primed by boot prefetch)
+  const {
+    data: inboxRaw = [],
+    isLoading: inboxLoading,
+    isRefetching: inboxRefetching,
+  } = useFilteredConversations("primary");
+  const { data: spamRaw = [] } = useFilteredConversations("requests");
+
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<PagerView>(null);
 
@@ -427,52 +430,27 @@ export default function MessagesScreen() {
     [currentUser?.username],
   );
 
-  const loadConversations = useCallback(async () => {
-    try {
-      console.log("[Messages] Loading inbox conversations...");
-
-      // Load inbox first — unblocks UI immediately
-      const inboxConvs =
-        await messagesApiClient.getFilteredConversations("primary");
-
-      const transformedInbox = inboxConvs
+  const inboxConversations = useMemo(
+    () =>
+      (inboxRaw as Conversation[])
         .map(transformConversation)
-        .filter((c): c is ConversationItem => c !== null);
+        .filter((c): c is ConversationItem => c !== null),
+    [inboxRaw, transformConversation],
+  );
 
-      setInboxConversations(transformedInbox);
-      setScreenLoading("messages", false);
+  const spamConversations = useMemo(
+    () =>
+      (spamRaw as Conversation[])
+        .map(transformConversation)
+        .filter((c): c is ConversationItem => c !== null),
+    [spamRaw, transformConversation],
+  );
 
-      console.log("[Messages] Inbox loaded:", inboxConvs.length);
-
-      // Load requests in background (user rarely sees this tab first)
-      messagesApiClient
-        .getFilteredConversations("requests")
-        .then((spamConvs) => {
-          const transformedSpam = spamConvs
-            .map(transformConversation)
-            .filter((c): c is ConversationItem => c !== null);
-          setSpamConversations(transformedSpam);
-          console.log("[Messages] Requests loaded:", spamConvs.length);
-        })
-        .catch((err) => {
-          console.error("[Messages] Error loading requests:", err);
-        });
-    } catch (error) {
-      console.error("[Messages] Error loading conversations:", error);
-    } finally {
-      setScreenLoading("messages", false);
-      setIsRefreshing(false);
-    }
-  }, [transformConversation, setScreenLoading]);
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  const isLoading = inboxLoading && inboxConversations.length === 0;
 
   const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    loadConversations();
-  }, [loadConversations]);
+    queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+  }, [queryClient]);
 
   const handleChatPress = useCallback(
     (id: string) => {
@@ -621,7 +599,7 @@ export default function MessagesScreen() {
         <View key="inbox" style={{ flex: 1 }}>
           <ConversationList
             conversations={inboxConversations}
-            isRefreshing={isRefreshing}
+            isRefreshing={inboxRefetching}
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
@@ -634,7 +612,7 @@ export default function MessagesScreen() {
         <View key="requests" style={{ flex: 1 }}>
           <ConversationList
             conversations={spamConversations}
-            isRefreshing={isRefreshing}
+            isRefreshing={inboxRefetching}
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}

@@ -47,9 +47,8 @@ export function useProfilePosts(userId: string) {
     queryKey: postKeys.profilePosts(userId),
     queryFn: () => postsApi.getProfilePosts(userId),
     enabled: !!userId,
-    staleTime: 0, // Always refetch to ensure fresh data
-    refetchOnMount: "always", // Force refetch when component mounts
-    refetchOnWindowFocus: true, // Refetch when app comes to foreground
+    // Inherits global staleTime (5min) — no override needed
+    // Profile posts update via cache invalidation after create/delete mutations
   });
 }
 
@@ -63,11 +62,8 @@ export function usePost(id: string) {
       return postsApi.getPostById(id);
     },
     enabled: !!id && id.length > 0,
-    staleTime: 30 * 1000, // 30 seconds - prevents aggressive refetching
-    gcTime: 5 * 60 * 1000, // 5 minutes cache
     retry: 2, // Retry failed requests twice
-    refetchOnMount: true, // Always fetch fresh data when component mounts
-    refetchOnWindowFocus: false, // Don't refetch on app focus (prevents flicker)
+    // Inherits global staleTime (5min) + refetchOnMount: false
   });
 }
 
@@ -276,8 +272,7 @@ export function useSyncLikedPosts() {
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
-    refetchOnMount: true,
-    refetchOnWindowFocus: false,
+    // Inherits global refetchOnMount: false
   });
 }
 

@@ -13,7 +13,7 @@ export function useUser(username: string | null | undefined) {
     queryKey: ["users", "username", username],
     queryFn: () => usersApi.getProfileByUsername(username!),
     enabled: !!username,
-    staleTime: 5000, // Shorter stale time to ensure fresh data after follow/unfollow
-    refetchOnMount: true,
+    // Inherits global staleTime (5min) + refetchOnMount: false
+    // Follow/unfollow freshness handled by cache invalidation in mutation
   });
 }

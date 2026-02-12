@@ -123,8 +123,8 @@ export function useMyProfile() {
       }
     },
     enabled: !!userId,
-    staleTime: 30 * 1000, // 30 seconds
-    refetchOnMount: true,
+    // Inherits global staleTime (5min) + refetchOnMount: false
+    // Boot prefetch primes this cache — profile renders instantly
   });
 }
 

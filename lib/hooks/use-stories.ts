@@ -28,8 +28,9 @@ export function useStories() {
   return useQuery({
     queryKey: storyKeys.list(),
     queryFn: () => storiesApiClient.getStories(),
-    staleTime: 30 * 1000,
-    refetchOnMount: "always",
+    staleTime: 60 * 1000, // 1 min — stories are time-sensitive
+    refetchInterval: 60 * 1000, // Background refresh every 60s
+    // Inherits global refetchOnMount: false — no flicker on tab switch
   });
 }
 
