@@ -24,6 +24,7 @@ import * as SecureStore from "expo-secure-store";
 import { Fingerprint, AlertCircle } from "lucide-react-native";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
+import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 
 const BIOMETRIC_ENABLED_KEY = "biometric_auth_enabled";
 
@@ -38,8 +39,26 @@ let setLockedFn: ((locked: boolean) => void) | null = null;
 
 const AUTH_COOLDOWN_MS = 3000; // ignore AppState changes for 3s after auth
 
+// Check if a call is active — biometric lock must NEVER block calls
+function isCallActive(): boolean {
+  try {
+    const phase = useVideoRoomStore.getState().callPhase;
+    // Any phase other than idle/call_ended/error means a call is in progress
+    return phase !== "idle" && phase !== "call_ended" && phase !== "error";
+  } catch {
+    return false;
+  }
+}
+
 async function promptBiometric(): Promise<boolean> {
   if (authInProgress || sessionUnlocked) return sessionUnlocked;
+  // CRITICAL: Never prompt biometric during an active call
+  if (isCallActive()) {
+    console.log("[BiometricLock] Skipping prompt — call in progress");
+    sessionUnlocked = true;
+    setLockedFn?.(false);
+    return true;
+  }
   authInProgress = true;
   console.log("[BiometricLock] Prompting biometric...");
 
@@ -82,6 +101,14 @@ function ensureAppStateListener() {
     // Notification center, Control Center also cause inactive transitions.
     // We must ONLY re-lock when the user actually backgrounded the app.
     if (next === "active" && was === "background" && !authInProgress) {
+      // CRITICAL: Never re-lock during an active call
+      if (isCallActive()) {
+        console.log(
+          "[BiometricLock] AppState: skipping re-lock — call in progress",
+        );
+        return;
+      }
+
       // Cooldown: don't re-lock if we just authenticated
       if (Date.now() - lastAuthSuccessTime < AUTH_COOLDOWN_MS) {
         console.log("[BiometricLock] AppState: skipping re-lock (cooldown)");
@@ -104,6 +131,9 @@ function ensureAppStateListener() {
 
 export function BiometricLock() {
   const { colors } = useColorScheme();
+  const callPhase = useVideoRoomStore((s) => s.callPhase);
+  const callActive =
+    callPhase !== "idle" && callPhase !== "call_ended" && callPhase !== "error";
 
   const [isLocked, setIsLocked] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
@@ -182,7 +212,8 @@ export function BiometricLock() {
     }
   };
 
-  if (!isLocked || sessionUnlocked) {
+  // CRITICAL: Never show biometric lock during an active call
+  if (!isLocked || sessionUnlocked || callActive) {
     return null;
   }
 
