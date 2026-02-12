@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -29,7 +30,10 @@ function errorResponse(code: string, message: string, status = 400): Response {
   return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
-async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
+async function verifyBetterAuthSession(
+  token: string,
+  supabaseAdmin: any,
+): Promise<{ odUserId: string; email: string } | null> {
   try {
     const { data: session, error: sessionError } = await supabaseAdmin
       .from("session")
@@ -54,12 +58,19 @@ async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promi
 }
 
 serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "POST") return errorResponse("validation_error", "Method not allowed", 405);
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: corsHeaders });
+  if (req.method !== "POST")
+    return errorResponse("validation_error", "Method not allowed", 405);
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+    if (!authHeader?.startsWith("Bearer "))
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+        401,
+      );
 
     const token = authHeader.replace("Bearer ", "");
 
@@ -71,24 +82,29 @@ serve(async (req: Request) => {
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
-    if (!session) return errorResponse("unauthorized", "Invalid or expired session", 401);
+    if (!session)
+      return errorResponse("unauthorized", "Invalid or expired session", 401);
 
     let body: { targetUserId: number };
-    try { body = await req.json(); } catch { return errorResponse("validation_error", "Invalid JSON body", 400); }
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse("validation_error", "Invalid JSON body", 400);
+    }
 
     const { targetUserId } = body;
-    if (!targetUserId) return errorResponse("validation_error", "targetUserId is required", 400);
+    if (!targetUserId)
+      return errorResponse("validation_error", "targetUserId is required", 400);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) return errorResponse("internal_error", "Server configuration error", 500);
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { data: userData } = await supabaseAdmin.from("users").select("id").eq("auth_id", session.odUserId).single();
+    const { data: userData } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("auth_id", session.odUserId)
+      .single();
     if (!userData) return errorResponse("not_found", "User not found", 404);
 
-    if (userData.id === targetUserId) return errorResponse("validation_error", "Cannot block yourself", 400);
+    if (userData.id === targetUserId)
+      return errorResponse("validation_error", "Cannot block yourself", 400);
 
     // Check if already blocked
     const { data: existingBlock } = await supabaseAdmin
@@ -106,7 +122,9 @@ serve(async (req: Request) => {
       blocked = false;
     } else {
       // Block
-      await supabaseAdmin.from("blocks").insert({ blocker_id: userData.id, blocked_id: targetUserId });
+      await supabaseAdmin
+        .from("blocks")
+        .insert({ blocker_id: userData.id, blocked_id: targetUserId });
       blocked = true;
     }
 
