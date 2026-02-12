@@ -8,6 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development",
+      "ios": {
+        "image": "latest"
+      },
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",

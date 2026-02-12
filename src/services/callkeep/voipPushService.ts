@@ -17,7 +17,15 @@ let VoipPushNotification: any = null;
 
 if (Platform.OS === "ios") {
   try {
-    VoipPushNotification = require("react-native-voip-push-notification");
+    const mod = require("react-native-voip-push-notification");
+    // Guard: module may load but native methods may be undefined in dev builds
+    if (mod && typeof mod.addEventListener === "function") {
+      VoipPushNotification = mod;
+    } else {
+      console.log(
+        "[VoipPush] Native module loaded but addEventListener not available (dev build?)",
+      );
+    }
   } catch (e) {
     console.log("[VoipPush] react-native-voip-push-notification not available");
   }
@@ -30,7 +38,9 @@ let _voipToken: string | null = null;
  * Register for VoIP push notifications (iOS only).
  * Call this after the user is authenticated.
  */
-export function registerVoipPushToken(onToken: (token: string) => void): () => void {
+export function registerVoipPushToken(
+  onToken: (token: string) => void,
+): () => void {
   if (Platform.OS !== "ios" || !VoipPushNotification) {
     return () => {};
   }
@@ -47,7 +57,10 @@ export function registerVoipPushToken(onToken: (token: string) => void): () => v
 
   // Listen for VoIP token registration
   VoipPushNotification.addEventListener("register", (token: string) => {
-    console.log("[VoipPush] VoIP token received:", token.substring(0, 20) + "...");
+    console.log(
+      "[VoipPush] VoIP token received:",
+      token.substring(0, 20) + "...",
+    );
     _voipToken = token;
     onToken(token);
   });
@@ -63,17 +76,20 @@ export function registerVoipPushToken(onToken: (token: string) => void): () => v
   });
 
   // Handle events that fired before JS bridge was ready
-  VoipPushNotification.addEventListener("didLoadWithEvents", (events: any[]) => {
-    if (!events || !Array.isArray(events) || events.length === 0) return;
-    console.log("[VoipPush] Processing cached events:", events.length);
-    for (const event of events) {
-      if (event.name === "RNVoipPushRemoteNotificationsRegisteredEvent") {
-        _voipToken = event.data;
-        onToken(event.data);
+  VoipPushNotification.addEventListener(
+    "didLoadWithEvents",
+    (events: any[]) => {
+      if (!events || !Array.isArray(events) || events.length === 0) return;
+      console.log("[VoipPush] Processing cached events:", events.length);
+      for (const event of events) {
+        if (event.name === "RNVoipPushRemoteNotificationsRegisteredEvent") {
+          _voipToken = event.data;
+          onToken(event.data);
+        }
+        // Notification events are already handled by native AppDelegate
       }
-      // Notification events are already handled by native AppDelegate
-    }
-  });
+    },
+  );
 
   // Trigger registration
   VoipPushNotification.registerVoipToken();
