@@ -37,6 +37,7 @@
 
 import { useCallback, useRef, useEffect } from "react";
 import { Platform } from "react-native";
+import { Camera } from "react-native-vision-camera";
 import {
   useConnection,
   useCamera,
@@ -1026,42 +1027,48 @@ export function useVideoCall() {
     // Audio → Video escalation
     log("[ESCALATION] Audio → Video: requesting camera permission...");
 
-    // Step 1: Request camera permission
-    const hasCamPerm = cameraRef.current.cameraDevices?.length > 0;
-    // We need to use the permission hook externally — for now, try starting camera
-    // If permission was never granted, startCamera will fail and we surface the error
+    // Step 0: Request camera permission explicitly — audio calls never request it,
+    // so the OS may not have granted it yet. Without this, startCamera() fails silently.
+    try {
+      const camStatus = await Camera.requestCameraPermission();
+      log(`[ESCALATION] Camera permission status: ${camStatus}`);
+      if (camStatus !== "granted") {
+        logError("[ESCALATION] Camera permission denied by user");
+        return false;
+      }
+    } catch (permErr) {
+      logError("[ESCALATION] Camera permission request failed:", permErr);
+      return false;
+    }
 
-    // Step 2: Start camera
+    // Step 1: Start camera
     try {
       const frontId = getFrontCameraId();
-      const [track, err] = await cameraRef.current.startCamera(frontId || null);
-      if (err) {
+      const result = await cameraRef.current.startCamera(frontId || null);
+
+      // startCamera returns [MediaStreamTrack, null] on success or [null, DeviceError] on failure
+      const track = Array.isArray(result) ? result[0] : result;
+      const err = Array.isArray(result) ? result[1] : null;
+
+      if (err || !track) {
         logError("[ESCALATION] Camera permission denied or start failed:", err);
-        s.setError(
-          "Camera permission required to switch to video. Open Settings to grant access.",
-          "escalation_camera_denied",
-        );
+        // DON'T call setError — that kills the call with callPhase="error".
+        // Escalation failure is non-fatal: call stays in audio mode.
         return false;
       }
 
-      // Verify stream
-      if (!cameraRef.current.cameraStream) {
-        logError("[ESCALATION] Camera started but stream is null");
-        s.setError("Camera stream not available", "escalation_stream_null");
-        return false;
-      }
-
-      // Step 3: Transition mode THEN enable camera
+      // Step 2: Transition mode THEN enable camera
+      // NOTE: cameraStream may not be populated synchronously — the Fishjam hook
+      // updates it via React state on the next render cycle. The localStream sync
+      // effect (cameraHook.cameraStream → store) will pick it up automatically.
+      // We trust the startCamera() return value: if it returned a track, camera is live.
       s.escalateToVideo(); // callType: audio → video
       s.setCameraOn(true); // Now safe — callType is "video"
       log("[ESCALATION] Successfully upgraded to video call");
       return true;
     } catch (e) {
       logError("[ESCALATION] Failed to start camera:", e);
-      s.setError(
-        "Failed to enable camera. Check permissions.",
-        "escalation_failed",
-      );
+      // DON'T call setError — that kills the call. Escalation failure is non-fatal.
       return false;
     }
   }, [getFrontCameraId, getStore]);

@@ -133,6 +133,16 @@ export const audioSession = {
       callback().catch((e: any) => {
         CT.error("AUDIO", "mic_start_failed_android", { error: e?.message });
       });
+    } else if (_isCallKitActivated) {
+      // iOS: CallKit ALREADY activated (race condition — callee answered before
+      // joinCall() ran). Invoke immediately since the audio session is live.
+      CT.trace("AUDIO", "mic_start_immediate_ios_already_activated");
+      console.log(
+        "[AudioSession] CallKit already activated — starting mic immediately",
+      );
+      callback().catch((e: any) => {
+        CT.error("AUDIO", "mic_start_failed_ios_late", { error: e?.message });
+      });
     } else {
       // iOS: Store for deferred execution in activateFromCallKit()
       _pendingMicStartCallback = callback;
