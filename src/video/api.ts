@@ -37,6 +37,10 @@ async function callEdgeFunction<T>(
 
     if (error) {
       console.error(`[VideoApi] ${functionName} invoke error:`, error);
+      console.error(
+        `[VideoApi] ${functionName} error details:`,
+        JSON.stringify(error),
+      );
       return {
         ok: false,
         error: {
@@ -44,6 +48,14 @@ async function callEdgeFunction<T>(
           message: error.message || "Edge function error",
         },
       };
+    }
+
+    // Log the raw response for debugging
+    if (!data || (data as any)?.ok === false) {
+      console.error(
+        `[VideoApi] ${functionName} returned not-ok:`,
+        JSON.stringify(data),
+      );
     }
 
     return data as ApiResponse<T>;

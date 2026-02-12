@@ -521,9 +521,11 @@ export function useVideoCall() {
       log("Joining room...");
 
       const joinResult = await videoApi.joinRoom(newRoomId);
+      log("Join result:", JSON.stringify(joinResult));
       if (!joinResult.ok || !joinResult.data) {
         const msg = joinResult.error?.message || "Failed to join room";
         logError("Room join failed:", msg);
+        logError("Full join response:", JSON.stringify(joinResult));
         s.setError(msg, joinResult.error?.code || "join_room_failed");
         return;
       }

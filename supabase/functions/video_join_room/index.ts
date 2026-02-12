@@ -73,7 +73,10 @@ serve(async (req: Request) => {
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
     const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } } });
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
     // Verify Better Auth session via direct DB lookup
     const { data: session, error: sessionError } = await supabase
@@ -223,7 +226,12 @@ serve(async (req: Request) => {
 
     if (!fishjamRoomId) {
       // Create Fishjam room
-      const createRoomRes = await fetch(`${fishjamBaseUrl}/room`, {
+      const fishjamRoomUrl = `${fishjamBaseUrl}/room`;
+      console.log(
+        "[video_join_room] Creating Fishjam room at:",
+        fishjamRoomUrl,
+      );
+      const createRoomRes = await fetch(fishjamRoomUrl, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${fishjamApiKey}`,
@@ -239,13 +247,18 @@ serve(async (req: Request) => {
         const errText = await createRoomRes.text();
         console.error(
           "[video_join_room] Fishjam room creation failed:",
+          createRoomRes.status,
           errText,
         );
-        return errorResponse("internal_error", "Failed to create video room");
+        return errorResponse(
+          "internal_error",
+          `Fishjam room creation failed (${createRoomRes.status}): ${errText.slice(0, 200)}`,
+        );
       }
 
       const fishjamRoom = await createRoomRes.json();
       fishjamRoomId = fishjamRoom.data.room.id;
+      console.log("[video_join_room] Fishjam room created:", fishjamRoomId);
 
       // Update room with Fishjam ID
       await supabase
@@ -268,22 +281,25 @@ serve(async (req: Request) => {
         },
         body: JSON.stringify({
           type: "webrtc",
-          options: {
-            enableSimulcast: true,
-          },
-          metadata: {
-            userId,
-            role: memberRole,
-            jti,
-          },
         }),
       },
     );
 
     if (!addPeerRes.ok) {
       const errText = await addPeerRes.text();
-      console.error("[video_join_room] Fishjam peer creation failed:", errText);
-      return errorResponse("internal_error", "Failed to join video room");
+      console.error(
+        "[video_join_room] Fishjam peer creation failed:",
+        addPeerRes.status,
+        errText,
+      );
+      console.error(
+        "[video_join_room] Fishjam URL was:",
+        `${fishjamBaseUrl}/room/${fishjamRoomId}/peer`,
+      );
+      return errorResponse(
+        "internal_error",
+        `Fishjam peer failed (${addPeerRes.status}): ${errText.slice(0, 200)}`,
+      );
     }
 
     const peerData = await addPeerRes.json();
