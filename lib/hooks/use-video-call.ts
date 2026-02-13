@@ -338,14 +338,17 @@ export function useVideoCall() {
           return;
 
         log(
-          "[MIC_SAFETY] Force-starting microphone (CallKit activation may have been missed)",
+          "[MIC_SAFETY] Force-starting microphone via toggleMicrophone (CallKit activation may have been missed)",
         );
         micStartedRef.current = true;
+        // CRITICAL FIX: Use toggleMicrophone() to both start AND publish the audio track.
         micRef.current
-          .startMicrophone()
+          .toggleMicrophone()
           .then(() => {
             getStore().setMicOn(true);
-            log("[MIC_SAFETY] Microphone force-started successfully");
+            log(
+              "[MIC_SAFETY] Microphone force-started + published via toggleMicrophone",
+            );
           })
           .catch((err: any) => {
             micStartedRef.current = false;
@@ -470,31 +473,34 @@ export function useVideoCall() {
       // ── Step 2: Start camera (VIDEO ONLY) ──────────────────────────
       if (type === "video") {
         try {
+          // CRITICAL FIX: Use toggleCamera() instead of startCamera().
+          // startCamera() (SDK's startDevice) only creates the local track but does NOT
+          // publish it to Fishjam. toggleCamera() (SDK's toggleDevice) both starts the
+          // device AND publishes the track when peerStatus === "connected".
+          // Without this, both users see their own local PIP but remote video is black.
           const frontId = getFrontCameraId();
-          const [track, err] = await cameraRef.current.startCamera(
-            frontId || null,
-          );
+          if (frontId) {
+            // Select the front camera first, then toggle on
+            await cameraRef.current.selectCamera(frontId);
+          }
+          const err = await cameraRef.current.toggleCamera();
           if (err) {
-            logError("[VIDEO] Camera startCamera returned error:", err);
+            logError("[VIDEO] Camera toggleCamera returned error:", err);
             s.setError(
-              "Camera failed to start: " + (err.name || "unknown"),
+              "Camera failed to start: " + ((err as any).name || "unknown"),
               "camera_start_failed",
             );
             return false;
           }
           s.setCameraOn(true);
           log(
-            "[VIDEO] Camera started, track:",
-            !!track,
-            "stream:",
+            "[VIDEO] Camera started + published via toggleCamera, stream:",
             !!cameraRef.current.cameraStream,
           );
 
-          // NOTE: cameraStream may be populated asynchronously by the SDK.
-          // The track being returned is what matters for WebRTC publishing.
           if (!cameraRef.current.cameraStream) {
             logWarn(
-              "[VIDEO] cameraStream is null after startCamera — track exists, stream may populate async",
+              "[VIDEO] cameraStream is null after toggleCamera — may populate async",
             );
           }
         } catch (camErr) {
@@ -720,11 +726,14 @@ export function useVideoCall() {
         }
         micStartedRef.current = true;
         try {
-          const micResult = await micRef.current.startMicrophone();
+          // CRITICAL FIX: Use toggleMicrophone() instead of startMicrophone().
+          // startMicrophone() (SDK's startDevice) only creates the local audio track
+          // but does NOT publish it to Fishjam. toggleMicrophone() (SDK's toggleDevice)
+          // both starts the device AND publishes when peerStatus === "connected".
+          await micRef.current.toggleMicrophone();
           const s = getStore();
           s.setMicOn(true);
 
-          // Verify the mic stream is actually available
           const micStream = micRef.current.microphoneStream;
           const isMicOn = micRef.current.isMicrophoneOn;
           const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
@@ -736,7 +745,7 @@ export function useVideoCall() {
             callType,
           });
           log(
-            `[${callType.toUpperCase()}] Microphone started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
+            `[${callType.toUpperCase()}] Microphone started + published via toggleMicrophone — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
           );
 
           if (!micStream || audioTrackCount === 0) {
@@ -867,11 +876,13 @@ export function useVideoCall() {
         }
         micStartedRef.current = true;
         try {
-          const micResult = await micRef.current.startMicrophone();
+          // CRITICAL FIX: Use toggleMicrophone() instead of startMicrophone().
+          // startMicrophone() only creates the local track but does NOT publish it.
+          // toggleMicrophone() both starts AND publishes when connected.
+          await micRef.current.toggleMicrophone();
           const s = getStore();
           s.setMicOn(true);
 
-          // Verify the mic stream is actually available
           const micStream = micRef.current.microphoneStream;
           const isMicOn = micRef.current.isMicrophoneOn;
           const audioTrackCount = micStream?.getAudioTracks?.()?.length ?? 0;
@@ -883,7 +894,7 @@ export function useVideoCall() {
             callType,
           });
           log(
-            `[${callType.toUpperCase()}] Callee mic started — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
+            `[${callType.toUpperCase()}] Callee mic started + published via toggleMicrophone — stream=${!!micStream}, tracks=${audioTrackCount}, isMicOn=${isMicOn}`,
           );
 
           if (!micStream || audioTrackCount === 0) {
@@ -1124,10 +1135,14 @@ export function useVideoCall() {
         log("Camera stopped");
       } else {
         try {
-          const frontId = getFrontCameraId();
-          await cameraRef.current.startCamera(frontId || null);
+          // Use toggleCamera to both start AND publish the track
+          const err = await cameraRef.current.toggleCamera();
+          if (err) {
+            logError("Failed to restart camera:", err);
+            return false;
+          }
           s.setCameraOn(true);
-          log("Camera restarted");
+          log("Camera restarted + published via toggleCamera");
         } catch (e) {
           logError("Failed to restart camera:", e);
           return false;
@@ -1160,30 +1175,25 @@ export function useVideoCall() {
     // iOS: startCamera() from Fishjam will trigger the OS permission prompt if needed.
     // No explicit request needed — the SDK handles it.
 
-    // Step 1: Start camera
+    // Step 1: Start camera via toggleCamera (starts + publishes)
     try {
+      // Transition mode FIRST so setCameraOn doesn't hit the audio-mode guard
+      s.escalateToVideo(); // callType: audio → video
+
       const frontId = getFrontCameraId();
-      const result = await cameraRef.current.startCamera(frontId || null);
-
-      // startCamera returns [MediaStreamTrack, null] on success or [null, DeviceError] on failure
-      const track = Array.isArray(result) ? result[0] : result;
-      const err = Array.isArray(result) ? result[1] : null;
-
-      if (err || !track) {
+      if (frontId) {
+        await cameraRef.current.selectCamera(frontId);
+      }
+      const err = await cameraRef.current.toggleCamera();
+      if (err) {
         logError("[ESCALATION] Camera permission denied or start failed:", err);
-        // DON'T call setError — that kills the call with callPhase="error".
-        // Escalation failure is non-fatal: call stays in audio mode.
+        // Revert escalation — call stays in audio mode
+        s.setCallType("audio");
         return false;
       }
 
-      // Step 2: Transition mode THEN enable camera
-      // NOTE: cameraStream may not be populated synchronously — the Fishjam hook
-      // updates it via React state on the next render cycle. The localStream sync
-      // effect (cameraHook.cameraStream → store) will pick it up automatically.
-      // We trust the startCamera() return value: if it returned a track, camera is live.
-      s.escalateToVideo(); // callType: audio → video
       s.setCameraOn(true); // Now safe — callType is "video"
-      log("[ESCALATION] Successfully upgraded to video call");
+      log("[ESCALATION] Successfully upgraded to video call via toggleCamera");
       return true;
     } catch (e) {
       logError("[ESCALATION] Failed to start camera:", e);
