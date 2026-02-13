@@ -11,17 +11,10 @@ import {
   KeyboardAwareScrollView,
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
-import {
-  useEffect,
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -45,7 +38,6 @@ export default function CommentsScreen() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const { commentId } = useLocalSearchParams<{ commentId?: string }>();
   const router = useRouter();
-  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const user = useAuthStore((s) => s.user);
   const showToast = useUIStore((s) => s.showToast);
@@ -65,13 +57,6 @@ export default function CommentsScreen() {
   // @mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
   const inputRef = useRef<TextInput>(null);
-
-  // Set TrueSheet header prop — fixed above scrollable content
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      header: <SheetHeader title="Comments" onClose={() => router.back()} />,
-    });
-  }, [navigation, router]);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
@@ -316,6 +301,7 @@ export default function CommentsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <SheetHeader title="Comments" onClose={() => router.back()} />
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
