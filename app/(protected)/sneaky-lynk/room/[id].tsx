@@ -42,6 +42,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { audioSession } from "@/src/services/calls/audioSession";
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
@@ -158,11 +159,13 @@ function LocalRoom({
     requestMicPermission();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Start mic on mount (audio still goes through Fishjam for future server rooms)
+  // Start audio session + mic on mount
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
+        // Configure audio session BEFORE starting mic (no CallKit for Lynk rooms)
+        audioSession.startForLynk(roomHasVideo);
         console.log("[SneakyLynk:Local] Starting mic");
         await micRef.current.startMicrophone();
         if (!cancelled) console.log("[SneakyLynk:Local] Mic started");
@@ -173,6 +176,7 @@ function LocalRoom({
     return () => {
       cancelled = true;
       micRef.current.stopMicrophone();
+      audioSession.stop();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -386,6 +390,10 @@ function ServerRoom({
       const joined = await videoRoom.join();
       if (joined && !cancelled) {
         try {
+          // Configure audio session BEFORE starting mic (same fix as chat calls).
+          // Lynk rooms don't use CallKit, so use startForLynk() which immediately
+          // activates the iOS audio session instead of deferring to CallKit.
+          audioSession.startForLynk(roomHasVideo);
           if (roomHasVideo) await videoRoom.toggleCamera();
           await videoRoom.toggleMic();
         } catch (e) {
@@ -396,6 +404,7 @@ function ServerRoom({
     return () => {
       cancelled = true;
       videoRoom.leave();
+      audioSession.stop();
     };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 

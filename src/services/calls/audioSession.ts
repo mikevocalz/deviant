@@ -126,6 +126,42 @@ export const audioSession = {
   },
 
   /**
+   * Start audio session for Lynk rooms (no CallKit involved).
+   * Configures AVAudioSession AND immediately activates it on iOS.
+   * Use this instead of start() + setPendingMicStart() for non-call contexts
+   * where CallKit will never fire didActivateAudioSession.
+   */
+  startForLynk(speakerOn: boolean = false): void {
+    CT.trace("AUDIO", "audioSession_startForLynk", { speakerOn });
+    try {
+      _pendingMicStartCallback = null;
+      _pendingSpeakerOn = null;
+
+      InCallManager.start({ media: "audio", auto: true });
+      _isActive = true;
+
+      if (Platform.OS === "ios") {
+        // No CallKit → manually activate the audio session
+        RTCAudioSession.audioSessionDidActivate();
+        _isCallKitActivated = true;
+      }
+
+      InCallManager.setForceSpeakerphoneOn(speakerOn);
+      _isSpeakerOn = speakerOn;
+      InCallManager.setMicrophoneMute(false);
+      _isMicMuted = false;
+
+      CT.trace("AUDIO", "audioSession_lynk_ready", { speakerOn });
+      console.log(`[AudioSession] Lynk session ready (speaker=${speakerOn})`);
+    } catch (e: any) {
+      CT.error("AUDIO", "audioSession_startForLynk_failed", {
+        error: e?.message,
+      });
+      console.error("[AudioSession] startForLynk failed:", e);
+    }
+  },
+
+  /**
    * CRITICAL FIX (iOS only): Set a callback that will start the microphone
    * AFTER CallKit activates the audio session. This ensures the mic track
    * is created on an ACTIVE audio session, not a dead one.
