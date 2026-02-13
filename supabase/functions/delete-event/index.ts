@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -27,33 +28,6 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
 
 function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
-}
-
-async function verifyBetterAuthSession(
-  token: string,
-  supabaseAdmin: any,
-): Promise<{ odUserId: string; email: string } | null> {
-  try {
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("id, token, userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !session) return null;
-    if (new Date(session.expiresAt) < new Date()) return null;
-
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("user")
-      .select("id, email, name")
-      .eq("id", session.userId)
-      .single();
-
-    if (userError || !user) return null;
-    return { odUserId: user.id, email: user.email || "" };
-  } catch {
-    return null;
-  }
 }
 
 serve(async (req: Request) => {
@@ -76,11 +50,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse(
-        "internal_error",
-        "Server configuration error",
-        500,
-      );
+      return errorResponse("internal_error", "Server configuration error", 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -88,9 +58,21 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
     });
 
-    const session = await verifyBetterAuthSession(token, supabaseAdmin);
-    if (!session)
+    // Verify Better Auth session via direct DB lookup
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
+
+    if (sessionError || !sessionData) {
       return errorResponse("unauthorized", "Invalid or expired session");
+    }
+    if (new Date(sessionData.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired");
+    }
+
+    const authUserId = sessionData.userId;
 
     let body: { eventId: number };
     try {
@@ -103,16 +85,15 @@ serve(async (req: Request) => {
     if (!eventId)
       return errorResponse("validation_error", "eventId is required");
 
-    console.log("[Edge:delete-event] eventId:", eventId, "user:", session.odUserId);
+    console.log("[Edge:delete-event] eventId:", eventId, "user:", authUserId);
 
     // Look up the app user row
     const { data: userData } = await supabaseAdmin
       .from("users")
       .select("id, auth_id")
-      .eq("auth_id", session.odUserId)
+      .eq("auth_id", authUserId)
       .single();
-    if (!userData)
-      return errorResponse("not_found", "User not found");
+    if (!userData) return errorResponse("not_found", "User not found");
 
     // Fetch the event
     const { data: event, error: fetchError } = await supabaseAdmin
@@ -127,7 +108,7 @@ serve(async (req: Request) => {
     // Verify ownership: host_id could be auth_id (string) or user id (integer as string)
     const hostId = String(event.host_id);
     const isOwner =
-      hostId === session.odUserId ||
+      hostId === authUserId ||
       hostId === String(userData.id) ||
       hostId === String(userData.auth_id);
 
@@ -136,7 +117,7 @@ serve(async (req: Request) => {
         "[Edge:delete-event] Ownership mismatch — hostId:",
         hostId,
         "authId:",
-        session.odUserId,
+        authUserId,
         "userId:",
         userData.id,
       );
@@ -158,10 +139,16 @@ serve(async (req: Request) => {
     const results = await Promise.allSettled(relatedDeletes);
     results.forEach((r, i) => {
       if (r.status === "rejected") {
-        console.warn(`[Edge:delete-event] related delete ${i} failed:`, r.reason);
+        console.warn(
+          `[Edge:delete-event] related delete ${i} failed:`,
+          r.reason,
+        );
       } else if (r.status === "fulfilled" && r.value?.error) {
         // Table might not exist yet — that's OK
-        console.warn(`[Edge:delete-event] related delete ${i} DB error:`, r.value.error.message);
+        console.warn(
+          `[Edge:delete-event] related delete ${i} DB error:`,
+          r.value.error.message,
+        );
       }
     });
 
@@ -181,10 +168,6 @@ serve(async (req: Request) => {
     return jsonResponse({ ok: true, data: { success: true } });
   } catch (err) {
     console.error("[Edge:delete-event] Error:", err);
-    return errorResponse(
-      "internal_error",
-      "An unexpected error occurred",
-      500,
-    );
+    return errorResponse("internal_error", "An unexpected error occurred", 500);
   }
 });

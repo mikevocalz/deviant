@@ -141,33 +141,6 @@ function buildResetPasswordEmail(url: string): {
 
 // ─── Auth verification (optional — for authenticated callers) ────────────────
 
-async function verifyBetterAuthSession(
-  token: string,
-  supabaseAdmin: any,
-): Promise<{ userId: string; email: string } | null> {
-  try {
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("id, token, userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !session) return null;
-    if (new Date(session.expiresAt) < new Date()) return null;
-
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("user")
-      .select("id, email, name")
-      .eq("id", session.userId)
-      .single();
-
-    if (userError || !user) return null;
-    return { userId: user.id, email: user.email || "" };
-  } catch {
-    return null;
-  }
-}
-
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {

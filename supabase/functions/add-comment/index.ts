@@ -31,33 +31,6 @@ function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
-async function verifyBetterAuthSession(
-  token: string,
-  supabaseAdmin: any,
-): Promise<{ odUserId: string; email: string } | null> {
-  try {
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("id, token, userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !session) return null;
-    if (new Date(session.expiresAt) < new Date()) return null;
-
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("user")
-      .select("id, email, name")
-      .eq("id", session.userId)
-      .single();
-
-    if (userError || !user) return null;
-    return { odUserId: user.id, email: user.email || "" };
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -84,14 +57,26 @@ serve(async (req: Request) => {
     if (!supabaseUrl || !supabaseServiceKey) {
       return errorResponse("internal_error", "Server configuration error");
     }
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
-    const session = await verifyBetterAuthSession(token, supabaseAdmin);
-    if (!session) {
+    // Verify Better Auth session via direct DB lookup
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
+
+    if (sessionError || !sessionData) {
       return errorResponse("unauthorized", "Invalid or expired session");
     }
+    if (new Date(sessionData.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired");
+    }
 
-    const { odUserId } = session;
+    const authUserId = sessionData.userId;
 
     let body: { postId: number; content: string };
     try {
@@ -120,7 +105,7 @@ serve(async (req: Request) => {
     const { data: userData, error: userError } = await supabaseAdmin
       .from("users")
       .select("id, username, first_name, avatar:avatar_id(url)")
-      .eq("auth_id", odUserId)
+      .eq("auth_id", authUserId)
       .single();
 
     if (userError || !userData) {
