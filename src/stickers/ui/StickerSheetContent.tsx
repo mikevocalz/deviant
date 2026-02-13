@@ -5,7 +5,7 @@
  * until Klipy API key is approved. Supports category tabs and search.
  */
 
-import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -24,7 +24,6 @@ import * as Haptics from "expo-haptics";
 import {
   stickerPacks,
   LOCAL_STICKER_MODULES,
-  resolveLocalStickers,
 } from "@/lib/constants/sticker-packs";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -57,10 +56,8 @@ const ALL_ITEMS = Object.entries(stickerPacks).flatMap(([category, urls]) =>
   urls.map((url) => ({ url, category })),
 );
 
-// Sticker item: either a remote URL string or a local asset module number
-type StickerItem =
-  | { uri: string; isLocal: false }
-  | { moduleId: number; isLocal: true };
+// Sticker item: string URI (remote) or number (local asset module ID)
+type StickerItem = string | number;
 
 // ── Main Component ─────────────────────────────────────
 
@@ -73,31 +70,14 @@ export const StickerSheetContent = memo(function StickerSheetContent({
 }: StickerSheetContentProps) {
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("dvnt");
   const [searchQuery, setSearchQuery] = useState("");
-  const [localStickers, setLocalStickers] = useState<{
-    dvnt: string[];
-    ballroom: string[];
-  } | null>(null);
-
-  // Resolve local sticker assets to file URIs on mount
-  useEffect(() => {
-    resolveLocalStickers().then(setLocalStickers).catch(console.warn);
-  }, []);
 
   const filteredStickers = useMemo((): StickerItem[] => {
-    // Local pack tabs
+    // Local pack tabs — return module IDs (numbers)
     if (activeCategory === "dvnt" || activeCategory === "ballroom") {
-      if (!localStickers) {
-        // Not resolved yet — show module IDs for preview
-        const modules = LOCAL_STICKER_MODULES[activeCategory];
-        return modules.map((mod) => ({ moduleId: mod, isLocal: true }));
-      }
-      return localStickers[activeCategory].map((uri) => ({
-        uri,
-        isLocal: false,
-      }));
+      return [...LOCAL_STICKER_MODULES[activeCategory]];
     }
 
-    // Remote sticker packs
+    // Remote sticker packs — return URL strings
     let items =
       activeCategory === "all"
         ? ALL_ITEMS
@@ -110,11 +90,12 @@ export const StickerSheetContent = memo(function StickerSheetContent({
       );
     }
 
-    return items.map((item) => ({ uri: item.url, isLocal: false }));
-  }, [activeCategory, searchQuery, localStickers]);
+    return items.map((item) => item.url);
+  }, [activeCategory, searchQuery]);
 
   const handleSelect = useCallback(
     (uri: string) => {
+      console.log("[StickerSheet] Selected sticker URI:", uri);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       onSelect(uri);
     },
@@ -123,22 +104,17 @@ export const StickerSheetContent = memo(function StickerSheetContent({
 
   const renderItem = useCallback(
     ({ item }: { item: StickerItem }) => {
-      if (item.isLocal) {
-        return (
-          <LocalStickerGridItem
-            moduleId={item.moduleId}
-            onPress={handleSelect}
-          />
-        );
+      if (typeof item === "number") {
+        return <LocalStickerGridItem moduleId={item} onPress={handleSelect} />;
       }
-      return <StickerGridItem uri={item.uri} onPress={handleSelect} />;
+      return <StickerGridItem uri={item} onPress={handleSelect} />;
     },
     [handleSelect],
   );
 
   const keyExtractor = useCallback(
     (item: StickerItem, index: number) =>
-      item.isLocal ? `local-${item.moduleId}-${index}` : `${item.uri}-${index}`,
+      typeof item === "number" ? `local-${item}-${index}` : `${item}-${index}`,
     [],
   );
 
@@ -221,7 +197,6 @@ export const StickerSheetContent = memo(function StickerSheetContent({
           columnWrapperStyle={{ gap: GRID_GAP, rowGap: GRID_GAP }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          recycleItems
           estimatedItemSize={ITEM_SIZE}
         />
       )}
@@ -301,10 +276,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   tab: {
-    paddingVertical: 8,
+    height: 36,
     paddingHorizontal: 14,
     borderRadius: 10,
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "rgba(255,255,255,0.06)",
     flexDirection: "row",
     gap: 6,

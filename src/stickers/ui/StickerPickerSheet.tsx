@@ -39,6 +39,7 @@ export const StickerPickerSheet = memo(function StickerPickerSheet({
 
   const handleSelect = useCallback(
     (uri: string) => {
+      console.log("[StickerPicker] Adding sticker to selection:", uri);
       addSelectedSticker(uri);
     },
     [addSelectedSticker],
@@ -47,6 +48,11 @@ export const StickerPickerSheet = memo(function StickerPickerSheet({
   const handleDone = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const stickers = [...selectedStickers];
+    console.log(
+      "[StickerPicker] Done with stickers:",
+      stickers.length,
+      stickers,
+    );
     closeSheet();
     clearSelectedStickers();
     onDone(stickers);
