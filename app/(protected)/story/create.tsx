@@ -325,9 +325,25 @@ export default function CreateStoryScreen() {
     [currentIndex, handleEditImage],
   );
 
-  const handleShare = async () => {
-    if (isSharing || createStory.isPending) return;
-    if (selectedMedia.length === 0) {
+  const handleShare = useCallback(async () => {
+    console.log("[Story] handleShare called", {
+      isSharing,
+      isPending: createStory.isPending,
+      selectedMediaCount: selectedMedia.length,
+      mediaAssetsCount: mediaAssets.length,
+      visibility,
+    });
+
+    if (isSharing || createStory.isPending) {
+      console.log(
+        "[Story] handleShare blocked: isSharing=",
+        isSharing,
+        "isPending=",
+        createStory.isPending,
+      );
+      return;
+    }
+    if (mediaAssets.length === 0) {
       showToast("warning", "Empty Story", "Please add media to your story");
       return;
     }
@@ -340,13 +356,27 @@ export default function CreateStoryScreen() {
         uri: m.uri,
         type: m.type as "image" | "video",
       }));
+      console.log("[Story] Uploading", mediaFiles.length, "files");
 
       const uploadResults = await uploadMultiple(mediaFiles);
+      console.log(
+        "[Story] Upload results:",
+        uploadResults.map((r) => ({
+          success: r.success,
+          url: r.url?.substring(0, 50),
+          error: r.error,
+        })),
+      );
       const failedUploads = uploadResults.filter((r) => !r.success);
 
       if (failedUploads.length > 0) {
+        console.error("[Story] Upload failures:", failedUploads);
         setIsSharing(false);
-        showToast("error", "Upload Error", "Failed to upload media.");
+        showToast(
+          "error",
+          "Upload Error",
+          failedUploads[0]?.error || "Failed to upload media.",
+        );
         return;
       }
 
@@ -355,11 +385,13 @@ export default function CreateStoryScreen() {
         url: r.url,
         thumbnail: r.thumbnail,
       }));
+      console.log("[Story] Creating story with", storyItems.length, "items");
 
       createStory.mutate(
         { items: storyItems, visibility },
         {
           onSuccess: (newStory: any) => {
+            console.log("[Story] Story created!", newStory?.id);
             // Save tags if any users were tagged
             if (taggedUsers.length > 0 && newStory?.id) {
               const tags = taggedUsers.map((u) => ({
@@ -379,6 +411,7 @@ export default function CreateStoryScreen() {
             router.back();
           },
           onError: (error: any) => {
+            console.error("[Story] createStory mutation error:", error);
             setIsSharing(false);
             showToast(
               "error",
@@ -388,11 +421,24 @@ export default function CreateStoryScreen() {
           },
         },
       );
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[Story] handleShare error:", error);
       setIsSharing(false);
-      showToast("error", "Error", "Something went wrong.");
+      showToast("error", "Error", error?.message || "Something went wrong.");
     }
-  };
+  }, [
+    isSharing,
+    createStory,
+    selectedMedia.length,
+    mediaAssets,
+    visibility,
+    uploadMultiple,
+    taggedUsers,
+    showToast,
+    reset,
+    setMediaAssets,
+    router,
+  ]);
 
   const handleClose = () => {
     if (selectedMedia.length > 0) {
@@ -415,7 +461,7 @@ export default function CreateStoryScreen() {
 
   const currentMedia = selectedMedia[currentIndex];
   const currentMediaType = mediaTypes[currentIndex];
-  const isValid = selectedMedia.length > 0;
+  const isValid = mediaAssets.length > 0;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -553,9 +599,8 @@ export default function CreateStoryScreen() {
                             } else if (tool.id === "text") {
                               handleEditImage(currentIndex, "text");
                             } else if (tool.id === "stickers") {
-                              // Open the sticker picker sheet — user browses/selects,
-                              // then handleStickersDone passes them to the native editor
-                              openStickerSheet();
+                              // Open native editor directly with all stickers
+                              handleEditImage(currentIndex, "stickers");
                             } else if (tool.id === "draw") {
                               handleEditImage(currentIndex, "draw");
                             } else if (tool.id === "effects") {
