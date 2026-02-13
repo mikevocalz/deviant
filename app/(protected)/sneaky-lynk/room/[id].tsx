@@ -326,6 +326,10 @@ function ServerRoom({
   const authUser = useAuthStore((s) => s.user);
   const endRoomHistory = useLynkHistoryStore((s) => s.endRoom);
 
+  // VisionCamera permissions for native camera fallback
+  const { requestPermission: requestCamPermission } = useCameraPermission();
+  const { requestPermission: requestMicPermission } = useMicrophonePermission();
+
   const {
     isHandRaised,
     activeSpeakerId,
@@ -370,9 +374,11 @@ function ServerRoom({
           | "reconnecting"
           | "disconnected");
 
-  // Reset store on mount
+  // Reset store on mount, request permissions
   useEffect(() => {
     reset();
+    if (roomHasVideo) requestCamPermission();
+    requestMicPermission();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Join room on mount
@@ -382,7 +388,7 @@ function ServerRoom({
       const joined = await videoRoom.join();
       if (joined && !cancelled) {
         try {
-          await videoRoom.toggleCamera();
+          if (roomHasVideo) await videoRoom.toggleCamera();
           await videoRoom.toggleMic();
         } catch (e) {
           console.warn("[SneakyLynk:Server] Failed to start media:", e);
@@ -518,6 +524,10 @@ function ServerRoom({
   const totalParticipants =
     videoRoom.participants.length + 1 + storeListeners.length;
 
+  // Use native camera preview for local user so video shows instantly
+  // (Fishjam stream may take a moment to propagate)
+  const useNativeForLocal = roomHasVideo && !cameraStream;
+
   return (
     <RoomLayout
       insets={insets}
@@ -528,8 +538,9 @@ function ServerRoom({
       featuredSpeaker={featuredSpeaker}
       coHost={coHostFeatured}
       isLocalUser={featuredSpeakerUser.id === localUser.id}
-      effectiveVideoOn={effectiveVideoOn}
+      effectiveVideoOn={effectiveVideoOn || (roomHasVideo && useNativeForLocal)}
       cameraStream={cameraStream}
+      useNativeCamera={useNativeForLocal}
       speakers={speakers}
       activeSpeakers={activeSpeakers}
       storeListeners={storeListeners}
