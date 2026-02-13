@@ -141,10 +141,6 @@ function LocalRoom({
     reset,
   } = useRoomStore();
 
-  const [chatMessages, setChatMessages] = React.useState<
-    Array<{ id: string; user: SneakyUser; content: string; timestamp: Date }>
-  >([]);
-
   // Local video on/off state (CameraView doesn't have isCameraOn)
   const [localVideoOn, setLocalVideoOn] = React.useState(roomHasVideo);
 
@@ -211,20 +207,6 @@ function LocalRoom({
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      setChatMessages((prev) => [
-        {
-          id: `msg-${Date.now()}`,
-          user: localUser,
-          content,
-          timestamp: new Date(),
-        },
-        ...prev,
-      ]);
-    },
-    [localUser],
-  );
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -297,7 +279,7 @@ function LocalRoom({
       isChatOpen={isChatOpen}
       showEjectModal={showEjectModal}
       ejectPayload={ejectPayload}
-      chatMessages={chatMessages}
+      roomId={id}
       localUser={localUser}
       onLeave={handleLeave}
       onToggleMic={handleToggleMic}
@@ -305,7 +287,6 @@ function LocalRoom({
       onToggleHand={handleToggleHand}
       onChat={handleChat}
       onCloseChat={handleCloseChat}
-      onSendMessage={handleSendMessage}
       onEjectDismiss={handleEjectDismiss}
     />
   );
@@ -348,10 +329,6 @@ function ServerRoom({
     hideEject,
     reset,
   } = useRoomStore();
-
-  const [chatMessages, setChatMessages] = React.useState<
-    Array<{ id: string; user: SneakyUser; content: string; timestamp: Date }>
-  >([]);
 
   const videoRoom = useVideoRoom({
     roomId: id || "",
@@ -458,20 +435,6 @@ function ServerRoom({
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      setChatMessages((prev) => [
-        {
-          id: `msg-${Date.now()}`,
-          user: localUser,
-          content,
-          timestamp: new Date(),
-        },
-        ...prev,
-      ]);
-    },
-    [localUser],
-  );
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -628,7 +591,7 @@ function ServerRoom({
       isChatOpen={isChatOpen}
       showEjectModal={showEjectModal}
       ejectPayload={ejectPayload}
-      chatMessages={chatMessages}
+      roomId={id}
       localUser={localUser}
       onLeave={handleLeave}
       onToggleMic={handleToggleMic}
@@ -636,7 +599,6 @@ function ServerRoom({
       onToggleHand={handleToggleHand}
       onChat={handleChat}
       onCloseChat={handleCloseChat}
-      onSendMessage={handleSendMessage}
       onEjectDismiss={handleEjectDismiss}
     />
   );
@@ -668,7 +630,7 @@ function RoomLayout({
   isChatOpen,
   showEjectModal,
   ejectPayload,
-  chatMessages,
+  roomId,
   localUser,
   onLeave,
   onToggleMic,
@@ -676,7 +638,6 @@ function RoomLayout({
   onToggleHand,
   onChat,
   onCloseChat,
-  onSendMessage,
   onEjectDismiss,
 }: {
   insets: any;
@@ -702,7 +663,7 @@ function RoomLayout({
   isChatOpen: boolean;
   showEjectModal: boolean;
   ejectPayload: any;
-  chatMessages: any[];
+  roomId: string;
   localUser: SneakyUser;
   onLeave: () => void;
   onToggleMic: () => void;
@@ -710,7 +671,6 @@ function RoomLayout({
   onToggleHand: () => void;
   onChat: () => void;
   onCloseChat: () => void;
-  onSendMessage: (content: string) => void;
   onEjectDismiss: () => void;
 }) {
   const listeners = (storeListeners || []).map((l) => ({
@@ -812,13 +772,17 @@ function RoomLayout({
         onDismiss={onEjectDismiss}
       />
 
-      {/* Chat Sheet (75% height) */}
+      {/* Chat Sheet — threaded comments with @mentions */}
       <ChatSheet
         isOpen={isChatOpen}
         onClose={onCloseChat}
-        messages={chatMessages}
-        onSendMessage={onSendMessage}
+        roomId={roomId}
         currentUser={localUser}
+        participants={[
+          localUser,
+          ...speakers.map((s: any) => s.user),
+          ...listeners.map((l: any) => l.user),
+        ]}
       />
     </View>
   );
