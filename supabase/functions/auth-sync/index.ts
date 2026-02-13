@@ -46,26 +46,6 @@ function errorResponse(
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
-interface BetterAuthSession {
-  user: {
-    id: string;
-    email: string;
-    name?: string;
-    image?: string;
-  };
-  session: {
-    id: string;
-    userId: string;
-    token: string;
-  };
-}
-
-/**
- * Verify Better Auth session by querying the database directly.
- * This avoids the cookie-signature issue with HTTP-based verification.
- * Both Edge Functions share the same Supabase database.
- */
-
 serve(async (req: Request) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -105,7 +85,6 @@ serve(async (req: Request) => {
     });
 
     // 3. Verify Better Auth session via direct DB lookup
-    // Verify Better Auth session via direct DB lookup
     const { data: sessionData, error: sessionError } = await supabaseAdmin
       .from("session")
       .select("id, token, userId, expiresAt")
@@ -119,11 +98,26 @@ serve(async (req: Request) => {
       return errorResponse("unauthorized", "Session expired");
     }
 
-    const authUserId = sessionData.userId;
+    const authId = sessionData.userId;
 
-    const authId = session.user.id;
-    const email = session.user.email;
-    const name = session.user.name || "";
+    // Fetch email and name from Better Auth user table (needed for user creation/sync)
+    const { data: baUser, error: baUserError } = await supabaseAdmin
+      .from("user")
+      .select("id, email, name, image")
+      .eq("id", authId)
+      .single();
+
+    if (baUserError || !baUser) {
+      console.error(
+        "[Edge:auth-sync] Better Auth user lookup failed:",
+        authId,
+        baUserError?.message,
+      );
+      return errorResponse("unauthorized", "User account not found");
+    }
+
+    const email = baUser.email;
+    const name = baUser.name || "";
 
     console.log("[Edge:auth-sync] Syncing user:", { authId, email });
 

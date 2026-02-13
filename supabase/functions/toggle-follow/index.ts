@@ -77,6 +77,12 @@ serve(async (req: Request) => {
     }
 
     const authUserId = sessionData.userId;
+    console.log(
+      "[Edge:toggle-follow] authUserId from session:",
+      authUserId,
+      "type:",
+      typeof authUserId,
+    );
 
     let body: { targetUserId: number };
     try {
@@ -102,6 +108,24 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
+      console.error(
+        "[Edge:toggle-follow] User lookup failed — authUserId:",
+        authUserId,
+        "error:",
+        userError?.message,
+        "code:",
+        userError?.code,
+      );
+      // Fallback: try looking up by email from Better Auth user table
+      const { data: baUser } = await supabaseAdmin
+        .from("user")
+        .select("id, email")
+        .eq("id", authUserId)
+        .single();
+      console.error(
+        "[Edge:toggle-follow] Better Auth user row:",
+        baUser ? { id: baUser.id, email: baUser.email } : "NOT FOUND",
+      );
       return errorResponse("not_found", "User not found");
     }
 
