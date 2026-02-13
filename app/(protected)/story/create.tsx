@@ -42,7 +42,10 @@ import {
 } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
-import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
+import {
+  ALL_STICKERS,
+  resolveLocalStickers,
+} from "@/lib/constants/sticker-packs";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
 // Instagram-style creative tools - vertical toolbar
@@ -542,7 +545,28 @@ export default function CreateStoryScreen() {
                             } else if (tool.id === "text") {
                               handleEditImage(currentIndex, "text");
                             } else if (tool.id === "stickers") {
-                              openStickerSheet();
+                              // Resolve local stickers then open native editor with all stickers
+                              resolveLocalStickers()
+                                .then((local) => {
+                                  const allStickers = [
+                                    ...local.dvnt,
+                                    ...local.ballroom,
+                                    ...ALL_STICKERS,
+                                  ];
+                                  handleEditImage(
+                                    currentIndex,
+                                    "stickers",
+                                    allStickers,
+                                  );
+                                })
+                                .catch(() => {
+                                  // Fallback: open with remote stickers only
+                                  handleEditImage(
+                                    currentIndex,
+                                    "stickers",
+                                    ALL_STICKERS,
+                                  );
+                                });
                             } else if (tool.id === "draw") {
                               handleEditImage(currentIndex, "draw");
                             } else if (tool.id === "effects") {
