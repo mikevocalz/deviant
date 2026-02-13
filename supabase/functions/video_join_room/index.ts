@@ -236,11 +236,12 @@ serve(async (req: Request) => {
         }
       });
 
-    // Always create a fresh Fishjam room (old rooms may be stale after key rotation)
-    let fishjamRoomId: string | null = null;
+    // Reuse existing Fishjam room if one exists; only create a new one if needed.
+    // CRITICAL: Creating a new room on every join puts each participant in a
+    // separate Fishjam room, breaking all calls with peer_join_failed.
+    let fishjamRoomId: string | null = room.fishjam_room_id || null;
 
-    {
-      // Create Fishjam room
+    async function createFishjamRoom(): Promise<string> {
       const fishjamRoomUrl = `${fishjamBaseUrl}/room`;
       console.log(
         "[video_join_room] Creating Fishjam room at:",
@@ -265,21 +266,36 @@ serve(async (req: Request) => {
           createRoomRes.status,
           errText,
         );
-        return errorResponse(
-          "internal_error",
+        throw new Error(
           `Fishjam room creation failed (${createRoomRes.status}): ${errText.slice(0, 200)}`,
         );
       }
 
       const fishjamRoom = await createRoomRes.json();
-      fishjamRoomId = fishjamRoom.data.room.id;
-      console.log("[video_join_room] Fishjam room created:", fishjamRoomId);
+      const newRoomId = fishjamRoom.data.room.id;
+      console.log("[video_join_room] Fishjam room created:", newRoomId);
 
-      // Update room with Fishjam ID
+      // Persist Fishjam room ID so subsequent joiners reuse it
       await supabase
         .from("video_rooms")
-        .update({ fishjam_room_id: fishjamRoomId })
+        .update({ fishjam_room_id: newRoomId })
         .eq("id", internalRoomId);
+
+      return newRoomId;
+    }
+
+    // Create Fishjam room only if one doesn't exist yet
+    if (!fishjamRoomId) {
+      try {
+        fishjamRoomId = await createFishjamRoom();
+      } catch (e: any) {
+        return errorResponse("internal_error", e.message);
+      }
+    } else {
+      console.log(
+        "[video_join_room] Reusing existing Fishjam room:",
+        fishjamRoomId,
+      );
     }
 
     // Create peer in Fishjam and get token
@@ -301,36 +317,13 @@ serve(async (req: Request) => {
     // If 404 or 401, the Fishjam room is stale (deleted or key rotated). Create a fresh one and retry.
     if (addPeerRes.status === 404 || addPeerRes.status === 401) {
       console.warn(
-        `[video_join_room] Fishjam peer returned ${addPeerRes.status} — recreating room`,
+        `[video_join_room] Fishjam peer returned ${addPeerRes.status} — room stale, recreating`,
       );
-      const freshRes = await fetch(`${fishjamBaseUrl}/room`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${fishjamApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          maxPeers: room.max_participants,
-          videoCodec: "h264",
-        }),
-      });
-      if (!freshRes.ok) {
-        const errText = await freshRes.text();
-        return errorResponse(
-          "internal_error",
-          `Fishjam room re-creation failed: ${errText.slice(0, 200)}`,
-        );
+      try {
+        fishjamRoomId = await createFishjamRoom();
+      } catch (e: any) {
+        return errorResponse("internal_error", e.message);
       }
-      const freshRoom = await freshRes.json();
-      fishjamRoomId = freshRoom.data.room.id;
-      await supabase
-        .from("video_rooms")
-        .update({ fishjam_room_id: fishjamRoomId })
-        .eq("id", internalRoomId);
-      console.log(
-        "[video_join_room] Fresh Fishjam room created:",
-        fishjamRoomId,
-      );
 
       addPeerRes = await fetch(`${fishjamBaseUrl}/room/${fishjamRoomId}/peer`, {
         method: "POST",
