@@ -147,20 +147,26 @@ export function UserMentionAutocomplete({
   );
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.inputContainer, { backgroundColor: colors.card }]}>
-        <TextInput
-          value={value}
-          onChangeText={handleTextChange}
-          onSelectionChange={handleSelectionChange}
-          placeholder={placeholder}
-          placeholderTextColor={colors.mutedForeground}
-          multiline={multiline}
-          maxLength={maxLength}
-          style={[styles.input, { color: colors.foreground }, style]}
-          textAlignVertical="top"
-        />
-      </View>
+    <View
+      style={[styles.container, showSuggestions && styles.containerElevated]}
+    >
+      <TextInput
+        value={value}
+        onChangeText={handleTextChange}
+        onSelectionChange={handleSelectionChange}
+        placeholder={placeholder}
+        placeholderTextColor={colors.mutedForeground}
+        multiline={multiline}
+        maxLength={maxLength}
+        style={[
+          styles.input,
+          { color: colors.foreground, backgroundColor: colors.card },
+          style,
+        ]}
+        textAlignVertical="top"
+        scrollEnabled={false}
+        editable={true}
+      />
 
       {showSuggestions && (
         <View
@@ -202,16 +208,16 @@ export function UserMentionAutocomplete({
 const styles = StyleSheet.create({
   container: {
     position: "relative",
+  },
+  containerElevated: {
     zIndex: 9999,
     elevation: 9999,
-  },
-  inputContainer: {
-    borderRadius: 12,
-    padding: 12,
   },
   input: {
     fontSize: 16,
     minHeight: 80,
+    borderRadius: 12,
+    padding: 12,
   },
   suggestionsContainer: {
     position: "absolute",
