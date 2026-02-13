@@ -73,7 +73,7 @@ export const StickerPickerSheet = memo(function StickerPickerSheet({
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={[styles.container, { paddingTop: insets.top || 16 }]}
+        style={[styles.container, { paddingTop: 8 }]}
       >
         {/* Header */}
         <View style={styles.header}>
