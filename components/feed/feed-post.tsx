@@ -102,8 +102,8 @@ function FeedPostComponent({
     height: PORTRAIT_HEIGHT,
     containerClass,
   } = useResponsiveMedia("portrait", {
-    cardMargin: CARD_HORIZONTAL_MARGIN,
-    cardBorder: CARD_BORDER_WIDTH,
+    cardMargin: 0,
+    cardBorder: 0,
   });
 
   // CENTRALIZED: Like state from single source of truth (React Query cache)
@@ -528,9 +528,8 @@ function FeedPostComponent({
         {hasMedia && (
           <View
             style={{
-              width: mediaSize,
+              width: "100%",
               height: PORTRAIT_HEIGHT,
-              borderRadius: 12,
               overflow: "hidden",
             }}
             className="bg-muted"
@@ -656,7 +655,7 @@ function FeedPostComponent({
                 onPress={handlePostPress}
                 onPressIn={handlePressIn}
                 onPressOut={handlePressOut}
-                style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
+                style={{ width: "100%", height: PORTRAIT_HEIGHT }}
               >
                 {media[0]?.url &&
                 (media[0].url.startsWith("http://") ||
@@ -665,13 +664,8 @@ function FeedPostComponent({
                     sharedTag={`post-media-${id}`}
                     source={{ uri: media[0].url }}
                     style={{
-                      width: mediaSize,
+                      width: "100%",
                       height: PORTRAIT_HEIGHT,
-                      borderTopLeftRadius: 0,
-                      borderTopRightRadius: 0,
-                      borderBottomLeftRadius: 12,
-                      borderBottomRightRadius: 12,
-                      overflow: "hidden",
                     }}
                     contentFit="cover"
                     contentPosition="top"
@@ -680,7 +674,7 @@ function FeedPostComponent({
                   />
                 ) : (
                   <View
-                    style={{ width: mediaSize, height: PORTRAIT_HEIGHT }}
+                    style={{ width: "100%", height: PORTRAIT_HEIGHT }}
                     className="bg-muted items-center justify-center"
                   >
                     <Text className="text-muted-foreground text-xs">

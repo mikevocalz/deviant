@@ -3,8 +3,8 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Dimensions,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import { SharedImage } from "@/components/shared-image";
 import { Avatar } from "@/components/ui/avatar";
@@ -63,8 +63,7 @@ import {
 } from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
-const { width } = Dimensions.get("window");
-const columnWidth = (width - 6) / 3;
+const GRID_GAP = 2; // gap between grid items
 
 // Edit Profile is now handled by /(protected)/profile/edit.tsx modal
 
@@ -76,6 +75,12 @@ function ProfileScreenContent() {
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+
+  // Responsive grid: 3 columns on phone, 4 on tablet (768px+)
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth >= 768;
+  const numColumns = isTablet ? 4 : 3;
+  const columnWidth = (screenWidth - GRID_GAP * (numColumns + 1)) / numColumns;
 
   // DEFENSIVE: Get stores safely
   const { activeTab, setActiveTab } = useProfileStore();
