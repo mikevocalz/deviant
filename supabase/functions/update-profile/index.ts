@@ -114,9 +114,10 @@ serve(async (req: Request) => {
     }
 
     const authUserId = sessionData.userId;
-
-    const { authUserId: authId, email } = session;
-    console.log("[Edge:update-profile] Authenticated user auth_id:", authId);
+    console.log(
+      "[Edge:update-profile] Authenticated user auth_id:",
+      authUserId,
+    );
 
     // 3. Parse and validate request body
     let body: unknown;
@@ -192,7 +193,7 @@ serve(async (req: Request) => {
     const { data: updatedUser, error: updateError } = await supabaseAdmin
       .from("users")
       .update(updateData)
-      .eq("auth_id", authId)
+      .eq("auth_id", authUserId)
       .select(
         `
         id,

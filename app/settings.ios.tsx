@@ -241,16 +241,18 @@ export default function SettingsScreenIOS() {
                     </Text>
                   </View>
                 </View>
-                {isAuthenticating ? (
-                  <Text className="text-sm text-muted-foreground">
-                    Verifying...
-                  </Text>
-                ) : (
-                  <Switch
-                    checked={biometricEnabled}
-                    onCheckedChange={handleToggleBiometric}
-                  />
-                )}
+                <View style={{ minWidth: 40, alignItems: "flex-end" }}>
+                  {isAuthenticating ? (
+                    <Text className="text-sm text-muted-foreground">
+                      Verifying...
+                    </Text>
+                  ) : (
+                    <Switch
+                      checked={biometricEnabled}
+                      onCheckedChange={handleToggleBiometric}
+                    />
+                  )}
+                </View>
               </Pressable>
             ) : (
               <View className="bg-card px-4 py-3">

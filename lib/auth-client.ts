@@ -125,8 +125,41 @@ export function clearAllCachedData() {
 
 // Sign out and clear all data
 export async function handleSignOut() {
+  // 1. Try server-side sign out FIRST (while token is still available)
+  try {
+    await signOut();
+    console.log("[Auth] Server sign-out succeeded");
+  } catch (error) {
+    // Don't block local cleanup if server call fails
+    console.warn(
+      "[Auth] Server sign-out failed (continuing local cleanup):",
+      error,
+    );
+  }
+
+  // 2. Clear all cached data (React Query, MMKV, Zustand stores)
   clearAllCachedData();
-  await signOut();
+
+  // 3. Explicitly clear Better Auth session from SecureStore
+  // The expo client stores the session cookie with prefix "dvnt" / "better-auth"
+  try {
+    const keysToDelete = [
+      "dvnt_better-auth.session_token",
+      "dvnt_better-auth.session",
+      "better-auth.session_token",
+      "better-auth.session",
+    ];
+    for (const key of keysToDelete) {
+      try {
+        await SecureStore.deleteItemAsync(key);
+      } catch {
+        // Key may not exist, ignore
+      }
+    }
+    console.log("[Auth] SecureStore session tokens cleared");
+  } catch (error) {
+    console.warn("[Auth] Failed to clear SecureStore:", error);
+  }
 }
 
 // Get auth token for API requests

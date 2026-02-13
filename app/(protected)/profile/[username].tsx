@@ -434,14 +434,34 @@ function UserProfileScreenComponent() {
       className="flex-1 bg-background max-w-3xl w-full self-center"
     >
       {/* Header */}
-      <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+      <View
+        className="flex-row items-center justify-between border-b border-border px-4 py-1"
+        style={{ zIndex: 10 }}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={8}
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">
           {isLoading ? "Loading..." : user.username || "Profile"}
         </Text>
-        <Pressable hitSlop={12}>
+        <Pressable
+          hitSlop={8}
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <MoreHorizontal size={24} color={colors.foreground} />
         </Pressable>
       </View>
