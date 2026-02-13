@@ -1,13 +1,21 @@
 /**
  * Listener Grid Component
- * Grid of listeners (non-speakers) in the room
+ * Responsive grid of listeners (non-speakers) in the room.
+ * Uses LegendList for virtualization and shared Avatar component.
+ * 3 columns on mobile, 5 columns on larger screens (≥768px).
  */
 
-import { View, Text } from "react-native";
-import { Image } from "expo-image";
+import { View, Text, useWindowDimensions } from "react-native";
+import { memo, useCallback, useMemo } from "react";
+import { LegendList } from "@/components/list";
+import { Avatar } from "@/components/ui/avatar";
 import type { SneakyUser } from "../types";
 
-interface Listener {
+const LARGE_SCREEN_BREAKPOINT = 768;
+const GRID_GAP = 12;
+const HORIZONTAL_PADDING = 20;
+
+export interface Listener {
   id: string;
   user: SneakyUser;
 }
@@ -16,30 +24,124 @@ interface ListenerGridProps {
   listeners: Listener[];
 }
 
+/** Chunk a flat array into rows of `cols` items */
+function chunkArray<T>(arr: T[], cols: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < arr.length; i += cols) {
+    rows.push(arr.slice(i, i + cols));
+  }
+  return rows;
+}
+
+const ListenerCell = memo(function ListenerCell({
+  listener,
+  cellSize,
+}: {
+  listener: Listener;
+  cellSize: number;
+}) {
+  return (
+    <View style={{ width: cellSize, alignItems: "center" }}>
+      <Avatar
+        uri={listener.user.avatar}
+        username={listener.user.username}
+        size={Math.min(cellSize - 8, 56)}
+        variant="roundedSquare"
+      />
+      <Text
+        style={{
+          fontSize: 11,
+          color: "#9CA3AF",
+          textAlign: "center",
+          marginTop: 4,
+          maxWidth: cellSize - 4,
+        }}
+        numberOfLines={1}
+      >
+        {listener.user.displayName?.split(" ")[0] || listener.user.username}
+      </Text>
+    </View>
+  );
+});
+
+const ListenerRow = memo(function ListenerRow({
+  row,
+  cols,
+  cellSize,
+}: {
+  row: Listener[];
+  cols: number;
+  cellSize: number;
+}) {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        gap: GRID_GAP,
+        marginBottom: GRID_GAP,
+      }}
+    >
+      {row.map((listener) => (
+        <ListenerCell
+          key={listener.id}
+          listener={listener}
+          cellSize={cellSize}
+        />
+      ))}
+      {/* Fill empty cells to keep alignment */}
+      {row.length < cols &&
+        Array.from({ length: cols - row.length }).map((_, i) => (
+          <View key={`empty-${i}`} style={{ width: cellSize }} />
+        ))}
+    </View>
+  );
+});
+
 export function ListenerGrid({ listeners }: ListenerGridProps) {
+  const { width } = useWindowDimensions();
+  const isLargeScreen = width >= LARGE_SCREEN_BREAKPOINT;
+  const cols = isLargeScreen ? 5 : 3;
+
+  const availableWidth = width - HORIZONTAL_PADDING * 2;
+  const cellSize = (availableWidth - GRID_GAP * (cols - 1)) / cols;
+
+  const rows = useMemo(() => chunkArray(listeners, cols), [listeners, cols]);
+
+  const renderRow = useCallback(
+    ({ item }: { item: Listener[] }) => (
+      <ListenerRow row={item} cols={cols} cellSize={cellSize} />
+    ),
+    [cols, cellSize],
+  );
+
+  const keyExtractor = useCallback(
+    (item: Listener[], index: number) =>
+      item.map((l) => l.id).join("-") || `row-${index}`,
+    [],
+  );
+
   if (listeners.length === 0) return null;
 
   return (
-    <View className="px-5 mb-6">
-      <Text className="text-base font-bold text-foreground mb-4">
+    <View style={{ paddingHorizontal: HORIZONTAL_PADDING, marginBottom: 24 }}>
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "700",
+          color: "#fff",
+          marginBottom: 16,
+        }}
+      >
         Listeners ({listeners.length})
       </Text>
-      <View className="flex-row flex-wrap gap-3">
-        {listeners.map((listener) => (
-          <View key={listener.id} className="items-center w-14">
-            <Image
-              source={{ uri: listener.user.avatar }}
-              className="w-12 h-12 rounded-2xl mb-1.5"
-            />
-            <Text
-              className="text-[11px] text-muted-foreground text-center"
-              numberOfLines={1}
-            >
-              {listener.user.displayName.split(" ")[0]}
-            </Text>
-          </View>
-        ))}
-      </View>
+      <LegendList
+        data={rows}
+        keyExtractor={keyExtractor}
+        renderItem={renderRow}
+        estimatedItemSize={cellSize + 24}
+        scrollEnabled={false}
+        recycleItems
+      />
     </View>
   );
 }
