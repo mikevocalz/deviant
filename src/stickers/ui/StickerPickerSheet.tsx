@@ -13,8 +13,8 @@ import {
   StyleSheet,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
