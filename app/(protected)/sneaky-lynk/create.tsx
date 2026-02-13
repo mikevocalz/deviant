@@ -94,7 +94,11 @@ export default function CreateLynkScreen() {
       // Navigate to the new room
       router.replace({
         pathname: "/(protected)/sneaky-lynk/room/[id]",
-        params: { id: roomId, title: title.trim() },
+        params: {
+          id: roomId,
+          title: title.trim(),
+          hasVideo: hasVideo ? "1" : "0",
+        },
       } as any);
     } catch (error) {
       console.error("[CreateLynk] Error:", error);

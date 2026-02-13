@@ -255,7 +255,11 @@ function SneakyLynkContent({
       if (room.isLive) {
         router.push({
           pathname: "/(protected)/sneaky-lynk/room/[id]",
-          params: { id: room.id, title: room.title },
+          params: {
+            id: room.id,
+            title: room.title,
+            hasVideo: room.hasVideo ? "1" : "0",
+          },
         } as any);
       }
     },

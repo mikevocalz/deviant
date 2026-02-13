@@ -195,14 +195,14 @@ const styles = StyleSheet.create({
   hostAvatar: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: "#fff",
   },
   speakerAvatar: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: "#fff",
     marginLeft: -10,

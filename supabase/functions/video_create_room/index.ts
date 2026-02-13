@@ -16,6 +16,9 @@ const corsHeaders = {
 
 const CreateRoomSchema = z.object({
   title: z.string().min(1).max(100),
+  topic: z.string().max(280).default(""),
+  description: z.string().max(500).default(""),
+  hasVideo: z.boolean().default(false),
   isPublic: z.boolean().default(false),
   maxParticipants: z.number().int().min(2).max(50).default(10),
 });
@@ -101,7 +104,8 @@ serve(async (req: Request) => {
       return errorResponse("validation_error", parsed.error.errors[0].message);
     }
 
-    const { title, isPublic, maxParticipants } = parsed.data;
+    const { title, topic, description, hasVideo, isPublic, maxParticipants } =
+      parsed.data;
 
     // Rate limit check
     const { data: canCreate } = await supabase.rpc("check_rate_limit", {
@@ -133,6 +137,9 @@ serve(async (req: Request) => {
       .insert({
         created_by: userId,
         title,
+        topic,
+        description,
+        has_video: hasVideo,
         is_public: isPublic,
         max_participants: maxParticipants,
         status: "open",
@@ -174,7 +181,7 @@ serve(async (req: Request) => {
       room_id: room.id,
       type: "room_created",
       actor_id: userId,
-      payload: { title, isPublic, maxParticipants },
+      payload: { title, topic, hasVideo, isPublic, maxParticipants },
     });
 
     console.log(
@@ -188,6 +195,9 @@ serve(async (req: Request) => {
           id: roomUuid,
           internalId: room.id,
           title: room.title,
+          topic: room.topic || "",
+          description: room.description || "",
+          hasVideo: room.has_video || false,
           isPublic: room.is_public,
           maxParticipants: room.max_participants,
           status: room.status,
