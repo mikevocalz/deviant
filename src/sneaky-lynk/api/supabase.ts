@@ -215,7 +215,7 @@ export const sneakyLynkApi = {
             isVerified: creator?.verified || false,
           },
           speakers: [],
-          listeners: 0,
+          listeners: r.participant_count || 0,
           fishjamRoomId: r.fishjam_room_id || undefined,
         };
       });
@@ -277,7 +277,7 @@ export const sneakyLynkApi = {
           isVerified: creator?.verified || false,
         },
         speakers: [],
-        listeners: 0,
+        listeners: data.participant_count || 0,
         fishjamRoomId: data.fishjam_room_id || undefined,
       };
     } catch (error) {

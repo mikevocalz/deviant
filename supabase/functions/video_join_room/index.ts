@@ -221,6 +221,18 @@ serve(async (req: Request) => {
       }
     }
 
+    // Update participant count
+    await supabase
+      .rpc("count_active_participants", { p_room_id: internalRoomId })
+      .then(async ({ data: count }) => {
+        if (count !== null) {
+          await supabase
+            .from("video_rooms")
+            .update({ participant_count: count })
+            .eq("id", internalRoomId);
+        }
+      });
+
     // Get or create Fishjam room
     let fishjamRoomId = room.fishjam_room_id;
 

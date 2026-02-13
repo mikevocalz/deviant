@@ -74,33 +74,12 @@ export default function SneakyLynkRoomScreen() {
 
   const roomHasVideo = hasVideoParam === "1";
   const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
-  const router = useRouter();
 
-  // Server-backed Lynk rooms → redirect to the working call screen
-  // which handles Fishjam video/audio correctly (same as chat calls)
-  useEffect(() => {
-    if (isServerRoom && id) {
-      router.replace({
-        pathname: "/(protected)/call/[roomId]",
-        params: {
-          roomId: id,
-          isOutgoing: "false",
-          callType: roomHasVideo ? "video" : "audio",
-        },
-      } as any);
-    }
-  }, [isServerRoom, id, roomHasVideo, router]);
-
-  // Server rooms redirect to call screen — show loading while redirecting
   if (isServerRoom) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#FC253A" />
-        <Text className="text-foreground mt-4">Joining Lynk...</Text>
-      </View>
+      <ServerRoom id={id} paramTitle={paramTitle} roomHasVideo={roomHasVideo} />
     );
   }
-
   return (
     <LocalRoom id={id} paramTitle={paramTitle} roomHasVideo={roomHasVideo} />
   );

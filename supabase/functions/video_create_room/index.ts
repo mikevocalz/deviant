@@ -142,6 +142,7 @@ serve(async (req: Request) => {
         has_video: hasVideo,
         is_public: isPublic,
         max_participants: maxParticipants,
+        participant_count: 1,
         status: "open",
         uuid: roomUuid,
       })
