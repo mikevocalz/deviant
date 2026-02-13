@@ -886,7 +886,7 @@ export default function CreateScreen() {
                       alignItems: "center",
                       justifyContent: "center",
                     }}
-                    hitSlop={8}
+                    hitSlop={12}
                   >
                     <Trash2 size={14} color="#fff" />
                   </Pressable>

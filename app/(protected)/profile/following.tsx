@@ -67,7 +67,7 @@ const FollowingRow = memo(function FollowingRow({
         <Pressable
           onPress={onFollowPress}
           disabled={isFollowPending}
-          hitSlop={8}
+          hitSlop={12}
         >
           <Motion.View
             whileTap={{ scale: 0.95 }}
@@ -240,7 +240,7 @@ export default function FollowingScreen() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center border-b border-border px-4 py-3">
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="flex-1 text-center text-lg font-semibold text-foreground">
@@ -264,7 +264,7 @@ export default function FollowingScreen() {
             autoCorrect={false}
           />
           {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={12}>
               <X size={18} color={colors.mutedForeground} />
             </Pressable>
           )}

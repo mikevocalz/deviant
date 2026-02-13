@@ -337,11 +337,17 @@ export function useVideoCall() {
         )
           return;
 
+        // GUARD: Only start if mic is not already on — toggleMicrophone is a true
+        // toggle and would STOP the mic if it's already running.
+        if (micRef.current.isMicrophoneOn) {
+          log("[MIC_SAFETY] Mic is already on, skipping to avoid toggling OFF");
+          micStartedRef.current = true;
+          return;
+        }
         log(
           "[MIC_SAFETY] Force-starting microphone via toggleMicrophone (CallKit activation may have been missed)",
         );
         micStartedRef.current = true;
-        // CRITICAL FIX: Use toggleMicrophone() to both start AND publish the audio track.
         micRef.current
           .toggleMicrophone()
           .then(() => {
@@ -726,11 +732,16 @@ export function useVideoCall() {
         }
         micStartedRef.current = true;
         try {
-          // CRITICAL FIX: Use toggleMicrophone() instead of startMicrophone().
-          // startMicrophone() (SDK's startDevice) only creates the local audio track
-          // but does NOT publish it to Fishjam. toggleMicrophone() (SDK's toggleDevice)
-          // both starts the device AND publishes when peerStatus === "connected".
-          await micRef.current.toggleMicrophone();
+          // GUARD: Only start mic if it's not already on. toggleMicrophone() is a
+          // true toggle — if a track already exists it STOPS it. On video calls,
+          // camera init + CallKit timing can cause double-toggle → mic OFF.
+          if (micRef.current.isMicrophoneOn) {
+            log(
+              `[${callType.toUpperCase()}] CALLER mic already on, skipping toggleMicrophone to avoid toggling OFF`,
+            );
+          } else {
+            await micRef.current.toggleMicrophone();
+          }
           const s = getStore();
           s.setMicOn(true);
 
@@ -876,10 +887,16 @@ export function useVideoCall() {
         }
         micStartedRef.current = true;
         try {
-          // CRITICAL FIX: Use toggleMicrophone() instead of startMicrophone().
-          // startMicrophone() only creates the local track but does NOT publish it.
-          // toggleMicrophone() both starts AND publishes when connected.
-          await micRef.current.toggleMicrophone();
+          // GUARD: Only start mic if it's not already on. toggleMicrophone() is a
+          // true toggle — if a track already exists it STOPS it. On video calls,
+          // camera init + CallKit timing can cause double-toggle → mic OFF.
+          if (micRef.current.isMicrophoneOn) {
+            log(
+              `[${callType.toUpperCase()}] CALLEE mic already on, skipping toggleMicrophone to avoid toggling OFF`,
+            );
+          } else {
+            await micRef.current.toggleMicrophone();
+          }
           const s = getStore();
           s.setMicOn(true);
 

@@ -823,7 +823,7 @@ export default function ChatScreen() {
         className="flex-1 bg-background max-w-3xl w-full self-center"
       >
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => router.back()} hitSlop={12}>
             <ArrowLeft size={24} color="#fff" />
           </Pressable>
           <Pressable
@@ -863,7 +863,7 @@ export default function ChatScreen() {
               }
             }}
             className="p-2 rounded-full bg-primary/20"
-            hitSlop={8}
+            hitSlop={12}
           >
             <Phone size={22} color="#3EA4E5" />
           </Pressable>
@@ -888,7 +888,7 @@ export default function ChatScreen() {
               }
             }}
             className="p-2 rounded-full bg-primary/20"
-            hitSlop={8}
+            hitSlop={12}
           >
             <Video size={22} color="#3EA4E5" />
           </Pressable>
@@ -1245,7 +1245,7 @@ export default function ChatScreen() {
                   Editing message
                 </Text>
               </View>
-              <Pressable onPress={handleCancelEdit} hitSlop={8}>
+              <Pressable onPress={handleCancelEdit} hitSlop={12}>
                 <X size={18} color="#999" />
               </Pressable>
             </View>

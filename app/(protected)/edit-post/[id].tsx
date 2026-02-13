@@ -588,7 +588,7 @@ export default function EditPostScreen() {
               location.length > 0 ? (
                 <Pressable
                   onPress={() => setLocation("")}
-                  hitSlop={8}
+                  hitSlop={12}
                   className="w-6 h-6 rounded-full bg-white/10 items-center justify-center"
                 >
                   <X size={12} color="rgba(255,255,255,0.5)" />

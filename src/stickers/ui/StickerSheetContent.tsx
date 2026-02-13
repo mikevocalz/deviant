@@ -145,7 +145,7 @@ export const StickerSheetContent = memo(function StickerSheetContent({
           autoCapitalize="none"
         />
         {searchQuery.length > 0 && (
-          <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+          <Pressable onPress={() => setSearchQuery("")} hitSlop={12}>
             <X size={16} color="rgba(255,255,255,0.4)" />
           </Pressable>
         )}

@@ -519,7 +519,7 @@ function FeedPostComponent({
           <Pressable
             className="p-2"
             onPress={() => setShowActionSheet(true)}
-            hitSlop={8}
+            hitSlop={12}
           >
             <MoreHorizontal size={20} color={colors.foreground} />
           </Pressable>
@@ -698,7 +698,7 @@ function FeedPostComponent({
             <Pressable
               onPress={handleLike}
               disabled={isLikePending}
-              hitSlop={8}
+              hitSlop={12}
             >
               <Motion.View
                 animate={{
@@ -718,7 +718,7 @@ function FeedPostComponent({
               </Motion.View>
             </Pressable>
             <Pressable
-              hitSlop={8}
+              hitSlop={12}
               onPress={() => {
                 if (id) {
                   router.push(`/(protected)/comments/${id}`);
@@ -732,7 +732,7 @@ function FeedPostComponent({
                 <MessageCircle size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
-            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={8}>
+            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
               <Motion.View
                 whileTap={{ scale: 0.85 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -740,7 +740,7 @@ function FeedPostComponent({
                 <Send size={24} color={colors.foreground} />
               </Motion.View>
             </Pressable>
-            <Pressable onPress={handleShare} hitSlop={8}>
+            <Pressable onPress={handleShare} hitSlop={12}>
               <Motion.View
                 whileTap={{ scale: 0.85 }}
                 transition={{ type: "spring", damping: 15, stiffness: 400 }}
@@ -749,7 +749,7 @@ function FeedPostComponent({
               </Motion.View>
             </Pressable>
           </View>
-          <Pressable onPress={handleSave} hitSlop={8}>
+          <Pressable onPress={handleSave} hitSlop={12}>
             <Motion.View
               whileTap={{ scale: 0.85 }}
               animate={{ rotate: isSaved ? "0deg" : "0deg" }}

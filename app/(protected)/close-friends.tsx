@@ -184,7 +184,7 @@ export default function ManageCloseFriendsScreen() {
               setSearchQuery("");
               setDebouncedQuery("");
             }}
-            hitSlop={8}
+            hitSlop={12}
           >
             <X size={16} color="#666" />
           </Pressable>

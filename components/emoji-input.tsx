@@ -48,7 +48,7 @@ export function EmojiInput({
   const emojiButton = showEmojiButton ? (
     <Pressable 
       onPress={toggleEmojiPicker} 
-      hitSlop={8}
+      hitSlop={12}
       style={styles.emojiButton}
     >
       <Smile size={emojiButtonSize} color={showEmojiPicker ? "#3EA4E5" : emojiButtonColor} />
