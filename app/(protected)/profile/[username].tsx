@@ -3,8 +3,8 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Dimensions,
   StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -32,8 +32,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 
-const { width } = Dimensions.get("window");
-const columnWidth = (width - 8) / 3;
+const GRID_GAP = 2;
 
 interface MockUser {
   id?: string;
@@ -266,6 +265,12 @@ function UserProfileScreenComponent() {
   const { colors } = useColorScheme();
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
+
+  // Responsive grid: 3 columns on phone, 4 on tablet (768px+)
+  const { width: screenWidth } = useWindowDimensions();
+  const isTablet = screenWidth >= 768;
+  const numColumns = isTablet ? 4 : 3;
+  const columnWidth = (screenWidth - GRID_GAP * (numColumns + 1)) / numColumns;
 
   // DEFENSIVE: Ensure username is a valid string
   const safeUsername =
