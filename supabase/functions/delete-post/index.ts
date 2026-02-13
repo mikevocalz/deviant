@@ -69,7 +69,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
 
     const token = authHeader.replace("Bearer ", "");
@@ -93,8 +92,7 @@ serve(async (req: Request) => {
     }
 
     const { postId } = body;
-    if (!postId)
-      return errorResponse("validation_error", "postId is required");
+    if (!postId) return errorResponse("validation_error", "postId is required");
 
     const { data: userData } = await supabaseAdmin
       .from("users")
@@ -110,11 +108,7 @@ serve(async (req: Request) => {
       .eq("id", postId)
       .single();
     if (!post || post.author_id !== userData.id)
-      return errorResponse(
-        "forbidden",
-        "You can only delete your own posts",
-        403,
-      );
+      return errorResponse("forbidden", "You can only delete your own posts");
 
     // Delete all dependent rows first (foreign keys may not have ON DELETE CASCADE)
     await Promise.all([
