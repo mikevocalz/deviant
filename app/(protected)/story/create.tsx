@@ -652,7 +652,7 @@ export default function CreateStoryScreen() {
                   <Pressable
                     onPress={() => handleRemoveMedia(idx)}
                     className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
-                    hitSlop={8}
+                    hitSlop={12}
                   >
                     <X size={10} color="#fff" />
                   </Pressable>

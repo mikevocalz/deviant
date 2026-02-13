@@ -218,7 +218,7 @@ export default function NewGroupScreen() {
               className="flex-1 h-11 ml-2 text-foreground text-base"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Pressable onPress={() => setSearchQuery("")} hitSlop={12}>
                 <X size={20} color="#666" />
               </Pressable>
             )}

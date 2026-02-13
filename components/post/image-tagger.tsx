@@ -310,7 +310,7 @@ export function ImageTagger({
         <View style={styles.searchPanel}>
           <View style={styles.searchHeader}>
             <Text style={styles.searchTitle}>Tag People</Text>
-            <Pressable onPress={handleCancelPending} hitSlop={8}>
+            <Pressable onPress={handleCancelPending} hitSlop={12}>
               <X size={20} color="#fff" />
             </Pressable>
           </View>
@@ -334,7 +334,7 @@ export function ImageTagger({
                   setSearchQuery("");
                   setSearchResults([]);
                 }}
-                hitSlop={8}
+                hitSlop={12}
               >
                 <X size={14} color="rgba(255,255,255,0.4)" />
               </Pressable>

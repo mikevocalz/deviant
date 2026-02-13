@@ -82,7 +82,7 @@ export function PostActionSheet({
               >
                 Post Options
               </Text>
-              <Pressable onPress={onClose} hitSlop={8}>
+              <Pressable onPress={onClose} hitSlop={12}>
                 <X size={24} color={colors.mutedForeground} />
               </Pressable>
             </View>

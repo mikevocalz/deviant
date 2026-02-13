@@ -238,7 +238,7 @@ export default function EditEventScreen() {
         }}
       >
         <View className="flex-row items-center justify-between px-4 py-3">
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => router.back()} hitSlop={12}>
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text

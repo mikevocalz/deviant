@@ -856,7 +856,7 @@ export default function EventDetailScreen() {
           <Pressable
             onPress={() => router.back()}
             style={s.headerButton}
-            hitSlop={8}
+            hitSlop={12}
           >
             <ArrowLeft size={22} color="#fff" />
           </Pressable>
@@ -871,18 +871,18 @@ export default function EventDetailScreen() {
               <Pressable
                 onPress={handleDeleteEvent}
                 style={s.headerButton}
-                hitSlop={8}
+                hitSlop={12}
               >
                 <Trash2 size={20} color="#ef4444" />
               </Pressable>
             )}
-            <Pressable onPress={handleShare} style={s.headerButton} hitSlop={8}>
+            <Pressable onPress={handleShare} style={s.headerButton} hitSlop={12}>
               <Share2 size={20} color="#fff" />
             </Pressable>
             <Pressable
               onPress={handleToggleLike}
               style={s.headerButton}
-              hitSlop={8}
+              hitSlop={12}
             >
               <Heart
                 size={20}

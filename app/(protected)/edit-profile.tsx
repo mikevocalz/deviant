@@ -670,7 +670,7 @@ export default function EditProfileScreen() {
                   >
                     {link}
                   </Text>
-                  <Pressable onPress={() => removeLink(index)} hitSlop={8}>
+                  <Pressable onPress={() => removeLink(index)} hitSlop={12}>
                     <Trash2 size={18} color="#ef4444" />
                   </Pressable>
                 </View>
