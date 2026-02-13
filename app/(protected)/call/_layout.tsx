@@ -9,6 +9,10 @@ const FISHJAM_APP_ID =
   process.env.EXPO_PUBLIC_FISHJAM_APP_ID ??
   "";
 
+if (__DEV__) {
+  console.log("[CallLayout] FISHJAM_APP_ID:", FISHJAM_APP_ID || "EMPTY!");
+}
+
 export default function CallLayout() {
   const router = useRouter();
 
