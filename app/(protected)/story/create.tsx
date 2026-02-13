@@ -307,7 +307,10 @@ export default function CreateStoryScreen() {
   const handleStickersDone = useCallback(
     (stickers: string[]) => {
       if (stickers.length > 0) {
-        handleEditImage(currentIndex, "stickers", stickers);
+        // Small delay so the modal fully dismisses before native editor opens
+        setTimeout(() => {
+          handleEditImage(currentIndex, "stickers", stickers);
+        }, 400);
       }
     },
     [currentIndex, handleEditImage],
@@ -524,7 +527,6 @@ export default function CreateStoryScreen() {
                     <View
                       className="absolute right-3 top-10 gap-3"
                       style={{ zIndex: 10, elevation: 10 }}
-                      pointerEvents="box-none"
                     >
                       {CREATIVE_TOOLS.map((tool) => (
                         <Pressable
@@ -552,6 +554,7 @@ export default function CreateStoryScreen() {
                             }
                           }}
                           className="items-center"
+                          hitSlop={12}
                         >
                           <View
                             className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
