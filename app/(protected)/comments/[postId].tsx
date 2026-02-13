@@ -1,16 +1,14 @@
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   Keyboard,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import {
-  KeyboardAwareScrollView,
-  KeyboardAvoidingView,
-} from "react-native-keyboard-controller";
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+} from "@gorhom/bottom-sheet";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
@@ -56,7 +54,7 @@ export default function CommentsScreen() {
 
   // @mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<any>(null);
 
   // Fetch real comments from API
   const { data: comments = [], isLoading } = useComments(postId || "");
@@ -302,13 +300,11 @@ export default function CommentsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SheetHeader title="Comments" onClose={() => router.back()} />
-      <KeyboardAwareScrollView
+      <BottomSheetScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
-        bottomOffset={100}
-        enabled={true}
       >
         {isLoading ? (
           <View style={{ alignItems: "center", paddingVertical: 40 }}>
@@ -365,14 +361,10 @@ export default function CommentsScreen() {
               );
             })
         )}
-      </KeyboardAwareScrollView>
+      </BottomSheetScrollView>
 
       {/* Input at bottom - outside scroll view */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 10 : 0}
-        style={{ backgroundColor: "#000" }}
-      >
+      <View style={{ backgroundColor: "#000" }}>
         <View
           style={{
             borderTopWidth: 1,
@@ -460,7 +452,7 @@ export default function CommentsScreen() {
           )}
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <TextInput
+            <BottomSheetTextInput
               ref={inputRef}
               value={comment}
               onChangeText={setComment}
@@ -521,7 +513,7 @@ export default function CommentsScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }

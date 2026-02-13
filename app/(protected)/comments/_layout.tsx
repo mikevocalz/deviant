@@ -44,6 +44,9 @@ export default function CommentsLayout() {
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={{ backgroundColor: "#fff", width: 48 }}
       backgroundStyle={{ backgroundColor: "#000" }}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
     >
       <Slot />
     </BottomSheet>
