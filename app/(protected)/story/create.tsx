@@ -11,6 +11,7 @@ import {
   X,
   Image as ImageIcon,
   Video,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Pencil,
@@ -296,9 +297,16 @@ export default function CreateStoryScreen() {
           );
           showToast("success", "Edited", "Your story has been updated!");
         }
-      } catch (error) {
+      } catch (error: any) {
         // User cancelled or error occurred
         console.log("[Story] Photo editor closed:", error);
+        if (error?.message && !error.message.includes("cancel")) {
+          showToast(
+            "error",
+            "Editor Error",
+            "Could not open the photo editor.",
+          );
+        }
       }
     },
     [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
@@ -307,10 +315,11 @@ export default function CreateStoryScreen() {
   const handleStickersDone = useCallback(
     (stickers: string[]) => {
       if (stickers.length > 0) {
-        // Small delay so the modal fully dismisses before native editor opens
+        // Longer delay so the pageSheet modal fully dismisses before native editor opens.
+        // iOS cannot present a new VC while another is still being dismissed.
         setTimeout(() => {
           handleEditImage(currentIndex, "stickers", stickers);
-        }, 400);
+        }, 900);
       }
     },
     [currentIndex, handleEditImage],
@@ -813,9 +822,9 @@ export default function CreateStoryScreen() {
                 className="w-14 h-14 rounded-full bg-card items-center justify-center"
                 style={{ borderCurve: "continuous" }}
               >
-                <Video size={24} color="#fff" />
+                <Camera size={24} color="#fff" />
               </View>
-              <Text className="text-muted-foreground text-xs">Video (30s)</Text>
+              <Text className="text-muted-foreground text-xs">Camera</Text>
             </Pressable>
           </View>
         </View>
