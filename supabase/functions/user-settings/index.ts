@@ -27,8 +27,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: string, message: string): Response {
+  // Always return 200 so supabase.functions.invoke puts body in `data` (not `error`)
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -62,7 +63,7 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST")
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -70,7 +71,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
 
     const token = authHeader.replace("Bearer ", "");
@@ -78,17 +78,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse(
-        "internal_error",
-        "Server configuration error",
-        500,
-      );
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session)
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
 
     const authId = session.odUserId;
 
@@ -96,7 +92,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { action } = body;
@@ -112,7 +108,7 @@ serve(async (req: Request) => {
       if (error && error.code !== "PGRST116") {
         // PGRST116 = no rows found (new user, return defaults)
         console.error("[user-settings] GET error:", error);
-        return errorResponse("internal_error", "Failed to fetch settings", 500);
+        return errorResponse("internal_error", "Failed to fetch settings");
       }
 
       return jsonResponse({
@@ -123,11 +119,7 @@ serve(async (req: Request) => {
 
     if (action === "update") {
       if (!body.settings || typeof body.settings !== "object") {
-        return errorResponse(
-          "validation_error",
-          "settings object is required",
-          400,
-        );
+        return errorResponse("validation_error", "settings object is required");
       }
 
       // Fetch existing settings first
@@ -158,11 +150,7 @@ serve(async (req: Request) => {
 
       if (error) {
         console.error("[user-settings] UPSERT error:", error);
-        return errorResponse(
-          "internal_error",
-          "Failed to save settings",
-          500,
-        );
+        return errorResponse("internal_error", "Failed to save settings");
       }
 
       return jsonResponse({
@@ -174,14 +162,9 @@ serve(async (req: Request) => {
     return errorResponse(
       "validation_error",
       'Invalid action. Use "get" or "update".',
-      400,
     );
   } catch (err) {
     console.error("[Edge:user-settings] Error:", err);
-    return errorResponse(
-      "internal_error",
-      "An unexpected error occurred",
-      500,
-    );
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

@@ -53,13 +53,11 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: ErrorCode,
-  message: string,
-  status = 400,
-): Response {
+function errorResponse(code: ErrorCode, message: string): Response {
   console.error(`[Edge:update-profile] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  // CRITICAL: Always return 200 so supabase.functions.invoke puts the body
+  // in `data` (not `error`). The structured JSON body has ok:false for clients.
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 /**
@@ -99,7 +97,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -109,7 +107,6 @@ serve(async (req: Request) => {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
     }
 
@@ -118,7 +115,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -127,7 +124,7 @@ serve(async (req: Request) => {
     // 2. Verify Better Auth session
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId: authId, email } = session;
@@ -138,13 +135,13 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const parsed = UpdateProfileSchema.safeParse(body);
     if (!parsed.success) {
       const errorMessage = parsed.error.errors.map((e) => e.message).join(", ");
-      return errorResponse("validation_error", errorMessage, 400);
+      return errorResponse("validation_error", errorMessage);
     }
 
     const updates = parsed.data;
@@ -233,10 +230,10 @@ serve(async (req: Request) => {
 
       // Check if user not found
       if (updateError.code === "PGRST116") {
-        return errorResponse("not_found", "User not found", 404);
+        return errorResponse("not_found", "User not found");
       }
 
-      return errorResponse("internal_error", "Failed to update profile", 500);
+      return errorResponse("internal_error", "Failed to update profile");
     }
 
     console.log(
@@ -269,6 +266,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:update-profile] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

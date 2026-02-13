@@ -25,9 +25,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:delete-comment] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
@@ -60,13 +60,13 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse("unauthorized", "Missing or invalid Authorization header");
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -74,13 +74,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId } = session;
@@ -89,12 +89,12 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { commentId } = body;
     if (!commentId || typeof commentId !== "number") {
-      return errorResponse("validation_error", "commentId is required and must be a number", 400);
+      return errorResponse("validation_error", "commentId is required and must be a number");
     }
 
     // Get user's integer ID
@@ -105,7 +105,7 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     const userId = userData.id;
@@ -118,12 +118,12 @@ serve(async (req: Request) => {
       .single();
 
     if (commentError || !comment) {
-      return errorResponse("not_found", "Comment not found", 404);
+      return errorResponse("not_found", "Comment not found");
     }
 
     // Verify ownership
     if (comment.author_id !== userId) {
-      return errorResponse("forbidden", "You can only delete your own comments", 403);
+      return errorResponse("forbidden", "You can only delete your own comments");
     }
 
     console.log("[Edge:delete-comment] User:", userId, "Comment:", commentId);
@@ -136,7 +136,7 @@ serve(async (req: Request) => {
 
     if (deleteError) {
       console.error("[Edge:delete-comment] Delete error:", deleteError);
-      return errorResponse("internal_error", "Failed to delete comment", 500);
+      return errorResponse("internal_error", "Failed to delete comment");
     }
 
     // Decrement comments count on post
@@ -150,6 +150,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:delete-comment] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

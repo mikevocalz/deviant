@@ -26,9 +26,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:toggle-follow] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -64,7 +64,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -82,13 +82,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId } = session;
@@ -97,7 +97,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { targetUserId } = body;
@@ -117,14 +117,14 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     const userId = userData.id;
 
     // Can't follow yourself
     if (userId === targetUserId) {
-      return errorResponse("validation_error", "Cannot follow yourself", 400);
+      return errorResponse("validation_error", "Cannot follow yourself");
     }
 
     console.log("[Edge:toggle-follow] User:", userId, "Target:", targetUserId);
@@ -149,7 +149,7 @@ serve(async (req: Request) => {
 
       if (deleteError) {
         console.error("[Edge:toggle-follow] Delete error:", deleteError);
-        return errorResponse("internal_error", "Failed to unfollow", 500);
+        return errorResponse("internal_error", "Failed to unfollow");
       }
 
       // Update counts
@@ -166,7 +166,7 @@ serve(async (req: Request) => {
 
       if (insertError) {
         console.error("[Edge:toggle-follow] Insert error:", insertError);
-        return errorResponse("internal_error", "Failed to follow", 500);
+        return errorResponse("internal_error", "Failed to follow");
       }
 
       // Update counts
@@ -251,6 +251,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:toggle-follow] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

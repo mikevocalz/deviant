@@ -26,8 +26,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: string, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 serve(async (req: Request) => {
@@ -36,7 +36,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -44,25 +44,25 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { secret, email, username, password, name } = body;
 
     // Simple secret check to prevent abuse
     if (secret !== "apple-review-2024-dvnt") {
-      return errorResponse("unauthorized", "Invalid secret", 401);
+      return errorResponse("unauthorized", "Invalid secret");
     }
 
     if (!email || !username || !password || !name) {
-      return errorResponse("validation_error", "Missing required fields", 400);
+      return errorResponse("validation_error", "Missing required fields");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -109,7 +109,7 @@ serve(async (req: Request) => {
 
     if (createError) {
       console.error("[Edge:create-test-user] Failed to create user:", createError);
-      return errorResponse("internal_error", `Failed to create user: ${createError.message}`, 500);
+      return errorResponse("internal_error", `Failed to create user: ${createError.message}`);
     }
 
     console.log("[Edge:create-test-user] Created test user:", newUser.id);
@@ -128,6 +128,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:create-test-user] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

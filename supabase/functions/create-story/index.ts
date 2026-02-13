@@ -26,9 +26,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:create-story] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -72,7 +72,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -90,13 +90,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId } = session;
@@ -105,13 +105,13 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { mediaUrl, mediaType, visibility, duration, thumbnailUrl } = body;
 
     if (!mediaUrl || typeof mediaUrl !== "string") {
-      return errorResponse("validation_error", "mediaUrl is required", 400);
+      return errorResponse("validation_error", "mediaUrl is required");
     }
 
     if (!mediaType || !["image", "video"].includes(mediaType)) {
@@ -130,7 +130,7 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     const userId = userData.id;
@@ -199,7 +199,7 @@ serve(async (req: Request) => {
 
     if (storyError) {
       console.error("[Edge:create-story] Story insert error:", storyError);
-      return errorResponse("internal_error", "Failed to create story", 500);
+      return errorResponse("internal_error", "Failed to create story");
     }
 
     console.log("[Edge:create-story] Story created:", story.id);
@@ -226,6 +226,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:create-story] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

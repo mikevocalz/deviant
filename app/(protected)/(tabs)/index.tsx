@@ -1,6 +1,7 @@
 import { View, Text } from "react-native";
 import { Main } from "@expo/html-elements";
 import { Feed } from "@/components/feed/feed";
+import { SpicyToggleFAB } from "@/components/spicy-toggle-fab";
 import { Component, ErrorInfo, ReactNode } from "react";
 
 class ErrorBoundary extends Component<
@@ -45,6 +46,7 @@ export default function HomeScreen() {
           <Feed />
         </ErrorBoundary>
       </Main>
+      <SpicyToggleFAB />
     </View>
   );
 }

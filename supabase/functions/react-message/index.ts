@@ -27,9 +27,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:react-message] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -67,7 +67,7 @@ serve(async (req: Request) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing authorization token", 401);
+      return errorResponse("unauthorized", "Missing authorization token");
     }
     const token = authHeader.replace("Bearer ", "");
 
@@ -82,7 +82,7 @@ serve(async (req: Request) => {
     // Verify session
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { messageId, emoji } = await req.json();
@@ -138,7 +138,7 @@ serve(async (req: Request) => {
 
     if (updateError) {
       console.error("[Edge:react-message] Update error:", updateError);
-      return errorResponse("update_failed", updateError.message, 500);
+      return errorResponse("update_failed", updateError.message);
     }
 
     console.log(`[Edge:react-message] ${existingIdx >= 0 ? "Removed" : "Added"} ${emoji} on message ${messageId} by ${username}`);
@@ -149,6 +149,6 @@ serve(async (req: Request) => {
     });
   } catch (err: any) {
     console.error("[Edge:react-message] Unexpected error:", err);
-    return errorResponse("internal_error", err.message || "Internal error", 500);
+    return errorResponse("internal_error", err.message || "Internal error");
   }
 });
