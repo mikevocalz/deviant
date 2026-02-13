@@ -14,8 +14,8 @@ export function SpicyToggleFAB() {
     <View
       style={{
         position: "absolute",
-        bottom: 24,
-        right: 16,
+        bottom: 14,
+        right: 6,
         zIndex: 50,
         alignItems: "center",
       }}
