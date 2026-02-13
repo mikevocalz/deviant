@@ -102,8 +102,8 @@ function FeedPostComponent({
     height: PORTRAIT_HEIGHT,
     containerClass,
   } = useResponsiveMedia("portrait", {
-    cardMargin: 0,
-    cardBorder: 0,
+    cardMargin: CARD_HORIZONTAL_MARGIN,
+    cardBorder: CARD_BORDER_WIDTH,
   });
 
   // CENTRALIZED: Like state from single source of truth (React Query cache)
