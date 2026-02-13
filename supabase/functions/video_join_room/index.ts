@@ -72,6 +72,9 @@ serve(async (req: Request) => {
     const fishjamAppId = Deno.env.get("FISHJAM_APP_ID")!;
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
     const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
+    console.log(
+      `[video_join_room] Fishjam config: appId=${fishjamAppId}, apiKey=${fishjamApiKey?.slice(0, 8)}..., baseUrl=${fishjamBaseUrl}`,
+    );
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -295,9 +298,11 @@ serve(async (req: Request) => {
       },
     );
 
-    // If 404, the Fishjam room was deleted (stale ID). Create a fresh one and retry.
-    if (addPeerRes.status === 404) {
-      console.warn("[video_join_room] Fishjam room 404 — creating fresh room");
+    // If 404 or 401, the Fishjam room is stale (deleted or key rotated). Create a fresh one and retry.
+    if (addPeerRes.status === 404 || addPeerRes.status === 401) {
+      console.warn(
+        `[video_join_room] Fishjam peer returned ${addPeerRes.status} — recreating room`,
+      );
       const freshRes = await fetch(`${fishjamBaseUrl}/room`, {
         method: "POST",
         headers: {
