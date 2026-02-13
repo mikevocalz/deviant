@@ -201,7 +201,7 @@ export const sneakyLynkApi = {
           title: r.title || "Untitled Lynk",
           topic: r.topic || "",
           description: r.description || "",
-          isLive: r.status === "open",
+          isLive: r.status === "open" && (r.participant_count || 0) > 0,
           hasVideo: r.has_video ?? false,
           isPublic: r.is_public ?? true,
           status: r.status as "open" | "ended",

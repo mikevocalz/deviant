@@ -70,7 +70,10 @@ serve(async (req: Request) => {
     const fishjamApiKey = Deno.env.get("FISHJAM_API_KEY")!;
     const fishjamBaseUrl = `https://fishjam.io/api/v1/connect/${fishjamAppId}`;
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } } });
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
     // Verify Better Auth session via direct DB lookup
     const { data: session, error: sessionError } = await supabase
@@ -159,12 +162,13 @@ serve(async (req: Request) => {
       }
     }
 
-    // 2. Update room status
+    // 2. Update room status + reset participant count
     const { error: updateError } = await supabase
       .from("video_rooms")
       .update({
         status: "ended",
         ended_at: new Date().toISOString(),
+        participant_count: 0,
       })
       .eq("id", internalRoomId);
 
