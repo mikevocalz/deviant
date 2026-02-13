@@ -124,6 +124,7 @@ function FeedPostComponent({
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [showLikesSheet, setShowLikesSheet] = useState(false);
+  const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
   const deletePostMutation = useDeletePost();
 
@@ -418,7 +419,7 @@ function FeedPostComponent({
 
   const handleScroll = (event: any) => {
     const slideIndex = Math.round(
-      event.nativeEvent.contentOffset.x / mediaSize,
+      event.nativeEvent.contentOffset.x / cardInnerWidth,
     );
     setCurrentSlide(id, slideIndex);
   };
@@ -527,9 +528,14 @@ function FeedPostComponent({
 
         {hasMedia && (
           <View
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 0 && w !== cardInnerWidth) setCardInnerWidth(w);
+            }}
             style={{
               width: "100%",
               height: PORTRAIT_HEIGHT,
+              borderRadius: 12,
               overflow: "hidden",
             }}
             className="bg-muted"
@@ -572,7 +578,7 @@ function FeedPostComponent({
                   onSeek={handleVideoSeek}
                   onSeekEnd={handleSeekEnd}
                   visible={showSeekBar}
-                  barWidth={mediaSize - 32}
+                  barWidth={cardInnerWidth - 32}
                 />
               </View>
             ) : hasMultipleMedia ? (
@@ -600,7 +606,7 @@ function FeedPostComponent({
                           <Image
                             source={{ uri: medium.url }}
                             style={{
-                              width: mediaSize,
+                              width: cardInnerWidth,
                               height: PORTRAIT_HEIGHT,
                             }}
                             contentFit="cover"
@@ -611,7 +617,7 @@ function FeedPostComponent({
                         ) : (
                           <View
                             style={{
-                              width: mediaSize,
+                              width: cardInnerWidth,
                               height: PORTRAIT_HEIGHT,
                             }}
                             className="bg-muted items-center justify-center"
