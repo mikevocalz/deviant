@@ -5,7 +5,7 @@
  * until Klipy API key is approved. Supports category tabs and search.
  */
 
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useMemo, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,10 +17,15 @@ import {
 } from "react-native";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
+import { Asset } from "expo-asset";
 import { Search, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 
-import { stickerPacks } from "@/lib/constants/sticker-packs";
+import {
+  stickerPacks,
+  LOCAL_STICKER_MODULES,
+  resolveLocalStickers,
+} from "@/lib/constants/sticker-packs";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const GRID_PADDING = 12;
@@ -31,8 +36,11 @@ const ITEM_SIZE =
   NUM_COLUMNS;
 
 type PackKey = keyof typeof stickerPacks;
+type CategoryKey = "dvnt" | "ballroom" | PackKey | "all";
 
-const CATEGORIES: { key: PackKey | "all"; label: string; emoji: string }[] = [
+const CATEGORIES: { key: CategoryKey; label: string; emoji: string }[] = [
+  { key: "dvnt", label: "DVNT", emoji: "🔥" },
+  { key: "ballroom", label: "Ballroom", emoji: "💃" },
   { key: "all", label: "All", emoji: "✨" },
   { key: "faces", label: "Faces", emoji: "😂" },
   { key: "gestures", label: "Gestures", emoji: "👍" },
@@ -44,10 +52,15 @@ const CATEGORIES: { key: PackKey | "all"; label: string; emoji: string }[] = [
   { key: "flags", label: "Flags", emoji: "🚩" },
 ];
 
-// Build a flat list with category info for search
+// Build a flat list with category info for search (remote stickers only)
 const ALL_ITEMS = Object.entries(stickerPacks).flatMap(([category, urls]) =>
   urls.map((url) => ({ url, category })),
 );
+
+// Sticker item: either a remote URL string or a local asset module number
+type StickerItem =
+  | { uri: string; isLocal: false }
+  | { moduleId: number; isLocal: true };
 
 // ── Main Component ─────────────────────────────────────
 
@@ -58,10 +71,33 @@ interface StickerSheetContentProps {
 export const StickerSheetContent = memo(function StickerSheetContent({
   onSelect,
 }: StickerSheetContentProps) {
-  const [activeCategory, setActiveCategory] = useState<PackKey | "all">("all");
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>("dvnt");
   const [searchQuery, setSearchQuery] = useState("");
+  const [localStickers, setLocalStickers] = useState<{
+    dvnt: string[];
+    ballroom: string[];
+  } | null>(null);
 
-  const filteredStickers = useMemo(() => {
+  // Resolve local sticker assets to file URIs on mount
+  useEffect(() => {
+    resolveLocalStickers().then(setLocalStickers).catch(console.warn);
+  }, []);
+
+  const filteredStickers = useMemo((): StickerItem[] => {
+    // Local pack tabs
+    if (activeCategory === "dvnt" || activeCategory === "ballroom") {
+      if (!localStickers) {
+        // Not resolved yet — show module IDs for preview
+        const modules = LOCAL_STICKER_MODULES[activeCategory];
+        return modules.map((mod) => ({ moduleId: mod, isLocal: true }));
+      }
+      return localStickers[activeCategory].map((uri) => ({
+        uri,
+        isLocal: false,
+      }));
+    }
+
+    // Remote sticker packs
     let items =
       activeCategory === "all"
         ? ALL_ITEMS
@@ -74,8 +110,8 @@ export const StickerSheetContent = memo(function StickerSheetContent({
       );
     }
 
-    return items.map((item) => item.url);
-  }, [activeCategory, searchQuery]);
+    return items.map((item) => ({ uri: item.url, isLocal: false }));
+  }, [activeCategory, searchQuery, localStickers]);
 
   const handleSelect = useCallback(
     (uri: string) => {
@@ -86,14 +122,23 @@ export const StickerSheetContent = memo(function StickerSheetContent({
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: string }) => (
-      <StickerGridItem uri={item} onPress={handleSelect} />
-    ),
+    ({ item }: { item: StickerItem }) => {
+      if (item.isLocal) {
+        return (
+          <LocalStickerGridItem
+            moduleId={item.moduleId}
+            onPress={handleSelect}
+          />
+        );
+      }
+      return <StickerGridItem uri={item.uri} onPress={handleSelect} />;
+    },
     [handleSelect],
   );
 
   const keyExtractor = useCallback(
-    (item: string, index: number) => `${item}-${index}`,
+    (item: StickerItem, index: number) =>
+      item.isLocal ? `local-${item.moduleId}-${index}` : `${item.uri}-${index}`,
     [],
   );
 
@@ -107,6 +152,7 @@ export const StickerSheetContent = memo(function StickerSheetContent({
       >
         {CATEGORIES.map((cat) => {
           const isActive = activeCategory === cat.key;
+          const isLocalPack = cat.key === "dvnt" || cat.key === "ballroom";
           return (
             <Pressable
               key={cat.key}
@@ -115,11 +161,20 @@ export const StickerSheetContent = memo(function StickerSheetContent({
                 setActiveCategory(cat.key);
                 setSearchQuery("");
               }}
-              style={[styles.tab, isActive && styles.tabActive]}
+              style={[
+                styles.tab,
+                isActive && styles.tabActive,
+                isLocalPack && styles.tabLocal,
+                isActive && isLocalPack && styles.tabLocalActive,
+              ]}
             >
               <Text style={styles.tabEmoji}>{cat.emoji}</Text>
               <Text
-                style={[styles.tabLabel, isActive && styles.tabLabelActive]}
+                style={[
+                  styles.tabLabel,
+                  isActive && styles.tabLabelActive,
+                  isLocalPack && !isActive && styles.tabLabelLocal,
+                ]}
               >
                 {cat.label}
               </Text>
@@ -197,6 +252,40 @@ const StickerGridItem = memo(function StickerGridItem({
   );
 });
 
+// Local asset sticker — uses require() module ID for display,
+// resolves to file URI on press for the photo editor
+const LocalStickerGridItem = memo(function LocalStickerGridItem({
+  moduleId,
+  onPress,
+}: {
+  moduleId: number;
+  onPress: (uri: string) => void;
+}) {
+  const handlePress = useCallback(async () => {
+    try {
+      const asset = Asset.fromModule(moduleId);
+      await asset.downloadAsync();
+      if (asset.localUri) {
+        onPress(asset.localUri);
+      }
+    } catch (e) {
+      console.warn("[Stickers] Failed to resolve local sticker:", e);
+    }
+  }, [moduleId, onPress]);
+
+  return (
+    <Pressable onPress={handlePress} style={styles.gridItemLocal}>
+      <Image
+        source={moduleId}
+        style={styles.gridImage}
+        contentFit="contain"
+        transition={100}
+        cachePolicy="memory-disk"
+      />
+    </Pressable>
+  );
+});
+
 // ── Styles ─────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -225,6 +314,17 @@ const styles = StyleSheet.create({
   tabActive: {
     backgroundColor: "rgba(62, 164, 229, 0.2)",
     borderColor: "rgba(62, 164, 229, 0.3)",
+  },
+  tabLocal: {
+    backgroundColor: "rgba(255, 91, 252, 0.08)",
+    borderColor: "rgba(255, 91, 252, 0.15)",
+  },
+  tabLocalActive: {
+    backgroundColor: "rgba(255, 91, 252, 0.2)",
+    borderColor: "rgba(255, 91, 252, 0.4)",
+  },
+  tabLabelLocal: {
+    color: "rgba(255, 91, 252, 0.6)",
   },
   tabEmoji: {
     fontSize: 16,
@@ -274,6 +374,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 8,
+  },
+  gridItemLocal: {
+    width: ITEM_SIZE,
+    height: ITEM_SIZE,
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
   },
   gridImage: {
     width: "100%",

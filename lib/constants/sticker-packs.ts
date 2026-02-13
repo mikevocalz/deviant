@@ -4,10 +4,73 @@
  * All stickers are remote URLs loaded by @baronha/react-native-photo-editor.
  * Using Twemoji (Twitter emoji) via jsDelivr CDN — free, high quality, reliable.
  * Using PNG format (72x72) for native photo editor compatibility.
+ *
+ * DVNT and Ballroom packs use local bundled assets (require()).
+ * These are resolved to file URIs at runtime via resolveLocalStickers().
  */
+
+import { Asset } from "expo-asset";
 
 const TWEMOJI_BASE =
   "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72";
+
+// ── Local Sticker Packs (bundled assets) ──
+export const LOCAL_STICKER_MODULES = {
+  dvnt: [
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_APP.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_AfterHours.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_CounterCulture.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_DAYPLAY.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_Deviant.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_EnergyCheck.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_FTC.png"),
+    require("@/assets/images/stickers/dvnt/DVNT-stickers_OUTSIDE.png"),
+    require("@/assets/images/stickers/dvnt/eat-it.png"),
+  ],
+  ballroom: [
+    require("@/assets/images/stickers/ballroom/1-chop.png"),
+    require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_28_14 PM.png"),
+    require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_30_42 PM.png"),
+    require("@/assets/images/stickers/ballroom/ate-that.png"),
+    require("@/assets/images/stickers/ballroom/tea.png"),
+  ],
+} as const;
+
+/**
+ * Resolve local asset modules to file:// URIs for the photo editor.
+ * Must be called once at runtime (async).
+ */
+let _resolvedLocalStickers: { dvnt: string[]; ballroom: string[] } | null =
+  null;
+
+export async function resolveLocalStickers(): Promise<{
+  dvnt: string[];
+  ballroom: string[];
+}> {
+  if (_resolvedLocalStickers) return _resolvedLocalStickers;
+
+  const resolve = async (modules: readonly number[]) => {
+    const uris: string[] = [];
+    for (const mod of modules) {
+      try {
+        const asset = Asset.fromModule(mod);
+        await asset.downloadAsync();
+        if (asset.localUri) uris.push(asset.localUri);
+      } catch (e) {
+        console.warn("[Stickers] Failed to resolve local asset:", e);
+      }
+    }
+    return uris;
+  };
+
+  const [dvnt, ballroom] = await Promise.all([
+    resolve(LOCAL_STICKER_MODULES.dvnt),
+    resolve(LOCAL_STICKER_MODULES.ballroom),
+  ]);
+
+  _resolvedLocalStickers = { dvnt, ballroom };
+  return _resolvedLocalStickers;
+}
 
 // ── Faces & Expressions ──
 const faces = [
@@ -173,3 +236,6 @@ export const stickerPacks = {
   nature,
   flags,
 };
+
+// Type for all pack keys including local packs
+export type StickerPackKey = keyof typeof stickerPacks | "dvnt" | "ballroom";
