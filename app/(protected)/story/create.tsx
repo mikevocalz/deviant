@@ -325,22 +325,18 @@ export default function CreateStoryScreen() {
     [currentIndex, handleEditImage],
   );
 
-  const handleShare = useCallback(async () => {
+  const handleShare = async () => {
     console.log("[Story] handleShare called", {
       isSharing,
       isPending: createStory.isPending,
-      selectedMediaCount: selectedMedia.length,
       mediaAssetsCount: mediaAssets.length,
-      visibility,
     });
 
     if (isSharing || createStory.isPending) {
-      console.log(
-        "[Story] handleShare blocked: isSharing=",
+      console.log("[Story] handleShare blocked:", {
         isSharing,
-        "isPending=",
-        createStory.isPending,
-      );
+        isPending: createStory.isPending,
+      });
       return;
     }
     if (mediaAssets.length === 0) {
@@ -361,11 +357,7 @@ export default function CreateStoryScreen() {
       const uploadResults = await uploadMultiple(mediaFiles);
       console.log(
         "[Story] Upload results:",
-        uploadResults.map((r) => ({
-          success: r.success,
-          url: r.url?.substring(0, 50),
-          error: r.error,
-        })),
+        uploadResults.map((r) => ({ success: r.success, error: r.error })),
       );
       const failedUploads = uploadResults.filter((r) => !r.success);
 
@@ -392,7 +384,6 @@ export default function CreateStoryScreen() {
         {
           onSuccess: (newStory: any) => {
             console.log("[Story] Story created!", newStory?.id);
-            // Save tags if any users were tagged
             if (taggedUsers.length > 0 && newStory?.id) {
               const tags = taggedUsers.map((u) => ({
                 userId: u.id,
@@ -426,19 +417,7 @@ export default function CreateStoryScreen() {
       setIsSharing(false);
       showToast("error", "Error", error?.message || "Something went wrong.");
     }
-  }, [
-    isSharing,
-    createStory,
-    selectedMedia.length,
-    mediaAssets,
-    visibility,
-    uploadMultiple,
-    taggedUsers,
-    showToast,
-    reset,
-    setMediaAssets,
-    router,
-  ]);
+  };
 
   const handleClose = () => {
     if (selectedMedia.length > 0) {
