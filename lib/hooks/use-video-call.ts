@@ -652,6 +652,15 @@ export function useVideoCall() {
       // Step 3: Connect Fishjam peer
       s.setCallPhase("connecting_peer");
       log("Connecting Fishjam peer...");
+      log(
+        `[DEBUG] token length=${token?.length ?? 0}, joinRoomRef=${typeof joinRoomRef.current}`,
+      );
+
+      if (!token) {
+        logError("No Fishjam token returned from edge function");
+        s.setError("No peer token received", "no_peer_token");
+        return;
+      }
 
       try {
         await joinRoomRef.current({
@@ -665,8 +674,14 @@ export function useVideoCall() {
         log("Fishjam peer connected successfully");
       } catch (peerErr: any) {
         logError("Fishjam peer join failed:", peerErr);
+        logError(
+          "[DEBUG] peerErr type:",
+          typeof peerErr,
+          "value:",
+          JSON.stringify(peerErr),
+        );
         s.setError(
-          peerErr.message || "WebRTC connection failed",
+          peerErr?.message || "WebRTC connection failed",
           "peer_join_failed",
         );
         return;
@@ -844,6 +859,16 @@ export function useVideoCall() {
       // Step 2: Connect Fishjam peer
       s.setCallPhase("connecting_peer");
       log("Connecting Fishjam peer...");
+      log(
+        `[DEBUG] token length=${token?.length ?? 0}, joinRoomRef=${typeof joinRoomRef.current}`,
+      );
+
+      if (!token) {
+        logError("No Fishjam token returned from edge function");
+        s.setError("No peer token received", "no_peer_token");
+        CT.error("FISHJAM", "no_peer_token", { roomId });
+        return;
+      }
 
       try {
         await joinRoomRef.current({
@@ -858,8 +883,14 @@ export function useVideoCall() {
         CT.trace("FISHJAM", "peerConnected", { roomId });
       } catch (peerErr: any) {
         logError("Fishjam peer join failed:", peerErr);
+        logError(
+          "[DEBUG] peerErr type:",
+          typeof peerErr,
+          "value:",
+          JSON.stringify(peerErr),
+        );
         s.setError(
-          peerErr.message || "WebRTC connection failed",
+          peerErr?.message || "WebRTC connection failed",
           "peer_join_failed",
         );
         CT.error("FISHJAM", "peerJoin_crashed", {
