@@ -157,14 +157,10 @@ export const sneakyLynkApi = {
         Date.now() - 24 * 60 * 60 * 1000,
       ).toISOString();
 
+      // No FK on created_by → fetch rooms first, then batch-lookup creators
       const { data, error } = await supabase
         .from("video_rooms")
-        .select(
-          `
-          *,
-          creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
-        `,
-        )
+        .select("*")
         .or(
           `status.eq.open,and(status.eq.ended,ended_at.gte.${twentyFourHoursAgo})`,
         )
@@ -177,30 +173,51 @@ export const sneakyLynkApi = {
         return [];
       }
 
-      return (data || []).map((r: any) => ({
-        id: r.uuid || String(r.id),
-        createdBy: r.created_by || "",
-        title: r.title || "Untitled Lynk",
-        topic: r.topic || "",
-        description: r.description || "",
-        isLive: r.status === "open",
-        hasVideo: r.has_video ?? false,
-        isPublic: r.is_public ?? true,
-        status: r.status as "open" | "ended",
-        createdAt: r.created_at,
-        endedAt: r.ended_at || undefined,
-        host: {
-          id: String(r.creator?.id || ""),
-          username: r.creator?.username || "unknown",
-          displayName:
-            r.creator?.first_name || r.creator?.username || "unknown",
-          avatar: r.creator?.avatar?.url || "",
-          isVerified: r.creator?.verified || false,
-        },
-        speakers: [],
-        listeners: 0,
-        fishjamRoomId: r.fishjam_room_id || undefined,
-      }));
+      // Batch-lookup creators by auth_id
+      const creatorIds = [
+        ...new Set((data || []).map((r: any) => r.created_by).filter(Boolean)),
+      ];
+      let creatorsMap: Record<string, any> = {};
+      if (creatorIds.length > 0) {
+        const { data: creators } = await supabase
+          .from("users")
+          .select(
+            "id, auth_id, username, first_name, avatar:avatar_id(url), verified",
+          )
+          .in("auth_id", creatorIds);
+        if (creators) {
+          for (const c of creators) {
+            creatorsMap[c.auth_id] = c;
+          }
+        }
+      }
+
+      return (data || []).map((r: any) => {
+        const creator = creatorsMap[r.created_by] || null;
+        return {
+          id: r.uuid || String(r.id),
+          createdBy: r.created_by || "",
+          title: r.title || "Untitled Lynk",
+          topic: r.topic || "",
+          description: r.description || "",
+          isLive: r.status === "open",
+          hasVideo: r.has_video ?? false,
+          isPublic: r.is_public ?? true,
+          status: r.status as "open" | "ended",
+          createdAt: r.created_at,
+          endedAt: r.ended_at || undefined,
+          host: {
+            id: String(creator?.id || ""),
+            username: creator?.username || "unknown",
+            displayName: creator?.first_name || creator?.username || "unknown",
+            avatar: (creator?.avatar as any)?.url || "",
+            isVerified: creator?.verified || false,
+          },
+          speakers: [],
+          listeners: 0,
+          fishjamRoomId: r.fishjam_room_id || undefined,
+        };
+      });
     } catch (error) {
       console.error("[SneakyLynk] getLiveRooms error:", error);
       return [];
@@ -220,16 +237,24 @@ export const sneakyLynkApi = {
       const lookupColumn = isUuid ? "uuid" : "id";
       const { data, error } = await supabase
         .from("video_rooms")
-        .select(
-          `
-          *,
-          creator:created_by(id, auth_id, username, first_name, avatar:avatar_id(url), verified)
-        `,
-        )
+        .select("*")
         .eq(lookupColumn, roomId)
         .single();
 
       if (error || !data) return null;
+
+      // Lookup creator by auth_id (no FK on created_by)
+      let creator: any = null;
+      if (data.created_by) {
+        const { data: creatorData } = await supabase
+          .from("users")
+          .select(
+            "id, auth_id, username, first_name, avatar:avatar_id(url), verified",
+          )
+          .eq("auth_id", data.created_by)
+          .single();
+        creator = creatorData;
+      }
 
       return {
         id: data.uuid || String(data.id),
@@ -244,12 +269,11 @@ export const sneakyLynkApi = {
         createdAt: data.created_at,
         endedAt: data.ended_at || undefined,
         host: {
-          id: String(data.creator?.id || ""),
-          username: data.creator?.username || "unknown",
-          displayName:
-            data.creator?.first_name || data.creator?.username || "unknown",
-          avatar: data.creator?.avatar?.url || "",
-          isVerified: data.creator?.verified || false,
+          id: String(creator?.id || ""),
+          username: creator?.username || "unknown",
+          displayName: creator?.first_name || creator?.username || "unknown",
+          avatar: (creator?.avatar as any)?.url || "",
+          isVerified: creator?.verified || false,
         },
         speakers: [],
         listeners: 0,
