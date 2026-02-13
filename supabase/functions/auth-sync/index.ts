@@ -65,61 +65,6 @@ interface BetterAuthSession {
  * This avoids the cookie-signature issue with HTTP-based verification.
  * Both Edge Functions share the same Supabase database.
  */
-async function verifyBetterAuthSession(
-  token: string,
-  supabaseAdmin: any,
-): Promise<BetterAuthSession | null> {
-  try {
-    console.log("[Edge:auth-sync] Verifying session via DB lookup...");
-
-    // Query Better Auth's session table directly (columns are camelCase)
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("id, token, userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !session) {
-      console.error(
-        "[Edge:auth-sync] Session not found:",
-        sessionError?.message,
-      );
-      return null;
-    }
-
-    // Check expiry
-    if (new Date(session.expiresAt) < new Date()) {
-      console.error("[Edge:auth-sync] Session expired");
-      return null;
-    }
-
-    // Get the user from Better Auth's user table
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("user")
-      .select("id, email, name, image")
-      .eq("id", session.userId)
-      .single();
-
-    if (userError || !user) {
-      console.error("[Edge:auth-sync] User not found:", userError?.message);
-      return null;
-    }
-
-    console.log("[Edge:auth-sync] Session verified for user:", user.id);
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        image: user.image,
-      },
-      session: { id: session.id, userId: session.userId, token: session.token },
-    };
-  } catch (error) {
-    console.error("[Edge:auth-sync] Session verification error:", error);
-    return null;
-  }
-}
 
 serve(async (req: Request) => {
   // Handle CORS preflight
@@ -154,13 +99,27 @@ serve(async (req: Request) => {
       return errorResponse("internal_error", "Server configuration error");
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
     // 3. Verify Better Auth session via direct DB lookup
-    const session = await verifyBetterAuthSession(token, supabaseAdmin);
-    if (!session) {
+    // Verify Better Auth session via direct DB lookup
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
+
+    if (sessionError || !sessionData) {
       return errorResponse("unauthorized", "Invalid or expired session");
     }
+    if (new Date(sessionData.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired");
+    }
+
+    const authUserId = sessionData.userId;
 
     const authId = session.user.id;
     const email = session.user.email;

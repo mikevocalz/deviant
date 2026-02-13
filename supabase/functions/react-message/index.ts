@@ -32,33 +32,6 @@ function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
-async function verifyBetterAuthSession(
-  token: string,
-  supabaseAdmin: any,
-): Promise<{ odUserId: string; email: string } | null> {
-  try {
-    const { data: session, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("id, token, userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !session) return null;
-    if (new Date(session.expiresAt) < new Date()) return null;
-
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("user")
-      .select("id, email, name")
-      .eq("id", session.userId)
-      .single();
-
-    if (userError || !user) return null;
-    return { odUserId: user.id, email: user.email || "" };
-  } catch {
-    return null;
-  }
-}
-
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -79,11 +52,21 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${serviceKey}` } },
     });
 
-    // Verify session
-    const session = await verifyBetterAuthSession(token, supabaseAdmin);
-    if (!session) {
+    // Verify Better Auth session via direct DB lookup
+    const { data: sessionData, error: sessionError } = await supabaseAdmin
+      .from("session")
+      .select("id, token, userId, expiresAt")
+      .eq("token", token)
+      .single();
+
+    if (sessionError || !sessionData) {
       return errorResponse("unauthorized", "Invalid or expired session");
     }
+    if (new Date(sessionData.expiresAt) < new Date()) {
+      return errorResponse("unauthorized", "Session expired");
+    }
+
+    const authUserId = sessionData.userId;
 
     const { messageId, emoji } = await req.json();
     if (!messageId || !emoji) {
@@ -94,14 +77,14 @@ serve(async (req: Request) => {
     const { data: userRow } = await supabaseAdmin
       .from("users")
       .select("id, username, auth_id")
-      .eq("auth_id", session.odUserId)
+      .eq("auth_id", authUserId)
       .single();
 
     if (!userRow) {
       return errorResponse("not_found", "User not found");
     }
 
-    const userId = session.odUserId; // Use auth_id as the reaction userId for consistency
+    const userId = authUserId; // Use auth_id as the reaction userId for consistency
     const username = userRow.username || "user";
 
     // Fetch current metadata
@@ -116,8 +99,11 @@ serve(async (req: Request) => {
     }
 
     const meta = msg.metadata || {};
-    const reactions: Array<{ emoji: string; userId: string; username: string }> =
-      Array.isArray(meta.reactions) ? [...meta.reactions] : [];
+    const reactions: Array<{
+      emoji: string;
+      userId: string;
+      username: string;
+    }> = Array.isArray(meta.reactions) ? [...meta.reactions] : [];
 
     // Toggle: remove if already reacted with same emoji, otherwise add
     const existingIdx = reactions.findIndex(
@@ -141,7 +127,9 @@ serve(async (req: Request) => {
       return errorResponse("update_failed", updateError.message);
     }
 
-    console.log(`[Edge:react-message] ${existingIdx >= 0 ? "Removed" : "Added"} ${emoji} on message ${messageId} by ${username}`);
+    console.log(
+      `[Edge:react-message] ${existingIdx >= 0 ? "Removed" : "Added"} ${emoji} on message ${messageId} by ${username}`,
+    );
 
     return jsonResponse({
       ok: true,
