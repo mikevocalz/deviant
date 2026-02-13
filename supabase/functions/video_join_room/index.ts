@@ -236,10 +236,10 @@ serve(async (req: Request) => {
         }
       });
 
-    // Get or create Fishjam room
-    let fishjamRoomId = room.fishjam_room_id;
+    // Always create a fresh Fishjam room (old rooms may be stale after key rotation)
+    let fishjamRoomId: string | null = null;
 
-    if (!fishjamRoomId) {
+    {
       // Create Fishjam room
       const fishjamRoomUrl = `${fishjamBaseUrl}/room`;
       console.log(
