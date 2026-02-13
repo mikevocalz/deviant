@@ -26,8 +26,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: string, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -61,7 +61,7 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST")
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
 
   try {
     const authHeader = req.headers.get("Authorization");
@@ -77,34 +77,34 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session)
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
 
     let body: { targetUserId: number };
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { targetUserId } = body;
     if (!targetUserId)
-      return errorResponse("validation_error", "targetUserId is required", 400);
+      return errorResponse("validation_error", "targetUserId is required");
 
     const { data: userData } = await supabaseAdmin
       .from("users")
       .select("id")
       .eq("auth_id", session.odUserId)
       .single();
-    if (!userData) return errorResponse("not_found", "User not found", 404);
+    if (!userData) return errorResponse("not_found", "User not found");
 
     if (userData.id === targetUserId)
-      return errorResponse("validation_error", "Cannot block yourself", 400);
+      return errorResponse("validation_error", "Cannot block yourself");
 
     // Check if already blocked
     const { data: existingBlock } = await supabaseAdmin
@@ -131,6 +131,6 @@ serve(async (req: Request) => {
     return jsonResponse({ ok: true, data: { blocked } });
   } catch (err) {
     console.error("[Edge:toggle-block] Error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

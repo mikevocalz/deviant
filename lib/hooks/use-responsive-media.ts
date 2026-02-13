@@ -13,7 +13,7 @@ const MAX_CONTENT_WIDTH = 614;
 // Standard aspect ratios (height = width × ratio)
 export const ASPECT_RATIOS = {
   square: 1, // 1:1
-  portrait: 1, // 1:1 — default for feed (works for all image orientations)
+  portrait: 5 / 4, // 4:5 — default for feed posts
   landscape: 0.75, // 4:3
   wide: 0.5625, // 16:9
   story: 1.777, // 9:16

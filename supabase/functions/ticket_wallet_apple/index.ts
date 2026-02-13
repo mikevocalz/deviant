@@ -42,7 +42,7 @@ function errorResponse(
   status = 400,
 ): Response {
   console.error(`[Edge:ticket_wallet_apple] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(token: string, supabaseAdmin: any): Promise<{ odUserId: string; email: string } | null> {
@@ -75,7 +75,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -94,13 +94,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId } = session;
@@ -114,7 +114,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { ticketId, eventId } = body;
@@ -136,7 +136,7 @@ serve(async (req: Request) => {
       .single();
 
     if (userError || !userData) {
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     // TODO: Verify ticket exists in tickets table and belongs to this user
@@ -148,11 +148,11 @@ serve(async (req: Request) => {
     //   .single();
     //
     // if (ticketError || !ticketData) {
-    //   return errorResponse("not_found", "Ticket not found or not owned by user", 404);
+    //   return errorResponse("not_found", "Ticket not found or not owned by user");
     // }
     //
     // if (ticketData.status !== "valid") {
-    //   return errorResponse("invalid_ticket", "Ticket is not valid", 400);
+    //   return errorResponse("invalid_ticket", "Ticket is not valid");
     // }
 
     // 4. Generate .pkpass

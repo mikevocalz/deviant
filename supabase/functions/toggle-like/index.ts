@@ -26,9 +26,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:toggle-like] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -64,7 +64,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -82,13 +82,13 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const { odUserId } = session;
@@ -99,7 +99,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { postId } = body;
@@ -122,7 +122,7 @@ serve(async (req: Request) => {
 
     if (userError || !userData) {
       console.error("[Edge:toggle-like] User not found:", userError);
-      return errorResponse("not_found", "User not found", 404);
+      return errorResponse("not_found", "User not found");
     }
 
     const userId = userData.id;
@@ -148,7 +148,7 @@ serve(async (req: Request) => {
 
       if (deleteError) {
         console.error("[Edge:toggle-like] Delete error:", deleteError);
-        return errorResponse("internal_error", "Failed to unlike", 500);
+        return errorResponse("internal_error", "Failed to unlike");
       }
 
       // Decrement likes count
@@ -162,7 +162,7 @@ serve(async (req: Request) => {
 
       if (insertError) {
         console.error("[Edge:toggle-like] Insert error:", insertError);
-        return errorResponse("internal_error", "Failed to like", 500);
+        return errorResponse("internal_error", "Failed to like");
       }
 
       // Increment likes count
@@ -262,6 +262,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:toggle-like] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

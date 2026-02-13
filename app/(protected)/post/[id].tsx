@@ -43,8 +43,8 @@ import { Alert } from "react-native";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-// CRITICAL: Match FeedItem's 1:1 aspect ratio for consistent display
-const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * 1);
+// CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
+const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * (5 / 4));
 
 function PostDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();

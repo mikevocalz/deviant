@@ -122,8 +122,8 @@ function jsonResponse(data: unknown, status = 200): Response {
   });
 }
 
-function errorResponse(message: string, status: number): Response {
-  return jsonResponse({ ok: false, error: message }, status);
+function errorResponse(message: string): Response {
+  return jsonResponse({ ok: false, error: message }, 200);
 }
 
 // Main handler
@@ -142,7 +142,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("Method not allowed", 405);
+    return errorResponse("Method not allowed");
   }
 
   // Get env vars (NEVER log these)
@@ -156,18 +156,18 @@ serve(async (req: Request) => {
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     console.error("[media-upload] Missing Supabase config");
-    return errorResponse("Server configuration error", 500);
+    return errorResponse("Server configuration error");
   }
 
   if (!BUNNY_STORAGE_ZONE || !BUNNY_ACCESS_KEY || !BUNNY_PULLZONE_BASE_URL) {
     console.error("[media-upload] Missing Bunny config");
-    return errorResponse("Server configuration error", 500);
+    return errorResponse("Server configuration error");
   }
 
   // Auth check
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return errorResponse("Missing or invalid Authorization header", 401);
+    return errorResponse("Missing or invalid Authorization header");
   }
 
   const jwt = authHeader.replace("Bearer ", "");
@@ -180,7 +180,7 @@ serve(async (req: Request) => {
   } = await supabase.auth.getUser(jwt);
   if (authError || !user) {
     console.error("[media-upload] Auth error:", authError?.message);
-    return errorResponse("Unauthorized", 401);
+    return errorResponse("Unauthorized");
   }
 
   const userId = user.id;
@@ -204,7 +204,7 @@ serve(async (req: Request) => {
       const kindField = formData.get("kind") as string | null;
 
       if (!file || !kindField) {
-        return errorResponse("Missing file or kind in form data", 400);
+        return errorResponse("Missing file or kind in form data");
       }
 
       fileBytes = new Uint8Array(await file.arrayBuffer());
@@ -231,7 +231,6 @@ serve(async (req: Request) => {
       if (!kindHeader || !filenameHeader || !mimeHeader) {
         return errorResponse(
           "Missing required headers: x-kind, x-file-name, x-mime",
-          400,
         );
       }
 
@@ -247,7 +246,7 @@ serve(async (req: Request) => {
     }
   } catch (parseError) {
     console.error("[media-upload] Parse error:", parseError);
-    return errorResponse("Failed to parse request body", 400);
+    return errorResponse("Failed to parse request body");
   }
 
   // Validate kind
@@ -255,7 +254,6 @@ serve(async (req: Request) => {
   if (!validKinds.includes(kind)) {
     return errorResponse(
       `Invalid kind: ${kind}. Allowed: ${validKinds.join(", ")}`,
-      400,
     );
   }
 
@@ -264,33 +262,30 @@ serve(async (req: Request) => {
   if (!allowedMimes.includes(mime)) {
     return errorResponse(
       `Invalid mime type for ${kind}: ${mime}. Allowed: ${allowedMimes.join(", ")}`,
-      415,
     );
   }
 
   // Validate size
   const sizeLimit = SIZE_LIMITS[kind];
   if (fileBytes.length === 0) {
-    return errorResponse("Empty file", 400);
+    return errorResponse("Empty file");
   }
   if (fileBytes.length > sizeLimit) {
     const limitMB = (sizeLimit / (1024 * 1024)).toFixed(1);
     const actualMB = (fileBytes.length / (1024 * 1024)).toFixed(2);
     return errorResponse(
       `File too large for ${kind}: ${actualMB}MB exceeds ${limitMB}MB limit`,
-      413,
     );
   }
 
   // Validate video duration
   if (isVideoKind(kind)) {
     if (durationSec === undefined || isNaN(durationSec)) {
-      return errorResponse("durationSec is required for video uploads", 400);
+      return errorResponse("durationSec is required for video uploads");
     }
     if (durationSec > MAX_VIDEO_DURATION_SEC) {
       return errorResponse(
         `Video too long: ${durationSec}s exceeds ${MAX_VIDEO_DURATION_SEC}s limit`,
-        400,
       );
     }
   }
@@ -360,7 +355,7 @@ serve(async (req: Request) => {
     console.error(
       `[media-upload] Upload failed after ${MAX_RETRIES} attempts: ${lastError}`,
     );
-    return errorResponse(`Upload failed: ${lastError}`, 500);
+    return errorResponse(`Upload failed: ${lastError}`);
   }
 
   // Insert media record into database using existing schema
@@ -388,10 +383,7 @@ serve(async (req: Request) => {
       insertError.details,
     );
     // TODO: Consider deleting the uploaded file from Bunny on DB failure
-    return errorResponse(
-      `Failed to save media record: ${insertError.message}`,
-      500,
-    );
+    return errorResponse(`Failed to save media record: ${insertError.message}`);
   }
 
   // Return success using existing schema column names

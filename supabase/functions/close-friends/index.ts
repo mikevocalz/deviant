@@ -28,8 +28,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+function errorResponse(code: string, message: string): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 async function verifyBetterAuthSession(
@@ -63,25 +63,28 @@ serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST")
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer "))
-      return errorResponse("unauthorized", "Missing or invalid Authorization header", 401);
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+      );
 
     const token = authHeader.replace("Bearer ", "");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey)
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session)
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
 
     const ownerAuthId = session.odUserId;
 
@@ -89,7 +92,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { action } = body;
@@ -104,7 +107,7 @@ serve(async (req: Request) => {
 
       if (error) {
         console.error("[close-friends] list error:", error);
-        return errorResponse("internal_error", "Failed to fetch close friends", 500);
+        return errorResponse("internal_error", "Failed to fetch close friends");
       }
 
       const friendIds = (friends || []).map((f: any) => f.friend_id);
@@ -122,7 +125,10 @@ serve(async (req: Request) => {
       const friendsList = (users || []).map((u: any) => ({
         id: u.id,
         username: u.username || "",
-        name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "",
+        name:
+          [u.first_name, u.last_name].filter(Boolean).join(" ") ||
+          u.username ||
+          "",
         avatar: u.avatar?.url || null,
       }));
 
@@ -136,7 +142,10 @@ serve(async (req: Request) => {
     if (action === "add") {
       const { friendId } = body;
       if (!friendId || typeof friendId !== "number")
-        return errorResponse("validation_error", "friendId (number) is required", 400);
+        return errorResponse(
+          "validation_error",
+          "friendId (number) is required",
+        );
 
       // Verify the friend user exists
       const { data: friendUser } = await supabaseAdmin
@@ -145,8 +154,7 @@ serve(async (req: Request) => {
         .eq("id", friendId)
         .single();
 
-      if (!friendUser)
-        return errorResponse("not_found", "User not found", 404);
+      if (!friendUser) return errorResponse("not_found", "User not found");
 
       // Upsert (ignore if already exists)
       const { error } = await supabaseAdmin
@@ -158,7 +166,7 @@ serve(async (req: Request) => {
 
       if (error) {
         console.error("[close-friends] add error:", error);
-        return errorResponse("internal_error", "Failed to add close friend", 500);
+        return errorResponse("internal_error", "Failed to add close friend");
       }
 
       return jsonResponse({ ok: true, data: { added: friendId } });
@@ -168,7 +176,10 @@ serve(async (req: Request) => {
     if (action === "remove") {
       const { friendId } = body;
       if (!friendId || typeof friendId !== "number")
-        return errorResponse("validation_error", "friendId (number) is required", 400);
+        return errorResponse(
+          "validation_error",
+          "friendId (number) is required",
+        );
 
       const { error } = await supabaseAdmin
         .from("close_friends")
@@ -178,7 +189,7 @@ serve(async (req: Request) => {
 
       if (error) {
         console.error("[close-friends] remove error:", error);
-        return errorResponse("internal_error", "Failed to remove close friend", 500);
+        return errorResponse("internal_error", "Failed to remove close friend");
       }
 
       return jsonResponse({ ok: true, data: { removed: friendId } });
@@ -188,7 +199,10 @@ serve(async (req: Request) => {
     if (action === "check") {
       const { friendIds } = body;
       if (!friendIds || !Array.isArray(friendIds))
-        return errorResponse("validation_error", "friendIds (array) is required", 400);
+        return errorResponse(
+          "validation_error",
+          "friendIds (array) is required",
+        );
 
       const { data: existing } = await supabaseAdmin
         .from("close_friends")
@@ -196,7 +210,9 @@ serve(async (req: Request) => {
         .eq("owner_id", ownerAuthId)
         .in("friend_id", friendIds);
 
-      const closeFriendSet = new Set((existing || []).map((e: any) => e.friend_id));
+      const closeFriendSet = new Set(
+        (existing || []).map((e: any) => e.friend_id),
+      );
       const results: Record<number, boolean> = {};
       for (const id of friendIds) {
         results[id] = closeFriendSet.has(id);
@@ -205,9 +221,12 @@ serve(async (req: Request) => {
       return jsonResponse({ ok: true, data: { results } });
     }
 
-    return errorResponse("validation_error", 'Invalid action. Use "list", "add", "remove", or "check".', 400);
+    return errorResponse(
+      "validation_error",
+      'Invalid action. Use "list", "add", "remove", or "check".',
+    );
   } catch (err) {
     console.error("[Edge:close-friends] Error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

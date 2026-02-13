@@ -55,9 +55,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 400): Response {
+function errorResponse(code: string, message: string): Response {
   console.error(`[Edge:send-email] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 // ─── Email Templates ─────────────────────────────────────────────────────────
@@ -176,7 +176,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -198,7 +198,7 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body", 400);
+      return errorResponse("validation_error", "Invalid JSON body");
     }
 
     const { template, to, data } = body;
@@ -261,7 +261,7 @@ serve(async (req: Request) => {
         break;
       }
       default:
-        return errorResponse("validation_error", "Unknown template", 400);
+        return errorResponse("validation_error", "Unknown template");
     }
 
     // Send via Resend REST API (no npm import needed in Deno)
@@ -303,6 +303,6 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:send-email] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

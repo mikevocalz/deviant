@@ -43,7 +43,7 @@ function errorResponse(
   status = 400,
 ): Response {
   console.error(`[Edge:auth-sync] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 interface BetterAuthSession {
@@ -128,7 +128,7 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("validation_error", "Method not allowed", 405);
+    return errorResponse("validation_error", "Method not allowed");
   }
 
   try {
@@ -151,7 +151,7 @@ serve(async (req: Request) => {
 
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("[Edge:auth-sync] Missing Supabase environment variables");
-      return errorResponse("internal_error", "Server configuration error", 500);
+      return errorResponse("internal_error", "Server configuration error");
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
@@ -159,7 +159,7 @@ serve(async (req: Request) => {
     // 3. Verify Better Auth session via direct DB lookup
     const session = await verifyBetterAuthSession(token, supabaseAdmin);
     if (!session) {
-      return errorResponse("unauthorized", "Invalid or expired session", 401);
+      return errorResponse("unauthorized", "Invalid or expired session");
     }
 
     const authId = session.user.id;
@@ -242,7 +242,7 @@ serve(async (req: Request) => {
           "[Edge:auth-sync] Failed to update auth_id:",
           updateError,
         );
-        return errorResponse("internal_error", "Failed to sync user", 500);
+        return errorResponse("internal_error", "Failed to sync user");
       }
 
       return jsonResponse({
@@ -299,7 +299,7 @@ serve(async (req: Request) => {
 
     if (createError) {
       console.error("[Edge:auth-sync] Failed to create user:", createError);
-      return errorResponse("internal_error", "Failed to create user", 500);
+      return errorResponse("internal_error", "Failed to create user");
     }
 
     console.log("[Edge:auth-sync] Created new user:", newUser.id);
@@ -313,7 +313,7 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("[Edge:auth-sync] Unexpected error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred", 500);
+    return errorResponse("internal_error", "An unexpected error occurred");
   }
 });
 
