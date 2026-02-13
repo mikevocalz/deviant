@@ -328,11 +328,11 @@ export function useVideoRoom({
   // Zero deps on state → stable identity.
 
   const toggleCamera = useCallback(async () => {
-    if (getStore().isCameraOn) {
-      cameraRef.current.stopCamera();
-    } else {
-      await cameraRef.current.startCamera();
-    }
+    // CRITICAL: Use SDK's toggleCamera() — NOT startCamera().
+    // startCamera() only creates the local track but does NOT publish it.
+    // toggleCamera() both starts the device AND publishes the track when
+    // peerStatus === "connected", so remote peers can see the video.
+    await cameraRef.current.toggleCamera();
     getStore().toggleCamera();
   }, [getStore]);
 

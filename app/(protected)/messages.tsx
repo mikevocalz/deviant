@@ -42,6 +42,7 @@ import {
 import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { useFocusEffect } from "expo-router";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 interface ConversationItem {
   id: string;
@@ -250,20 +251,28 @@ function SneakyLynkContent({
     router.push("/(protected)/sneaky-lynk/create" as any);
   }, [router]);
 
+  const showToast = useUIStore((s) => s.showToast);
+
   const handleRoomPress = useCallback(
     (room: LynkRecord) => {
-      if (room.isLive) {
-        router.push({
-          pathname: "/(protected)/sneaky-lynk/room/[id]",
-          params: {
-            id: room.id,
-            title: room.title,
-            hasVideo: room.hasVideo ? "1" : "0",
-          },
-        } as any);
+      if (!room.isLive || room.status === "ended") {
+        showToast(
+          "info",
+          "Lynk Ended",
+          "This Lynk has ended and can't be rejoined",
+        );
+        return;
       }
+      router.push({
+        pathname: "/(protected)/sneaky-lynk/room/[id]",
+        params: {
+          id: room.id,
+          title: room.title,
+          hasVideo: room.hasVideo ? "1" : "0",
+        },
+      } as any);
     },
-    [router],
+    [router, showToast],
   );
 
   return (
