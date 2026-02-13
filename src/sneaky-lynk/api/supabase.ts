@@ -164,7 +164,8 @@ export const sneakyLynkApi = {
         .or(
           `status.eq.open,and(status.eq.ended,ended_at.gte.${twentyFourHoursAgo})`,
         )
-        .order("status", { ascending: true }) // "open" before "ended"
+        .not("title", "in", '("Video Call","Audio Call")')
+        .order("status", { ascending: false }) // "open" (o) before "ended" (e)
         .order("created_at", { ascending: false })
         .limit(50);
 
