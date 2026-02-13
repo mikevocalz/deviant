@@ -383,22 +383,14 @@ function ServerRoom({
     requestMicPermission();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Join room on mount
+  // Join Fishjam room on mount (media starts in separate effect below)
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      console.log("[SneakyLynk:Server] Joining room...", id);
       const joined = await videoRoom.join();
-      if (joined && !cancelled) {
-        try {
-          // Configure audio session BEFORE starting mic (same fix as chat calls).
-          // Lynk rooms don't use CallKit, so use startForLynk() which immediately
-          // activates the iOS audio session instead of deferring to CallKit.
-          audioSession.startForLynk(roomHasVideo);
-          if (roomHasVideo) await videoRoom.toggleCamera();
-          await videoRoom.toggleMic();
-        } catch (e) {
-          console.warn("[SneakyLynk:Server] Failed to start media:", e);
-        }
+      if (!cancelled) {
+        console.log("[SneakyLynk:Server] Join result:", joined);
       }
     })();
     return () => {
@@ -407,6 +399,31 @@ function ServerRoom({
       audioSession.stop();
     };
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Start camera + mic ONLY after Fishjam peer is fully connected.
+  // toggleCamera/toggleMic must be called when peerStatus === "connected",
+  // otherwise the Fishjam SDK creates local tracks but never publishes them.
+  const mediaStartedRef = React.useRef(false);
+  useEffect(() => {
+    if (connectionState !== "connected" || mediaStartedRef.current) return;
+    mediaStartedRef.current = true;
+
+    (async () => {
+      try {
+        console.log("[SneakyLynk:Server] Peer connected — starting media");
+        audioSession.startForLynk(roomHasVideo);
+        if (roomHasVideo) {
+          console.log("[SneakyLynk:Server] Starting camera...");
+          await videoRoom.toggleCamera();
+        }
+        console.log("[SneakyLynk:Server] Starting mic...");
+        await videoRoom.toggleMic();
+        console.log("[SneakyLynk:Server] Media started successfully");
+      } catch (e) {
+        console.warn("[SneakyLynk:Server] Failed to start media:", e);
+      }
+    })();
+  }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Speaking indicator
   useEffect(() => {
