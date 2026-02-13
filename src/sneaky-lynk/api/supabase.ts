@@ -71,6 +71,9 @@ export const sneakyLynkApi = {
   ): Promise<ApiResponse<{ room: SneakyRoom }>> {
     return callEdgeFunction("video_create_room", {
       title: params.title,
+      topic: params.topic || "",
+      description: params.description || "",
+      hasVideo: params.hasVideo ?? false,
       isPublic: params.isPublic ?? true,
       maxParticipants: 50,
     });

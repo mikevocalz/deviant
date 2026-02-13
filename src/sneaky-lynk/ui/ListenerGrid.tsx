@@ -29,7 +29,7 @@ export function ListenerGrid({ listeners }: ListenerGridProps) {
           <View key={listener.id} className="items-center w-14">
             <Image
               source={{ uri: listener.user.avatar }}
-              className="w-12 h-12 rounded-xl mb-1.5"
+              className="w-12 h-12 rounded-2xl mb-1.5"
             />
             <Text
               className="text-[11px] text-muted-foreground text-center"

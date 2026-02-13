@@ -35,6 +35,7 @@ import {
   ConnectionBanner,
   EjectModal,
   ChatSheet,
+  RoomTimer,
 } from "@/src/sneaky-lynk/ui";
 import type { SneakyUser } from "@/src/sneaky-lynk/types";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -61,24 +62,42 @@ function buildLocalUser(authUser: any): SneakyUser {
 // ── Router entry point ──────────────────────────────────────────────
 
 export default function SneakyLynkRoomScreen() {
-  const { id, title: paramTitle } = useLocalSearchParams<{
+  const {
+    id,
+    title: paramTitle,
+    hasVideo: hasVideoParam,
+  } = useLocalSearchParams<{
     id: string;
     title?: string;
+    hasVideo?: string;
   }>();
 
+  const roomHasVideo = hasVideoParam === "1";
   const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
 
   // Render completely separate components so useVideoRoom's internal
   // useCamera() never runs in the same component as the local camera.
   if (isServerRoom) {
-    return <ServerRoom id={id} paramTitle={paramTitle} />;
+    return (
+      <ServerRoom id={id} paramTitle={paramTitle} roomHasVideo={roomHasVideo} />
+    );
   }
-  return <LocalRoom id={id} paramTitle={paramTitle} />;
+  return (
+    <LocalRoom id={id} paramTitle={paramTitle} roomHasVideo={roomHasVideo} />
+  );
 }
 
 // ── LocalRoom: direct Fishjam camera/mic, NO useVideoRoom ──────────
 
-function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
+function LocalRoom({
+  id,
+  paramTitle,
+  roomHasVideo = true,
+}: {
+  id: string;
+  paramTitle?: string;
+  roomHasVideo?: boolean;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const authUser = useAuthStore((s) => s.user);
@@ -128,7 +147,7 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
   >([]);
 
   // Local video on/off state (CameraView doesn't have isCameraOn)
-  const [localVideoOn, setLocalVideoOn] = React.useState(true);
+  const [localVideoOn, setLocalVideoOn] = React.useState(roomHasVideo);
 
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !fishjamMic.isMicrophoneOn;
@@ -272,6 +291,7 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
       storeListeners={storeListeners}
       effectiveMuted={effectiveMuted}
       isHandRaised={isHandRaised}
+      hasVideo={roomHasVideo}
       isChatOpen={isChatOpen}
       showEjectModal={showEjectModal}
       ejectPayload={ejectPayload}
@@ -291,7 +311,15 @@ function LocalRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
 
 // ── ServerRoom: full useVideoRoom for Fishjam-backed rooms ──────────
 
-function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
+function ServerRoom({
+  id,
+  paramTitle,
+  roomHasVideo = true,
+}: {
+  id: string;
+  paramTitle?: string;
+  roomHasVideo?: boolean;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
@@ -507,6 +535,7 @@ function ServerRoom({ id, paramTitle }: { id: string; paramTitle?: string }) {
       storeListeners={storeListeners}
       effectiveMuted={effectiveMuted}
       isHandRaised={isHandRaised}
+      hasVideo={roomHasVideo}
       isChatOpen={isChatOpen}
       showEjectModal={showEjectModal}
       ejectPayload={ejectPayload}
@@ -545,6 +574,7 @@ function RoomLayout({
   storeListeners,
   effectiveMuted,
   isHandRaised,
+  hasVideo,
   isChatOpen,
   showEjectModal,
   ejectPayload,
@@ -577,6 +607,7 @@ function RoomLayout({
   storeListeners?: { user: SneakyUser; role: string }[];
   effectiveMuted: boolean;
   isHandRaised: boolean;
+  hasVideo?: boolean;
   isChatOpen: boolean;
   showEjectModal: boolean;
   ejectPayload: any;
@@ -664,12 +695,15 @@ function RoomLayout({
         )}
       </ScrollView>
 
+      {/* Room Timer — 16 min max, countdown in last 60s */}
+      <RoomTimer onTimeUp={onLeave} />
+
       {/* Controls Bar */}
       <ControlsBar
         isMuted={effectiveMuted}
         isVideoEnabled={effectiveVideoOn}
         handRaised={isHandRaised}
-        hasVideo={true}
+        hasVideo={hasVideo ?? true}
         onLeave={onLeave}
         onToggleMute={onToggleMic}
         onToggleVideo={onToggleVideo}
