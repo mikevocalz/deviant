@@ -283,7 +283,7 @@ serve(async (req: Request) => {
     const jti = generateJti();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    const addPeerRes = await fetch(
+    let addPeerRes = await fetch(
       `${fishjamBaseUrl}/room/${fishjamRoomId}/peer`,
       {
         method: "POST",
@@ -291,11 +291,51 @@ serve(async (req: Request) => {
           Authorization: `Bearer ${fishjamApiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          type: "webrtc",
-        }),
+        body: JSON.stringify({ type: "webrtc" }),
       },
     );
+
+    // If 404, the Fishjam room was deleted (stale ID). Create a fresh one and retry.
+    if (addPeerRes.status === 404) {
+      console.warn("[video_join_room] Fishjam room 404 — creating fresh room");
+      const freshRes = await fetch(`${fishjamBaseUrl}/room`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${fishjamApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          maxPeers: room.max_participants,
+          videoCodec: "h264",
+        }),
+      });
+      if (!freshRes.ok) {
+        const errText = await freshRes.text();
+        return errorResponse(
+          "internal_error",
+          `Fishjam room re-creation failed: ${errText.slice(0, 200)}`,
+        );
+      }
+      const freshRoom = await freshRes.json();
+      fishjamRoomId = freshRoom.data.room.id;
+      await supabase
+        .from("video_rooms")
+        .update({ fishjam_room_id: fishjamRoomId })
+        .eq("id", internalRoomId);
+      console.log(
+        "[video_join_room] Fresh Fishjam room created:",
+        fishjamRoomId,
+      );
+
+      addPeerRes = await fetch(`${fishjamBaseUrl}/room/${fishjamRoomId}/peer`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${fishjamApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ type: "webrtc" }),
+      });
+    }
 
     if (!addPeerRes.ok) {
       const errText = await addPeerRes.text();
@@ -303,10 +343,6 @@ serve(async (req: Request) => {
         "[video_join_room] Fishjam peer creation failed:",
         addPeerRes.status,
         errText,
-      );
-      console.error(
-        "[video_join_room] Fishjam URL was:",
-        `${fishjamBaseUrl}/room/${fishjamRoomId}/peer`,
       );
       return errorResponse(
         "internal_error",

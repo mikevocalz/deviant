@@ -471,69 +471,118 @@ function ServerRoom({
 
   const roomTitle = videoRoom.room?.title || paramTitle || "Room";
 
-  // Build participants from Fishjam peers
-  const allSpeakers: SneakyUser[] = [localUser];
-  let remoteCoHost: SneakyUser | null = null;
+  // Build participant lists from Fishjam peers
+  const remotePeers = videoRoom.participants || [];
+  const localCameraStream = videoRoom.camera?.cameraStream || null;
 
-  if (videoRoom.participants.length > 0) {
-    videoRoom.participants.forEach((p: any) => {
-      const pUser: SneakyUser = {
-        id: p.userId || p.oderId || p.odId,
-        username: p.username || "User",
-        displayName: p.username || "User",
-        avatar:
-          p.avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(
-            p.username || "U",
-          )}&background=1a1a1a&color=fff&rounded=true`,
-        isVerified: false,
-      };
-      allSpeakers.push(pUser);
-      if (p.role === "co-host") remoteCoHost = pUser;
-    });
+  // Find the host among remote peers (if we're a listener, the host is remote)
+  const remoteHost = remotePeers.find((p: any) => p.role === "host");
+  const remoteCoHostPeer = remotePeers.find((p: any) => p.role === "co-host");
+
+  // Build SneakyUser from a Fishjam participant
+  const peerToUser = (p: any): SneakyUser => ({
+    id: p.userId || p.oderId || p.odId,
+    username: p.username || "User",
+    displayName: p.username || "User",
+    avatar:
+      p.avatar ||
+      `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        p.username || "U",
+      )}&background=1a1a1a&color=fff&rounded=true`,
+    isVerified: false,
+  });
+
+  // Featured speaker: if we're host, show our own camera. If listener, show the host's remote video.
+  let featuredUser: SneakyUser;
+  let featuredVideoTrack: any = undefined;
+  let featuredIsLocal = false;
+  let featuredHasVideo = false;
+
+  if (isHost) {
+    // We are the host — show our own camera
+    featuredUser = localUser;
+    featuredVideoTrack = localCameraStream
+      ? { stream: localCameraStream }
+      : undefined;
+    featuredIsLocal = true;
+    featuredHasVideo = effectiveVideoOn;
+  } else if (remoteHost) {
+    // We are a listener — show the host's remote video track
+    featuredUser = peerToUser(remoteHost);
+    featuredVideoTrack = remoteHost.videoTrack;
+    featuredIsLocal = false;
+    featuredHasVideo = remoteHost.isCameraOn || false;
+  } else {
+    // No host found yet (still connecting) — show local user as placeholder
+    featuredUser = localUser;
+    featuredIsLocal = true;
+    featuredHasVideo = false;
   }
 
-  // Merge: prefer remote co-host from Fishjam, fall back to optimistic store co-host
-  const effectiveCoHost = remoteCoHost || storeCoHost?.user || null;
-
-  const speakers = allSpeakers.map((user, index) => ({
-    id: user.id,
-    user,
-    role:
-      index === 0
-        ? ("host" as const)
-        : user.id === effectiveCoHost?.id
-          ? ("co-host" as const)
-          : ("speaker" as const),
-    isSpeaking: user.id === activeSpeakerId,
-  }));
-
-  const featuredSpeakerUser =
-    allSpeakers.find((s) => s.id === activeSpeakerId) || localUser;
   const featuredSpeaker = {
-    id: featuredSpeakerUser.id,
-    user: featuredSpeakerUser,
-    isSpeaking: featuredSpeakerUser.id === activeSpeakerId,
-    hasVideo: effectiveVideoOn,
+    id: featuredUser.id,
+    user: featuredUser,
+    isSpeaking: !effectiveMuted || (remoteHost?.isMicOn ?? false),
+    hasVideo: featuredHasVideo,
   };
 
+  // Co-host
+  const effectiveCoHost = remoteCoHostPeer
+    ? peerToUser(remoteCoHostPeer)
+    : storeCoHost?.user || null;
   const coHostFeatured = effectiveCoHost
     ? {
         id: effectiveCoHost.id,
         user: effectiveCoHost,
-        isSpeaking: effectiveCoHost.id === activeSpeakerId,
-        hasVideo: false,
+        isSpeaking: remoteCoHostPeer?.isMicOn || false,
+        hasVideo: remoteCoHostPeer?.isCameraOn || false,
       }
     : null;
+  const coHostTrack = remoteCoHostPeer?.videoTrack || undefined;
 
-  const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
-  const cameraStream = videoRoom.camera?.cameraStream || null;
-  const totalParticipants =
-    videoRoom.participants.length + 1 + storeListeners.length;
+  // Speakers list (host + co-host)
+  const speakers: any[] = [
+    {
+      id: featuredUser.id,
+      user: featuredUser,
+      role: "host" as const,
+      isSpeaking: featuredSpeaker.isSpeaking,
+    },
+  ];
+  if (effectiveCoHost) {
+    speakers.push({
+      id: effectiveCoHost.id,
+      user: effectiveCoHost,
+      role: "co-host" as const,
+      isSpeaking: coHostFeatured?.isSpeaking || false,
+    });
+  }
 
-  // Use native camera preview for local user so video shows instantly
-  // (Fishjam stream may take a moment to propagate)
-  const useNativeForLocal = roomHasVideo && !cameraStream;
+  // Listeners: all remote peers that are NOT host or co-host
+  const listenersFromPeers = remotePeers
+    .filter((p: any) => p.role !== "host" && p.role !== "co-host")
+    .map((p: any) => ({ user: peerToUser(p), role: "listener" }));
+  // If we're NOT the host, add ourselves to listeners
+  if (!isHost) {
+    listenersFromPeers.unshift({ user: localUser, role: "listener" });
+  }
+  // Merge with store listeners (dedup by id)
+  const seenIds = new Set(listenersFromPeers.map((l: any) => l.user.id));
+  const mergedListeners = [
+    ...listenersFromPeers,
+    ...storeListeners.filter((l) => !seenIds.has(l.user.id)),
+  ];
+
+  const activeSpeakerIds = new Set<string>();
+  if (!effectiveMuted && isHost) activeSpeakerIds.add(localUser.id);
+  remotePeers.forEach((p: any) => {
+    if (p.isMicOn) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
+  });
+
+  const totalParticipants = remotePeers.length + 1;
+
+  // Use native camera preview for local host when Fishjam stream isn't ready yet
+  const useNativeForLocal = isHost && roomHasVideo && !localCameraStream;
 
   return (
     <RoomLayout
@@ -544,13 +593,18 @@ function ServerRoom({
       participantCount={totalParticipants}
       featuredSpeaker={featuredSpeaker}
       coHost={coHostFeatured}
-      isLocalUser={featuredSpeakerUser.id === localUser.id}
-      effectiveVideoOn={effectiveVideoOn || (roomHasVideo && useNativeForLocal)}
-      cameraStream={cameraStream}
+      isLocalUser={featuredIsLocal}
+      effectiveVideoOn={
+        featuredHasVideo || (isHost && roomHasVideo && useNativeForLocal)
+      }
+      cameraStream={featuredIsLocal ? localCameraStream : null}
+      featuredVideoTrack={!featuredIsLocal ? featuredVideoTrack : undefined}
+      coHostVideoTrack={coHostTrack}
+      isCoHostLocal={false}
       useNativeCamera={useNativeForLocal}
       speakers={speakers}
-      activeSpeakers={activeSpeakers}
-      storeListeners={storeListeners}
+      activeSpeakers={activeSpeakerIds}
+      storeListeners={mergedListeners}
       effectiveMuted={effectiveMuted}
       isHandRaised={isHandRaised}
       hasVideo={roomHasVideo}
@@ -584,6 +638,7 @@ function RoomLayout({
   isLocalUser,
   effectiveVideoOn,
   cameraStream,
+  featuredVideoTrack,
   coHostVideoTrack,
   isCoHostLocal,
   useNativeCamera,
@@ -617,6 +672,7 @@ function RoomLayout({
   isLocalUser: boolean;
   effectiveVideoOn: boolean;
   cameraStream: any;
+  featuredVideoTrack?: any;
   coHostVideoTrack?: any;
   isCoHostLocal?: boolean;
   useNativeCamera?: boolean;
@@ -696,7 +752,10 @@ function RoomLayout({
           isSpeaking={featuredSpeaker.isSpeaking}
           isLocalUser={isLocalUser}
           isVideoEnabled={effectiveVideoOn}
-          videoTrack={cameraStream ? { stream: cameraStream } : undefined}
+          videoTrack={
+            featuredVideoTrack ||
+            (cameraStream ? { stream: cameraStream } : undefined)
+          }
           coHostVideoTrack={coHostVideoTrack}
           isCoHostLocal={isCoHostLocal}
           useNativeCamera={useNativeCamera}
