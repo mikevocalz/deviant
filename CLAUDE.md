@@ -16,6 +16,10 @@
 - ✅ Server logic → Supabase Edge Functions (Deno runtime)
 - ✅ Auth → Better Auth (hosted in Supabase Edge Function at https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth)
 - ✅ Email → Resend (via Better Auth Edge Function + send-email Edge Function)
+- ✅ **User data → Better Auth `user` table is source of truth for signups/accounts. NEVER replace with app `users` table.**
+  - `user` table: real signups (id, name, email, image, createdAt)
+  - `users` table: enrichment only (username, avatar, bio, verified)
+  - `getNewestUsers`, discover, and similar queries MUST query the BA `user` table, then enrich from `users`
 - ❌ Payload CMS — REMOVED, never reference
 - ❌ Next.js — NOT USED, never reference
 - ❌ Hono server — REMOVED permanently
@@ -97,10 +101,10 @@ npx eas-cli build --platform ios --profile production --auto-submit --non-intera
 
 **There are TWO separate user tables. Never confuse them.**
 
-| Table | Purpose | ID format | Created when |
-|-------|---------|-----------|--------------|
-| `user` (Better Auth) | Auth signups | String (e.g. `'akTmS2...'`) | User signs up |
-| `users` (App profiles) | Profile data | Integer (e.g. `11`) | User completes onboarding |
+| Table                  | Purpose      | ID format                   | Created when              |
+| ---------------------- | ------------ | --------------------------- | ------------------------- |
+| `user` (Better Auth)   | Auth signups | String (e.g. `'akTmS2...'`) | User signs up             |
+| `users` (App profiles) | Profile data | Integer (e.g. `11`)         | User completes onboarding |
 
 - **`user` table** — Better Auth's table. ALL new signups land here. Has: `id`, `name`, `email`, `image`, `createdAt`. This is the source of truth for "who has signed up".
 - **`users` table** — App profile table (via `DB.users.table`). Has: `id` (int), `auth_id` (links to `user.id`), `username`, `bio`, `avatar_id`, `verified`, `followers_count`, etc. Only populated after onboarding.

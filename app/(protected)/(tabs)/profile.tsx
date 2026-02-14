@@ -1100,7 +1100,8 @@ function ProfileScreenContent() {
                       }
                     }}
                     testID={`profile.${user?.id}.gridTile.${item.id}`}
-                    className="flex-1 rounded-sm overflow-hidden"
+                    className="flex-1 overflow-hidden"
+                    style={{ borderRadius: 8 }}
                   >
                     {item.coverUrl ? (
                       <SharedImage
