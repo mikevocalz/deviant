@@ -6,10 +6,12 @@ import {
   Dimensions,
   Keyboard,
 } from "react-native";
+import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { X, Send, Eye } from "lucide-react-native";
+import { X, Send, Eye, Heart } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import Animated, {
   useSharedValue,
@@ -58,6 +60,67 @@ function ProgressBar({ progress }: { progress: SharedValue<number> }) {
   return <Animated.View style={animatedStyle} />;
 }
 
+function FloatingReactionEmoji({
+  emoji,
+  onComplete,
+}: {
+  emoji: string;
+  onComplete: () => void;
+}) {
+  const translateY = useRef(new RNAnimated.Value(0)).current;
+  const opacity = useRef(new RNAnimated.Value(1)).current;
+  const scale = useRef(new RNAnimated.Value(0.3)).current;
+  const translateX = useRef(
+    new RNAnimated.Value((Math.random() - 0.5) * 80),
+  ).current;
+
+  useRef(
+    RNAnimated.parallel([
+      RNAnimated.timing(translateY, {
+        toValue: -300 - Math.random() * 100,
+        duration: 2200,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      RNAnimated.sequence([
+        RNAnimated.spring(scale, {
+          toValue: 1.3,
+          speed: 40,
+          bounciness: 12,
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(scale, {
+          toValue: 0.8,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ]),
+      RNAnimated.timing(opacity, {
+        toValue: 0,
+        duration: 2200,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start(onComplete),
+  ).current;
+
+  return (
+    <RNAnimated.Text
+      style={{
+        position: "absolute",
+        bottom: 100,
+        right: 30,
+        fontSize: 36,
+        zIndex: 999,
+        opacity,
+        transform: [{ translateY }, { translateX }, { scale }],
+      }}
+    >
+      {emoji}
+    </RNAnimated.Text>
+  );
+}
+
 export default function StoryViewerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -78,6 +141,12 @@ export default function StoryViewerScreen() {
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
   const [storyTags, setStoryTags] = useState<StoryTag[]>([]);
   const [showTags, setShowTags] = useState(false);
+  const [floatingEmojis, setFloatingEmojis] = useState<
+    { id: number; emoji: string }[]
+  >([]);
+  const emojiCounter = useRef(0);
+
+  const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPaused = useRef(false);
   const hasAdvanced = useRef(false);
@@ -588,6 +657,55 @@ export default function StoryViewerScreen() {
     }
   }, [isInputFocused, player, progress, isMountedRef, isSafeToOperate]);
 
+  // Send story emoji reaction as DM
+  const handleStoryReaction = useCallback(
+    async (emoji: string) => {
+      if (!story || !resolvedUserId || isOwnStory) return;
+
+      // Floating animation + haptic
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const id = emojiCounter.current++;
+      setFloatingEmojis((prev) => [...prev, { id, emoji }]);
+
+      try {
+        const conversationId =
+          await messagesApiClient.getOrCreateConversation(resolvedUserId);
+        if (!conversationId) return;
+
+        const currentItem = story.items?.[currentItemIndex];
+        const previewUrl =
+          currentItem?.type === "video"
+            ? currentItem?.thumbnail || currentItem?.url || ""
+            : currentItem?.url || "";
+
+        await messagesApiClient.sendMessage({
+          conversationId,
+          content: emoji,
+          metadata: {
+            type: "story_reaction",
+            storyId: story.id || "",
+            storyMediaUrl: previewUrl,
+            storyUsername: story.username || "",
+            storyAvatar: story.avatar || "",
+            reactionEmoji: emoji,
+            storyExpiresAt: new Date(
+              Date.now() + 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        });
+
+        console.log("[StoryViewer] Reaction sent:", emoji);
+      } catch (error: any) {
+        console.error("[StoryViewer] Reaction error:", error?.message || error);
+      }
+    },
+    [story, resolvedUserId, isOwnStory, currentItemIndex],
+  );
+
+  const removeFloatingEmoji = useCallback((id: number) => {
+    setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
+  }, []);
+
   // Send story reply as DM
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || !story || isSendingReply) return;
@@ -1045,7 +1163,16 @@ export default function StoryViewerScreen() {
         }}
       />
 
-      {/* Reply input - only show for other users' stories */}
+      {/* Floating emoji reactions */}
+      {floatingEmojis.map((e) => (
+        <FloatingReactionEmoji
+          key={e.id}
+          emoji={e.emoji}
+          onComplete={() => removeFloatingEmoji(e.id)}
+        />
+      ))}
+
+      {/* Reply input + reactions - only show for other users' stories */}
       {!isOwnStory && story && resolvedUserId && (
         <KeyboardStickyView
           offset={{ closed: 0, opened: 0 }}
@@ -1056,6 +1183,36 @@ export default function StoryViewerScreen() {
             right: 0,
           }}
         >
+          {/* Emoji reaction row */}
+          {!isInputFocused && (
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                gap: 10,
+                marginBottom: 6,
+                paddingHorizontal: 16,
+              }}
+            >
+              {REACTION_EMOJIS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => handleStoryReaction(emoji)}
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           <View
             style={{
               paddingBottom: insets.bottom + 8,
@@ -1098,31 +1255,39 @@ export default function StoryViewerScreen() {
               />
             </View>
 
-            <Pressable
-              onPress={() => {
-                if (!isSendingReply && replyText.trim()) {
-                  handleSendReply();
-                }
-              }}
-              disabled={isSendingReply || !replyText.trim()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: replyText.trim()
-                  ? "#8A40CF"
-                  : "rgba(255,255,255,0.1)",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: isSendingReply ? 0.5 : 1,
-              }}
-            >
-              <Send
-                size={18}
-                color={replyText.trim() ? "#fff" : "rgba(255,255,255,0.4)"}
-              />
-            </Pressable>
+            {replyText.trim().length > 0 ? (
+              <Pressable
+                onPress={handleSendReply}
+                disabled={isSendingReply}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "#8A40CF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isSendingReply ? 0.5 : 1,
+                }}
+              >
+                <Send size={18} color="#fff" />
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => handleStoryReaction("❤️")}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "rgba(255,255,255,0.12)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Heart size={20} color="#fff" />
+              </Pressable>
+            )}
           </View>
         </KeyboardStickyView>
       )}

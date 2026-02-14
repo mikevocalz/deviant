@@ -18,6 +18,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { Send, X, Reply } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import type { SneakyUser } from "../types";
 import type { RoomComment, Mention } from "../api/comments";
 import {
@@ -26,6 +27,15 @@ import {
   subscribeToRoomComments,
   buildCommentThreads,
 } from "../api/comments";
+
+// Reaction emoji set (same as DM chat)
+const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
+
+interface CommentReaction {
+  emoji: string;
+  userId: string;
+  username: string;
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -144,75 +154,199 @@ const CommentBubble = memo(function CommentBubble({
   comment,
   isOwnComment,
   onReply,
+  onReact,
+  reactions,
+  currentUserId,
   isReply = false,
 }: {
   comment: RoomComment;
   isOwnComment: boolean;
   onReply: (comment: RoomComment) => void;
+  onReact: (commentId: number, emoji: string) => void;
+  reactions: CommentReaction[];
+  currentUserId: string;
   isReply?: boolean;
 }) {
   const opacity = comment.isOptimistic ? 0.6 : 1;
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const lastTapRef = useRef<number>(0);
+
+  // Group reactions by emoji
+  const groupedReactions = useMemo(() => {
+    return reactions.reduce(
+      (acc, r) => {
+        acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+  }, [reactions]);
+
+  const hasReactions = reactions.length > 0;
+
+  const handlePress = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 300) {
+      // Double tap — heart react
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onReact(comment.id, "❤️");
+      lastTapRef.current = 0;
+    } else {
+      lastTapRef.current = now;
+    }
+  }, [comment.id, onReact]);
+
+  const handleLongPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowReactionPicker((v) => !v);
+  }, []);
 
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        gap: 8,
-        marginBottom: isReply ? 8 : 12,
-        marginLeft: isReply ? 40 : 0,
-        opacity,
-      }}
-    >
-      <Avatar
-        uri={comment.author?.avatar}
-        username={comment.author?.username || "User"}
-        size={isReply ? 24 : 32}
-        variant="roundedSquare"
-      />
-      <View style={{ flex: 1 }}>
+    <View>
+      <Pressable
+        onPress={handlePress}
+        onLongPress={handleLongPress}
+        delayLongPress={400}
+      >
         <View
           style={{
             flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 2,
+            gap: 8,
+            marginBottom: hasReactions ? 4 : isReply ? 8 : 12,
+            marginLeft: isReply ? 40 : 0,
+            opacity,
           }}
         >
-          <Text
-            style={{
-              color: isOwnComment ? "#34A2DF" : "#fff",
-              fontSize: 12,
-              fontWeight: "600",
-            }}
-          >
-            {comment.author?.username || "User"}
-          </Text>
-          <Text style={{ color: "#6B7280", fontSize: 10 }}>
-            {timeAgo(comment.createdAt)}
-          </Text>
-        </View>
-        <Text style={{ color: "#E5E7EB", fontSize: 14, lineHeight: 20 }}>
-          {renderCommentBody(comment.body, comment.mentions)}
-        </Text>
-        {/* Reply button — only on root comments (depth 0) */}
-        {!isReply && (
-          <Pressable
-            onPress={() => onReply(comment)}
-            hitSlop={8}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 4,
-              marginTop: 4,
-            }}
-          >
-            <Reply size={12} color="#6B7280" />
-            <Text style={{ color: "#6B7280", fontSize: 11, fontWeight: "500" }}>
-              Reply
+          <Avatar
+            uri={comment.author?.avatar}
+            username={comment.author?.username || "User"}
+            size={isReply ? 24 : 32}
+            variant="roundedSquare"
+          />
+          <View style={{ flex: 1 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                marginBottom: 2,
+              }}
+            >
+              <Text
+                style={{
+                  color: isOwnComment ? "#34A2DF" : "#fff",
+                  fontSize: 12,
+                  fontWeight: "600",
+                }}
+              >
+                {comment.author?.username || "User"}
+              </Text>
+              <Text style={{ color: "#6B7280", fontSize: 10 }}>
+                {timeAgo(comment.createdAt)}
+              </Text>
+            </View>
+            <Text style={{ color: "#E5E7EB", fontSize: 14, lineHeight: 20 }}>
+              {renderCommentBody(comment.body, comment.mentions)}
             </Text>
-          </Pressable>
-        )}
-      </View>
+            {/* Reply button — only on root comments (depth 0) */}
+            {!isReply && (
+              <Pressable
+                onPress={() => onReply(comment)}
+                hitSlop={8}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 4,
+                }}
+              >
+                <Reply size={12} color="#6B7280" />
+                <Text
+                  style={{ color: "#6B7280", fontSize: 11, fontWeight: "500" }}
+                >
+                  Reply
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        </View>
+      </Pressable>
+
+      {/* Reaction picker (shown on long-press) */}
+      {showReactionPicker && (
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 6,
+            marginLeft: isReply ? 72 : 40,
+            marginBottom: 8,
+            backgroundColor: "rgba(255,255,255,0.08)",
+            borderRadius: 20,
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            alignSelf: "flex-start",
+          }}
+        >
+          {REACTION_EMOJIS.map((emoji) => (
+            <Pressable
+              key={emoji}
+              onPress={() => {
+                onReact(comment.id, emoji);
+                setShowReactionPicker(false);
+              }}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 18 }}>{emoji}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
+      {/* Reaction pills */}
+      {hasReactions && (
+        <View
+          style={{
+            flexDirection: "row",
+            gap: 4,
+            marginLeft: isReply ? 72 : 40,
+            marginBottom: isReply ? 8 : 12,
+          }}
+        >
+          {Object.entries(groupedReactions).map(([emoji, count]) => (
+            <Pressable
+              key={emoji}
+              onPress={() => onReact(comment.id, emoji)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: "rgba(255,255,255,0.08)",
+                borderRadius: 12,
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderWidth: 1,
+                borderColor: reactions.some(
+                  (r) => r.emoji === emoji && r.userId === currentUserId,
+                )
+                  ? "#34A2DF"
+                  : "transparent",
+              }}
+            >
+              <Text style={{ fontSize: 13 }}>{emoji}</Text>
+              {(count as number) > 1 && (
+                <Text style={{ fontSize: 10, color: "#9CA3AF", marginLeft: 2 }}>
+                  {count}
+                </Text>
+              )}
+            </Pressable>
+          ))}
+        </View>
+      )}
     </View>
   );
 });
@@ -255,10 +389,14 @@ const ThreadItem = memo(function ThreadItem({
   thread,
   currentUserId,
   onReply,
+  onReact,
+  commentReactions,
 }: {
   thread: RoomComment;
   currentUserId: string;
   onReply: (comment: RoomComment) => void;
+  onReact: (commentId: number, emoji: string) => void;
+  commentReactions: Record<number, CommentReaction[]>;
 }) {
   const [showReplies, setShowReplies] = useState(true);
   const replyCount = thread.replies?.length || 0;
@@ -269,6 +407,9 @@ const ThreadItem = memo(function ThreadItem({
         comment={thread}
         isOwnComment={thread.authorId === currentUserId}
         onReply={onReply}
+        onReact={onReact}
+        reactions={commentReactions[thread.id] || []}
+        currentUserId={currentUserId}
       />
       {replyCount > 0 && (
         <>
@@ -291,6 +432,9 @@ const ThreadItem = memo(function ThreadItem({
                 comment={reply}
                 isOwnComment={reply.authorId === currentUserId}
                 onReply={onReply}
+                onReact={onReact}
+                reactions={commentReactions[reply.id] || []}
+                currentUserId={currentUserId}
                 isReply
               />
             ))}
@@ -315,6 +459,9 @@ export function ChatSheet({
   const [comments, setComments] = useState<RoomComment[]>([]);
   const [replyingTo, setReplyingTo] = useState<RoomComment | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
+  const [commentReactions, setCommentReactions] = useState<
+    Record<number, CommentReaction[]>
+  >({});
   const inputRef = useRef<any>(null);
 
   // Delayed unmount: keep sheet mounted briefly after close so animation plays
@@ -493,6 +640,30 @@ export function ChatSheet({
     }
   }, [inputText, replyingTo, roomId, currentUser, extractMentions]);
 
+  const handleReact = useCallback(
+    (commentId: number, emoji: string) => {
+      const reaction: CommentReaction = {
+        emoji,
+        userId: currentUser.id,
+        username: currentUser.username,
+      };
+
+      setCommentReactions((prev) => {
+        const existing = prev[commentId] || [];
+        const alreadyReacted = existing.find(
+          (r) => r.emoji === emoji && r.userId === currentUser.id,
+        );
+        const updated = alreadyReacted
+          ? existing.filter(
+              (r) => !(r.emoji === emoji && r.userId === currentUser.id),
+            )
+          : [...existing, reaction];
+        return { ...prev, [commentId]: updated };
+      });
+    },
+    [currentUser],
+  );
+
   const handleReply = useCallback((comment: RoomComment) => {
     setReplyingTo(comment);
     setInputText(`@${comment.author?.username || "user"} `);
@@ -579,6 +750,8 @@ export function ChatSheet({
               thread={item}
               currentUserId={currentUser.id}
               onReply={handleReply}
+              onReact={handleReact}
+              commentReactions={commentReactions}
             />
           )}
           contentContainerStyle={{ padding: 16, flexGrow: 1 }}

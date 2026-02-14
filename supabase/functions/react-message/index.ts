@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       return errorResponse("not_found", "User not found");
     }
 
-    const userId = authUserId; // Use auth_id as the reaction userId for consistency
+    const userId = String(userRow.id); // Use integer user ID (matches client-side user.id)
     const username = userRow.username || "user";
 
     // Fetch current metadata
