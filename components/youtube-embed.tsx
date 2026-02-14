@@ -1,11 +1,11 @@
 /**
  * YouTubeEmbed — Renders a YouTube video given a full URL or video ID.
- * Uses react-native-webview to embed the YouTube iframe player.
+ * Uses react-native-youtube-bridge for native playback.
  */
 
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
 import { memo, useMemo } from "react";
-import { WebView } from "react-native-webview";
+import { YoutubeView, useYouTubePlayer } from "react-native-youtube-bridge";
 
 interface YouTubeEmbedProps {
   url: string;
@@ -51,38 +51,20 @@ function extractVideoId(url: string): string | null {
 function YouTubeEmbedComponent({ url, height = 220 }: YouTubeEmbedProps) {
   const videoId = useMemo(() => extractVideoId(url), [url]);
 
-  if (!videoId) return null;
+  const player = useYouTubePlayer(videoId || "", {
+    controls: true,
+    playsinline: true,
+    rel: false,
+  });
 
-  const embedHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-      <style>
-        * { margin: 0; padding: 0; }
-        body { background: #000; }
-        iframe { width: 100%; height: 100vh; border: 0; }
-      </style>
-    </head>
-    <body>
-      <iframe
-        src="https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1"
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen
-      ></iframe>
-    </body>
-    </html>
-  `;
+  if (!videoId) return null;
 
   return (
     <View style={[styles.container, { height }]}>
-      <WebView
-        source={{ html: embedHtml }}
-        style={styles.webview}
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        javaScriptEnabled
-        scrollEnabled={false}
+      <YoutubeView
+        player={player}
+        style={styles.player}
+        webViewStyle={styles.webView}
       />
     </View>
   );
@@ -94,8 +76,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#000",
   },
-  webview: {
+  player: {
     flex: 1,
+  },
+  webView: {
     backgroundColor: "#000",
   },
 });
