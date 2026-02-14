@@ -71,3 +71,32 @@ export function getCurrentUser() {
 export function isAuthenticated(): boolean {
   return useAuthStore.getState().isAuthenticated;
 }
+
+/**
+ * Resolve a user ID to an integer — handles both integer strings ("42")
+ * and Better Auth auth_id strings ("akTmS2gZY3eJ1FYwjDqsC2k1CQNMaHiv").
+ * For auth_id strings, looks up the integer `users.id` via `auth_id` column.
+ * Throws if the user cannot be resolved.
+ */
+export async function resolveUserIdInt(userId: string): Promise<number> {
+  const parsed = parseInt(userId, 10);
+  if (!isNaN(parsed) && String(parsed) === userId.trim()) return parsed;
+
+  // Not a plain integer — resolve BA auth_id to integer user ID
+  const { supabase } = await import("../supabase/client");
+  const { DB } = await import("../supabase/db-map");
+
+  const { data: userRow } = await supabase
+    .from(DB.users.table)
+    .select(DB.users.id)
+    .eq(DB.users.authId, userId)
+    .single();
+
+  if (!userRow) {
+    throw new Error(
+      "User not found — they may not have completed onboarding yet",
+    );
+  }
+
+  return userRow[DB.users.id];
+}
