@@ -3,6 +3,7 @@ import { ScrollView } from "react-native-gesture-handler";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
+import { useRef } from "react";
 
 /**
  * SignUpStep3 - Terms Agreement
@@ -24,6 +25,20 @@ export function SignUpStep3() {
     setTermsAccepted,
   } = useSignupStore();
 
+  const layoutHeight = useRef(0);
+  const contentHeight = useRef(0);
+
+  const checkFitsOnScreen = () => {
+    if (
+      layoutHeight.current > 0 &&
+      contentHeight.current > 0 &&
+      contentHeight.current <= layoutHeight.current + 20
+    ) {
+      console.log("[Terms] Content fits on screen, auto-setting scrolled");
+      setHasScrolledToBottom(true);
+    }
+  };
+
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const isAtBottom =
@@ -34,8 +49,12 @@ export function SignUpStep3() {
   };
 
   const handleContinue = () => {
+    console.log("[Terms] handleContinue pressed", {
+      termsAccepted,
+      hasScrolledToBottom,
+    });
     if (!termsAccepted || !hasScrolledToBottom) return;
-    // Go to Step 3: Verification (activeStep index 2)
+    console.log("[Terms] Advancing to step 2 (Verification)");
     setActiveStep(2);
   };
 
@@ -66,6 +85,14 @@ export function SignUpStep3() {
           showsVerticalScrollIndicator={true}
           bounces={true}
           overScrollMode="always"
+          onLayout={(e) => {
+            layoutHeight.current = e.nativeEvent.layout.height;
+            checkFitsOnScreen();
+          }}
+          onContentSizeChange={(_w, h) => {
+            contentHeight.current = h;
+            checkFitsOnScreen();
+          }}
         >
           <View style={{ gap: 16 }}>
             <View>

@@ -5,25 +5,31 @@ import {
   Pressable,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Search, X, Play, Hash } from "lucide-react-native";
+import { ArrowLeft, Search, X, Play, Hash, Compass } from "lucide-react-native";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useSearchStore } from "@/lib/stores/search-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import { useSearchPosts, useSearchUsers } from "@/lib/hooks/use-search";
 import { postsApi } from "@/lib/api/posts";
 import { usersApi } from "@/lib/api/users";
 import { BadgeCheck, UserPlus } from "lucide-react-native";
+import { LegendList } from "@/components/list";
+import type { Post } from "@/lib/types";
 
-const { width } = Dimensions.get("window");
-const columnWidth = (width - 8) / 3;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const columnWidth = (SCREEN_WIDTH - 8) / 3;
+const GRID_COLS = SCREEN_WIDTH >= 768 ? 5 : 4;
+const GRID_GAP = 2;
+const GRID_CELL_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
 interface DiscoverUser {
   id: string;
@@ -132,12 +138,134 @@ function DiscoverSection({ router }: { router: ReturnType<typeof useRouter> }) {
           ))}
         </ScrollView>
       )}
+    </View>
+  );
+}
 
-      <View className="px-4 mt-6">
-        <Text className="text-sm text-muted-foreground">
-          Try searching for a username, or use # to search for hashtags
+function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const explore = await postsApi.getExplorePosts(40);
+      setPosts(explore);
+      setLoading(false);
+    })();
+  }, []);
+
+  const renderItem = useCallback(
+    ({ item }: { item: Post }) => {
+      const isVideo = item.type === "video";
+      const uri = item.thumbnail || item.media?.[0]?.url;
+      return (
+        <Pressable
+          onPress={() => router.push(`/(protected)/post/${item.id}`)}
+          style={{
+            width: GRID_CELL_SIZE,
+            height: GRID_CELL_SIZE,
+          }}
+        >
+          {uri ? (
+            <>
+              <Image
+                source={{ uri }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+              />
+              {isVideo && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                  }}
+                >
+                  <Play size={16} color="#fff" fill="#fff" />
+                </View>
+              )}
+              {item.hasMultipleImages && (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 6,
+                    right: 6,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    borderRadius: 4,
+                    paddingHorizontal: 4,
+                    paddingVertical: 2,
+                  }}
+                >
+                  <Text
+                    style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}
+                  >
+                    +
+                  </Text>
+                </View>
+              )}
+            </>
+          ) : (
+            <View
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#1a1a1a",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ color: "#666", fontSize: 10 }}>No media</Text>
+            </View>
+          )}
+        </Pressable>
+      );
+    },
+    [router],
+  );
+
+  if (loading) {
+    return (
+      <View style={{ paddingVertical: 32, alignItems: "center" }}>
+        <ActivityIndicator size="small" color="#3FDCFF" />
+      </View>
+    );
+  }
+
+  if (posts.length === 0) return null;
+
+  return (
+    <View style={{ paddingTop: 12 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 8,
+          paddingHorizontal: 16,
+          marginBottom: 12,
+        }}
+      >
+        <Compass size={20} color="#3FDCFF" />
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "700",
+            color: "#fff",
+          }}
+        >
+          Explore
         </Text>
       </View>
+      <LegendList
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={(item: Post) => item.id}
+        numColumns={GRID_COLS}
+        estimatedItemSize={GRID_CELL_SIZE}
+        recycleItems
+        columnWrapperStyle={{ gap: GRID_GAP }}
+        contentContainerStyle={{ gap: GRID_GAP }}
+        scrollEnabled={false}
+      />
     </View>
   );
 }
@@ -231,7 +359,10 @@ export default function SearchScreen() {
           {isLoading ? (
             <SearchSkeleton />
           ) : searchQuery.length === 0 ? (
-            <DiscoverSection router={router} />
+            <>
+              <DiscoverSection router={router} />
+              <DiscoverGrid router={router} />
+            </>
           ) : isLoadingPosts || isLoadingUsers ? (
             <SearchResultsSkeleton />
           ) : (
