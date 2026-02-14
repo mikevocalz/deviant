@@ -37,6 +37,7 @@ export function SpicyToggleFAB() {
           zIndex: 50,
           elevation: 50,
           alignItems: "center",
+          padding: 8,
         }}
       >
         {/* Track */}
@@ -79,8 +80,14 @@ export function SpicyToggleFAB() {
             <Text style={{ fontSize: 18 }}>😈</Text>
           </View>
 
-          {/* Animated thumb */}
+          {/* Animated thumb — key forces re-mount after OTA to avoid stale animation */}
           <Motion.View
+            key={`thumb-${nsfwEnabled ? "on" : "off"}`}
+            initial={{
+              translateX: nsfwEnabled
+                ? TRACK_WIDTH - THUMB_SIZE - TRACK_PADDING * 2 - 2
+                : 0,
+            }}
             animate={{
               translateX: nsfwEnabled
                 ? TRACK_WIDTH - THUMB_SIZE - TRACK_PADDING * 2 - 2
