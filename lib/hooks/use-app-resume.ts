@@ -97,10 +97,10 @@ export function useAppResume() {
           refetchType: "none",
         }),
 
-        // Mark activities stale so notifications tab refreshes
+        // Actively refetch activities — notifications are time-sensitive
         queryClient.invalidateQueries({
           queryKey: activityKeys.list(userId),
-          refetchType: "none",
+          refetchType: "active", // refetch if any observer is mounted
         }),
 
         // Mark raw notifications stale

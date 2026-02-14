@@ -102,10 +102,7 @@ function notificationToActivity(notif: Notification): Activity | null {
       createdAt: notif.createdAt || new Date().toISOString(),
     };
   } catch (error) {
-    console.error(
-      "[ActivitiesQuery] notificationToActivity error:",
-      error,
-    );
+    console.error("[ActivitiesQuery] notificationToActivity error:", error);
     return null;
   }
 }
@@ -143,8 +140,10 @@ export function useActivitiesQuery() {
     queryKey: activityKeys.list(viewerId),
     queryFn: fetchActivities,
     enabled: !!viewerId,
-    // Inherits global staleTime (5min) + refetchOnMount: false
-    // Boot prefetch primes this cache
+    // Notifications are time-sensitive — override global refetchOnMount: false
+    // Shows MMKV cache instantly, then silently refetches in background
+    refetchOnMount: true,
+    staleTime: 60_000, // 1 min — notifications should be fresher than the 5min global default
   });
 }
 
