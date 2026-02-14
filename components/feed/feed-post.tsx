@@ -491,8 +491,7 @@ function FeedPostComponent({
             elevation: 50,
           }}
         >
-          <SharedAvatar
-            sharedTag={`profile-avatar-${author?.username || "unknown"}`}
+          <Avatar
             uri={author?.avatar}
             username={author?.username || "User"}
             size={48}
@@ -668,8 +667,7 @@ function FeedPostComponent({
                 {media[0]?.url &&
                 (media[0].url.startsWith("http://") ||
                   media[0].url.startsWith("https://")) ? (
-                  <SharedImage
-                    sharedTag={`post-media-${id}`}
+                  <Image
                     source={{ uri: media[0].url }}
                     style={{
                       width: "100%",
