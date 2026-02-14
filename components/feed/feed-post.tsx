@@ -35,7 +35,6 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { VideoSeekBar } from "@/components/video-seek-bar";
-import { Motion } from "@legendapp/motion";
 import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
@@ -454,18 +453,7 @@ function FeedPostComponent({
   }, [router, author?.username, author?.id, currentUserId]);
 
   return (
-    <Motion.View
-      animate={{
-        scale: isPressed ? 0.98 : 1,
-        opacity: isPressed ? 0.95 : 1,
-      }}
-      transition={{
-        type: "spring",
-        damping: 20,
-        stiffness: 300,
-      }}
-      className={containerClass}
-    >
+    <View className={containerClass}>
       <Article
         style={{
           marginHorizontal: 4,
@@ -635,16 +623,11 @@ function FeedPostComponent({
                   pointerEvents="none"
                 >
                   {media.map((_, index) => (
-                    <Motion.View
+                    <View
                       key={index}
-                      animate={{
+                      style={{
                         width: index === currentSlide ? 12 : 6,
                         opacity: index === currentSlide ? 1 : 0.5,
-                      }}
-                      transition={{
-                        type: "spring",
-                        damping: 15,
-                        stiffness: 300,
                       }}
                       className={`h-1.5 rounded-full ${
                         index === currentSlide
@@ -698,22 +681,11 @@ function FeedPostComponent({
               disabled={isLikePending}
               hitSlop={12}
             >
-              <Motion.View
-                animate={{
-                  scale: likeAnimating ? 1.3 : 1,
-                }}
-                transition={{
-                  type: "spring",
-                  damping: 10,
-                  stiffness: 400,
-                }}
-              >
-                <Heart
-                  size={24}
-                  color={isLiked ? "#FF5BFC" : colors.foreground}
-                  fill={isLiked ? "#FF5BFC" : "none"}
-                />
-              </Motion.View>
+              <Heart
+                size={24}
+                color={isLiked ? "#FF5BFC" : colors.foreground}
+                fill={isLiked ? "#FF5BFC" : "none"}
+              />
             </Pressable>
             <Pressable
               hitSlop={12}
@@ -723,42 +695,21 @@ function FeedPostComponent({
                 }
               }}
             >
-              <Motion.View
-                whileTap={{ scale: 0.85 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-              >
-                <MessageCircle size={24} color={colors.foreground} />
-              </Motion.View>
+              <MessageCircle size={24} color={colors.foreground} />
             </Pressable>
             <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
-              <Motion.View
-                whileTap={{ scale: 0.85 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-              >
-                <Send size={24} color={colors.foreground} />
-              </Motion.View>
+              <Send size={24} color={colors.foreground} />
             </Pressable>
             <Pressable onPress={handleShare} hitSlop={12}>
-              <Motion.View
-                whileTap={{ scale: 0.85 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-              >
-                <Share2 size={24} color={colors.foreground} />
-              </Motion.View>
+              <Share2 size={24} color={colors.foreground} />
             </Pressable>
           </View>
           <Pressable onPress={handleSave} hitSlop={12}>
-            <Motion.View
-              whileTap={{ scale: 0.85 }}
-              animate={{ rotate: isSaved ? "0deg" : "0deg" }}
-              transition={{ type: "spring", damping: 15, stiffness: 400 }}
-            >
-              <Bookmark
-                size={24}
-                color={colors.foreground}
-                fill={isSaved ? colors.foreground : "none"}
-              />
-            </Motion.View>
+            <Bookmark
+              size={24}
+              color={colors.foreground}
+              fill={isSaved ? colors.foreground : "none"}
+            />
           </Pressable>
         </View>
 
@@ -858,7 +809,7 @@ function FeedPostComponent({
             : null
         }
       />
-    </Motion.View>
+    </View>
   );
 }
 

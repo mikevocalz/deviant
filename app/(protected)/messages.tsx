@@ -453,6 +453,13 @@ export default function MessagesScreen() {
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
 
+  // Refetch conversations when screen gains focus (e.g. after sending a message in a new chat)
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+    }, [queryClient]),
+  );
+
   // TanStack Query — renders from cache instantly (primed by boot prefetch)
   const {
     data: inboxRaw = [],

@@ -15,7 +15,6 @@ import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useMemo, useEffect, useRef, useCallback } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
-import { Motion } from "@legendapp/motion";
 import { useRouter } from "expo-router";
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -33,27 +32,11 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
   const router = useRouter();
 
   return (
-    <Motion.View
-      className="px-0 py-3"
-      initial={{ opacity: 0, scale: 0.9, y: 50 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{
-        type: "spring",
-        damping: 20,
-        stiffness: 100,
-        delay: index * 0.1,
-      }}
-    >
+    <View style={{ paddingVertical: 12 }}>
       <Pressable
         onPress={() => {
-          console.log("[Feed] Post pressed, item:", {
-            id: item?.id,
-            caption: item?.caption?.substring(0, 20),
-          });
           if (item?.id) {
             router.push(`/(protected)/post/${item.id}`);
-          } else {
-            console.error("[Feed] Post has no ID!", item);
           }
         }}
         className="rounded-2xl"
@@ -73,7 +56,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
           isNSFW={item.isNSFW}
         />
       </Pressable>
-    </Motion.View>
+    </View>
   );
 }
 
