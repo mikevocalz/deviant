@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserIdInt, resolveUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 export const blocksApi = {
@@ -60,7 +60,7 @@ export const blocksApi = {
   async blockUser(targetUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = parseInt(targetUserId);
+      const targetUserIdInt = await resolveUserIdInt(targetUserId);
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
@@ -88,7 +88,7 @@ export const blocksApi = {
   async unblockUser(targetUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = parseInt(targetUserId);
+      const targetUserIdInt = await resolveUserIdInt(targetUserId);
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;

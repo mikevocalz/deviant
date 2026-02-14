@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserIdInt, resolveUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface ToggleFollowResponse {
@@ -18,7 +18,7 @@ export const followsApi = {
       console.log("[Follows] toggleFollow via Edge Function:", targetUserId);
 
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = parseInt(targetUserId);
+      const targetUserIdInt = await resolveUserIdInt(targetUserId);
 
       const { data, error } =
         await supabase.functions.invoke<ToggleFollowResponse>("toggle-follow", {
@@ -69,7 +69,7 @@ export const followsApi = {
         .from(DB.follows.table)
         .select("id")
         .eq(DB.follows.followerId, currentUserId)
-        .eq(DB.follows.followingId, parseInt(targetUserId))
+        .eq(DB.follows.followingId, await resolveUserIdInt(targetUserId))
         .single();
 
       return !!data && !error;
@@ -94,7 +94,7 @@ export const followsApi = {
           )
         `,
         )
-        .eq(DB.follows.followingId, parseInt(userId))
+        .eq(DB.follows.followingId, await resolveUserIdInt(userId))
         .limit(100);
 
       if (error) throw error;
@@ -126,7 +126,7 @@ export const followsApi = {
           )
         `,
         )
-        .eq(DB.follows.followerId, parseInt(userId))
+        .eq(DB.follows.followerId, await resolveUserIdInt(userId))
         .limit(100);
 
       if (error) throw error;

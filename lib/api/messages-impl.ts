@@ -1,6 +1,10 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt, getCurrentUserAuthId } from "./auth-helper";
+import {
+  getCurrentUserIdInt,
+  getCurrentUserAuthId,
+  resolveUserIdInt,
+} from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 import { useAuthStore } from "../stores/auth-store";
 
@@ -234,7 +238,7 @@ export const messagesApi = {
   async getOrCreateConversation(otherUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const otherUserIdInt = parseInt(otherUserId);
+      const otherUserIdInt = await resolveUserIdInt(otherUserId);
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
