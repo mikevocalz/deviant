@@ -324,20 +324,18 @@ export const usersApi = {
       if (error) throw error;
       if (!authUsers?.length) return [];
 
-      // Filter out test accounts by email and username
+      // Phase 1: Filter out test accounts by email only
       const TEST_EMAILS = ["@test.com", "@example.com", "@deviant.test"];
-      const HIDDEN_NAMES = ["mike_test", "applereview"];
-      const filtered = authUsers.filter((u: any) => {
+      const emailFiltered = authUsers.filter((u: any) => {
         const email = (u.email || "").toLowerCase();
         if (TEST_EMAILS.some((t) => email.endsWith(t))) return false;
         const name = (u.name || "").toLowerCase().trim();
-        if (!name || name.startsWith("test")) return false;
-        if (HIDDEN_NAMES.includes(name)) return false;
+        if (name.startsWith("test")) return false;
         return true;
       });
 
-      // Try to enrich with app profile data (username, avatar, bio)
-      const authIds = filtered.map((u: any) => u.id);
+      // Enrich with app profile data (username, avatar, bio)
+      const authIds = emailFiltered.map((u: any) => u.id);
       const { data: profiles } = await supabase
         .from(DB.users.table)
         .select(
@@ -349,6 +347,17 @@ export const usersApi = {
       for (const p of profiles || []) {
         profileMap[p[DB.users.authId]] = p;
       }
+
+      // Phase 2: Filter out hidden accounts by BOTH name and username
+      const HIDDEN_USERNAMES = ["mike_test", "applereview"];
+      const filtered = emailFiltered.filter((u: any) => {
+        const profile = profileMap[u.id];
+        const name = (u.name || "").toLowerCase().trim();
+        const username = (profile?.[DB.users.username] || "").toLowerCase();
+        if (HIDDEN_USERNAMES.includes(name)) return false;
+        if (HIDDEN_USERNAMES.includes(username)) return false;
+        return true;
+      });
 
       return filtered.slice(0, limit).map((u: any) => {
         const profile = profileMap[u.id];
