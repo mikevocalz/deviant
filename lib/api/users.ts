@@ -245,6 +245,7 @@ export const usersApi = {
   async updateProfile(updates: {
     firstName?: string;
     lastName?: string;
+    username?: string;
     bio?: string;
     location?: string;
     name?: string;
@@ -259,6 +260,7 @@ export const usersApi = {
         name: updates.name,
         firstName: updates.firstName,
         lastName: updates.lastName,
+        username: updates.username,
         bio: updates.bio,
         location: updates.location,
         website: updates.website,

@@ -22,6 +22,15 @@ const UpdateProfileSchema = z
     name: z.string().max(100).optional(),
     firstName: z.string().max(50).optional(),
     lastName: z.string().max(50).optional(),
+    username: z
+      .string()
+      .min(3, "Username must be at least 3 characters")
+      .max(30, "Username must be 30 characters or less")
+      .regex(
+        /^[a-zA-Z0-9_]+$/,
+        "Username can only contain letters, numbers, and underscores",
+      )
+      .optional(),
     bio: z.string().max(500).optional(),
     location: z.string().max(100).optional(),
     website: z.string().max(200).optional(),
@@ -161,6 +170,42 @@ Deno.serve(async (req) => {
     }
     if (updates.website !== undefined) {
       updateData.website = updates.website;
+    }
+
+    // Username change — check uniqueness before updating
+    if (updates.username !== undefined) {
+      const desiredUsername = updates.username.toLowerCase();
+      console.log(
+        "[Edge:update-profile] Username change requested:",
+        desiredUsername,
+      );
+
+      // Check if username is already taken by another user
+      const { data: existingUser, error: lookupError } = await supabaseAdmin
+        .from("users")
+        .select("id, auth_id")
+        .eq("username", desiredUsername)
+        .maybeSingle();
+
+      if (lookupError) {
+        console.error(
+          "[Edge:update-profile] Username lookup error:",
+          lookupError,
+        );
+        return errorResponse(
+          "internal_error",
+          "Failed to check username availability",
+        );
+      }
+
+      if (existingUser && existingUser.auth_id !== authUserId) {
+        return errorResponse(
+          "validation_error",
+          "Username is already taken. Please choose a different one.",
+        );
+      }
+
+      updateData.username = desiredUsername;
     }
 
     // Handle avatar: accept both 'avatar' and 'avatarUrl' field names
