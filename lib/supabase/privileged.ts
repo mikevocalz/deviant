@@ -21,6 +21,7 @@ interface UpdateProfileParams {
   bio?: string;
   location?: string;
   website?: string;
+  links?: string[];
   avatarUrl?: string;
 }
 

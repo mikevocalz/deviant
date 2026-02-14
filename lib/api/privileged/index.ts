@@ -37,8 +37,11 @@ export interface UpdateProfileInput {
   name?: string;
   firstName?: string;
   lastName?: string;
+  username?: string;
   bio?: string;
   location?: string;
+  website?: string;
+  links?: string[];
   avatarUrl?: string;
 }
 
