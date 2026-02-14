@@ -100,7 +100,7 @@ export function StoryTagPicker({
             source={{
               uri:
                 item.avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}&background=1a1a1a&color=fff`,
+                "",
             }}
             style={s.avatar}
           />

@@ -475,9 +475,7 @@ export default function MessagesScreen() {
         user: {
           username: otherUser.username,
           name: otherUser.name || otherUser.username,
-          avatar:
-            otherUser.avatar ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(otherUser.username)}&background=3EA4E5&color=fff`,
+          avatar: otherUser.avatar || "",
         },
         lastMessage: conv.lastMessage || "",
         timeAgo: conv.timestamp || "",

@@ -81,7 +81,7 @@ export default function CreateLynkScreen() {
           displayName: authUser?.name || authUser?.username || "You",
           avatar:
             authUser?.avatar ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(authUser?.username || "U")}&background=1a1a1a&color=fff&rounded=true`,
+            "",
           isVerified: authUser?.isVerified || false,
         },
         speakers: [],

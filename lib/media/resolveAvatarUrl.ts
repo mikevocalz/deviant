@@ -90,8 +90,5 @@ export function appendCacheBuster(url: string | null): string | null {
 }
 
 // ── Fallback ───────────────────────────────────────────────────────
-
-export function getFallbackAvatarUrl(name: string): string {
-  const safeName = name || "User";
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(safeName)}&background=3EA4E5&color=fff&size=200`;
-}
+// getFallbackAvatarUrl REMOVED — Avatar component renders initials natively.
+// Never use external ui-avatars.com; pass null/empty and let Avatar handle it.

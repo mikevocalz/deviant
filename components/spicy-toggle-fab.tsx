@@ -1,21 +1,43 @@
 import { View, Text, Platform } from "react-native";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
-import { Motion } from "@legendapp/motion";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from "react-native-reanimated";
 import { useAppStore } from "@/lib/stores/app-store";
 
 const TRACK_WIDTH = 84;
 const TRACK_HEIGHT = 42;
 const THUMB_SIZE = 36;
 const TRACK_PADDING = 3;
+const THUMB_ON = TRACK_WIDTH - THUMB_SIZE - TRACK_PADDING * 2 - 2;
+const THUMB_OFF = 0;
+
+const SPRING_CONFIG = { damping: 20, stiffness: 300 };
 
 export function SpicyToggleFAB() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
 
+  // Reanimated shared value — survives OTA reloads correctly
+  const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
+
+  // Sync shared value when state changes (including after OTA reload)
+  useEffect(() => {
+    thumbX.value = withSpring(
+      nsfwEnabled ? THUMB_ON : THUMB_OFF,
+      SPRING_CONFIG,
+    );
+  }, [nsfwEnabled]);
+
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: thumbX.value }],
+  }));
+
   const handleToggle = useCallback(() => {
-    // Read directly from store to avoid stale closures
     const current = useAppStore.getState().nsfwEnabled;
     console.log("[SpicyToggle] Toggling NSFW:", !current);
     setNsfwEnabled(!current);
@@ -80,40 +102,27 @@ export function SpicyToggleFAB() {
             <Text style={{ fontSize: 18 }}>😈</Text>
           </View>
 
-          {/* Animated thumb — key forces re-mount after OTA to avoid stale animation */}
-          <Motion.View
-            key={`thumb-${nsfwEnabled ? "on" : "off"}`}
-            initial={{
-              translateX: nsfwEnabled
-                ? TRACK_WIDTH - THUMB_SIZE - TRACK_PADDING * 2 - 2
-                : 0,
-            }}
-            animate={{
-              translateX: nsfwEnabled
-                ? TRACK_WIDTH - THUMB_SIZE - TRACK_PADDING * 2 - 2
-                : 0,
-            }}
-            transition={{
-              type: "spring",
-              damping: 20,
-              stiffness: 300,
-            }}
-            style={{
-              width: THUMB_SIZE,
-              height: THUMB_SIZE,
-              borderRadius: THUMB_SIZE / 2,
-              backgroundColor: "#fff",
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.2,
-              shadowRadius: 2,
-              elevation: 3,
-            }}
+          {/* Animated thumb — reanimated survives OTA reloads */}
+          <Animated.View
+            style={[
+              {
+                width: THUMB_SIZE,
+                height: THUMB_SIZE,
+                borderRadius: THUMB_SIZE / 2,
+                backgroundColor: "#fff",
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.2,
+                shadowRadius: 2,
+                elevation: 3,
+              },
+              thumbStyle,
+            ]}
           >
             <Text style={{ fontSize: 18 }}>{nsfwEnabled ? "😈" : "😇"}</Text>
-          </Motion.View>
+          </Animated.View>
         </View>
       </View>
     </GestureDetector>

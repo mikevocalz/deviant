@@ -276,11 +276,7 @@ export default function EventCommentsScreen() {
                 source={{
                   uri:
                     comment.author?.avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                      comment.author?.username ||
-                        comment.author?.name ||
-                        "User",
-                    )}`,
+                    "",
                 }}
                 style={{
                   width: 40,
@@ -385,7 +381,7 @@ export default function EventCommentsScreen() {
                 source={{
                   uri:
                     u.avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}`,
+                    "",
                 }}
                 style={{ width: 32, height: 32, borderRadius: 16 }}
               />
@@ -420,9 +416,7 @@ export default function EventCommentsScreen() {
               source={{
                 uri:
                   user?.avatar ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                    user?.name || "User",
-                  )}`,
+                  "",
               }}
               style={{
                 width: 32,

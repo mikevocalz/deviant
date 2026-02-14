@@ -126,7 +126,7 @@ export function UserMentionAutocomplete({
           source={{
             uri:
               item.avatar ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(item.username)}`,
+              "",
           }}
           style={styles.avatar}
           contentFit="cover"

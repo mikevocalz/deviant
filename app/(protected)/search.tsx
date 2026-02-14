@@ -465,13 +465,11 @@ export default function SearchScreen() {
                           }
                           className="flex-row items-center py-3 border-b border-border"
                         >
-                          <Image
-                            source={{
-                              uri:
-                                user.avatar ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username || "User")}`,
-                            }}
-                            className="w-11 h-11 rounded-full"
+                          <Avatar
+                            uri={user.avatar}
+                            username={user.username || "User"}
+                            size="md"
+                            variant="circle"
                           />
                           <View className="ml-3 flex-1">
                             <Text className="font-semibold text-foreground">

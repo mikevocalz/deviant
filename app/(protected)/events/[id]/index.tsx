@@ -567,7 +567,7 @@ export default function EventDetailScreen() {
                 source={{
                   uri:
                     host?.avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(host?.username || "Host")}&background=1a1a1a&color=fff`,
+                    "",
                 }}
                 style={s.hostAvatar}
               />
@@ -781,7 +781,7 @@ export default function EventDetailScreen() {
                       source={{
                         uri:
                           comment.author?.avatar ||
-                          `https://ui-avatars.com/api/?name=${encodeURIComponent(comment.author?.username || "User")}&background=1a1a1a&color=fff`,
+                          "",
                       }}
                       style={s.commentAvatar}
                     />

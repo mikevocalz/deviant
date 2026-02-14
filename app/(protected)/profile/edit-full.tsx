@@ -160,7 +160,7 @@ export default function EditProfileScreen() {
               source={{
                 uri:
                   avatar ||
-                  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || username || "User")}`,
+                  "",
               }}
               className="h-24 w-24 rounded-[20px]"
               contentFit="cover"

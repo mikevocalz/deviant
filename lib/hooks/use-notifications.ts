@@ -132,9 +132,7 @@ export function useNotifications() {
                 user: {
                   id: data.senderId as string,
                   username: (data.senderUsername as string) || "Someone",
-                  avatar:
-                    (data.senderAvatar as string) ||
-                    `https://ui-avatars.com/api/?name=User`,
+                  avatar: (data.senderAvatar as string) || "",
                 },
                 entityType: data.entityType as
                   | "post"

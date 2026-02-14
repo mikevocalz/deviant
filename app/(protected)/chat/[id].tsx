@@ -393,9 +393,7 @@ export default function ChatScreen() {
           id: "",
           username: peerUsername,
           name: peerName || peerUsername,
-          avatar:
-            peerAvatar ||
-            `https://ui-avatars.com/api/?name=${encodeURIComponent(peerUsername)}&background=3EA4E5&color=fff`,
+          avatar: peerAvatar || "",
         }
       : null,
   );
@@ -442,11 +440,7 @@ export default function ChatScreen() {
               authId: otherUser.authId || "",
               username: otherUser.username,
               name: otherUser.name || otherUser.username,
-              avatar:
-                otherUser.avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                  otherUser.username,
-                )}&background=3EA4E5&color=fff`,
+              avatar: otherUser.avatar || "",
             });
           } else {
             console.warn("[Chat] No user found in conversation");
@@ -479,11 +473,7 @@ export default function ChatScreen() {
                     authId: otherUser.authId || "",
                     username: otherUser.username,
                     name: otherUser.name || otherUser.username,
-                    avatar:
-                      otherUser.avatar ||
-                      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                        otherUser.username,
-                      )}&background=3EA4E5&color=fff`,
+                    avatar: otherUser.avatar || "",
                   });
                 }
               }
@@ -493,7 +483,7 @@ export default function ChatScreen() {
                 id: chatId,
                 username: chatId,
                 name: chatId,
-                avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+                avatar: "",
               });
             }
           } catch (createError) {
@@ -503,7 +493,7 @@ export default function ChatScreen() {
               id: chatId,
               username: chatId,
               name: chatId,
-              avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+              avatar: "",
             });
           }
         }
@@ -514,7 +504,7 @@ export default function ChatScreen() {
           id: chatId,
           username: chatId,
           name: chatId,
-          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(chatId)}&background=3EA4E5&color=fff`,
+          avatar: "",
         });
       } finally {
         setIsLoadingRecipient(false);
