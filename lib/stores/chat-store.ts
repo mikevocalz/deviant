@@ -159,7 +159,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         let displayText = content;
         const meta = msg.metadata;
 
-        if (meta && meta.type === "story_reply") {
+        if (
+          meta &&
+          (meta.type === "story_reply" || meta.type === "story_reaction")
+        ) {
           // New format: metadata JSONB column from backend
           // Stories expire after 24h — check if the story is still active
           const storyExpired = meta.storyExpiresAt
@@ -172,6 +175,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             storyAvatar: meta.storyAvatar || undefined,
             isExpired: storyExpired,
           };
+          // For story reactions, the content is just the emoji — keep it as displayText
+          // so StoryReplyBubble shows "Reacted ❤️ to your story"
         } else {
           // Legacy fallback: parse "📷 Replied to your story: " prefix
           const legacyPrefix = "📷 Replied to your story: ";

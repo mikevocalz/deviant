@@ -192,11 +192,53 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
     customData?.username?.toLowerCase() ===
     currentUser?.username?.toLowerCase();
 
-  const handleReact = useCallback((emoji: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const id = emojiCounter.current++;
-    setFloatingEmojis((prev) => [...prev, { id, emoji }]);
-  }, []);
+  const handleReact = useCallback(
+    async (emoji: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      const id = emojiCounter.current++;
+      setFloatingEmojis((prev) => [...prev, { id, emoji }]);
+
+      // Send reaction as DM (Instagram-style)
+      if (!customData || isOwnStory) return;
+      try {
+        let userId = customData.appUserId;
+        if (!userId && customData.username) {
+          const result = await usersApi.getProfileByUsername(
+            customData.username,
+          );
+          userId = result?.id;
+        }
+        if (!userId) return;
+
+        const conversationId =
+          await messagesApiClient.getOrCreateConversation(userId);
+        if (!conversationId) return;
+
+        await messagesApiClient.sendMessage({
+          conversationId,
+          content: emoji,
+          metadata: {
+            type: "story_reaction",
+            storyId: customData.appStoryId || "",
+            storyMediaUrl: item.story_image || "",
+            storyUsername: customData.username || "",
+            storyAvatar: customData.avatar || "",
+            reactionEmoji: emoji,
+            storyExpiresAt: new Date(
+              Date.now() + 24 * 60 * 60 * 1000,
+            ).toISOString(),
+          },
+        });
+        console.log("[StoryOverlay] Reaction sent:", emoji);
+      } catch (error: any) {
+        console.error(
+          "[StoryOverlay] Reaction error:",
+          error?.message || error,
+        );
+      }
+    },
+    [customData, isOwnStory, item],
+  );
 
   const removeEmoji = useCallback((id: number) => {
     setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
