@@ -305,6 +305,85 @@ export const postsApi = {
   },
 
   /**
+   * Get explore/discover posts — random posts from different users (for grid)
+   * Fetches a larger pool then picks max 1 per author and shuffles.
+   */
+  async getExplorePosts(limit: number = 40): Promise<Post[]> {
+    try {
+      console.log("[Posts] getExplorePosts, limit:", limit);
+
+      const { data: posts, error } = await supabase
+        .from(DB.posts.table)
+        .select(
+          `
+          ${DB.posts.id},
+          ${DB.posts.authorId},
+          ${DB.posts.content},
+          ${DB.posts.likesCount},
+          ${DB.posts.isNsfw},
+          ${DB.posts.createdAt},
+          author:users!posts_author_id_users_id_fk(
+            ${DB.users.id},
+            ${DB.users.username},
+            ${DB.users.firstName},
+            ${DB.users.verified},
+            avatar:${DB.users.avatarId}(url)
+          ),
+          media:posts_media(
+            ${DB.postsMedia.type},
+            ${DB.postsMedia.url},
+            ${DB.postsMedia.order}
+          )
+        `,
+        )
+        .eq(DB.posts.visibility, "public")
+        .order(DB.posts.createdAt, { ascending: false })
+        .limit(limit * 3);
+
+      if (error) {
+        console.error("[Posts] getExplorePosts error:", error);
+        return [];
+      }
+
+      // Only keep posts that have at least one media item
+      const withMedia = (posts || []).filter(
+        (p: any) => p.media && p.media.length > 0 && p.media[0]?.url,
+      );
+
+      // Pick max 1 post per author for variety, shuffle the pool first
+      const shuffled = withMedia.sort(() => Math.random() - 0.5);
+      const seenAuthors = new Set<number>();
+      const unique: any[] = [];
+      for (const p of shuffled) {
+        const authorId = p[DB.posts.authorId];
+        if (seenAuthors.has(authorId)) continue;
+        seenAuthors.add(authorId);
+        unique.push(p);
+        if (unique.length >= limit) break;
+      }
+
+      const postIds = unique.map((p: any) => Number(p[DB.posts.id]));
+      const likedSet = await fetchViewerLikedPostIds(postIds);
+
+      console.log(
+        "[Posts] getExplorePosts returning",
+        unique.length,
+        "posts from",
+        seenAuthors.size,
+        "authors",
+      );
+
+      return unique.map((p: any) => {
+        const pid = String(p[DB.posts.id]);
+        return transformPost(p, likedSet.has(pid));
+      });
+    } catch (error) {
+      console.error("[Posts] getExplorePosts error:", error);
+      return [];
+    }
+  },
+
+  /**
    * Create new post via Edge Function
    */
   async createPost(data: {
