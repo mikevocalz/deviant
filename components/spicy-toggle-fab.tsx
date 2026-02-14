@@ -1,26 +1,37 @@
-import { Pressable, View, Text } from "react-native";
+import { Pressable, View, Text, Platform } from "react-native";
+import { useCallback } from "react";
 import { Motion } from "@legendapp/motion";
 import { useAppStore } from "@/lib/stores/app-store";
 
-const TRACK_WIDTH = 68;
-const TRACK_HEIGHT = 38;
-const THUMB_SIZE = 32;
+const TRACK_WIDTH = 84;
+const TRACK_HEIGHT = 42;
+const THUMB_SIZE = 36;
 const TRACK_PADDING = 3;
 
 export function SpicyToggleFAB() {
-  const { nsfwEnabled, setNsfwEnabled } = useAppStore();
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
+
+  const handleToggle = useCallback(() => {
+    // Read directly from store to avoid stale closures
+    const current = useAppStore.getState().nsfwEnabled;
+    console.log("[SpicyToggle] Toggling NSFW:", !current);
+    setNsfwEnabled(!current);
+  }, [setNsfwEnabled]);
 
   return (
     <View
+      pointerEvents="box-none"
       style={{
         position: "absolute",
-        bottom: 14,
-        right: 6,
+        bottom: 20,
+        right: 8,
         zIndex: 50,
+        elevation: 50,
         alignItems: "center",
       }}
     >
-      <Pressable onPress={() => setNsfwEnabled(!nsfwEnabled)} hitSlop={12}>
+      <Pressable onPress={handleToggle} hitSlop={16}>
         {/* Track */}
         <View
           style={{
@@ -39,26 +50,26 @@ export function SpicyToggleFAB() {
             elevation: 8,
           }}
         >
-          {/* Angel emoji (left side, visible when OFF) */}
+          {/* Angel emoji (left side, visible when deviant mode ON) */}
           <View
             style={{
               position: "absolute",
-              left: 8,
-              opacity: nsfwEnabled ? 0.3 : 0,
+              left: 10,
+              opacity: nsfwEnabled ? 0.8 : 0,
             }}
           >
-            <Text style={{ fontSize: 16 }}>😇</Text>
+            <Text style={{ fontSize: 18 }}>😇</Text>
           </View>
 
-          {/* Devil emoji (right side, visible when ON) */}
+          {/* Devil emoji (right side, visible when angel mode / OFF) */}
           <View
             style={{
               position: "absolute",
-              right: 8,
-              opacity: nsfwEnabled ? 0 : 0.3,
+              right: 10,
+              opacity: nsfwEnabled ? 0 : 0.8,
             }}
           >
-            <Text style={{ fontSize: 16 }}>😈</Text>
+            <Text style={{ fontSize: 18 }}>😈</Text>
           </View>
 
           {/* Animated thumb */}
