@@ -130,6 +130,7 @@ export default function CommentsScreen() {
     const originalReplyingTo = replyingTo;
     setComment("");
     setReplyingTo(null);
+    Keyboard.dismiss();
 
     createComment.mutate(
       {
@@ -435,9 +436,7 @@ export default function CommentsScreen() {
                 >
                   <Image
                     source={{
-                      uri:
-                        u.avatar ||
-                        "",
+                      uri: u.avatar || "",
                     }}
                     style={{ width: 28, height: 28, borderRadius: 6 }}
                   />

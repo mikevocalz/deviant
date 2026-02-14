@@ -8,6 +8,7 @@ import {
   Modal,
   Alert,
   StyleSheet,
+  Keyboard,
 } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, {
@@ -598,6 +599,7 @@ export default function ChatScreen() {
       }),
     ]).start();
 
+    Keyboard.dismiss();
     sendMessageToBackend(chatId);
   }, [chatId, sendMessageToBackend, sendButtonScale]);
 
