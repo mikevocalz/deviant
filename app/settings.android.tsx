@@ -1,8 +1,16 @@
-import { View, Text, ScrollView, Pressable, Alert } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useState, useEffect } from "react";
+import * as Updates from "expo-updates";
 import {
   User,
   Bell,
@@ -27,6 +35,7 @@ import {
   Bug,
   Trash2,
   Fingerprint,
+  Download,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -85,6 +94,65 @@ export default function SettingsScreenAndroid() {
   }, [navigation, colors, router]);
 
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // OTA Update state
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState<boolean | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Check for updates on mount
+  useEffect(() => {
+    const checkForUpdate = async () => {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        setUpdateAvailable(update.isAvailable);
+      } catch (e) {
+        // In dev or if check fails, hide the button
+        setUpdateAvailable(false);
+      }
+    };
+    if (!__DEV__) {
+      checkForUpdate();
+    }
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    setIsCheckingUpdate(true);
+    try {
+      const update = await Updates.checkForUpdateAsync();
+      if (update.isAvailable) {
+        setUpdateAvailable(true);
+        setIsDownloading(true);
+        await Updates.fetchUpdateAsync();
+        setIsDownloading(false);
+        Alert.alert(
+          "Update Ready",
+          "A new update has been downloaded. Restart the app to apply it.",
+          [
+            { text: "Later", style: "cancel" },
+            {
+              text: "Restart Now",
+              onPress: async () => {
+                await Updates.reloadAsync();
+              },
+            },
+          ],
+        );
+      } else {
+        setUpdateAvailable(false);
+        toast.success("You're up to date!", {
+          description: "No new updates available",
+        });
+      }
+    } catch (e: any) {
+      toast.error("Update check failed", {
+        description: e?.message || "Please try again later",
+      });
+    } finally {
+      setIsCheckingUpdate(false);
+      setIsDownloading(false);
+    }
+  };
 
   // Biometric authentication
   const {
@@ -371,6 +439,49 @@ export default function SettingsScreenAndroid() {
               onPress={() => router.push("/settings/faq")}
             />
           </SettingsSection>
+
+          {/* App Updates - only show in production */}
+          {!__DEV__ && (
+            <SettingsSection title="App Updates">
+              <Pressable
+                onPress={handleCheckForUpdates}
+                disabled={
+                  isCheckingUpdate || isDownloading || updateAvailable === false
+                }
+                className={`flex-row items-center justify-between px-4 py-3 ${
+                  updateAvailable === false
+                    ? "opacity-50"
+                    : "active:bg-secondary/50"
+                }`}
+              >
+                <View className="flex-row items-center gap-3">
+                  <Download
+                    size={22}
+                    color={updateAvailable ? "#22c55e" : "#666"}
+                  />
+                  <View>
+                    <Text className="text-base text-foreground">
+                      {isDownloading
+                        ? "Downloading Update..."
+                        : updateAvailable
+                          ? "Update Available"
+                          : "Check for Updates"}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {updateAvailable === false
+                        ? "You're on the latest version"
+                        : updateAvailable
+                          ? "Tap to download and install"
+                          : "Get the latest features and fixes"}
+                    </Text>
+                  </View>
+                </View>
+                {(isCheckingUpdate || isDownloading) && (
+                  <ActivityIndicator size="small" color="#3EA4E5" />
+                )}
+              </Pressable>
+            </SettingsSection>
+          )}
 
           {/* Developer */}
           {__DEV__ && (
