@@ -79,7 +79,7 @@ function AvatarComponent({
           width: sizeValue,
           height: sizeValue,
           borderRadius,
-          backgroundColor: "#2a2a2a",
+          backgroundColor: FALLBACK_BG,
           overflow: "hidden",
           borderWidth: 1.5,
           borderColor: "#34A2DF",
@@ -87,7 +87,28 @@ function AvatarComponent({
         style,
       ]}
     >
-      {showImage ? (
+      {/* Initials layer — always rendered as background */}
+      <View
+        style={{
+          position: "absolute",
+          width: sizeValue,
+          height: sizeValue,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text
+          style={{
+            color: "#fff",
+            fontWeight: "700",
+            fontSize: Math.round(sizeValue / 2),
+          }}
+        >
+          {usernameInitial}
+        </Text>
+      </View>
+      {/* Image layer — loads on top, fades in over initials */}
+      {showImage && (
         <Image
           source={{ uri: resolvedUri! }}
           style={{
@@ -98,26 +119,6 @@ function AvatarComponent({
           transition={200}
           cachePolicy="memory-disk"
         />
-      ) : (
-        <View
-          style={{
-            width: sizeValue,
-            height: sizeValue,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: FALLBACK_BG,
-          }}
-        >
-          <Text
-            style={{
-              color: "#fff",
-              fontWeight: "700",
-              fontSize: Math.round(sizeValue / 2),
-            }}
-          >
-            {usernameInitial}
-          </Text>
-        </View>
       )}
     </View>
   );
