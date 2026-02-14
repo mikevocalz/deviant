@@ -299,80 +299,77 @@ export const usersApi = {
 
   /**
    * Get newest users (for "Discover New Profiles" section)
-   * Queries Better Auth `user` table for real signups, then enriches
-   * with app `users` profile data where available.
+   * Queries app `users` table directly for newest signups.
    */
   async getNewestUsers(limit: number = 15) {
     try {
-      // Get current user's auth_id to exclude from results
       const currentUserRow = await getCurrentUserRow();
-      const currentAuthId = currentUserRow?.authId || null;
+      const currentId = currentUserRow?.id || null;
 
-      // Query Better Auth `user` table — this is where real signups live
       let query = supabase
-        .from("user")
-        .select("id, name, email, image, createdAt")
-        .order("createdAt", { ascending: false })
-        .limit(limit + 10);
-
-      if (currentAuthId) {
-        query = query.neq("id", currentAuthId);
-      }
-
-      const { data: authUsers, error } = await query;
-
-      if (error) throw error;
-      if (!authUsers?.length) return [];
-
-      // Phase 1: Filter out test accounts by email only
-      const TEST_EMAILS = ["@test.com", "@example.com", "@deviant.test"];
-      const emailFiltered = authUsers.filter((u: any) => {
-        const email = (u.email || "").toLowerCase();
-        if (TEST_EMAILS.some((t) => email.endsWith(t))) return false;
-        const name = (u.name || "").toLowerCase().trim();
-        if (name.startsWith("test")) return false;
-        return true;
-      });
-
-      // Enrich with app profile data (username, avatar, bio)
-      const authIds = emailFiltered.map((u: any) => u.id);
-      const { data: profiles } = await supabase
         .from(DB.users.table)
         .select(
-          `${DB.users.authId}, ${DB.users.username}, ${DB.users.bio}, ${DB.users.verified}, avatar:${DB.users.avatarId}(url)`,
+          `
+          ${DB.users.id},
+          ${DB.users.authId},
+          ${DB.users.username},
+          ${DB.users.firstName},
+          ${DB.users.lastName},
+          ${DB.users.email},
+          ${DB.users.bio},
+          ${DB.users.verified},
+          ${DB.users.postsCount},
+          ${DB.users.createdAt},
+          avatar:${DB.users.avatarId}(url)
+        `,
         )
-        .in(DB.users.authId, authIds);
+        .order(DB.users.createdAt, { ascending: false })
+        .limit(limit + 20);
 
-      const profileMap: Record<string, any> = {};
-      for (const p of profiles || []) {
-        profileMap[p[DB.users.authId]] = p;
+      if (currentId) {
+        query = query.neq(DB.users.id, currentId);
       }
 
-      // Phase 2: Filter out hidden accounts by BOTH name and username
+      const { data: users, error } = await query;
+
+      if (error) {
+        console.error("[Users] getNewestUsers query error:", error);
+        throw error;
+      }
+      if (!users?.length) {
+        console.log("[Users] getNewestUsers: no users found");
+        return [];
+      }
+
+      console.log("[Users] getNewestUsers raw count:", users.length);
+
+      const TEST_EMAILS = ["@test.com", "@example.com", "@deviant.test"];
       const HIDDEN_USERNAMES = ["mike_test", "applereview"];
-      const filtered = emailFiltered.filter((u: any) => {
-        const profile = profileMap[u.id];
-        const name = (u.name || "").toLowerCase().trim();
-        const username = (profile?.[DB.users.username] || "").toLowerCase();
-        if (HIDDEN_USERNAMES.includes(name)) return false;
+
+      const filtered = users.filter((u: any) => {
+        const email = (u[DB.users.email] || "").toLowerCase();
+        if (TEST_EMAILS.some((t) => email.endsWith(t))) return false;
+        const username = (u[DB.users.username] || "").toLowerCase();
         if (HIDDEN_USERNAMES.includes(username)) return false;
+        const firstName = (u[DB.users.firstName] || "").toLowerCase().trim();
+        if (firstName.startsWith("test")) return false;
+        if (HIDDEN_USERNAMES.includes(firstName)) return false;
         return true;
       });
 
+      console.log("[Users] getNewestUsers filtered count:", filtered.length);
+
       return filtered.slice(0, limit).map((u: any) => {
-        const profile = profileMap[u.id];
-        const displayName = (u.name || "").trim();
-        const username =
-          profile?.[DB.users.username] ||
-          displayName.toLowerCase().replace(/\s+/g, "_");
+        const username = u[DB.users.username] || "user";
+        const displayName = (u[DB.users.firstName] || "").trim() || username;
         return {
-          id: u.id,
+          id: u[DB.users.authId] || String(u[DB.users.id]),
           username,
-          name: displayName || username,
-          avatar: profile?.avatar?.url || u.image || "",
-          verified: profile?.[DB.users.verified] || false,
-          bio: profile?.[DB.users.bio] || "",
-          postsCount: 0,
+          name: displayName,
+          avatar: u.avatar?.url || "",
+          verified: u[DB.users.verified] || false,
+          bio: u[DB.users.bio] || "",
+          postsCount: u[DB.users.postsCount] || 0,
         };
       });
     } catch (error) {
