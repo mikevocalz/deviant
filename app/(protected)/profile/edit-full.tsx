@@ -1,4 +1,5 @@
-import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
+import { View, Text, Pressable, TextInput } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Camera, Loader2 } from "lucide-react-native";
@@ -127,7 +128,12 @@ export default function EditProfileScreen() {
         </Pressable>
       </View>
 
-      <ScrollView className="flex-1">
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        bottomOffset={40}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         {/* Avatar */}
         <View className="items-center py-6">
           <Pressable
@@ -255,7 +261,7 @@ export default function EditProfileScreen() {
         </View>
 
         <View className="h-8" />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </SafeAreaView>
   );
 }

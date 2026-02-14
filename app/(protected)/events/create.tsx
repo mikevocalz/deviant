@@ -397,6 +397,7 @@ export default function CreateEventScreen() {
         }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         bottomOffset={100}
         enabled={true}
       >
