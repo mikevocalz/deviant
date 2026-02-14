@@ -48,31 +48,20 @@ export default function EditEventScreen() {
     }
 
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
+      const { eventsApi } = await import("@/lib/api/events");
+      const eventData = await eventsApi.getEventById(eventId);
+      if (!eventData) throw new Error("Event not found");
 
-      const token = await getAuthToken();
-      const response = await fetch(`${apiUrl}/api/events/${eventId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to load event: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const eventData = data.doc || data;
       setEvent(eventData);
-
       setTitle(eventData.title || "");
       setDescription(eventData.description || "");
       setLocation(eventData.location || "");
       setEventDate(
-        eventData.eventDate ? new Date(eventData.eventDate) : new Date(),
+        (eventData as any).date
+          ? new Date((eventData as any).date)
+          : new Date(),
       );
-      setTicketPrice(
-        eventData.ticketPrice ? String(eventData.ticketPrice) : "",
-      );
+      setTicketPrice(eventData.price ? String(eventData.price) : "");
       setMaxAttendees(
         eventData.maxAttendees ? String(eventData.maxAttendees) : "",
       );
@@ -92,32 +81,15 @@ export default function EditEventScreen() {
 
     setIsSaving(true);
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
-
-      const token = await getAuthToken();
-      if (!token) throw new Error("Not authenticated");
-
-      const response = await fetch(`${apiUrl}/api/events/${eventId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title,
-          description,
-          location: location || undefined,
-          eventDate: eventDate.toISOString(),
-          ticketPrice: ticketPrice ? parseFloat(ticketPrice) : undefined,
-          maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
-        }),
+      const { eventsApi } = await import("@/lib/api/events");
+      await eventsApi.updateEvent(eventId, {
+        title,
+        description,
+        location: location || undefined,
+        startDate: eventDate.toISOString(),
+        price: ticketPrice ? parseFloat(ticketPrice) : undefined,
+        maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
       });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || `Update failed: ${response.status}`);
-      }
 
       showToast("success", "Success", "Event updated successfully!");
       router.back();
