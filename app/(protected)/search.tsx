@@ -164,6 +164,8 @@ function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
           style={{
             width: GRID_CELL_SIZE,
             height: GRID_CELL_SIZE,
+            borderRadius: 8,
+            overflow: "hidden",
           }}
         >
           {uri ? (
@@ -396,9 +398,16 @@ export default function SearchScreen() {
                                 router.push(`/(protected)/post/${post.id}`);
                               }
                             }}
-                            style={{ width: columnWidth, height: columnWidth }}
+                            style={{
+                              width: columnWidth,
+                              height: columnWidth,
+                              padding: 1,
+                            }}
                           >
-                            <View className="flex-1 m-px overflow-hidden bg-secondary">
+                            <View
+                              className="flex-1 overflow-hidden bg-secondary"
+                              style={{ borderRadius: 8 }}
+                            >
                               {thumbnail &&
                               (thumbnail.startsWith("http://") ||
                                 thumbnail.startsWith("https://")) ? (
@@ -500,9 +509,13 @@ export default function SearchScreen() {
                               style={{
                                 width: columnWidth,
                                 height: columnWidth,
+                                padding: 1,
                               }}
                             >
-                              <View className="flex-1 m-px overflow-hidden bg-secondary">
+                              <View
+                                className="flex-1 overflow-hidden bg-secondary"
+                                style={{ borderRadius: 8 }}
+                              >
                                 {thumbnail &&
                                 (thumbnail.startsWith("http://") ||
                                   thumbnail.startsWith("https://")) ? (

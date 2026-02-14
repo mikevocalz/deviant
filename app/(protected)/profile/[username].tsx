@@ -711,6 +711,7 @@ function UserProfileScreenComponent() {
                         width: "100%",
                         height: "100%",
                         backgroundColor: "#1a1a1a",
+                        borderRadius: 8,
                       }}
                       contentFit="cover"
                     />

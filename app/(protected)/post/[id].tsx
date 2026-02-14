@@ -333,7 +333,12 @@ function PostDetailScreenContent() {
           {/* Media - CRITICAL: Uses same dimensions as FeedItem (4:5 ratio) */}
           {hasMedia ? (
             <View
-              style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
+              style={{
+                width: SCREEN_WIDTH,
+                height: PORTRAIT_HEIGHT,
+                borderRadius: 12,
+                overflow: "hidden",
+              }}
               className="bg-muted"
             >
               {isVideo && videoUrl && player ? (
