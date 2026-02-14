@@ -237,7 +237,7 @@ export default {
       fishjamAppId:
         process.env.EXPO_PUBLIC_FISHJAM_APP_ID ||
         process.env.FISHJAM_APP_ID ||
-        "28026441819941d78c40584fb830f851",
+        "e921bfe88b244ced97fdd1d8d9a2c6f0",
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
       },

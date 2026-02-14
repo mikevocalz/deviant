@@ -8,6 +8,7 @@ import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Hand,
+  Lock,
   MessageCircle,
   Mic,
   MicOff,
@@ -25,6 +26,7 @@ interface ControlsBarProps {
   isVideoEnabled: boolean;
   handRaised: boolean;
   hasVideo: boolean;
+  localRole: "host" | "co-host" | "listener";
   onLeave: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
@@ -34,7 +36,7 @@ interface ControlsBarProps {
 }
 
 // ── Floating emoji reaction ─────────────────────────────────────────
-const REACTION_EMOJIS = ["❤️", "🔥", "👏", "😂", "🙌", "💯"];
+const REACTION_EMOJIS = ["❤️", "", "�", "�"];
 
 function FloatingEmoji({
   emoji,
@@ -161,6 +163,7 @@ export function ControlsBar({
   isVideoEnabled,
   handRaised,
   hasVideo,
+  localRole,
   onLeave,
   onToggleMute,
   onToggleVideo,
@@ -168,18 +171,25 @@ export function ControlsBar({
   onOpenChat,
   onShare,
 }: ControlsBarProps) {
+  const canSpeak = localRole === "host" || localRole === "co-host";
   const insets = useSafeAreaInsets();
   const [floatingEmojis, setFloatingEmojis] = useState<
     { id: number; emoji: string }[]
   >([]);
   const emojiCounter = useRef(0);
 
-  const handleReact = useCallback(() => {
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const handleSendEmoji = useCallback((emoji: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const emoji =
-      REACTION_EMOJIS[Math.floor(Math.random() * REACTION_EMOJIS.length)];
     const id = emojiCounter.current++;
     setFloatingEmojis((prev) => [...prev, { id, emoji }]);
+    setShowEmojiPicker(false);
+  }, []);
+
+  const handleToggleEmojiPicker = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowEmojiPicker((prev) => !prev);
   }, []);
 
   const removeEmoji = useCallback((id: number) => {
@@ -197,26 +207,71 @@ export function ControlsBar({
         />
       ))}
 
+      {/* Emoji picker tray — rendered ABOVE the dock so borderRadius doesn't clip */}
+      {showEmojiPicker && (
+        <View
+          style={{
+            alignSelf: "center",
+            flexDirection: "row",
+            backgroundColor: "rgba(30, 30, 30, 0.95)",
+            borderRadius: 24,
+            paddingHorizontal: 10,
+            paddingVertical: 8,
+            gap: 6,
+            marginBottom: 8,
+            marginHorizontal: 16,
+          }}
+        >
+          {REACTION_EMOJIS.map((emoji) => (
+            <Pressable
+              key={emoji}
+              onPress={() => handleSendEmoji(emoji)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Text style={{ fontSize: 24 }}>{emoji}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
       {/* Dock */}
       <View
         className="mx-4 flex-row items-center justify-between px-4 py-3 rounded-2xl"
         style={{ backgroundColor: "rgba(20, 20, 20, 0.85)" }}
       >
-        {/* Mic */}
-        <ControlButton
-          onPress={onToggleMute}
-          isActive={!isMuted}
-          icon={
-            isMuted ? (
-              <MicOff size={20} color="#EF4444" />
-            ) : (
-              <Mic size={20} color="#fff" />
-            )
-          }
-        />
+        {/* Mic — only host/co-host can toggle */}
+        {canSpeak ? (
+          <ControlButton
+            onPress={onToggleMute}
+            isActive={!isMuted}
+            icon={
+              isMuted ? (
+                <MicOff size={20} color="#EF4444" />
+              ) : (
+                <Mic size={20} color="#fff" />
+              )
+            }
+          />
+        ) : (
+          <View className="items-center gap-1">
+            <View
+              className="items-center justify-center rounded-full bg-white/5"
+              style={{ width: 48, height: 48 }}
+            >
+              <Lock size={18} color="#6B7280" />
+            </View>
+          </View>
+        )}
 
-        {/* Video */}
-        {hasVideo && (
+        {/* Video — only host/co-host */}
+        {hasVideo && canSpeak && (
           <ControlButton
             onPress={onToggleVideo}
             isActive={isVideoEnabled}
@@ -230,16 +285,17 @@ export function ControlsBar({
           />
         )}
 
-        {/* Hand Raise */}
+        {/* Hand Raise — listeners use this to request to speak */}
         <ControlButton
           onPress={onToggleHand}
           isActive={handRaised}
           icon={<Hand size={20} color={handRaised ? "#F59E0B" : "#fff"} />}
         />
 
-        {/* React */}
+        {/* React — toggles emoji picker above dock */}
         <ControlButton
-          onPress={handleReact}
+          onPress={handleToggleEmojiPicker}
+          isActive={showEmojiPicker}
           icon={<Heart size={20} color="#FF6DC1" />}
         />
 

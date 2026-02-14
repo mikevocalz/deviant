@@ -5,10 +5,11 @@
  * 3 columns on mobile, 5 columns on larger screens (≥768px).
  */
 
-import { View, Text, useWindowDimensions } from "react-native";
+import { View, Text, Pressable, useWindowDimensions } from "react-native";
 import { memo, useCallback, useMemo } from "react";
 import { LegendList } from "@/components/list";
 import { Avatar } from "@/components/ui/avatar";
+import { Mic } from "lucide-react-native";
 import type { SneakyUser } from "../types";
 
 const LARGE_SCREEN_BREAKPOINT = 768;
@@ -22,6 +23,8 @@ export interface Listener {
 
 interface ListenerGridProps {
   listeners: Listener[];
+  isHost?: boolean;
+  onPromote?: (userId: string) => void;
 }
 
 /** Chunk a flat array into rows of `cols` items */
@@ -36,18 +39,46 @@ function chunkArray<T>(arr: T[], cols: number): T[][] {
 const ListenerCell = memo(function ListenerCell({
   listener,
   cellSize,
+  isHost,
+  onPromote,
 }: {
   listener: Listener;
   cellSize: number;
+  isHost?: boolean;
+  onPromote?: (userId: string) => void;
 }) {
+  const avatarSize = Math.min(cellSize - 8, 56);
   return (
     <View style={{ width: cellSize, alignItems: "center" }}>
-      <Avatar
-        uri={listener.user.avatar}
-        username={listener.user.username}
-        size={Math.min(cellSize - 8, 56)}
-        variant="roundedSquare"
-      />
+      <View>
+        <Avatar
+          uri={listener.user.avatar}
+          username={listener.user.username}
+          size={avatarSize}
+          variant="roundedSquare"
+        />
+        {isHost && onPromote && (
+          <Pressable
+            onPress={() => onPromote(listener.user.id)}
+            hitSlop={8}
+            style={{
+              position: "absolute",
+              bottom: -4,
+              right: -4,
+              width: 24,
+              height: 24,
+              borderRadius: 12,
+              backgroundColor: "#3EA4E5",
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 2,
+              borderColor: "#000",
+            }}
+          >
+            <Mic size={12} color="#fff" />
+          </Pressable>
+        )}
+      </View>
       <Text
         style={{
           fontSize: 11,
@@ -68,10 +99,14 @@ const ListenerRow = memo(function ListenerRow({
   row,
   cols,
   cellSize,
+  isHost,
+  onPromote,
 }: {
   row: Listener[];
   cols: number;
   cellSize: number;
+  isHost?: boolean;
+  onPromote?: (userId: string) => void;
 }) {
   return (
     <View
@@ -86,6 +121,8 @@ const ListenerRow = memo(function ListenerRow({
           key={listener.id}
           listener={listener}
           cellSize={cellSize}
+          isHost={isHost}
+          onPromote={onPromote}
         />
       ))}
       {/* Fill empty cells to keep alignment */}
@@ -97,7 +134,11 @@ const ListenerRow = memo(function ListenerRow({
   );
 });
 
-export function ListenerGrid({ listeners }: ListenerGridProps) {
+export function ListenerGrid({
+  listeners,
+  isHost,
+  onPromote,
+}: ListenerGridProps) {
   const { width } = useWindowDimensions();
   const isLargeScreen = width >= LARGE_SCREEN_BREAKPOINT;
   const cols = isLargeScreen ? 5 : 3;
@@ -109,9 +150,15 @@ export function ListenerGrid({ listeners }: ListenerGridProps) {
 
   const renderRow = useCallback(
     ({ item }: { item: Listener[] }) => (
-      <ListenerRow row={item} cols={cols} cellSize={cellSize} />
+      <ListenerRow
+        row={item}
+        cols={cols}
+        cellSize={cellSize}
+        isHost={isHost}
+        onPromote={onPromote}
+      />
     ),
-    [cols, cellSize],
+    [cols, cellSize, isHost, onPromote],
   );
 
   const keyExtractor = useCallback(

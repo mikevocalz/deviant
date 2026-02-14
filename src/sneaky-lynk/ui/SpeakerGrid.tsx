@@ -3,9 +3,9 @@
  * Grid of speakers with animated pulsing rings for active speakers
  */
 
-import { View, Text, Animated, Easing } from "react-native";
+import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { Image } from "expo-image";
-import { BadgeCheck } from "lucide-react-native";
+import { BadgeCheck, MicOff } from "lucide-react-native";
 import { useEffect, useRef, useCallback } from "react";
 import type { SneakyUser, MemberRole } from "../types";
 
@@ -19,15 +19,25 @@ interface Speaker {
 interface SpeakerGridProps {
   speakers: Speaker[];
   activeSpeakers: Set<string>;
+  isLocalHost?: boolean;
+  onMuteCoHost?: () => void;
 }
 
 interface SpeakerCardProps {
   speaker: Speaker;
   isActive: boolean;
   isHost: boolean;
+  showMuteButton?: boolean;
+  onMute?: () => void;
 }
 
-function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
+function SpeakerCard({
+  speaker,
+  isActive,
+  isHost,
+  showMuteButton,
+  onMute,
+}: SpeakerCardProps) {
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
@@ -123,7 +133,7 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
         {isActive && (
           <>
             <Animated.View
-              className="absolute w-[72px] h-[72px] rounded-2xl border-[3px] border-green-500"
+              className="absolute w-[72px] h-[72px] rounded-2xl border-[3px] border-[#3FDCFF]"
               style={{
                 opacity: pulseOpacityOuter,
                 transform: [{ scale: pulseScaleOuter }],
@@ -147,7 +157,7 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
           <Image
             source={{ uri: speaker.user.avatar }}
             className={`w-[72px] h-[72px] rounded-2xl border-[3px] ${
-              isActive ? "border-green-500" : "border-secondary"
+              isActive ? "border-[#3FDCFF]" : "border-secondary"
             }`}
           />
         </Animated.View>
@@ -162,9 +172,21 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
         {/* Speaking indicator */}
         <View
           className={`absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full border-[3px] border-background ${
-            isActive ? "bg-green-500" : "bg-muted-foreground"
+            isActive ? "bg-[#3FDCFF]" : "bg-muted-foreground"
           }`}
         />
+
+        {/* Mute button — host can mute co-host */}
+        {showMuteButton && onMute && (
+          <Pressable
+            onPress={onMute}
+            hitSlop={8}
+            className="absolute -bottom-1 -left-1 w-6 h-6 rounded-full bg-red-500 items-center justify-center"
+            style={{ borderWidth: 2, borderColor: "#000" }}
+          >
+            <MicOff size={12} color="#fff" />
+          </Pressable>
+        )}
       </View>
 
       {/* Name */}
@@ -188,7 +210,12 @@ function SpeakerCard({ speaker, isActive, isHost }: SpeakerCardProps) {
   );
 }
 
-export function SpeakerGrid({ speakers, activeSpeakers }: SpeakerGridProps) {
+export function SpeakerGrid({
+  speakers,
+  activeSpeakers,
+  isLocalHost,
+  onMuteCoHost,
+}: SpeakerGridProps) {
   return (
     <View className="px-5 mb-6">
       <Text className="text-base font-bold text-foreground mb-4">Speakers</Text>
@@ -199,6 +226,8 @@ export function SpeakerGrid({ speakers, activeSpeakers }: SpeakerGridProps) {
             speaker={speaker}
             isActive={activeSpeakers.has(speaker.user.id)}
             isHost={index === 0 || speaker.role === "host"}
+            showMuteButton={isLocalHost && speaker.role === "co-host"}
+            onMute={onMuteCoHost}
           />
         ))}
       </View>

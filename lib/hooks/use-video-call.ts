@@ -662,7 +662,47 @@ export function useVideoCall() {
         return;
       }
 
+      // ── WebSocket diagnostic: test raw connectivity before SDK joinRoom ──
+      const wsUrl = `wss://fishjam.io/api/v1/connect/${process.env.EXPO_PUBLIC_FISHJAM_APP_ID || "28026441819941d78c40584fb830f851"}/socket/peer/websocket`;
+      log(`[WS_DIAG] Testing WebSocket to: ${wsUrl}`);
       try {
+        await new Promise<void>((resolve, reject) => {
+          const ws = new WebSocket(wsUrl);
+          const timeout = setTimeout(() => {
+            ws.close();
+            reject(new Error("WebSocket connect timeout (5s)"));
+          }, 5000);
+          ws.onopen = () => {
+            log("[WS_DIAG] WebSocket OPENED successfully");
+            clearTimeout(timeout);
+            ws.close();
+            resolve();
+          };
+          ws.onerror = (e: any) => {
+            logError(
+              "[WS_DIAG] WebSocket ERROR:",
+              e?.message || e?.type || JSON.stringify(e),
+            );
+            clearTimeout(timeout);
+            reject(
+              new Error(
+                `WebSocket error: ${e?.message || e?.type || "unknown"}`,
+              ),
+            );
+          };
+          ws.onclose = (e: any) => {
+            log(
+              `[WS_DIAG] WebSocket CLOSED: code=${e?.code} reason="${e?.reason}" wasClean=${e?.wasClean}`,
+            );
+          };
+        });
+      } catch (wsErr: any) {
+        logError("[WS_DIAG] WebSocket connectivity FAILED:", wsErr?.message);
+        // Don't abort — still try joinRoom, but log the failure
+      }
+
+      try {
+        log("[FISHJAM] Calling joinRoom with token length:", token.length);
         await joinRoomRef.current({
           peerToken: token,
           peerMetadata: {

@@ -1,9 +1,9 @@
-"use client";
-
 import "../global.css";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { persistOptions } from "@/lib/query-persistence";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useEffect } from "react";
 import { useFonts } from "expo-font";
@@ -183,79 +183,103 @@ export default function RootLayout() {
         }}
       >
         <KeyboardProvider>
-          <QueryClientProvider client={queryClient}>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={persistOptions}
+          >
             <ThemeProvider value={NAV_THEME[colorScheme]}>
-              {!authSettled ? (
-                // Minimal loading screen — black, no spinners, no hooks, no queries
-                <View style={{ flex: 1, backgroundColor: "#000" }}>
-                  <StatusBar backgroundColor="#000" style="light" animated />
-                </View>
-              ) : (
-                <Motion.View
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ type: "timing", duration: 800 }}
-                  style={{
-                    flex: 1,
-                    paddingBottom:
-                      Platform.OS === "android" ? insets.bottom : 0,
+              <View
+                style={{
+                  flex: 1,
+                  paddingBottom: Platform.OS === "android" ? insets.bottom : 0,
+                }}
+              >
+                <StatusBar backgroundColor="#000" style="light" animated />
+                {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
+                    the navigation tree. Unmounting destroys the NavigationContainer
+                    and causes stale header references after OTA reload.
+                    Stack.Protected gates handle auth routing internally. */}
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: "fade",
+                    animationDuration: 200,
+                    contentStyle: { backgroundColor: "#8a40cf" },
                   }}
                 >
-                  <StatusBar backgroundColor="#000" style="light" animated />
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      animation: "fade",
-                      animationDuration: 200,
-                      contentStyle: { backgroundColor: "#8a40cf" },
+                  <Stack.Protected guard={!isAuthenticated}>
+                    <Stack.Screen
+                      name="(auth)"
+                      options={{ animation: "none" }}
+                    />
+                  </Stack.Protected>
+                  <Stack.Protected guard={isAuthenticated}>
+                    <Stack.Screen
+                      name="(protected)"
+                      options={{ animation: "none" }}
+                    />
+                    <Stack.Screen
+                      name="settings"
+                      options={{
+                        headerShown: true,
+                        presentation: "fullScreenModal",
+                        animation: "slide_from_bottom",
+                        animationDuration: 300,
+                        gestureEnabled: true,
+                        gestureDirection: "vertical",
+                      }}
+                    />
+                  </Stack.Protected>
+                </Stack>
+                {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
+                {isAuthenticated && <BiometricLock />}
+                {/* Auth loading overlay — covers content but does NOT unmount navigation */}
+                {!authSettled && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: "#000",
+                      zIndex: 10000,
                     }}
-                  >
-                    <Stack.Protected guard={!isAuthenticated}>
-                      <Stack.Screen
-                        name="(auth)"
-                        options={{ animation: "none" }}
-                      />
-                    </Stack.Protected>
-                    <Stack.Protected guard={isAuthenticated}>
-                      <Stack.Screen
-                        name="(protected)"
-                        options={{ animation: "none" }}
-                      />
-                      <Stack.Screen
-                        name="settings"
-                        options={{
-                          headerShown: true,
-                          presentation: "fullScreenModal",
-                          animation: "slide_from_bottom",
-                          animationDuration: 300,
-                          gestureEnabled: true,
-                          gestureDirection: "vertical",
-                        }}
-                      />
-                    </Stack.Protected>
-                  </Stack>
-                  {/* BiometricLock renders ONLY after auth is settled + authenticated.
-                      Since authStatus transitions exactly once, this mounts exactly once. */}
-                  {isAuthenticated && <BiometricLock />}
-                </Motion.View>
-              )}
+                    pointerEvents="auto"
+                  />
+                )}
+              </View>
               <PortalHost />
-              <Toaster
-                position="top-center"
-                offset={60}
-                theme="dark"
-                toastOptions={{
-                  style: {
-                    backgroundColor: "#1a1a1a",
-                    borderColor: "#333",
-                    borderWidth: 1,
-                  },
-                  titleStyle: { color: "#fff" },
-                  descriptionStyle: { color: "#a1a1aa" },
+              {/* CRITICAL: pointerEvents box-none ensures toasts never block
+                  touches on the navigation header underneath. Position bottom
+                  to avoid header area entirely. */}
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                 }}
-              />
+                pointerEvents="box-none"
+              >
+                <Toaster
+                  position="bottom-center"
+                  offset={80}
+                  theme="dark"
+                  toastOptions={{
+                    style: {
+                      backgroundColor: "#1a1a1a",
+                      borderColor: "#333",
+                      borderWidth: 1,
+                    },
+                    titleStyle: { color: "#fff" },
+                    descriptionStyle: { color: "#a1a1aa" },
+                  }}
+                />
+              </View>
             </ThemeProvider>
-          </QueryClientProvider>
+          </PersistQueryClientProvider>
         </KeyboardProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>

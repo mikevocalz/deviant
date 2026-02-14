@@ -91,7 +91,7 @@ function SpeakingRing({ isSpeaking }: { isSpeaking: boolean }) {
         {
           borderRadius: 20,
           borderWidth: 3,
-          borderColor: "#22C55E",
+          borderColor: "#3FDCFF",
         },
         animatedStyle,
       ]}
@@ -103,11 +103,11 @@ function SpeakingRing({ isSpeaking }: { isSpeaking: boolean }) {
 function SoundWave() {
   return (
     <View className="flex-row items-center gap-0.5 h-4">
-      <View className="w-[3px] h-1.5 bg-green-500 rounded-sm" />
-      <View className="w-[3px] h-3 bg-green-500 rounded-sm" />
-      <View className="w-[3px] h-4 bg-green-500 rounded-sm" />
-      <View className="w-[3px] h-3 bg-green-500 rounded-sm" />
-      <View className="w-[3px] h-1.5 bg-green-500 rounded-sm" />
+      <View className="w-[3px] h-1.5 bg-[#3FDCFF] rounded-sm" />
+      <View className="w-[3px] h-3 bg-[#3FDCFF] rounded-sm" />
+      <View className="w-[3px] h-4 bg-[#3FDCFF] rounded-sm" />
+      <View className="w-[3px] h-3 bg-[#3FDCFF] rounded-sm" />
+      <View className="w-[3px] h-1.5 bg-[#3FDCFF] rounded-sm" />
     </View>
   );
 }
@@ -187,6 +187,86 @@ function SpeakerLabel({
   );
 }
 
+// ── Radiating pulse rings for audio-only speaking indicator ──────────
+
+function PulseRing({
+  isSpeaking,
+  size,
+  delay,
+  maxScale,
+  color = "#FC253A",
+}: {
+  isSpeaking: boolean;
+  size: number;
+  delay: number;
+  maxScale: number;
+  color?: string;
+}) {
+  const scale = useSharedValue(1);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (isSpeaking) {
+      scale.value = withSequence(
+        withTiming(1, { duration: delay }),
+        withRepeat(
+          withSequence(
+            withTiming(maxScale, {
+              duration: 1000,
+              easing: Easing.out(Easing.ease),
+            }),
+            withTiming(1, { duration: 1000, easing: Easing.in(Easing.ease) }),
+          ),
+          -1,
+          false,
+        ),
+      );
+      opacity.value = withSequence(
+        withTiming(0, { duration: delay }),
+        withRepeat(
+          withSequence(
+            withTiming(0.25, {
+              duration: 500,
+              easing: Easing.out(Easing.ease),
+            }),
+            withTiming(0, { duration: 1500, easing: Easing.in(Easing.ease) }),
+          ),
+          -1,
+          false,
+        ),
+      );
+    } else {
+      cancelAnimation(scale);
+      cancelAnimation(opacity);
+      scale.value = withTiming(1, { duration: 200 });
+      opacity.value = withTiming(0, { duration: 200 });
+    }
+  }, [isSpeaking, scale, opacity, delay, maxScale]);
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          width: size,
+          height: size,
+          borderRadius: 20,
+          backgroundColor: color,
+          top: (100 - size) / 2,
+          left: (100 - size) / 2,
+        },
+        animStyle,
+      ]}
+      pointerEvents="none"
+    />
+  );
+}
+
 // ── Audio-only avatar tile with speaking ring ────────────────────────
 
 function AudioOnlyTile({
@@ -206,8 +286,28 @@ function AudioOnlyTile({
       }}
     >
       <View style={{ position: "relative", width: 100, height: 100 }}>
-        {/* Speaking ring around avatar */}
-        <SpeakingRing isSpeaking={speaker.isSpeaking} />
+        {/* Radiating pulse rings behind avatar */}
+        <PulseRing
+          isSpeaking={speaker.isSpeaking}
+          size={130}
+          delay={0}
+          maxScale={1.12}
+          color="#FC253A"
+        />
+        <PulseRing
+          isSpeaking={speaker.isSpeaking}
+          size={120}
+          delay={200}
+          maxScale={1.08}
+          color="#FF5BFC"
+        />
+        <PulseRing
+          isSpeaking={speaker.isSpeaking}
+          size={110}
+          delay={400}
+          maxScale={1.05}
+          color="#FC253A"
+        />
         <Avatar
           uri={speaker.user.avatar}
           username={speaker.user.username}
@@ -215,7 +315,7 @@ function AudioOnlyTile({
           variant="roundedSquare"
           style={
             speaker.isSpeaking
-              ? { borderColor: "#22C55E", borderWidth: 3 }
+              ? { borderColor: "#3FDCFF", borderWidth: 3 }
               : undefined
           }
         />

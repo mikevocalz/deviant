@@ -657,7 +657,7 @@ export function ChatSheet({
             placeholder={replyingTo ? "Write a reply..." : "Add a comment..."}
             placeholderTextColor="#6B7280"
             style={{
-              flex: 1,
+              width: "80%",
               backgroundColor: "#2a2a2a",
               borderRadius: 20,
               paddingHorizontal: 16,
@@ -675,15 +675,16 @@ export function ChatSheet({
             onPress={handleSend}
             disabled={!inputText.trim()}
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
               alignItems: "center",
               justifyContent: "center",
               backgroundColor: inputText.trim() ? "#FC253A" : "#2a2a2a",
+              flexShrink: 0,
             }}
           >
-            <Send size={20} color="#fff" />
+            <Send size={18} color="#fff" />
           </Pressable>
         </View>
       </KeyboardAvoidingView>

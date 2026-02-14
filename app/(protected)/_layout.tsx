@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
@@ -16,6 +14,7 @@ import {
 } from "@/src/services/callkeep/voipPushService";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
+import { useAppResume } from "@/lib/hooks/use-app-resume";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -55,6 +54,8 @@ export default function ProtectedLayout() {
   usePresenceManager();
   // CRITICAL: Prefetch all critical data in parallel on app launch
   useBootPrefetch();
+  // Silent background refresh on app resume (throttled 30s)
+  useAppResume();
 
   const user = useAuthStore((s) => s.user);
 

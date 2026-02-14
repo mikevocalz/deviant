@@ -17,6 +17,7 @@ import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
+import { SharedImage } from "@/components/shared-image";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -85,7 +86,8 @@ function EventCard({
                 animatedImageStyle,
               ]}
             >
-              <Image
+              <SharedImage
+                sharedTag={`event-image-${event.id}`}
                 source={{ uri: event.image }}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="cover"
@@ -259,7 +261,9 @@ export default function EventsScreen() {
     { key: "past_events", label: "Past Events" },
   ];
 
-  if (isLoading) {
+  // Skeleton ONLY when truly no data (first ever boot, no cache)
+  // With MMKV persistence, cache-hit means zero skeleton on cold start
+  if (isLoading && events.length === 0) {
     return (
       <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
         <Main className="flex-1">

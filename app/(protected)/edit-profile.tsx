@@ -12,6 +12,7 @@ import {
 } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import {
   X,
   Camera,
@@ -52,6 +53,7 @@ const GENDER_OPTIONS = [
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
@@ -224,7 +226,7 @@ export default function EditProfileScreen() {
       }
 
       showToast("success", "Saved", "Profile updated successfully");
-      router.back();
+      navigation.goBack();
     } catch (error: any) {
       console.error("[EditProfile] Save error:", error);
       const errorMessage =
@@ -285,7 +287,7 @@ export default function EditProfileScreen() {
             borderBottomColor: colors.border,
           }}
         >
-          <Pressable onPress={() => router.back()} hitSlop={12}>
+          <Pressable onPress={() => navigation.goBack()} hitSlop={12}>
             <Text style={{ fontSize: 16, color: colors.foreground }}>
               Cancel
             </Text>

@@ -113,6 +113,7 @@ export function CallScreen({
   // Show remote video if we have a valid stream with video tracks.
   // Don't gate on isCameraOn — the flag may lag behind the actual stream.
   const hasRemoteVideo = hasVideoTrack(remoteVideoStream);
+  const remoteMicOn = remotePeer?.isMicOn ?? false;
   const hasLocalVideo = hasVideoTrack(localStream) && !isVideoOff;
 
   // Use recipientName from props, fall back to remote peer metadata
@@ -258,6 +259,7 @@ export function CallScreen({
           <InCallVideoStage
             remoteVideoStream={remoteVideoStream}
             hasRemoteVideo={hasRemoteVideo}
+            remoteMicOn={remoteMicOn}
             localStream={localStream}
             hasLocalVideo={hasLocalVideo}
             recipientName={displayName}

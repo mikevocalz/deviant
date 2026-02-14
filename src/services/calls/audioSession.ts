@@ -107,11 +107,16 @@ export const audioSession = {
         CT.trace("AUDIO", "audioSession_android_ready", { speakerOn });
       } else {
         // iOS: Defer speaker routing until CallKit activates the audio session.
-        // Store the desired speaker state so activateFromCallKit() can apply it.
-        _pendingSpeakerOn = speakerOn;
+        // CRITICAL: Don't force speaker — use false (overrideOutputAudioPort(.none))
+        // so iOS uses default routing from category options (defaultToSpeaker).
+        // This lets headphones/Bluetooth take priority over the built-in speaker.
+        // The user can still manually toggle speaker ON via the UI button.
+        _pendingSpeakerOn = false;
+        _isSpeakerOn = speakerOn; // UI state reflects intent, actual routing deferred
         _isMicMuted = false;
         CT.trace("AUDIO", "audioSession_ios_waiting_for_callkit", {
-          pendingSpeaker: speakerOn,
+          pendingSpeaker: false,
+          uiSpeaker: speakerOn,
         });
       }
 
@@ -224,23 +229,21 @@ export const audioSession = {
       _isCallKitActivated = true;
 
       // Apply deferred speaker routing now that session is active.
-      // NOTE: _pendingSpeakerOn is set by start() based on callType:
-      //   video → true (speaker default), audio → false (earpiece default)
-      // If headphones/Bluetooth are connected, the OS will route to them
-      // regardless of this setting — setForceSpeakerphoneOn only affects
-      // the built-in speaker vs earpiece choice.
-      const speakerOn = _pendingSpeakerOn ?? false;
-      InCallManager.setForceSpeakerphoneOn(speakerOn);
-      _isSpeakerOn = speakerOn;
+      // CRITICAL: Use overrideOutputAudioPort(.none) by passing false.
+      // This lets iOS route to headphones/Bluetooth if connected, falling
+      // back to speaker via the defaultToSpeaker category option.
+      // setForceSpeakerphoneOn(true) would OVERRIDE headphone routing.
+      InCallManager.setForceSpeakerphoneOn(false);
+      _isSpeakerOn = false;
       _pendingSpeakerOn = null;
 
       // Ensure mic is not muted (hardware level)
       InCallManager.setMicrophoneMute(false);
       _isMicMuted = false;
 
-      CT.trace("AUDIO", "activateFromCallKit_done", { speakerOn });
+      CT.trace("AUDIO", "activateFromCallKit_done", { speakerOn: false });
       console.log(
-        `[AudioSession] CallKit activated — audio session live (speaker=${speakerOn})`,
+        `[AudioSession] CallKit activated — audio session live (speaker=false, headphones take priority)`,
       );
 
       // CRITICAL FIX: NOW start the microphone (audio track is created on ACTIVE session)

@@ -4,8 +4,7 @@
  * Revokes tokens and broadcasts eject event
  */
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
@@ -46,7 +45,7 @@ function errorResponse(code: ErrorCode, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }

@@ -26,11 +26,13 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { useCallback, memo, useState, useMemo, useEffect } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
 import { useProfilePosts } from "@/lib/hooks/use-posts";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { usersApi } from "@/lib/api/users";
 import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { SharedAvatar } from "@/components/shared-avatar";
 
 const GRID_GAP = 2;
 
@@ -260,7 +262,10 @@ const mockPosts = [
 ];
 
 function UserProfileScreenComponent() {
-  const { username } = useLocalSearchParams<{ username: string }>();
+  const { username, authId } = useLocalSearchParams<{
+    username: string;
+    authId?: string;
+  }>();
   const router = useRouter();
   const { colors } = useColorScheme();
   const currentUser = useAuthStore((state) => state.user);
@@ -278,13 +283,25 @@ function UserProfileScreenComponent() {
 
   const isOwnProfile = currentUser?.username === safeUsername;
 
-  // Fetch user data
+  // Fetch user data from app `users` table
   const {
     data: userData,
-    isLoading,
+    isLoading: isLoadingUser,
     isError,
     error,
   } = useUser(safeUsername || "");
+
+  // Fallback: fetch from Better Auth `user` table if no app profile found
+  const { data: authUserData, isLoading: isLoadingAuthUser } = useQuery({
+    queryKey: ["auth-user", authId],
+    queryFn: () => usersApi.getProfileByAuthUserId(authId!),
+    enabled: !!authId && !userData && !isLoadingUser,
+  });
+
+  // Merge: prefer app profile, fall back to auth user
+  const resolvedUserData = userData || authUserData;
+  const isLoading =
+    isLoadingUser || (!userData && !!authId && isLoadingAuthUser);
 
   // Fetch user posts
   const { data: userPosts = [], isLoading: isLoadingPosts } = useProfilePosts(
@@ -292,11 +309,11 @@ function UserProfileScreenComponent() {
   );
 
   // Follow state — read directly from query cache (optimistically updated by useFollow)
-  const isFollowing = !!(userData as any)?.isFollowing;
+  const isFollowing = !!(resolvedUserData as any)?.isFollowing;
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
 
   // Get userId for follow queries
-  const userId = (userData as any)?.id;
+  const userId = (resolvedUserData as any)?.id;
 
   // CRITICAL: Redirect to tabs profile if viewing own profile
   // This ensures consistent UI/UX and correct avatar display
@@ -317,7 +334,7 @@ function UserProfileScreenComponent() {
     postsCount?: number;
     followersCount?: number;
     followingCount?: number;
-  } = (userData as any) ||
+  } = (resolvedUserData as any) ||
     mockUsers[username || ""] || {
       id: undefined,
       username: username || "unknown",
@@ -471,10 +488,11 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Avatar
+              <SharedAvatar
+                sharedTag={`profile-avatar-${user.username}`}
                 uri={user.avatar}
                 username={user.username}
-                size="xl"
+                size={80}
                 variant="roundedSquare"
               />
               <View className="flex-row gap-8">

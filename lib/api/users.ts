@@ -2,7 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { updateProfilePrivileged } from "../supabase/privileged";
-import { requireBetterAuthToken } from "../auth/identity";
+import { requireBetterAuthToken, getCurrentUserRow } from "../auth/identity";
 
 export const usersApi = {
   /**
@@ -150,6 +150,95 @@ export const usersApi = {
   },
 
   /**
+   * Get profile by Better Auth user ID (fallback for users without app profile)
+   * Queries the Better Auth `user` table directly when `users` table has no row
+   */
+  async getProfileByAuthUserId(authId: string) {
+    try {
+      if (!authId) return null;
+
+      // First try the app `users` table via auth_id
+      const { data: profile } = await supabase
+        .from(DB.users.table)
+        .select(
+          `
+          ${DB.users.id},
+          ${DB.users.authId},
+          ${DB.users.username},
+          ${DB.users.email},
+          ${DB.users.firstName},
+          ${DB.users.lastName},
+          ${DB.users.bio},
+          ${DB.users.location},
+          ${DB.users.verified},
+          ${DB.users.followersCount},
+          ${DB.users.followingCount},
+          ${DB.users.postsCount},
+          ${DB.users.isPrivate},
+          ${DB.users.createdAt},
+          avatar:${DB.users.avatarId}(url)
+        `,
+        )
+        .eq(DB.users.authId, authId)
+        .maybeSingle();
+
+      if (profile) {
+        return {
+          id: String(profile[DB.users.id]),
+          username: profile[DB.users.username],
+          email: profile[DB.users.email],
+          firstName: profile[DB.users.firstName],
+          lastName: profile[DB.users.lastName],
+          name: profile[DB.users.firstName] || profile[DB.users.username] || "",
+          bio: profile[DB.users.bio] || "",
+          location: profile[DB.users.location],
+          avatar:
+            (profile.avatar as any)?.url ||
+            (profile.avatar as any)?.[0]?.url ||
+            "",
+          verified: profile[DB.users.verified] || false,
+          followersCount: Number(profile[DB.users.followersCount]) || 0,
+          followingCount: Number(profile[DB.users.followingCount]) || 0,
+          postsCount: Number(profile[DB.users.postsCount]) || 0,
+          isPrivate: profile[DB.users.isPrivate] || false,
+          createdAt: profile[DB.users.createdAt],
+        };
+      }
+
+      // Fallback: query Better Auth `user` table directly
+      const { data: authUser, error } = await supabase
+        .from("user")
+        .select("id, name, email, image, createdAt")
+        .eq("id", authId)
+        .single();
+
+      if (error || !authUser) return null;
+
+      const displayName = (authUser.name || "").trim();
+      return {
+        id: authId,
+        username: displayName.toLowerCase().replace(/\s+/g, "_") || authId,
+        email: authUser.email,
+        firstName: displayName.split(" ")[0] || "",
+        lastName: displayName.split(" ").slice(1).join(" ") || "",
+        name: displayName || "New User",
+        bio: "",
+        location: null,
+        avatar: authUser.image || "",
+        verified: false,
+        followersCount: 0,
+        followingCount: 0,
+        postsCount: 0,
+        isPrivate: false,
+        createdAt: authUser.createdAt,
+      };
+    } catch (error) {
+      console.error("[Users] getProfileByAuthUserId error:", error);
+      return null;
+    }
+  },
+
+  /**
    * Update current user's profile via Edge Function
    * Uses privileged wrapper to bypass RLS securely
    */
@@ -202,6 +291,81 @@ export const usersApi = {
       return (data || []).map((like: any) => String(like[DB.likes.postId]));
     } catch (error) {
       console.error("[Users] getLikedPosts error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get newest users (for "Discover New Profiles" section)
+   * Queries Better Auth `user` table for real signups, then enriches
+   * with app `users` profile data where available.
+   */
+  async getNewestUsers(limit: number = 15) {
+    try {
+      // Get current user's auth_id to exclude from results
+      const currentUserRow = await getCurrentUserRow();
+      const currentAuthId = currentUserRow?.authId || null;
+
+      // Query Better Auth `user` table — this is where real signups live
+      let query = supabase
+        .from("user")
+        .select("id, name, email, image, createdAt")
+        .order("createdAt", { ascending: false })
+        .limit(limit + 10);
+
+      if (currentAuthId) {
+        query = query.neq("id", currentAuthId);
+      }
+
+      const { data: authUsers, error } = await query;
+
+      if (error) throw error;
+      if (!authUsers?.length) return [];
+
+      // Filter out test accounts by email and username
+      const TEST_EMAILS = ["@test.com", "@example.com", "@deviant.test"];
+      const HIDDEN_NAMES = ["mike_test", "applereview"];
+      const filtered = authUsers.filter((u: any) => {
+        const email = (u.email || "").toLowerCase();
+        if (TEST_EMAILS.some((t) => email.endsWith(t))) return false;
+        const name = (u.name || "").toLowerCase().trim();
+        if (!name || name.startsWith("test")) return false;
+        if (HIDDEN_NAMES.includes(name)) return false;
+        return true;
+      });
+
+      // Try to enrich with app profile data (username, avatar, bio)
+      const authIds = filtered.map((u: any) => u.id);
+      const { data: profiles } = await supabase
+        .from(DB.users.table)
+        .select(
+          `${DB.users.authId}, ${DB.users.username}, ${DB.users.bio}, ${DB.users.verified}, avatar:${DB.users.avatarId}(url)`,
+        )
+        .in(DB.users.authId, authIds);
+
+      const profileMap: Record<string, any> = {};
+      for (const p of profiles || []) {
+        profileMap[p[DB.users.authId]] = p;
+      }
+
+      return filtered.slice(0, limit).map((u: any) => {
+        const profile = profileMap[u.id];
+        const displayName = (u.name || "").trim();
+        const username =
+          profile?.[DB.users.username] ||
+          displayName.toLowerCase().replace(/\s+/g, "_");
+        return {
+          id: u.id,
+          username,
+          name: displayName || username,
+          avatar: profile?.avatar?.url || u.image || "",
+          verified: profile?.[DB.users.verified] || false,
+          bio: profile?.[DB.users.bio] || "",
+          postsCount: 0,
+        };
+      });
+    } catch (error) {
+      console.error("[Users] getNewestUsers error:", error);
       return [];
     }
   },

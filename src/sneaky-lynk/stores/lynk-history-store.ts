@@ -21,6 +21,7 @@ export interface LynkRecord {
   host: SneakyUser;
   speakers: SneakyUser[];
   listeners: number;
+  maxParticipants?: number;
   createdAt: string;
   endedAt?: string;
 }

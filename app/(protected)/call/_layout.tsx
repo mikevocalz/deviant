@@ -29,7 +29,7 @@ export default function CallLayout() {
         router.replace("/(protected)/(tabs)");
       }}
     >
-      <FishjamProvider fishjamId={FISHJAM_APP_ID}>
+      <FishjamProvider fishjamId={FISHJAM_APP_ID} debug={__DEV__}>
         <Stack screenOptions={{ headerShown: false }} />
       </FishjamProvider>
     </ErrorBoundary>
