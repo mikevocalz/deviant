@@ -26,6 +26,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFollow } from "@/lib/hooks/use-follow";
 
 const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
 type TabType = (typeof TABS)[number];
@@ -177,14 +178,16 @@ export default function ActivityScreen() {
   // Store — mutations, follow state, realtime
   const {
     activities: storeActivities,
-    toggleFollowUser,
-    isUserFollowed,
     markActivityAsRead,
     markAllAsRead,
     fetchFromBackend,
     subscribeToNotifications,
     fetchFollowingState,
   } = useActivityStore();
+
+  // REACTIVE follow state — subscribe to followedUsers Set so component re-renders
+  const followedUsers = useActivityStore((s) => s.followedUsers);
+  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
 
   // Seed store from query cache on mount (enables mutation logic in store)
   const hasSeeded = useRef(false);
@@ -223,8 +226,10 @@ export default function ActivityScreen() {
         queryClient.invalidateQueries({
           queryKey: activityKeys.list(viewerId),
         });
+        // Re-sync follow state from server so buttons are correct
+        fetchFollowingState();
       }
-    }, [queryClient, viewerId]),
+    }, [queryClient, viewerId, fetchFollowingState]),
   );
 
   const filteredActivities = useMemo(
@@ -290,9 +295,18 @@ export default function ActivityScreen() {
   const handleFollowBack = useCallback(
     (username: string) => {
       console.log("[Activity] Following back:", username);
-      toggleFollowUser(username);
+      // Find the user's integer ID from activities
+      const activity = activities.find((a) => a.user.username === username);
+      const targetUserId = activity?.user?.id;
+      if (!targetUserId) {
+        console.warn("[Activity] No userId found for", username);
+        return;
+      }
+      const isCurrentlyFollowed = followedUsers.has(username);
+      const action = isCurrentlyFollowed ? "unfollow" : "follow";
+      followMutate({ userId: targetUserId, action, username });
     },
-    [toggleFollowUser],
+    [activities, followedUsers, followMutate],
   );
 
   const handleActivityPress = useCallback(
@@ -324,7 +338,7 @@ export default function ActivityScreen() {
     ({ item: activity }: { item: Activity }) => (
       <ActivityItem
         activity={activity}
-        isFollowed={isUserFollowed(activity.user.username)}
+        isFollowed={followedUsers.has(activity.user.username)}
         onActivityPress={handleActivityPress}
         onUserPress={handleUserPress}
         onPostPress={handlePostPress}
@@ -336,7 +350,7 @@ export default function ActivityScreen() {
       handleUserPress,
       handlePostPress,
       handleFollowBack,
-      isUserFollowed,
+      followedUsers,
     ],
   );
 
