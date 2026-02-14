@@ -234,12 +234,7 @@ Deno.serve(async (req) => {
     );
 
     // 6. Update user by auth_id
-    const { data: updatedUser, error: updateError } = await supabaseAdmin
-      .from("users")
-      .update(updateData)
-      .eq("auth_id", authUserId)
-      .select(
-        `
+    const selectFields = `
         id,
         auth_id,
         username,
@@ -254,18 +249,103 @@ Deno.serve(async (req) => {
         following_count,
         posts_count,
         avatar:avatar_id(url)
-      `,
-      )
+      `;
+
+    let { data: updatedUser, error: updateError } = await supabaseAdmin
+      .from("users")
+      .update(updateData)
+      .eq("auth_id", authUserId)
+      .select(selectFields)
       .single();
+
+    // If user row doesn't exist (auth-sync failed on signup), auto-create it
+    if (updateError && updateError.code === "PGRST116") {
+      console.warn(
+        "[Edge:update-profile] User row missing, auto-creating for auth_id:",
+        authUserId,
+      );
+
+      // Fetch BA user data for email/name
+      const { data: baUser } = await supabaseAdmin
+        .from("user")
+        .select("id, name, email")
+        .eq("id", authUserId)
+        .single();
+
+      if (!baUser) {
+        return errorResponse("not_found", "User not found in auth system");
+      }
+
+      // Generate a username from name or email
+      const displayName = (baUser.name || "").trim();
+      const fallbackUsername =
+        displayName.toLowerCase().replace(/\s+/g, "_") ||
+        baUser.email.split("@")[0];
+
+      // Get next ID
+      const { data: maxRow } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .order("id", { ascending: false })
+        .limit(1)
+        .single();
+      const nextId = (maxRow?.id || 0) + 1;
+
+      const insertData: Record<string, unknown> = {
+        id: nextId,
+        auth_id: authUserId,
+        email: baUser.email,
+        username: updateData.username || fallbackUsername,
+        first_name: updateData.first_name || displayName.split(" ")[0] || "",
+        last_name:
+          updateData.last_name ||
+          displayName.split(" ").slice(1).join(" ") ||
+          "",
+        bio: updateData.bio || "",
+        location: updateData.location || null,
+        website: updateData.website || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (updateData.avatar_id) {
+        insertData.avatar_id = updateData.avatar_id;
+      }
+
+      const { error: insertError } = await supabaseAdmin
+        .from("users")
+        .insert(insertData);
+
+      if (insertError) {
+        console.error(
+          "[Edge:update-profile] Auto-create error:",
+          insertError.message,
+        );
+        return errorResponse("internal_error", "Failed to create user profile");
+      }
+
+      console.log("[Edge:update-profile] Auto-created user row, id:", nextId);
+
+      // Re-fetch the newly created user
+      const { data: newUser, error: fetchError } = await supabaseAdmin
+        .from("users")
+        .select(selectFields)
+        .eq("auth_id", authUserId)
+        .single();
+
+      if (fetchError || !newUser) {
+        return errorResponse(
+          "internal_error",
+          "Failed to fetch created profile",
+        );
+      }
+
+      updatedUser = newUser;
+      updateError = null;
+    }
 
     if (updateError) {
       console.error("[Edge:update-profile] Update error:", updateError.message);
-
-      // Check if user not found
-      if (updateError.code === "PGRST116") {
-        return errorResponse("not_found", "User not found");
-      }
-
       return errorResponse("internal_error", "Failed to update profile");
     }
 

@@ -331,6 +331,9 @@ importers:
       react-native-worklets:
         specifier: 0.8.0-nightly-20260122-45349f895
         version: 0.8.0-nightly-20260122-45349f895(@babel/core@7.29.0)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
+      react-native-youtube-bridge:
+        specifier: ^2.1.4
+        version: 2.1.4(react-native-webview@13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
       resend:
         specifier: ^6.9.1
         version: 6.9.1
@@ -2012,6 +2015,14 @@ packages:
         optional: true
       react-native-windows:
         optional: true
+
+  '@react-native-youtube-bridge/core@2.1.4':
+    resolution: {integrity: sha512-iL2/+z2bhlq1rXSTdUfuWCeXxGsbkMbQYG24kiK2zl8Vaz8PCyFwK1OSJMMGFBv2gL2IIXMOdlF+BM5/4a+OFg==}
+
+  '@react-native-youtube-bridge/react@2.1.4':
+    resolution: {integrity: sha512-Qz9gOPZKGwlCYA2jel9UwiTReNLpPlQ4WHi1RvWBdNAnfYEXdX/OWWEg3cD7UW340draMLasO1/Q4WTPSPDohA==}
+    peerDependencies:
+      react: '>=16.8.0'
 
   '@react-native/assets-registry@0.83.1':
     resolution: {integrity: sha512-AT7/T6UwQqO39bt/4UL5EXvidmrddXrt0yJa7ENXndAv+8yBzMsZn6fyiax6+ERMt9GLzAECikv3lj22cn2wJA==}
@@ -5324,6 +5335,13 @@ packages:
       react: '*'
       react-native: '*'
 
+  react-native-youtube-bridge@2.1.4:
+    resolution: {integrity: sha512-T172W0q4y1xt7+gyYha2gbHLUdVX5qGrtZmgq/yuV8dYWPdR/JarygCWxpS1RVcnqGIK6RXcR2dL3efhm0RJiw==}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-native: '>=0.60.0'
+      react-native-webview: '>=11.0.0'
+
   react-native@0.83.1:
     resolution: {integrity: sha512-mL1q5HPq5cWseVhWRLl+Fwvi5z1UO+3vGOpjr+sHFwcUletPRZ5Kv+d0tUfqHmvi73/53NjlQqX1Pyn4GguUfA==}
     engines: {node: '>= 20.19.4'}
@@ -8094,6 +8112,13 @@ snapshots:
       react-native: 0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0)
     optionalDependencies:
       expo: 55.0.0-preview.10(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.5)(expo-router@55.0.0-preview.7)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
+
+  '@react-native-youtube-bridge/core@2.1.4': {}
+
+  '@react-native-youtube-bridge/react@2.1.4(react@19.2.0)':
+    dependencies:
+      '@react-native-youtube-bridge/core': 2.1.4
+      react: 19.2.0
 
   '@react-native/assets-registry@0.83.1': {}
 
@@ -11550,6 +11575,14 @@ snapshots:
       semver: 7.7.3
     transitivePeerDependencies:
       - supports-color
+
+  react-native-youtube-bridge@2.1.4(react-native-webview@13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0):
+    dependencies:
+      '@react-native-youtube-bridge/core': 2.1.4
+      '@react-native-youtube-bridge/react': 2.1.4(react@19.2.0)
+      react: 19.2.0
+      react-native: 0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0)
+      react-native-webview: 13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
 
   react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0):
     dependencies:
