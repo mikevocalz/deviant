@@ -634,8 +634,8 @@ function UserProfileScreenComponent() {
                     >
                       {followMutation.isPending
                         ? isFollowing
-                          ? "Unfollowing..."
-                          : "Following..."
+                          ? "Following..."
+                          : "Unfollowing..."
                         : isFollowing
                           ? "Following"
                           : "Follow"}
