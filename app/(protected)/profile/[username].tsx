@@ -22,6 +22,7 @@ import { shareProfile } from "@/lib/utils/sharing";
 import { SharedImage } from "@/components/shared-image";
 import { Motion } from "@legendapp/motion";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ProfileActionSheet } from "@/components/profile-action-sheet";
 
 import { useCallback, memo, useState, useMemo, useEffect } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
@@ -382,6 +383,7 @@ function UserProfileScreenComponent() {
 
   // State for message button loading
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
   const showToast = useUIStore((s) => s.showToast);
 
   const handleMessagePress = useCallback(async () => {
@@ -471,6 +473,7 @@ function UserProfileScreenComponent() {
           {isLoading ? "Loading..." : user.username || "Profile"}
         </Text>
         <Pressable
+          onPress={() => setMenuVisible(true)}
           hitSlop={8}
           style={{
             width: 44,
@@ -482,6 +485,30 @@ function UserProfileScreenComponent() {
           <MoreHorizontal size={24} color={colors.foreground} />
         </Pressable>
       </View>
+
+      {/* Profile Action Sheet */}
+      <ProfileActionSheet
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        username={user.username}
+        onShareProfile={() => {
+          shareProfile(user.username, user.fullName || user.name);
+        }}
+        onAddCloseFriend={() => {
+          showToast(
+            "success",
+            "Close Friends",
+            `@${user.username} added to Close Friends`,
+          );
+        }}
+        onReport={() => {
+          router.push("/(protected)/settings" as any);
+          showToast("info", "Report", "You can report this user from Settings");
+        }}
+        onBlock={() => {
+          showToast("success", "Blocked", `@${user.username} has been blocked`);
+        }}
+      />
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Info - Centered */}
