@@ -1,5 +1,6 @@
-import { Pressable, View, Text, Platform } from "react-native";
+import { View, Text, Platform } from "react-native";
 import { useCallback } from "react";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { Motion } from "@legendapp/motion";
 import { useAppStore } from "@/lib/stores/app-store";
 
@@ -19,19 +20,23 @@ export function SpicyToggleFAB() {
     setNsfwEnabled(!current);
   }, [setNsfwEnabled]);
 
+  // RNGH Gesture.Tap — wins gesture race against scroll views reliably
+  const tapGesture = Gesture.Tap().onEnd(() => {
+    handleToggle();
+  });
+
   return (
-    <View
-      pointerEvents="box-none"
-      style={{
-        position: "absolute",
-        bottom: 20,
-        right: 8,
-        zIndex: 50,
-        elevation: 50,
-        alignItems: "center",
-      }}
-    >
-      <Pressable onPress={handleToggle} hitSlop={16}>
+    <GestureDetector gesture={tapGesture}>
+      <View
+        style={{
+          position: "absolute",
+          bottom: 20,
+          right: 8,
+          zIndex: 50,
+          elevation: 50,
+          alignItems: "center",
+        }}
+      >
         {/* Track */}
         <View
           style={{
@@ -101,7 +106,7 @@ export function SpicyToggleFAB() {
             <Text style={{ fontSize: 18 }}>{nsfwEnabled ? "😈" : "😇"}</Text>
           </Motion.View>
         </View>
-      </Pressable>
-    </View>
+      </View>
+    </GestureDetector>
   );
 }
