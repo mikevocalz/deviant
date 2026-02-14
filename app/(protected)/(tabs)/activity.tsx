@@ -189,21 +189,24 @@ export default function ActivityScreen() {
   const followedUsers = useActivityStore((s) => s.followedUsers);
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
 
-  // Seed store from query cache on mount (enables mutation logic in store)
-  const hasSeeded = useRef(false);
+  // Sync store from query data — re-seeds whenever query returns fresh data
+  // This ensures fresh notifications flow through after prefetch/refetch
+  const prevQueryDataRef = useRef<Activity[] | null>(null);
   useEffect(() => {
-    if (queryActivities && queryActivities.length > 0 && !hasSeeded.current) {
-      hasSeeded.current = true;
-      useActivityStore.getState().setActivities(queryActivities as any);
-      // Fetch follow state so follow buttons render correctly
-      fetchFollowingState();
+    if (queryActivities && queryActivities.length > 0) {
+      // Only re-seed if query data actually changed (new reference = TanStack refetched)
+      if (prevQueryDataRef.current !== queryActivities) {
+        prevQueryDataRef.current = queryActivities;
+        useActivityStore.getState().setActivities(queryActivities as any);
+        fetchFollowingState();
+      }
     }
   }, [queryActivities, fetchFollowingState]);
 
-  // Use store activities if mutations have modified them, otherwise query data
-  const activities: Activity[] = (
-    storeActivities.length > 0 ? storeActivities : queryActivities || []
-  ) as Activity[];
+  // Always prefer query data (source of truth) — store is for mutations only
+  const activities: Activity[] = (queryActivities ||
+    storeActivities ||
+    []) as Activity[];
 
   const unreadCount = useMemo(
     () => activities.filter((a) => !a.isRead).length,
@@ -221,14 +224,12 @@ export default function ActivityScreen() {
   // Refetch when tab is focused (ensures new follow notifications appear)
   useFocusEffect(
     useCallback(() => {
-      if (hasSeeded.current) {
-        // Invalidate query so TanStack refetches in background
-        queryClient.invalidateQueries({
-          queryKey: activityKeys.list(viewerId),
-        });
-        // Re-sync follow state from server so buttons are correct
-        fetchFollowingState();
-      }
+      // Invalidate query so TanStack refetches in background
+      queryClient.invalidateQueries({
+        queryKey: activityKeys.list(viewerId),
+      });
+      // Re-sync follow state from server so buttons are correct
+      fetchFollowingState();
     }, [queryClient, viewerId, fetchFollowingState]),
   );
 
