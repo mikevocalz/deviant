@@ -67,45 +67,24 @@ export default function EditProfileScreen() {
 
     setIsSaving(true);
     try {
-      const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiUrl) throw new Error("API URL not configured");
-
-      const { getAuthToken } = await import("@/lib/auth-client");
-      const token = await getAuthToken();
-      if (!token) throw new Error("Not authenticated");
-
-      const response = await fetch(`${apiUrl}/api/users/${user.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name,
-          username,
-          bio,
-          location,
-          website,
-          avatar,
-        }),
+      const { usersApi } = await import("@/lib/api/users");
+      const updatedUser = await usersApi.updateProfile({
+        name,
+        username,
+        bio,
+        location,
+        website,
+        avatar,
       });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || `Update failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const updatedUser = data.doc || data;
 
       // Update local store
       updateUser({
-        name: updatedUser.name,
-        username: updatedUser.username,
-        bio: updatedUser.bio,
-        location: updatedUser.location,
-        website: updatedUser.website,
-        avatar: updatedUser.avatar,
+        name: updatedUser.name || name,
+        username: updatedUser.username || username,
+        bio: updatedUser.bio || bio,
+        location: updatedUser.location || location,
+        website: (updatedUser as any).website || website,
+        avatar: updatedUser.avatar || avatar,
       });
 
       showToast("success", "Success", "Profile updated successfully!");
@@ -158,9 +137,7 @@ export default function EditProfileScreen() {
           >
             <Image
               source={{
-                uri:
-                  avatar ||
-                  "",
+                uri: avatar || "",
               }}
               className="h-24 w-24 rounded-[20px]"
               contentFit="cover"
