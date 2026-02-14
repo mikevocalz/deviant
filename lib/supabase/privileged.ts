@@ -17,6 +17,7 @@ interface UpdateProfileParams {
   name?: string;
   firstName?: string;
   lastName?: string;
+  username?: string;
   bio?: string;
   location?: string;
   website?: string;

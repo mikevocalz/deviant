@@ -78,12 +78,30 @@ export default function EditProfileScreen() {
 
   // Local-only fields (not yet persisted to DB)
   const [username, setUsername] = useState("");
+  const [usernameError, setUsernameError] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [gender, setGender] = useState("");
   const [links, setLinks] = useState<string[]>([]);
   const [newLink, setNewLink] = useState("");
   const [showPronouns, setShowPronouns] = useState(false);
   const [showGender, setShowGender] = useState(false);
+
+  // Username validation: 3-30 chars, alphanumeric + underscores only
+  const validateUsername = (value: string): string => {
+    if (!value.trim()) return "Username is required";
+    if (value.length < 3) return "Must be at least 3 characters";
+    if (value.length > 30) return "Must be 30 characters or less";
+    if (!/^[a-zA-Z0-9_]+$/.test(value))
+      return "Only letters, numbers, and underscores";
+    return "";
+  };
+
+  const handleUsernameChange = (value: string) => {
+    // Auto-lowercase and strip invalid chars while typing
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    setUsername(cleaned);
+    setUsernameError(validateUsername(cleaned));
+  };
 
   const handlePickAvatar = async () => {
     try {
@@ -164,18 +182,32 @@ export default function EditProfileScreen() {
         }
       }
 
+      // Validate username before saving
+      const trimmedUsername = username.trim().toLowerCase();
+      const usernameErr = validateUsername(trimmedUsername);
+      if (usernameErr) {
+        setUsernameError(usernameErr);
+        setIsSaving(false);
+        return;
+      }
+
       const updateData: {
         name?: string;
         bio?: string;
         website?: string;
         location?: string;
         avatar?: string;
+        username?: string;
       } = {
         name: editName.trim(),
         bio: editBio.trim(),
         website: editWebsite.trim(),
         location: editLocation.trim(),
         ...(avatarUrl ? { avatar: avatarUrl } : {}),
+        // Only include username if it changed
+        ...(trimmedUsername !== (user.username || "").toLowerCase()
+          ? { username: trimmedUsername }
+          : {}),
       };
 
       console.log(
@@ -190,6 +222,7 @@ export default function EditProfileScreen() {
       setUser({
         ...user,
         name: editName.trim() || user.name,
+        username: trimmedUsername || user.username,
         bio: editBio.trim() || user.bio,
         website: editWebsite.trim() || user.website,
         location: editLocation.trim() || user.location,
@@ -430,14 +463,27 @@ export default function EditProfileScreen() {
                 <Text style={labelStyle}>Username</Text>
                 <TextInput
                   value={username}
-                  onChangeText={setUsername}
+                  onChangeText={handleUsernameChange}
                   placeholder="username"
                   placeholderTextColor={colors.mutedForeground}
                   autoCapitalize="none"
+                  autoCorrect={false}
                   style={inputStyle}
-                  editable={false}
+                  maxLength={30}
                 />
               </View>
+              {usernameError ? (
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#ef4444",
+                    textAlign: "right",
+                    paddingBottom: 8,
+                  }}
+                >
+                  {usernameError}
+                </Text>
+              ) : null}
 
               {/* Pronouns */}
               <Pressable
