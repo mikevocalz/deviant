@@ -260,14 +260,17 @@ export const messagesApi = {
   },
 
   /**
-   * Get unread message count
+   * Get unread message count (INBOX ONLY — from followed users)
+   * Spam messages should NOT inflate this count.
    */
   async getUnreadCount() {
     try {
-      // conversations_rels.users_id is UUID, messages.sender_id is integer
       const authId = await getCurrentUserAuthId();
       const visitorIntId = getCurrentUserIdInt();
       if (!authId) return 0;
+
+      // Get IDs of users the current user is following (inbox = followed users)
+      const followingIds = await this.getFollowingIds();
 
       // Get conversations where user is a participant
       const { data: convs } = await supabase
@@ -277,11 +280,11 @@ export const messagesApi = {
 
       if (!convs || convs.length === 0) return 0;
 
-      // Count distinct conversations that have unread messages (not total messages)
+      // Get unread messages (need senderId to filter by followed)
       const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
       let query = supabase
         .from(DB.messages.table)
-        .select(DB.messages.conversationId)
+        .select(`${DB.messages.conversationId}, ${DB.messages.senderId}`)
         .in(DB.messages.conversationId, convIds)
         .is(DB.messages.readAt, null);
       if (visitorIntId) query = query.neq(DB.messages.senderId, visitorIntId);
@@ -289,11 +292,15 @@ export const messagesApi = {
 
       if (error) throw error;
 
-      // Count unique conversation IDs
-      const uniqueConvIds = new Set(
-        (unreadMsgs || []).map((m: any) => m[DB.messages.conversationId]),
+      // Count distinct conversations with unread messages from FOLLOWED users only
+      const inboxConvIds = new Set(
+        (unreadMsgs || [])
+          .filter((msg: any) =>
+            followingIds.includes(String(msg[DB.messages.senderId])),
+          )
+          .map((msg: any) => msg[DB.messages.conversationId]),
       );
-      return uniqueConvIds.size;
+      return inboxConvIds.size;
     } catch (error) {
       console.error("[Messages] getUnreadCount error:", error);
       return 0;
