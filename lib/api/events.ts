@@ -513,7 +513,8 @@ export const eventsApi = {
       if (updates.title) updateData[DB.events.title] = updates.title;
       if (updates.description)
         updateData[DB.events.description] = updates.description;
-      if (updates.date) updateData[DB.events.startDate] = updates.date;
+      if (updates.startDate || updates.date)
+        updateData[DB.events.startDate] = updates.startDate || updates.date;
       if (updates.location) updateData[DB.events.location] = updates.location;
       if (updates.coverImage)
         updateData[DB.events.coverImageUrl] = updates.coverImage;
