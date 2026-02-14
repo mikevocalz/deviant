@@ -1,7 +1,6 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useEffect, useState } from "react";
-import { Motion } from "@legendapp/motion";
+import { useCallback, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -25,7 +24,6 @@ import { Image } from "expo-image";
 import {
   useVideoLifecycle,
   safePause,
-  cleanupPlayer,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { SharedImage } from "@/components/shared-image";
@@ -45,6 +43,80 @@ import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
 const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * (5 / 4));
+
+/**
+ * Isolated video player — only mounts for actual video posts.
+ * Keeps useVideoPlayer out of the main component to prevent
+ * creating (and tearing down) a native player for every image post.
+ */
+function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
+  const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
+    "PostDetail",
+    postId,
+  );
+
+  const videoUrl = useMemo(() => {
+    if (
+      url &&
+      typeof url === "string" &&
+      (url.startsWith("http://") || url.startsWith("https://"))
+    ) {
+      return url;
+    }
+    return "";
+  }, [url]);
+
+  const player = useVideoPlayer(videoUrl || null, (p) => {
+    if (p && videoUrl && isMountedRef.current) {
+      try {
+        p.loop = false;
+        logVideoHealth("PostDetail", "player configured", {
+          postId,
+          videoUrl: videoUrl.slice(0, 50),
+        });
+      } catch (error) {
+        logVideoHealth("PostDetail", "config error", { error: String(error) });
+      }
+    }
+  });
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (!player || !videoUrl) return;
+        if (isSafeToOperate()) {
+          safePause(player, isMountedRef, "PostDetail");
+        }
+      };
+    }, [player, videoUrl, isSafeToOperate, isMountedRef]),
+  );
+
+  if (!videoUrl) {
+    return (
+      <View
+        style={{
+          width: "100%",
+          height: "100%",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Text className="text-muted-foreground">Video unavailable</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ width: "100%", height: "100%" }}>
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+        nativeControls
+      />
+    </View>
+  );
+}
 
 function PostDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -97,12 +169,6 @@ function PostDetailScreenContent() {
     );
   }, [postId, bookmarkedPostIds, bookmarkStore]);
 
-  // CRITICAL: Video lifecycle management to prevent crashes
-  const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
-    "PostDetail",
-    postId,
-  );
-
   // Carousel state - track current slide for multi-image posts
   const [currentSlide, setCurrentSlide] = useState(0);
 
@@ -112,55 +178,6 @@ function PostDetailScreenContent() {
     );
     setCurrentSlide(slideIndex);
   }, []);
-
-  // Validate video URL - must be valid HTTP/HTTPS URL
-  // CRITICAL: Only create a valid URL if we actually have video content
-  const videoUrl = useMemo(() => {
-    try {
-      if (post?.media?.[0]?.type === "video" && post?.media?.[0]?.url) {
-        const url = post.media[0].url;
-        // Only use valid HTTP/HTTPS URLs
-        if (
-          url &&
-          typeof url === "string" &&
-          (url.startsWith("http://") || url.startsWith("https://"))
-        ) {
-          return url;
-        }
-      }
-    } catch (e) {
-      console.warn("[PostDetail] Error validating video URL:", e);
-    }
-    return "";
-  }, [post?.media]);
-
-  // CRITICAL: Only create player if we have a valid video URL
-  // This prevents crashes when videoUrl is empty or invalid
-  const player = useVideoPlayer(videoUrl || null, (player) => {
-    if (player && videoUrl && isMountedRef.current) {
-      try {
-        player.loop = false;
-        logVideoHealth("PostDetail", "player configured", {
-          postId,
-          videoUrl: videoUrl.slice(0, 50),
-        });
-      } catch (error) {
-        logVideoHealth("PostDetail", "config error", { error: String(error) });
-      }
-    }
-  });
-
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        if (!player || !videoUrl) return;
-        // Use safe cleanup on blur
-        if (isSafeToOperate()) {
-          safePause(player, isMountedRef, "PostDetail");
-        }
-      };
-    }, [player, videoUrl, isSafeToOperate, isMountedRef]),
-  );
 
   // Navigate to user profile
   const handleProfilePress = useCallback(() => {
@@ -341,30 +358,8 @@ function PostDetailScreenContent() {
               }}
               className="bg-muted"
             >
-              {isVideo && videoUrl && player ? (
-                // Video - same dimensions as feed
-                <View style={{ width: "100%", height: "100%" }}>
-                  <VideoView
-                    player={player}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                    nativeControls
-                  />
-                </View>
-              ) : isVideo && !videoUrl ? (
-                // Video post but invalid URL - show placeholder
-                <View
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text className="text-muted-foreground">
-                    Video unavailable
-                  </Text>
-                </View>
+              {isVideo ? (
+                <PostVideoPlayer postId={postId} url={post?.media?.[0]?.url} />
               ) : hasMultipleMedia ? (
                 // Carousel - SAME pattern as FeedItem
                 <>
@@ -417,16 +412,11 @@ function PostDetailScreenContent() {
                     pointerEvents="none"
                   >
                     {post.media.map((_, index) => (
-                      <Motion.View
+                      <View
                         key={index}
-                        animate={{
+                        style={{
                           width: index === currentSlide ? 12 : 6,
                           opacity: index === currentSlide ? 1 : 0.5,
-                        }}
-                        transition={{
-                          type: "spring",
-                          damping: 15,
-                          stiffness: 300,
                         }}
                         className={`h-1.5 rounded-full ${
                           index === currentSlide
