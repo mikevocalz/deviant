@@ -120,9 +120,20 @@ export const useAuthStore = create<AuthStore>()(
 
             // Sync user via Edge Function - this ensures we have a valid users row
             // with the correct auth_id mapping
+            // Retry once on failure — edge function cold starts can cause the first call to timeout
             try {
               const { syncAuthUser } = require("@/lib/api/privileged");
-              const syncedUser = await syncAuthUser();
+              let syncedUser;
+              try {
+                syncedUser = await syncAuthUser();
+              } catch (firstError) {
+                console.warn(
+                  "[AuthStore] auth-sync attempt 1 failed, retrying in 2s:",
+                  firstError,
+                );
+                await new Promise((r) => setTimeout(r, 2000));
+                syncedUser = await syncAuthUser();
+              }
               console.log(
                 "[AuthStore] User synced via Edge Function, ID:",
                 syncedUser.id,
@@ -135,7 +146,7 @@ export const useAuthStore = create<AuthStore>()(
               return;
             } catch (syncError) {
               console.warn(
-                "[AuthStore] auth-sync failed, falling back to direct fetch:",
+                "[AuthStore] auth-sync failed after retry, falling back to direct fetch:",
                 syncError,
               );
             }

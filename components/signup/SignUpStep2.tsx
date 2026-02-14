@@ -141,16 +141,27 @@ export function SignUpStep2() {
       console.log("[SignUp] Better Auth user created:", data.user.id);
 
       // Sync user to app's users table (creates row if new signup)
+      // Retry once on failure — edge function cold starts can cause the first call to timeout
       let profile;
       try {
         profile = await syncAuthUser();
         console.log("[SignUp] User synced, ID:", profile.id);
       } catch (syncError) {
         console.warn(
-          "[SignUp] syncAuthUser failed, trying getProfile:",
+          "[SignUp] syncAuthUser attempt 1 failed, retrying in 2s:",
           syncError,
         );
-        profile = await auth.getProfile(data.user.id, data.user.email);
+        try {
+          await new Promise((r) => setTimeout(r, 2000));
+          profile = await syncAuthUser();
+          console.log("[SignUp] User synced on retry, ID:", profile.id);
+        } catch (retryError) {
+          console.warn(
+            "[SignUp] syncAuthUser retry failed, trying getProfile:",
+            retryError,
+          );
+          profile = await auth.getProfile(data.user.id, data.user.email);
+        }
       }
 
       if (profile) {
