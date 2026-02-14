@@ -56,6 +56,7 @@ interface RoomState {
   // Co-host (optimistic)
   setCoHost: (user: SneakyUser) => void;
   removeCoHost: () => void;
+  promoteListener: (userId: string) => void;
 
   // Listeners (optimistic)
   addListener: (user: SneakyUser) => void;
@@ -104,6 +105,15 @@ export const useRoomStore = create<RoomState>((set) => ({
   setCoHost: (user) =>
     set({ coHost: { user, role: "co-host", hasVideo: false } }),
   removeCoHost: () => set({ coHost: null }),
+  promoteListener: (userId) =>
+    set((state) => {
+      const listener = state.listeners.find((l) => l.user.id === userId);
+      if (!listener) return state;
+      return {
+        coHost: { user: listener.user, role: "co-host", hasVideo: false },
+        listeners: state.listeners.filter((l) => l.user.id !== userId),
+      };
+    }),
 
   // Listeners — optimistic: appear in listener grid immediately
   addListener: (user) =>

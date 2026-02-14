@@ -421,16 +421,30 @@ export const messagesApi = {
    */
   async markAsRead(conversationId: string) {
     try {
-      const visitorIntId = getCurrentUserIdInt();
-      if (!visitorIntId) return;
+      const { requireBetterAuthToken } = await import("@/lib/auth/identity");
+      const token = await requireBetterAuthToken();
 
-      // Mark all messages in conversation as read (except own messages)
-      await supabase
-        .from(DB.messages.table)
-        .update({ [DB.messages.readAt]: new Date().toISOString() })
-        .eq(DB.messages.conversationId, parseInt(conversationId))
-        .is(DB.messages.readAt, null)
-        .neq(DB.messages.senderId, visitorIntId);
+      // Use edge function to bypass RLS — anon key cannot update messages table
+      const { data, error } = await supabase.functions.invoke("mark-read", {
+        body: { conversationId: parseInt(conversationId) },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) {
+        console.error("[Messages] markAsRead edge function error:", error);
+        return;
+      }
+
+      if (!data?.ok) {
+        console.error("[Messages] markAsRead failed:", data?.error);
+        return;
+      }
+
+      console.log(
+        "[Messages] markAsRead success:",
+        data.data?.markedRead,
+        "messages marked",
+      );
     } catch (error) {
       console.error("[Messages] markAsRead error:", error);
     }
@@ -528,17 +542,18 @@ export const messagesApi = {
       const followingIds = await this.getFollowingIds();
 
       if (filter === "primary") {
-        // Return conversations from followed users
-        return conversations.filter((c) => {
-          // For now, return all conversations as primary
-          // TODO: Implement proper filtering based on user IDs
-          return true;
+        // Inbox: conversations from users you follow
+        return conversations.filter((c: any) => {
+          const otherUserId = c.user?.id;
+          if (!otherUserId) return true; // keep unknown users in inbox as fallback
+          return followingIds.includes(String(otherUserId));
         });
       } else {
-        // Return conversations from non-followed users (message requests)
-        return conversations.filter((c) => {
-          // TODO: Implement proper filtering based on user IDs
-          return false;
+        // Requests: conversations from users you DON'T follow
+        return conversations.filter((c: any) => {
+          const otherUserId = c.user?.id;
+          if (!otherUserId) return false;
+          return !followingIds.includes(String(otherUserId));
         });
       }
     } catch (error) {

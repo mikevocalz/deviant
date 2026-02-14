@@ -9,8 +9,7 @@
  * Called by database triggers or directly from the app
  */
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const APNS_PRODUCTION_URL = "https://api.push.apple.com";
@@ -191,7 +190,7 @@ interface ExpoPushMessage {
   categoryId?: string; // For iOS categories
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   // CORS headers
   if (req.method === "OPTIONS") {
     return new Response(null, {

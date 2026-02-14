@@ -21,7 +21,7 @@ import {
   CalendarDays,
   Heart,
 } from "lucide-react-native";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter, useNavigation, Link } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import {
   useMemo,
@@ -41,7 +41,7 @@ import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
 import { useMyProfile } from "@/lib/hooks/use-profile";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { useMyEvents, useLikedEvents } from "@/lib/hooks/use-events";
-import { notificationKeys } from "@/lib/hooks/use-notifications-query";
+// notificationKeys removed — app resume refresh handled by useAppResume globally
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { usersApi } from "@/lib/api/users";
@@ -492,36 +492,13 @@ function ProfileScreenContent() {
     prevUserIdRef.current = loggedInUserId;
   }, [loggedInUserId, refetch]);
 
-  // Load profile screen loading state
+  // Clear loading gate immediately — cache-first means data is already available
   useEffect(() => {
-    const loadProfile = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setScreenLoading("profile", false);
-    };
-    loadProfile();
+    setScreenLoading("profile", false);
   }, [setScreenLoading]);
 
-  // CRITICAL: Refetch profile on app foreground to get updated follower counts
-  // This ensures counts are updated when someone follows the user while app was backgrounded
-  useEffect(() => {
-    const { AppState } = require("react-native");
-    const subscription = AppState.addEventListener(
-      "change",
-      (nextAppState: string) => {
-        if (nextAppState === "active") {
-          console.log("[Profile] App foregrounded, refetching profile data");
-          refetchProfile();
-          refetch(); // Also refetch posts
-          if (loggedInUserId) {
-            queryClient.invalidateQueries({
-              queryKey: notificationKeys.list(loggedInUserId),
-            });
-          }
-        }
-      },
-    );
-    return () => subscription.remove();
-  }, [refetchProfile, refetch, loggedInUserId, queryClient]);
+  // NOTE: App resume refresh is handled globally by useAppResume hook
+  // in (protected)/_layout.tsx — no duplicate AppState listener needed here
 
   // Transform user posts data using SAFE mapper - NEVER throws
   const userPosts: SafeGridTile[] = useMemo(() => {
@@ -575,7 +552,9 @@ function ProfileScreenContent() {
     );
   }
 
-  if (isLoading || isLoadingPosts) {
+  // Skeleton ONLY when truly no data (first ever boot, no cache)
+  // With MMKV persistence, cache-hit means zero skeleton on cold start
+  if ((isLoading || isLoadingPosts) && !profileData && !userPostsData) {
     return (
       <View className="flex-1 bg-background">
         <ProfileSkeleton />
@@ -748,14 +727,13 @@ function ProfileScreenContent() {
           </View>
 
           <View className="mt-5 flex-row gap-2 px-4">
-            <Pressable
-              onPress={() => router.push("/(protected)/edit-profile")}
-              className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4"
-            >
-              <Text className="font-semibold text-secondary-foreground">
-                Edit profile
-              </Text>
-            </Pressable>
+            <Link href="/(protected)/edit-profile" asChild>
+              <Pressable className="flex-1 items-center justify-center py-2.5 rounded-[10px] bg-secondary px-4">
+                <Text className="font-semibold text-secondary-foreground">
+                  Edit profile
+                </Text>
+              </Pressable>
+            </Link>
           </View>
         </View>
 
@@ -1129,7 +1107,7 @@ function ProfileScreenContent() {
                         source={{ uri: item.coverUrl }}
                         style={{ width: "100%", height: "100%" }}
                         contentFit="cover"
-                        sharedTag={`post-image-${item.id}`}
+                        sharedTag={`post-media-${item.id}`}
                       />
                     ) : (
                       <View

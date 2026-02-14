@@ -41,6 +41,7 @@ export interface SneakyRoom {
   host: SneakyUser;
   speakers: SneakyUser[];
   listeners: number;
+  maxParticipants?: number;
   fishjamRoomId?: string;
 }
 

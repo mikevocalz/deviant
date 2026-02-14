@@ -23,13 +23,16 @@ const PROJECT_REF = "npfjanxturvmjyevoyfo";
 // These are NOT the secrets themselves — just first8 + last4 + length
 // Update these ONLY when you intentionally rotate credentials
 const EXPECTED = {
-  FISHJAM_APP_ID: { first8: "28026441", last4: "f851", length: 32 },
-  FISHJAM_API_KEY: { first8: "b417ce42", last4: "652d", length: 64 },
+  FISHJAM_APP_ID: { first8: "e921bfe8", last4: "c6f0", length: 32 },
+  FISHJAM_API_KEY: { first8: "864e60f2", last4: "7090", length: 64 },
 };
 
 function run(cmd: string): string {
   try {
-    return execSync(cmd, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    return execSync(cmd, {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
   } catch (e: any) {
     return e.stdout?.toString().trim() || e.message;
   }
@@ -60,7 +63,13 @@ serve(async () => {
 
   const fs = await import("fs");
   const path = await import("path");
-  const probeDir = path.join(__dirname, "..", "supabase", "functions", "_probe_secrets");
+  const probeDir = path.join(
+    __dirname,
+    "..",
+    "supabase",
+    "functions",
+    "_probe_secrets",
+  );
   const probePath = path.join(probeDir, "index.ts");
 
   // Create probe function
@@ -91,7 +100,10 @@ serve(async () => {
     try {
       secrets = JSON.parse(response);
     } catch {
-      console.error("  ❌ Probe returned invalid JSON:", response.slice(0, 200));
+      console.error(
+        "  ❌ Probe returned invalid JSON:",
+        response.slice(0, 200),
+      );
       process.exit(1);
     }
 
@@ -111,7 +123,9 @@ serve(async () => {
         actual.length === expected.length;
 
       if (matches) {
-        console.log(`  ✅ ${key}: ${actual.first8}...${actual.last4} (${actual.length} chars)`);
+        console.log(
+          `  ✅ ${key}: ${actual.first8}...${actual.last4} (${actual.length} chars)`,
+        );
       } else {
         console.error(
           `  ❌ ${key}: MISMATCH!\n` +
@@ -137,7 +151,9 @@ serve(async () => {
   } finally {
     // Cleanup probe function
     console.log("\n  Cleaning up probe function...");
-    run(`npx supabase functions delete _probe_secrets --project-ref ${PROJECT_REF}`);
+    run(
+      `npx supabase functions delete _probe_secrets --project-ref ${PROJECT_REF}`,
+    );
     fs.rmSync(probeDir, { recursive: true, force: true });
   }
 }

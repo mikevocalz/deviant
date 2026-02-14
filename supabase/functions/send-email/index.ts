@@ -15,7 +15,6 @@
  *   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
  */
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,7 +142,7 @@ function buildResetPasswordEmail(url: string): {
 
 // ─── Main handler ────────────────────────────────────────────────────────────
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }

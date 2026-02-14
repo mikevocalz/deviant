@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
+import { SharedImage } from "@/components/shared-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -502,11 +503,11 @@ export default function EventDetailScreen() {
         <View style={s.heroWrapper}>
           {/* Parallax hero image */}
           <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-            <Image
+            <SharedImage
+              sharedTag={`event-image-${eventId}`}
               source={{ uri: event.image }}
               style={s.heroImage}
               contentFit="cover"
-              transition={300}
             />
           </Animated.View>
 
@@ -876,7 +877,11 @@ export default function EventDetailScreen() {
                 <Trash2 size={20} color="#ef4444" />
               </Pressable>
             )}
-            <Pressable onPress={handleShare} style={s.headerButton} hitSlop={12}>
+            <Pressable
+              onPress={handleShare}
+              style={s.headerButton}
+              hitSlop={12}
+            >
               <Share2 size={20} color="#fff" />
             </Pressable>
             <Pressable

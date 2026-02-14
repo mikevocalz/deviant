@@ -3,7 +3,7 @@ import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useCallback, useEffect, memo, useState, useRef } from "react";
+import { useCallback, useEffect, memo, useState, useRef, useMemo } from "react";
 import { useFocusEffect } from "expo-router";
 import {
   Heart,
@@ -16,8 +16,15 @@ import {
   Calendar,
 } from "lucide-react-native";
 import { ActivitySkeleton } from "@/components/skeletons";
-import { useActivityStore, type Activity } from "@/lib/stores/activity-store";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useActivityStore } from "@/lib/stores/activity-store";
+import type { Activity } from "@/lib/hooks/use-activities-query";
+import {
+  useActivitiesQuery,
+  getRouteForActivity,
+} from "@/lib/hooks/use-activities-query";
+import { useQueryClient } from "@tanstack/react-query";
+import { activityKeys } from "@/lib/hooks/use-activities-query";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
@@ -46,11 +53,15 @@ function getActivityText(activity: Activity): string {
     case "like":
       return " liked your post.";
     case "comment":
-      return ` commented: "${activity.comment}"`;
+      return activity.comment
+        ? ` commented: "${activity.comment}"`
+        : " commented on a post.";
     case "follow":
       return " started following you.";
     case "mention":
-      return ` mentioned you: "${activity.comment}"`;
+      return activity.comment
+        ? ` mentioned you: "${activity.comment}"`
+        : " mentioned you in a comment.";
     case "event_invite":
       return ` invited you to ${activity.event?.title || "an event"}.`;
     case "event_update":
@@ -152,35 +163,49 @@ export default function ActivityScreen() {
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("All");
+  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+  const viewerId = useAuthStore((s) => s.user?.id) || "";
+
+  // TanStack Query — MMKV-persisted, instant on cold start
   const {
-    activities,
-    refreshing,
-    setRefreshing,
+    data: queryActivities,
+    isLoading: queryLoading,
+    refetch,
+  } = useActivitiesQuery();
+
+  // Store — mutations, follow state, realtime
+  const {
+    activities: storeActivities,
     toggleFollowUser,
     isUserFollowed,
     markActivityAsRead,
     markAllAsRead,
-    loadInitialActivities,
     fetchFromBackend,
-    getUnreadCount,
-    getRouteForActivity,
     subscribeToNotifications,
+    fetchFollowingState,
   } = useActivityStore();
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  const isLoading = loadingScreens.activity;
-  const unreadCount = getUnreadCount();
 
-  const hasLoadedOnce = useRef(false);
-
+  // Seed store from query cache on mount (enables mutation logic in store)
+  const hasSeeded = useRef(false);
   useEffect(() => {
-    const loadActivities = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      loadInitialActivities();
-      setScreenLoading("activity", false);
-      hasLoadedOnce.current = true;
-    };
-    loadActivities();
-  }, [loadInitialActivities, setScreenLoading]);
+    if (queryActivities && queryActivities.length > 0 && !hasSeeded.current) {
+      hasSeeded.current = true;
+      useActivityStore.getState().setActivities(queryActivities as any);
+      // Fetch follow state so follow buttons render correctly
+      fetchFollowingState();
+    }
+  }, [queryActivities, fetchFollowingState]);
+
+  // Use store activities if mutations have modified them, otherwise query data
+  const activities: Activity[] = (
+    storeActivities.length > 0 ? storeActivities : queryActivities || []
+  ) as Activity[];
+
+  const unreadCount = useMemo(
+    () => activities.filter((a) => !a.isRead).length,
+    [activities],
+  );
 
   // Realtime subscription for instant notifications (follow, like, comment, etc.)
   useEffect(() => {
@@ -193,25 +218,48 @@ export default function ActivityScreen() {
   // Refetch when tab is focused (ensures new follow notifications appear)
   useFocusEffect(
     useCallback(() => {
-      if (hasLoadedOnce.current) {
-        fetchFromBackend();
+      if (hasSeeded.current) {
+        // Invalidate query so TanStack refetches in background
+        queryClient.invalidateQueries({
+          queryKey: activityKeys.list(viewerId),
+        });
       }
-    }, [fetchFromBackend]),
+    }, [queryClient, viewerId]),
   );
 
-  const filteredActivities = activities.filter((activity) => {
-    if (activeTab === "All") return true;
-    if (activeTab === "Follows") return activity.type === "follow";
-    if (activeTab === "Likes") return activity.type === "like";
-    if (activeTab === "Comments") return activity.type === "comment";
-    if (activeTab === "Mentions") return activity.type === "mention";
-    return true;
-  });
+  const filteredActivities = useMemo(
+    () =>
+      activities
+        .filter((activity) => {
+          // Hide comment/like/mention notifications for deleted posts
+          if (
+            (activity.type === "comment" ||
+              activity.type === "like" ||
+              activity.type === "mention") &&
+            activity.entityType === "post" &&
+            !activity.post
+          ) {
+            return false;
+          }
+          return true;
+        })
+        .filter((activity) => {
+          if (activeTab === "All") return true;
+          if (activeTab === "Follows") return activity.type === "follow";
+          if (activeTab === "Likes") return activity.type === "like";
+          if (activeTab === "Comments") return activity.type === "comment";
+          if (activeTab === "Mentions") return activity.type === "mention";
+          return true;
+        }),
+    [activities, activeTab],
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    console.log("[Activity] Refreshing activities from backend...");
+    console.log("[Activity] Refreshing activities...");
     try {
+      await refetch();
+      // Also refresh store so mutations stay in sync
       await fetchFromBackend();
       console.log("[Activity] Refresh complete");
     } catch (error) {
@@ -219,7 +267,7 @@ export default function ActivityScreen() {
     } finally {
       setRefreshing(false);
     }
-  }, [setRefreshing, fetchFromBackend]);
+  }, [refetch, fetchFromBackend]);
 
   const handleUserPress = useCallback(
     (username: string) => {
@@ -249,8 +297,14 @@ export default function ActivityScreen() {
 
   const handleActivityPress = useCallback(
     (activity: Activity) => {
-      // Mark as read (persists to backend)
+      // Mark as read (persists to backend + patches query cache)
       markActivityAsRead(activity.id);
+      // Also patch query cache for instant UI update
+      queryClient.setQueryData(
+        activityKeys.list(viewerId),
+        (old: Activity[] | undefined) =>
+          old?.map((a) => (a.id === activity.id ? { ...a, isRead: true } : a)),
+      );
 
       // Use entityType/entityId-based routing for correct navigation
       const route = getRouteForActivity(activity);
@@ -261,7 +315,7 @@ export default function ActivityScreen() {
       });
       router.push(route as any);
     },
-    [markActivityAsRead, getRouteForActivity, router],
+    [markActivityAsRead, queryClient, viewerId, router],
   );
 
   // CRITICAL: All useCallback hooks MUST be before any early returns
@@ -373,8 +427,9 @@ export default function ActivityScreen() {
 
   const keyExtractor = useCallback((item: Activity) => item.id, []);
 
-  // Early return for loading state AFTER all hooks
-  if (isLoading) {
+  // Skeleton ONLY when truly no data (first ever boot, no cache)
+  // With MMKV persistence, cache-hit means zero skeleton on cold start
+  if (queryLoading && activities.length === 0) {
     return (
       <View className="flex-1 bg-background">
         <ActivitySkeleton />

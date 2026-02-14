@@ -7,19 +7,17 @@
  * - Controls: floating bottom bar (rendered by parent)
  */
 
-import { useRef } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { useEffect, useRef } from "react";
+import { View, Text, StyleSheet, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  RTCView,
-  RTCPIPView,
-} from "@fishjam-cloud/react-native-client";
+import { RTCView, RTCPIPView } from "@fishjam-cloud/react-native-client";
 import { Image } from "expo-image";
 import { LocalPreviewBubble } from "../LocalPreviewBubble";
 
 export interface InCallVideoStageProps {
   remoteVideoStream: MediaStream | null;
   hasRemoteVideo: boolean;
+  remoteMicOn: boolean;
   localStream: MediaStream | null;
   hasLocalVideo: boolean;
   recipientName: string;
@@ -37,6 +35,7 @@ function formatDuration(seconds: number): string {
 export function InCallVideoStage({
   remoteVideoStream,
   hasRemoteVideo,
+  remoteMicOn,
   localStream,
   hasLocalVideo,
   recipientName,
@@ -45,6 +44,31 @@ export function InCallVideoStage({
   pipViewRef,
 }: InCallVideoStageProps) {
   const insets = useSafeAreaInsets();
+
+  // Pulsing ring for speaking indicator when camera is off
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!hasRemoteVideo && remoteMicOn) {
+      const loop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 1200,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      loop.start();
+      return () => loop.stop();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [hasRemoteVideo, remoteMicOn, pulseAnim]);
 
   return (
     <View style={styles.container}>
@@ -57,8 +81,13 @@ export function InCallVideoStage({
           objectFit="cover"
         />
       ) : (
-        // Remote video not yet available — show avatar on black
+        // Remote video off — show avatar with speaking indicator
         <View style={styles.avatarFallback}>
+          {remoteMicOn && (
+            <Animated.View
+              style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]}
+            />
+          )}
           {recipientAvatar ? (
             <Image
               source={{ uri: recipientAvatar }}
@@ -72,6 +101,7 @@ export function InCallVideoStage({
             </View>
           )}
           <Text style={styles.avatarName}>{recipientName}</Text>
+          {remoteMicOn && <Text style={styles.speakingLabel}>Speaking...</Text>}
         </View>
       )}
 
@@ -139,5 +169,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     overflow: "hidden",
+  },
+  pulseRing: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    borderWidth: 2,
+    borderColor: "rgba(62,164,229,0.4)",
+  },
+  speakingLabel: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 14,
+    marginTop: 4,
   },
 });

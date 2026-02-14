@@ -8,22 +8,143 @@ import {
 } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { Link, useRouter, useLocalSearchParams } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Search, X, Play, Hash } from "lucide-react-native";
 import { Image } from "expo-image";
+import { Avatar } from "@/components/ui/avatar";
 import { useSearchStore } from "@/lib/stores/search-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import { useSearchPosts, useSearchUsers } from "@/lib/hooks/use-search";
 import { postsApi } from "@/lib/api/posts";
 import { usersApi } from "@/lib/api/users";
+import { BadgeCheck, UserPlus } from "lucide-react-native";
 
 const { width } = Dimensions.get("window");
 const columnWidth = (width - 8) / 3;
 
+interface DiscoverUser {
+  id: string;
+  username: string;
+  name: string;
+  avatar: string;
+  verified: boolean;
+  bio: string;
+  postsCount: number;
+}
+
+function DiscoverSection({ router }: { router: ReturnType<typeof useRouter> }) {
+  const [users, setUsers] = useState<DiscoverUser[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      const newest = await usersApi.getNewestUsers(15);
+      setUsers(newest);
+      setLoading(false);
+    })();
+  }, []);
+
+  return (
+    <View className="py-4">
+      <View className="flex-row items-center gap-2 px-4 mb-4">
+        <UserPlus size={20} color="#3FDCFF" />
+        <Text className="text-lg font-bold text-foreground">
+          Discover New Profiles
+        </Text>
+      </View>
+
+      {loading ? (
+        <View className="flex-row gap-3 px-4">
+          {[1, 2, 3].map((i) => (
+            <View
+              key={i}
+              className="w-[140px] h-[180px] rounded-2xl bg-secondary"
+            />
+          ))}
+        </View>
+      ) : users.length === 0 ? (
+        <View className="px-4">
+          <Text className="text-muted-foreground text-sm">
+            No new profiles to discover right now.
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
+        >
+          {users.map((user) => (
+            <Link
+              key={user.id}
+              href={
+                `/(protected)/profile/${user.username}?authId=${user.id}` as any
+              }
+              asChild
+            >
+              <Pressable
+                style={{
+                  width: 140,
+                  backgroundColor: "rgba(30, 30, 30, 0.8)",
+                  borderRadius: 16,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.06)",
+                  paddingVertical: 16,
+                  alignItems: "center",
+                }}
+              >
+                <Avatar
+                  uri={user.avatar}
+                  username={user.username}
+                  size="lg"
+                  variant="roundedSquare"
+                />
+                <View className="flex-row items-center gap-1 mt-2">
+                  <Text
+                    className="text-sm font-semibold text-foreground"
+                    numberOfLines={1}
+                  >
+                    {user.name}
+                  </Text>
+                  {user.verified && (
+                    <BadgeCheck size={12} color="#FF6DC1" fill="#FF6DC1" />
+                  )}
+                </View>
+                <Text
+                  className="text-xs text-muted-foreground"
+                  numberOfLines={1}
+                >
+                  @{user.username}
+                </Text>
+                {user.bio ? (
+                  <Text
+                    className="text-[11px] text-muted-foreground mt-1 px-3 text-center"
+                    numberOfLines={2}
+                  >
+                    {user.bio}
+                  </Text>
+                ) : null}
+              </Pressable>
+            </Link>
+          ))}
+        </ScrollView>
+      )}
+
+      <View className="px-4 mt-6">
+        <Text className="text-sm text-muted-foreground">
+          Try searching for a username, or use # to search for hashtags
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function SearchScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const params = useLocalSearchParams<{ query?: string }>();
   const {
     searchQuery: storeQuery,
@@ -81,7 +202,10 @@ export default function SearchScreen() {
       >
         {/* Header */}
         <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()}>
+          <Pressable
+            onPress={() => navigation.goBack()}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          >
             <ArrowLeft size={24} color="#fff" />
           </Pressable>
           <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
@@ -107,14 +231,7 @@ export default function SearchScreen() {
           {isLoading ? (
             <SearchSkeleton />
           ) : searchQuery.length === 0 ? (
-            <View className="p-4">
-              <Text className="text-base font-semibold mb-3 text-foreground">
-                Search for posts, users, or hashtags
-              </Text>
-              <Text className="text-sm text-muted-foreground">
-                Try searching for a username, or use # to search for hashtags
-              </Text>
-            </View>
+            <DiscoverSection router={router} />
           ) : isLoadingPosts || isLoadingUsers ? (
             <SearchResultsSkeleton />
           ) : (

@@ -104,7 +104,7 @@ function ConversationList({
   conversations: ConversationItem[];
   isRefreshing: boolean;
   onRefresh: () => void;
-  onChatPress: (id: string) => void;
+  onChatPress: (id: string, item?: ConversationItem) => void;
   onProfilePress: (username: string) => void;
   emptyTitle: string;
   emptyDescription: string;
@@ -140,7 +140,7 @@ function ConversationList({
           </Pressable>
 
           <TouchableOpacity
-            onPress={() => onChatPress(item.id)}
+            onPress={() => onChatPress(item.id, item)}
             activeOpacity={0.7}
             className="flex-1"
           >
@@ -196,55 +196,69 @@ function SneakyLynkContent({
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
   const addRoom = useLynkHistoryStore((s) => s.addRoom);
   const [dbRooms, setDbRooms] = useState<LynkRecord[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Fetch live rooms from database on focus so all users see them
+  const fetchRooms = useCallback(async () => {
+    try {
+      const liveRooms = await sneakyLynkApi.getLiveRooms();
+      const mapped: LynkRecord[] = liveRooms.map((r) => ({
+        id: r.id,
+        title: r.title,
+        topic: r.topic,
+        description: r.description,
+        isLive: r.isLive,
+        hasVideo: r.hasVideo,
+        isPublic: r.isPublic,
+        status: r.status,
+        host: r.host,
+        speakers: r.speakers || [],
+        listeners: r.listeners || 0,
+        maxParticipants: r.maxParticipants || 50,
+        createdAt: r.createdAt,
+        endedAt: r.endedAt,
+      }));
+      setDbRooms(mapped);
+
+      // Sync: mark local rooms as ended if they're not actually live in DB
+      const actuallyLiveIds = new Set(
+        liveRooms.filter((r) => r.isLive).map((r) => r.id),
+      );
+      for (const local of localRooms) {
+        if (local.isLive && !actuallyLiveIds.has(local.id)) {
+          endRoom(local.id);
+        }
+      }
+    } catch (err) {
+      console.error("[SneakyLynk] Failed to fetch live rooms:", err);
+    }
+  }, [localRooms, endRoom]);
+
+  // Fetch live rooms on focus
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       (async () => {
-        try {
-          const liveRooms = await sneakyLynkApi.getLiveRooms();
-          if (cancelled) return;
-          const mapped: LynkRecord[] = liveRooms.map((r) => ({
-            id: r.id,
-            title: r.title,
-            topic: r.topic,
-            description: r.description,
-            isLive: r.status === "open",
-            hasVideo: r.hasVideo,
-            isPublic: r.isPublic,
-            status: r.status,
-            host: r.host,
-            speakers: r.speakers || [],
-            listeners: r.listeners || 0,
-            createdAt: r.createdAt,
-            endedAt: r.endedAt,
-          }));
-          setDbRooms(mapped);
-
-          // Sync: mark local rooms as ended if they're no longer open in DB
-          const liveIds = new Set(liveRooms.map((r) => r.id));
-          for (const local of localRooms) {
-            if (local.isLive && !liveIds.has(local.id)) {
-              endRoom(local.id);
-            }
-          }
-        } catch (err) {
-          console.error("[SneakyLynk] Failed to fetch live rooms:", err);
-        }
+        await fetchRooms();
       })();
       return () => {
         cancelled = true;
       };
-    }, [localRooms, endRoom]),
+    }, [fetchRooms]),
   );
 
+  // Pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchRooms();
+    setRefreshing(false);
+  }, [fetchRooms]);
+
   // Merge: DB rooms take priority, then local-only rooms
+  // Only show rooms that are actually live (status open + participants > 0)
   const allRooms = useCallback(() => {
     const dbIds = new Set(dbRooms.map((r) => r.id));
     const localOnly = localRooms.filter((r) => !dbIds.has(r.id));
-    // DB rooms first (live), then local-only (may include ended)
-    return [...dbRooms, ...localOnly];
+    return [...dbRooms, ...localOnly].filter((r) => r.isLive);
   }, [dbRooms, localRooms])();
 
   const handleCreateLynk = useCallback(() => {
@@ -260,6 +274,16 @@ function SneakyLynkContent({
           "info",
           "Lynk Ended",
           "This Lynk has ended and can't be rejoined",
+        );
+        return;
+      }
+      // Check capacity — toast if full
+      const max = room.maxParticipants || 50;
+      if (room.listeners >= max) {
+        showToast(
+          "error",
+          "Room Full",
+          "This Lynk is at max capacity. Pull to refresh when a slot opens.",
         );
         return;
       }
@@ -292,7 +316,17 @@ function SneakyLynkContent({
       </View>
 
       {allRooms.length > 0 ? (
-        <ScrollView contentContainerStyle={lynkStyles.liveList}>
+        <ScrollView
+          contentContainerStyle={lynkStyles.liveList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FC253A"
+              colors={["#FC253A"]}
+            />
+          }
+        >
           {allRooms.map((room) => (
             <LiveRoomCard
               key={room.id}
@@ -302,7 +336,17 @@ function SneakyLynkContent({
           ))}
         </ScrollView>
       ) : (
-        <View style={lynkStyles.emptyStateContainer}>
+        <ScrollView
+          contentContainerStyle={lynkStyles.emptyStateContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FC253A"
+              colors={["#FC253A"]}
+            />
+          }
+        >
           <View style={lynkStyles.emptyState}>
             <Radio size={48} color="#6B7280" />
             <Text style={lynkStyles.emptyTitle}>No Lynks Yet</Text>
@@ -317,7 +361,7 @@ function SneakyLynkContent({
               <Text style={lynkStyles.createLynkText}>Start a Lynk</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       )}
     </View>
   );
@@ -466,8 +510,22 @@ export default function MessagesScreen() {
   }, [queryClient]);
 
   const handleChatPress = useCallback(
-    (id: string) => {
-      router.push(`/(protected)/chat/${id}`);
+    (id: string, item?: ConversationItem) => {
+      // Pass conversation data via params so chat header renders instantly
+      // without waiting for async fetch — eliminates layout jump during transition
+      if (item) {
+        router.push({
+          pathname: "/(protected)/chat/[id]",
+          params: {
+            id,
+            peerAvatar: item.user.avatar || "",
+            peerUsername: item.user.username || "",
+            peerName: item.user.name || "",
+          },
+        });
+      } else {
+        router.push(`/(protected)/chat/${id}`);
+      }
     },
     [router],
   );

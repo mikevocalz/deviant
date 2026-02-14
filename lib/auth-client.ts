@@ -67,11 +67,13 @@ export function clearAllCachedData() {
     console.log("[Auth] ✓ React Query cache cleared");
   }
 
-  // 2. Clear persisted storage (MMKV)
+  // 2. Clear persisted storage (MMKV) — includes TanStack Query persistence
   try {
     const { clearUserDataFromStorage } = require("@/lib/utils/storage");
     clearUserDataFromStorage();
-    console.log("[Auth] ✓ MMKV storage cleared");
+    const { clearPersistedQueryCache } = require("@/lib/query-persistence");
+    clearPersistedQueryCache();
+    console.log("[Auth] ✓ MMKV storage + query persistence cleared");
   } catch (e) {
     console.error("[Auth] ✗ Failed to clear MMKV storage:", e);
   }

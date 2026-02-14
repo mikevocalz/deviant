@@ -1,13 +1,22 @@
 import React from "react";
 import { Platform, ViewStyle, ImageStyle } from "react-native";
 import { Image, ImageProps } from "expo-image";
-import Animated, { SharedTransition } from "react-native-reanimated";
+import Animated from "react-native-reanimated";
+import {
+  heroImageTransition,
+  avatarTransition,
+} from "@/lib/shared-transitions";
+import type { SharedTransition } from "react-native-reanimated";
 
 const AnimatedImage = Animated.createAnimatedComponent(Image);
 
 interface SharedImageProps extends Omit<ImageProps, "style"> {
   sharedTag?: string;
   style?: ImageStyle | ViewStyle;
+  /** Which spring preset to use. Default: 'hero' (big images). Use 'avatar' for small circular elements. */
+  transitionPreset?: "hero" | "avatar";
+  /** Custom SharedTransition style — overrides preset if provided */
+  customTransition?: SharedTransition;
 }
 
 // Inline error boundary — if the shared transition crashes, fall back to plain Image
@@ -27,7 +36,13 @@ class SharedImageErrorBoundary extends React.Component<
   }
 }
 
-export function SharedImage({ sharedTag, style, ...props }: SharedImageProps) {
+export function SharedImage({
+  sharedTag,
+  style,
+  transitionPreset = "hero",
+  customTransition,
+  ...props
+}: SharedImageProps) {
   const imageProps = {
     transition: 200,
     cachePolicy: "memory-disk" as const,
@@ -40,14 +55,25 @@ export function SharedImage({ sharedTag, style, ...props }: SharedImageProps) {
     return plainImage;
   }
 
+  // Select spring preset or use custom
+  const transitionStyle =
+    customTransition ||
+    (transitionPreset === "avatar" ? avatarTransition : heroImageTransition);
+
   return (
     <SharedImageErrorBoundary fallback={plainImage}>
       <AnimatedImage
         // @ts-ignore - sharedTransitionTag is valid in Reanimated
         sharedTransitionTag={sharedTag}
-        // @ts-ignore - SharedTransition.duration returns a builder
-        sharedTransitionStyle={SharedTransition.duration(300)}
-        style={style as ImageStyle}
+        // @ts-ignore - SharedTransition builder type
+        sharedTransitionStyle={transitionStyle}
+        style={
+          [
+            style as ImageStyle,
+            // Android stacking fix: zIndex ensures correct draw order
+            Platform.OS === "android" && { zIndex: 9999 },
+          ] as any
+        }
         {...imageProps}
       />
     </SharedImageErrorBoundary>

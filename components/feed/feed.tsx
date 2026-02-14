@@ -25,6 +25,7 @@ import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
+import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -217,6 +218,14 @@ export function Feed() {
   const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
   const { setActivePostId } = useFeedPostUIStore();
   const prevNsfwEnabled = useRef(nsfwEnabled);
+  const listRef = useRef<LegendListRef>(null);
+  const scrollToTopTrigger = useFeedScrollStore((s) => s.scrollToTopTrigger);
+
+  useEffect(() => {
+    if (scrollToTopTrigger > 0 && listRef.current) {
+      listRef.current.scrollToOffset?.({ offset: 0, animated: true });
+    }
+  }, [scrollToTopTrigger]);
 
   useEffect(() => {
     loadNsfwSetting();
@@ -370,6 +379,7 @@ export function Feed() {
 
   return (
     <LegendList
+      ref={listRef}
       data={filteredPosts}
       keyExtractor={keyExtractor}
       renderItem={renderItem}

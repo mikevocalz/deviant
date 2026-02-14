@@ -3,8 +3,7 @@
  * Update user avatar with Better Auth verification
  */
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,44 +12,37 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-interface ApiResponse<T = unknown> {
-  ok: boolean;
-  data?: T;
-  error?: { code: string; message: string };
-}
-
-function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
+function jsonOk(data: unknown): Response {
+  return new Response(JSON.stringify({ ok: true, data }), {
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
-function errorResponse(code: string, message: string): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+function jsonErr(code: string, message: string): Response {
+  return new Response(JSON.stringify({ ok: false, error: { code, message } }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
   if (req.method !== "POST")
-    return errorResponse("validation_error", "Method not allowed");
+    return jsonErr("validation_error", "Method not allowed");
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer "))
-      return errorResponse(
-        "unauthorized",
-        "Missing or invalid Authorization header",
-        401,
-      );
+      return jsonErr("unauthorized", "Missing or invalid Authorization header");
 
     const token = authHeader.replace("Bearer ", "");
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     if (!supabaseUrl || !supabaseServiceKey) {
-      return errorResponse("internal_error", "Server configuration error");
+      return jsonErr("internal_error", "Server configuration error");
     }
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -65,10 +57,11 @@ serve(async (req: Request) => {
       .single();
 
     if (sessionError || !sessionData) {
-      return errorResponse("unauthorized", "Invalid or expired session");
+      console.error("[update-avatar] Session lookup failed:", sessionError);
+      return jsonErr("unauthorized", "Invalid or expired session");
     }
     if (new Date(sessionData.expiresAt) < new Date()) {
-      return errorResponse("unauthorized", "Session expired");
+      return jsonErr("unauthorized", "Session expired");
     }
 
     const authUserId = sessionData.userId;
@@ -77,19 +70,25 @@ serve(async (req: Request) => {
     try {
       body = await req.json();
     } catch {
-      return errorResponse("validation_error", "Invalid JSON body");
+      return jsonErr("validation_error", "Invalid JSON body");
     }
 
     const { avatarUrl } = body;
     if (!avatarUrl)
-      return errorResponse("validation_error", "avatarUrl is required");
+      return jsonErr("validation_error", "avatarUrl is required");
 
-    const { data: userData } = await supabaseAdmin
+    console.log("[update-avatar] User:", authUserId, "URL:", avatarUrl.substring(0, 60));
+
+    const { data: userData, error: userError } = await supabaseAdmin
       .from("users")
       .select("id")
       .eq("auth_id", authUserId)
       .single();
-    if (!userData) return errorResponse("not_found", "User not found");
+
+    if (userError || !userData) {
+      console.error("[update-avatar] User lookup failed:", userError);
+      return jsonErr("not_found", "User not found");
+    }
 
     // Create media record
     const { data: mediaData, error: mediaError } = await supabaseAdmin
@@ -98,25 +97,26 @@ serve(async (req: Request) => {
       .select("id")
       .single();
 
-    if (mediaError)
-      return errorResponse(
-        "internal_error",
-        "Failed to create media record",
-        500,
-      );
+    if (mediaError) {
+      console.error("[update-avatar] Media insert failed:", mediaError);
+      return jsonErr("internal_error", "Failed to create media record");
+    }
 
     // Update user avatar
-    const { error } = await supabaseAdmin
+    const { error: updateError } = await supabaseAdmin
       .from("users")
       .update({ avatar_id: mediaData.id })
       .eq("id", userData.id);
 
-    if (error)
-      return errorResponse("internal_error", "Failed to update avatar");
+    if (updateError) {
+      console.error("[update-avatar] User update failed:", updateError);
+      return jsonErr("internal_error", "Failed to update avatar");
+    }
 
-    return jsonResponse({ ok: true, data: { success: true, avatarUrl } });
+    console.log("[update-avatar] Success: user", userData.id, "avatar_id →", mediaData.id);
+    return jsonOk({ success: true, avatarUrl });
   } catch (err) {
-    console.error("[Edge:update-avatar] Error:", err);
-    return errorResponse("internal_error", "An unexpected error occurred");
+    console.error("[update-avatar] Unexpected error:", err);
+    return jsonErr("internal_error", "An unexpected error occurred");
   }
 });

@@ -3,6 +3,7 @@ import { Image } from "expo-image";
 import { SharedImage } from "@/components/shared-image";
 import { Article } from "@expo/html-elements";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { SharedAvatar } from "@/components/shared-avatar";
 import {
   Heart,
   MessageCircle,
@@ -490,7 +491,8 @@ function FeedPostComponent({
             elevation: 50,
           }}
         >
-          <Avatar
+          <SharedAvatar
+            sharedTag={`profile-avatar-${author?.username || "unknown"}`}
             uri={author?.avatar}
             username={author?.username || "User"}
             size={48}

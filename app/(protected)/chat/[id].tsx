@@ -255,17 +255,28 @@ function ChatPresenceText({ recipientId }: { recipientId?: string }) {
 }
 
 export default function ChatScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, peerAvatar, peerUsername, peerName } = useLocalSearchParams<{
+    id: string;
+    peerAvatar?: string;
+    peerUsername?: string;
+    peerName?: string;
+  }>();
   const router = useRouter();
   const navigation = useNavigation();
   const chatId = id || "1";
 
-  // Set TrueSheet header with styled title and close button
+  // Set TrueSheet header — use peerUsername from route params for instant render
+  // Falls back to "Chat" if no params passed (e.g. deep link)
   useLayoutEffect(() => {
     navigation.setOptions({
-      header: () => <SheetHeader title="Chat" onClose={() => router.back()} />,
+      header: () => (
+        <SheetHeader
+          title={peerUsername || "Chat"}
+          onClose={() => router.back()}
+        />
+      ),
     });
-  }, [navigation, router]);
+  }, [navigation, router, peerUsername]);
   const {
     messages,
     currentMessage,
@@ -368,15 +379,27 @@ export default function ChatScreen() {
   }, [chatId, loadMessages, refreshMessageCounts]);
   const currentUser = useAuthStore((s) => s.user);
 
-  // Chat recipient info loaded from conversation
+  // Chat recipient info — seeded from route params for instant render,
+  // then overwritten by full conversation data from backend
   const [recipient, setRecipient] = useState<{
     id: string;
     authId?: string;
     username: string;
     name: string;
     avatar: string;
-  } | null>(null);
-  const [isLoadingRecipient, setIsLoadingRecipient] = useState(true);
+  } | null>(
+    peerUsername
+      ? {
+          id: "",
+          username: peerUsername,
+          name: peerName || peerUsername,
+          avatar:
+            peerAvatar ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(peerUsername)}&background=3EA4E5&color=fff`,
+        }
+      : null,
+  );
+  const [isLoadingRecipient, setIsLoadingRecipient] = useState(!peerUsername);
   const [isGroupChat, setIsGroupChat] = useState(false);
 
   // Build a stable color map for group chat senders (only "them" messages)
@@ -521,15 +544,6 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<LegendListRef>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (chatMessages.length > 0) {
-      setTimeout(() => {
-        listRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [chatMessages.length]);
 
   const {
     previewMedia,
@@ -900,6 +914,9 @@ export default function ChatScreen() {
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
+          initialScrollAtEnd
+          maintainScrollAtEnd
+          alignItemsAtEnd
           renderItem={({ item }) => {
             const isMe = item.sender === "me";
             const hasReactions = item.reactions && item.reactions.length > 0;

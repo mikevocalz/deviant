@@ -254,7 +254,7 @@ export async function setupCallKeep(): Promise<void> {
         maximumCallsPerCallGroup: "1",
         includesCallsInRecents: true,
         audioSession: {
-          categoryOptions: 0x1 | 0x4 | 0x8, // mixWithOthers | allowBluetooth | defaultToSpeaker
+          categoryOptions: 0x1 | 0x4 | 0x8 | 0x20, // mixWithOthers | allowBluetooth | defaultToSpeaker | allowBluetoothA2DP
           mode: "AVAudioSessionModeVideoChat",
         },
       },

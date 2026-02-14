@@ -93,6 +93,23 @@ npx eas-cli build --platform ios --profile production --auto-submit --non-intera
 - User must force-close + reopen app twice (download then apply)
 - Use `/deploy` workflow in Windsurf to automate this
 
+### DATABASE: TWO USER TABLES (CRITICAL)
+
+**There are TWO separate user tables. Never confuse them.**
+
+| Table | Purpose | ID format | Created when |
+|-------|---------|-----------|--------------|
+| `user` (Better Auth) | Auth signups | String (e.g. `'akTmS2...'`) | User signs up |
+| `users` (App profiles) | Profile data | Integer (e.g. `11`) | User completes onboarding |
+
+- **`user` table** — Better Auth's table. ALL new signups land here. Has: `id`, `name`, `email`, `image`, `createdAt`. This is the source of truth for "who has signed up".
+- **`users` table** — App profile table (via `DB.users.table`). Has: `id` (int), `auth_id` (links to `user.id`), `username`, `bio`, `avatar_id`, `verified`, `followers_count`, etc. Only populated after onboarding.
+- Many new signups exist in `user` but NOT in `users` yet.
+- Join via: `users.auth_id = user.id`
+- `getCurrentUserId()` → integer ID from `users` table
+- `getCurrentUserAuthId()` → auth_id string matching `user.id`
+- Old test accounts in `users`: admin, testuser2, e2euser*, finaluser* — filter by email domain (`@test.com`, `@example.com`, `@deviant.test`)
+
 ### EDGE FUNCTION DEPLOYMENT - CRITICAL RULES:
 
 **⚠️ All Edge Functions that use Better Auth tokens MUST be deployed with `--no-verify-jwt`.**

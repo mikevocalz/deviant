@@ -32,8 +32,8 @@ importers:
         specifier: ^0.13.8
         version: 0.13.8(react-native-web@0.21.2(react-dom@19.2.0(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
       '@fishjam-cloud/react-native-client':
-        specifier: 0.25.0-rc.3
-        version: 0.25.0-rc.3(expo@55.0.0-preview.10)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
+        specifier: 0.25.0
+        version: 0.25.0(expo@55.0.0-preview.10)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
       '@fishjam-cloud/react-native-webrtc':
         specifier: 0.25.0
         version: 0.25.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))
@@ -91,12 +91,18 @@ importers:
       '@tanstack/pacer':
         specifier: ^0.18.0
         version: 0.18.0
+      '@tanstack/query-sync-storage-persister':
+        specifier: ^5.90.22
+        version: 5.90.22
       '@tanstack/react-form':
         specifier: ^1.28.0
         version: 1.28.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
       '@tanstack/react-query':
         specifier: ^5.90.20
         version: 5.90.20(react@19.2.0)
+      '@tanstack/react-query-persist-client':
+        specifier: ^5.90.22
+        version: 5.90.22(@tanstack/react-query@5.90.20(react@19.2.0))(react@19.2.0)
       '@types/pg':
         specifier: ^8.16.0
         version: 8.16.0
@@ -1290,13 +1296,13 @@ packages:
     resolution: {integrity: sha512-o2qDlTqJ606h4xR36H2zWTywmZ3v3842K6TU8Ik2n1mfW0S580VHlt3eItVYdLYz+klaPp7CXqanja8eASZjRw==}
     hasBin: true
 
-  '@fishjam-cloud/react-client@0.25.0-rc.3':
-    resolution: {integrity: sha512-VsKnjMbilOVk0mQQcLtGbN3zOVMpNnR62kLywCOe6NOc+sEnJawEovuTpEayXtPQ0HzKXq+0xs/BFF66PO7inQ==}
+  '@fishjam-cloud/react-client@0.25.0':
+    resolution: {integrity: sha512-NDD9x118r69mETVWVRfTwfPmTsf1QmcYuHzeQRTGwoeV1goXwg1kvRZlBJq9GjlgCt75zgzDkHmUIFWqFz8Uow==}
     peerDependencies:
       react: ^19.1.0
 
-  '@fishjam-cloud/react-native-client@0.25.0-rc.3':
-    resolution: {integrity: sha512-/ksofV5/jgkuAZ3Fu4oid0rYKoGdbgmFoEAaIXI0kbG19vurovIRp5vuYsFm4Xd78hfVs7U+A9k79ibVYZ6A/w==}
+  '@fishjam-cloud/react-native-client@0.25.0':
+    resolution: {integrity: sha512-JYksIMzNXZfYCqeX/wK0CUnHhioN5V9wbeHq9YkTIY8FiKGu0N4rWKoSZ8sC/nP39kUVc+aNc5lTBOAt+Pc6bQ==}
     peerDependencies:
       expo: '*'
       react: '*'
@@ -1307,8 +1313,8 @@ packages:
     peerDependencies:
       react-native: '*'
 
-  '@fishjam-cloud/ts-client@0.25.0-rc.3':
-    resolution: {integrity: sha512-XK0r6o3aLvDA0jb5GHhT2++Aw1rfV5CB43rvw3hl17I19CGClILbPuF+VWkd2C7w2f0EeUj2FWHBn6jG4vez/w==}
+  '@fishjam-cloud/ts-client@0.25.0':
+    resolution: {integrity: sha512-yHqVPZ8Zumkv2vtjT5ufLNgEa+redxLCaxFNgKfhqZLWI1RJT3ipXCYLqlc+T10eqTLpL7s+l5dEyDO5jxKadg==}
 
   '@gorhom/bottom-sheet@5.2.8':
     resolution: {integrity: sha512-+N27SMpbBxXZQ/IA2nlEV6RGxL/qSFHKfdFKcygvW+HqPG5jVNb1OqehLQsGfBP+Up42i0gW5ppI+DhpB7UCzA==}
@@ -1644,10 +1650,6 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
-
-  '@octetstream/promisify@2.0.2':
-    resolution: {integrity: sha512-7XHoRB61hxsz8lBQrjC1tq/3OEIgpvGWg6DKAdwi7WRzruwkmsdwmOoUXbU4Dtd4RSOMDwed0SkP3y8UlMt1Bg==}
-    engines: {node: 6.x || >=8.x}
 
   '@peculiar/asn1-android@2.6.0':
     resolution: {integrity: sha512-cBRCKtYPF7vJGN76/yG8VbxRcHLPF3HnkoHhKOZeHpoVtbMYfY9ROKtH3DtYUY9m8uI1Mh47PRhHf2hSK3xcSQ==}
@@ -2422,6 +2424,12 @@ packages:
   '@tanstack/query-core@5.90.20':
     resolution: {integrity: sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg==}
 
+  '@tanstack/query-persist-client-core@5.91.19':
+    resolution: {integrity: sha512-whrASqbVq8261Ue+/ZzpHsrLDYVfRaENs4HTdLuYKxawkGWzdMfV7BmOdWl8ZF0mEBEbrQR8V6oE3R635JF2Fw==}
+
+  '@tanstack/query-sync-storage-persister@5.90.22':
+    resolution: {integrity: sha512-QoOHewbI9a/7hezbVXlZOOCkF4oTnOpAGNMYiObUZm+jpEoLF5YqGMg0iDv3laSEymz81Zw8HJ8UFxP7mwEmqw==}
+
   '@tanstack/react-form@1.28.0':
     resolution: {integrity: sha512-ibLcf5QkTogV0Ly944CuqGxWTpHyreNA4Cy8Wtky7zE9wtE3HVapQt4/hUuXo51zihfTkv5URiXpoTSKF5Xosg==}
     peerDependencies:
@@ -2430,6 +2438,12 @@ packages:
     peerDependenciesMeta:
       '@tanstack/react-start':
         optional: true
+
+  '@tanstack/react-query-persist-client@5.90.22':
+    resolution: {integrity: sha512-BrD3Y/SsrSIDl+t/gpYvjvGHXd7m7oF+GIqktKE8LmTgt7bS1lYHd/CLkVxMPixTU53gHHVFfPNGmY7Hv4L/7g==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.90.20
+      react: ^18 || ^19
 
   '@tanstack/react-query@5.90.20':
     resolution: {integrity: sha512-vXBxa+qeyveVO7OA0jX1z+DeyCA4JKnThKv411jd5SORpBKgkcVnYKCiBgECvADvniBX7tobwBmg01qq9JmMJw==}
@@ -5006,10 +5020,6 @@ packages:
     resolution: {integrity: sha512-7PiHtLll5LdnKIMw100I+8xJXR5gW2QwWYkT6iJva0bXitZKa/XMrSbdmg3r2Xnaidz9Qumd0VPaMrZlF9V9sA==}
     engines: {node: '>=0.4.0'}
 
-  promise-fs@2.1.1:
-    resolution: {integrity: sha512-43p7e4QzAQ3w6eyN0+gbBL7jXiZFWLWYITg9wIObqkBySu/a5K1EDcQ/S6UyB/bmiZWDA4NjTbcopKLTaKcGSw==}
-    engines: {node: '>=6'}
-
   promise@7.3.1:
     resolution: {integrity: sha512-nolQXZ/4L+bP/UGlkfaIujX9BKxGwmQ9OT4mOt5yvy8iK1h3wqTEJCijzGANTCCl9nWjY41juyAn2K3Q1hLLTg==}
 
@@ -7367,19 +7377,18 @@ snapshots:
       chalk: 4.1.2
       js-yaml: 4.1.1
 
-  '@fishjam-cloud/react-client@0.25.0-rc.3(react@19.2.0)':
+  '@fishjam-cloud/react-client@0.25.0(react@19.2.0)':
     dependencies:
-      '@fishjam-cloud/ts-client': 0.25.0-rc.3
+      '@fishjam-cloud/ts-client': 0.25.0
       events: 3.3.0
       lodash.isequal: 4.5.0
       react: 19.2.0
 
-  '@fishjam-cloud/react-native-client@0.25.0-rc.3(expo@55.0.0-preview.10)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)':
+  '@fishjam-cloud/react-native-client@0.25.0(expo@55.0.0-preview.10)(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)':
     dependencies:
-      '@fishjam-cloud/react-client': 0.25.0-rc.3(react@19.2.0)
+      '@fishjam-cloud/react-client': 0.25.0(react@19.2.0)
       '@fishjam-cloud/react-native-webrtc': 0.25.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))
       expo: 55.0.0-preview.10(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.5)(expo-router@55.0.0-preview.7)(react-dom@19.2.0(react@19.2.0))(react-native-webview@13.16.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0))(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))(react@19.2.0)
-      promise-fs: 2.1.1
       react: 19.2.0
       react-native: 0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0)
       react-native-get-random-values: 1.11.0(react-native@0.83.1(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.0))
@@ -7395,7 +7404,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@fishjam-cloud/ts-client@0.25.0-rc.3':
+  '@fishjam-cloud/ts-client@0.25.0':
     dependencies:
       '@binbat/whip-whep': 1.1.1-sdp-trickle-throw
       '@bufbuild/protobuf': 2.11.0
@@ -7712,8 +7721,6 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
-
-  '@octetstream/promisify@2.0.2': {}
 
   '@peculiar/asn1-android@2.6.0':
     dependencies:
@@ -8532,6 +8539,15 @@ snapshots:
 
   '@tanstack/query-core@5.90.20': {}
 
+  '@tanstack/query-persist-client-core@5.91.19':
+    dependencies:
+      '@tanstack/query-core': 5.90.20
+
+  '@tanstack/query-sync-storage-persister@5.90.22':
+    dependencies:
+      '@tanstack/query-core': 5.90.20
+      '@tanstack/query-persist-client-core': 5.91.19
+
   '@tanstack/react-form@1.28.0(react-dom@19.2.0(react@19.2.0))(react@19.2.0)':
     dependencies:
       '@tanstack/form-core': 1.28.0
@@ -8539,6 +8555,12 @@ snapshots:
       react: 19.2.0
     transitivePeerDependencies:
       - react-dom
+
+  '@tanstack/react-query-persist-client@5.90.22(@tanstack/react-query@5.90.20(react@19.2.0))(react@19.2.0)':
+    dependencies:
+      '@tanstack/query-persist-client-core': 5.91.19
+      '@tanstack/react-query': 5.90.20(react@19.2.0)
+      react: 19.2.0
 
   '@tanstack/react-query@5.90.20(react@19.2.0)':
     dependencies:
@@ -11210,10 +11232,6 @@ snapshots:
   proc-log@4.2.0: {}
 
   progress@2.0.3: {}
-
-  promise-fs@2.1.1:
-    dependencies:
-      '@octetstream/promisify': 2.0.2
 
   promise@7.3.1:
     dependencies:

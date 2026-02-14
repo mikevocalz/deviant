@@ -138,6 +138,7 @@ function LocalRoom({
     openChat,
     closeChat,
     hideEject,
+    promoteListener,
     reset,
   } = useRoomStore();
 
@@ -288,6 +289,8 @@ function LocalRoom({
       onChat={handleChat}
       onCloseChat={handleCloseChat}
       onEjectDismiss={handleEjectDismiss}
+      onPromoteListener={promoteListener}
+      localRole="host"
     />
   );
 }
@@ -327,6 +330,7 @@ function ServerRoom({
     closeChat,
     showEject,
     hideEject,
+    promoteListener,
     reset,
   } = useRoomStore();
 
@@ -387,15 +391,22 @@ function ServerRoom({
 
     (async () => {
       try {
-        console.log("[SneakyLynk:Server] Peer connected — starting media");
+        console.log(
+          "[SneakyLynk:Server] Peer connected — starting media, isHost:",
+          isHost,
+        );
         audioSession.startForLynk(roomHasVideo);
-        if (roomHasVideo) {
-          console.log("[SneakyLynk:Server] Starting camera...");
-          await videoRoom.toggleCamera();
+        if (isHost) {
+          if (roomHasVideo) {
+            console.log("[SneakyLynk:Server] Starting camera...");
+            await videoRoom.toggleCamera();
+          }
+          console.log("[SneakyLynk:Server] Starting mic...");
+          await videoRoom.toggleMic();
+          console.log("[SneakyLynk:Server] Host media started successfully");
+        } else {
+          console.log("[SneakyLynk:Server] Listener joined — mic stays muted");
         }
-        console.log("[SneakyLynk:Server] Starting mic...");
-        await videoRoom.toggleMic();
-        console.log("[SneakyLynk:Server] Media started successfully");
       } catch (e) {
         console.warn("[SneakyLynk:Server] Failed to start media:", e);
       }
@@ -424,14 +435,14 @@ function ServerRoom({
     endRoomHistory(id, storeListeners.length);
     router.back();
   }, [router, id, endRoomHistory, storeListeners.length, isHost]);
-  const handleToggleMic = useCallback(
-    async () => videoRoom.toggleMic(),
-    [videoRoom],
-  );
-  const handleToggleVideo = useCallback(
-    async () => videoRoom.toggleCamera(),
-    [videoRoom],
-  );
+  const handleToggleMic = useCallback(async () => {
+    if (!isHost) return; // listeners can't toggle mic
+    await videoRoom.toggleMic();
+  }, [videoRoom, isHost]);
+  const handleToggleVideo = useCallback(async () => {
+    if (!isHost) return;
+    await videoRoom.toggleCamera();
+  }, [videoRoom, isHost]);
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
@@ -600,6 +611,8 @@ function ServerRoom({
       onChat={handleChat}
       onCloseChat={handleCloseChat}
       onEjectDismiss={handleEjectDismiss}
+      onPromoteListener={promoteListener}
+      localRole={isHost ? "host" : "listener"}
     />
   );
 }
@@ -639,10 +652,14 @@ function RoomLayout({
   onChat,
   onCloseChat,
   onEjectDismiss,
+  onPromoteListener,
+  onMuteCoHost,
+  localRole,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
   isHost: boolean;
+  localRole: "host" | "co-host" | "listener";
   roomTitle: string;
   participantCount: number;
   featuredSpeaker: any;
@@ -672,6 +689,8 @@ function RoomLayout({
   onChat: () => void;
   onCloseChat: () => void;
   onEjectDismiss: () => void;
+  onPromoteListener?: (userId: string) => void;
+  onMuteCoHost?: () => void;
 }) {
   const listeners = (storeListeners || []).map((l) => ({
     id: l.user.id,
@@ -739,12 +758,21 @@ function RoomLayout({
         />
 
         {/* Speakers Grid */}
-        <SpeakerGrid speakers={speakers} activeSpeakers={activeSpeakers} />
+        <SpeakerGrid
+          speakers={speakers}
+          activeSpeakers={activeSpeakers}
+          isLocalHost={isHost}
+          onMuteCoHost={onMuteCoHost}
+        />
 
         {/* Listeners Grid */}
         {listeners.length > 0 && (
           <View className="mb-24">
-            <ListenerGrid listeners={listeners} />
+            <ListenerGrid
+              listeners={listeners}
+              isHost={isHost}
+              onPromote={onPromoteListener}
+            />
           </View>
         )}
       </ScrollView>
@@ -758,6 +786,7 @@ function RoomLayout({
         isVideoEnabled={effectiveVideoOn}
         handRaised={isHandRaised}
         hasVideo={hasVideo ?? true}
+        localRole={localRole}
         onLeave={onLeave}
         onToggleMute={onToggleMic}
         onToggleVideo={onToggleVideo}
