@@ -49,9 +49,7 @@ export const presenceApi = {
    */
   async getPresence(
     userIds: number[],
-  ): Promise<
-    Array<{ userId: number; isOnline: boolean; lastSeenAt: string }>
-  > {
+  ): Promise<Array<{ userId: number; isOnline: boolean; lastSeenAt: string }>> {
     if (!userIds.length) return [];
 
     const { data, error } = await supabase
@@ -85,8 +83,20 @@ export const presenceApi = {
 
     if (error) return null;
 
+    // Validate is_online against last_seen_at — if heartbeat is stale (>2min),
+    // treat as offline regardless of DB flag (handles app crashes, force-closes)
+    const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 min (4× heartbeat interval)
+    let isOnline = data?.is_online ?? false;
+    if (isOnline && data?.last_seen_at) {
+      const lastSeen = new Date(data.last_seen_at).getTime();
+      const now = Date.now();
+      if (now - lastSeen > STALE_THRESHOLD_MS) {
+        isOnline = false;
+      }
+    }
+
     return {
-      isOnline: data?.is_online ?? false,
+      isOnline,
       lastSeenAt: data?.last_seen_at ?? "",
     };
   },
