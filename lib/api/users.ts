@@ -299,77 +299,90 @@ export const usersApi = {
 
   /**
    * Get newest users (for "Discover New Profiles" section)
-   * Queries app `users` table directly for newest signups.
+   * Queries Better Auth `user` table for real signups, then enriches
+   * with app `users` profile data where available.
    */
   async getNewestUsers(limit: number = 15) {
     try {
+      // Get current user's auth_id to exclude from results
       const currentUserRow = await getCurrentUserRow();
-      const currentId = currentUserRow?.id || null;
+      const currentAuthId = currentUserRow?.authId || null;
 
+      // Query Better Auth `user` table — this is where real signups live
       let query = supabase
-        .from(DB.users.table)
-        .select(
-          `
-          ${DB.users.id},
-          ${DB.users.authId},
-          ${DB.users.username},
-          ${DB.users.firstName},
-          ${DB.users.lastName},
-          ${DB.users.email},
-          ${DB.users.bio},
-          ${DB.users.verified},
-          ${DB.users.postsCount},
-          ${DB.users.createdAt},
-          avatar:${DB.users.avatarId}(url)
-        `,
-        )
-        .order(DB.users.createdAt, { ascending: false })
-        .limit(limit + 20);
+        .from("user")
+        .select("id, name, email, image, createdAt")
+        .order("createdAt", { ascending: false })
+        .limit(limit * 3);
 
-      if (currentId) {
-        query = query.neq(DB.users.id, currentId);
+      if (currentAuthId) {
+        query = query.neq("id", currentAuthId);
       }
 
-      const { data: users, error } = await query;
+      const { data: authUsers, error } = await query;
 
       if (error) {
-        console.error("[Users] getNewestUsers query error:", error);
+        console.error("[Users] getNewestUsers BA query error:", error);
         throw error;
       }
-      if (!users?.length) {
-        console.log("[Users] getNewestUsers: no users found");
+      if (!authUsers?.length) {
+        console.log("[Users] getNewestUsers: no BA users found");
         return [];
       }
 
-      console.log("[Users] getNewestUsers raw count:", users.length);
+      console.log("[Users] getNewestUsers BA raw count:", authUsers.length);
 
+      // Phase 1: Filter out test accounts by email only
       const TEST_EMAILS = ["@test.com", "@example.com", "@deviant.test"];
-      const HIDDEN_USERNAMES = ["mike_test", "applereview"];
-
-      const filtered = users.filter((u: any) => {
-        const email = (u[DB.users.email] || "").toLowerCase();
+      const emailFiltered = authUsers.filter((u: any) => {
+        const email = (u.email || "").toLowerCase();
         if (TEST_EMAILS.some((t) => email.endsWith(t))) return false;
-        const username = (u[DB.users.username] || "").toLowerCase();
+        const name = (u.name || "").toLowerCase().trim();
+        if (name.startsWith("test")) return false;
+        return true;
+      });
+
+      // Enrich with app profile data (username, avatar, bio)
+      const authIds = emailFiltered.map((u: any) => u.id);
+      const { data: profiles } = await supabase
+        .from(DB.users.table)
+        .select(
+          `${DB.users.authId}, ${DB.users.username}, ${DB.users.bio}, ${DB.users.verified}, avatar:${DB.users.avatarId}(url)`,
+        )
+        .in(DB.users.authId, authIds);
+
+      const profileMap: Record<string, any> = {};
+      for (const p of profiles || []) {
+        profileMap[p[DB.users.authId]] = p;
+      }
+
+      // Phase 2: Filter out hidden accounts by BOTH name and username
+      const HIDDEN_USERNAMES = ["mike_test", "applereview"];
+      const filtered = emailFiltered.filter((u: any) => {
+        const profile = profileMap[u.id];
+        const name = (u.name || "").toLowerCase().trim();
+        const username = (profile?.[DB.users.username] || "").toLowerCase();
+        if (HIDDEN_USERNAMES.includes(name)) return false;
         if (HIDDEN_USERNAMES.includes(username)) return false;
-        const firstName = (u[DB.users.firstName] || "").toLowerCase().trim();
-        if (firstName.startsWith("test")) return false;
-        if (HIDDEN_USERNAMES.includes(firstName)) return false;
         return true;
       });
 
       console.log("[Users] getNewestUsers filtered count:", filtered.length);
 
       return filtered.slice(0, limit).map((u: any) => {
-        const username = u[DB.users.username] || "user";
-        const displayName = (u[DB.users.firstName] || "").trim() || username;
+        const profile = profileMap[u.id];
+        const displayName = (u.name || "").trim();
+        const username =
+          profile?.[DB.users.username] ||
+          displayName.toLowerCase().replace(/\s+/g, "_");
         return {
-          id: u[DB.users.authId] || String(u[DB.users.id]),
+          id: u.id,
           username,
-          name: displayName,
-          avatar: u.avatar?.url || "",
-          verified: u[DB.users.verified] || false,
-          bio: u[DB.users.bio] || "",
-          postsCount: u[DB.users.postsCount] || 0,
+          name: displayName || username,
+          avatar: profile?.avatar?.url || u.image || "",
+          verified: profile?.[DB.users.verified] || false,
+          bio: profile?.[DB.users.bio] || "",
+          postsCount: 0,
         };
       });
     } catch (error) {
