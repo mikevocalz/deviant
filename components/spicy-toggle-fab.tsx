@@ -1,6 +1,7 @@
 import { View, Text, Platform } from "react-native";
 import { useCallback } from "react";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 import { Motion } from "@legendapp/motion";
 import { useAppStore } from "@/lib/stores/app-store";
 
@@ -21,8 +22,9 @@ export function SpicyToggleFAB() {
   }, [setNsfwEnabled]);
 
   // RNGH Gesture.Tap — wins gesture race against scroll views reliably
+  // runOnJS required because onEnd runs on UI thread by default
   const tapGesture = Gesture.Tap().onEnd(() => {
-    handleToggle();
+    runOnJS(handleToggle)();
   });
 
   return (
