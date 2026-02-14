@@ -157,7 +157,8 @@ export const messagesApi = {
           ${DB.messages.content},
           ${DB.messages.senderId},
           ${DB.messages.metadata},
-          ${DB.messages.createdAt}
+          ${DB.messages.createdAt},
+          ${DB.messages.readAt}
         `,
         )
         .eq(DB.messages.conversationId, parseInt(conversationId))
@@ -172,6 +173,8 @@ export const messagesApi = {
         sender: msg[DB.messages.senderId] === visitorId ? "user" : "other",
         senderId: String(msg[DB.messages.senderId]),
         timestamp: formatTimeAgo(msg[DB.messages.createdAt]),
+        createdAt: msg[DB.messages.createdAt],
+        readAt: msg[DB.messages.readAt] || null,
         metadata: msg[DB.messages.metadata] || null,
       }));
     } catch (error) {

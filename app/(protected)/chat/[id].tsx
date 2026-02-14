@@ -912,6 +912,18 @@ export default function ChatScreen() {
           renderItem={({ item }) => {
             const isMe = item.sender === "me";
             const hasReactions = item.reactions && item.reactions.length > 0;
+            // Show read receipt only on the last read message sent by me
+            const isLastReadByMe =
+              isMe &&
+              item.readAt &&
+              (() => {
+                // Find the last "me" message with readAt in the list
+                for (let i = chatMessages.length - 1; i >= 0; i--) {
+                  const m = chatMessages[i];
+                  if (m.sender === "me" && m.readAt) return m.id === item.id;
+                }
+                return false;
+              })();
 
             // Group reactions by emoji for display
             const groupedReactions = (item.reactions || []).reduce(
@@ -1054,16 +1066,39 @@ export default function ChatScreen() {
             ) : null;
 
             const messageContent = isMe ? (
-              <Pressable
-                style={{ maxWidth: "80%" }}
-                className="self-end mb-2"
-                onPress={() => handleDoubleTap(item)}
-                onLongPress={() => handleLongPressMessage(item)}
-                delayLongPress={400}
-              >
-                {bubble}
-                {reactionPills}
-              </Pressable>
+              <View className="self-end mb-2" style={{ maxWidth: "80%" }}>
+                <Pressable
+                  onPress={() => handleDoubleTap(item)}
+                  onLongPress={() => handleLongPressMessage(item)}
+                  delayLongPress={400}
+                >
+                  {bubble}
+                  {reactionPills}
+                </Pressable>
+                {isLastReadByMe && (
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      color: "rgba(255,255,255,0.45)",
+                      textAlign: "right",
+                      marginTop: 2,
+                      paddingRight: 4,
+                    }}
+                  >
+                    Read{" "}
+                    {(() => {
+                      try {
+                        const d = new Date(item.readAt!);
+                        return isNaN(d.getTime())
+                          ? ""
+                          : `· ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                      } catch {
+                        return "";
+                      }
+                    })()}
+                  </Text>
+                )}
+              </View>
             ) : (
               <Pressable
                 className="flex-row items-end gap-2 mb-2 self-start"

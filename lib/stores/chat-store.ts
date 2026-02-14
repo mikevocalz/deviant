@@ -40,6 +40,7 @@ export interface Message {
   sender: "me" | "them";
   senderId?: string;
   time: string;
+  readAt?: string | null;
   mentions?: string[];
   media?: MediaAttachment;
   storyReply?: StoryReplyContext;
@@ -239,6 +240,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     uri: meta.mediaUrl as string,
                   }
                 : undefined,
+          readAt: msg.readAt || null,
           storyReply,
           sharedPost,
           reactions: (() => {
