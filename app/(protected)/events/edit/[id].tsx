@@ -14,7 +14,6 @@ import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useState, useEffect } from "react";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { getAuthToken } from "@/lib/auth-client";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 
 export default function EditEventScreen() {
@@ -57,9 +56,7 @@ export default function EditEventScreen() {
       setDescription(eventData.description || "");
       setLocation(eventData.location || "");
       setEventDate(
-        (eventData as any).date
-          ? new Date((eventData as any).date)
-          : new Date(),
+        eventData.fullDate ? new Date(eventData.fullDate) : new Date(),
       );
       setTicketPrice(eventData.price ? String(eventData.price) : "");
       setMaxAttendees(
