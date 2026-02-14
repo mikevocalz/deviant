@@ -56,11 +56,7 @@ import {
   type SafeProfileData,
   type SafeGridTile,
 } from "@/lib/utils/safe-profile-mappers";
-import {
-  getFallbackAvatarUrl,
-  appendCacheBuster,
-  getAvatarUrl,
-} from "@/lib/media/resolveAvatarUrl";
+import { appendCacheBuster, getAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
 const GRID_GAP = 2; // gap between grid items

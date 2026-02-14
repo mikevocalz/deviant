@@ -103,7 +103,7 @@ export default function ManageCloseFriendsScreen() {
             source={{
               uri:
                 item.avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=1c1c1c&color=f5f5f4`,
+                "",
             }}
             style={{ width: 48, height: 48, borderRadius: 24 }}
             contentFit="cover"

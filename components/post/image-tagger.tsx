@@ -360,7 +360,7 @@ export function ImageTagger({
                     source={{
                       uri:
                         user.avatar ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(user.username)}&background=3EA4E5&color=fff`,
+                        "",
                     }}
                     style={styles.resultAvatar}
                   />

@@ -1069,7 +1069,7 @@ export default function StoryViewerScreen() {
                     source={{
                       uri:
                         tag.avatar ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(tag.username)}&background=1a1a1a&color=fff`,
+                        "",
                     }}
                     style={{ width: 22, height: 22, borderRadius: 11 }}
                   />
@@ -1087,7 +1087,7 @@ export default function StoryViewerScreen() {
                 source={{
                   uri:
                     storyTags[0].avatar ||
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(storyTags[0].username)}&background=1a1a1a&color=fff`,
+                    "",
                 }}
                 style={{ width: 20, height: 20, borderRadius: 10 }}
               />

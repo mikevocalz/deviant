@@ -53,9 +53,7 @@ function buildLocalUser(authUser: any): SneakyUser {
     displayName: authUser?.name || authUser?.username || "You",
     avatar:
       authUser?.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        authUser?.username || "U",
-      )}&background=1a1a1a&color=fff&rounded=true`,
+      "",
     isVerified: authUser?.isVerified || false,
   };
 }
@@ -477,9 +475,7 @@ function ServerRoom({
     displayName: p.username || "User",
     avatar:
       p.avatar ||
-      `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        p.username || "U",
-      )}&background=1a1a1a&color=fff&rounded=true`,
+      "",
     isVerified: false,
   });
 

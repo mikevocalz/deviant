@@ -60,11 +60,7 @@ export default function NewMessageScreen() {
       id: String(user.id || ""),
       username: (user.username as string) || "unknown",
       name: (user.name as string) || (user.username as string) || "User",
-      avatar:
-        (user.avatar as string) ||
-        `https://ui-avatars.com/api/?name=${encodeURIComponent(
-          (user.username as string) || "User",
-        )}`,
+      avatar: (user.avatar as string) || "",
     }));
 
   // FIXED: Create or get conversation BEFORE navigating to chat

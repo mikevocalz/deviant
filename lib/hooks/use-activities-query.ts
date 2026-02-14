@@ -71,9 +71,7 @@ function notificationToActivity(notif: Notification): Activity | null {
       user: {
         id: notif.sender?.id || "",
         username: senderUsername,
-        avatar:
-          notif.sender?.avatar ||
-          `https://ui-avatars.com/api/?name=${encodeURIComponent(senderUsername)}&background=3EA4E5&color=fff`,
+        avatar: notif.sender?.avatar || "",
       },
       entityType: notif.entityType as
         | "post"

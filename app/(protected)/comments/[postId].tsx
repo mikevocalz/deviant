@@ -437,7 +437,7 @@ export default function CommentsScreen() {
                     source={{
                       uri:
                         u.avatar ||
-                        `https://ui-avatars.com/api/?name=${encodeURIComponent(u.username)}&background=1a1a1a&color=fff`,
+                        "",
                     }}
                     style={{ width: 28, height: 28, borderRadius: 6 }}
                   />

@@ -91,7 +91,7 @@ export function useCreateComment() {
       const optimisticComment: Comment = {
         id: `temp-${Date.now()}`,
         username: newComment.authorUsername || "You",
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newComment.authorUsername || "You")}`,
+        avatar: "",
         text: newComment.text,
         timeAgo: "Just now",
         likes: 0,
