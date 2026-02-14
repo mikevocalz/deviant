@@ -560,6 +560,7 @@ export default function CreateScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
         bottomOffset={100}
         enabled={true}

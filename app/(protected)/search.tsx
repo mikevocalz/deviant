@@ -357,7 +357,7 @@ export default function SearchScreen() {
         </View>
 
         {/* Content */}
-        <ScrollView className="flex-1">
+        <ScrollView className="flex-1" keyboardDismissMode="on-drag">
           {isLoading ? (
             <SearchSkeleton />
           ) : searchQuery.length === 0 ? (

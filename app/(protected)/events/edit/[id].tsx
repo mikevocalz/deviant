@@ -194,6 +194,7 @@ export default function EditEventScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16 }}
         bottomOffset={40}
+        keyboardDismissMode="on-drag"
       >
         {/* Title */}
         <View className="mb-4">

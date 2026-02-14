@@ -411,6 +411,7 @@ export default function EditPostScreen() {
       <KeyboardAwareScrollView
         bottomOffset={insets.bottom + 20}
         showsVerticalScrollIndicator={false}
+        keyboardDismissMode="on-drag"
       >
         {/* ─── Media Preview Section ─── */}
         {hasMedia && (
