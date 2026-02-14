@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     // Fetch email and name from Better Auth user table (needed for user creation/sync)
     const { data: baUser, error: baUserError } = await supabaseAdmin
       .from("user")
-      .select("id, email, name, image")
+      .select("id, email, name, image, username")
       .eq("id", authId)
       .single();
 
@@ -117,6 +117,7 @@ Deno.serve(async (req) => {
 
     const email = baUser.email;
     const name = baUser.name || "";
+    const baUsername = baUser.username || ""; // Username from Better Auth (set during signup)
 
     console.log("[Edge:auth-sync] Syncing user:", { authId, email });
 
@@ -209,12 +210,30 @@ Deno.serve(async (req) => {
     // 6. Create new user
     console.log("[Edge:auth-sync] Creating new user for:", email);
 
-    // Generate username from email
-    const baseUsername = email
-      .split("@")[0]
-      .replace(/[^a-zA-Z0-9]/g, "")
-      .toLowerCase();
-    const username = `${baseUsername}${Math.floor(Math.random() * 1000)}`;
+    // Use username from Better Auth if available (set during signup),
+    // otherwise generate a fallback from email
+    let username = baUsername;
+    if (!username) {
+      const baseUsername = email
+        .split("@")[0]
+        .replace(/[^a-zA-Z0-9_]/g, "")
+        .toLowerCase();
+      username = `${baseUsername}${Math.floor(Math.random() * 1000)}`;
+    }
+
+    // Ensure username is unique — if taken, append random digits
+    const { data: existingUsername } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("username", username)
+      .maybeSingle();
+
+    if (existingUsername) {
+      username = `${username}${Math.floor(Math.random() * 10000)}`;
+      console.log("[Edge:auth-sync] Username taken, using fallback:", username);
+    }
+
+    console.log("[Edge:auth-sync] Using username:", username);
 
     const { data: newUser, error: createError } = await supabaseAdmin
       .from("users")

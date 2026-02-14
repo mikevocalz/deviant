@@ -288,7 +288,7 @@ export function SignUpStep1() {
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
   const checkUsernameAvailability = useCallback(async (username: string) => {
-    if (username.length < 5 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+    if (username.length < 3 || !/^[a-zA-Z0-9_]+$/.test(username)) {
       setUsernameStatus("idle");
       setUsernameSuggestions([]);
       return;
@@ -336,8 +336,8 @@ export function SignUpStep1() {
     (value: string, onChange: (v: string) => void) => {
       if (checkTimeoutId) clearTimeout(checkTimeoutId);
 
-      // Normalize: lowercase, remove spaces
-      const normalized = value.toLowerCase().replace(/\s/g, "");
+      // Normalize: lowercase, strip all invalid chars (not just spaces)
+      const normalized = value.toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (normalized !== value) {
         onChange(normalized);
       }
@@ -448,10 +448,10 @@ export function SignUpStep1() {
         validators={{
           onChange: ({ value }: any) => {
             if (!value) return "Username is required";
-            if (value.length < 5)
-              return "Username must be at least 5 characters";
-            if (value.length > 20)
-              return "Username must be 20 characters or less";
+            if (value.length < 3)
+              return "Username must be at least 3 characters";
+            if (value.length > 30)
+              return "Username must be 30 characters or less";
             if (!/^[a-z0-9_]+$/.test(value))
               return "Only lowercase letters, numbers, and underscores";
             if (usernameStatus === "taken") return "Username is already taken";
@@ -474,6 +474,8 @@ export function SignUpStep1() {
                 onBlur={field.handleBlur}
                 placeholder="johndoe"
                 autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={30}
               />
               <View className="absolute right-3 top-3">
                 {usernameStatus === "checking" && (
