@@ -36,6 +36,7 @@ const UpdateProfileSchema = z
     website: z.string().max(200).optional(),
     avatar: z.string().optional(),
     avatarUrl: z.string().optional(),
+    links: z.array(z.string().max(200)).max(4).optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: "At least one field must be provided",
@@ -171,6 +172,9 @@ Deno.serve(async (req) => {
     if (updates.website !== undefined) {
       updateData.website = updates.website;
     }
+    if (updates.links !== undefined) {
+      updateData.links = JSON.stringify(updates.links);
+    }
 
     // Username change — check uniqueness before updating
     if (updates.username !== undefined) {
@@ -244,6 +248,7 @@ Deno.serve(async (req) => {
         bio,
         location,
         website,
+        links,
         verified,
         followers_count,
         following_count,
@@ -369,6 +374,7 @@ Deno.serve(async (req) => {
           bio: updatedUser.bio,
           location: updatedUser.location,
           website: updatedUser.website,
+          links: updatedUser.links || [],
           avatar: (updatedUser.avatar as any)?.url,
           isVerified: updatedUser.verified || false,
           postsCount: updatedUser.posts_count || 0,

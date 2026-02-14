@@ -250,6 +250,7 @@ export const usersApi = {
     location?: string;
     name?: string;
     website?: string;
+    links?: string[];
     avatar?: string;
   }) {
     try {
@@ -264,6 +265,7 @@ export const usersApi = {
         bio: updates.bio,
         location: updates.location,
         website: updates.website,
+        links: updates.links,
         avatarUrl: updates.avatar,
       });
 

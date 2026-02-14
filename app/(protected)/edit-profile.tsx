@@ -81,7 +81,7 @@ export default function EditProfileScreen() {
   const [usernameError, setUsernameError] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [gender, setGender] = useState("");
-  const [links, setLinks] = useState<string[]>([]);
+  const [links, setLinks] = useState<string[]>((user as any)?.links || []);
   const [newLink, setNewLink] = useState("");
   const [showPronouns, setShowPronouns] = useState(false);
   const [showGender, setShowGender] = useState(false);
@@ -135,8 +135,8 @@ export default function EditProfileScreen() {
   const addLink = () => {
     const trimmed = newLink.trim();
     if (!trimmed) return;
-    if (links.length >= 5) {
-      showToast("warning", "Limit", "You can add up to 5 links");
+    if (links.length >= 4) {
+      showToast("warning", "Limit", "You can add up to 4 links");
       return;
     }
     setLinks((prev) => [...prev, trimmed]);
@@ -191,10 +191,16 @@ export default function EditProfileScreen() {
         return;
       }
 
+      const allLinks = [
+        ...(editWebsite.trim() ? [editWebsite.trim()] : []),
+        ...links,
+      ].slice(0, 4);
+
       const updateData: {
         name?: string;
         bio?: string;
         website?: string;
+        links?: string[];
         location?: string;
         avatar?: string;
         username?: string;
@@ -202,6 +208,7 @@ export default function EditProfileScreen() {
         name: editName.trim(),
         bio: editBio.trim(),
         website: editWebsite.trim(),
+        links: allLinks,
         location: editLocation.trim(),
         ...(avatarUrl ? { avatar: avatarUrl } : {}),
         // Only include username if it changed
@@ -725,7 +732,7 @@ export default function EditProfileScreen() {
               ))}
 
               {/* Add link */}
-              {links.length < 5 && (
+              {links.length < 4 && (
                 <View style={{ ...rowStyle, borderBottomWidth: 0 }}>
                   <Plus size={18} color={colors.primary} />
                   <TextInput
