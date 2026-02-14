@@ -26,7 +26,6 @@ import {
   safePause,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
-import { SharedImage } from "@/components/shared-image";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { TagBadges } from "@/components/ui/tag-badges";
 import { PostActionSheet } from "@/components/post-action-sheet";

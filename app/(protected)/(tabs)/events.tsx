@@ -17,7 +17,6 @@ import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
-import { SharedImage } from "@/components/shared-image";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -86,11 +85,12 @@ function EventCard({
                 animatedImageStyle,
               ]}
             >
-              <SharedImage
-                sharedTag={`event-image-${event.id}`}
+              <Image
                 source={{ uri: event.image }}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
               />
             </Animated.View>
             <LinearGradient

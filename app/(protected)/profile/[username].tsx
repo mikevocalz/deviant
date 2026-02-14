@@ -19,7 +19,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { shareProfile } from "@/lib/utils/sharing";
-import { SharedImage } from "@/components/shared-image";
 import { Motion } from "@legendapp/motion";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileActionSheet } from "@/components/profile-action-sheet";
@@ -33,7 +32,6 @@ import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
-import { SharedAvatar } from "@/components/shared-avatar";
 
 const GRID_GAP = 2;
 
@@ -515,8 +513,7 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <SharedAvatar
-                sharedTag={`profile-avatar-${user.username}`}
+              <Avatar
                 uri={user.avatar}
                 username={user.username}
                 size={80}
@@ -700,12 +697,7 @@ function UserProfileScreenComponent() {
                       position: "relative",
                     }}
                   >
-                    <SharedImage
-                      sharedTag={
-                        !post.type || post.type === "image"
-                          ? `post-media-${post.id}`
-                          : undefined
-                      }
+                    <Image
                       source={{ uri: post.thumbnail }}
                       style={{
                         width: "100%",
@@ -714,6 +706,8 @@ function UserProfileScreenComponent() {
                         borderRadius: 8,
                       }}
                       contentFit="cover"
+                      transition={200}
+                      cachePolicy="memory-disk"
                     />
                     {/* Video indicator */}
                     {post.type === "video" && (

@@ -7,7 +7,6 @@ import {
   useWindowDimensions,
   Linking,
 } from "react-native";
-import { SharedImage } from "@/components/shared-image";
 import { Avatar } from "@/components/ui/avatar";
 import { Image } from "expo-image";
 import {
@@ -1129,11 +1128,12 @@ function ProfileScreenContent() {
                     style={{ borderRadius: 8 }}
                   >
                     {item.coverUrl ? (
-                      <SharedImage
+                      <Image
                         source={{ uri: item.coverUrl }}
                         style={{ width: "100%", height: "100%" }}
                         contentFit="cover"
-                        sharedTag={`post-media-${item.id}`}
+                        transition={200}
+                        cachePolicy="memory-disk"
                       />
                     ) : (
                       <View

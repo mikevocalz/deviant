@@ -1,9 +1,7 @@
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
-import { SharedImage } from "@/components/shared-image";
 import { Article } from "@expo/html-elements";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
-import { SharedAvatar } from "@/components/shared-avatar";
 import {
   Heart,
   MessageCircle,
