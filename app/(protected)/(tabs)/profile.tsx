@@ -5,6 +5,7 @@ import {
   Pressable,
   ActivityIndicator,
   useWindowDimensions,
+  Linking,
 } from "react-native";
 import { SharedImage } from "@/components/shared-image";
 import { Avatar } from "@/components/ui/avatar";
@@ -320,6 +321,7 @@ function ProfileScreenContent() {
   const displayBio = profileData?.bio || user?.bio;
   const displayLocation = user?.location; // Only in auth store
   const displayWebsite = user?.website; // Only in auth store
+  const displayLinks: string[] = (user as any)?.links || [];
   const displayHashtags = user?.hashtags; // Only in auth store
   const displayFollowersCount =
     profileData?.followersCount ?? user?.followersCount ?? 0;
@@ -705,10 +707,37 @@ function ProfileScreenContent() {
               </Text>
             )}
             {displayWebsite && (
-              <Text className="mt-1.5 text-sm font-medium text-primary">
-                {displayWebsite}
-              </Text>
+              <Pressable
+                onPress={() => {
+                  const url = displayWebsite.startsWith("http")
+                    ? displayWebsite
+                    : `https://${displayWebsite}`;
+                  Linking.openURL(url);
+                }}
+              >
+                <Text className="mt-1.5 text-sm font-medium text-primary">
+                  {displayWebsite}
+                </Text>
+              </Pressable>
             )}
+            {displayLinks.length > 0 &&
+              displayLinks
+                .filter((l) => l !== displayWebsite)
+                .map((link, i) => (
+                  <Pressable
+                    key={i}
+                    onPress={() => {
+                      const url = link.startsWith("http")
+                        ? link
+                        : `https://${link}`;
+                      Linking.openURL(url);
+                    }}
+                  >
+                    <Text className="mt-1 text-sm font-medium text-primary">
+                      {link}
+                    </Text>
+                  </Pressable>
+                ))}
             {Array.isArray(displayHashtags) && displayHashtags.length > 0 && (
               <View className="mt-2 flex-row flex-wrap gap-2">
                 {displayHashtags.map((tag, index) => (
