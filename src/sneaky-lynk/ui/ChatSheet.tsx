@@ -512,7 +512,7 @@ export function ChatSheet({
   const threads = useMemo(() => buildCommentThreads(comments), [comments]);
 
   // 50% and 75% snap points for detachable behavior
-  const snapPoints = useMemo(() => ["50%", "75%"], []);
+  const snapPoints = useMemo(() => ["60%", "90%"], []);
 
   const handleSheetChanges = useCallback(
     (index: number) => {
@@ -681,7 +681,8 @@ export function ChatSheet({
         {...props}
         disappearsOnIndex={-1}
         appearsOnIndex={0}
-        opacity={0.5}
+        opacity={0.85}
+        pressBehavior="close"
       />
     ),
     [],
