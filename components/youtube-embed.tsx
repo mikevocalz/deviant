@@ -66,7 +66,7 @@ function YouTubeEmbedComponent({ url, height = 220 }: YouTubeEmbedProps) {
     </head>
     <body>
       <iframe
-        src="https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1&origin=https://dvnt.b-cdn.net&enablejsapi=1"
+        src="https://www.youtube-nocookie.com/embed/${videoId}?playsinline=1&rel=0&modestbranding=1"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
         allowfullscreen
       ></iframe>
