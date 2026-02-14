@@ -53,6 +53,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete";
 import { useCreateEvent } from "@/lib/hooks/use-events";
+import { YouTubeEmbed, extractVideoId } from "@/components/youtube-embed";
 
 const SUGGESTED_TAGS = [
   "music",
@@ -624,6 +625,13 @@ export default function CreateEventScreen() {
               </Pressable>
             )}
           </View>
+
+          {/* Live YouTube preview */}
+          {youtubeUrl.trim() !== "" && extractVideoId(youtubeUrl.trim()) && (
+            <View className="mt-3">
+              <YouTubeEmbed url={youtubeUrl.trim()} height={200} />
+            </View>
+          )}
         </View>
 
         {/* Event Images */}
