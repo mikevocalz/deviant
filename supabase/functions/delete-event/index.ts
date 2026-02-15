@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,12 +87,12 @@ Deno.serve(async (req) => {
 
     console.log("[Edge:delete-event] eventId:", eventId, "user:", authUserId);
 
-    // Look up the app user row
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("id, auth_id")
-      .eq("auth_id", authUserId)
-      .single();
+    // Look up the app user row (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id, auth_id",
+    );
     if (!userData) return errorResponse("not_found", "User not found");
 
     // Fetch the event

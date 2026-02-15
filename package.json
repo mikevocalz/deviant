@@ -33,6 +33,7 @@
     "@nandorojo/galeria": "^2.0.2",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-native-community/datetimepicker": "8.6.0",
+    "@react-native-community/slider": "5.1.1",
     "@react-navigation/native": "^7.1.8",
     "@regulaforensics/react-native-face-api": "^7.1.628",
     "@rive-app/react-native": "0.2.1",
@@ -51,6 +52,7 @@
     "@types/pg": "^8.16.0",
     "babel-preset-expo": "^55.0.4",
     "better-auth": "^1.4.18",
+    "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "55.0.0-preview.10",
@@ -170,6 +172,10 @@
       "esbuild",
       "@swc/core",
       "@shopify/react-native-skia"
-    ]
+    ],
+    "overrides": {
+      "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
+      "hermes-compiler": "250829098.0.4"
+    }
   }
 }

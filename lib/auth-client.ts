@@ -143,13 +143,18 @@ export async function handleSignOut() {
   clearAllCachedData();
 
   // 3. Explicitly clear Better Auth session from SecureStore
-  // The expo client stores the session cookie with prefix "dvnt" / "better-auth"
+  // The expo client stores cookies at `${storagePrefix}_cookie` and
+  // cached session at `${storagePrefix}_session_data`.
+  // With storagePrefix="dvnt", the actual keys are:
+  //   "dvnt_cookie"        — session cookie JSON
+  //   "dvnt_session_data"  — cached session data
   try {
     const keysToDelete = [
-      "dvnt_better-auth.session_token",
-      "dvnt_better-auth.session",
-      "better-auth.session_token",
-      "better-auth.session",
+      "dvnt_cookie",
+      "dvnt_session_data",
+      // Legacy keys (in case format changes between versions)
+      "better-auth_cookie",
+      "better-auth_session_data",
     ];
     for (const key of keysToDelete) {
       try {

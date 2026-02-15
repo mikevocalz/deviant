@@ -235,9 +235,20 @@ Deno.serve(async (req) => {
 
     console.log("[Edge:auth-sync] Using username:", username);
 
+    // users.id has NO auto-increment — must generate explicitly
+    const { data: maxRow } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1)
+      .single();
+    const nextId = (maxRow?.id || 0) + 1;
+    console.log("[Edge:auth-sync] Next ID:", nextId);
+
     const { data: newUser, error: createError } = await supabaseAdmin
       .from("users")
       .insert({
+        id: nextId,
         auth_id: authId,
         email: email,
         username: username,

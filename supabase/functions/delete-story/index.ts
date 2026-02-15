@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,11 +84,11 @@ Deno.serve(async (req) => {
     if (!storyId)
       return errorResponse("validation_error", "storyId is required");
 
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
     if (!userData) return errorResponse("not_found", "User not found");
 
     // Verify ownership
@@ -107,8 +108,7 @@ Deno.serve(async (req) => {
       .from("stories")
       .delete()
       .eq("id", storyId);
-    if (error)
-      return errorResponse("internal_error", "Failed to delete story");
+    if (error) return errorResponse("internal_error", "Failed to delete story");
 
     return jsonResponse({ ok: true, data: { success: true } });
   } catch (err) {

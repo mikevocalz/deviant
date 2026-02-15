@@ -23,7 +23,12 @@ import {
   Globe,
   UserPlus,
 } from "lucide-react-native";
-import { useRouter, useNavigation, useFocusEffect } from "expo-router";
+import {
+  useRouter,
+  useNavigation,
+  useFocusEffect,
+  useLocalSearchParams,
+} from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
@@ -104,6 +109,25 @@ export default function CreateStoryScreen() {
     Record<string, string>
   >({});
   const openStickerSheet = useStickerStore((s) => s.openSheet);
+
+  // Pick up edited URI coming back from the Skia editor
+  const { editedUri, editedIndex } = useLocalSearchParams<{
+    editedUri?: string;
+    editedIndex?: string;
+  }>();
+
+  useEffect(() => {
+    if (editedUri && editedIndex !== undefined) {
+      const idx = parseInt(editedIndex, 10);
+      if (!isNaN(idx) && mediaAssets[idx]) {
+        const updated = [...mediaAssets];
+        updated[idx] = { ...updated[idx], uri: editedUri, type: "image" };
+        setMediaAssets(updated);
+        setSelectedMedia([editedUri], ["image"]);
+        console.log("[Story] Applied edited image at index", idx);
+      }
+    }
+  }, [editedUri, editedIndex]);
 
   useEffect(() => {
     requestPermissions();
@@ -310,6 +334,24 @@ export default function CreateStoryScreen() {
       }
     },
     [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
+  );
+
+  const handleOpenSkiaEditor = useCallback(
+    (index: number, initialMode?: string) => {
+      const asset = mediaAssets[index];
+      if (!asset) return;
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      router.push({
+        pathname: "/(protected)/story/editor",
+        params: {
+          uri: encodeURIComponent(asset.uri),
+          type: asset.type,
+          ...(initialMode && { initialMode }),
+        },
+      });
+    },
+    [mediaAssets, router],
   );
 
   const handleStickersDone = useCallback(
@@ -545,9 +587,9 @@ export default function CreateStoryScreen() {
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
-                    {/* Tap anywhere to open editor (background layer — z-0) */}
+                    {/* Tap anywhere to open Skia editor (background layer — z-0) */}
                     <Pressable
-                      onPress={() => handleEditImage(currentIndex)}
+                      onPress={() => handleOpenSkiaEditor(currentIndex)}
                       style={{
                         position: "absolute",
                         top: 0,
@@ -575,15 +617,18 @@ export default function CreateStoryScreen() {
                                 "Save",
                                 "Image saved to gallery",
                               );
-                            } else if (tool.id === "text") {
-                              handleEditImage(currentIndex, "text");
-                            } else if (tool.id === "stickers") {
-                              // Open native editor directly with all stickers
-                              handleEditImage(currentIndex, "stickers");
-                            } else if (tool.id === "draw") {
-                              handleEditImage(currentIndex, "draw");
-                            } else if (tool.id === "effects") {
-                              handleEditImage(currentIndex, "filter");
+                            } else {
+                              // Map tool ID to editor mode
+                              const modeMap: Record<string, string> = {
+                                text: "text",
+                                stickers: "sticker",
+                                draw: "drawing",
+                                effects: "filter",
+                              };
+                              handleOpenSkiaEditor(
+                                currentIndex,
+                                modeMap[tool.id],
+                              );
                             }
                           }}
                           className="items-center"

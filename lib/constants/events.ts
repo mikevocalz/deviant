@@ -7,7 +7,8 @@ export const events = [
     time: "6:00 PM",
     location: "Lower East Side, NY",
     price: 35,
-    image: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
     attendees: [
       { image: "https://i.pravatar.cc/150?img=5", name: "Sarah" },
       { image: "https://i.pravatar.cc/150?img=9", name: "Maria" },
@@ -27,7 +28,8 @@ export const events = [
     time: "8:00 PM",
     location: "Brooklyn, NY",
     price: 45,
-    image: "https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=800&h=1000&fit=crop",
     attendees: [
       { image: "https://i.pravatar.cc/150?img=10", name: "Emma" },
       { name: "MK", initials: "MK" },
@@ -47,7 +49,8 @@ export const events = [
     time: "11:00 AM",
     location: "Manhattan, NY",
     price: 55,
-    image: "https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=800&h=1000&fit=crop",
     attendees: [
       { image: "https://i.pravatar.cc/150?img=16", name: "Alex" },
       { image: "https://i.pravatar.cc/150?img=20", name: "Lisa" },
@@ -67,7 +70,8 @@ export const events = [
     time: "6:30 PM",
     location: "SoHo, NY",
     price: 25,
-    image: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=1000&fit=crop",
     attendees: [
       { name: "RS", initials: "RS" },
       { image: "https://i.pravatar.cc/150?img=5", name: "Sarah" },
@@ -87,7 +91,8 @@ export const events = [
     time: "7:00 PM",
     location: "Greenwich Village, NY",
     price: 30,
-    image: "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&h=1000&fit=crop",
     attendees: [
       { image: "https://i.pravatar.cc/150?img=10", name: "Emma" },
       { image: "https://i.pravatar.cc/150?img=12", name: "John" },
@@ -107,7 +112,8 @@ export const events = [
     time: "5:00 PM",
     location: "Chelsea, NY",
     price: 20,
-    image: "https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=800&h=1000&fit=crop",
+    image:
+      "https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=800&h=1000&fit=crop",
     attendees: [
       { image: "https://i.pravatar.cc/150?img=9", name: "Maria" },
       { name: "GH", initials: "GH" },
@@ -119,6 +125,12 @@ export const events = [
     likes: 720,
     category: "Art & Culture",
   },
-]
+];
 
-export const AVATAR_COLORS = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8"]
+export const AVATAR_COLORS = [
+  "#FF6B6B",
+  "#4ECDC4",
+  "#45B7D1",
+  "#FFA07A",
+  "#98D8C8",
+];

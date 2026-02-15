@@ -1,6 +1,7 @@
 import { View, Text, Pressable, RefreshControl } from "react-native";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
+import { Avatar } from "@/components/ui/avatar";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useCallback, useEffect, memo, useState, useRef, useMemo } from "react";
@@ -102,9 +103,11 @@ const ActivityItem = memo(
         style={{ overflow: "visible", marginRight: 4 }}
       >
         <View style={{ overflow: "visible", width: 48, height: 48 }}>
-          <Image
-            source={{ uri: activity.user.avatar }}
-            style={{ width: 44, height: 44, borderRadius: 22 }}
+          <Avatar
+            uri={activity.user.avatar}
+            username={activity.user.username}
+            size={44}
+            variant="circle"
           />
           <View
             className="absolute bg-card rounded-full p-1 border-2 border-background"

@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -83,52 +84,146 @@ Deno.serve(async (req) => {
       typeof authUserId,
     );
 
-    let body: { targetUserId: number };
+    let body: { targetUserId?: number; targetAuthId?: string };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { targetUserId } = body;
-    if (!targetUserId || typeof targetUserId !== "number") {
+    let { targetUserId } = body;
+    const { targetAuthId } = body;
+
+    if (!targetUserId && !targetAuthId) {
       return errorResponse(
         "validation_error",
-        "targetUserId is required and must be a number",
+        "targetUserId or targetAuthId is required",
         400,
       );
     }
 
-    // Get user's integer ID
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
+    // Resolve targetAuthId → integer ID (auto-provision if needed)
+    if (!targetUserId && targetAuthId) {
+      console.log("[Edge:toggle-follow] Resolving targetAuthId:", targetAuthId);
 
-    if (userError || !userData) {
-      console.error(
-        "[Edge:toggle-follow] User lookup failed — authUserId:",
-        authUserId,
-        "error:",
-        userError?.message,
-        "code:",
-        userError?.code,
-      );
-      // Fallback: try looking up by email from Better Auth user table
-      const { data: baUser } = await supabaseAdmin
-        .from("user")
-        .select("id, email")
-        .eq("id", authUserId)
+      // Step 1: Check existing users row
+      const { data: existingUser, error: existErr } = await supabaseAdmin
+        .from("users")
+        .select("id")
+        .eq("auth_id", targetAuthId)
         .single();
-      console.error(
-        "[Edge:toggle-follow] Better Auth user row:",
-        baUser ? { id: baUser.id, email: baUser.email } : "NOT FOUND",
-      );
-      return errorResponse("not_found", "User not found");
+
+      if (existingUser) {
+        console.log(
+          "[Edge:toggle-follow] Found existing user:",
+          existingUser.id,
+        );
+        targetUserId = existingUser.id;
+      } else {
+        console.log(
+          "[Edge:toggle-follow] No users row, existErr:",
+          existErr?.code,
+        );
+
+        // Step 2: Look up BA user
+        const { data: baUser, error: baErr } = await supabaseAdmin
+          .from("user")
+          .select("id, name, email, image, username")
+          .eq("id", targetAuthId)
+          .single();
+
+        if (!baUser) {
+          return errorResponse(
+            "not_found",
+            `BA user not found for ${targetAuthId}: ${baErr?.message}`,
+          );
+        }
+        console.log(
+          "[Edge:toggle-follow] BA user found:",
+          baUser.email,
+          baUser.username,
+        );
+
+        // Step 3: Auto-provision (id column has no auto-increment, must generate explicitly)
+        const displayName = (baUser.name || "").trim();
+        const autoUsername =
+          baUser.username ||
+          displayName
+            .toLowerCase()
+            .replace(/[^a-z0-9_]/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_|_$/g, "") ||
+          `user_${targetAuthId.slice(0, 8)}`;
+
+        // Get next ID
+        const { data: maxRow } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .order("id", { ascending: false })
+          .limit(1)
+          .single();
+        const nextId = (maxRow?.id || 0) + 1;
+
+        const { data: newRow, error: insertErr } = await supabaseAdmin
+          .from("users")
+          .insert({
+            id: nextId,
+            auth_id: targetAuthId,
+            username: autoUsername,
+            email: baUser.email || "",
+            first_name: displayName.split(" ")[0] || "",
+            last_name: displayName.split(" ").slice(1).join(" ") || "",
+            verified: false,
+            followers_count: 0,
+            following_count: 0,
+            posts_count: 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (newRow) {
+          console.log("[Edge:toggle-follow] Provisioned user:", newRow.id);
+          targetUserId = newRow.id;
+        } else {
+          console.error(
+            "[Edge:toggle-follow] INSERT failed:",
+            JSON.stringify(insertErr),
+          );
+          // Race condition retry
+          const { data: retryRow } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("auth_id", targetAuthId)
+            .single();
+          if (retryRow) {
+            targetUserId = retryRow.id;
+          } else {
+            return errorResponse(
+              "not_found",
+              `Provision failed: ${insertErr?.message} (username=${autoUsername})`,
+            );
+          }
+        }
+      }
     }
 
-    const userId = userData.id;
+    if (!targetUserId || typeof targetUserId !== "number") {
+      return errorResponse(
+        "validation_error",
+        "Could not resolve target user ID",
+      );
+    }
+
+    // Resolve caller's integer ID (auto-provision if needed)
+    const callerData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!callerData) return errorResponse("not_found", "Caller user not found");
+    const userId = callerData.id;
 
     // Can't follow yourself
     if (userId === targetUserId) {

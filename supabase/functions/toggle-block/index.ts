@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,22 +73,38 @@ Deno.serve(async (req) => {
 
     const authUserId = sessionData.userId;
 
-    let body: { targetUserId: number };
+    let body: { targetUserId?: number; targetAuthId?: string };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { targetUserId } = body;
-    if (!targetUserId)
-      return errorResponse("validation_error", "targetUserId is required");
+    let { targetUserId } = body;
+    const { targetAuthId } = body;
+    if (!targetUserId && !targetAuthId)
+      return errorResponse(
+        "validation_error",
+        "targetUserId or targetAuthId is required",
+      );
 
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
+    // Resolve targetAuthId if provided
+    if (!targetUserId && targetAuthId) {
+      const targetData = await resolveOrProvisionUser(
+        supabaseAdmin,
+        targetAuthId,
+        "id",
+      );
+      if (!targetData)
+        return errorResponse("not_found", "Target user not found");
+      targetUserId = targetData.id;
+    }
+
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
     if (!userData) return errorResponse("not_found", "User not found");
 
     if (userData.id === targetUserId)

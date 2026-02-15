@@ -445,14 +445,8 @@ export default function SettingsScreenAndroid() {
             <SettingsSection title="App Updates">
               <Pressable
                 onPress={handleCheckForUpdates}
-                disabled={
-                  isCheckingUpdate || isDownloading || updateAvailable === false
-                }
-                className={`flex-row items-center justify-between px-4 py-3 ${
-                  updateAvailable === false
-                    ? "opacity-50"
-                    : "active:bg-secondary/50"
-                }`}
+                disabled={isCheckingUpdate || isDownloading}
+                className="flex-row items-center justify-between px-4 py-3 active:bg-secondary/50"
               >
                 <View className="flex-row items-center gap-3">
                   <Download

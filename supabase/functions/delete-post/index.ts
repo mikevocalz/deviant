@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,11 +82,11 @@ Deno.serve(async (req) => {
     const { postId } = body;
     if (!postId) return errorResponse("validation_error", "postId is required");
 
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("id, posts_count")
-      .eq("auth_id", authUserId)
-      .single();
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id, posts_count",
+    );
     if (!userData) return errorResponse("not_found", "User not found");
 
     // Verify ownership

@@ -19,6 +19,7 @@ export const usersApi = {
         .select(
           `
           ${DB.users.id},
+          ${DB.users.authId},
           ${DB.users.username},
           ${DB.users.email},
           ${DB.users.firstName},
@@ -37,44 +38,129 @@ export const usersApi = {
         .eq(DB.users.username, username)
         .single();
 
-      if (error) {
-        console.error("[Users] getProfileByUsername error:", error);
-        return null;
+      if (data) {
+        // Check if current user follows this user
+        let isFollowing = false;
+        const currentUserId = getCurrentUserIdInt();
+        const targetUserId = data[DB.users.id];
+        if (currentUserId && targetUserId && currentUserId !== targetUserId) {
+          const { data: followData } = await supabase
+            .from(DB.follows.table)
+            .select("id")
+            .eq(DB.follows.followerId, currentUserId)
+            .eq(DB.follows.followingId, targetUserId)
+            .maybeSingle();
+          isFollowing = !!followData;
+        }
+
+        return {
+          id: String(targetUserId),
+          authId: data[DB.users.authId],
+          username: data[DB.users.username],
+          email: data[DB.users.email],
+          firstName: data[DB.users.firstName],
+          lastName: data[DB.users.lastName],
+          name: data[DB.users.firstName] || data[DB.users.username],
+          bio: data[DB.users.bio] || "",
+          location: data[DB.users.location],
+          avatar:
+            (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
+          verified: data[DB.users.verified] || false,
+          followersCount: Number(data[DB.users.followersCount]) || 0,
+          followingCount: Number(data[DB.users.followingCount]) || 0,
+          postsCount: Number(data[DB.users.postsCount]) || 0,
+          isPrivate: data[DB.users.isPrivate] || false,
+          isFollowing,
+          createdAt: data[DB.users.createdAt],
+        };
       }
 
-      // Check if current user follows this user
-      let isFollowing = false;
-      const currentUserId = getCurrentUserIdInt();
-      const targetUserId = data[DB.users.id];
-      if (currentUserId && targetUserId && currentUserId !== targetUserId) {
-        const { data: followData } = await supabase
-          .from(DB.follows.table)
-          .select("id")
-          .eq(DB.follows.followerId, currentUserId)
-          .eq(DB.follows.followingId, targetUserId)
-          .maybeSingle();
-        isFollowing = !!followData;
+      // Fallback: search Better Auth `user` table by username column
+      console.log(
+        "[Users] getProfileByUsername: no users row, trying Better Auth user table for:",
+        username,
+      );
+      const { data: baUser } = await supabase
+        .from("user")
+        .select("id, name, email, image, username, createdAt")
+        .eq("username", username)
+        .maybeSingle();
+
+      if (baUser) {
+        console.log(
+          "[Users] getProfileByUsername: found in BA user table, authId:",
+          baUser.id,
+        );
+        const displayName = (baUser.name || "").trim();
+        return {
+          id: baUser.id,
+          authId: baUser.id,
+          username: baUser.username || username,
+          email: baUser.email,
+          firstName: displayName.split(" ")[0] || "",
+          lastName: displayName.split(" ").slice(1).join(" ") || "",
+          name: displayName || baUser.username || "New User",
+          bio: "",
+          location: null,
+          avatar: baUser.image || "",
+          verified: false,
+          followersCount: 0,
+          followingCount: 0,
+          postsCount: 0,
+          isPrivate: false,
+          isFollowing: false,
+          createdAt: baUser.createdAt,
+        };
       }
 
-      return {
-        id: String(targetUserId),
-        username: data[DB.users.username],
-        email: data[DB.users.email],
-        firstName: data[DB.users.firstName],
-        lastName: data[DB.users.lastName],
-        name: data[DB.users.firstName] || data[DB.users.username],
-        bio: data[DB.users.bio] || "",
-        location: data[DB.users.location],
-        avatar:
-          (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
-        verified: data[DB.users.verified] || false,
-        followersCount: Number(data[DB.users.followersCount]) || 0,
-        followingCount: Number(data[DB.users.followingCount]) || 0,
-        postsCount: Number(data[DB.users.postsCount]) || 0,
-        isPrivate: data[DB.users.isPrivate] || false,
-        isFollowing,
-        createdAt: data[DB.users.createdAt],
-      };
+      // Last resort: search by generated username pattern (name → lowercase + underscores)
+      const { data: baUsers } = await supabase
+        .from("user")
+        .select("id, name, email, image, username, createdAt")
+        .order("createdAt", { ascending: false })
+        .limit(200);
+
+      if (baUsers) {
+        const match = baUsers.find((u: any) => {
+          const genUsername = (u.name || "")
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, "_");
+          return genUsername === username || u.username === username;
+        });
+        if (match) {
+          console.log(
+            "[Users] getProfileByUsername: matched BA user by name pattern, authId:",
+            match.id,
+          );
+          const displayName = (match.name || "").trim();
+          return {
+            id: match.id,
+            authId: match.id,
+            username: match.username || username,
+            email: match.email,
+            firstName: displayName.split(" ")[0] || "",
+            lastName: displayName.split(" ").slice(1).join(" ") || "",
+            name: displayName || username,
+            bio: "",
+            location: null,
+            avatar: match.image || "",
+            verified: false,
+            followersCount: 0,
+            followingCount: 0,
+            postsCount: 0,
+            isPrivate: false,
+            isFollowing: false,
+            createdAt: match.createdAt,
+          };
+        }
+      }
+
+      console.log(
+        "[Users] getProfileByUsername: user not found anywhere:",
+        username,
+      );
+      return null;
     } catch (error) {
       console.error("[Users] getProfileByUsername error:", error);
       return null;
@@ -208,7 +294,7 @@ export const usersApi = {
       // Fallback: query Better Auth `user` table directly
       const { data: authUser, error } = await supabase
         .from("user")
-        .select("id, name, email, image, createdAt")
+        .select("id, name, email, image, username, createdAt")
         .eq("id", authId)
         .single();
 
@@ -217,7 +303,10 @@ export const usersApi = {
       const displayName = (authUser.name || "").trim();
       return {
         id: authId,
-        username: displayName.toLowerCase().replace(/\s+/g, "_") || authId,
+        username:
+          authUser.username ||
+          displayName.toLowerCase().replace(/\s+/g, "_") ||
+          authId,
         email: authUser.email,
         firstName: displayName.split(" ")[0] || "",
         lastName: displayName.split(" ").slice(1).join(" ") || "",
@@ -313,7 +402,7 @@ export const usersApi = {
       // Query Better Auth `user` table — this is where real signups live
       let query = supabase
         .from("user")
-        .select("id, name, email, image, createdAt")
+        .select("id, name, email, image, username, createdAt")
         .order("createdAt", { ascending: false })
         .limit(limit * 3);
 
@@ -376,6 +465,7 @@ export const usersApi = {
         const displayName = (u.name || "").trim();
         const username =
           profile?.[DB.users.username] ||
+          u.username ||
           displayName.toLowerCase().replace(/\s+/g, "_");
         return {
           id: u.id,

@@ -13,6 +13,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,11 +35,7 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(
-  code: string,
-  message: string,
-  status = 400,
-): Response {
+function errorResponse(code: string, message: string, status = 400): Response {
   console.error(`[Edge:ticket_wallet_google] Error: ${code} - ${message}`);
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
@@ -114,16 +111,13 @@ Deno.serve(async (req) => {
 
     // 3. Verify ticket ownership via Supabase
 
-    // Get user's integer ID from auth_id
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID from auth_id (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     // TODO: Verify ticket exists in tickets table and belongs to this user
     // const { data: ticketData, error: ticketError } = await supabaseAdmin
@@ -176,10 +170,6 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     console.error("[Edge:ticket_wallet_google] Unexpected error:", err);
-    return errorResponse(
-      "internal_error",
-      "An unexpected error occurred",
-      500,
-    );
+    return errorResponse("internal_error", "An unexpected error occurred", 500);
   }
 });

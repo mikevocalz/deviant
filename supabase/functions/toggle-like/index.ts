@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -97,17 +98,13 @@ Deno.serve(async (req) => {
 
     // Get Supabase admin client
 
-    // Get user's integer ID from auth_id
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      console.error("[Edge:toggle-like] User not found:", userError);
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID from auth_id (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     const userId = userData.id;
     console.log("[Edge:toggle-like] User ID:", userId, "Post ID:", postId);
