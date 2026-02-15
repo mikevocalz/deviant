@@ -4,10 +4,12 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -41,7 +43,10 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header");
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -81,19 +86,19 @@ Deno.serve(async (req) => {
 
     const { commentId } = body;
     if (!commentId || typeof commentId !== "number") {
-      return errorResponse("validation_error", "commentId is required and must be a number");
+      return errorResponse(
+        "validation_error",
+        "commentId is required and must be a number",
+      );
     }
 
-    // Get user's integer ID
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     const userId = userData.id;
 
@@ -110,7 +115,10 @@ Deno.serve(async (req) => {
 
     // Verify ownership
     if (comment.author_id !== userId) {
-      return errorResponse("forbidden", "You can only delete your own comments");
+      return errorResponse(
+        "forbidden",
+        "You can only delete your own comments",
+      );
     }
 
     console.log("[Edge:delete-comment] User:", userId, "Comment:", commentId);
@@ -127,7 +135,9 @@ Deno.serve(async (req) => {
     }
 
     // Decrement comments count on post
-    await supabaseAdmin.rpc("decrement_post_comments", { post_id: comment.post_id });
+    await supabaseAdmin.rpc("decrement_post_comments", {
+      post_id: comment.post_id,
+    });
 
     console.log("[Edge:delete-comment] Comment deleted:", commentId);
 

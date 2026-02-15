@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -111,16 +112,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get user's integer ID and profile info
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id, username, first_name, avatar:avatar_id(url)")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID and profile info (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id, username, first_name, avatar:avatar_id(url)",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     const userId = userData.id;
     console.log("[Edge:create-post] User:", userId);

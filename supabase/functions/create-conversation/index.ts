@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,30 +73,46 @@ Deno.serve(async (req) => {
 
     const authUserId = sessionData.userId;
 
-    let body: { otherUserId: number };
+    let body: { otherUserId?: number; otherAuthId?: string };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { otherUserId } = body;
-    if (!otherUserId)
-      return errorResponse("validation_error", "otherUserId is required");
+    const { otherUserId, otherAuthId: otherAuthIdParam } = body;
+    if (!otherUserId && !otherAuthIdParam)
+      return errorResponse(
+        "validation_error",
+        "otherUserId or otherAuthId is required",
+      );
 
     // Get current user's auth_id
     const myAuthId = authUserId;
 
-    // Get other user's auth_id from their integer ID
-    const { data: otherUser } = await supabaseAdmin
-      .from("users")
-      .select("auth_id")
-      .eq("id", otherUserId)
-      .single();
+    // Resolve the other user's auth_id
+    let otherAuthId: string;
+    if (otherAuthIdParam) {
+      // Ensure the user exists (auto-provision if needed)
+      const otherData = await resolveOrProvisionUser(
+        supabaseAdmin,
+        otherAuthIdParam,
+        "id, auth_id",
+      );
+      if (!otherData) return errorResponse("not_found", "Other user not found");
+      otherAuthId = otherAuthIdParam;
+    } else {
+      // Get other user's auth_id from their integer ID
+      const { data: otherUser } = await supabaseAdmin
+        .from("users")
+        .select("auth_id")
+        .eq("id", otherUserId)
+        .single();
 
-    if (!otherUser?.auth_id)
-      return errorResponse("not_found", "Other user not found");
-    const otherAuthId = otherUser.auth_id;
+      if (!otherUser?.auth_id)
+        return errorResponse("not_found", "Other user not found");
+      otherAuthId = otherUser.auth_id;
+    }
 
     // Check if conversation exists
     // conversations_rels.users_id is TEXT (auth_id)

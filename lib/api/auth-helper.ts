@@ -92,11 +92,9 @@ export async function resolveUserIdInt(userId: string): Promise<number> {
     .eq(DB.users.authId, userId)
     .single();
 
-  if (!userRow) {
-    throw new Error(
-      "User not found — they may not have completed onboarding yet",
-    );
-  }
+  if (userRow) return userRow[DB.users.id];
 
-  return userRow[DB.users.id];
+  // No app profile — return NaN to signal auth-only user
+  // Callers that need server-side resolution should pass authId to edge functions
+  throw new Error("NEEDS_PROVISION:" + userId);
 }

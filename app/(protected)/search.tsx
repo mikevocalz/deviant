@@ -460,7 +460,7 @@ export default function SearchScreen() {
                           key={user.id}
                           onPress={() =>
                             router.push(
-                              `/(protected)/profile/${user.username}` as any,
+                              `/(protected)/profile/${user.username}?authId=${user.id}` as any,
                             )
                           }
                           className="flex-row items-center py-3 border-b border-border"

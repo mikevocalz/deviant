@@ -60,14 +60,27 @@ export const blocksApi = {
   async blockUser(targetUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = await resolveUserIdInt(targetUserId);
+
+      let bodyPayload: { targetUserId?: number; targetAuthId?: string };
+      try {
+        const targetUserIdInt = await resolveUserIdInt(targetUserId);
+        bodyPayload = { targetUserId: targetUserIdInt };
+      } catch (e: any) {
+        if (e?.message?.startsWith("NEEDS_PROVISION:")) {
+          bodyPayload = {
+            targetAuthId: e.message.replace("NEEDS_PROVISION:", ""),
+          };
+        } else {
+          throw e;
+        }
+      }
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
         data?: { blocked: boolean };
         error?: { code: string; message: string };
       }>("toggle-block", {
-        body: { targetUserId: targetUserIdInt },
+        body: bodyPayload,
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -88,14 +101,27 @@ export const blocksApi = {
   async unblockUser(targetUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = await resolveUserIdInt(targetUserId);
+
+      let bodyPayload: { targetUserId?: number; targetAuthId?: string };
+      try {
+        const targetUserIdInt = await resolveUserIdInt(targetUserId);
+        bodyPayload = { targetUserId: targetUserIdInt };
+      } catch (e: any) {
+        if (e?.message?.startsWith("NEEDS_PROVISION:")) {
+          bodyPayload = {
+            targetAuthId: e.message.replace("NEEDS_PROVISION:", ""),
+          };
+        } else {
+          throw e;
+        }
+      }
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
         data?: { blocked: boolean };
         error?: { code: string; message: string };
       }>("toggle-block", {
-        body: { targetUserId: targetUserIdInt },
+        body: bodyPayload,
         headers: { Authorization: `Bearer ${token}` },
       });
 

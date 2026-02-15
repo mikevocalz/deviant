@@ -241,14 +241,27 @@ export const messagesApi = {
   async getOrCreateConversation(otherUserId: string) {
     try {
       const token = await requireBetterAuthToken();
-      const otherUserIdInt = await resolveUserIdInt(otherUserId);
+
+      let bodyPayload: { otherUserId?: number; otherAuthId?: string };
+      try {
+        const otherUserIdInt = await resolveUserIdInt(otherUserId);
+        bodyPayload = { otherUserId: otherUserIdInt };
+      } catch (e: any) {
+        if (e?.message?.startsWith("NEEDS_PROVISION:")) {
+          bodyPayload = {
+            otherAuthId: e.message.replace("NEEDS_PROVISION:", ""),
+          };
+        } else {
+          throw e;
+        }
+      }
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
         data?: { conversationId: string; isNew: boolean };
         error?: { code: string; message: string };
       }>("create-conversation", {
-        body: { otherUserId: otherUserIdInt },
+        body: bodyPayload,
         headers: { Authorization: `Bearer ${token}` },
       });
 

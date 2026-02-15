@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,14 +81,13 @@ Deno.serve(async (req) => {
     }
 
     const { postId, content, location } = body;
-    if (!postId)
-      return errorResponse("validation_error", "postId is required");
+    if (!postId) return errorResponse("validation_error", "postId is required");
 
-    const { data: userData } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
     if (!userData) return errorResponse("not_found", "User not found");
 
     // Verify ownership
@@ -113,8 +113,7 @@ Deno.serve(async (req) => {
       .eq("id", postId)
       .select()
       .single();
-    if (error)
-      return errorResponse("internal_error", "Failed to update post");
+    if (error) return errorResponse("internal_error", "Failed to update post");
 
     return jsonResponse({ ok: true, data: { post: updated } });
   } catch (err) {

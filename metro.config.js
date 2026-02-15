@@ -6,6 +6,7 @@ const path = require("path");
 const config = getDefaultConfig(__dirname);
 
 config.resolver.assetExts.push("riv");
+config.resolver.assetExts.push("cube");
 
 // Fix for react-native-pager-view commonjs/esm resolution
 config.resolver.unstable_enablePackageExports = true;

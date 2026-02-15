@@ -1,13 +1,13 @@
 import React from "react";
+import { View, Text, Modal, Pressable, ScrollView, Image } from "react-native";
 import {
-  View,
-  Text,
-  Modal,
-  Pressable,
-  ScrollView,
-  Image,
-} from "react-native";
-import { X, Calendar, MapPin, Clock, CheckCircle, AlertCircle } from "lucide-react-native";
+  X,
+  Calendar,
+  MapPin,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
@@ -83,7 +83,9 @@ export function TicketModal({
   const statusInfo = getStatusInfo();
   const StatusIcon = statusInfo.icon;
 
-  const logoUrl = userAvatar || "https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=100&h=100&fit=crop";
+  const logoUrl =
+    userAvatar ||
+    "https://images.unsplash.com/photo-1614680376593-902f74cf0d41?w=100&h=100&fit=crop";
 
   const renderQRCode = () => {
     return (
@@ -112,25 +114,36 @@ export function TicketModal({
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-3 pt-12">
           <Text className="text-xl font-bold text-foreground">Your Ticket</Text>
-          <Pressable onPress={onClose} className="w-10 h-10 bg-card rounded-full items-center justify-center">
+          <Pressable
+            onPress={onClose}
+            className="w-10 h-10 bg-card rounded-full items-center justify-center"
+          >
             <X size={24} color={colors.mutedForeground} />
           </Pressable>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerClassName="p-5">
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="p-5"
+        >
           <View className="rounded-2xl overflow-hidden shadow-lg">
-            <LinearGradient
-              colors={["#1A1A28", "#252538"]}
-              className="p-5"
-            >
+            <LinearGradient colors={["#1A1A28", "#252538"]} className="p-5">
               <View className="mb-4">
                 <View className="gap-3">
-                  <Text className="text-2xl font-extrabold text-foreground leading-tight" numberOfLines={2}>
+                  <Text
+                    className="text-2xl font-extrabold text-foreground leading-tight"
+                    numberOfLines={2}
+                  >
                     {event?.title}
                   </Text>
-                  <View className={`flex-row items-center self-start px-3 py-1.5 rounded-full bg-[${statusInfo.color}20] gap-1.5`}>
+                  <View
+                    className={`flex-row items-center self-start px-3 py-1.5 rounded-full bg-[${statusInfo.color}20] gap-1.5`}
+                  >
                     <StatusIcon size={14} color={statusInfo.color} />
-                    <Text className={`text-sm font-semibold`} style={{ color: statusInfo.color }}>
+                    <Text
+                      className={`text-sm font-semibold`}
+                      style={{ color: statusInfo.color }}
+                    >
                       {statusInfo.label}
                     </Text>
                   </View>
@@ -140,7 +153,10 @@ export function TicketModal({
               <View className="flex-row items-center my-5 relative">
                 <View className="absolute -left-8 w-5 h-5 bg-background rounded-full" />
                 {[...Array(20)].map((_, i) => (
-                  <View key={i} className="flex-1 h-0.5 bg-border mx-0.5 rounded-full" />
+                  <View
+                    key={i}
+                    className="flex-1 h-0.5 bg-border mx-0.5 rounded-full"
+                  />
                 ))}
                 <View className="absolute -right-8 w-5 h-5 bg-background rounded-full" />
               </View>
@@ -159,15 +175,23 @@ export function TicketModal({
                   <View className="flex-1 flex-row items-start gap-2.5">
                     <Calendar size={16} color="#3b82f6" />
                     <View>
-                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Date</Text>
-                      <Text className="text-sm text-foreground font-semibold mt-0.5">{formatDate(event?.eventDate || "")}</Text>
+                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        Date
+                      </Text>
+                      <Text className="text-sm text-foreground font-semibold mt-0.5">
+                        {formatDate(event?.eventDate || "")}
+                      </Text>
                     </View>
                   </View>
                   <View className="flex-1 flex-row items-start gap-2.5">
                     <Clock size={16} color="#3b82f6" />
                     <View>
-                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Time</Text>
-                      <Text className="text-sm text-foreground font-semibold mt-0.5">{formatTime(event?.eventDate || "")}</Text>
+                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        Time
+                      </Text>
+                      <Text className="text-sm text-foreground font-semibold mt-0.5">
+                        {formatTime(event?.eventDate || "")}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -175,8 +199,15 @@ export function TicketModal({
                   <View className="flex-1 flex-row items-start gap-2.5">
                     <MapPin size={16} color="#3b82f6" />
                     <View className="flex-1">
-                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Location</Text>
-                      <Text className="text-sm text-foreground font-semibold mt-0.5" numberOfLines={1}>{event?.location}</Text>
+                      <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                        Location
+                      </Text>
+                      <Text
+                        className="text-sm text-foreground font-semibold mt-0.5"
+                        numberOfLines={1}
+                      >
+                        {event?.location}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -184,7 +215,9 @@ export function TicketModal({
 
               <View className="items-center">
                 <View className="items-center">
-                  <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Ticket ID</Text>
+                  <Text className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">
+                    Ticket ID
+                  </Text>
                   <Text className="text-sm text-muted-foreground font-bold tracking-widest font-mono">
                     {ticket.id.slice(0, 8).toUpperCase()}
                   </Text>
@@ -197,7 +230,8 @@ export function TicketModal({
             <View className="flex-row items-center gap-2.5 mt-4 p-3.5 bg-success/15 rounded-2xl">
               <CheckCircle size={18} color="#22c55e" />
               <Text className="flex-1 text-sm text-success font-medium">
-                Checked in on {formatDate(ticket.checkedInAt)} at {formatTime(ticket.checkedInAt)}
+                Checked in on {formatDate(ticket.checkedInAt)} at{" "}
+                {formatTime(ticket.checkedInAt)}
               </Text>
             </View>
           )}

@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -110,16 +111,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get user's integer ID
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id, username")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id, username",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     const userId = userData.id;
     const senderUsername = userData.username || "Someone";
@@ -190,6 +188,7 @@ Deno.serve(async (req) => {
     // --- Push notification to recipient (fire-and-forget) ---
     try {
       // Find other members of this conversation
+      // conversations_rels.users_id stores auth_id strings, NOT integer IDs
       const { data: members } = await supabaseAdmin
         .from("conversations_rels")
         .select("users_id")
@@ -199,11 +198,22 @@ Deno.serve(async (req) => {
       if (members && members.length > 0) {
         const recipientAuthIds = members.map((m: any) => m.users_id);
 
-        // Look up push tokens for recipients
-        const { data: tokens } = await supabaseAdmin
-          .from("push_tokens")
-          .select("token")
-          .in("user_id", recipientAuthIds);
+        // Resolve auth_ids → integer user IDs for push_tokens lookup
+        const { data: recipientRows } = await supabaseAdmin
+          .from("users")
+          .select("id")
+          .in("auth_id", recipientAuthIds);
+
+        const recipientIntIds = (recipientRows || []).map((r: any) => r.id);
+
+        // Look up push tokens for recipients (push_tokens.user_id is INTEGER)
+        const { data: tokens } =
+          recipientIntIds.length > 0
+            ? await supabaseAdmin
+                .from("push_tokens")
+                .select("token")
+                .in("user_id", recipientIntIds)
+            : { data: null };
 
         if (tokens && tokens.length > 0) {
           const messagePreview = mediaUrl

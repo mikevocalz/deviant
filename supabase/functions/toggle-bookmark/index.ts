@@ -4,10 +4,12 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -41,7 +43,10 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return errorResponse("unauthorized", "Missing or invalid Authorization header");
+      return errorResponse(
+        "unauthorized",
+        "Missing or invalid Authorization header",
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -71,7 +76,10 @@ Deno.serve(async (req) => {
     }
 
     const authUserId = sessionData.userId;
-    console.log("[Edge:toggle-bookmark] Authenticated user auth_id:", authUserId);
+    console.log(
+      "[Edge:toggle-bookmark] Authenticated user auth_id:",
+      authUserId,
+    );
 
     // Parse body
     let body: { postId: number };
@@ -83,22 +91,21 @@ Deno.serve(async (req) => {
 
     const { postId } = body;
     if (!postId || typeof postId !== "number") {
-      return errorResponse("validation_error", "postId is required and must be a number");
+      return errorResponse(
+        "validation_error",
+        "postId is required and must be a number",
+      );
     }
 
     // Get Supabase admin client
 
-    // Get user's integer ID from auth_id
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      console.error("[Edge:toggle-bookmark] User not found:", userError);
-      return errorResponse("not_found", "User not found");
-    }
+    // Get user's integer ID from auth_id (auto-provision if needed)
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!userData) return errorResponse("not_found", "User not found");
 
     const userId = userData.id;
     console.log("[Edge:toggle-bookmark] User ID:", userId, "Post ID:", postId);
@@ -112,7 +119,7 @@ Deno.serve(async (req) => {
       .single();
 
     let bookmarked: boolean;
-    
+
     if (existingBookmark) {
       // Remove bookmark
       const { error: deleteError } = await supabaseAdmin

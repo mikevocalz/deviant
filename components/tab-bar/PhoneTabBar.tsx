@@ -10,6 +10,7 @@ import React, { useCallback, useMemo } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { BottomTabBarHeightCallbackContext } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
 import { isTabVisible, isSpecialTab, PHONE_TAB_BAR_HEIGHT } from "./constants";
@@ -21,6 +22,7 @@ export function PhoneTabBar({
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
+  const onHeightChange = React.useContext(BottomTabBarHeightCallbackContext);
 
   const visibleRoutes = useMemo(
     () => state.routes.filter((route) => isTabVisible(route, descriptors)),
@@ -63,6 +65,7 @@ export function PhoneTabBar({
           height: PHONE_TAB_BAR_HEIGHT + insets.bottom,
         },
       ]}
+      onLayout={(e) => onHeightChange?.(e.nativeEvent.layout.height)}
     >
       {visibleRoutes.map((route) => {
         const descriptor = descriptors[route.key];

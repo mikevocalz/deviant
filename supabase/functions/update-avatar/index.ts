@@ -4,6 +4,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,21 +75,21 @@ Deno.serve(async (req) => {
     }
 
     const { avatarUrl } = body;
-    if (!avatarUrl)
-      return jsonErr("validation_error", "avatarUrl is required");
+    if (!avatarUrl) return jsonErr("validation_error", "avatarUrl is required");
 
-    console.log("[update-avatar] User:", authUserId, "URL:", avatarUrl.substring(0, 60));
+    console.log(
+      "[update-avatar] User:",
+      authUserId,
+      "URL:",
+      avatarUrl.substring(0, 60),
+    );
 
-    const { data: userData, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (userError || !userData) {
-      console.error("[update-avatar] User lookup failed:", userError);
-      return jsonErr("not_found", "User not found");
-    }
+    const userData = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id",
+    );
+    if (!userData) return jsonErr("not_found", "User not found");
 
     // Create media record
     const { data: mediaData, error: mediaError } = await supabaseAdmin
@@ -113,7 +114,12 @@ Deno.serve(async (req) => {
       return jsonErr("internal_error", "Failed to update avatar");
     }
 
-    console.log("[update-avatar] Success: user", userData.id, "avatar_id →", mediaData.id);
+    console.log(
+      "[update-avatar] Success: user",
+      userData.id,
+      "avatar_id →",
+      mediaData.id,
+    );
     return jsonOk({ success: true, avatarUrl });
   } catch (err) {
     console.error("[update-avatar] Unexpected error:", err);

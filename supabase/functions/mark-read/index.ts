@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,20 +14,26 @@ Deno.serve(async (req) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ ok: false, error: "Method not allowed" }),
+      {
+        status: 405,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   try {
     // 1. Verify session
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ ok: false, error: "Unauthorized" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const token = authHeader.replace("Bearer ", "");
@@ -46,32 +53,36 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionError || !session) {
-      return new Response(JSON.stringify({ ok: false, error: "Invalid session" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid session" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
     if (new Date(session.expiresAt) < new Date()) {
-      return new Response(JSON.stringify({ ok: false, error: "Session expired" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "Session expired" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const authUserId = session.userId;
 
-    // 2. Get user's integer ID from users table
-    const { data: userRow } = await supabase
-      .from("users")
-      .select("id")
-      .eq("auth_id", authUserId)
-      .single();
-
+    // 2. Get user's integer ID from users table (auto-provision if needed)
+    const userRow = await resolveOrProvisionUser(supabase, authUserId, "id");
     if (!userRow) {
-      return new Response(JSON.stringify({ ok: false, error: "User not found" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ ok: false, error: "User not found" }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const userIntId = userRow.id;
@@ -83,7 +94,10 @@ Deno.serve(async (req) => {
     if (!conversationId) {
       return new Response(
         JSON.stringify({ ok: false, error: "conversationId required" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -98,7 +112,10 @@ Deno.serve(async (req) => {
     if (!rel) {
       return new Response(
         JSON.stringify({ ok: false, error: "Not a participant" }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -115,22 +132,33 @@ Deno.serve(async (req) => {
       console.error("[mark-read] Update error:", updateError);
       return new Response(
         JSON.stringify({ ok: false, error: updateError.message }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
     }
 
     const count = updated?.length || 0;
-    console.log(`[mark-read] Marked ${count} messages as read in conversation ${conversationId}`);
+    console.log(
+      `[mark-read] Marked ${count} messages as read in conversation ${conversationId}`,
+    );
 
     return new Response(
       JSON.stringify({ ok: true, data: { markedRead: count } }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   } catch (err) {
     console.error("[mark-read] Error:", err);
     return new Response(
       JSON.stringify({ ok: false, error: "Internal error" }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });

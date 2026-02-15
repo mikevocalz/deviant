@@ -2,6 +2,7 @@
  * Shared constants and helpers for PhoneTabBar and TabletTabBar.
  */
 
+import { Platform } from "react-native";
 import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import type { Route } from "@react-navigation/native";
 
@@ -9,7 +10,7 @@ import type { Route } from "@react-navigation/native";
 export const SPECIAL_TAB_NAME = "create";
 
 /** Tab bar dimensions */
-export const PHONE_TAB_BAR_HEIGHT = 60;
+export const PHONE_TAB_BAR_HEIGHT = Platform.OS === "android" ? 40 : 60;
 export const TABLET_RAIL_WIDTH = 72;
 
 /** Determine whether a route should be rendered as a tab. */

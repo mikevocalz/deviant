@@ -18,11 +18,28 @@ export const followsApi = {
       console.log("[Follows] toggleFollow via Edge Function:", targetUserId);
 
       const token = await requireBetterAuthToken();
-      const targetUserIdInt = await resolveUserIdInt(targetUserId);
+
+      // Resolve to integer ID, or fall back to passing auth_id for server-side provisioning
+      let bodyPayload: { targetUserId?: number; targetAuthId?: string };
+      try {
+        const targetUserIdInt = await resolveUserIdInt(targetUserId);
+        bodyPayload = { targetUserId: targetUserIdInt };
+      } catch (e: any) {
+        if (e?.message?.startsWith("NEEDS_PROVISION:")) {
+          const authId = e.message.replace("NEEDS_PROVISION:", "");
+          console.log(
+            "[Follows] Auth-only user, passing authId for server-side resolution:",
+            authId,
+          );
+          bodyPayload = { targetAuthId: authId };
+        } else {
+          throw e;
+        }
+      }
 
       const { data, error } =
         await supabase.functions.invoke<ToggleFollowResponse>("toggle-follow", {
-          body: { targetUserId: targetUserIdInt },
+          body: bodyPayload,
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -37,19 +54,38 @@ export const followsApi = {
         throw new Error(errorMessage);
       }
 
-      // Get updated counts
-      const { data: targetUser } = await supabase
-        .from(DB.users.table)
-        .select(`${DB.users.followersCount}, ${DB.users.followingCount}`)
-        .eq(DB.users.id, targetUserIdInt)
-        .single();
+      // Get updated counts — resolve target ID for the count query
+      let resolvedTargetId: number | null = null;
+      try {
+        resolvedTargetId = await resolveUserIdInt(targetUserId);
+      } catch {
+        // User was just provisioned server-side, try auth_id lookup
+        const { data: freshRow } = await supabase
+          .from(DB.users.table)
+          .select(DB.users.id)
+          .eq(DB.users.authId, targetUserId)
+          .single();
+        resolvedTargetId = freshRow?.[DB.users.id] ?? null;
+      }
+
+      let followersCount = 0;
+      let followingCount = 0;
+      if (resolvedTargetId) {
+        const { data: targetUser } = await supabase
+          .from(DB.users.table)
+          .select(`${DB.users.followersCount}, ${DB.users.followingCount}`)
+          .eq(DB.users.id, resolvedTargetId)
+          .single();
+        followersCount = targetUser?.[DB.users.followersCount] || 0;
+        followingCount = targetUser?.[DB.users.followingCount] || 0;
+      }
 
       console.log("[Follows] toggleFollow result:", data.data);
       return {
         success: true,
         following: data.data.following,
-        followersCount: targetUser?.[DB.users.followersCount] || 0,
-        followingCount: targetUser?.[DB.users.followingCount] || 0,
+        followersCount,
+        followingCount,
       };
     } catch (error) {
       console.error("[Follows] toggleFollow error:", error);

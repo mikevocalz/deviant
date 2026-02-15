@@ -5,6 +5,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,16 +73,13 @@ Deno.serve(async (req) => {
       return errorResponse("bad_request", "messageId and emoji are required");
     }
 
-    // Look up the user's integer ID and username from users table
-    const { data: userRow } = await supabaseAdmin
-      .from("users")
-      .select("id, username, auth_id")
-      .eq("auth_id", authUserId)
-      .single();
-
-    if (!userRow) {
-      return errorResponse("not_found", "User not found");
-    }
+    // Look up the user's integer ID and username (auto-provision if needed)
+    const userRow = await resolveOrProvisionUser(
+      supabaseAdmin,
+      authUserId,
+      "id, username, auth_id",
+    );
+    if (!userRow) return errorResponse("not_found", "User not found");
 
     const userId = String(userRow.id); // Use integer user ID (matches client-side user.id)
     const username = userRow.username || "user";

@@ -32,6 +32,7 @@ import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { Galeria } from "@nandorojo/galeria";
 
 const GRID_GAP = 2;
 
@@ -309,7 +310,11 @@ function UserProfileScreenComponent() {
 
   // Follow state — read directly from query cache (optimistically updated by useFollow)
   const isFollowing = !!(resolvedUserData as any)?.isFollowing;
-  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
+  const {
+    mutate: followMutate,
+    isPending: isFollowPending,
+    variables: followVars,
+  } = useFollow();
 
   // Get userId for follow queries
   const userId = (resolvedUserData as any)?.id;
@@ -339,7 +344,7 @@ function UserProfileScreenComponent() {
       username: username || "unknown",
       fullName: "Unknown User",
       name: "Unknown User",
-      avatar: "https://i.pravatar.cc/150?img=1",
+      avatar: undefined,
       bio: "",
       postsCount: 0,
       followersCount: 0,
@@ -513,12 +518,31 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Avatar
-                uri={user.avatar}
-                username={user.username}
-                size={80}
-                variant="roundedSquare"
-              />
+              {user.avatar ? (
+                <Galeria urls={[user.avatar]}>
+                  <Galeria.Image index={0}>
+                    <Image
+                      source={{ uri: user.avatar }}
+                      style={{
+                        width: 80,
+                        height: 80,
+                        borderRadius: Math.min(Math.round(80 * 0.18), 16),
+                        borderWidth: 1.5,
+                        borderColor: "#34A2DF",
+                      }}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
+                  </Galeria.Image>
+                </Galeria>
+              ) : (
+                <Avatar
+                  uri={undefined}
+                  username={user.username}
+                  size={80}
+                  variant="roundedSquare"
+                />
+              )}
               <View className="flex-row gap-8">
                 <View className="items-center">
                   <Text className="text-lg font-bold text-foreground">
@@ -633,8 +657,8 @@ function UserProfileScreenComponent() {
                       className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}
                     >
                       {followMutation.isPending
-                        ? isFollowing
-                          ? "Following..."
+                        ? followVars?.action === "follow"
+                          ? "Now Following"
                           : "Unfollowing..."
                         : isFollowing
                           ? "Following"
