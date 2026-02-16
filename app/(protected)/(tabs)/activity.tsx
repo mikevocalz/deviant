@@ -28,6 +28,8 @@ import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFollow } from "@/lib/hooks/use-follow";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useBootstrapNotifications } from "@/lib/hooks/use-bootstrap-notifications";
 
 const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
 type TabType = (typeof TABS)[number];
@@ -42,6 +44,8 @@ const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
       return <UserPlus size={16} color="#8A40CF" />;
     case "mention":
       return <AtSign size={16} color="#34A2DF" />;
+    case "tag":
+      return <UserPlus size={16} color="#FF5BFC" />;
     case "event_invite":
     case "event_update":
       return <Calendar size={16} color="#10B981" />;
@@ -64,6 +68,8 @@ function getActivityText(activity: Activity): string {
       return activity.comment
         ? ` mentioned you: "${activity.comment}"`
         : " mentioned you in a comment.";
+    case "tag":
+      return " tagged you in a post.";
     case "event_invite":
       return ` invited you to ${activity.event?.title || "an event"}.`;
     case "event_update":
@@ -107,7 +113,7 @@ const ActivityItem = memo(
             uri={activity.user.avatar}
             username={activity.user.username}
             size={44}
-            variant="circle"
+            variant="roundedSquare"
           />
           <View
             className="absolute bg-card rounded-full p-1 border-2 border-background"
@@ -170,6 +176,8 @@ export default function ActivityScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const queryClient = useQueryClient();
   const viewerId = useAuthStore((s) => s.user?.id) || "";
+  const trace = useScreenTrace("Activity");
+  useBootstrapNotifications();
 
   // TanStack Query — MMKV-persisted, instant on cold start
   const {
@@ -224,16 +232,20 @@ export default function ActivityScreen() {
     };
   }, [subscribeToNotifications]);
 
-  // Refetch when tab is focused (ensures new follow notifications appear)
+  // Soft refetch on tab focus — only if data is stale (> 60s old)
+  // Replaces aggressive invalidateQueries which forced refetch on EVERY tab switch
   useFocusEffect(
     useCallback(() => {
-      // Invalidate query so TanStack refetches in background
-      queryClient.invalidateQueries({
-        queryKey: activityKeys.list(viewerId),
-      });
-      // Re-sync follow state from server so buttons are correct
-      fetchFollowingState();
-    }, [queryClient, viewerId, fetchFollowingState]),
+      const state = queryClient.getQueryState(activityKeys.list(viewerId));
+      const dataAge = state?.dataUpdatedAt
+        ? Date.now() - state.dataUpdatedAt
+        : Infinity;
+      // Only refetch if data is older than 60s — prevents thrashing on quick tab switches
+      if (dataAge > 60_000) {
+        refetch();
+        fetchFollowingState();
+      }
+    }, [queryClient, viewerId, refetch, fetchFollowingState]),
   );
 
   const filteredActivities = useMemo(
@@ -244,7 +256,8 @@ export default function ActivityScreen() {
           if (
             (activity.type === "comment" ||
               activity.type === "like" ||
-              activity.type === "mention") &&
+              activity.type === "mention" ||
+              activity.type === "tag") &&
             activity.entityType === "post" &&
             !activity.post
           ) {

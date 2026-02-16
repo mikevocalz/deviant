@@ -5,6 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 // Event type for components
 export interface Event {
@@ -50,6 +51,7 @@ export function useEvents(category?: string) {
   return useQuery({
     queryKey: category ? eventKeys.byCategory(category) : eventKeys.list(),
     queryFn: () => eventsApiClient.getEvents(20, category),
+    staleTime: STALE_TIMES.events,
   });
 }
 
@@ -58,6 +60,7 @@ export function useMyEvents() {
   return useQuery({
     queryKey: [...eventKeys.all, "mine"] as const,
     queryFn: () => eventsApiClient.getMyEvents(),
+    staleTime: STALE_TIMES.events,
   });
 }
 
@@ -66,6 +69,7 @@ export function useUpcomingEvents() {
   return useQuery({
     queryKey: eventKeys.upcoming(),
     queryFn: () => eventsApiClient.getUpcomingEvents(),
+    staleTime: STALE_TIMES.events,
   });
 }
 

@@ -13,7 +13,7 @@ import { FeedPost } from "./feed-post";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
-import { useMemo, useEffect, useRef, useCallback } from "react";
+import { useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { useRouter } from "expo-router";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -25,10 +25,25 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
+import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
-function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
+const FALLBACK_AUTHOR = {
+  id: undefined,
+  username: "unknown",
+  avatar: "",
+} as const;
+const EMPTY_MEDIA: { type: string; url: string }[] = [];
+
+const AnimatedFeedPost = memo(function AnimatedFeedPost({
+  item,
+  index,
+}: {
+  item: Post;
+  index: number;
+}) {
   const router = useRouter();
 
   return (
@@ -43,10 +58,8 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
       >
         <FeedPost
           id={item.id || ""}
-          author={
-            item.author || { id: undefined, username: "unknown", avatar: "" }
-          }
-          media={item.media || []}
+          author={item.author || FALLBACK_AUTHOR}
+          media={item.media || EMPTY_MEDIA}
           caption={item.caption || ""}
           likes={item.likes || 0}
           viewerHasLiked={item.viewerHasLiked || false}
@@ -58,7 +71,7 @@ function AnimatedFeedPost({ item, index }: { item: Post; index: number }) {
       </Pressable>
     </View>
   );
-}
+});
 
 function LoadMoreIndicator() {
   return (
@@ -179,6 +192,12 @@ function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
 }
 
 export function Feed() {
+  // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
+  // When perf_bootstrap_feed flag is ON, a single edge function call populates
+  // the feed cache, so useInfiniteFeedPosts returns data instantly from cache.
+  useBootstrapFeed();
+  const trace = useScreenTrace("Feed");
+
   const {
     data,
     isLoading,
@@ -222,6 +241,14 @@ export function Feed() {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => page.data);
   }, [data]);
+
+  // Perf: Mark TTUC when first posts are visible
+  useEffect(() => {
+    if (allPosts.length > 0) {
+      if (trace.elapsed() < 50) trace.markCacheHit();
+      trace.markUsable();
+    }
+  }, [allPosts.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CRITICAL: Seed like states from feed data
   // The custom /api/posts/feed endpoint now returns isLiked and likesCount per post

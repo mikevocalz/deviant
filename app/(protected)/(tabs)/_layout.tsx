@@ -16,6 +16,7 @@ import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { PhoneTabBar, TabletTabBar } from "@/components/tab-bar";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
+import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
 
 function HeaderLogo() {
   const pathname = usePathname();

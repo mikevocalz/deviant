@@ -86,175 +86,148 @@ export function useBootPrefetch() {
             : "first boot, fetching all critical data"),
     );
 
-    // Fire ALL prefetches in parallel — never sequential
-    // prefetchQuery respects staleTime: if cache is fresh, it's a no-op
+    // ── PRIORITY LANES ──────────────────────────────────────────────
+    // Instead of 13 simultaneous requests (thundering herd), fire in
+    // priority lanes so the feed renders ASAP and connection pool
+    // isn't saturated on cold start.
+    //
+    // Lane 0 (immediate):  Feed + My Profile — above the fold
+    // Lane 1 (+100ms):     Badge counts — tab bar needs these
+    // Lane 2 (+400ms):     Conversations + Activities — adjacent tabs
+    // Lane 3 (+1000ms):    Profile posts, bookmarks, events, secondary
+    // Lane 4 (+2000ms):    Chat message prefetch for top conversations
+
+    const logLane = (lane: number, results: PromiseSettledResult<any>[]) => {
+      const ok = results.filter((r) => r.status === "fulfilled").length;
+      const fail = results.filter((r) => r.status === "rejected").length;
+      console.log(`[BootPrefetch] Lane ${lane}: ${ok} ok, ${fail} failed (${Date.now() - t0}ms)`);
+      if (__DEV__) {
+        results.forEach((r, i) => {
+          if (r.status === "rejected") {
+            console.warn(`[BootPrefetch] Lane ${lane}[${i}] failed:`, (r as PromiseRejectedResult).reason);
+          }
+        });
+      }
+    };
+
+    // Lane 0: Critical — feed + profile (instant render priority)
     Promise.allSettled([
-      // 1. Feed (first page)
       queryClient.prefetchInfiniteQuery({
         queryKey: postKeys.feedInfinite(),
         queryFn: ({ pageParam = 0 }: { pageParam: number }) =>
           postsApi.getFeedPostsPaginated(pageParam),
         initialPageParam: 0,
       }),
-
-      // 2. Unread message counts (inbox + spam)
-      queryClient.prefetchQuery({
-        queryKey: messageKeys.unreadCount(userId),
-        queryFn: async () => {
-          const [inbox, spam] = await Promise.all([
-            messagesApiClient.getUnreadCount(),
-            messagesApiClient.getSpamUnreadCount(),
-          ]);
-          return { inbox, spam };
-        },
-      }),
-
-      // 3. Conversations list
-      queryClient.prefetchQuery({
-        queryKey: messageKeys.conversations(userId),
-        queryFn: messagesApiClient.getConversations,
-      }),
-
-      // 4. My profile
       queryClient.prefetchQuery({
         queryKey: profileKeys.byId(userId),
-        queryFn: async () => {
-          const profile = await usersApi.getProfileById(userId);
-          return profile;
-        },
+        queryFn: () => usersApi.getProfileById(userId),
       }),
+    ]).then((r) => logLane(0, r));
 
-      // 5. Notifications / activity
-      queryClient.prefetchQuery({
-        queryKey: notificationKeys.list(userId),
-        queryFn: async () => {
-          const response = await notificationsApi.get({ limit: 50 });
-          return response.docs || [];
-        },
-      }),
+    // Lane 1: Badge counts — needed for tab bar badges
+    setTimeout(() => {
+      Promise.allSettled([
+        queryClient.prefetchQuery({
+          queryKey: messageKeys.unreadCount(userId),
+          queryFn: async () => {
+            const [inbox, spam] = await Promise.all([
+              messagesApiClient.getUnreadCount(),
+              messagesApiClient.getSpamUnreadCount(),
+            ]);
+            return { inbox, spam };
+          },
+        }),
+        queryClient.prefetchQuery({
+          queryKey: notificationKeys.badges(userId),
+          queryFn: () => notificationsApi.getBadges(),
+        }),
+      ]).then((r) => logLane(1, r));
+    }, 100);
 
-      // 6. Notification badges
-      queryClient.prefetchQuery({
-        queryKey: notificationKeys.badges(userId),
-        queryFn: () => notificationsApi.getBadges(),
-      }),
+    // Lane 2: Adjacent tabs — conversations + activities
+    setTimeout(() => {
+      Promise.allSettled([
+        queryClient.prefetchQuery({
+          queryKey: messageKeys.conversations(userId),
+          queryFn: messagesApiClient.getConversations,
+        }),
+        queryClient.prefetchQuery({
+          queryKey: activityKeys.list(userId),
+          queryFn: async () => {
+            const { notificationsApiClient: nApi } =
+              await import("@/lib/api/notifications");
+            const result = await nApi.getNotifications(50);
+            return (result.docs || [])
+              .map((n: any) => ({
+                id: String(n.id),
+                type: n.type || "like",
+                user: {
+                  id: n.sender?.id || "",
+                  username: n.sender?.username || "user",
+                  avatar: n.sender?.avatar || "",
+                },
+                entityType: n.entityType,
+                entityId: n.entityId,
+                post: n.post
+                  ? { id: String(n.post.id || ""), thumbnail: n.post.thumbnail || "" }
+                  : undefined,
+                event: n.event
+                  ? { id: String(n.event.id || ""), title: n.event.title }
+                  : undefined,
+                comment: n.content,
+                timeAgo: "",
+                isRead: !!n.readAt,
+                createdAt: n.createdAt || new Date().toISOString(),
+              }))
+              .filter((a: any) => a.id);
+          },
+        }),
+        queryClient.prefetchQuery({
+          queryKey: [...messageKeys.all, "filtered", "primary", userId],
+          queryFn: () => messagesApiClient.getFilteredConversations("primary"),
+        }),
+      ]).then((r) => logLane(2, r));
+    }, 400);
 
-      // 7. Events list (events tab)
-      queryClient.prefetchQuery({
-        queryKey: eventKeys.list(),
-        queryFn: () => eventsApiClient.getEvents(20),
-      }),
+    // Lane 3: Secondary data — profile posts, bookmarks, events
+    setTimeout(() => {
+      Promise.allSettled([
+        queryClient.prefetchQuery({
+          queryKey: postKeys.profilePosts(userId),
+          queryFn: () => postsApi.getProfilePosts(userId),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: bookmarkKeys.list(),
+          queryFn: () => bookmarksApi.getBookmarks(),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: eventKeys.list(),
+          queryFn: () => eventsApiClient.getEvents(20),
+        }),
+        queryClient.prefetchQuery({
+          queryKey: notificationKeys.list(userId),
+          queryFn: async () => {
+            const response = await notificationsApi.get({ limit: 50 });
+            return response.docs || [];
+          },
+        }),
+        queryClient.prefetchQuery({
+          queryKey: [...eventKeys.all, "mine"] as const,
+          queryFn: () => eventsApiClient.getMyEvents(),
+        }),
+        (() => {
+          const userIdInt = getCurrentUserIdInt();
+          if (!userIdInt) return Promise.resolve();
+          return queryClient.prefetchQuery({
+            queryKey: eventKeys.liked(userIdInt),
+            queryFn: () => eventsApiClient.getLikedEvents(userIdInt),
+          });
+        })(),
+      ]).then((r) => logLane(3, r));
+    }, 1000);
 
-      // 8. Profile posts (profile tab — user's own posts grid)
-      queryClient.prefetchQuery({
-        queryKey: postKeys.profilePosts(userId),
-        queryFn: () => postsApi.getProfilePosts(userId),
-      }),
-
-      // 9. Bookmarks (profile tab — saved posts)
-      queryClient.prefetchQuery({
-        queryKey: bookmarkKeys.list(),
-        queryFn: () => bookmarksApi.getBookmarks(),
-      }),
-
-      // 10. Filtered conversations — inbox (messages screen)
-      queryClient.prefetchQuery({
-        queryKey: [...messageKeys.all, "filtered", "primary", userId],
-        queryFn: () => messagesApiClient.getFilteredConversations("primary"),
-      }),
-
-      // 11. My events (profile tab — hosting + RSVP'd)
-      queryClient.prefetchQuery({
-        queryKey: [...eventKeys.all, "mine"] as const,
-        queryFn: () => eventsApiClient.getMyEvents(),
-      }),
-
-      // 12. Liked events (profile tab)
-      (() => {
-        const userIdInt = getCurrentUserIdInt();
-        if (!userIdInt) return Promise.resolve();
-        return queryClient.prefetchQuery({
-          queryKey: eventKeys.liked(userIdInt),
-          queryFn: () => eventsApiClient.getLikedEvents(userIdInt),
-        });
-      })(),
-
-      // 13. Activities (notifications tab — transformed + deduped)
-      queryClient.prefetchQuery({
-        queryKey: activityKeys.list(userId),
-        queryFn: async () => {
-          const { notificationsApiClient: nApi } =
-            await import("@/lib/api/notifications");
-          const result = await nApi.getNotifications(50);
-          // Lightweight transform inline — full transform happens in useActivitiesQuery
-          return (result.docs || [])
-            .map((n: any) => ({
-              id: String(n.id),
-              type: n.type || "like",
-              user: {
-                id: n.sender?.id || "",
-                username: n.sender?.username || "user",
-                avatar: n.sender?.avatar || "",
-              },
-              entityType: n.entityType,
-              entityId: n.entityId,
-              post: n.post
-                ? {
-                    id: String(n.post.id || ""),
-                    thumbnail: n.post.thumbnail || "",
-                  }
-                : undefined,
-              event: n.event
-                ? { id: String(n.event.id || ""), title: n.event.title }
-                : undefined,
-              comment: n.content,
-              timeAgo: "",
-              isRead: !!n.readAt,
-              createdAt: n.createdAt || new Date().toISOString(),
-            }))
-            .filter((a: any) => a.id);
-        },
-      }),
-    ]).then((results) => {
-      const elapsed = Date.now() - t0;
-      const succeeded = results.filter((r) => r.status === "fulfilled").length;
-      const failed = results.filter((r) => r.status === "rejected").length;
-
-      console.log(
-        `[BootPrefetch] Done in ${elapsed}ms — ${succeeded} succeeded, ${failed} failed` +
-          (cacheStatus === "full"
-            ? " (background refresh)"
-            : " (initial load)"),
-      );
-
-      if (__DEV__) {
-        const labels = [
-          "feed",
-          "unreadCounts",
-          "conversations",
-          "profile",
-          "notifications",
-          "badges",
-          "events",
-          "profilePosts",
-          "bookmarks",
-          "filteredConversations",
-          "myEvents",
-          "likedEvents",
-          "activities",
-        ];
-        results.forEach((r, i) => {
-          if (r.status === "rejected") {
-            console.warn(
-              `[BootPrefetch] ${labels[i]} failed:`,
-              (r as PromiseRejectedResult).reason,
-            );
-          }
-        });
-      }
-
-      // Phase 2: Prefetch chat messages for top 3 conversations
-      // This runs AFTER conversations are cached so chat screens render instantly
+    // Lane 4: Chat message prefetch for top 3 conversations (lowest priority)
+    setTimeout(() => {
       try {
         const conversations = queryClient.getQueryData<any[]>(
           messageKeys.conversations(userId),
@@ -262,7 +235,7 @@ export function useBootPrefetch() {
         if (conversations && conversations.length > 0) {
           const top3 = conversations.slice(0, 3);
           console.log(
-            `[BootPrefetch] Prefetching messages for ${top3.length} top conversations`,
+            `[BootPrefetch] Lane 4: Prefetching messages for ${top3.length} top conversations`,
           );
           top3.forEach((conv: any) => {
             if (conv?.id) {
@@ -271,8 +244,14 @@ export function useBootPrefetch() {
           });
         }
       } catch (err) {
-        console.warn("[BootPrefetch] Chat prefetch failed:", err);
+        console.warn("[BootPrefetch] Lane 4 (chat) failed:", err);
       }
-    });
+
+      const totalElapsed = Date.now() - t0;
+      console.log(
+        `[BootPrefetch] All lanes dispatched in ${totalElapsed}ms` +
+          (cacheStatus === "full" ? " (background refresh)" : " (initial load)"),
+      );
+    }, 2000);
   }, [userId, queryClient]);
 }

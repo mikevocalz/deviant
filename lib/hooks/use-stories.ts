@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import type { Story } from "@/lib/types";
+import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys
 export const storyKeys = {
@@ -28,7 +29,7 @@ export function useStories() {
   return useQuery({
     queryKey: storyKeys.list(),
     queryFn: () => storiesApiClient.getStories(),
-    staleTime: 60 * 1000, // 1 min — stories are time-sensitive
+    staleTime: STALE_TIMES.stories,
     refetchInterval: 60 * 1000, // Background refresh every 60s
     // Inherits global refetchOnMount: false — no flicker on tab switch
   });

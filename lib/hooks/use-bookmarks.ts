@@ -11,6 +11,7 @@ import { bookmarksApi } from "@/lib/api/bookmarks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys - scoped by viewerId for cache isolation
 export const bookmarkKeys = {
@@ -27,8 +28,8 @@ export function useBookmarks() {
   return useQuery({
     queryKey: bookmarkKeys.list(),
     queryFn: () => bookmarksApi.getBookmarks(),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: STALE_TIMES.bookmarks,
+    gcTime: GC_TIMES.standard,
     // Inherits global refetchOnMount: false
     enabled: !!viewerId,
   });

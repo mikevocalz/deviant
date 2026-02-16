@@ -27,10 +27,10 @@ import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
 import { CenterButton } from "@/components/center-button";
 import { Plus } from "lucide-react-native";
-import {
-  partitionRoutes,
-  TABLET_RAIL_WIDTH,
-} from "./constants";
+import { partitionRoutes, TABLET_RAIL_WIDTH } from "./constants";
+import { prefetchForRoute } from "@/lib/perf/prefetch-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export function TabletTabBar({
   state,
@@ -39,6 +39,8 @@ export function TabletTabBar({
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id) || "";
 
   const { regularRoutes, specialRoute } = useMemo(
     () => partitionRoutes(state.routes, descriptors),
@@ -118,6 +120,9 @@ export function TabletTabBar({
               testID={options.tabBarButtonTestID}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (!isFocused && userId) {
+                  prefetchForRoute(queryClient, userId, route.name);
+                }
                 handleTabPress(route, isFocused);
               }}
               onLongPress={() => handleTabLongPress(route)}
@@ -137,12 +142,7 @@ export function TabletTabBar({
 
       {/* Special action button — pinned to bottom */}
       {specialRoute && (
-        <View
-          style={[
-            styles.bottomAction,
-            { bottom: 30 + insets.bottom },
-          ]}
-        >
+        <View style={[styles.bottomAction, { bottom: 30 + insets.bottom }]}>
           <CenterButton Icon={Plus} onPress={handleSpecialPress} />
         </View>
       )}

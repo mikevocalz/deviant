@@ -43,6 +43,7 @@ import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { useFocusEffect } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
 
 interface ConversationItem {
   id: string;
@@ -449,15 +450,28 @@ export default function MessagesScreen() {
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
+  const trace = useScreenTrace("Messages");
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
 
-  // Refetch conversations when screen gains focus (e.g. after sending a message in a new chat)
+  // Soft refetch on focus — only if data is stale (> 30s old)
+  // Replaces aggressive invalidateQueries which forced refetch on EVERY screen focus
   useFocusEffect(
     useCallback(() => {
-      queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
-    }, [queryClient]),
+      const state = queryClient.getQueryState([
+        "messages",
+        "filtered",
+        "primary",
+        currentUser?.id || "__no_user__",
+      ]);
+      const dataAge = state?.dataUpdatedAt
+        ? Date.now() - state.dataUpdatedAt
+        : Infinity;
+      if (dataAge > 30_000) {
+        queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+      }
+    }, [queryClient, currentUser?.id]),
   );
 
   // TanStack Query — renders from cache instantly (primed by boot prefetch)

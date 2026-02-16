@@ -14,6 +14,9 @@ import { BottomTabBarHeightCallbackContext } from "@react-navigation/bottom-tabs
 import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
 import { isTabVisible, isSpecialTab, PHONE_TAB_BAR_HEIGHT } from "./constants";
+import { prefetchForRoute } from "@/lib/perf/prefetch-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export function PhoneTabBar({
   state,
@@ -23,6 +26,8 @@ export function PhoneTabBar({
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
   const onHeightChange = React.useContext(BottomTabBarHeightCallbackContext);
+  const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id) || "";
 
   const visibleRoutes = useMemo(
     () => state.routes.filter((route) => isTabVisible(route, descriptors)),
@@ -99,6 +104,9 @@ export function PhoneTabBar({
             testID={options.tabBarButtonTestID}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (!isFocused && userId) {
+                prefetchForRoute(queryClient, userId, route.name);
+              }
               handleTabPress(route, isFocused);
             }}
             onLongPress={() => handleTabLongPress(route)}
