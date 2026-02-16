@@ -155,6 +155,9 @@ export type EditorMode =
   | "trim"
   | "export";
 
+export type TextEditorTab = "style" | "font" | "color" | "typography";
+export type FilterMainTab = "filters" | "effects";
+
 export interface EditorState {
   mode: EditorMode;
   elements: CanvasElement[];
@@ -168,8 +171,36 @@ export interface EditorState {
   videoCurrentTime: number;
   isPlaying: boolean;
   canvasSize: Size;
-  undoStack: CanvasElement[][];
-  redoStack: CanvasElement[][];
+  undoStack: { elements: CanvasElement[]; drawingPaths: DrawingPath[] }[];
+  redoStack: { elements: CanvasElement[]; drawingPaths: DrawingPath[] }[];
+  // ---- Drawing UI ----
+  drawingTool: DrawingTool;
+  drawingColor: string;
+  strokeWidth: number;
+  // ---- Filter/Effect UI ----
+  selectedEffectId: string | null;
+  filterMainTab: FilterMainTab;
+  filterEffectCategory: string;
+  // ---- Sticker UI ----
+  stickerActiveTab: string;
+  stickerSearchQuery: string;
+  // ---- Text Editor UI ----
+  textEditorTab: TextEditorTab;
+  textEditContent: string;
+  textEditFont: string;
+  textEditColor: string;
+  textEditStyle: TextStylePreset;
+  textEditAlign: "left" | "center" | "right";
+  textEditFontSize: number;
+  textEditLetterSpacing: number;
+  textEditLineHeight: number;
+  textEditElementId: string | null;
+  // ---- Canvas background (text-only stories) ----
+  canvasBackground: string; // StoryBackground id
+  // ---- Drawing color picker ----
+  showDrawingColorPicker: boolean;
+  // ---- Debug ----
+  showPerfHUD: boolean;
 }
 
 // ---- Export ----
@@ -187,6 +218,28 @@ export interface ExportProgress {
   progress: number;
   status: "preparing" | "rendering" | "encoding" | "saving" | "done" | "error";
   message: string;
+}
+
+export interface ExportArtifact {
+  uri: string;
+  type: "image" | "video";
+  width: number;
+  height: number;
+  duration?: number;
+}
+
+export type ExportStatus =
+  | "idle"
+  | "rendering"
+  | "ready"
+  | "saving"
+  | "saved"
+  | "error";
+
+export interface ExportSession {
+  status: ExportStatus;
+  artifact: ExportArtifact | null;
+  error?: string;
 }
 
 // ---- Color Palette ----

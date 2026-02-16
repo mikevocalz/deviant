@@ -12,10 +12,10 @@ import {
   Text,
   TextInput,
   Pressable,
+  TouchableOpacity,
   Keyboard,
   Platform,
   Animated,
-  Easing,
 } from "react-native";
 import { X, Send, Heart, Star } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -34,67 +34,64 @@ import type {
   RenderCustomText,
 } from "react-native-insta-story";
 
-// ── Floating Emoji Reaction ─────────────────────────────────────────
+// ── Reaction Tally Display ──────────────────────────────────────────
 
 const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
 
-function FloatingEmoji({
-  emoji,
-  onComplete,
-}: {
-  emoji: string;
-  onComplete: () => void;
-}) {
-  const translateY = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(1)).current;
-  const scale = useRef(new Animated.Value(0.3)).current;
-  const translateX = useRef(
-    new Animated.Value((Math.random() - 0.5) * 80),
+function ReactionTally({ counts }: { counts: Record<string, number> }) {
+  const scale = useRef(new Animated.Value(0.6)).current;
+
+  // Bounce in on mount
+  useRef(
+    Animated.spring(scale, {
+      toValue: 1,
+      speed: 30,
+      bounciness: 14,
+      useNativeDriver: true,
+    }).start(),
   ).current;
 
-  useRef(
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: -300 - Math.random() * 100,
-        duration: 2200,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.spring(scale, {
-          toValue: 1.3,
-          speed: 40,
-          bounciness: 12,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scale, {
-          toValue: 0.8,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 2200,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start(onComplete),
-  ).current;
+  const entries = Object.entries(counts).filter(([, c]) => c > 0);
+  if (entries.length === 0) return null;
 
   return (
-    <Animated.Text
+    <Animated.View
       style={{
-        position: "absolute",
-        bottom: 100,
-        right: 30,
-        fontSize: 36,
-        opacity,
-        transform: [{ translateY }, { translateX }, { scale }],
+        flexDirection: "row",
+        justifyContent: "center",
+        gap: 10,
+        marginBottom: 8,
+        transform: [{ scale }],
       }}
     >
-      {emoji}
-    </Animated.Text>
+      {entries.map(([emoji, count]) => (
+        <View
+          key={emoji}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            borderRadius: 20,
+            paddingHorizontal: 10,
+            paddingVertical: 5,
+          }}
+        >
+          <Text style={{ fontSize: 22 }}>{emoji}</Text>
+          {count > 1 && (
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: "700",
+                marginLeft: 4,
+              }}
+            >
+              x{count}
+            </Text>
+          )}
+        </View>
+      ))}
+    </Animated.View>
   );
 }
 
@@ -102,14 +99,21 @@ function FloatingEmoji({
 
 export const StoryCloseButton: RenderCustomButton = ({ onPress }) => {
   return (
-    <Pressable
+    <TouchableOpacity
       onPress={onPress}
       hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-      className="w-9 h-9 items-center justify-center rounded-full"
-      style={{ backgroundColor: "rgba(0,0,0,0.3)" }}
+      activeOpacity={0.6}
+      style={{
+        width: 36,
+        height: 36,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: 18,
+        backgroundColor: "rgba(0,0,0,0.3)",
+      }}
     >
       <X size={20} color="#fff" strokeWidth={2.5} />
-    </Pressable>
+    </TouchableOpacity>
   );
 };
 
@@ -179,10 +183,11 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
-  const [floatingEmojis, setFloatingEmojis] = useState<
-    { id: number; emoji: string }[]
-  >([]);
-  const emojiCounter = useRef(0);
+  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>(
+    {},
+  );
+  const [showTally, setShowTally] = useState(false);
+  const tallyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const customData = (
     item as IUserStoryItem & { customData?: StoryItemCustomData }
@@ -195,8 +200,20 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
   const handleReact = useCallback(
     async (emoji: string) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const id = emojiCounter.current++;
-      setFloatingEmojis((prev) => [...prev, { id, emoji }]);
+
+      // Tally the reaction
+      setReactionCounts((prev) => ({
+        ...prev,
+        [emoji]: (prev[emoji] || 0) + 1,
+      }));
+      setShowTally(true);
+
+      // Reset fade timer on each new tap
+      if (tallyTimerRef.current) clearTimeout(tallyTimerRef.current);
+      tallyTimerRef.current = setTimeout(() => {
+        setShowTally(false);
+        setReactionCounts({});
+      }, 2500);
 
       // Send reaction as DM (Instagram-style)
       if (!customData || isOwnStory) return;
@@ -239,10 +256,6 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
     },
     [customData, isOwnStory, item],
   );
-
-  const removeEmoji = useCallback((id: number) => {
-    setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
-  }, []);
 
   const handleSendReply = useCallback(async () => {
     if (!replyText.trim() || isSending || !customData) return;
@@ -312,14 +325,8 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
       }}
       pointerEvents="box-none"
     >
-      {/* Floating emoji reactions */}
-      {floatingEmojis.map((e) => (
-        <FloatingEmoji
-          key={e.id}
-          emoji={e.emoji}
-          onComplete={() => removeEmoji(e.id)}
-        />
-      ))}
+      {/* Tallied reaction display */}
+      {showTally && <ReactionTally counts={reactionCounts} />}
 
       {/* Emoji reaction row */}
       {!isInputFocused && !isOwnStory && (

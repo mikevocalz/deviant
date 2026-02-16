@@ -2,16 +2,11 @@
 // Instagram Stories Editor - Utility Functions
 // ============================================================
 
-import { Dimensions } from 'react-native';
-import {
-  Position,
-  CanvasElement,
-  FilterAdjustment,
-  Transform,
-} from '../types';
-import { CANVAS_WIDTH, CANVAS_HEIGHT, IDENTITY_MATRIX } from '../constants';
+import { Dimensions } from "react-native";
+import { Position, CanvasElement, FilterAdjustment, Transform } from "../types";
+import { CANVAS_WIDTH, CANVAS_HEIGHT, IDENTITY_MATRIX } from "../constants";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ---- ID Generation ----
 
@@ -59,7 +54,7 @@ export const defaultTransform = (): Transform => ({
 export const hitTest = (
   point: Position,
   element: CanvasElement,
-  padding: number = 20
+  padding: number = 20,
 ): boolean => {
   const { translateX, translateY, scale } = element.transform;
 
@@ -67,12 +62,12 @@ export const hitTest = (
   let halfWidth = 100 * scale + padding;
   let halfHeight = 50 * scale + padding;
 
-  if (element.type === 'sticker') {
+  if (element.type === "sticker") {
     halfWidth = (element.size / 2) * scale + padding;
     halfHeight = (element.size / 2) * scale + padding;
-  } else if (element.type === 'text') {
+  } else if (element.type === "text") {
     halfWidth = (element.maxWidth / 2) * scale + padding;
-    halfHeight = (element.fontSize * 2) * scale + padding;
+    halfHeight = element.fontSize * 2 * scale + padding;
   }
 
   return (
@@ -93,25 +88,58 @@ export const buildAdjustmentMatrix = (adj: FilterAdjustment): number[] => {
   let matrix = [...IDENTITY_MATRIX];
 
   // Brightness: offset the RGB channels
+  // Skia ColorMatrix offsets are in [0,1] range (normalized float colors)
   if (adj.brightness !== 0) {
-    const b = adj.brightness * 2.55; // -100..100 → -255..255
+    const b = adj.brightness / 100; // -100..100 → -1..1
     matrix = multiplyColorMatrix(matrix, [
-      1, 0, 0, 0, b,
-      0, 1, 0, 0, b,
-      0, 0, 1, 0, b,
-      0, 0, 0, 1, 0,
+      1,
+      0,
+      0,
+      0,
+      b,
+      0,
+      1,
+      0,
+      0,
+      b,
+      0,
+      0,
+      1,
+      0,
+      b,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
   // Contrast
   if (adj.contrast !== 0) {
     const c = 1 + adj.contrast / 100;
-    const t = (-0.5 * c + 0.5) * 255;
+    const t = -0.5 * c + 0.5; // offset in [0,1] range
     matrix = multiplyColorMatrix(matrix, [
-      c, 0, 0, 0, t,
-      0, c, 0, 0, t,
-      0, 0, c, 0, t,
-      0, 0, 0, 1, 0,
+      c,
+      0,
+      0,
+      0,
+      t,
+      0,
+      c,
+      0,
+      0,
+      t,
+      0,
+      0,
+      c,
+      0,
+      t,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
@@ -120,45 +148,109 @@ export const buildAdjustmentMatrix = (adj: FilterAdjustment): number[] => {
     const s = 1 + adj.saturation / 100;
     const sr = (1 - s) * 0.3086;
     const sg = (1 - s) * 0.6094;
-    const sb = (1 - s) * 0.0820;
+    const sb = (1 - s) * 0.082;
     matrix = multiplyColorMatrix(matrix, [
-      sr + s, sg, sb, 0, 0,
-      sr, sg + s, sb, 0, 0,
-      sr, sg, sb + s, 0, 0,
-      0, 0, 0, 1, 0,
+      sr + s,
+      sg,
+      sb,
+      0,
+      0,
+      sr,
+      sg + s,
+      sb,
+      0,
+      0,
+      sr,
+      sg,
+      sb + s,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
   // Temperature (warm = +R-B, cool = -R+B)
   if (adj.temperature !== 0) {
-    const t = adj.temperature * 1.5;
+    const t = (adj.temperature / 100) * 0.15; // subtle shift
     matrix = multiplyColorMatrix(matrix, [
-      1, 0, 0, 0, t,
-      0, 1, 0, 0, 0,
-      0, 0, 1, 0, -t,
-      0, 0, 0, 1, 0,
+      1,
+      0,
+      0,
+      0,
+      t,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      -t,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
   // Tint (green-magenta shift)
   if (adj.tint !== 0) {
-    const t = adj.tint * 1.2;
+    const t = (adj.tint / 100) * 0.12; // subtle shift
     matrix = multiplyColorMatrix(matrix, [
-      1, 0, 0, 0, 0,
-      0, 1, 0, 0, -t,
-      0, 0, 1, 0, t,
-      0, 0, 0, 1, 0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      -t,
+      0,
+      0,
+      1,
+      0,
+      t,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
   // Fade (lift shadows)
   if (adj.fade !== 0) {
-    const f = adj.fade * 0.5;
+    const f = (adj.fade / 100) * 0.15; // subtle lift
     matrix = multiplyColorMatrix(matrix, [
-      1, 0, 0, 0, f,
-      0, 1, 0, 0, f,
-      0, 0, 1, 0, f,
-      0, 0, 0, 1, 0,
+      1,
+      0,
+      0,
+      0,
+      f,
+      0,
+      1,
+      0,
+      0,
+      f,
+      0,
+      0,
+      1,
+      0,
+      f,
+      0,
+      0,
+      0,
+      1,
+      0,
     ]);
   }
 
@@ -191,14 +283,17 @@ export const multiplyColorMatrix = (a: number[], b: number[]): number[] => {
 export const interpolateMatrix = (
   a: number[],
   b: number[],
-  t: number
+  t: number,
 ): number[] => {
   return a.map((val, i) => val + (b[i] - val) * t);
 };
 
 // ---- Path Smoothing for Drawing ----
 
-export const smoothPath = (points: Position[], tension: number = 0.5): Position[] => {
+export const smoothPath = (
+  points: Position[],
+  tension: number = 0.5,
+): Position[] => {
   if (points.length < 3) return points;
 
   const smoothed: Position[] = [points[0]];
@@ -222,7 +317,7 @@ export const smoothPath = (points: Position[], tension: number = 0.5): Position[
  * Convert points to an SVG path string for Skia
  */
 export const pointsToSvgPath = (points: Position[]): string => {
-  if (points.length === 0) return '';
+  if (points.length === 0) return "";
   if (points.length === 1) {
     return `M ${points[0].x} ${points[0].y} L ${points[0].x + 0.1} ${points[0].y + 0.1}`;
   }
@@ -281,14 +376,14 @@ export const hexToRgba = (hex: string, alpha: number = 1): string => {
 };
 
 export const rgbaToHex = (r: number, g: number, b: number): string => {
-  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('');
+  return "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
 };
 
 // ---- Debounce ----
 
 export const debounce = <T extends (...args: any[]) => any>(
   func: T,
-  wait: number
+  wait: number,
 ): ((...args: Parameters<T>) => void) => {
   let timeout: NodeJS.Timeout;
   return (...args: Parameters<T>) => {
@@ -302,5 +397,5 @@ export const debounce = <T extends (...args: any[]) => any>(
 export const formatDuration = (seconds: number): string => {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 };

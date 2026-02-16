@@ -177,6 +177,60 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     paramsSchema: idSchema,
     label: "Ticket",
   },
+  {
+    urlPattern: "/tickets/success",
+    routerPath: "/(protected)/events/my-tickets",
+    auth: "auth-required",
+    label: "Ticket Purchase Success",
+  },
+  {
+    urlPattern: "/tickets/cancel",
+    routerPath: "/(protected)/(tabs)/events",
+    auth: "auth-required",
+    label: "Ticket Purchase Cancelled",
+  },
+  {
+    urlPattern: "/my-tickets",
+    routerPath: "/(protected)/events/my-tickets",
+    auth: "auth-required",
+    label: "My Tickets",
+  },
+
+  // ── Organizer ───────────────────────────────────────────────────────
+  {
+    urlPattern: "/events/:id/organizer",
+    routerPath: "/(protected)/events/:id/organizer",
+    auth: "auth-required",
+    paramsSchema: idSchema,
+    label: "Organizer Dashboard",
+  },
+  {
+    urlPattern: "/events/:id/scanner",
+    routerPath: "/(protected)/events/:id/scanner",
+    auth: "auth-required",
+    paramsSchema: idSchema,
+    label: "Ticket Scanner",
+  },
+  {
+    urlPattern: "/organizer-setup",
+    routerPath: "/(protected)/events/organizer-setup",
+    auth: "auth-required",
+    label: "Organizer Setup",
+  },
+
+  // ── Sneaky Lynk Stripe Return ───────────────────────────────────────
+  {
+    urlPattern: "/sneaky/success",
+    routerPath: "/(protected)/sneaky-lynk",
+    auth: "auth-required",
+    label: "Sneaky Access Success",
+  },
+  {
+    urlPattern: "/sneaky/cancel",
+    routerPath: "/(protected)/sneaky-lynk",
+    auth: "auth-required",
+    label: "Sneaky Access Cancelled",
+  },
 
   // ── Video / Calls ──────────────────────────────────────────────────
   {

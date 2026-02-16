@@ -182,9 +182,12 @@ export function StoriesBar() {
         <View style={{ paddingTop: 5, paddingLeft: 4, paddingRight: 10 }}>
           <View style={{ alignItems: "center", gap: 6 }}>
             {hasMyStory && myStory ? (
-              <View className="relative">
-                {/* Tap story ring to view story */}
-                <Pressable onPress={handleMyStoryPress}>
+              <View style={{ position: "relative" }}>
+                {/* Tap story ring to view story — delayPressIn lets the + button win */}
+                <Pressable
+                  onPress={handleMyStoryPress}
+                  unstable_pressDelay={200}
+                >
                   {/* CRITICAL: Avatar MUST come from story.avatar (entity data), NOT user.avatar (authUser) */}
                   <StoryRing
                     src={myStory.avatar}
@@ -200,12 +203,27 @@ export function StoriesBar() {
                     })()}
                   />
                 </Pressable>
-                {/* Add button overlay - tap to add new story */}
+                {/* Add button overlay - instant response, larger hit area */}
                 <Pressable
                   onPress={handleCreateStory}
-                  className="absolute -bottom-1 -right-1 h-7 w-7 items-center justify-center rounded-full bg-primary border-2 border-background"
+                  unstable_pressDelay={0}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={{
+                    position: "absolute",
+                    bottom: -4,
+                    right: -4,
+                    width: 30,
+                    height: 30,
+                    borderRadius: 8,
+                    backgroundColor: "#3EA4E5",
+                    borderWidth: 2,
+                    borderColor: "#000",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    zIndex: 10,
+                  }}
                 >
-                  <Plus size={16} color="#0c0a09" strokeWidth={3} />
+                  <Plus size={15} color="#0c0a09" strokeWidth={3} />
                 </Pressable>
               </View>
             ) : (

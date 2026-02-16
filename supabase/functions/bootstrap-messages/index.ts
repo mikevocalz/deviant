@@ -107,14 +107,14 @@ Deno.serve(async (req: Request) => {
 
         if (!conv) return null;
 
-        // Get last message
-        const { data: lastMsg } = await supabase
+        // Get last message (may not exist for new conversations)
+        const { data: lastMsgArr } = await supabase
           .from("messages")
           .select("content, created_at, sender_id")
           .eq("conversation_id", convId)
           .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+          .limit(1);
+        const lastMsg = lastMsgArr?.[0] || null;
 
         // Get other participant
         const { data: otherParticipants } = await supabase
@@ -193,7 +193,9 @@ Deno.serve(async (req: Request) => {
     const unreadSpam = requests.filter((c: any) => c.unread).length;
 
     // Strip isPrimary from response
-    const cleanConvs = filteredConvs.slice(0, limit).map(({ isPrimary, ...rest }: any) => rest);
+    const cleanConvs = filteredConvs
+      .slice(0, limit)
+      .map(({ isPrimary, ...rest }: any) => rest);
 
     const elapsed = Date.now() - t0;
 
@@ -208,9 +210,9 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     console.error("[bootstrap-messages] Error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });

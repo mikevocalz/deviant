@@ -5,7 +5,7 @@
 
 import { supabase } from "@/lib/supabase/client";
 import { DB } from "@/lib/supabase/db-map";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import {
   ProcessedMedia,
   UploadedMedia,

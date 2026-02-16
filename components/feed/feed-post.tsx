@@ -5,7 +5,6 @@ import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import {
   Heart,
   MessageCircle,
-  Share2,
   Send,
   Bookmark,
   MoreHorizontal,
@@ -52,6 +51,14 @@ import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
+import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
+import { usePostTags } from "@/lib/hooks/use-post-tags";
+import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
+import {
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 
 const LONG_PRESS_DELAY = 300;
 
@@ -136,6 +143,12 @@ function FeedPostComponent({
       isOwner,
     });
   }
+
+  // Post tags (Instagram-style tap-to-reveal)
+  const { data: postTags = [] } = usePostTags(id);
+  const tagsVisible = usePostTagsUIStore((s) => s.visibleTags[id] ?? false);
+  const toggleTags = usePostTagsUIStore((s) => s.toggleTags);
+  const tagProgress = useSharedValue(0);
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
   // Fetch last 3 comments for feed display
@@ -436,8 +449,23 @@ function FeedPostComponent({
       console.error("[FeedPost] Cannot navigate - no post ID!");
       return;
     }
+    // Instagram behavior: if post has tags, single tap toggles tag visibility
+    if (postTags.length > 0) {
+      const nextVisible = !tagsVisible;
+      toggleTags(id);
+      if (nextVisible) {
+        tagProgress.value = withSpring(1, {
+          damping: 18,
+          stiffness: 180,
+          mass: 0.8,
+        });
+      } else {
+        tagProgress.value = withTiming(0, { duration: 180 });
+      }
+      return;
+    }
     router.push(`/(protected)/post/${id}`);
-  }, [router, id]);
+  }, [router, id, postTags.length, tagsVisible, toggleTags, tagProgress]);
 
   // Get current user for profile routing
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -671,6 +699,15 @@ function FeedPostComponent({
                 )}
               </Pressable>
             )}
+
+            {/* Tag overlay — sits on top of all media types */}
+            {!isVideo && postTags.length > 0 && (
+              <TagOverlayViewer
+                postId={id}
+                mediaIndex={currentSlide}
+                tagProgress={tagProgress}
+              />
+            )}
           </View>
         )}
 
@@ -699,9 +736,6 @@ function FeedPostComponent({
             </Pressable>
             <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
               <Send size={24} color={colors.foreground} />
-            </Pressable>
-            <Pressable onPress={handleShare} hitSlop={12}>
-              <Share2 size={24} color={colors.foreground} />
             </Pressable>
           </View>
           <Pressable onPress={handleSave} hitSlop={12}>
@@ -785,6 +819,7 @@ function FeedPostComponent({
         onEdit={handleEdit}
         onDelete={handleDelete}
         onShareToStory={handleShareToStory}
+        onShare={handleShare}
       />
 
       <LikesSheet

@@ -11,7 +11,7 @@
  * - Calculate hash for deduplication
  */
 
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 // @ts-ignore - expo-crypto may not have types
 import * as Crypto from "expo-crypto";
 import * as VideoThumbnails from "expo-video-thumbnails";

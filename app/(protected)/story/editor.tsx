@@ -1,8 +1,9 @@
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { EditorScreen } from "@/src/stories-editor";
 import { useEditorStore } from "@/src/stories-editor/stores/editor-store";
 import type { EditorMode } from "@/src/stories-editor";
+import { Debouncer } from "@tanstack/react-pacer";
 
 export default function StoryEditorRoute() {
   const { uri, type, initialMode } = useLocalSearchParams<{
@@ -12,24 +13,29 @@ export default function StoryEditorRoute() {
   }>();
   const router = useRouter();
   const navigation = useNavigation();
-  const resetEditor = useEditorStore((s) => s.resetEditor);
+
+  // Deferred reset so user doesn't see blank editor during transition
+  const deferredReset = useRef(
+    new Debouncer(() => useEditorStore.getState().resetEditor(), { wait: 200 }),
+  );
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
   const handleClose = () => {
-    resetEditor();
-    router.back();
+    router.navigate("/(protected)/story/create");
+    deferredReset.current.maybeExecute();
   };
 
   const handleSave = (editedUri: string) => {
-    // Pass edited URI back via params — story/create picks it up via useFocusEffect
-    resetEditor();
+    // Navigate first, THEN reset — so create screen can consume editedUri
+    // before editor state is cleared
     router.navigate({
       pathname: "/(protected)/story/create",
       params: { editedUri, editedIndex: "0" },
     });
+    deferredReset.current.maybeExecute();
   };
 
   return (

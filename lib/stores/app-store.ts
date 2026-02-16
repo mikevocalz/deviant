@@ -1,21 +1,25 @@
-import { create } from "zustand"
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const NSFW_STORAGE_KEY = "app_nsfw_enabled"
+const NSFW_STORAGE_KEY = "app_nsfw_enabled";
 
 // Module-level flag to ensure splash NEVER replays within app process lifetime
 let splashHasFinishedEver = false;
 
 interface AppState {
-  appReady: boolean
-  splashAnimationFinished: boolean
-  nsfwEnabled: boolean
-  nsfwLoaded: boolean
-  setAppReady: (ready: boolean) => void
-  setSplashAnimationFinished: (finished: boolean) => void
-  onAnimationFinish: (isCancelled: boolean) => void
-  setNsfwEnabled: (enabled: boolean) => void
-  loadNsfwSetting: () => Promise<void>
+  appReady: boolean;
+  splashAnimationFinished: boolean;
+  nsfwEnabled: boolean;
+  nsfwLoaded: boolean;
+  /** Route to navigate to after splash + auth settle (from notification cold start) */
+  pendingNotificationRoute: string | null;
+  setAppReady: (ready: boolean) => void;
+  setSplashAnimationFinished: (finished: boolean) => void;
+  onAnimationFinish: (isCancelled: boolean) => void;
+  setNsfwEnabled: (enabled: boolean) => void;
+  loadNsfwSetting: () => Promise<void>;
+  setPendingNotificationRoute: (route: string | null) => void;
+  consumePendingNotificationRoute: () => string | null;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -24,6 +28,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   splashAnimationFinished: splashHasFinishedEver,
   nsfwEnabled: false,
   nsfwLoaded: false,
+  pendingNotificationRoute: null,
   setAppReady: (ready) => set({ appReady: ready }),
   setSplashAnimationFinished: (finished) => {
     if (finished) {
@@ -34,11 +39,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   onAnimationFinish: (isCancelled) => {
     // Guard: Never call this more than once
     if (splashHasFinishedEver || get().splashAnimationFinished) {
-      console.log("[AppStore] onAnimationFinish called but splash already finished, ignoring");
+      console.log(
+        "[AppStore] onAnimationFinish called but splash already finished, ignoring",
+      );
       return;
     }
-    
-    console.log("[AppStore] onAnimationFinish called, isCancelled:", isCancelled);
+
+    console.log(
+      "[AppStore] onAnimationFinish called, isCancelled:",
+      isCancelled,
+    );
     if (!isCancelled) {
       console.log("[AppStore] Setting splashAnimationFinished to true");
       splashHasFinishedEver = true;
@@ -48,25 +58,32 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.log("[AppStore] Animation was cancelled, not finishing");
     }
   },
+  setPendingNotificationRoute: (route) =>
+    set({ pendingNotificationRoute: route }),
+  consumePendingNotificationRoute: () => {
+    const route = get().pendingNotificationRoute;
+    if (route) set({ pendingNotificationRoute: null });
+    return route;
+  },
   setNsfwEnabled: async (enabled) => {
-    set({ nsfwEnabled: enabled })
+    set({ nsfwEnabled: enabled });
     try {
-      await AsyncStorage.setItem(NSFW_STORAGE_KEY, JSON.stringify(enabled))
+      await AsyncStorage.setItem(NSFW_STORAGE_KEY, JSON.stringify(enabled));
     } catch (error) {
-      console.log("Error saving NSFW setting:", error)
+      console.log("Error saving NSFW setting:", error);
     }
   },
   loadNsfwSetting: async () => {
     try {
-      const stored = await AsyncStorage.getItem(NSFW_STORAGE_KEY)
+      const stored = await AsyncStorage.getItem(NSFW_STORAGE_KEY);
       if (stored !== null) {
-        set({ nsfwEnabled: JSON.parse(stored), nsfwLoaded: true })
+        set({ nsfwEnabled: JSON.parse(stored), nsfwLoaded: true });
       } else {
-        set({ nsfwLoaded: true })
+        set({ nsfwLoaded: true });
       }
     } catch (error) {
-      console.log("Error loading NSFW setting:", error)
-      set({ nsfwLoaded: true })
+      console.log("Error loading NSFW setting:", error);
+      set({ nsfwLoaded: true });
     }
   },
-}))
+}));

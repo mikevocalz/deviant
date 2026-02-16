@@ -6,6 +6,7 @@ import {
   Pressable,
   TextInput,
   Platform,
+  Switch,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
@@ -53,6 +54,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete";
 import { useCreateEvent } from "@/lib/hooks/use-events";
+import { ticketTypesApi } from "@/lib/api/ticket-types";
 import { YouTubeEmbed, extractVideoId } from "@/components/youtube-embed";
 
 const SUGGESTED_TAGS = [
@@ -97,6 +99,8 @@ export default function CreateEventScreen() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [ticketingEnabled, setTicketingEnabled] = useState(false);
+  const [ticketTierName, setTicketTierName] = useState("");
 
   useEffect(() => {
     requestPermissions();
@@ -241,7 +245,7 @@ export default function CreateEventScreen() {
       // Format date as ISO string for Payload
       const eventDateISO = eventDate.toISOString();
 
-      const eventData = {
+      const eventData: Record<string, any> = {
         title: title.trim(),
         description: description.trim(),
         date: eventDateISO, // Use 'date' field (not 'fullDate')
@@ -253,13 +257,39 @@ export default function CreateEventScreen() {
         category: tags[0] || "Event",
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
         youtubeVideoUrl: youtubeUrl.trim() || undefined,
+        // V2 fields — location coordinates from autocomplete
+        locationLat: locationData?.latitude,
+        locationLng: locationData?.longitude,
+        locationName: locationData?.name,
+        locationType: "physical",
+        ticketingEnabled,
       };
 
       console.log("[CreateEvent] Creating event with data:", eventData);
 
       createEvent.mutate(eventData, {
-        onSuccess: (data) => {
+        onSuccess: async (data) => {
           console.log("[CreateEvent] Event created successfully:", data);
+
+          // Create default ticket type if ticketing is enabled
+          if (ticketingEnabled && data?.id) {
+            const priceCents = ticketPrice
+              ? Math.round(parseFloat(ticketPrice) * 100)
+              : 0;
+            const qty = maxAttendees ? parseInt(maxAttendees, 10) : 200;
+            const tierName =
+              ticketTierName.trim() ||
+              (priceCents === 0 ? "Free" : "General Admission");
+            await ticketTypesApi.create({
+              eventId: String(data.id),
+              name: tierName,
+              priceCents,
+              quantityTotal: qty,
+              maxPerUser: 4,
+            });
+            console.log("[CreateEvent] Default ticket type created");
+          }
+
           setUploadProgress(100);
           showToast("success", "Success", "Event created successfully!");
           setTimeout(() => {
@@ -753,6 +783,38 @@ export default function CreateEventScreen() {
           <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
             Ticketing
           </Text>
+
+          {/* Ticketing toggle */}
+          <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
+            <View className="flex-1 mr-3">
+              <Text className="text-sm font-semibold text-foreground">
+                Enable Paid Ticketing
+              </Text>
+              <Text className="text-xs text-muted-foreground mt-0.5">
+                Sell tickets via Stripe (5% + $1/ticket fee)
+              </Text>
+            </View>
+            <Switch
+              value={ticketingEnabled}
+              onValueChange={setTicketingEnabled}
+              trackColor={{ false: "#333", true: colors.primary }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          {ticketingEnabled && (
+            <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+              <Ticket size={18} color={colors.mutedForeground} />
+              <TextInput
+                className="flex-1 ml-3 py-4 text-base text-foreground"
+                placeholder="Ticket tier name (e.g. General Admission)"
+                placeholderTextColor={colors.mutedForeground}
+                value={ticketTierName}
+                onChangeText={setTicketTierName}
+              />
+            </View>
+          )}
+
           <View className="flex-row gap-3">
             <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
               <DollarSign size={18} color={colors.mutedForeground} />

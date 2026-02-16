@@ -149,7 +149,11 @@ export const storiesApi = {
         }
       });
 
-      const result = Array.from(storiesByAuthor.values());
+      // Non-mutating reverse: oldest → newest (chronological) for story viewer
+      const result = Array.from(storiesByAuthor.values()).map((group) => ({
+        ...group,
+        items: [...group.items].reverse(),
+      }));
       console.log("[Stories] Returning", result.length, "story groups");
       return result;
     } catch (error) {
@@ -335,35 +339,42 @@ export const storyTagsApi = {
    */
   async getTagsForStory(storyId: string): Promise<StoryTag[]> {
     try {
-      const { data, error } = await supabase
+      // Step 1: fetch tags (no FK to users, so no embedded select)
+      const { data: tags, error } = await supabase
         .from(DB.storyTags.table)
         .select(
-          `
-          ${DB.storyTags.id},
-          ${DB.storyTags.storyId},
-          ${DB.storyTags.taggedUserId},
-          ${DB.storyTags.xPosition},
-          ${DB.storyTags.yPosition},
-          user:${DB.storyTags.taggedUserId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
+          `${DB.storyTags.id}, ${DB.storyTags.storyId}, ${DB.storyTags.taggedUserId}, ${DB.storyTags.xPosition}, ${DB.storyTags.yPosition}`,
         )
         .eq(DB.storyTags.storyId, parseInt(storyId));
 
       if (error) throw error;
+      if (!tags || tags.length === 0) return [];
 
-      return (data || []).map((tag: any) => ({
-        id: tag[DB.storyTags.id],
-        storyId: tag[DB.storyTags.storyId],
-        taggedUserId: tag[DB.storyTags.taggedUserId],
-        username: tag.user?.[DB.users.username] || "unknown",
-        avatar: tag.user?.avatar?.url || "",
-        xPosition: tag[DB.storyTags.xPosition] || 0.5,
-        yPosition: tag[DB.storyTags.yPosition] || 0.5,
-      }));
+      // Step 2: batch-fetch user info for all tagged user IDs
+      const userIds = tags.map((t: any) => t[DB.storyTags.taggedUserId]);
+      const { data: users } = await supabase
+        .from(DB.users.table)
+        .select(
+          `${DB.users.id}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+        )
+        .in(DB.users.id, userIds);
+
+      const userMap = new Map(
+        (users || []).map((u: any) => [u[DB.users.id], u]),
+      );
+
+      return tags.map((tag: any) => {
+        const user = userMap.get(tag[DB.storyTags.taggedUserId]);
+        return {
+          id: tag[DB.storyTags.id],
+          storyId: tag[DB.storyTags.storyId],
+          taggedUserId: tag[DB.storyTags.taggedUserId],
+          username: user?.[DB.users.username] || "unknown",
+          avatar: user?.avatar?.url || "",
+          xPosition: tag[DB.storyTags.xPosition] || 0.5,
+          yPosition: tag[DB.storyTags.yPosition] || 0.5,
+        };
+      });
     } catch (error) {
       console.error("[StoryTags] getTagsForStory error:", error);
       return [];

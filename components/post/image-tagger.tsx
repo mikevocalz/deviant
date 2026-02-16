@@ -20,6 +20,7 @@ import { Image } from "expo-image";
 import { X, UserPlus, Search } from "lucide-react-native";
 import { Motion, AnimatePresence } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
+import { Debouncer } from "@tanstack/react-pacer";
 import { postTagsApi, type PostTag } from "@/lib/api/post-tags";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -76,7 +77,26 @@ export function ImageTagger({
   const [isSearching, setIsSearching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const searchInputRef = useRef<TextInput>(null);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchDebouncerRef = useRef(
+    new Debouncer(
+      async (query: string) => {
+        if (!query || query.length < 1) {
+          setSearchResults([]);
+          return;
+        }
+        setIsSearching(true);
+        try {
+          const results = await postTagsApi.searchUsers(query, 8);
+          setSearchResults(results);
+        } catch {
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      },
+      { wait: 300 },
+    ),
+  );
 
   // Sync existing tags when they change externally
   useEffect(() => {
@@ -116,27 +136,11 @@ export function ImageTagger({
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
     if (!query || query.length < 1) {
       setSearchResults([]);
       return;
     }
-
-    searchTimeoutRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const results = await postTagsApi.searchUsers(query, 8);
-        setSearchResults(results);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 300);
+    searchDebouncerRef.current.maybeExecute(query);
   }, []);
 
   const handleSelectUser = useCallback(
@@ -358,9 +362,7 @@ export function ImageTagger({
                 >
                   <Image
                     source={{
-                      uri:
-                        user.avatar ||
-                        "",
+                      uri: user.avatar || "",
                     }}
                     style={styles.resultAvatar}
                   />
@@ -403,10 +405,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tagLabel: {
-    backgroundColor: "rgba(0,0,0,0.75)",
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderWidth: 1,
+    borderColor: "#FF5BFC",
     paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
+    paddingVertical: 4,
+    borderRadius: 18,
   },
   tagText: {
     color: "#fff",
@@ -414,12 +418,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tagArrow: {
-    position: "absolute",
-    top: -4,
-    width: 8,
-    height: 8,
-    backgroundColor: "rgba(0,0,0,0.75)",
-    transform: [{ rotate: "45deg" }],
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FF5BFC",
+    marginBottom: 4,
   },
   pendingMarker: {
     position: "absolute",

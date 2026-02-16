@@ -15,6 +15,7 @@ export type ActivityType =
   | "comment"
   | "follow"
   | "mention"
+  | "tag"
   | "event_invite"
   | "event_update";
 
@@ -287,6 +288,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       case "like":
       case "comment":
       case "mention":
+      case "tag":
         if (post?.id) {
           return `/(protected)/post/${post.id}`;
         }
@@ -299,6 +301,8 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
           return `/(protected)/events/${event.id}`;
         }
         return `/(protected)/events`;
+      default:
+        return `/(protected)/profile/${user.username}`;
     }
   },
 

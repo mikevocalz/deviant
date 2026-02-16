@@ -187,8 +187,8 @@ export default function SettingsScreenAndroid() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.replace("/login");
   };
 

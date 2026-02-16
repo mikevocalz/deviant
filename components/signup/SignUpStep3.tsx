@@ -1,9 +1,8 @@
-import { View, Text, Pressable } from "react-native";
-import { ScrollView } from "react-native-gesture-handler";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 
 /**
  * SignUpStep3 - Terms Agreement
@@ -38,6 +37,18 @@ export function SignUpStep3() {
       setHasScrolledToBottom(true);
     }
   };
+
+  // Safety fallback: if scroll detection fails after 8s, auto-unlock
+  useEffect(() => {
+    if (hasScrolledToBottom) return;
+    const timer = setTimeout(() => {
+      console.log(
+        "[Terms] Safety fallback: auto-setting scrolled after timeout",
+      );
+      setHasScrolledToBottom(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [hasScrolledToBottom, setHasScrolledToBottom]);
 
   const handleScroll = (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;

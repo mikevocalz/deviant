@@ -345,7 +345,7 @@ export default function SearchScreen() {
               onChangeText={handleQueryChange}
               placeholder={isHashtag ? "Search hashtags..." : "Search"}
               placeholderTextColor="#999"
-              autoFocus={!params.query}
+              autoFocus={false}
               className="flex-1 h-10 ml-2 text-foreground"
             />
             {searchQuery.length > 0 && (

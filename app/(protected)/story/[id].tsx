@@ -5,14 +5,16 @@ import {
   Pressable,
   Dimensions,
   Keyboard,
+  Alert,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { X, Send, Eye, Heart } from "lucide-react-native";
+import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import { Debouncer } from "@tanstack/react-pacer";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -39,6 +41,7 @@ import {
   useStories,
   useStoryViewerCount,
   useRecordStoryView,
+  useDeleteStory,
 } from "@/lib/hooks/use-stories";
 import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -372,14 +375,15 @@ export default function StoryViewerScreen() {
     [player, isMountedRef],
   );
 
-  // Cleanup on unmount or navigation away
+  // Cleanup player when it changes (e.g. switching between image/video items)
+  // Do NOT call markExiting() here — that would poison isSafeToOperate() when
+  // switching items within the same user's stories (currentStoryId unchanged).
   useEffect(() => {
     return () => {
-      markExiting();
       cancelAnimation(progress);
       cleanupPlayer(player, "StoryViewer");
     };
-  }, [player, progress, markExiting]);
+  }, [player, progress]);
 
   useFocusEffect(
     useCallback(() => {
@@ -520,6 +524,71 @@ export default function StoryViewerScreen() {
     isOwnStory ? storyParentId : undefined,
   );
 
+  // Delete story mutation
+  const deleteStoryMutation = useDeleteStory();
+
+  const handleDeleteStory = useCallback(() => {
+    if (!storyParentId) return;
+    isPaused.current = true;
+    cancelAnimation(progress);
+    try {
+      player?.pause();
+    } catch {}
+
+    Alert.alert(
+      "Delete Story",
+      "This story will be permanently deleted. This action cannot be undone.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+          onPress: () => {
+            isPaused.current = false;
+            if (isSafeToOperate()) {
+              safePlay(player, isMountedRef, "StoryViewer");
+            }
+          },
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteStoryMutation.mutate(storyParentId, {
+              onSuccess: () => {
+                showToast("success", "Deleted", "Story deleted");
+                markExiting();
+                if (router.canDismiss()) {
+                  router.dismiss();
+                } else {
+                  router.back();
+                }
+              },
+              onError: (err: any) => {
+                showToast(
+                  "error",
+                  "Error",
+                  err?.message || "Failed to delete story",
+                );
+                isPaused.current = false;
+              },
+            });
+          },
+        },
+      ],
+    );
+  }, [
+    storyParentId,
+    player,
+    progress,
+    cancelAnimation,
+    isSafeToOperate,
+    isMountedRef,
+    markExiting,
+    router,
+    deleteStoryMutation,
+    showToast,
+  ]);
+
   // Record view when viewing someone else's story (once per story parent).
   // Uses a 500ms debounce to avoid recording flicker-views (e.g. fast swipe past).
   // The Set prevents duplicate calls for the same story within this session.
@@ -657,49 +726,62 @@ export default function StoryViewerScreen() {
     }
   }, [isInputFocused, player, progress, isMountedRef, isSafeToOperate]);
 
-  // Send story emoji reaction as DM
+  // Send story emoji reaction as DM — debounced via TanStack Debouncer
+  const reactionDebouncer = useRef(
+    new Debouncer(
+      async (emoji: string) => {
+        try {
+          const conversationId =
+            await messagesApiClient.getOrCreateConversation(resolvedUserId!);
+          if (!conversationId) return;
+
+          const currentItem = story?.items?.[currentItemIndex];
+          const previewUrl =
+            currentItem?.type === "video"
+              ? currentItem?.thumbnail || currentItem?.url || ""
+              : currentItem?.url || "";
+
+          await messagesApiClient.sendMessage({
+            conversationId,
+            content: emoji,
+            metadata: {
+              type: "story_reaction",
+              storyId: story?.id || "",
+              storyMediaUrl: previewUrl,
+              storyUsername: story?.username || "",
+              storyAvatar: story?.avatar || "",
+              reactionEmoji: emoji,
+              storyExpiresAt: new Date(
+                Date.now() + 24 * 60 * 60 * 1000,
+              ).toISOString(),
+            },
+          });
+
+          console.log("[StoryViewer] Reaction sent:", emoji);
+        } catch (error: any) {
+          console.error(
+            "[StoryViewer] Reaction error:",
+            error?.message || error,
+          );
+        }
+      },
+      { wait: 1500 },
+    ),
+  ).current;
+
   const handleStoryReaction = useCallback(
-    async (emoji: string) => {
+    (emoji: string) => {
       if (!story || !resolvedUserId || isOwnStory) return;
 
-      // Floating animation + haptic
+      // Floating animation + haptic (always immediate)
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const id = emojiCounter.current++;
       setFloatingEmojis((prev) => [...prev, { id, emoji }]);
 
-      try {
-        const conversationId =
-          await messagesApiClient.getOrCreateConversation(resolvedUserId);
-        if (!conversationId) return;
-
-        const currentItem = story.items?.[currentItemIndex];
-        const previewUrl =
-          currentItem?.type === "video"
-            ? currentItem?.thumbnail || currentItem?.url || ""
-            : currentItem?.url || "";
-
-        await messagesApiClient.sendMessage({
-          conversationId,
-          content: emoji,
-          metadata: {
-            type: "story_reaction",
-            storyId: story.id || "",
-            storyMediaUrl: previewUrl,
-            storyUsername: story.username || "",
-            storyAvatar: story.avatar || "",
-            reactionEmoji: emoji,
-            storyExpiresAt: new Date(
-              Date.now() + 24 * 60 * 60 * 1000,
-            ).toISOString(),
-          },
-        });
-
-        console.log("[StoryViewer] Reaction sent:", emoji);
-      } catch (error: any) {
-        console.error("[StoryViewer] Reaction error:", error?.message || error);
-      }
+      // Debounced send — prevents duplicate sends within 1.5s
+      reactionDebouncer.maybeExecute(emoji);
     },
-    [story, resolvedUserId, isOwnStory, currentItemIndex],
+    [story, resolvedUserId, isOwnStory, reactionDebouncer],
   );
 
   const removeFloatingEmoji = useCallback((id: number) => {
@@ -933,7 +1015,11 @@ export default function StoryViewerScreen() {
             if (isExitingRef.current) return; // Prevent multiple presses
             markExiting();
             cancelAnimation(progress);
-            router.back();
+            if (router.canDismiss()) {
+              router.dismiss();
+            } else {
+              router.back();
+            }
           }}
           style={{ padding: 12, zIndex: 1000 }}
           hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
@@ -1067,9 +1153,7 @@ export default function StoryViewerScreen() {
                 >
                   <Image
                     source={{
-                      uri:
-                        tag.avatar ||
-                        "",
+                      uri: tag.avatar || "",
                     }}
                     style={{ width: 22, height: 22, borderRadius: 11 }}
                   />
@@ -1085,9 +1169,7 @@ export default function StoryViewerScreen() {
             <>
               <Image
                 source={{
-                  uri:
-                    storyTags[0].avatar ||
-                    "",
+                  uri: storyTags[0].avatar || "",
                 }}
                 style={{ width: 20, height: 20, borderRadius: 10 }}
               />
@@ -1119,38 +1201,65 @@ export default function StoryViewerScreen() {
         <Pressable onPress={handleNext} style={{ flex: 1 }} />
       </View>
 
-      {/* Viewer count — own stories only (Instagram-style bottom-left) */}
+      {/* Own story controls — viewer count (left) + delete (right) */}
       {isOwnStory && (
-        <Pressable
-          onPress={() => {
-            isPaused.current = true;
-            cancelAnimation(progress);
-            try {
-              player?.pause();
-            } catch {}
-            setShowViewersSheet(true);
-          }}
-          style={{
-            position: "absolute",
-            bottom: insets.bottom + 16,
-            left: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 6,
-            backgroundColor: "rgba(0,0,0,0.5)",
-            paddingHorizontal: 14,
-            paddingVertical: 8,
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.15)",
-            zIndex: 100,
-          }}
-        >
-          <Eye size={18} color="#fff" />
-          <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
-            {viewerCount}
-          </Text>
-        </Pressable>
+        <>
+          <Pressable
+            onPress={() => {
+              isPaused.current = true;
+              cancelAnimation(progress);
+              try {
+                player?.pause();
+              } catch {}
+              setShowViewersSheet(true);
+            }}
+            style={{
+              position: "absolute",
+              bottom: insets.bottom + 16,
+              left: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.15)",
+              zIndex: 100,
+            }}
+          >
+            <Eye size={18} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
+              {viewerCount}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={handleDeleteStory}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{
+              position: "absolute",
+              bottom: insets.bottom + 16,
+              right: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.15)",
+              zIndex: 100,
+            }}
+          >
+            <Trash2 size={18} color="#FF4444" />
+            <Text style={{ color: "#FF4444", fontSize: 14, fontWeight: "600" }}>
+              Delete
+            </Text>
+          </Pressable>
+        </>
       )}
 
       {/* Story Viewers Sheet */}

@@ -1,4 +1,10 @@
-import { View, Text, Pressable, Modal } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import {
   Edit,
   Trash2,
@@ -6,11 +12,9 @@ import {
   X,
   Link,
   Share2,
-  BookmarkPlus,
   ImagePlus,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { Motion } from "@legendapp/motion";
 
 interface PostActionSheetProps {
   visible: boolean;
@@ -20,6 +24,7 @@ interface PostActionSheetProps {
   onDelete: () => void;
   onReport?: () => void;
   onShareToStory?: () => void;
+  onShare?: () => void;
 }
 
 export function PostActionSheet({
@@ -30,219 +35,181 @@ export function PostActionSheet({
   onDelete,
   onReport,
   onShareToStory,
+  onShare,
 }: PostActionSheetProps) {
   const { colors } = useColorScheme();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => [isOwner ? "45%" : "35%"], [isOwner]);
+
+  useEffect(() => {
+    if (visible) {
+      bottomSheetRef.current?.snapToIndex(0);
+    } else {
+      bottomSheetRef.current?.close();
+    }
+  }, [visible]);
+
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1) onClose();
+    },
+    [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <BottomSheet
+      ref={bottomSheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      enableOverDrag={false}
+      onChange={handleSheetChange}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.card }}
+      handleIndicatorStyle={{
+        backgroundColor: colors.mutedForeground,
+        width: 40,
+      }}
     >
-      <Pressable
-        onPress={onClose}
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          justifyContent: "flex-end",
-        }}
-      >
-        <Pressable onPress={(e) => e.stopPropagation()}>
-          <Motion.View
-            initial={{ translateY: 400 }}
-            animate={{ translateY: 0 }}
-            exit={{ translateY: 400 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            style={{
-              backgroundColor: colors.card,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
-              paddingBottom: 40,
-            }}
-          >
-            {/* Header */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                paddingHorizontal: 20,
-                paddingVertical: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: colors.border,
+      <BottomSheetView style={styles.content}>
+        {/* Header */}
+        <View style={[styles.header, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            Post Options
+          </Text>
+          <Pressable onPress={onClose} hitSlop={12}>
+            <X size={20} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+
+        {/* Actions */}
+        {isOwner && (
+          <>
+            <Pressable
+              onPress={() => {
+                onEdit();
+                onClose();
               }}
+              style={styles.row}
             >
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: "600",
-                  color: colors.foreground,
-                }}
-              >
-                Post Options
+              <Edit size={22} color={colors.foreground} />
+              <Text style={[styles.rowText, { color: colors.foreground }]}>
+                Edit Post
               </Text>
-              <Pressable onPress={onClose} hitSlop={12}>
-                <X size={24} color={colors.mutedForeground} />
-              </Pressable>
-            </View>
+            </Pressable>
 
-            {/* Actions */}
-            <View style={{ paddingTop: 8 }}>
-              {isOwner && (
-                <>
-                  <Pressable
-                    onPress={() => {
-                      onEdit();
-                      onClose();
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingHorizontal: 20,
-                      paddingVertical: 16,
-                    }}
-                  >
-                    <Edit size={22} color={colors.foreground} />
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: colors.foreground,
-                        marginLeft: 16,
-                      }}
-                    >
-                      Edit Post
-                    </Text>
-                  </Pressable>
+            <Pressable
+              onPress={() => {
+                onDelete();
+                onClose();
+              }}
+              style={styles.row}
+            >
+              <Trash2 size={22} color="#ef4444" />
+              <Text style={[styles.rowText, { color: "#ef4444" }]}>
+                Delete Post
+              </Text>
+            </Pressable>
+          </>
+        )}
 
-                  <Pressable
-                    onPress={() => {
-                      onDelete();
-                      onClose();
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      paddingHorizontal: 20,
-                      paddingVertical: 16,
-                    }}
-                  >
-                    <Trash2 size={22} color="#ef4444" />
-                    <Text
-                      style={{
-                        fontSize: 16,
-                        color: "#ef4444",
-                        marginLeft: 16,
-                      }}
-                    >
-                      Delete Post
-                    </Text>
-                  </Pressable>
-                </>
-              )}
-
-              {/* Common options for all users */}
-              <Pressable
-                onPress={() => {
-                  // TODO: Implement copy link
-                  onClose();
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 20,
-                  paddingVertical: 16,
-                }}
-              >
-                <Link size={22} color={colors.foreground} />
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: colors.foreground,
-                    marginLeft: 16,
-                  }}
-                >
-                  Copy Link
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  // TODO: Implement share
-                  onClose();
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 20,
-                  paddingVertical: 16,
-                }}
-              >
-                <Share2 size={22} color={colors.foreground} />
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: colors.foreground,
-                    marginLeft: 16,
-                  }}
-                >
-                  Share
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  if (onShareToStory) onShareToStory();
-                  onClose();
-                }}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingHorizontal: 20,
-                  paddingVertical: 16,
-                }}
-              >
-                <ImagePlus size={22} color={colors.foreground} />
-                <Text
-                  style={{
-                    fontSize: 16,
-                    color: colors.foreground,
-                    marginLeft: 16,
-                  }}
-                >
-                  Share to Story
-                </Text>
-              </Pressable>
-
-              {!isOwner && (
-                <Pressable
-                  onPress={() => {
-                    if (onReport) onReport();
-                    onClose();
-                  }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    paddingHorizontal: 20,
-                    paddingVertical: 16,
-                  }}
-                >
-                  <Flag size={22} color="#ef4444" />
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color: "#ef4444",
-                      marginLeft: 16,
-                    }}
-                  >
-                    Report Post
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          </Motion.View>
+        {/* Common options */}
+        <Pressable
+          onPress={() => {
+            onClose();
+          }}
+          style={styles.row}
+        >
+          <Link size={22} color={colors.foreground} />
+          <Text style={[styles.rowText, { color: colors.foreground }]}>
+            Copy Link
+          </Text>
         </Pressable>
-      </Pressable>
-    </Modal>
+
+        <Pressable
+          onPress={() => {
+            if (onShare) onShare();
+            onClose();
+          }}
+          style={styles.row}
+        >
+          <Share2 size={22} color={colors.foreground} />
+          <Text style={[styles.rowText, { color: colors.foreground }]}>
+            Share
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            if (onShareToStory) onShareToStory();
+            onClose();
+          }}
+          style={styles.row}
+        >
+          <ImagePlus size={22} color={colors.foreground} />
+          <Text style={[styles.rowText, { color: colors.foreground }]}>
+            Share to Story
+          </Text>
+        </Pressable>
+
+        {!isOwner && (
+          <Pressable
+            onPress={() => {
+              if (onReport) onReport();
+              onClose();
+            }}
+            style={styles.row}
+          >
+            <Flag size={22} color="#ef4444" />
+            <Text style={[styles.rowText, { color: "#ef4444" }]}>
+              Report Post
+            </Text>
+          </Pressable>
+        )}
+      </BottomSheetView>
+    </BottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  rowText: {
+    fontSize: 16,
+    marginLeft: 16,
+  },
+});

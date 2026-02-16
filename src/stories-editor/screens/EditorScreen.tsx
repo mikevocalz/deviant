@@ -7,54 +7,17 @@
 // editing workflow.
 // ============================================================
 
-import React, {
-  useState,
-  useCallback,
-  useRef,
-  useMemo,
-  useEffect,
-} from "react";
-import { View, StyleSheet, StatusBar, Alert } from "react-native";
+import React, { useCallback, useRef, useMemo, useEffect } from "react";
+import { View, StatusBar, Alert } from "react-native";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useCanvasRef } from "@shopify/react-native-skia";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
-import {
-  BottomSheetModal,
-  BottomSheetBackdrop,
-  BottomSheetModalProvider,
-} from "@gorhom/bottom-sheet";
 import * as ImagePicker from "expo-image-picker";
-// Simple ref-based throttle (no external deps)
-function createThrottle<T extends (...args: any[]) => void>(
-  fn: T,
-  wait: number,
-) {
-  let lastTime = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const throttled = (...args: Parameters<T>) => {
-    const now = Date.now();
-    if (now - lastTime >= wait) {
-      lastTime = now;
-      fn(...args);
-    } else if (!timer) {
-      timer = setTimeout(
-        () => {
-          lastTime = Date.now();
-          timer = null;
-          fn(...args);
-        },
-        wait - (now - lastTime),
-      );
-    }
-  };
-  throttled.cancel = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-  return throttled;
-}
-
+import * as FileSystem from "expo-file-system";
+import * as MediaLibrary from "expo-media-library";
+import * as Haptics from "expo-haptics";
+import { ImageFormat } from "@shopify/react-native-skia";
 import {
   useEditorStore,
   useSelectedElement,
@@ -62,11 +25,15 @@ import {
   useCanRedo,
   useHasElements,
 } from "../stores/editor-store";
-import { useCubeLUT } from "../hooks/useCubeLUT";
-// useDrawingGestures removed — drawing handled by unified pan gesture
+import {
+  EffectFilter,
+  DRAWING_TOOL_CONFIG,
+  STORY_BACKGROUNDS,
+} from "../constants";
+import { ElementGestureOverlay } from "../components/gestures/ElementGestureOverlay";
 import {
   EditorCanvas,
-  MainToolbar,
+  RightIslandMenu,
   BottomActionBar,
   TopNavBar,
   DrawingToolbar,
@@ -76,29 +43,18 @@ import {
   AdjustmentPanel,
   BackgroundPicker,
 } from "../components";
+import { ToolPanelContainer } from "../components/panels/ToolPanelContainer";
 import { PerfHUD } from "../components/canvas/PerfHUD";
 import {
-  DrawingTool,
   DrawingPath,
   Position,
   TextElement,
   FilterAdjustment,
   EditorMode,
 } from "../types";
-import {
-  CANVAS_WIDTH,
-  CANVAS_HEIGHT,
-  DRAWING_TOOL_CONFIG,
-  DRAWING_COLORS,
-  STORY_BACKGROUNDS,
-  StoryBackground,
-} from "../constants";
 import { generateId } from "../utils/helpers";
-import {
-  computeRenderSurface,
-  screenToCanvas,
-  deltaToCanvas,
-} from "../utils/geometry";
+import { useRenderSurface, screenToCanvas } from "../utils/geometry";
+import { Debouncer } from "@tanstack/react-pacer";
 
 // ---- Props ----
 
@@ -107,7 +63,6 @@ interface EditorScreenProps {
   mediaType: "image" | "video";
   onClose: () => void;
   onSave?: (editedUri: string) => void;
-  onShare?: () => void;
   initialMode?: EditorMode;
 }
 
@@ -118,7 +73,6 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   mediaType,
   onClose,
   onSave,
-  onShare,
   initialMode,
 }) => {
   // Zustand store — persists across navigations
@@ -154,91 +108,118 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const canRedo = useCanRedo();
   const hasElements = useHasElements();
 
-  // Cube LUT state
-  const {
-    lutImage,
-    lutSize,
-    runtimeEffect,
-    isLoading: lutLoading,
-    loadLUT,
-    clearLUT,
-    selectedId: selectedCubeLUTId,
-  } = useCubeLUT();
+  // All UI state from Zustand store (no useState)
+  const selectedEffectId = useEditorStore((s) => s.selectedEffectId);
+  const setSelectedEffectId = useEditorStore((s) => s.setSelectedEffectId);
+  const canvasBackgroundId = useEditorStore((s) => s.canvasBackground);
+  const setCanvasBackgroundId = useEditorStore((s) => s.setCanvasBackground);
+  const showPerfHUD = useEditorStore((s) => s.showPerfHUD);
 
-  // Background state (for text-only stories)
-  const [canvasBackground, setCanvasBackground] = useState<StoryBackground>(
-    STORY_BACKGROUNDS[0],
+  // ---- Geometry: single source of truth (reactive to screen changes) ----
+  const surface = useRenderSurface();
+
+  const drawingTool = useEditorStore((s) => s.drawingTool);
+  const setDrawingTool = useEditorStore((s) => s.setDrawingTool);
+  const drawingColor = useEditorStore((s) => s.drawingColor);
+  const setDrawingColor = useEditorStore((s) => s.setDrawingColor);
+  const strokeWidth = useEditorStore((s) => s.strokeWidth);
+  const setStrokeWidth = useEditorStore((s) => s.setStrokeWidth);
+
+  // Resolve background object from ID
+  const canvasBackground = useMemo(
+    () =>
+      STORY_BACKGROUNDS.find((b) => b.id === canvasBackgroundId) ??
+      STORY_BACKGROUNDS[0],
+    [canvasBackgroundId],
   );
 
-  // PerfHUD toggle (dev only)
-  const [showPerfHUD, setShowPerfHUD] = useState(__DEV__ ? false : false);
+  const handleSelectEffect = useCallback(
+    (effect: EffectFilter) => {
+      if (selectedEffectId === effect.id) {
+        setSelectedEffectId(null);
+        setFilter(null);
+      } else {
+        setSelectedEffectId(effect.id);
+        setFilter({
+          id: effect.id,
+          name: effect.name,
+          matrix: effect.matrix,
+          intensity: effect.intensity,
+        });
+      }
+    },
+    [selectedEffectId, setFilter, setSelectedEffectId],
+  );
 
   // Canvas ref for snapshot export
-  const canvasExportRef = useRef<{ snapshot: () => any }>(null);
+  const canvasRef = useCanvasRef();
 
-  // Drawing state
-  const [drawingTool, setDrawingTool] = useState<DrawingTool>("pen");
-  const [drawingColor, setDrawingColor] = useState(DRAWING_COLORS[0]);
-  const [strokeWidth, setStrokeWidth] = useState(
-    DRAWING_TOOL_CONFIG.pen.defaultWidth,
-  );
+  // Live stroke points — ref-based to avoid per-point React re-renders
   const currentPathPoints = useRef<Position[]>([]);
-  const [liveStrokePoints, setLiveStrokePoints] = useState<Position[]>([]);
+  const liveStrokePointsRef = useRef<Position[]>([]);
+  // We need a render trigger for the canvas to pick up live stroke changes
+  const liveStrokeVersion = useRef(0);
+  const [, forceRender] = React.useReducer((x: number) => x + 1, 0);
 
   // Set initial media
   React.useEffect(() => {
     setMedia(mediaUri, mediaType);
   }, [mediaUri, mediaType, setMedia]);
 
-  // Apply initialMode after sheets are mounted (needs delay so BottomSheetModal refs exist)
+  // Apply initialMode after mount (brief delay for layout)
   const initialModeApplied = useRef(false);
+  const initialModeDebouncer = useRef(
+    new Debouncer((m: EditorMode) => useEditorStore.getState().setMode(m), {
+      wait: 350,
+    }),
+  );
   React.useEffect(() => {
     if (initialMode && !initialModeApplied.current) {
       initialModeApplied.current = true;
-      const timer = setTimeout(() => {
-        setMode(initialMode);
-      }, 350);
-      return () => clearTimeout(timer);
+      initialModeDebouncer.current.maybeExecute(initialMode);
     }
-  }, [initialMode, setMode]);
+  }, [initialMode]);
 
   // ---- Drawing Handlers ----
 
   const handlePathStart = useCallback((point: Position) => {
-    console.log("[Drawing] Path start", point);
     currentPathPoints.current = [point];
-    setLiveStrokePoints([point]);
+    liveStrokePointsRef.current = [point];
+    forceRender();
   }, []);
 
   const handlePathUpdate = useCallback((point: Position) => {
     currentPathPoints.current.push(point);
-    // Update live preview every few points to avoid excessive re-renders
-    if (currentPathPoints.current.length % 2 === 0) {
-      setLiveStrokePoints([...currentPathPoints.current]);
+    liveStrokePointsRef.current = currentPathPoints.current;
+    // Trigger canvas update every few points
+    if (currentPathPoints.current.length % 3 === 0) {
+      forceRender();
     }
   }, []);
 
   const handlePathEnd = useCallback(() => {
-    console.log(
-      "[Drawing] Path end, points:",
-      currentPathPoints.current.length,
-    );
-    setLiveStrokePoints([]);
+    liveStrokePointsRef.current = [];
+    forceRender();
     if (currentPathPoints.current.length < 2) return;
 
-    const toolConfig = DRAWING_TOOL_CONFIG[drawingTool];
+    const {
+      drawingTool: tool,
+      drawingColor: color,
+      strokeWidth: sw,
+    } = useEditorStore.getState();
+    const toolConfig = DRAWING_TOOL_CONFIG[tool];
     const path: DrawingPath = {
       id: generateId(),
       points: [...currentPathPoints.current],
-      color: drawingColor,
-      strokeWidth,
-      tool: drawingTool,
+      color: color,
+      strokeWidth: sw,
+      tool: tool,
       opacity: toolConfig.opacity,
     };
 
     addDrawingPath(path);
     currentPathPoints.current = [];
-  }, [drawingTool, drawingColor, strokeWidth, addDrawingPath]);
+  }, [addDrawingPath]);
 
   // ---- Text Handlers ----
 
@@ -306,76 +287,193 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
 
   // ---- Export / Save ----
 
+  const setExportStatus = useEditorStore((s) => s.setExportStatus);
+  const setExportArtifact = useEditorStore((s) => s.setExportArtifact);
+  const setExportError = useEditorStore((s) => s.setExportError);
+
+  /**
+   * Capture the Skia canvas as a PNG file.
+   * makeImageSnapshot() captures the FULL scene graph (media + filters +
+   * adjustments + drawing + stickers + text) — it's WYSIWYG by definition
+   * because it snapshots exactly what the Canvas component renders.
+   */
   const captureCanvas = useCallback(async (): Promise<string | null> => {
-    try {
-      // Snapshot captures the Skia Canvas at its rendered pixel size.
-      // The scene graph is identical to preview — same filters, layers,
-      // transforms — so export content matches preview exactly.
-      const image = canvasExportRef.current?.snapshot();
-      if (!image) {
-        console.warn("[Editor] No snapshot available");
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.warn("[Editor] Canvas ref not mounted");
+      return null;
+    }
+
+    // Deselect so selection border doesn't appear in snapshot
+    useEditorStore.getState().selectElement(null);
+
+    // Double-flush: rAF then short delay to ensure Skia scene graph is committed
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
+    await new Promise<void>((r) => setTimeout(r, 80));
+
+    const trySnapshot = () => {
+      try {
+        const image = canvas.makeImageSnapshot();
+        if (!image) {
+          console.warn("[Editor] makeImageSnapshot returned null");
+          return null;
+        }
+        const w = image.width();
+        const h = image.height();
+        if (w === 0 || h === 0) {
+          console.warn(`[Editor] Snapshot has zero dimensions: ${w}x${h}`);
+          return null;
+        }
+        if (__DEV__) console.log(`[Editor] Snapshot OK: ${w}x${h}`);
+        return image;
+      } catch (e) {
+        console.warn("[Editor] makeImageSnapshot threw:", e);
         return null;
       }
-      const base64 = image.encodeToBase64();
-      const FileSystem = require("expo-file-system");
-      const filePath = `${FileSystem.cacheDirectory}story_${Date.now()}.png`;
-      await FileSystem.writeAsStringAsync(filePath, base64, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      console.log(
-        "[Editor] Canvas captured to",
-        filePath,
-        `(${image.width()}x${image.height()})`,
+    };
+
+    try {
+      let image = trySnapshot();
+      if (!image) {
+        await new Promise<void>((r) => setTimeout(r, 200));
+        image = trySnapshot();
+      }
+      if (!image) {
+        console.warn("[Editor] makeImageSnapshot returned null after retry");
+        return null;
+      }
+
+      let base64: string | null = null;
+      try {
+        base64 = image.encodeToBase64(ImageFormat.PNG, 100);
+      } catch {
+        try {
+          base64 = image.encodeToBase64();
+        } catch (e2) {
+          console.warn("[Editor] encodeToBase64 threw:", e2);
+        }
+      }
+      if (!base64 || base64.length === 0) {
+        console.warn("[Editor] encodeToBase64 returned empty");
+        return null;
+      }
+
+      const file = new FileSystem.File(
+        FileSystem.Paths.cache,
+        `story_${Date.now()}.png`,
       );
-      return filePath;
+      file.write(base64, { encoding: "base64" });
+      if (__DEV__) {
+        console.log(
+          "[Editor] Canvas captured to",
+          file.uri,
+          `(${image.width()}x${image.height()}, ${(base64.length / 1024).toFixed(0)}KB b64)`,
+        );
+      }
+      return file.uri;
     } catch (err) {
       console.error("[Editor] Capture failed:", err);
       return null;
     }
-  }, []);
+  }, [canvasRef]);
 
-  const handleExport = useCallback(async () => {
-    const uri = await captureCanvas();
-    if (!uri) {
-      Alert.alert("Error", "Failed to capture canvas.");
-      return;
-    }
+  /**
+   * Render the final artifact and store it in the export session.
+   * Used by both "Done" (navigate to review) and "Save" (direct save).
+   */
+  const renderFinalArtifact = useCallback(async () => {
+    const currentStatus = useEditorStore.getState().exportSession.status;
+    if (currentStatus === "rendering") return; // idempotent
+    setExportStatus("rendering");
     try {
-      const MediaLibrary = require("expo-media-library");
+      const uri = await captureCanvas();
+      if (!uri) {
+        setExportError("Failed to capture canvas snapshot");
+        return null;
+      }
+      const artifact = {
+        uri,
+        type: "image" as const,
+        width: surface.displayW,
+        height: surface.displayH,
+      };
+      setExportArtifact(artifact);
+      return artifact;
+    } catch (err) {
+      setExportError((err as Error).message);
+      return null;
+    }
+  }, [
+    captureCanvas,
+    surface,
+    setExportStatus,
+    setExportArtifact,
+    setExportError,
+  ]);
+
+  /**
+   * Save the current export artifact (or render one first) to the photo library.
+   */
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleSaveToLibrary = useCallback(async () => {
+    let artifact = useEditorStore.getState().exportSession.artifact;
+    if (!artifact) {
+      const rendered = await renderFinalArtifact();
+      if (!rendered) {
+        showToast("error", "Error", "Failed to render story.");
+        return;
+      }
+      artifact = rendered;
+    }
+    setExportStatus("saving");
+    try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
+        showToast(
+          "warning",
           "Permission",
           "Media library permission is required to save.",
         );
+        setExportStatus("ready");
         return;
       }
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert("Saved!", "Image saved to your gallery.");
+      await MediaLibrary.saveToLibraryAsync(artifact.uri);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setExportStatus("saved");
+      showToast("success", "Saved", "Image saved to your gallery.");
     } catch (err) {
       console.error("[Editor] Save to gallery failed:", err);
-      Alert.alert("Error", "Failed to save image.");
+      setExportError("Failed to save to gallery");
+      showToast("error", "Error", "Failed to save image.");
     }
-  }, [captureCanvas]);
+  }, [renderFinalArtifact, setExportStatus, setExportError, showToast]);
 
+  /**
+   * "Done" / navigate back — renders artifact, passes URI to parent.
+   */
   const handleSave = useCallback(async () => {
-    if (!hasElements) {
-      // No edits — return original
-      onSave?.(mediaUri);
-      return;
+    const rendered = await renderFinalArtifact();
+    if (!rendered) {
+      showToast(
+        "error",
+        "Export Failed",
+        "Could not render your story. Try again.",
+      );
+      return; // Stay in editor — don't navigate away and lose work
     }
-    const uri = await captureCanvas();
-    onSave?.(uri || mediaUri);
-  }, [mediaUri, onSave, hasElements, captureCanvas]);
-
-  const handleShareToStory = useCallback(async () => {
-    onShare?.();
-  }, [onShare]);
+    onSave?.(rendered.uri);
+  }, [onSave, renderFinalArtifact, showToast]);
 
   // ---- Close ----
 
+  const hasAnyEdits =
+    hasElements ||
+    currentFilter !== null ||
+    Object.values(adjustments).some((v) => v !== 0);
+
   const handleClose = useCallback(() => {
-    if (hasElements) {
+    if (hasAnyEdits) {
       Alert.alert("Discard Changes?", "You have unsaved edits.", [
         { text: "Keep Editing", style: "cancel" },
         { text: "Discard", style: "destructive", onPress: onClose },
@@ -383,510 +481,276 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     } else {
       onClose();
     }
-  }, [hasElements, onClose]);
+  }, [hasAnyEdits, onClose]);
 
-  // ---- Bottom Sheet Refs ----
-  const stickerSheetRef = useRef<BottomSheetModal>(null);
-  const filterSheetRef = useRef<BottomSheetModal>(null);
-  const adjustSheetRef = useRef<BottomSheetModal>(null);
+  // ---- Drawing-only gesture (canvas-wide pan for freehand drawing) ----
 
-  const stickerSnaps = useMemo(() => ["60%"], []);
-  const filterSnaps = useMemo(() => ["42%"], []);
-  const adjustSnaps = useMemo(() => ["55%"], []);
-
-  // Present / dismiss sheets based on mode
-  useEffect(() => {
-    if (mode === "sticker") {
-      stickerSheetRef.current?.present();
-    } else {
-      stickerSheetRef.current?.dismiss();
-    }
-    if (mode === "filter") {
-      filterSheetRef.current?.present();
-    } else {
-      filterSheetRef.current?.dismiss();
-    }
-    if (mode === "adjust") {
-      adjustSheetRef.current?.present();
-    } else {
-      adjustSheetRef.current?.dismiss();
-    }
-  }, [mode]);
-
-  const renderBackdrop = useCallback(
-    (props: any) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.5}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
-
-  // ---- Geometry: single source of truth ----
-  const surface = useMemo(() => computeRenderSurface(), []);
-
-  // ---- Unified gesture state ----
-  const draggedElementRef = useRef<string | null>(null);
-  const dragStartTransform = useRef({ x: 0, y: 0 });
-  const pinchStartScale = useRef(1);
-  const rotationStartAngle = useRef(0);
-  const latestDragTranslation = useRef({ x: 0, y: 0 });
-  const latestPinchScale = useRef(1);
-  const latestRotation = useRef(0);
-  const elementsRef = useRef(elements);
-  elementsRef.current = elements;
-  const selectedIdRef = useRef(selectedElementId);
-  selectedIdRef.current = selectedElementId;
-  const modeRef = useRef(mode);
-  modeRef.current = mode;
-
-  // Throttled updaters — commit to store at ~20fps, not 60fps
-  const dragThrottled = useRef(
-    createThrottle((tx: number, ty: number) => {
-      const id = draggedElementRef.current;
-      if (!id) return;
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (!el) return;
-      updateElement(id, {
-        transform: {
-          ...el.transform,
-          translateX: dragStartTransform.current.x + tx,
-          translateY: dragStartTransform.current.y + ty,
-        },
-      } as any);
-    }, 48),
-  ).current;
-
-  const pinchThrottled = useRef(
-    createThrottle((scale: number) => {
-      const id = selectedIdRef.current;
-      if (!id) return;
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (!el) return;
-      const newScale = Math.max(
-        0.2,
-        Math.min(5, pinchStartScale.current * scale),
-      );
-      updateElement(id, {
-        transform: { ...el.transform, scale: newScale },
-      } as any);
-    }, 16),
-  ).current;
-
-  // ---- Unified Pan start (drawing OR element drag) ----
-  const handleUnifiedPanStart = useCallback(
-    (x: number, y: number) => {
-      if (modeRef.current === "drawing") {
-        const canvasPoint = screenToCanvas(x, y, surface);
-        handlePathStart(canvasPoint);
-        return;
-      }
-      if (modeRef.current !== "idle") return;
-
-      // Element hit-test in canvas coords
-      const cp = screenToCanvas(x, y, surface);
-      const sorted = [...elementsRef.current].sort(
-        (a, b) => b.zIndex - a.zIndex,
-      );
-      let foundId: string | null = null;
-      for (const el of sorted) {
-        const t = el.transform;
-        const halfW = el.type === "sticker" ? (el as any).size / 2 : 120;
-        const halfH = el.type === "text" ? 60 : halfW;
-        if (
-          cp.x >= t.translateX - halfW &&
-          cp.x <= t.translateX + halfW &&
-          cp.y >= t.translateY - halfH &&
-          cp.y <= t.translateY + halfH
-        ) {
-          foundId = el.id;
-          break;
-        }
-      }
-      draggedElementRef.current = foundId;
-      latestDragTranslation.current = { x: 0, y: 0 };
-      if (foundId) {
-        const el = elementsRef.current.find((e) => e.id === foundId);
-        if (el) {
-          dragStartTransform.current = {
-            x: el.transform.translateX,
-            y: el.transform.translateY,
-          };
-          selectElement(foundId);
-        }
-      }
+  // Wrappers that convert screen→canvas coords on JS thread
+  const onDrawStart = useCallback(
+    (sx: number, sy: number) => {
+      handlePathStart(screenToCanvas(sx, sy, surface));
     },
-    [handlePathStart, selectElement, surface],
+    [handlePathStart, surface],
   );
-
-  // ---- Unified Pan update ----
-  const handleUnifiedPanUpdate = useCallback(
-    (x: number, y: number, translationX: number, translationY: number) => {
-      if (modeRef.current === "drawing") {
-        const canvasPoint = screenToCanvas(x, y, surface);
-        handlePathUpdate(canvasPoint);
-        return;
-      }
-      if (!draggedElementRef.current) return;
-      // Convert screen translation → canvas translation
-      const delta = deltaToCanvas(translationX, translationY, surface.scale);
-      latestDragTranslation.current = { x: delta.dx, y: delta.dy };
-      dragThrottled(delta.dx, delta.dy);
+  const onDrawUpdate = useCallback(
+    (sx: number, sy: number) => {
+      handlePathUpdate(screenToCanvas(sx, sy, surface));
     },
-    [handlePathUpdate, dragThrottled, surface],
+    [handlePathUpdate, surface],
   );
 
-  // ---- Unified Pan end ----
-  const handleUnifiedPanEnd = useCallback(() => {
-    if (modeRef.current === "drawing") {
-      handlePathEnd();
-      return;
-    }
-    const id = draggedElementRef.current;
-    if (id) {
-      dragThrottled.cancel();
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (el) {
-        const { x, y } = latestDragTranslation.current;
-        updateElement(id, {
-          transform: {
-            ...el.transform,
-            translateX: dragStartTransform.current.x + x,
-            translateY: dragStartTransform.current.y + y,
-          },
-        } as any);
-      }
-    }
-    draggedElementRef.current = null;
-  }, [handlePathEnd, dragThrottled, updateElement]);
+  const drawingPanGesture = Gesture.Pan()
+    .enabled(mode === "drawing")
+    .minDistance(0)
+    .onStart((e) => {
+      "worklet";
+      runOnJS(onDrawStart)(e.x, e.y);
+    })
+    .onUpdate((e) => {
+      "worklet";
+      runOnJS(onDrawUpdate)(e.x, e.y);
+    })
+    .onEnd(() => {
+      "worklet";
+      runOnJS(handlePathEnd)();
+    });
 
-  // ---- Pinch (element resize, idle mode) ----
-  const handlePinchStart = useCallback(() => {
-    const id = selectedIdRef.current;
-    if (id) {
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (el) pinchStartScale.current = el.transform.scale;
+  // Tap on canvas background deselects any selected element
+  const deselectIfIdle = useCallback(() => {
+    if (useEditorStore.getState().mode === "idle") {
+      selectElement(null);
     }
-    latestPinchScale.current = 1;
-  }, []);
+  }, [selectElement]);
 
-  const handlePinchUpdate = useCallback(
-    (scale: number) => {
-      if (!selectedIdRef.current) return;
-      latestPinchScale.current = scale;
-      pinchThrottled(scale);
-    },
-    [pinchThrottled],
-  );
+  const deselectTap = Gesture.Tap().onEnd(() => {
+    "worklet";
+    runOnJS(deselectIfIdle)();
+  });
 
-  const handlePinchEnd = useCallback(() => {
-    const id = selectedIdRef.current;
-    if (id) {
-      pinchThrottled.cancel();
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (el) {
-        const newScale = Math.max(
-          0.2,
-          Math.min(5, pinchStartScale.current * latestPinchScale.current),
-        );
-        updateElement(id, {
-          transform: { ...el.transform, scale: newScale },
-        } as any);
-      }
-    }
-  }, [pinchThrottled, updateElement]);
+  const canvasGesture = Gesture.Race(drawingPanGesture, deselectTap);
 
-  // ---- Rotation gesture (two-finger twist, idle mode) ----
-  const handleRotationStart = useCallback(() => {
-    const id = selectedIdRef.current;
-    if (id) {
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (el) rotationStartAngle.current = el.transform.rotation;
-    }
-    latestRotation.current = 0;
-  }, []);
-
-  const handleRotationUpdate = useCallback(
-    (radians: number) => {
-      if (!selectedIdRef.current) return;
-      latestRotation.current = radians;
-      const id = selectedIdRef.current;
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (!el) return;
-      const degrees = (radians * 180) / Math.PI;
-      updateElement(id, {
-        transform: {
-          ...el.transform,
-          rotation: rotationStartAngle.current + degrees,
-        },
-      } as any);
+  // ---- Per-element gesture overlay handlers ----
+  const handleElementTransformEnd = useCallback(
+    (
+      id: string,
+      transform: {
+        translateX: number;
+        translateY: number;
+        scale: number;
+        rotation: number;
+      },
+    ) => {
+      updateElement(id, { transform } as any);
     },
     [updateElement],
   );
 
-  const handleRotationEnd = useCallback(() => {
-    const id = selectedIdRef.current;
-    if (id) {
-      const el = elementsRef.current.find((e) => e.id === id);
-      if (el) {
-        const degrees = (latestRotation.current * 180) / Math.PI;
-        updateElement(id, {
-          transform: {
-            ...el.transform,
-            rotation: rotationStartAngle.current + degrees,
-          },
-        } as any);
+  const handleElementDoubleTap = useCallback(
+    (id: string) => {
+      const el = elements.find((e) => e.id === id);
+      if (el?.type === "text") {
+        selectElement(id);
+        setMode("text");
       }
-    }
-  }, [updateElement]);
-
-  // ---- Gesture Composition ----
-  const unifiedPanGesture = Gesture.Pan()
-    .minDistance(0)
-    .onStart((e) => {
-      "worklet";
-      runOnJS(handleUnifiedPanStart)(e.x, e.y);
-    })
-    .onUpdate((e) => {
-      "worklet";
-      runOnJS(handleUnifiedPanUpdate)(e.x, e.y, e.translationX, e.translationY);
-    })
-    .onEnd(() => {
-      "worklet";
-      runOnJS(handleUnifiedPanEnd)();
-    });
-
-  const elementPinchGesture = Gesture.Pinch()
-    .enabled(mode === "idle")
-    .onStart(() => {
-      "worklet";
-      runOnJS(handlePinchStart)();
-    })
-    .onUpdate((e) => {
-      "worklet";
-      runOnJS(handlePinchUpdate)(e.scale);
-    })
-    .onEnd(() => {
-      "worklet";
-      runOnJS(handlePinchEnd)();
-    });
-
-  const elementRotationGesture = Gesture.Rotation()
-    .enabled(mode === "idle")
-    .onStart(() => {
-      "worklet";
-      runOnJS(handleRotationStart)();
-    })
-    .onUpdate((e) => {
-      "worklet";
-      runOnJS(handleRotationUpdate)(e.rotation);
-    })
-    .onEnd(() => {
-      "worklet";
-      runOnJS(handleRotationEnd)();
-    });
-
-  // Pan (always) + Pinch + Rotation (idle only)
-  const canvasGesture = Gesture.Simultaneous(
-    unifiedPanGesture,
-    elementPinchGesture,
-    elementRotationGesture,
+    },
+    [elements, selectElement, setMode],
   );
+
+  // Compute element sizes for gesture overlay hit areas
+  // CRITICAL: Enforce minimum so pinch/rotate is always possible
+  const MIN_HIT = 200; // canvas-px — ~72px on screen, comfortable for 2-finger gestures
+  const getElementSize = useCallback((el: (typeof elements)[0]) => {
+    if (el.type === "sticker") {
+      const size = Math.max((el as any).size || 250, MIN_HIT);
+      return { width: size, height: size };
+    }
+    if (el.type === "text") {
+      const maxW = (el as any).maxWidth || 400;
+      const fontSize = (el as any).fontSize || 48;
+      return {
+        width: Math.max(maxW, MIN_HIT),
+        height: Math.max(fontSize * 2, MIN_HIT),
+      };
+    }
+    return { width: MIN_HIT, height: MIN_HIT };
+  }, []);
 
   return (
-    <BottomSheetModalProvider>
-      <View style={styles.container}>
-        <StatusBar hidden />
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      <StatusBar hidden />
 
-        {/* ---- Main Canvas ---- */}
-        <GestureDetector gesture={canvasGesture}>
-          <View style={styles.canvasContainer}>
-            <EditorCanvas
-              ref={canvasExportRef}
-              mediaUri={storeMediaUri}
-              mediaType={storeMediaType}
-              elements={elements}
-              drawingPaths={drawingPaths}
-              currentFilter={currentFilter}
-              adjustments={adjustments}
-              selectedElementId={selectedElementId}
-              videoCurrentTime={videoCurrentTime}
-              isPlaying={isPlaying}
-              cubeLutImage={lutImage}
-              cubeLutSize={lutSize}
-              cubeLutEffect={runtimeEffect}
-              canvasBackground={canvasBackground}
-              liveStrokePoints={liveStrokePoints}
-              liveStrokeColor={drawingColor}
-              liveStrokeWidth={strokeWidth}
-            />
-          </View>
-        </GestureDetector>
-
-        {/* ---- Top Navigation ---- */}
-        <TopNavBar onClose={handleClose} mode={mode} />
-
-        {/* ---- Perf HUD (dev only) ---- */}
-        <PerfHUD
-          visible={showPerfHUD}
-          elementCount={elements.length}
-          drawingPathCount={drawingPaths.length}
-          drawingPointCount={drawingPaths.reduce(
-            (sum, p) => sum + p.points.length,
-            0,
-          )}
-        />
-
-        {/* ---- Main Toolbar (right side) ---- */}
-        {mode === "idle" && (
-          <MainToolbar
-            mode={mode}
-            onModeChange={setMode}
-            onUndo={undo}
-            onRedo={redo}
-            canUndo={canUndo}
-            canRedo={canRedo}
-          />
-        )}
-
-        {/* ---- Drawing Toolbar (stays as overlay — thin bar) ---- */}
-        {mode === "drawing" && (
-          <DrawingToolbar
-            selectedTool={drawingTool}
-            selectedColor={drawingColor}
-            strokeWidth={strokeWidth}
-            onToolChange={(tool: DrawingTool) => {
-              setDrawingTool(tool);
-              setStrokeWidth(DRAWING_TOOL_CONFIG[tool].defaultWidth);
-            }}
-            onColorChange={setDrawingColor}
-            onStrokeWidthChange={setStrokeWidth}
-            onUndo={undoLastPath}
-            onClear={clearDrawing}
-            onDone={() => setMode("idle")}
-          />
-        )}
-
-        {/* ---- Text Editor (stays as overlay — needs keyboard) ---- */}
-        {mode === "text" && (
-          <TextEditor
-            element={
-              selectedElement?.type === "text"
-                ? (selectedElement as TextElement)
-                : null
-            }
-            onAdd={handleAddText}
-            onUpdate={handleUpdateText}
-            onDone={() => setMode("idle")}
-            onCancel={() => setMode("idle")}
-          />
-        )}
-
-        {/* ---- Sticker Picker Sheet ---- */}
-        <BottomSheetModal
-          ref={stickerSheetRef}
-          snapPoints={stickerSnaps}
-          onDismiss={() => {
-            if (mode === "sticker") setMode("idle");
-          }}
-          backdropComponent={renderBackdrop}
-          handleIndicatorStyle={styles.sheetIndicator}
-          backgroundStyle={styles.sheetBackground}
-          enablePanDownToClose
+      {/* ---- Main Canvas ---- */}
+      <GestureDetector gesture={canvasGesture}>
+        <View
+          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <StickerPicker
-            onSelectSticker={handleSelectSticker}
-            onSelectImageSticker={handleSelectImageSticker}
-            onClose={() => setMode("idle")}
-          />
-        </BottomSheetModal>
-
-        {/* ---- Filter Selector Sheet ---- */}
-        <BottomSheetModal
-          ref={filterSheetRef}
-          snapPoints={filterSnaps}
-          onDismiss={() => {
-            if (mode === "filter") setMode("idle");
-          }}
-          backdropComponent={renderBackdrop}
-          handleIndicatorStyle={styles.sheetIndicator}
-          backgroundStyle={styles.sheetBackground}
-          enablePanDownToClose
-        >
-          <FilterSelector
+          <EditorCanvas
+            canvasRef={canvasRef}
+            mediaUri={storeMediaUri}
+            mediaType={storeMediaType}
+            elements={elements}
+            drawingPaths={drawingPaths}
             currentFilter={currentFilter}
-            onSelectFilter={setFilter}
-            onSelectCubeLUT={loadLUT}
-            selectedCubeLUTId={selectedCubeLUTId}
-            onDone={() => setMode("idle")}
-          />
-        </BottomSheetModal>
-
-        {/* ---- Adjustment Panel Sheet ---- */}
-        <BottomSheetModal
-          ref={adjustSheetRef}
-          snapPoints={adjustSnaps}
-          onDismiss={() => {
-            if (mode === "adjust") setMode("idle");
-          }}
-          backdropComponent={renderBackdrop}
-          handleIndicatorStyle={styles.sheetIndicator}
-          backgroundStyle={styles.sheetBackground}
-          enablePanDownToClose
-        >
-          <AdjustmentPanel
             adjustments={adjustments}
-            onAdjustmentChange={handleAdjustmentChange}
-            onReset={resetAdjustments}
-            onDone={() => setMode("idle")}
+            selectedElementId={selectedElementId}
+            videoCurrentTime={videoCurrentTime}
+            isPlaying={isPlaying}
+            canvasBackground={canvasBackground}
+            liveStrokePoints={liveStrokePointsRef.current}
+            liveStrokeColor={drawingColor}
+            liveStrokeWidth={strokeWidth}
+            showDebugOverlay={showPerfHUD}
           />
-        </BottomSheetModal>
+        </View>
+      </GestureDetector>
 
-        {/* ---- Background Picker (shown in idle when no media — text-only stories) ---- */}
-        {mode === "idle" && !storeMediaUri && (
-          <BackgroundPicker
-            selectedId={canvasBackground.id}
-            onSelect={setCanvasBackground}
-          />
+      {/* ---- Per-element gesture overlays (wcandillon pattern) ---- */}
+      {/* Active in all modes except drawing (so you can move stickers while panels are open) */}
+      {mode !== "drawing" &&
+        mode !== "text" &&
+        elements.map((el) => {
+          const size = getElementSize(el);
+          return (
+            <ElementGestureOverlay
+              key={el.id}
+              elementId={el.id}
+              elementType={el.type}
+              elementWidth={size.width}
+              elementHeight={size.height}
+              surface={surface}
+              isSelected={el.id === selectedElementId}
+              initialTransform={el.transform}
+              onSelect={selectElement}
+              onTransformEnd={handleElementTransformEnd}
+              onDoubleTap={handleElementDoubleTap}
+            />
+          );
+        })}
+
+      {/* ---- Top Navigation ---- */}
+      <TopNavBar
+        onClose={handleClose}
+        mode={mode}
+        onDone={mode === "drawing" ? () => setMode("idle") : undefined}
+      />
+
+      {/* ---- Perf HUD (dev only) ---- */}
+      <PerfHUD
+        visible={showPerfHUD}
+        elementCount={elements.length}
+        drawingPathCount={drawingPaths.length}
+        drawingPointCount={drawingPaths.reduce(
+          (sum, p) => sum + p.points.length,
+          0,
         )}
+      />
 
-        {/* ---- Bottom Action Bar ---- */}
-        <BottomActionBar
-          mode={mode}
-          onSave={handleSave}
-          onShare={handleShareToStory}
-          onPickMedia={handlePickMedia}
-          hasMedia={!!storeMediaUri}
+      {/* ---- Right Island Menu — ALWAYS visible (not just idle) ---- */}
+      <RightIslandMenu
+        mode={mode}
+        onModeChange={setMode}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+      />
+
+      {/* ---- Drawing Toolbar (overlay at bottom — thin bar) ---- */}
+      {mode === "drawing" && (
+        <DrawingToolbar
+          selectedTool={drawingTool}
+          selectedColor={drawingColor}
+          strokeWidth={strokeWidth}
+          onToolChange={(tool: string) => {
+            setDrawingTool(tool as any);
+          }}
+          onColorChange={setDrawingColor}
+          onStrokeWidthChange={setStrokeWidth}
+          onUndo={undoLastPath}
+          onClear={clearDrawing}
+          onDone={() => setMode("idle")}
         />
-      </View>
-    </BottomSheetModalProvider>
+      )}
+
+      {/* ---- Text Editor (fullscreen overlay) ---- */}
+      {mode === "text" && (
+        <TextEditor
+          element={
+            selectedElement?.type === "text"
+              ? (selectedElement as TextElement)
+              : null
+          }
+          onAdd={handleAddText}
+          onUpdate={handleUpdateText}
+          onRemove={removeElement}
+          onDone={() => setMode("idle")}
+          onCancel={() => setMode("idle")}
+        />
+      )}
+
+      {/* ---- Sticker Panel (overlay, not modal sheet) ---- */}
+      <ToolPanelContainer
+        visible={mode === "sticker"}
+        onDismiss={() => setMode("idle")}
+        heightRatio={0.45}
+      >
+        <StickerPicker
+          onSelectSticker={handleSelectSticker}
+          onSelectImageSticker={handleSelectImageSticker}
+          onClose={() => setMode("idle")}
+        />
+      </ToolPanelContainer>
+
+      {/* ---- Filter Panel (overlay) ---- */}
+      <ToolPanelContainer
+        visible={mode === "filter"}
+        onDismiss={() => setMode("idle")}
+        heightRatio={0.42}
+      >
+        <FilterSelector
+          currentFilter={currentFilter}
+          onSelectFilter={(f) => {
+            setSelectedEffectId(null);
+            setFilter(f);
+          }}
+          onSelectEffect={handleSelectEffect}
+          selectedEffectId={selectedEffectId}
+          mediaUri={storeMediaUri}
+          onDone={() => setMode("idle")}
+        />
+      </ToolPanelContainer>
+
+      {/* ---- Adjustment Panel (overlay) ---- */}
+      <ToolPanelContainer
+        visible={mode === "adjust"}
+        onDismiss={() => setMode("idle")}
+        heightRatio={0.55}
+      >
+        <AdjustmentPanel
+          adjustments={adjustments}
+          onAdjustmentChange={handleAdjustmentChange}
+          onReset={resetAdjustments}
+          onDone={() => setMode("idle")}
+        />
+      </ToolPanelContainer>
+
+      {/* ---- Background Picker (shown in idle when no media — text-only stories) ---- */}
+      {mode === "idle" && !storeMediaUri && (
+        <BackgroundPicker
+          selectedId={canvasBackground.id}
+          onSelect={(bg: any) => setCanvasBackgroundId(bg.id)}
+        />
+      )}
+
+      {/* ---- Bottom Action Bar ---- */}
+      <BottomActionBar
+        mode={mode}
+        onDone={handleSave}
+        onPickMedia={handlePickMedia}
+        onSaveToLibrary={handleSaveToLibrary}
+        hasMedia={!!storeMediaUri}
+        hasElements={hasElements}
+      />
+    </View>
   );
 };
-
-// ---- Styles ----
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#000",
-  },
-  canvasContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  sheetBackground: {
-    backgroundColor: "#1a1a1a",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  sheetIndicator: {
-    backgroundColor: "#555",
-    width: 36,
-    height: 4,
-  },
-});

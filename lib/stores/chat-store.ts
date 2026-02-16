@@ -42,7 +42,7 @@ export interface Message {
   time: string;
   readAt?: string | null;
   mentions?: string[];
-  media?: MediaAttachment;
+  media?: MediaAttachment[];
   storyReply?: StoryReplyContext;
   sharedPost?: SharedPostContext;
   reactions?: MessageReaction[];
@@ -61,13 +61,13 @@ interface ChatState {
   mentionQuery: string;
   showMentions: boolean;
   cursorPosition: number;
-  pendingMedia: MediaAttachment | null;
+  pendingMedia: MediaAttachment[];
   isSending: boolean;
   setCurrentMessage: (message: string) => void;
   setMentionQuery: (query: string) => void;
   setShowMentions: (show: boolean) => void;
   setCursorPosition: (position: number) => void;
-  setPendingMedia: (media: MediaAttachment | null) => void;
+  setPendingMedia: (media: MediaAttachment[] | null) => void;
   sendMessage: (chatId: string) => void;
   sendMessageToBackend: (conversationId: string) => Promise<void>;
   sendMediaMessage: (
@@ -127,10 +127,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   mentionQuery: "",
   showMentions: false,
   cursorPosition: 0,
-  pendingMedia: null,
+  pendingMedia: [],
   isSending: false,
 
-  setPendingMedia: (media) => set({ pendingMedia: media }),
+  setPendingMedia: (media) => set({ pendingMedia: media || [] }),
 
   // Load messages from backend
   loadMessages: async (conversationId: string) => {
@@ -228,17 +228,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
           })(),
           media:
             msg.media && msg.media.length > 0
-              ? {
-                  type: msg.media[0].type,
-                  uri: msg.media[0].url,
-                }
+              ? msg.media.map((m: any) => ({
+                  type: m.type as "image" | "video",
+                  uri: m.url || m.uri,
+                }))
               : meta?.mediaUrl &&
                   meta.type !== "shared_post" &&
                   meta.type !== "story_reply"
-                ? {
-                    type: (meta.mediaType as "image" | "video") || "image",
-                    uri: meta.mediaUrl as string,
-                  }
+                ? [
+                    {
+                      type: (meta.mediaType as "image" | "video") || "image",
+                      uri: meta.mediaUrl as string,
+                    },
+                  ]
                 : undefined,
           readAt: msg.readAt || null,
           storyReply,
@@ -265,7 +267,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessageToBackend: async (conversationId: string) => {
     const { currentMessage, pendingMedia, messages, isSending } = get();
     if (isSending) return; // Re-entrance guard
-    if (!currentMessage.trim() && !pendingMedia) return;
+    if (!currentMessage.trim() && pendingMedia.length === 0) return;
 
     const user = useAuthStore.getState().user;
     if (!user) {
@@ -282,25 +284,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentMessage: "",
       mentionQuery: "",
       showMentions: false,
-      pendingMedia: null,
+      pendingMedia: [],
       isSending: true,
     });
 
     try {
       // Upload media to Bunny CDN first, then send CDN URL
       let mediaItems: Array<{ uri: string; type: "image" | "video" }> = [];
-      let uploadedMediaUrl: string | undefined;
-      if (mediaToSend) {
-        try {
-          const uploadResult = await uploadToBunny(mediaToSend.uri, "chat");
-          if (uploadResult.success && uploadResult.url) {
-            uploadedMediaUrl = uploadResult.url;
-            mediaItems = [{ uri: uploadResult.url, type: mediaToSend.type }];
+      const uploadedUrls: string[] = [];
+      if (mediaToSend.length > 0) {
+        for (const item of mediaToSend) {
+          try {
+            const uploadResult = await uploadToBunny(item.uri, "chat");
+            if (uploadResult.success && uploadResult.url) {
+              uploadedUrls.push(uploadResult.url);
+              mediaItems.push({ uri: uploadResult.url, type: item.type });
+            } else {
+              mediaItems.push({ uri: item.uri, type: item.type });
+            }
+          } catch (uploadError) {
+            console.error("[ChatStore] Bunny upload failed:", uploadError);
+            mediaItems.push({ uri: item.uri, type: item.type });
           }
-        } catch (uploadError) {
-          console.error("[ChatStore] Bunny upload failed:", uploadError);
-          // Fall back to local URI
-          mediaItems = [{ uri: mediaToSend.uri, type: mediaToSend.type }];
         }
       }
 
@@ -331,22 +336,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // Parse media safely — check result.media array, then metadata.mediaUrl, then local fallback
         const resMeta = result.metadata;
-        const serverMedia =
+        const serverMedia: MediaAttachment[] | undefined =
           Array.isArray(result.media) && result.media.length > 0
-            ? {
-                type: result.media[0].type as "image" | "video",
-                uri: result.media[0].url,
-              }
+            ? result.media.map((m: any) => ({
+                type: m.type as "image" | "video",
+                uri: m.url || m.uri,
+              }))
             : resMeta?.mediaUrl
-              ? {
-                  type: (resMeta.mediaType as "image" | "video") || "image",
-                  uri: resMeta.mediaUrl as string,
-                }
-              : mediaToSend
-                ? {
-                    type: mediaToSend.type,
-                    uri: uploadedMediaUrl || mediaToSend.uri,
-                  }
+              ? [
+                  {
+                    type: (resMeta.mediaType as "image" | "video") || "image",
+                    uri: resMeta.mediaUrl as string,
+                  },
+                ]
+              : mediaToSend.length > 0
+                ? mediaToSend.map((item, i) => ({
+                    type: item.type,
+                    uri: uploadedUrls[i] || item.uri,
+                  }))
                 : undefined;
 
         const existingMessages = get().messages[conversationId] || [];
@@ -404,7 +411,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sendMessage: (chatId) => {
     const { currentMessage, messages, pendingMedia } = get();
-    if (!currentMessage.trim() && !pendingMedia) return;
+    if (!currentMessage.trim() && pendingMedia.length === 0) return;
 
     const existingMessages = messages[chatId] || [...mockMessages];
     const mentions = extractMentions(currentMessage);
@@ -418,7 +425,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         minute: "2-digit",
       }),
       mentions: mentions.length > 0 ? mentions : undefined,
-      media: pendingMedia || undefined,
+      media: pendingMedia.length > 0 ? pendingMedia : undefined,
     };
 
     set({
@@ -429,7 +436,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       currentMessage: "",
       mentionQuery: "",
       showMentions: false,
-      pendingMedia: null,
+      pendingMedia: [],
     });
   },
 
@@ -442,7 +449,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       text: caption || "",
       sender: "me",
       time: "Now",
-      media,
+      media: [media],
     };
 
     set({

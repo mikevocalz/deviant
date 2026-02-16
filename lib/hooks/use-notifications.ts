@@ -17,6 +17,7 @@ import {
   registerForPushNotificationsAsync,
   savePushTokenToBackend,
 } from "@/lib/notifications";
+import { useAppStore } from "@/lib/stores/app-store";
 import { Platform } from "react-native";
 
 // Dynamically import expo-notifications to avoid native module errors
@@ -173,6 +174,16 @@ export function useNotifications() {
         Notifications.addNotificationResponseReceivedListener((response) => {
           try {
             console.log("[Notifications] Response:", response);
+
+            // Guard: If _layout.tsx already queued a route for this cold-start
+            // notification, skip navigation here to prevent double push.
+            if (useAppStore.getState().pendingNotificationRoute) {
+              console.log(
+                "[Notifications] Skipping — route already queued by _layout",
+              );
+              return;
+            }
+
             const data = response.notification.request.content.data;
 
             // Handle navigation based on notification data
@@ -188,6 +199,7 @@ export function useNotifications() {
                 case "like":
                 case "comment":
                 case "mention":
+                case "tag":
                   if (data.postId) {
                     router.push(`/(protected)/post/${data.postId}` as any);
                   }

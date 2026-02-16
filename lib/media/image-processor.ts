@@ -6,7 +6,7 @@
 
 // @ts-ignore - expo-image-manipulator may not have types
 import * as ImageManipulator from "expo-image-manipulator";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 // @ts-ignore - expo-crypto may not have types
 import * as Crypto from "expo-crypto";
 import { MediaConstraints, ProcessedMedia, ValidationError } from "./types";

@@ -8,6 +8,15 @@ interface LocationData {
   placeId?: string;
 }
 
+export interface PlacedPostTag {
+  userId: number;
+  username: string;
+  avatar: string;
+  x: number;
+  y: number;
+  mediaIndex: number;
+}
+
 interface CreatePostState {
   selectedMedia: MediaAsset[];
   caption: string;
@@ -15,6 +24,7 @@ interface CreatePostState {
   locationData: LocationData | null;
   taggedPeople: string[];
   tags: string[];
+  placedTags: PlacedPostTag[];
   isNSFW: boolean;
   step: "select" | "edit" | "location";
   isUploading: boolean;
@@ -30,6 +40,15 @@ interface CreatePostState {
   setTags: (tags: string[]) => void;
   addTag: (tag: string) => void;
   removeTag: (tag: string) => void;
+  setPlacedTags: (tags: PlacedPostTag[]) => void;
+  addPlacedTag: (tag: PlacedPostTag) => void;
+  removePlacedTag: (userId: number, mediaIndex: number) => void;
+  updatePlacedTagPosition: (
+    userId: number,
+    mediaIndex: number,
+    x: number,
+    y: number,
+  ) => void;
   setIsNSFW: (isNSFW: boolean) => void;
   setStep: (step: "select" | "edit" | "location") => void;
   startUpload: () => void;
@@ -45,6 +64,7 @@ const initialState = {
   locationData: null as LocationData | null,
   taggedPeople: [] as string[],
   tags: [] as string[],
+  placedTags: [] as PlacedPostTag[],
   isNSFW: false,
   step: "select" as const,
   isUploading: false,
@@ -95,6 +115,31 @@ export const useCreatePostStore = create<CreatePostState>((set, get) => ({
   removeTag: (tag) => {
     const { tags } = get();
     set({ tags: tags.filter((t) => t !== tag) });
+  },
+  setPlacedTags: (placedTags) => set({ placedTags }),
+  addPlacedTag: (tag) => {
+    const { placedTags } = get();
+    // Replace if same user+mediaIndex, otherwise append
+    const filtered = placedTags.filter(
+      (t) => !(t.userId === tag.userId && t.mediaIndex === tag.mediaIndex),
+    );
+    set({ placedTags: [...filtered, tag] });
+  },
+  removePlacedTag: (userId, mediaIndex) => {
+    const { placedTags } = get();
+    set({
+      placedTags: placedTags.filter(
+        (t) => !(t.userId === userId && t.mediaIndex === mediaIndex),
+      ),
+    });
+  },
+  updatePlacedTagPosition: (userId, mediaIndex, x, y) => {
+    const { placedTags } = get();
+    set({
+      placedTags: placedTags.map((t) =>
+        t.userId === userId && t.mediaIndex === mediaIndex ? { ...t, x, y } : t,
+      ),
+    });
   },
   setIsNSFW: (isNSFW) => set({ isNSFW }),
   setStep: (step) => set({ step }),

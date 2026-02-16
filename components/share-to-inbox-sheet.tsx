@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -7,14 +13,18 @@ import {
   StyleSheet,
   TextInput,
 } from "react-native";
-import { Image } from "expo-image";
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetFlatList,
+  BottomSheetBackdrop,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { X, Send, Search } from "lucide-react-native";
-import { useRouter } from "expo-router";
 import { Avatar } from "@/components/ui/avatar";
-import { LegendList } from "@/components/list";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useChatStore, type SharedPostContext } from "@/lib/stores/chat-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useColorScheme } from "@/lib/hooks";
 import type { Conversation } from "@/lib/api/messages";
 
 interface ShareToInboxSheetProps {
@@ -35,6 +45,9 @@ export function ShareToInboxSheet({
   onClose,
   post,
 }: ShareToInboxSheetProps) {
+  const { colors } = useColorScheme();
+  const bottomSheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["60%"], []);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
@@ -43,17 +56,19 @@ export function ShareToInboxSheet({
   const showToast = useUIStore((s) => s.showToast);
 
   useEffect(() => {
-    if (!visible) {
+    if (visible) {
+      bottomSheetRef.current?.snapToIndex(0);
+      setIsLoading(true);
+      messagesApiClient
+        .getConversations()
+        .then(setConversations)
+        .catch(() => setConversations([]))
+        .finally(() => setIsLoading(false));
+    } else {
+      bottomSheetRef.current?.close();
       setSearchQuery("");
       setSendingTo(null);
-      return;
     }
-    setIsLoading(true);
-    messagesApiClient
-      .getConversations()
-      .then(setConversations)
-      .catch(() => setConversations([]))
-      .finally(() => setIsLoading(false));
   }, [visible]);
 
   const filtered = searchQuery
@@ -78,7 +93,11 @@ export function ShareToInboxSheet({
 
       try {
         await sendSharedPost(conversation.id, sharedPost);
-        showToast("success", "Sent", `Post shared with ${conversation.user.username}`);
+        showToast(
+          "success",
+          "Sent",
+          `Post shared with ${conversation.user.username}`,
+        );
         onClose();
       } catch {
         showToast("error", "Error", "Failed to share post");
@@ -89,106 +108,137 @@ export function ShareToInboxSheet({
     [post, sendSharedPost, showToast, onClose, sendingTo],
   );
 
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1) onClose();
+    },
+    [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: Conversation }) => (
+      <Pressable
+        onPress={() => handleSend(item)}
+        disabled={!!sendingTo}
+        style={[styles.conversationRow, { borderBottomColor: colors.border }]}
+      >
+        <Avatar
+          uri={item.user.avatar}
+          username={item.user.username}
+          size={44}
+          variant="roundedSquare"
+        />
+        <View style={styles.conversationInfo}>
+          <Text
+            style={[styles.conversationUsername, { color: colors.foreground }]}
+          >
+            {item.user.username}
+          </Text>
+          <Text
+            style={[
+              styles.conversationLastMsg,
+              { color: colors.mutedForeground },
+            ]}
+            numberOfLines={1}
+          >
+            {item.lastMessage || "No messages yet"}
+          </Text>
+        </View>
+        {sendingTo === item.id ? (
+          <ActivityIndicator size="small" color={colors.primary} />
+        ) : (
+          <View
+            style={[styles.sendButton, { backgroundColor: colors.primary }]}
+          >
+            <Send size={16} color="#fff" />
+          </View>
+        )}
+      </Pressable>
+    ),
+    [handleSend, sendingTo, colors],
+  );
+
+  const keyExtractor = useCallback((item: Conversation) => item.id, []);
+
   if (!visible) return null;
 
   return (
-    <View style={styles.overlay}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Share to...</Text>
-          <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
-            <X size={20} color="#fff" />
-          </Pressable>
-        </View>
-
-        {/* Search */}
-        <View style={styles.searchContainer}>
-          <Search size={16} color="rgba(255,255,255,0.4)" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search conversations..."
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            style={styles.searchInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-
-        {/* Content */}
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="small" color="#34A2DF" />
-          </View>
-        ) : filtered.length === 0 ? (
-          <View style={styles.centered}>
-            <Text style={styles.emptyText}>
-              {searchQuery ? "No conversations found" : "No conversations yet"}
-            </Text>
-          </View>
-        ) : (
-          <LegendList
-            data={filtered}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <Pressable
-                onPress={() => handleSend(item)}
-                disabled={!!sendingTo}
-                style={styles.conversationRow}
-              >
-                <Avatar
-                  uri={item.user.avatar}
-                  username={item.user.username}
-                  size={44}
-                  variant="roundedSquare"
-                />
-                <View style={styles.conversationInfo}>
-                  <Text style={styles.conversationUsername}>
-                    {item.user.username}
-                  </Text>
-                  <Text style={styles.conversationLastMsg} numberOfLines={1}>
-                    {item.lastMessage || "No messages yet"}
-                  </Text>
-                </View>
-                {sendingTo === item.id ? (
-                  <ActivityIndicator size="small" color="#3EA4E5" />
-                ) : (
-                  <View style={styles.sendButton}>
-                    <Send size={16} color="#fff" />
-                  </View>
-                )}
-              </Pressable>
-            )}
-            estimatedItemSize={64}
-            recycleItems
-            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+    <BottomSheet
+      ref={bottomSheetRef}
+      index={0}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      enableOverDrag={false}
+      onChange={handleSheetChange}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={{ backgroundColor: colors.card }}
+      handleIndicatorStyle={{
+        backgroundColor: colors.mutedForeground,
+        width: 40,
+      }}
+    >
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+          Share to...
+        </Text>
+        <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
+          <X size={20} color={colors.mutedForeground} />
+        </Pressable>
       </View>
-    </View>
+
+      {/* Search */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.muted }]}>
+        <Search size={16} color={colors.mutedForeground} />
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search conversations..."
+          placeholderTextColor={colors.mutedForeground}
+          style={[styles.searchInput, { color: colors.foreground }]}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+      </View>
+
+      {/* Content */}
+      {isLoading ? (
+        <BottomSheetView style={styles.centered}>
+          <ActivityIndicator size="small" color={colors.primary} />
+        </BottomSheetView>
+      ) : filtered.length === 0 ? (
+        <BottomSheetView style={styles.centered}>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            {searchQuery ? "No conversations found" : "No conversations yet"}
+          </Text>
+        </BottomSheetView>
+      ) : (
+        <BottomSheetFlatList
+          data={filtered}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 200,
-    justifyContent: "flex-end",
-  },
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  sheet: {
-    backgroundColor: "#1a1a1a",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: "70%",
-    minHeight: 300,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -196,12 +246,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#34A2DF",
   },
   closeButton: {
     width: 32,
@@ -217,14 +265,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 16,
     marginVertical: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
   searchInput: {
     flex: 1,
-    color: "#fff",
     fontSize: 14,
   },
   conversationRow: {
@@ -239,18 +285,15 @@ const styles = StyleSheet.create({
   conversationUsername: {
     fontSize: 15,
     fontWeight: "600",
-    color: "#fff",
   },
   conversationLastMsg: {
     fontSize: 12,
-    color: "rgba(255,255,255,0.5)",
     marginTop: 2,
   },
   sendButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#3EA4E5",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -261,7 +304,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: {
-    color: "rgba(255,255,255,0.4)",
     fontSize: 14,
   },
 });

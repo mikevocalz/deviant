@@ -1,0 +1,240 @@
+/**
+ * Payouts Release Cron Edge Function
+ *
+ * Runs hourly (or triggered manually).
+ * Finds events where now >= payout_release_at AND payout_status='pending'.
+ * Computes financials, creates Stripe payout/transfer, sends statement email.
+ */
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const RESEND_FROM = Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <noreply@dvntapp.live>";
+
+async function stripeRequest(endpoint: string, body: Record<string, string>): Promise<any> {
+  const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+  return res.json();
+}
+
+Deno.serve(async (req: Request) => {
+  // Allow both POST (cron) and GET (manual trigger)
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const now = new Date().toISOString();
+  const results: any[] = [];
+
+  try {
+    // Find events ready for payout
+    const { data: events, error } = await supabase
+      .from("events")
+      .select("id, title, host_id, payout_release_at, end_date")
+      .eq("payout_status", "pending")
+      .not("payout_release_at", "is", null)
+      .lte("payout_release_at", now)
+      .limit(20);
+
+    if (error) throw error;
+    if (!events?.length) {
+      return new Response(
+        JSON.stringify({ message: "No payouts due", processed: 0 }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    for (const event of events) {
+      try {
+        // Check for disputes/holds
+        const { data: disputes } = await supabase
+          .from("tickets")
+          .select("id")
+          .eq("event_id", event.id)
+          .eq("status", "void")
+          .limit(1);
+
+        if (disputes?.length) {
+          await supabase
+            .from("events")
+            .update({ payout_status: "on_hold" })
+            .eq("id", event.id);
+          results.push({ event_id: event.id, status: "on_hold", reason: "dispute" });
+          continue;
+        }
+
+        // Compute financials
+        const { data: tickets } = await supabase
+          .from("tickets")
+          .select("purchase_amount_cents, status")
+          .eq("event_id", event.id);
+
+        const allTickets = tickets || [];
+        const activeTickets = allTickets.filter((t: any) => t.status !== "refunded");
+        const refundedTickets = allTickets.filter((t: any) => t.status === "refunded");
+
+        const grossCents = activeTickets.reduce(
+          (sum: number, t: any) => sum + (t.purchase_amount_cents || 0),
+          0,
+        );
+        const refundsCents = refundedTickets.reduce(
+          (sum: number, t: any) => sum + (t.purchase_amount_cents || 0),
+          0,
+        );
+
+        // DVNT fee: 5% + $1 per ticket
+        const ticketCount = activeTickets.length;
+        const dvntFeeCents = Math.round(grossCents * 0.05) + 100 * ticketCount;
+        // Estimate Stripe fee: ~2.9% + $0.30 per charge (approximation)
+        const stripeFeeCents = Math.round(grossCents * 0.029) + 30 * ticketCount;
+        const netCents = Math.max(0, grossCents - dvntFeeCents - stripeFeeCents - refundsCents);
+
+        // Upsert financials
+        await supabase.from("event_financials").upsert({
+          event_id: event.id,
+          gross_cents: grossCents,
+          refunds_cents: refundsCents,
+          dvnt_fee_cents: dvntFeeCents,
+          stripe_fee_cents: stripeFeeCents,
+          net_cents: netCents,
+          calculated_at: now,
+        });
+
+        if (netCents <= 0) {
+          await supabase
+            .from("events")
+            .update({ payout_status: "released" })
+            .eq("id", event.id);
+          results.push({ event_id: event.id, status: "released", net_cents: 0 });
+          continue;
+        }
+
+        // Get organizer's Stripe account
+        const { data: organizer } = await supabase
+          .from("organizer_accounts")
+          .select("stripe_account_id, payouts_enabled")
+          .eq("host_id", event.host_id)
+          .single();
+
+        if (!organizer?.stripe_account_id || !organizer?.payouts_enabled) {
+          await supabase
+            .from("events")
+            .update({ payout_status: "on_hold" })
+            .eq("id", event.id);
+          results.push({
+            event_id: event.id,
+            status: "on_hold",
+            reason: "no_stripe_account",
+          });
+          continue;
+        }
+
+        // Create Stripe transfer to connected account
+        const transfer = await stripeRequest("/transfers", {
+          amount: netCents.toString(),
+          currency: "usd",
+          destination: organizer.stripe_account_id,
+          "metadata[event_id]": event.id.toString(),
+          "metadata[type]": "event_payout",
+        });
+
+        if (transfer.error) {
+          console.error("[payouts] Stripe transfer error:", transfer.error);
+          await supabase
+            .from("events")
+            .update({ payout_status: "on_hold" })
+            .eq("id", event.id);
+          results.push({
+            event_id: event.id,
+            status: "on_hold",
+            reason: transfer.error.message,
+          });
+          continue;
+        }
+
+        // Record payout
+        await supabase.from("payouts").insert({
+          event_id: event.id,
+          host_id: event.host_id,
+          stripe_payout_id: transfer.id,
+          status: "paid",
+          gross_cents: grossCents,
+          net_cents: netCents,
+          release_at: event.payout_release_at,
+        });
+
+        // Mark event payout as released
+        await supabase
+          .from("events")
+          .update({ payout_status: "released" })
+          .eq("id", event.id);
+
+        // Send payout statement email
+        if (RESEND_API_KEY) {
+          try {
+            // Fetch host email
+            const { data: hostUser } = await supabase
+              .from("users")
+              .select("email, username")
+              .eq("auth_id", event.host_id)
+              .single();
+
+            if (hostUser?.email) {
+              await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${RESEND_API_KEY}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  from: RESEND_FROM,
+                  to: hostUser.email,
+                  subject: `Payout Statement — ${event.title}`,
+                  html: `
+                    <h2>Payout Statement</h2>
+                    <p><strong>Event:</strong> ${event.title}</p>
+                    <p><strong>Tickets Sold:</strong> ${ticketCount}</p>
+                    <p><strong>Tickets Refunded:</strong> ${refundedTickets.length}</p>
+                    <hr/>
+                    <p><strong>Gross Revenue:</strong> $${(grossCents / 100).toFixed(2)}</p>
+                    <p><strong>Refunds:</strong> -$${(refundsCents / 100).toFixed(2)}</p>
+                    <p><strong>DVNT Platform Fee:</strong> -$${(dvntFeeCents / 100).toFixed(2)}</p>
+                    <p><strong>Payment Processing:</strong> -$${(stripeFeeCents / 100).toFixed(2)}</p>
+                    <hr/>
+                    <p><strong>Net Payout:</strong> $${(netCents / 100).toFixed(2)}</p>
+                    <p><strong>Release Date:</strong> ${new Date(event.payout_release_at).toLocaleDateString()}</p>
+                    <p><em>Funds have been transferred to your connected bank account.</em></p>
+                  `,
+                }),
+              });
+            }
+          } catch (emailErr) {
+            console.error("[payouts] Email error:", emailErr);
+          }
+        }
+
+        results.push({ event_id: event.id, status: "released", net_cents: netCents });
+      } catch (eventErr: any) {
+        console.error(`[payouts] Error processing event ${event.id}:`, eventErr);
+        results.push({ event_id: event.id, status: "error", error: eventErr.message });
+      }
+    }
+
+    return new Response(
+      JSON.stringify({ processed: results.length, results }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  } catch (err: any) {
+    console.error("[payouts-release] Error:", err);
+    return new Response(
+      JSON.stringify({ error: err.message }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+});

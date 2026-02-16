@@ -4,3 +4,4 @@ export { CollapsibleRow } from "./CollapsibleRow";
 export { TicketTierCard } from "./TicketTierCard";
 export { StickyCTA } from "./StickyCTA";
 export { EventDetailSkeleton } from "./EventDetailSkeleton";
+export { WeatherModule } from "./WeatherModule";
