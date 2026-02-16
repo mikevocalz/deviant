@@ -82,6 +82,7 @@ Deno.serve(async (req) => {
       conversationId: number;
       content: string;
       mediaUrl?: string;
+      mediaItems?: Array<{ uri: string; type: string }>;
       metadata?: Record<string, unknown>;
     };
     try {
@@ -90,7 +91,7 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { conversationId, content, mediaUrl, metadata } = body;
+    const { conversationId, content, mediaUrl, mediaItems, metadata } = body;
     if (!conversationId || typeof conversationId !== "number") {
       return errorResponse(
         "validation_error",
@@ -150,17 +151,31 @@ Deno.serve(async (req) => {
     const mergedMetadata: Record<string, unknown> = {
       ...(metadata && typeof metadata === "object" ? metadata : {}),
     };
-    if (mediaUrl && typeof mediaUrl === "string") {
+    // Support multiple media items (B12 fix)
+    if (Array.isArray(mediaItems) && mediaItems.length > 0) {
+      mergedMetadata.mediaItems = mediaItems;
+      // Keep backwards compat: first item as mediaUrl
+      mergedMetadata.mediaUrl = mediaItems[0].uri;
+      mergedMetadata.mediaType = mediaItems[0].type || "image";
+    } else if (mediaUrl && typeof mediaUrl === "string") {
       mergedMetadata.mediaUrl = mediaUrl;
       mergedMetadata.mediaType = mediaUrl.match(/\.(mp4|mov|webm)$/i)
         ? "video"
         : "image";
     }
 
+    const hasMedia =
+      (Array.isArray(mediaItems) && mediaItems.length > 0) || !!mediaUrl;
+    const mediaLabel = hasMedia
+      ? Array.isArray(mediaItems) && mediaItems.length > 1
+        ? `📷 ${mediaItems.length} Photos`
+        : "📷 Photo"
+      : "";
+
     const insertPayload: Record<string, unknown> = {
       conversation_id: conversationId,
       sender_id: userId,
-      content: (content || "").trim() || (mediaUrl ? "📷 Photo" : ""),
+      content: (content || "").trim() || mediaLabel,
     };
     if (Object.keys(mergedMetadata).length > 0) {
       insertPayload.metadata = mergedMetadata;

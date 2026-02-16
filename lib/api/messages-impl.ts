@@ -204,8 +204,12 @@ export const messagesApi = {
       const body: Record<string, unknown> = {
         conversationId: conversationIdInt,
         content: data.content,
-        mediaUrl: data.media?.[0]?.uri,
       };
+      if (data.media && data.media.length > 0) {
+        body.mediaItems = data.media;
+        // Backwards compat: also set mediaUrl for single items
+        body.mediaUrl = data.media[0].uri;
+      }
       if (data.metadata) {
         body.metadata = data.metadata;
       }
