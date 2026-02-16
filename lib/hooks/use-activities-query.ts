@@ -15,6 +15,7 @@ import {
   type Notification,
 } from "@/lib/api/notifications";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 // Re-export Activity type so consumers don't need the store import
 export type ActivityType =
@@ -22,6 +23,7 @@ export type ActivityType =
   | "comment"
   | "follow"
   | "mention"
+  | "tag"
   | "event_invite"
   | "event_update";
 
@@ -141,7 +143,7 @@ export function useActivitiesQuery() {
     // Notifications are time-sensitive — override global refetchOnMount: false
     // Shows MMKV cache instantly, then silently refetches in background
     refetchOnMount: true,
-    staleTime: 60_000, // 1 min — notifications should be fresher than the 5min global default
+    staleTime: STALE_TIMES.activities,
   });
 }
 
@@ -171,6 +173,7 @@ export function getRouteForActivity(activity: Activity): string {
     case "like":
     case "comment":
     case "mention":
+    case "tag":
       if (post?.id) {
         return `/(protected)/post/${post.id}`;
       }
@@ -183,5 +186,7 @@ export function getRouteForActivity(activity: Activity): string {
         return `/(protected)/events/${event.id}`;
       }
       return `/(protected)/events`;
+    default:
+      return `/(protected)/profile/${user.username}`;
   }
 }

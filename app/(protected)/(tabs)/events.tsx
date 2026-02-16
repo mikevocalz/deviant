@@ -2,7 +2,7 @@ import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { Heart, Plus } from "lucide-react-native";
+import { Heart, Plus, Ticket } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,6 +17,7 @@ import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -205,6 +206,7 @@ export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<any>(null);
+  const trace = useScreenTrace("Events");
 
   // Fetch real events from API
   const { data: events = [], isLoading, error } = useEvents();
@@ -288,17 +290,32 @@ export default function EventsScreen() {
             </Text>
             <Text className="text-2xl font-bold text-foreground">Events</Text>
           </View>
-          <Motion.View
-            whileTap={{ scale: 0.9 }}
-            className="h-10 w-10 items-center justify-center rounded-full bg-primary"
-          >
-            <Pressable
-              onPress={() => router.push("/(protected)/events/create" as any)}
-              className="w-full h-full items-center justify-center"
+          <View className="flex-row items-center gap-2">
+            <Motion.View
+              whileTap={{ scale: 0.9 }}
+              className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
             >
-              <Plus size={20} color="#fff" />
-            </Pressable>
-          </Motion.View>
+              <Pressable
+                onPress={() =>
+                  router.push("/(protected)/events/my-tickets" as any)
+                }
+                className="w-full h-full items-center justify-center"
+              >
+                <Ticket size={18} color={colors.foreground} />
+              </Pressable>
+            </Motion.View>
+            <Motion.View
+              whileTap={{ scale: 0.9 }}
+              className="h-10 w-10 items-center justify-center rounded-full bg-primary"
+            >
+              <Pressable
+                onPress={() => router.push("/(protected)/events/create" as any)}
+                className="w-full h-full items-center justify-center"
+              >
+                <Plus size={20} color="#fff" />
+              </Pressable>
+            </Motion.View>
+          </View>
         </View>
 
         {/* Tab Navigation */}

@@ -41,6 +41,9 @@ import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
 import { useMyProfile } from "@/lib/hooks/use-profile";
 import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { useMyEvents, useLikedEvents } from "@/lib/hooks/use-events";
+import { useTaggedPosts } from "@/lib/hooks/use-post-tags";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useBootstrapProfile } from "@/lib/hooks/use-bootstrap-profile";
 // notificationKeys removed — app resume refresh handled by useAppResume globally
 import * as ImagePicker from "expo-image-picker";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
@@ -71,6 +74,8 @@ function ProfileScreenContent() {
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+  const trace = useScreenTrace("Profile");
+  useBootstrapProfile();
 
   // Responsive grid: 3 columns on phone, 4 on tablet (768px+)
   const { width: screenWidth } = useWindowDimensions();
@@ -515,7 +520,11 @@ function ProfileScreenContent() {
     return userPosts.filter((p) => p.kind === "video");
   }, [userPosts]);
 
-  const taggedPosts: SafeGridTile[] = []; // Placeholder for tagged posts
+  // Tagged posts — real data from post_tags API
+  const { data: taggedPostsRaw = [] } = useTaggedPosts(loggedInUserId);
+  const taggedPosts: SafeGridTile[] = useMemo(() => {
+    return safeGridTiles(taggedPostsRaw);
+  }, [taggedPostsRaw]);
 
   // Fetch user's events (hosting + RSVP'd)
   const { data: myEvents = [] } = useMyEvents();

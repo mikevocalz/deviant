@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys - scoped by viewerId for cache isolation
 export const messageKeys = {
@@ -41,9 +42,9 @@ export function useUnreadMessageCount() {
       return { inbox: inboxCount, spam: spamCount };
     },
     enabled: !!viewerId,
+    staleTime: STALE_TIMES.unreadCounts,
+    gcTime: GC_TIMES.short,
     refetchInterval: 30000, // Background refresh every 30s
-    // staleTime + gcTime inherited from global defaults (5min / 30min)
-    // Boot prefetch primes this cache — badge renders instantly
   });
 
   // Sync with unread counts store for push notification increments
@@ -71,6 +72,7 @@ export function useConversations() {
     queryKey: messageKeys.conversations(viewerId),
     queryFn: messagesApiClient.getConversations,
     enabled: !!viewerId,
+    staleTime: STALE_TIMES.conversations,
   });
 }
 
@@ -88,8 +90,7 @@ export function useFilteredConversations(filter: "primary" | "requests") {
     ],
     queryFn: () => messagesApiClient.getFilteredConversations(filter),
     enabled: !!viewerId,
-    // Inherits global staleTime (5min) + refetchOnMount: false
-    // Boot prefetch primes the conversations cache
+    staleTime: STALE_TIMES.conversations,
   });
 }
 

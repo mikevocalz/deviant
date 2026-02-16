@@ -12,6 +12,7 @@ import { usersApi } from "@/lib/api/users";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
+import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys - MUST be scoped by userId
 export const profileKeys = {
@@ -123,8 +124,7 @@ export function useMyProfile() {
       }
     },
     enabled: !!userId,
-    // Inherits global staleTime (5min) + refetchOnMount: false
-    // Boot prefetch primes this cache — profile renders instantly
+    staleTime: STALE_TIMES.profileSelf,
   });
 }
 

@@ -9,6 +9,7 @@ import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
@@ -38,6 +39,7 @@ export function useInfiniteFeedPosts() {
     queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+    staleTime: STALE_TIMES.feed,
   });
 }
 
@@ -47,8 +49,7 @@ export function useProfilePosts(userId: string) {
     queryKey: postKeys.profilePosts(userId),
     queryFn: () => postsApi.getProfilePosts(userId),
     enabled: !!userId,
-    // Inherits global staleTime (5min) — no override needed
-    // Profile posts update via cache invalidation after create/delete mutations
+    staleTime: STALE_TIMES.profilePosts,
   });
 }
 
@@ -62,8 +63,8 @@ export function usePost(id: string) {
       return postsApi.getPostById(id);
     },
     enabled: !!id && id.length > 0,
-    retry: 2, // Retry failed requests twice
-    // Inherits global staleTime (5min) + refetchOnMount: false
+    retry: 2,
+    staleTime: STALE_TIMES.postDetail,
   });
 }
 
@@ -270,9 +271,8 @@ export function useSyncLikedPosts() {
       console.log("[useSyncLikedPosts] Synced liked posts:", likedPosts.length);
       return likedPosts;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-    // Inherits global refetchOnMount: false
+    staleTime: STALE_TIMES.likedPosts,
+    gcTime: GC_TIMES.standard,
   });
 }
 
