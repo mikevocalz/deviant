@@ -27,6 +27,10 @@ import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import {
+  prefetchImages,
+  extractFeedImageUrls,
+} from "@/lib/perf/image-prefetch";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -242,11 +246,17 @@ export function Feed() {
     return data.pages.flatMap((page) => page.data);
   }, [data]);
 
-  // Perf: Mark TTUC when first posts are visible
+  // Perf: Mark TTUC when first posts are visible + prefetch off-screen images
   useEffect(() => {
     if (allPosts.length > 0) {
       if (trace.elapsed() < 50) trace.markCacheHit();
       trace.markUsable();
+      // Prefetch images for posts below the fold (posts 4+)
+      const offScreenPosts = allPosts.slice(3);
+      if (offScreenPosts.length > 0) {
+        const urls = extractFeedImageUrls(offScreenPosts);
+        prefetchImages(urls);
+      }
     }
   }, [allPosts.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 

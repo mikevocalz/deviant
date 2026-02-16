@@ -44,6 +44,7 @@ import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { useFocusEffect } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
 
 interface ConversationItem {
   id: string;
@@ -451,6 +452,7 @@ export default function MessagesScreen() {
   const currentUser = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
   const trace = useScreenTrace("Messages");
+  useBootstrapMessages();
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
