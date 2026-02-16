@@ -473,6 +473,8 @@ export default function MessagesScreen() {
       if (dataAge > 30_000) {
         queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
       }
+      // Always refresh unread counts on focus — clears phantom badge after markAsRead
+      queryClient.invalidateQueries({ queryKey: ["messages", "unreadCount"] });
     }, [queryClient, currentUser?.id]),
   );
 
