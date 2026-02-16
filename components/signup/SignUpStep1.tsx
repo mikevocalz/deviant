@@ -357,6 +357,7 @@ export function SignUpStep1() {
 
   // Track if user is underage based on DOB in form
   const [isUserUnderage, setIsUserUnderage] = useState(false);
+  const [dobError, setDobError] = useState("");
 
   const form = useForm({
     defaultValues: {
@@ -370,13 +371,25 @@ export function SignUpStep1() {
       confirmPassword: "",
     },
     onSubmit: async ({ value }) => {
+      // CRITICAL: Date of birth is REQUIRED — block if missing
+      if (!value.dateOfBirth) {
+        setDobError("Please enter your date of birth");
+        setIsUserUnderage(false);
+        setShowDatePicker(true);
+        console.error("[SignUpStep1] BLOCKED: No date of birth entered");
+        return; // BLOCK - require DOB
+      }
+
       // CRITICAL: Server-side age verification before proceeding
       const ageCheck = validateDateOfBirth(value.dateOfBirth);
       if (!ageCheck.isValid || ageCheck.isOver18 === false) {
         setIsUserUnderage(true);
+        setDobError("");
         console.error("[SignUpStep1] BLOCKED: Underage user attempted signup");
         return; // HARD BLOCK - do not proceed
       }
+      setDobError("");
+      setIsUserUnderage(false);
 
       updateFormData({
         firstName: value.firstName,
@@ -545,11 +558,16 @@ export function SignUpStep1() {
 
       <form.Field name="dateOfBirth">
         {(field) => (
-          <DateOfBirthField
-            field={field}
-            showDatePicker={showDatePicker}
-            setShowDatePicker={setShowDatePicker}
-          />
+          <View>
+            <DateOfBirthField
+              field={field}
+              showDatePicker={showDatePicker}
+              setShowDatePicker={setShowDatePicker}
+            />
+            {dobError ? (
+              <Text className="text-xs text-destructive mt-1">{dobError}</Text>
+            ) : null}
+          </View>
         )}
       </form.Field>
 

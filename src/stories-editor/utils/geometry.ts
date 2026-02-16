@@ -8,7 +8,8 @@
 // root Group with transform=[{ scale: canvasScale }] maps canvas→screen.
 // ============================================================
 
-import { Dimensions } from "react-native";
+import { useMemo } from "react";
+import { Dimensions, useWindowDimensions } from "react-native";
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from "../constants";
 
 export interface RenderSurface {
@@ -26,14 +27,13 @@ export interface RenderSurface {
   offsetX: number;
   /** Vertical offset of the canvas view within the screen */
   offsetY: number;
+  /** Screen width in points */
+  screenW: number;
+  /** Screen height in points */
+  screenH: number;
 }
 
-/**
- * Compute the RenderSurface for the current device.
- * Call once at mount (or when layout changes) and pass down.
- */
-export function computeRenderSurface(): RenderSurface {
-  const { width: screenW, height: screenH } = Dimensions.get("window");
+function buildSurface(screenW: number, screenH: number): RenderSurface {
   const scale = Math.min(screenW / CANVAS_WIDTH, screenH / CANVAS_HEIGHT);
   const displayW = CANVAS_WIDTH * scale;
   const displayH = CANVAS_HEIGHT * scale;
@@ -45,7 +45,27 @@ export function computeRenderSurface(): RenderSurface {
     displayH,
     offsetX: (screenW - displayW) / 2,
     offsetY: (screenH - displayH) / 2,
+    screenW,
+    screenH,
   };
+}
+
+/**
+ * Reactive hook — recomputes on screen dimension changes (rotation, foldable).
+ * Use this in components.
+ */
+export function useRenderSurface(): RenderSurface {
+  const { width, height } = useWindowDimensions();
+  return useMemo(() => buildSurface(width, height), [width, height]);
+}
+
+/**
+ * @deprecated Use useRenderSurface() hook instead for reactive updates.
+ * Kept for backward compat in non-component contexts.
+ */
+export function computeRenderSurface(): RenderSurface {
+  const { width: screenW, height: screenH } = Dimensions.get("window");
+  return buildSurface(screenW, screenH);
 }
 
 /**

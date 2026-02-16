@@ -531,6 +531,7 @@ This is a **React Native/Expo** project using:
 - **Rive** for animations (.riv files)
 - **React Native Reanimated** for animations
 - **Zustand** for state management (**DO NOT use useState hooks, use Zustand stores**)
+- **TanStack Debouncer** (`@tanstack/react-pacer`) for ALL debounce/throttle logic (**NEVER use setTimeout as a debounce mechanism**)
 
 ---
 

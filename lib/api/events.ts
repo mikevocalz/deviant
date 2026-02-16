@@ -346,6 +346,19 @@ export const eventsApi = {
           avatar: (host?.avatar as any)?.url || "",
         },
         coOrganizer: null, // Not yet implemented in schema
+        // V2 fields
+        locationLat:
+          data.location_lat != null ? Number(data.location_lat) : undefined,
+        locationLng:
+          data.location_lng != null ? Number(data.location_lng) : undefined,
+        locationName: data.location_name || undefined,
+        locationType: data.location_type || undefined,
+        visibility: data.visibility || undefined,
+        ticketingEnabled: data.ticketing_enabled || false,
+        category: data.category || undefined,
+        ageRestriction: data.age_restriction || undefined,
+        nsfw: data.nsfw || false,
+        shareSlug: data.share_slug || undefined,
       };
     } catch (error) {
       console.error("[Events] getEventById error:", error);
@@ -445,22 +458,44 @@ export const eventsApi = {
       if (!authId) throw new Error("Not authenticated");
 
       // Use authId for host_id (text column)
+      const insertPayload: Record<string, any> = {
+        [DB.events.hostId]: authId,
+        [DB.events.title]: eventData.title,
+        [DB.events.description]: eventData.description,
+        [DB.events.startDate]: eventData.date,
+        [DB.events.location]: eventData.location,
+        [DB.events.coverImageUrl]: eventData.image,
+        ["image"]: eventData.image,
+        ["images"]: eventData.images || [],
+        [DB.events.youtubeVideoUrl]: eventData.youtubeVideoUrl || null,
+        [DB.events.price]: eventData.price || 0,
+        [DB.events.maxAttendees]: eventData.maxAttendees,
+        [DB.events.isOnline]: eventData.isOnline || false,
+      };
+
+      // V2 fields (additive — only set if provided)
+      if (eventData.locationLat != null)
+        insertPayload.location_lat = eventData.locationLat;
+      if (eventData.locationLng != null)
+        insertPayload.location_lng = eventData.locationLng;
+      if (eventData.locationName)
+        insertPayload.location_name = eventData.locationName;
+      if (eventData.locationAddress)
+        insertPayload.location_address = eventData.locationAddress;
+      if (eventData.locationType)
+        insertPayload.location_type = eventData.locationType;
+      if (eventData.visibility) insertPayload.visibility = eventData.visibility;
+      if (eventData.eventCategory)
+        insertPayload.category = eventData.eventCategory;
+      if (eventData.ageRestriction)
+        insertPayload.age_restriction = eventData.ageRestriction;
+      if (eventData.endDate) insertPayload.end_date = eventData.endDate;
+      if (eventData.ticketingEnabled != null)
+        insertPayload.ticketing_enabled = eventData.ticketingEnabled;
+
       const { data, error } = await supabase
         .from(DB.events.table)
-        .insert({
-          [DB.events.hostId]: authId,
-          [DB.events.title]: eventData.title,
-          [DB.events.description]: eventData.description,
-          [DB.events.startDate]: eventData.date,
-          [DB.events.location]: eventData.location,
-          [DB.events.coverImageUrl]: eventData.image,
-          ["image"]: eventData.image,
-          ["images"]: eventData.images || [],
-          [DB.events.youtubeVideoUrl]: eventData.youtubeVideoUrl || null,
-          [DB.events.price]: eventData.price || 0,
-          [DB.events.maxAttendees]: eventData.maxAttendees,
-          [DB.events.isOnline]: eventData.isOnline || false,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 

@@ -64,14 +64,14 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import * as ImagePicker from "expo-image-picker";
 import { MediaPreviewModal } from "@/components/media-preview-modal";
-import { VideoView, useVideoPlayer } from "expo-video";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
-import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
+import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
 
@@ -139,67 +139,178 @@ function renderMessageText(
 }
 
 interface MediaMessageProps {
-  media: MediaAttachment;
-  onPress: () => void;
+  mediaList: MediaAttachment[];
+  onPress: (media: MediaAttachment) => void;
 }
 
-function MediaMessage({ media, onPress }: MediaMessageProps) {
-  // CRITICAL: Video lifecycle management to prevent crashes
-  const { isMountedRef } = useVideoLifecycle("MediaMessage", media.uri);
+function SingleVideoThumb({ media }: { media: MediaAttachment }) {
+  const [thumbUri, setThumbUri] = useState<string | null>(null);
 
-  const player = useVideoPlayer(
-    media.type === "video" ? media.uri : "",
-    (p) => {
-      if (isMountedRef.current) {
-        p.loop = false;
-        logVideoHealth("MediaMessage", "player configured");
-      }
-    },
-  );
+  useEffect(() => {
+    let cancelled = false;
+    VideoThumbnails.getThumbnailAsync(media.uri, { time: 500 })
+      .then(({ uri }) => {
+        if (!cancelled) setThumbUri(uri);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [media.uri]);
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={{
-        width: 200,
-        height: 200,
-        borderRadius: 12,
-        overflow: "hidden",
-        marginBottom: 8,
-        backgroundColor: "#222",
-      }}
-    >
-      {media.type === "image" ? (
+    <View style={{ width: "100%", height: "100%", backgroundColor: "#1a1a1a" }}>
+      {thumbUri && (
         <Image
-          source={{ uri: media.uri }}
-          style={{ width: 200, height: 200 }}
+          source={{ uri: thumbUri }}
+          style={{ width: "100%", height: "100%" }}
           contentFit="cover"
         />
+      )}
+      <View
+        style={{
+          ...StyleSheet.absoluteFillObject,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "rgba(0,0,0,0.3)",
+        }}
+      >
+        <LinearGradient
+          colors={[
+            "rgba(52,162,223,0.8)",
+            "rgba(138,64,207,0.8)",
+            "rgba(255,91,252,0.8)",
+          ]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <Play size={20} color="#fff" fill="#fff" />
+        </LinearGradient>
+      </View>
+    </View>
+  );
+}
+
+function MediaMessage({ mediaList, onPress }: MediaMessageProps) {
+  const imageUrls = mediaList
+    .filter((m) => m.type === "image")
+    .map((m) => m.uri);
+  const total = mediaList.length;
+  // Show max 4 tiles; if more, last tile gets a "+N" overlay
+  const visible = mediaList.slice(0, 4);
+  const overflow = total > 4 ? total - 4 : 0;
+  const GRID = 220; // grid width in px
+  const GAP = 3;
+  const HALF = (GRID - GAP) / 2;
+
+  const renderTile = (
+    media: MediaAttachment,
+    index: number,
+    w: number,
+    h: number,
+    isLast: boolean,
+  ) => {
+    const inner =
+      media.type === "video" ? (
+        <Pressable
+          key={media.uri}
+          onPress={() => onPress(media)}
+          style={{
+            width: w,
+            height: h,
+            borderRadius: 6,
+            overflow: "hidden",
+            backgroundColor: "#222",
+          }}
+        >
+          <SingleVideoThumb media={media} />
+        </Pressable>
       ) : (
-        <View className="w-full h-full relative">
-          <VideoView
-            player={player}
-            style={{ width: "100%", height: "100%" }}
+        <Galeria.Image
+          key={media.uri}
+          index={
+            imageUrls.indexOf(media.uri) >= 0
+              ? imageUrls.indexOf(media.uri)
+              : index
+          }
+        >
+          <Image
+            source={{ uri: media.uri }}
+            style={{
+              width: w,
+              height: h,
+              borderRadius: 6,
+              backgroundColor: "#222",
+            }}
             contentFit="cover"
-            nativeControls={false}
           />
-          <View className="absolute inset-0 justify-center items-center bg-black/30">
-            <LinearGradient
-              colors={[
-                "rgba(52,162,223,0.8)",
-                "rgba(138,64,207,0.8)",
-                "rgba(255,91,252,0.8)",
-              ]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              className="w-11 h-11 rounded-full justify-center items-center"
-            >
-              <Play size={20} color="#fff" fill="#fff" />
-            </LinearGradient>
+        </Galeria.Image>
+      );
+
+    if (isLast && overflow > 0) {
+      return (
+        <View key={media.uri} style={{ position: "relative" }}>
+          {inner}
+          <View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              borderRadius: 6,
+              backgroundColor: "rgba(0,0,0,0.55)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontSize: 20, fontWeight: "700" }}>
+              +{overflow}
+            </Text>
           </View>
         </View>
-      )}
-    </Pressable>
+      );
+    }
+    return inner;
+  };
+
+  const content =
+    total === 1 ? (
+      renderTile(visible[0], 0, GRID, GRID, false)
+    ) : total === 2 ? (
+      <View style={{ flexDirection: "row", gap: GAP, width: GRID }}>
+        {visible.map((m, i) => renderTile(m, i, HALF, GRID * 0.75, false))}
+      </View>
+    ) : total === 3 ? (
+      <View style={{ flexDirection: "row", gap: GAP, width: GRID }}>
+        {renderTile(visible[0], 0, HALF, GRID * 0.75, false)}
+        <View style={{ gap: GAP }}>
+          {renderTile(visible[1], 1, HALF, (GRID * 0.75 - GAP) / 2, false)}
+          {renderTile(visible[2], 2, HALF, (GRID * 0.75 - GAP) / 2, false)}
+        </View>
+      </View>
+    ) : (
+      <View
+        style={{
+          flexDirection: "row",
+          flexWrap: "wrap",
+          gap: GAP,
+          width: GRID,
+        }}
+      >
+        {visible.map((m, i) =>
+          renderTile(m, i, HALF, HALF, i === visible.length - 1),
+        )}
+      </View>
+    );
+
+  return (
+    <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
+      <View style={{ borderRadius: 10, overflow: "hidden" }}>{content}</View>
+    </Galeria>
   );
 }
 
@@ -583,7 +694,7 @@ export default function ChatScreen() {
   const handleSend = useCallback(() => {
     // Read fresh state from store — avoids stale closure bugs
     const store = useChatStore.getState();
-    if (!store.currentMessage.trim() && !store.pendingMedia) return;
+    if (!store.currentMessage.trim() && store.pendingMedia.length === 0) return;
     if (store.isSending) return;
 
     Animated.sequence([
@@ -655,7 +766,7 @@ export default function ChatScreen() {
           height: result.height,
           duration: result.duration,
         };
-        setPendingMedia(media);
+        setPendingMedia([media]);
       }
     }, [consumeCameraResult, setPendingMedia]),
   );
@@ -670,34 +781,58 @@ export default function ChatScreen() {
   const handlePickMedia = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.All,
-      allowsEditing: false,
+      allowsMultipleSelection: true,
+      selectionLimit: 4,
       quality: 0.8,
       videoMaxDuration: 60,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      const isVideo = asset.type === "video";
-
-      if (isVideo && asset.duration && asset.duration > 60000) {
-        showToast(
-          "error",
-          "Video too long",
-          "Please select a video under 60 seconds.",
-        );
-        return;
+    if (!result.canceled && result.assets.length > 0) {
+      const mediaList: MediaAttachment[] = [];
+      let hasVideo = false;
+      for (const asset of result.assets) {
+        const isVideo = asset.type === "video";
+        if (isVideo && asset.duration && asset.duration > 60000) {
+          showToast(
+            "error",
+            "Video too long",
+            "Please select a video under 60 seconds.",
+          );
+          continue;
+        }
+        if (isVideo && hasVideo) {
+          // Only one video per message
+          continue;
+        }
+        if (isVideo) hasVideo = true;
+        mediaList.push({
+          type: isVideo ? "video" : "image",
+          uri: asset.uri,
+          width: asset.width,
+          height: asset.height,
+          duration: asset.duration ?? undefined,
+        });
       }
-
-      const media: MediaAttachment = {
-        type: isVideo ? "video" : "image",
-        uri: asset.uri,
-        width: asset.width,
-        height: asset.height,
-        duration: asset.duration ?? undefined,
-      };
-      setPendingMedia(media);
+      // If a video is included, only send that video (no mixing)
+      if (hasVideo) {
+        const video = mediaList.find((m) => m.type === "video");
+        if (video) {
+          setPendingMedia([video]);
+          if (mediaList.length > 1) {
+            showToast(
+              "info",
+              "One video at a time",
+              "Videos are sent individually.",
+            );
+          }
+          return;
+        }
+      }
+      if (mediaList.length > 0) {
+        setPendingMedia(mediaList);
+      }
     }
-  }, [setPendingMedia]);
+  }, [setPendingMedia, showToast]);
 
   const handleMediaPreview = useCallback(
     (media: MediaAttachment) => {
@@ -712,7 +847,8 @@ export default function ChatScreen() {
     setPreviewMedia(null);
   }, [setShowPreviewModal, setPreviewMedia]);
 
-  const canSend = (currentMessage.trim() || pendingMedia) && !isSending;
+  const canSend =
+    (currentMessage.trim() || pendingMedia.length > 0) && !isSending;
 
   // Message action sheet state
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -822,7 +958,7 @@ export default function ChatScreen() {
     <KeyboardAvoidingView
       behavior="padding"
       style={{ flex: 1 }}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
+      keyboardVerticalOffset={0}
     >
       <SafeAreaView
         edges={["top"]}
@@ -934,89 +1070,110 @@ export default function ChatScreen() {
               {} as Record<string, number>,
             );
 
-            const bubble = (
-              <View style={{ maxWidth: "80%", flexShrink: 1 }}>
-                {item.media && (
-                  <MediaMessage
-                    media={item.media}
-                    onPress={() => handleMediaPreview(item.media!)}
-                  />
-                )}
-                {item.sharedPost ? (
-                  <View className="mb-1">
-                    <SharedPostBubble
-                      sharedPost={item.sharedPost}
-                      isOwnMessage={isMe}
-                    />
-                    <Text
-                      className={`text-[11px] mt-1 px-1 ${
-                        isMe ? "text-foreground/70" : "text-muted-foreground"
-                      }`}
-                    >
-                      {item.time}
-                    </Text>
-                  </View>
-                ) : item.storyReply ? (
-                  <View className="mb-1">
-                    <StoryReplyBubble
-                      storyReply={item.storyReply}
-                      replyText={item.text}
-                      isOwnMessage={isMe}
-                    />
-                    <Text
-                      className={`text-[11px] mt-1 px-1 ${
-                        isMe ? "text-foreground/70" : "text-muted-foreground"
-                      }`}
-                    >
-                      {item.time}
-                    </Text>
-                  </View>
-                ) : (
-                  (() => {
-                    const bubbleBg = isMe
-                      ? "#3FDCFF"
-                      : isGroupChat
-                        ? getGroupBubbleColor(item.senderId, senderColorMap)
-                        : "#8A40CF";
-                    const darkText = needsDarkText(bubbleBg);
-                    return (
-                      <View
-                        style={{
-                          paddingHorizontal: 16,
-                          paddingVertical: 10,
-                          borderRadius: 16,
-                          backgroundColor: bubbleBg,
-                          flexShrink: 1,
-                          minWidth: 160,
-                        }}
+            const bubble = (() => {
+              if (item.sharedPost) {
+                return (
+                  <View style={{ flexShrink: 1 }}>
+                    <View className="mb-1">
+                      <SharedPostBubble
+                        sharedPost={item.sharedPost}
+                        isOwnMessage={isMe}
+                      />
+                      <Text
+                        className={`text-[11px] mt-1 px-1 ${
+                          isMe ? "text-foreground/70" : "text-muted-foreground"
+                        }`}
                       >
-                        {item.text ? (
-                          <Text
-                            style={{
-                              fontSize: 15,
-                              color: darkText ? "#000" : "#fff",
-                            }}
-                          >
-                            {renderMessageText(item.text, handleMentionPress)}
-                          </Text>
-                        ) : null}
+                        {item.time}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              if (item.storyReply) {
+                return (
+                  <View style={{ flexShrink: 1 }}>
+                    <View className="mb-1">
+                      <StoryReplyBubble
+                        storyReply={item.storyReply}
+                        replyText={item.text}
+                        isOwnMessage={isMe}
+                      />
+                      <Text
+                        className={`text-[11px] mt-1 px-1 ${
+                          isMe ? "text-foreground/70" : "text-muted-foreground"
+                        }`}
+                      >
+                        {item.time}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+
+              const hasMedia = item.media && item.media.length > 0;
+              const bubbleBg = isMe
+                ? "#3FDCFF"
+                : isGroupChat
+                  ? getGroupBubbleColor(item.senderId, senderColorMap)
+                  : "#8A40CF";
+              const darkText = needsDarkText(bubbleBg);
+
+              return (
+                <View style={{ flexShrink: 1 }}>
+                  <View
+                    style={{
+                      borderRadius: 16,
+                      backgroundColor: bubbleBg,
+                      flexShrink: 1,
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {hasMedia && (
+                      <View style={{ padding: 4 }}>
+                        <MediaMessage
+                          mediaList={item.media!}
+                          onPress={(m) => handleMediaPreview(m)}
+                        />
+                      </View>
+                    )}
+                    <Pressable
+                      onPress={() => handleDoubleTap(item)}
+                      onLongPress={() => handleLongPressMessage(item)}
+                      delayLongPress={400}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingTop: hasMedia ? 6 : 10,
+                        paddingBottom: 10,
+                      }}
+                    >
+                      {item.text ? (
                         <Text
                           style={{
-                            fontSize: 11,
-                            marginTop: 4,
-                            color: darkText
-                              ? "rgba(0,0,0,0.5)"
-                              : "rgba(255,255,255,0.6)",
+                            fontSize: 15,
+                            color: darkText ? "#000" : "#fff",
                           }}
                         >
-                          {item.time}
+                          {renderMessageText(item.text, handleMentionPress)}
                         </Text>
-                      </View>
-                    );
-                  })()
-                )}
-              </View>
-            );
+                      ) : null}
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          marginTop: 4,
+                          color: darkText
+                            ? "rgba(0,0,0,0.5)"
+                            : "rgba(255,255,255,0.6)",
+                        }}
+                      >
+                        {item.time}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })();
 
             const reactionPills = hasReactions ? (
               <View
@@ -1066,46 +1223,46 @@ export default function ChatScreen() {
             ) : null;
 
             const messageContent = isMe ? (
-              <View className="self-end mb-2" style={{ maxWidth: "80%" }}>
-                <Pressable
-                  onPress={() => handleDoubleTap(item)}
-                  onLongPress={() => handleLongPressMessage(item)}
-                  delayLongPress={400}
-                >
+              <View
+                className="flex-row items-end gap-2 mb-2 self-end"
+                style={{ maxWidth: "80%" }}
+              >
+                <View style={{ flexShrink: 1 }}>
                   {bubble}
                   {reactionPills}
-                </Pressable>
-                {isLastReadByMe && (
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      color: "rgba(255,255,255,0.45)",
-                      textAlign: "right",
-                      marginTop: 2,
-                      paddingRight: 4,
-                    }}
-                  >
-                    Read{" "}
-                    {(() => {
-                      try {
-                        const d = new Date(item.readAt!);
-                        return isNaN(d.getTime())
-                          ? ""
-                          : `· ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-                      } catch {
-                        return "";
-                      }
-                    })()}
-                  </Text>
-                )}
+                  {isLastReadByMe && (
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.45)",
+                        textAlign: "right",
+                        marginTop: 2,
+                        paddingRight: 4,
+                      }}
+                    >
+                      Read{" "}
+                      {(() => {
+                        try {
+                          const d = new Date(item.readAt!);
+                          return isNaN(d.getTime())
+                            ? ""
+                            : `· ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                        } catch {
+                          return "";
+                        }
+                      })()}
+                    </Text>
+                  )}
+                </View>
+                <Avatar
+                  uri={currentUser?.avatar || ""}
+                  username={currentUser?.username || currentUser?.name || ""}
+                  size={28}
+                  variant="roundedSquare"
+                />
               </View>
             ) : (
-              <Pressable
-                className="flex-row items-end gap-2 mb-2 self-start"
-                onPress={() => handleDoubleTap(item)}
-                onLongPress={() => handleLongPressMessage(item)}
-                delayLongPress={400}
-              >
+              <View className="flex-row items-end gap-2 mb-2 self-start">
                 <Avatar
                   uri={recipient?.avatar || ""}
                   username={recipient?.username || ""}
@@ -1116,7 +1273,7 @@ export default function ChatScreen() {
                   {bubble}
                   {reactionPills}
                 </View>
-              </Pressable>
+              </View>
             );
 
             // Only own messages can be swiped to delete
@@ -1191,16 +1348,25 @@ export default function ChatScreen() {
         )}
 
         <View>
-          {pendingMedia && (
+          {pendingMedia.length > 0 && (
             <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
-              <Image
-                source={{ uri: pendingMedia.uri }}
-                style={{ width: 48, height: 48, borderRadius: 8 }}
-                contentFit="cover"
-              />
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                {pendingMedia.slice(0, 4).map((m, i) => (
+                  <Image
+                    key={i}
+                    source={{ uri: m.uri }}
+                    style={{ width: 48, height: 48, borderRadius: 8 }}
+                    contentFit="cover"
+                  />
+                ))}
+              </View>
               <View className="flex-1">
                 <Text className="text-foreground font-semibold text-sm">
-                  {pendingMedia.type === "video" ? "Video" : "Photo"}
+                  {pendingMedia.length === 1
+                    ? pendingMedia[0].type === "video"
+                      ? "Video"
+                      : "Photo"
+                    : `${pendingMedia.length} items`}
                 </Text>
                 <Text className="text-muted-foreground text-xs">
                   Ready to send

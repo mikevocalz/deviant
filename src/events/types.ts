@@ -21,6 +21,18 @@ export interface EventDetail {
   coOrganizer?: EventHost | null;
   averageRating?: number;
   totalReviews?: number;
+  // Location coordinates (for weather + map)
+  locationLat?: number;
+  locationLng?: number;
+  locationName?: string;
+  locationAddress?: string;
+  locationType?: "virtual" | "physical";
+  // V2 fields
+  visibility?: "public" | "private" | "link_only";
+  ageRestriction?: "none" | "18+" | "21+";
+  nsfw?: boolean;
+  ticketingEnabled?: boolean;
+  shareSlug?: string;
   // Derived / enriched fields
   category?: string;
   dressCode?: string;

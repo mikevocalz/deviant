@@ -22,6 +22,8 @@ import {
   Star,
   Globe,
   UserPlus,
+  Plus,
+  Send,
 } from "lucide-react-native";
 import {
   useRouter,
@@ -34,24 +36,19 @@ import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import { useState, useCallback, useLayoutEffect, useEffect } from "react";
+import { useCallback, useLayoutEffect, useEffect } from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
-import PhotoEditor from "@baronha/react-native-photo-editor";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { StickerPickerSheet, useStickerStore } from "@/src/stickers";
-import {
-  StoryTagPicker,
-  type TaggedUser,
-} from "@/components/stories/story-tag-picker";
+import { StoryTagPicker } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
-import { ALL_STICKERS } from "@/lib/constants/sticker-packs";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
+import { LinearGradient } from "expo-linear-gradient";
 
-// Instagram-style creative tools - vertical toolbar
+// Creative tools — floating vertical toolbar on canvas
 const CREATIVE_TOOLS = [
   { id: "text", icon: Type, label: "Aa" },
   { id: "stickers", icon: Sticker, label: "Stickers" },
@@ -71,8 +68,14 @@ export default function CreateStoryScreen() {
   const { width, height } = useWindowDimensions();
   const { colors } = useColorScheme();
 
-  const CANVAS_WIDTH = width - 32;
-  const CANVAS_HEIGHT = Math.min(height * 0.55, CANVAS_WIDTH * (16 / 9));
+  // ── Responsive layout ─────────────────────────────────────────────
+  // On phones: canvas fills entire screen edge-to-edge
+  // On tablets/foldables: canvas maxes out at 9:16 ratio, centered
+  const isWideScreen = width >= 600; // tablet / foldable threshold
+  const maxCanvasW = isWideScreen ? Math.min(width * 0.65, 500) : width;
+  const screenH = height;
+  // Bottom bar height adapts to safe area
+  const BOTTOM_BAR_H = 110 + insets.bottom;
 
   const {
     selectedMedia,
@@ -85,6 +88,16 @@ export default function CreateStoryScreen() {
     setMediaAssets,
     nextSlide,
     prevSlide,
+    isSharing,
+    setIsSharing,
+    visibility,
+    setVisibility,
+    taggedUsers,
+    setTaggedUsers,
+    showTagPicker,
+    setShowTagPicker,
+    videoThumbnails,
+    setVideoThumbnail,
   } = useCreateStoryStore();
 
   const { pickStoryMedia, recordStoryVideo, requestPermissions } =
@@ -99,17 +112,6 @@ export default function CreateStoryScreen() {
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 
-  const [isSharing, setIsSharing] = useState(false);
-  const [visibility, setVisibility] = useState<"public" | "close_friends">(
-    "public",
-  );
-  const [taggedUsers, setTaggedUsers] = useState<TaggedUser[]>([]);
-  const [showTagPicker, setShowTagPicker] = useState(false);
-  const [videoThumbnails, setVideoThumbnails] = useState<
-    Record<string, string>
-  >({});
-  const openStickerSheet = useStickerStore((s) => s.openSheet);
-
   // Pick up edited URI coming back from the Skia editor
   const { editedUri, editedIndex } = useLocalSearchParams<{
     editedUri?: string;
@@ -120,11 +122,23 @@ export default function CreateStoryScreen() {
     if (editedUri && editedIndex !== undefined) {
       const idx = parseInt(editedIndex, 10);
       if (!isNaN(idx) && mediaAssets[idx]) {
+        // Editing existing media — replace in-place
         const updated = [...mediaAssets];
         updated[idx] = { ...updated[idx], uri: editedUri, type: "image" };
         setMediaAssets(updated);
         setSelectedMedia([editedUri], ["image"]);
         console.log("[Story] Applied edited image at index", idx);
+      } else if (mediaAssets.length === 0) {
+        // Text-only story — canvas snapshot returned with no existing media
+        const asset: MediaAsset = {
+          id: editedUri,
+          uri: editedUri,
+          type: "image",
+        };
+        setMediaAssets([asset]);
+        setSelectedMedia([editedUri], ["image"]);
+        setCurrentIndex(0);
+        console.log("[Story] Applied text-only story snapshot");
       }
     }
   }, [editedUri, editedIndex]);
@@ -187,17 +201,21 @@ export default function CreateStoryScreen() {
           if (item.type === "video") {
             generateVideoThumbnail(item.uri, 500).then((result) => {
               if (result.success && result.uri) {
-                setVideoThumbnails((prev) => ({
-                  ...prev,
-                  [item.uri]: result.uri!,
-                }));
+                setVideoThumbnail(item.uri, result.uri!);
               }
             });
           }
         }
       }
     },
-    [mediaAssets, setMediaAssets, setSelectedMedia, setCurrentIndex, showToast],
+    [
+      mediaAssets,
+      setMediaAssets,
+      setSelectedMedia,
+      setCurrentIndex,
+      setVideoThumbnail,
+      showToast,
+    ],
   );
 
   const handlePickLibrary = async () => {
@@ -223,6 +241,7 @@ export default function CreateStoryScreen() {
   };
 
   // Consume camera result when returning from camera screen
+  // Auto-open the Skia editor for images so user skips the extra tap
   useFocusEffect(
     useCallback(() => {
       const result = consumeCameraResult();
@@ -236,9 +255,33 @@ export default function CreateStoryScreen() {
           duration: result.duration,
         };
         handleMediaSelected([media]);
+
+        // Auto-open editor for images (skip the redundant canvas-tap step)
+        if (result.type === "image") {
+          setTimeout(() => {
+            router.push({
+              pathname: "/(protected)/story/editor",
+              params: {
+                uri: encodeURIComponent(result.uri),
+                type: result.type,
+              },
+            });
+          }, 300);
+        }
       }
-    }, [consumeCameraResult, handleMediaSelected]),
+    }, [consumeCameraResult, handleMediaSelected, router]),
   );
+
+  const handleCreateTextStory = () => {
+    router.push({
+      pathname: "/(protected)/story/editor",
+      params: {
+        uri: "",
+        type: "image",
+        initialMode: "text",
+      },
+    });
+  };
 
   const handleOpenCamera = () => {
     if (mediaAssets.length >= MAX_STORY_ITEMS) {
@@ -272,70 +315,6 @@ export default function CreateStoryScreen() {
     }
   };
 
-  const handleEditImage = useCallback(
-    async (
-      index: number,
-      initialTool?: "text" | "stickers" | "draw" | "filter",
-      customStickers?: string[],
-    ) => {
-      const asset = mediaAssets[index];
-      if (!asset || asset.type !== "image") {
-        showToast(
-          "info",
-          "Edit",
-          "Only images can be edited with stickers and text",
-        );
-        return;
-      }
-
-      try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-        // @baronha/react-native-photo-editor works on both iOS and Android
-        // Uses ZLImageEditor (iOS) and PhotoEditor (Android)
-        // Pass initialTool to open directly to that tool (requires native patch)
-        const editorOptions = {
-          path: asset.uri,
-          stickers: customStickers ?? ALL_STICKERS,
-          ...(initialTool && { initialTool }),
-        };
-        console.log(
-          "[Story] Opening PhotoEditor with options:",
-          JSON.stringify(editorOptions),
-        );
-        const result = await PhotoEditor.open(editorOptions as any);
-
-        if (result) {
-          const editedPath = String(result);
-          const updatedAssets = [...mediaAssets];
-          updatedAssets[index] = {
-            ...asset,
-            uri: editedPath.startsWith("file://")
-              ? editedPath
-              : `file://${editedPath}`,
-          };
-          setMediaAssets(updatedAssets);
-          setSelectedMedia(
-            updatedAssets.map((m) => m.uri),
-            updatedAssets.map((m) => m.type),
-          );
-          showToast("success", "Edited", "Your story has been updated!");
-        }
-      } catch (error: any) {
-        // User cancelled or error occurred
-        console.log("[Story] Photo editor closed:", error);
-        if (error?.message && !error.message.includes("cancel")) {
-          showToast(
-            "error",
-            "Editor Error",
-            "Could not open the photo editor.",
-          );
-        }
-      }
-    },
-    [mediaAssets, setMediaAssets, setSelectedMedia, showToast],
-  );
-
   const handleOpenSkiaEditor = useCallback(
     (index: number, initialMode?: string) => {
       const asset = mediaAssets[index];
@@ -352,19 +331,6 @@ export default function CreateStoryScreen() {
       });
     },
     [mediaAssets, router],
-  );
-
-  const handleStickersDone = useCallback(
-    (stickers: string[]) => {
-      if (stickers.length > 0) {
-        // Longer delay so the pageSheet modal fully dismisses before native editor opens.
-        // iOS cannot present a new VC while another is still being dismissed.
-        setTimeout(() => {
-          handleEditImage(currentIndex, "stickers", stickers);
-        }, 900);
-      }
-    },
-    [currentIndex, handleEditImage],
   );
 
   const handleShare = async () => {
@@ -439,8 +405,6 @@ export default function CreateStoryScreen() {
             setIsSharing(false);
             showToast("success", "Success", "Story shared successfully!");
             reset();
-            setMediaAssets([]);
-            setTaggedUsers([]);
             router.back();
           },
           onError: (error: any) => {
@@ -470,7 +434,6 @@ export default function CreateStoryScreen() {
           style: "destructive",
           onPress: () => {
             reset();
-            setMediaAssets([]);
             router.back();
           },
         },
@@ -482,90 +445,49 @@ export default function CreateStoryScreen() {
 
   const currentMedia = selectedMedia[currentIndex];
   const currentMediaType = mediaTypes[currentIndex];
-  const isValid = mediaAssets.length > 0;
+  const hasMedia = mediaAssets.length > 0;
 
+  // Hide the native header — we render a floating one
   useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: "New Story",
-      headerTitleAlign: "left" as const,
-      headerStyle: { backgroundColor: colors.background },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600",
-        fontSize: 18,
-      },
-      headerLeft: () => (
-        <Pressable
-          onPress={handleClose}
-          hitSlop={12}
-          className="ml-2 w-11 h-11 items-center justify-center"
-        >
-          <X size={24} color={colors.foreground} strokeWidth={2.5} />
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Pressable
-          onPress={handleShare}
-          disabled={isSharing || !isValid}
-          hitSlop={12}
-          className="mr-2"
-        >
-          <Text
-            className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {isSharing ? "Sharing..." : "Share"}
-          </Text>
-        </Pressable>
-      ),
-    });
-  }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
 
   return (
     <>
-      <ScrollView
-        className="flex-1 bg-background"
-        contentContainerStyle={{ flexGrow: 1 }}
-        contentInsetAdjustmentBehavior="automatic"
-      >
-        {/* Upload Progress Overlay */}
-        {isSharing && (
-          <Motion.View
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute top-20 left-4 right-4 bg-black/90 rounded-xl p-4 z-50"
-            style={{ borderCurve: "continuous" }}
-          >
-            <View className="h-1.5 bg-muted rounded-full overflow-hidden">
-              <Motion.View
-                className="h-full bg-primary rounded-full"
-                initial={{ width: "0%" }}
-                animate={{ width: `${uploadProgress}%` }}
-              />
-            </View>
-            <Text className="text-white text-sm font-medium text-center mt-3">
-              {uploadStatus ||
-                (uploadProgress < 100
-                  ? `Uploading... ${uploadProgress}%`
-                  : "Processing...")}
-            </Text>
-          </Motion.View>
-        )}
-
-        {/* Canvas Area */}
-        <View className="flex-1 items-center justify-center px-4 py-6">
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {/* ── Full-screen canvas container ─────────────────────────────── */}
+        {/* On tablets: centered with max width; On phones: edge-to-edge  */}
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           <View
             style={{
-              width: CANVAS_WIDTH,
-              height: CANVAS_HEIGHT,
-              borderCurve: "continuous",
+              width: maxCanvasW,
+              height: screenH,
+              overflow: "hidden",
+              ...(isWideScreen && {
+                borderRadius: 24,
+                borderCurve: "continuous",
+                maxHeight: maxCanvasW * (16 / 9),
+              }),
             }}
-            className="rounded-2xl overflow-hidden bg-card"
           >
             {currentMedia ? (
-              <View className="flex-1 bg-black">
+              <View style={{ flex: 1, backgroundColor: "#000" }}>
+                {/* ── Media layer ─────────────────────────────────────── */}
                 {currentMediaType === "video" ? (
-                  <View className="flex-1 items-center justify-center bg-black">
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#000",
+                    }}
+                  >
                     {videoThumbnails[currentMedia] ? (
                       <Image
                         source={{ uri: videoThumbnails[currentMedia] }}
@@ -573,21 +495,40 @@ export default function CreateStoryScreen() {
                         contentFit="cover"
                       />
                     ) : (
-                      <Video size={48} color="#666" />
+                      <Video size={48} color="rgba(255,255,255,0.3)" />
                     )}
-                    <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
-                      <Video size={16} color="#fff" />
-                      <Text className="text-white text-sm">Video</Text>
+                    <View
+                      style={{
+                        position: "absolute",
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 20,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Video size={14} color="#fff" />
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 13,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Video
+                      </Text>
                     </View>
                   </View>
                 ) : (
-                  <View className="flex-1">
+                  <View style={{ flex: 1 }}>
                     <Image
                       source={{ uri: currentMedia }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
                     />
-                    {/* Tap anywhere to open Skia editor (background layer — z-0) */}
+                    {/* Tap canvas to open Skia editor */}
                     <Pressable
                       onPress={() => handleOpenSkiaEditor(currentIndex)}
                       style={{
@@ -597,310 +538,751 @@ export default function CreateStoryScreen() {
                         right: 0,
                         bottom: 0,
                         zIndex: 0,
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
-                    />
-                    {/* Instagram-style vertical toolbar on right (z-10, above background) */}
-                    <View
-                      className="absolute right-3 top-10 gap-3"
-                      style={{ zIndex: 10, elevation: 10 }}
                     >
-                      {CREATIVE_TOOLS.map((tool) => (
-                        <Pressable
-                          key={tool.id}
-                          onPress={() => {
-                            Haptics.impactAsync(
-                              Haptics.ImpactFeedbackStyle.Light,
-                            );
-                            if (tool.id === "save") {
-                              showToast(
-                                "info",
-                                "Save",
-                                "Image saved to gallery",
-                              );
-                            } else {
-                              // Map tool ID to editor mode
-                              const modeMap: Record<string, string> = {
-                                text: "text",
-                                stickers: "sticker",
-                                draw: "drawing",
-                                effects: "filter",
-                              };
-                              handleOpenSkiaEditor(
-                                currentIndex,
-                                modeMap[tool.id],
-                              );
-                            }
+                      <View
+                        style={{
+                          backgroundColor: "rgba(0,0,0,0.35)",
+                          paddingHorizontal: 16,
+                          paddingVertical: 8,
+                          borderRadius: 20,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                        pointerEvents="none"
+                      >
+                        <Pencil size={14} color="rgba(255,255,255,0.8)" />
+                        <Text
+                          style={{
+                            color: "rgba(255,255,255,0.8)",
+                            fontSize: 13,
+                            fontWeight: "600",
                           }}
-                          className="items-center"
-                          hitSlop={12}
                         >
-                          <View
-                            className="w-10 h-10 rounded-full bg-black/60 items-center justify-center"
-                            style={{ borderCurve: "continuous" }}
-                          >
-                            <tool.icon size={20} color="#fff" strokeWidth={2} />
-                          </View>
-                          <Text
-                            className="text-white text-[10px] font-medium mt-0.5"
-                            style={{
-                              textShadowColor: "rgba(0,0,0,0.8)",
-                              textShadowOffset: { width: 0, height: 1 },
-                              textShadowRadius: 2,
-                            }}
-                          >
-                            {tool.label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
+                          Tap to edit
+                        </Text>
+                      </View>
+                    </Pressable>
                   </View>
                 )}
-              </View>
-            ) : (
-              <View className="flex-1 bg-card items-center justify-center">
-                <ImageIcon size={48} color="#666" />
-                <Text className="text-muted-foreground mt-3 text-base">
-                  Add media to get started
-                </Text>
-              </View>
-            )}
 
-            {/* Progress indicators */}
-            {selectedMedia.length > 1 && (
-              <>
-                <View className="absolute top-3 left-3 right-3 flex-row gap-1">
-                  {selectedMedia.map((_, idx) => (
-                    <View
-                      key={idx}
-                      className={`flex-1 h-0.5 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/30"}`}
-                    />
-                  ))}
-                </View>
+                {/* ── Progress bars (multi-slide) ─────────────────────── */}
+                {selectedMedia.length > 1 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: insets.top + 48,
+                      left: 16,
+                      right: 16,
+                      flexDirection: "row",
+                      gap: 4,
+                    }}
+                  >
+                    {selectedMedia.map((_, idx) => (
+                      <View
+                        key={idx}
+                        style={{
+                          flex: 1,
+                          height: 2.5,
+                          borderRadius: 2,
+                          backgroundColor:
+                            idx === currentIndex
+                              ? "#fff"
+                              : "rgba(255,255,255,0.3)",
+                        }}
+                      />
+                    ))}
+                  </View>
+                )}
 
-                {currentIndex > 0 && (
+                {/* ── Nav arrows ──────────────────────────────────────── */}
+                {selectedMedia.length > 1 && currentIndex > 0 && (
                   <Pressable
                     onPress={() => {
                       prevSlide();
                       Haptics.selectionAsync();
                     }}
-                    className="absolute left-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-                  >
-                    <ChevronLeft size={24} color="#fff" />
-                  </Pressable>
-                )}
-
-                {currentIndex < selectedMedia.length - 1 && (
-                  <Pressable
-                    onPress={() => {
-                      nextSlide();
-                      Haptics.selectionAsync();
+                    style={{
+                      position: "absolute",
+                      left: 8,
+                      top: "50%",
+                      marginTop: -18,
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      backgroundColor: "rgba(0,0,0,0.4)",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
-                    className="absolute right-2 top-1/2 -mt-5 w-10 h-10 rounded-full bg-black/50 items-center justify-center"
                   >
-                    <ChevronRight size={24} color="#fff" />
+                    <ChevronLeft size={20} color="#fff" />
                   </Pressable>
                 )}
-              </>
+                {selectedMedia.length > 1 &&
+                  currentIndex < selectedMedia.length - 1 && (
+                    <Pressable
+                      onPress={() => {
+                        nextSlide();
+                        Haptics.selectionAsync();
+                      }}
+                      style={{
+                        position: "absolute",
+                        right: 8,
+                        top: "50%",
+                        marginTop: -18,
+                        width: 36,
+                        height: 36,
+                        borderRadius: 10,
+                        backgroundColor: "rgba(0,0,0,0.4)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ChevronRight size={20} color="#fff" />
+                    </Pressable>
+                  )}
+
+                {/* ── Multi-slide thumbnail strip ─────────────────────── */}
+                {mediaAssets.length > 1 && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      bottom: BOTTOM_BAR_H + 8,
+                      left: 12,
+                      right: 12,
+                    }}
+                  >
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      {mediaAssets.map((asset, idx) => (
+                        <Pressable
+                          key={asset.id}
+                          onPress={() => {
+                            setCurrentIndex(idx);
+                            Haptics.selectionAsync();
+                          }}
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 10,
+                            borderCurve: "continuous",
+                            overflow: "hidden",
+                            borderWidth: idx === currentIndex ? 2 : 1,
+                            borderColor:
+                              idx === currentIndex
+                                ? "#3EA4E5"
+                                : "rgba(255,255,255,0.2)",
+                          }}
+                        >
+                          <Image
+                            source={{
+                              uri:
+                                asset.type === "video" &&
+                                videoThumbnails[asset.uri]
+                                  ? videoThumbnails[asset.uri]
+                                  : asset.uri,
+                            }}
+                            style={{ width: "100%", height: "100%" }}
+                            contentFit="cover"
+                          />
+                          <Pressable
+                            onPress={() => handleRemoveMedia(idx)}
+                            hitSlop={12}
+                            style={{
+                              position: "absolute",
+                              top: 2,
+                              right: 2,
+                              width: 16,
+                              height: 16,
+                              borderRadius: 8,
+                              backgroundColor: "rgba(240,82,82,0.9)",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            <X size={9} color="#fff" strokeWidth={3} />
+                          </Pressable>
+                          {asset.type === "video" && (
+                            <View
+                              style={{
+                                position: "absolute",
+                                bottom: 2,
+                                left: 3,
+                              }}
+                            >
+                              <Video size={10} color="#fff" />
+                            </View>
+                          )}
+                        </Pressable>
+                      ))}
+                      {mediaAssets.length < MAX_STORY_ITEMS && (
+                        <Pressable
+                          onPress={handlePickLibrary}
+                          style={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 10,
+                            borderCurve: "continuous",
+                            backgroundColor: "rgba(255,255,255,0.08)",
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.15)",
+                            borderStyle: "dashed",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <Plus size={20} color="rgba(255,255,255,0.5)" />
+                        </Pressable>
+                      )}
+                    </ScrollView>
+                  </View>
+                )}
+              </View>
+            ) : (
+              /* ── Empty state (fullscreen) ────────────────────────────── */
+              <LinearGradient
+                colors={["#111", "#0a0a0a", "#111"]}
+                style={{
+                  flex: 1,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 24,
+                }}
+              >
+                <View
+                  style={{
+                    width: 100,
+                    height: 100,
+                    borderRadius: 24,
+                    borderWidth: 2,
+                    borderColor: "rgba(62,164,229,0.3)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <LinearGradient
+                    colors={["#3EA4E5", "#FF6DC1"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{
+                      width: 72,
+                      height: 72,
+                      borderRadius: 20,
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Plus size={32} color="#fff" strokeWidth={2.5} />
+                  </LinearGradient>
+                </View>
+                <View style={{ alignItems: "center", gap: 6 }}>
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 20,
+                      fontWeight: "700",
+                      letterSpacing: -0.3,
+                    }}
+                  >
+                    Create Your Story
+                  </Text>
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.45)",
+                      fontSize: 14,
+                      fontWeight: "500",
+                    }}
+                  >
+                    Add a photo, video, or text to get started
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
+                  <Pressable
+                    onPress={handlePickLibrary}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      paddingHorizontal: 20,
+                      paddingVertical: 12,
+                      borderRadius: 28,
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <ImageIcon size={18} color="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Gallery
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleOpenCamera}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      backgroundColor: "rgba(255,255,255,0.08)",
+                      paddingHorizontal: 20,
+                      paddingVertical: 12,
+                      borderRadius: 28,
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.1)",
+                    }}
+                  >
+                    <Camera size={18} color="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Camera
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleCreateTextStory}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                      backgroundColor: "rgba(138,64,207,0.2)",
+                      paddingHorizontal: 20,
+                      paddingVertical: 12,
+                      borderRadius: 28,
+                      borderWidth: 1,
+                      borderColor: "rgba(138,64,207,0.4)",
+                    }}
+                  >
+                    <Type size={18} color="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                      }}
+                    >
+                      Text
+                    </Text>
+                  </Pressable>
+                </View>
+              </LinearGradient>
             )}
           </View>
+        </View>
 
-          {/* Media thumbnails */}
-          {mediaAssets.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              className="mt-4 max-h-16"
-              contentContainerStyle={{ gap: 8, paddingHorizontal: 4 }}
-            >
-              {mediaAssets.map((asset, idx) => (
+        {/* ── Floating top bar ────────────────────────────────────────── */}
+        <View
+          style={{
+            position: "absolute",
+            top: insets.top + 8,
+            left: isWideScreen ? (width - maxCanvasW) / 2 + 16 : 16,
+            right: isWideScreen ? (width - maxCanvasW) / 2 + 16 : 16,
+            zIndex: 50,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Pressable
+            onPress={handleClose}
+            hitSlop={16}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 10,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <X size={20} color="#fff" strokeWidth={2.5} />
+          </Pressable>
+          {/* Right side: creative tools when media is present (horizontal on top) */}
+          {hasMedia && currentMediaType !== "video" && (
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {CREATIVE_TOOLS.filter((t) => t.id !== "save").map((tool) => (
                 <Pressable
-                  key={asset.id}
+                  key={tool.id}
                   onPress={() => {
-                    setCurrentIndex(idx);
-                    Haptics.selectionAsync();
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const modeMap: Record<string, string> = {
+                      text: "text",
+                      stickers: "sticker",
+                      draw: "drawing",
+                      effects: "filter",
+                    };
+                    handleOpenSkiaEditor(currentIndex, modeMap[tool.id]);
                   }}
-                  className={`w-14 h-14 rounded-lg overflow-hidden ${idx === currentIndex ? "border-2 border-primary" : ""}`}
-                  style={{ borderCurve: "continuous" }}
+                  hitSlop={8}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  <Image
-                    source={{
-                      uri:
-                        asset.type === "video" && videoThumbnails[asset.uri]
-                          ? videoThumbnails[asset.uri]
-                          : asset.uri,
-                    }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
-                  <Pressable
-                    onPress={() => handleRemoveMedia(idx)}
-                    className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-destructive items-center justify-center"
-                    hitSlop={12}
-                  >
-                    <X size={10} color="#fff" />
-                  </Pressable>
-                  {asset.type === "video" && (
-                    <View className="absolute bottom-0.5 left-0.5">
-                      <Video size={12} color="#fff" />
-                    </View>
-                  )}
+                  <tool.icon size={18} color="#fff" strokeWidth={2} />
                 </Pressable>
               ))}
-            </ScrollView>
+            </View>
           )}
         </View>
 
-        {/* Visibility Selector */}
-        {selectedMedia.length > 0 && (
-          <View className="px-4 mt-4 mb-2">
-            <View className="flex-row gap-3 justify-center">
+        {/* ── Upload progress overlay ─────────────────────────────────── */}
+        {isSharing && (
+          <View
+            style={{
+              position: "absolute",
+              top: insets.top + 56,
+              left: isWideScreen ? (width - maxCanvasW) / 2 + 24 : 24,
+              right: isWideScreen ? (width - maxCanvasW) / 2 + 24 : 24,
+              zIndex: 60,
+              backgroundColor: "rgba(0,0,0,0.85)",
+              borderRadius: 16,
+              borderCurve: "continuous",
+              padding: 16,
+            }}
+          >
+            <View
+              style={{
+                height: 4,
+                backgroundColor: "rgba(255,255,255,0.1)",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              <Motion.View
+                initial={{ width: "0%" }}
+                animate={{ width: `${uploadProgress}%` }}
+                style={{ height: "100%", borderRadius: 2 }}
+              >
+                <LinearGradient
+                  colors={["#3EA4E5", "#FF6DC1"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ flex: 1 }}
+                />
+              </Motion.View>
+            </View>
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: "600",
+                textAlign: "center",
+                marginTop: 10,
+              }}
+            >
+              {uploadStatus ||
+                (uploadProgress < 100
+                  ? `Uploading... ${uploadProgress}%`
+                  : "Processing...")}
+            </Text>
+          </View>
+        )}
+
+        {/* ── Bottom bar: Facebook-style horizontal toolbar ───────────── */}
+        {hasMedia && (
+          <View
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: isWideScreen ? (width - maxCanvasW) / 2 : 0,
+              right: isWideScreen ? (width - maxCanvasW) / 2 : 0,
+              paddingBottom: insets.bottom + 8,
+              paddingTop: 12,
+              paddingHorizontal: 16,
+              zIndex: 40,
+            }}
+          >
+            {/* Row 1: Facebook-style horizontal tool icons */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                gap: isWideScreen ? 20 : 4,
+                paddingHorizontal: 4,
+                justifyContent: "center",
+                flexGrow: 1,
+              }}
+              style={{ marginBottom: 14 }}
+            >
               <Pressable
-                onPress={() => {
-                  setVisibility("public");
-                  Haptics.selectionAsync();
-                }}
-                className="flex-row items-center gap-2 rounded-full px-5 py-2.5"
+                onPress={handlePickLibrary}
+                disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
                 style={{
-                  backgroundColor:
-                    visibility === "public"
-                      ? "rgba(255,255,255,0.15)"
-                      : "rgba(255,255,255,0.05)",
-                  borderWidth: 1.5,
-                  borderColor:
-                    visibility === "public"
-                      ? "rgba(255,255,255,0.3)"
-                      : "rgba(255,255,255,0.08)",
+                  alignItems: "center",
+                  gap: 4,
+                  opacity:
+                    mediaAssets.length >= MAX_STORY_ITEMS || isSharing
+                      ? 0.35
+                      : 1,
+                  minWidth: 56,
                 }}
               >
-                <Globe
-                  size={16}
-                  color={visibility === "public" ? "#fff" : "#666"}
-                />
-                <Text
-                  className="text-sm font-semibold"
-                  style={{ color: visibility === "public" ? "#fff" : "#666" }}
-                >
-                  Public
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setVisibility("close_friends");
-                  Haptics.selectionAsync();
-                }}
-                className="flex-row items-center gap-2 rounded-full px-5 py-2.5"
-                style={{
-                  backgroundColor:
-                    visibility === "close_friends"
-                      ? "rgba(252, 37, 58, 0.15)"
-                      : "rgba(255,255,255,0.05)",
-                  borderWidth: 1.5,
-                  borderColor:
-                    visibility === "close_friends"
-                      ? "#FC253A"
-                      : "rgba(255,255,255,0.08)",
-                }}
-              >
-                <Star
-                  size={16}
-                  color={visibility === "close_friends" ? "#FC253A" : "#666"}
-                  fill={
-                    visibility === "close_friends" ? "#FC253A" : "transparent"
-                  }
-                />
-                <Text
-                  className="text-sm font-semibold"
+                <View
                   style={{
-                    color: visibility === "close_friends" ? "#FC253A" : "#666",
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  Close Friends
+                  <ImageIcon size={20} color="#fff" />
+                </View>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  Gallery
                 </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleOpenCamera}
+                disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
+                style={{
+                  alignItems: "center",
+                  gap: 4,
+                  opacity:
+                    mediaAssets.length >= MAX_STORY_ITEMS || isSharing
+                      ? 0.35
+                      : 1,
+                  minWidth: 56,
+                }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Camera size={20} color="#fff" />
+                </View>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  Camera
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowTagPicker(true);
+                }}
+                style={{ alignItems: "center", gap: 4, minWidth: 56 }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor:
+                      taggedUsers.length > 0
+                        ? "rgba(62,164,229,0.2)"
+                        : "rgba(255,255,255,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <UserPlus
+                    size={20}
+                    color={taggedUsers.length > 0 ? "#3EA4E5" : "#fff"}
+                  />
+                </View>
+                <Text
+                  style={{
+                    color:
+                      taggedUsers.length > 0
+                        ? "#3EA4E5"
+                        : "rgba(255,255,255,0.7)",
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  {taggedUsers.length > 0
+                    ? `${taggedUsers.length} Tag`
+                    : "Mention"}
+                </Text>
+              </Pressable>
+
+              {/* Save to gallery */}
+              <Pressable
+                onPress={async () => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  const asset = mediaAssets[currentIndex];
+                  if (!asset) return;
+                  try {
+                    const MediaLibrary = require("expo-media-library");
+                    const { status } =
+                      await MediaLibrary.requestPermissionsAsync();
+                    if (status !== "granted") {
+                      showToast(
+                        "warning",
+                        "Permission",
+                        "Media library permission is required to save.",
+                      );
+                      return;
+                    }
+                    await MediaLibrary.saveToLibraryAsync(asset.uri);
+                    showToast("success", "Saved", "Image saved to gallery");
+                  } catch (err) {
+                    console.error("[Story] Save to gallery failed:", err);
+                    showToast("error", "Error", "Failed to save image.");
+                  }
+                }}
+                style={{ alignItems: "center", gap: 4, minWidth: 56 }}
+              >
+                <View
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    backgroundColor: "rgba(255,255,255,0.12)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Download size={20} color="#fff" />
+                </View>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 11,
+                    fontWeight: "600",
+                  }}
+                >
+                  Save
+                </Text>
+              </Pressable>
+            </ScrollView>
+
+            {/* Row 2: Visibility + Share */}
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              {/* Visibility toggle pill */}
+              <Pressable
+                onPress={() => {
+                  setVisibility(
+                    visibility === "public" ? "close_friends" : "public",
+                  );
+                  Haptics.selectionAsync();
+                }}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  paddingVertical: 12,
+                  borderRadius: 14,
+                  backgroundColor:
+                    visibility === "close_friends"
+                      ? "rgba(252,37,58,0.15)"
+                      : "rgba(255,255,255,0.08)",
+                  borderWidth: 1,
+                  borderColor:
+                    visibility === "close_friends"
+                      ? "rgba(252,37,58,0.4)"
+                      : "rgba(255,255,255,0.1)",
+                }}
+              >
+                {visibility === "public" ? (
+                  <Globe size={16} color="rgba(255,255,255,0.7)" />
+                ) : (
+                  <Star size={16} color="#FC253A" fill="#FC253A" />
+                )}
+                <Text
+                  style={{
+                    color:
+                      visibility === "close_friends"
+                        ? "#FC253A"
+                        : "rgba(255,255,255,0.7)",
+                    fontSize: 14,
+                    fontWeight: "700",
+                  }}
+                >
+                  {visibility === "public" ? "Friends" : "Close Friends"}
+                </Text>
+              </Pressable>
+
+              {/* Share button */}
+              <Pressable
+                onPress={handleShare}
+                disabled={isSharing}
+                style={{
+                  opacity: isSharing ? 0.5 : 1,
+                }}
+              >
+                <LinearGradient
+                  colors={["#3EA4E5", "#6C63FF"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    paddingHorizontal: 32,
+                    paddingVertical: 12,
+                    borderRadius: 14,
+                    minWidth: 120,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {isSharing ? "Sharing..." : "Share"}
+                  </Text>
+                </LinearGradient>
               </Pressable>
             </View>
           </View>
         )}
-
-        {/* Tag People Button */}
-        {selectedMedia.length > 0 && (
-          <View className="px-4 mt-3 mb-1">
-            <Pressable
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowTagPicker(true);
-              }}
-              className="flex-row items-center justify-center gap-2 rounded-full py-2.5"
-              style={{
-                backgroundColor:
-                  taggedUsers.length > 0
-                    ? "rgba(62, 164, 229, 0.12)"
-                    : "rgba(255,255,255,0.05)",
-                borderWidth: 1.5,
-                borderColor:
-                  taggedUsers.length > 0
-                    ? "rgba(62, 164, 229, 0.3)"
-                    : "rgba(255,255,255,0.08)",
-              }}
-            >
-              <UserPlus
-                size={16}
-                color={taggedUsers.length > 0 ? "rgb(62, 164, 229)" : "#666"}
-              />
-              <Text
-                className="text-sm font-semibold"
-                style={{
-                  color: taggedUsers.length > 0 ? "rgb(62, 164, 229)" : "#666",
-                }}
-              >
-                {taggedUsers.length > 0
-                  ? `${taggedUsers.length} ${taggedUsers.length === 1 ? "person" : "people"} tagged`
-                  : "Tag People"}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {/* Action buttons */}
-        <View className="px-4 pb-6">
-          <View className="flex-row justify-center gap-6">
-            <Pressable
-              onPress={handlePickLibrary}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-              className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
-            >
-              <View
-                className="w-14 h-14 rounded-full bg-card items-center justify-center"
-                style={{ borderCurve: "continuous" }}
-              >
-                <ImageIcon size={24} color="#fff" />
-              </View>
-              <Text className="text-muted-foreground text-xs">
-                Gallery{" "}
-                {mediaAssets.length > 0
-                  ? `(${mediaAssets.length}/${MAX_STORY_ITEMS})`
-                  : ""}
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleOpenCamera}
-              disabled={mediaAssets.length >= MAX_STORY_ITEMS || isSharing}
-              className={`items-center gap-1 ${mediaAssets.length >= MAX_STORY_ITEMS || isSharing ? "opacity-40" : ""}`}
-            >
-              <View
-                className="w-14 h-14 rounded-full bg-card items-center justify-center"
-                style={{ borderCurve: "continuous" }}
-              >
-                <Camera size={24} color="#fff" />
-              </View>
-              <Text className="text-muted-foreground text-xs">Camera</Text>
-            </Pressable>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Klipy Sticker Picker Sheet */}
-      <StickerPickerSheet onDone={handleStickersDone} />
+      </View>
 
       {/* Tag People Picker */}
       <StoryTagPicker

@@ -5,8 +5,8 @@
 // Toggle via a dev-only button or long-press gesture.
 // ============================================================
 
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useEffect, useRef, useReducer } from "react";
+import { View, Text } from "react-native";
 
 interface PerfHUDProps {
   visible: boolean;
@@ -17,9 +17,10 @@ interface PerfHUDProps {
 
 export const PerfHUD: React.FC<PerfHUDProps> = React.memo(
   ({ visible, elementCount, drawingPathCount, drawingPointCount }) => {
-    const [jsFps, setJsFps] = useState(0);
+    const fpsRef = useRef(0);
     const frameCount = useRef(0);
     const lastTime = useRef(Date.now());
+    const [, forceRender] = useReducer((x: number) => x + 1, 0);
 
     useEffect(() => {
       if (!visible) return;
@@ -29,9 +30,10 @@ export const PerfHUD: React.FC<PerfHUDProps> = React.memo(
         frameCount.current++;
         const now = Date.now();
         if (now - lastTime.current >= 1000) {
-          setJsFps(frameCount.current);
+          fpsRef.current = frameCount.current;
           frameCount.current = 0;
           lastTime.current = now;
+          forceRender();
         }
         rafId = requestAnimationFrame(tick);
       };
@@ -42,9 +44,20 @@ export const PerfHUD: React.FC<PerfHUDProps> = React.memo(
     if (!visible) return null;
 
     return (
-      <View style={styles.container} pointerEvents="none">
-        <Text style={styles.text}>JS {jsFps} fps</Text>
-        <Text style={styles.text}>
+      <View
+        className="absolute top-[50px] left-2 bg-black/60 px-2 py-1 rounded-md gap-0.5"
+        pointerEvents="none"
+      >
+        <Text
+          className="text-[#0f0] text-[10px] font-semibold"
+          style={{ fontFamily: "monospace" }}
+        >
+          JS {fpsRef.current} fps
+        </Text>
+        <Text
+          className="text-[#0f0] text-[10px] font-semibold"
+          style={{ fontFamily: "monospace" }}
+        >
           {elementCount} layers · {drawingPathCount} paths · {drawingPointCount}{" "}
           pts
         </Text>
@@ -54,22 +67,3 @@ export const PerfHUD: React.FC<PerfHUDProps> = React.memo(
 );
 
 PerfHUD.displayName = "PerfHUD";
-
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    top: 50,
-    left: 8,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    gap: 2,
-  },
-  text: {
-    color: "#0f0",
-    fontSize: 10,
-    fontFamily: "monospace",
-    fontWeight: "600",
-  },
-});

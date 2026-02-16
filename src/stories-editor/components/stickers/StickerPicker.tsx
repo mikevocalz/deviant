@@ -2,27 +2,24 @@
 // Instagram Stories Editor - Sticker Picker
 // ============================================================
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   View,
-  TouchableOpacity,
+  Pressable,
   Text,
-  StyleSheet,
   TextInput,
   ScrollView,
-  Dimensions,
+  useWindowDimensions,
 } from "react-native";
-import { Image } from "expo-image";
 import { BottomSheetFlatList } from "@gorhom/bottom-sheet";
-import { EDITOR_COLORS, IMAGE_STICKER_PACKS } from "../../constants";
+import { Image } from "expo-image";
+import { Search } from "lucide-react-native";
+import { useEditorStore } from "../../stores/editor-store";
+import { IMAGE_STICKER_PACKS } from "../../constants";
 import {
   stickerPacks,
   type StickerPackKey,
 } from "@/lib/constants/sticker-packs";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const STICKER_SIZE = (SCREEN_WIDTH - 80) / 6;
-const IMAGE_STICKER_SIZE = (SCREEN_WIDTH - 64) / 3;
 
 interface StickerPickerProps {
   onSelectSticker: (source: string) => void;
@@ -52,8 +49,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   onSelectImageSticker,
   onClose,
 }) => {
-  const [activeTab, setActiveTab] = useState<StickerTab>("dvnt");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { width: screenWidth } = useWindowDimensions();
+  const imageStickerSize = (screenWidth - 64) / 3;
+
+  const activeTab = useEditorStore((s) => s.stickerActiveTab) as StickerTab;
+  const setActiveTab = useEditorStore((s) => s.setStickerActiveTab);
+  const searchQuery = useEditorStore((s) => s.stickerSearchQuery);
+  const setSearchQuery = useEditorStore((s) => s.setStickerSearchQuery);
 
   const tabs: { id: StickerTab; label: string; icon: string }[] = [
     ...IMAGE_STICKER_PACKS.map((pack) => ({
@@ -73,60 +75,75 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     const items =
       activeTab === "all" ? ALL_TWEMOJI : (stickerPacks[packKey] ?? []);
     if (!searchQuery.trim()) return items;
-    return ALL_TWEMOJI; // search shows all
+    return ALL_TWEMOJI;
   }, [activeTab, searchQuery, activeImagePack]);
 
   const isTwemojiTab = !activeImagePack && activeTab !== "gif";
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1">
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Stickers</Text>
-        <TouchableOpacity onPress={onClose}>
-          <Text style={styles.closeButton}>Done</Text>
-        </TouchableOpacity>
+      <View className="flex-row justify-between items-center px-5 py-3">
+        <Text className="text-white text-xl font-bold">Stickers</Text>
+        <Pressable onPress={onClose}>
+          <Text className="text-blue-500 text-base font-semibold">Done</Text>
+        </Pressable>
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search stickers..."
-          placeholderTextColor={EDITOR_COLORS.textSecondary}
-        />
+      <View className="px-5 mb-3">
+        <View className="flex-row items-center bg-neutral-800 rounded-xl px-4 py-2.5 gap-2">
+          <Search size={16} color="#8E8E93" strokeWidth={2} />
+          <TextInput
+            className="flex-1 text-white text-[15px]"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search stickers..."
+            placeholderTextColor="#8E8E93"
+          />
+        </View>
       </View>
 
-      {/* Tab Selector */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabRow}
-      >
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-            onPress={() => setActiveTab(tab.id)}
-          >
-            {tab.icon && <Text style={styles.tabIcon}>{tab.icon}</Text>}
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.id && styles.tabTextActive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      {/* Tab Selector — compact 36dp height, horizontally scrollable */}
+      <View style={{ height: 36, marginBottom: 10 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            gap: 6,
+            alignItems: "center",
+          }}
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <Pressable
+                key={tab.id}
+                className={`flex-row items-center h-[30px] px-3 rounded-full gap-1 ${
+                  isActive ? "bg-blue-500" : "bg-neutral-800"
+                }`}
+                onPress={() => setActiveTab(tab.id)}
+              >
+                {tab.icon ? (
+                  <Text className="text-[13px]">{tab.icon}</Text>
+                ) : null}
+                <Text
+                  className={`text-xs font-semibold ${
+                    isActive ? "text-white" : "text-neutral-400"
+                  }`}
+                  numberOfLines={1}
+                >
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
 
       {/* Content */}
-      <View style={styles.content}>
-        {/* Image sticker packs (DVNT, Ballroom, etc.) */}
+      <View className="flex-1 px-3">
         {activeImagePack && (
           <BottomSheetFlatList
             data={activeImagePack.stickers}
@@ -141,8 +158,9 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             }: {
               item: { id: string; source: number; label: string };
             }) => (
-              <TouchableOpacity
-                style={styles.imageStickerButton}
+              <Pressable
+                className="items-center justify-center p-2"
+                style={{ width: imageStickerSize }}
                 onPress={() => {
                   if (onSelectImageSticker) {
                     onSelectImageSticker(item.source, item.id);
@@ -150,176 +168,67 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                     onSelectSticker(String(item.source));
                   }
                 }}
-                activeOpacity={0.7}
               >
                 <Image
                   source={item.source}
-                  style={styles.imageStickerImage}
+                  style={{
+                    width: imageStickerSize - 24,
+                    height: imageStickerSize - 24,
+                    borderRadius: 12,
+                  }}
                   contentFit="contain"
                 />
-                <Text style={styles.imageStickerLabel} numberOfLines={1}>
+                <Text
+                  className="text-neutral-400 text-[11px] font-semibold mt-1 text-center"
+                  numberOfLines={1}
+                >
                   {item.label}
                 </Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
-            contentContainerStyle={styles.imageStickerGrid}
+            contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
           />
         )}
 
-        {/* Twemoji sticker grid (remote URLs rendered as images) */}
         {isTwemojiTab && (
           <BottomSheetFlatList
             data={twemojiStickers}
             numColumns={5}
             keyExtractor={(item: string, index: number) => `${item}-${index}`}
             renderItem={({ item }: { item: string }) => (
-              <TouchableOpacity
-                style={styles.twemojiButton}
+              <Pressable
+                className="justify-center items-center p-2"
+                style={{
+                  width: (screenWidth - 64) / 5,
+                  height: (screenWidth - 64) / 5,
+                }}
                 onPress={() => onSelectSticker(item)}
-                activeOpacity={0.6}
               >
                 <Image
                   source={{ uri: item }}
-                  style={styles.twemojiImage}
+                  style={{ width: "100%", height: "100%" }}
                   contentFit="contain"
                   cachePolicy="memory-disk"
                 />
-              </TouchableOpacity>
+              </Pressable>
             )}
-            contentContainerStyle={styles.emojiGrid}
+            contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
           />
         )}
 
         {activeTab === "gif" && (
-          <View style={styles.gifPlaceholder}>
-            <Text style={styles.gifPlaceholderText}>
+          <View className="flex-1 justify-center items-center gap-2">
+            <Text className="text-neutral-400 text-base font-semibold">
               GIF search coming soon
             </Text>
-            <Text style={styles.gifSubtext}>Powered by GIPHY</Text>
+            <Text className="text-neutral-400 text-xs opacity-60">
+              Powered by GIPHY
+            </Text>
           </View>
         )}
       </View>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  title: {
-    color: EDITOR_COLORS.text,
-    fontSize: 20,
-    fontWeight: "700",
-  },
-  closeButton: {
-    color: EDITOR_COLORS.primary,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  searchContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  searchInput: {
-    backgroundColor: EDITOR_COLORS.surfaceLight,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    color: EDITOR_COLORS.text,
-    fontSize: 15,
-  },
-  tabRow: {
-    flexDirection: "row",
-    paddingHorizontal: 20,
-    marginBottom: 12,
-    gap: 8,
-  },
-  tab: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: EDITOR_COLORS.surface,
-    gap: 5,
-  },
-  tabActive: {
-    backgroundColor: EDITOR_COLORS.primary,
-  },
-  tabIcon: {
-    fontSize: 14,
-  },
-  tabText: {
-    color: EDITOR_COLORS.textSecondary,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  tabTextActive: {
-    color: "#FFFFFF",
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 12,
-  },
-  emojiGrid: {
-    paddingBottom: 40,
-  },
-  twemojiButton: {
-    width: (SCREEN_WIDTH - 64) / 5,
-    height: (SCREEN_WIDTH - 64) / 5,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 8,
-  },
-  twemojiImage: {
-    width: "100%",
-    height: "100%",
-  },
-  gifPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  gifPlaceholderText: {
-    color: EDITOR_COLORS.textSecondary,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  gifSubtext: {
-    color: EDITOR_COLORS.textSecondary,
-    fontSize: 12,
-    opacity: 0.6,
-  },
-  imageStickerGrid: {
-    paddingBottom: 40,
-  },
-  imageStickerButton: {
-    width: IMAGE_STICKER_SIZE,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 8,
-  },
-  imageStickerImage: {
-    width: IMAGE_STICKER_SIZE - 24,
-    height: IMAGE_STICKER_SIZE - 24,
-    borderRadius: 12,
-  },
-  imageStickerLabel: {
-    color: EDITOR_COLORS.textSecondary,
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 4,
-    textAlign: "center",
-  },
-});

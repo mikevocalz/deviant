@@ -2,10 +2,10 @@
 // Instagram Stories Editor - Filter Selector
 // ============================================================
 
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
-  TouchableOpacity,
+  Pressable,
   Text,
   StyleSheet,
   ScrollView,
@@ -19,29 +19,25 @@ import {
   Group,
   Fill,
   LinearGradient,
+  Image as SkiaImage,
+  useImage,
   vec,
 } from "@shopify/react-native-skia";
+import { X, Check } from "lucide-react-native";
 import { LUTFilter, FilterAdjustment } from "../../types";
 import {
   EDITOR_COLORS,
   LUT_FILTERS,
   DEFAULT_ADJUSTMENTS,
-  CUBE_LUT_FILTERS,
-  CubeLUTFilter,
+  EFFECT_FILTERS,
+  EffectFilter,
 } from "../../constants";
-import Slider from "@react-native-community/slider";
+import { useEditorStore } from "../../stores/editor-store";
+import { RoundedSlider } from "../ui/RoundedSlider";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const THUMB_SIZE = 72;
-
-// Category accent colors for .cube LUT thumbnails
-const CATEGORY_COLORS: Record<string, string[]> = {
-  film: ["#E8A87C", "#C38D6E"],
-  fujifilm: ["#41B3A3", "#2D8A7C"],
-  vivid: ["#E27D60", "#C05E44"],
-  cinematic: ["#85CDCA", "#5EAEAD"],
-  log: ["#C38D9E", "#A06E7E"],
-};
+const THUMB_RADIUS = 14;
 
 // ---- Filter Selector ----
 
@@ -50,26 +46,32 @@ type MainTab = "filters" | "effects";
 interface FilterSelectorProps {
   currentFilter: LUTFilter | null;
   onSelectFilter: (filter: LUTFilter) => void;
-  onSelectCubeLUT?: (lut: CubeLUTFilter) => void;
-  selectedCubeLUTId?: string | null;
+  onSelectEffect?: (effect: EffectFilter) => void;
+  selectedEffectId?: string | null;
+  mediaUri?: string | null;
   onDone: () => void;
 }
 
 export const FilterSelector: React.FC<FilterSelectorProps> = ({
   currentFilter,
   onSelectFilter,
-  onSelectCubeLUT,
-  selectedCubeLUTId,
+  onSelectEffect,
+  selectedEffectId,
+  mediaUri,
   onDone,
 }) => {
-  const [mainTab, setMainTab] = useState<MainTab>("filters");
-  const [effectCategory, setEffectCategory] = useState<string>("film");
+  // Load the actual media image for filter previews
+  const thumbImage = useImage(mediaUri || undefined);
+  const mainTab = useEditorStore((s) => s.filterMainTab);
+  const setMainTab = useEditorStore((s) => s.setFilterMainTab);
+  const effectCategory = useEditorStore((s) => s.filterEffectCategory);
+  const setEffectCategory = useEditorStore((s) => s.setFilterEffectCategory);
 
   // Get the display name for the currently selected item
   const selectedName =
     mainTab === "filters"
       ? currentFilter?.name || null
-      : CUBE_LUT_FILTERS.find((l) => l.id === selectedCubeLUTId)?.name || null;
+      : EFFECT_FILTERS.find((l) => l.id === selectedEffectId)?.name || null;
 
   const effectCategories = [
     { id: "film", label: "Film" },
@@ -79,7 +81,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
     { id: "log", label: "Log" },
   ];
 
-  const cubeLUTsForCategory = CUBE_LUT_FILTERS.filter(
+  const effectsForCategory = EFFECT_FILTERS.filter(
     (l) => l.category === effectCategory,
   );
 
@@ -87,7 +89,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
     <View style={styles.container}>
       {/* ---- Main Tabs: Filters / Effects ---- */}
       <View style={styles.tabBar}>
-        <TouchableOpacity
+        <Pressable
           style={[
             styles.mainTab,
             mainTab === "filters" && styles.mainTabActive,
@@ -102,8 +104,8 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
           >
             Filters
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </Pressable>
+        <Pressable
           style={[
             styles.mainTab,
             mainTab === "effects" && styles.mainTabActive,
@@ -118,7 +120,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
           >
             Effects
           </Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       {/* ---- Effect sub-categories (only when Effects tab is active) ---- */}
@@ -129,7 +131,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
           contentContainerStyle={styles.subCatRow}
         >
           {effectCategories.map((cat) => (
-            <TouchableOpacity
+            <Pressable
               key={cat.id}
               style={[
                 styles.subCatPill,
@@ -145,12 +147,12 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
               >
                 {cat.label}
               </Text>
-            </TouchableOpacity>
+            </Pressable>
           ))}
         </ScrollView>
       )}
 
-      {/* ---- Circular thumbnail row ---- */}
+      {/* ---- Thumbnail row (rounded squares with image preview) ---- */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -160,12 +162,12 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
         {mainTab === "filters"
           ? LUT_FILTERS.map((filter) => {
               const isSelected = currentFilter?.id === filter.id;
+              const canvasSize = THUMB_SIZE - 4;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={filter.id}
                   style={styles.thumbItem}
                   onPress={() => onSelectFilter(filter)}
-                  activeOpacity={0.7}
                 >
                   <View
                     style={[
@@ -174,20 +176,41 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
                     ]}
                   >
                     <Canvas style={styles.thumbCanvas}>
-                      <Group>
-                        {filter.id !== "normal" && (
-                          <Paint>
-                            <ColorMatrix matrix={filter.matrix} />
-                          </Paint>
-                        )}
-                        <Group>
-                          <LinearGradient
-                            start={vec(0, 0)}
-                            end={vec(THUMB_SIZE - 6, THUMB_SIZE - 6)}
-                            colors={["#666", "#333"]}
+                      <Group
+                        layer={
+                          filter.id !== "normal" ? (
+                            <Paint>
+                              <ColorMatrix matrix={filter.matrix} />
+                            </Paint>
+                          ) : undefined
+                        }
+                      >
+                        {thumbImage ? (
+                          <SkiaImage
+                            image={thumbImage}
+                            x={0}
+                            y={0}
+                            width={canvasSize}
+                            height={canvasSize}
+                            fit="cover"
                           />
-                          <Fill />
-                        </Group>
+                        ) : (
+                          <>
+                            <LinearGradient
+                              start={vec(0, 0)}
+                              end={vec(canvasSize, canvasSize)}
+                              colors={[
+                                "#FF6B6B",
+                                "#FFA94D",
+                                "#FFD43B",
+                                "#69DB7C",
+                                "#4DABF7",
+                                "#9775FA",
+                              ]}
+                            />
+                            <Fill />
+                          </>
+                        )}
                       </Group>
                     </Canvas>
                   </View>
@@ -200,43 +223,60 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
                   >
                     {filter.name}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               );
             })
-          : cubeLUTsForCategory.map((lut) => {
-              const isSelected = selectedCubeLUTId === lut.id;
-              const colors = CATEGORY_COLORS[lut.category] || ["#888", "#555"];
+          : effectsForCategory.map((effect) => {
+              const isSelected = selectedEffectId === effect.id;
+              const canvasSize = THUMB_SIZE - 4;
               return (
-                <TouchableOpacity
-                  key={lut.id}
+                <Pressable
+                  key={effect.id}
                   style={styles.thumbItem}
-                  onPress={() => onSelectCubeLUT?.(lut)}
-                  activeOpacity={0.7}
+                  onPress={() => onSelectEffect?.(effect)}
                 >
                   <View
                     style={[
                       styles.thumbRing,
-                      isSelected && {
-                        borderColor: colors[0],
-                        borderWidth: 2.5,
-                      },
+                      isSelected && styles.thumbRingActive,
                     ]}
                   >
                     <Canvas style={styles.thumbCanvas}>
-                      <Group>
-                        <LinearGradient
-                          start={vec(0, 0)}
-                          end={vec(THUMB_SIZE - 6, THUMB_SIZE - 6)}
-                          colors={colors}
-                        />
-                        <Fill />
+                      <Group
+                        layer={
+                          <Paint>
+                            <ColorMatrix matrix={effect.matrix} />
+                          </Paint>
+                        }
+                      >
+                        {thumbImage ? (
+                          <SkiaImage
+                            image={thumbImage}
+                            x={0}
+                            y={0}
+                            width={canvasSize}
+                            height={canvasSize}
+                            fit="cover"
+                          />
+                        ) : (
+                          <>
+                            <LinearGradient
+                              start={vec(0, 0)}
+                              end={vec(canvasSize, canvasSize)}
+                              colors={[
+                                "#FF6B6B",
+                                "#FFA94D",
+                                "#FFD43B",
+                                "#69DB7C",
+                                "#4DABF7",
+                                "#9775FA",
+                              ]}
+                            />
+                            <Fill />
+                          </>
+                        )}
                       </Group>
                     </Canvas>
-                    <View style={styles.lutOverlay}>
-                      <Text style={styles.lutInitials}>
-                        {lut.name.substring(0, 2).toUpperCase()}
-                      </Text>
-                    </View>
                   </View>
                   <Text
                     style={[
@@ -245,24 +285,24 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
                     ]}
                     numberOfLines={1}
                   >
-                    {lut.name}
+                    {effect.name}
                   </Text>
-                </TouchableOpacity>
+                </Pressable>
               );
             })}
       </ScrollView>
 
       {/* ---- Selected filter name + action buttons ---- */}
       <View style={styles.footer}>
-        <TouchableOpacity onPress={onDone} style={styles.closeBtn}>
+        <Pressable onPress={onDone} style={styles.closeBtn}>
           <Text style={styles.closeBtnText}>X</Text>
-        </TouchableOpacity>
+        </Pressable>
         <Text style={styles.selectedName} numberOfLines={1}>
           {selectedName || "None"}
         </Text>
-        <TouchableOpacity onPress={onDone} style={styles.confirmBtn}>
+        <Pressable onPress={onDone} style={styles.confirmBtn}>
           <Text style={styles.confirmBtnText}>Done</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
     </View>
   );
@@ -312,7 +352,7 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
   return (
     <View style={adjustStyles.container}>
       <View style={adjustStyles.header}>
-        <TouchableOpacity
+        <Pressable
           onPress={onReset}
           disabled={!hasChanges}
           style={adjustStyles.resetButton}
@@ -325,11 +365,11 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
           >
             Reset
           </Text>
-        </TouchableOpacity>
+        </Pressable>
         <Text style={adjustStyles.title}>Adjust</Text>
-        <TouchableOpacity onPress={onDone} style={adjustStyles.doneButton}>
+        <Pressable onPress={onDone} style={adjustStyles.doneButton}>
           <Text style={adjustStyles.doneText}>Done</Text>
-        </TouchableOpacity>
+        </Pressable>
       </View>
 
       <BottomSheetScrollView
@@ -356,13 +396,13 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
               </View>
 
               <View style={adjustStyles.sliderControl}>
-                <Slider
+                <RoundedSlider
                   style={adjustStyles.slider}
                   minimumValue={control.min}
                   maximumValue={control.max}
                   value={value}
                   onValueChange={(val: number) =>
-                    onAdjustmentChange(control.key, Math.round(val))
+                    onAdjustmentChange(control.key, val)
                   }
                   minimumTrackTintColor={
                     isModified
@@ -370,7 +410,6 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
                       : EDITOR_COLORS.surfaceLight
                   }
                   maximumTrackTintColor={EDITOR_COLORS.surfaceLight}
-                  thumbTintColor="#FFFFFF"
                 />
               </View>
 
@@ -445,7 +484,7 @@ const styles = StyleSheet.create({
   subCatTextActive: {
     color: "#fff",
   },
-  // ---- Circular thumbnail row ----
+  // ---- Rounded-square thumbnail row ----
   thumbRow: {
     paddingHorizontal: 16,
     gap: 14,
@@ -460,7 +499,7 @@ const styles = StyleSheet.create({
   thumbRing: {
     width: THUMB_SIZE,
     height: THUMB_SIZE,
-    borderRadius: THUMB_SIZE / 2,
+    borderRadius: THUMB_RADIUS,
     borderWidth: 2,
     borderColor: "transparent",
     overflow: "hidden",
@@ -474,7 +513,7 @@ const styles = StyleSheet.create({
   thumbCanvas: {
     width: THUMB_SIZE - 4,
     height: THUMB_SIZE - 4,
-    borderRadius: (THUMB_SIZE - 4) / 2,
+    borderRadius: THUMB_RADIUS - 2,
   },
   thumbLabel: {
     color: EDITOR_COLORS.textSecondary,

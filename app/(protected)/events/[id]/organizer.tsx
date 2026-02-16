@@ -25,6 +25,7 @@ import {
   Clock,
   ArrowLeft,
   User,
+  Settings,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
@@ -58,8 +59,8 @@ export default function EventOrganizerScreen() {
 
   const loadTickets = async () => {
     try {
-      const result = await tickets.getEventTickets<Ticket>(eventId);
-      setEventTickets(result.tickets || []);
+      const result = await tickets.getEventTickets(eventId);
+      setEventTickets((result as any) || []);
     } catch (error: any) {
       console.error("[Organizer] Load tickets error:", error);
       const errorMessage = error?.error || "Failed to load tickets";
@@ -139,6 +140,14 @@ export default function EventOrganizerScreen() {
         >
           Event Tickets
         </Text>
+        <Pressable
+          onPress={() =>
+            router.push("/(protected)/events/organizer-setup" as any)
+          }
+          hitSlop={12}
+        >
+          <Settings size={22} color={colors.mutedForeground} />
+        </Pressable>
       </View>
 
       {/* Stats Bar */}

@@ -26,6 +26,9 @@ import {
   ChevronRight,
   BadgeCheck,
   Trash2,
+  QrCode,
+  LayoutDashboard,
+  ScanLine,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +43,9 @@ import { useEventViewStore } from "@/lib/stores/event-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
+import { ticketsApi } from "@/lib/api/tickets";
+import * as WebBrowser from "expo-web-browser";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import {
   useEventReviews,
@@ -58,6 +64,7 @@ import {
   TicketTierCard,
   StickyCTA,
   EventDetailSkeleton,
+  WeatherModule,
 } from "@/src/events/ui";
 import type {
   TicketTier,
@@ -330,8 +337,10 @@ export default function EventDetailScreen() {
     setSelectedTier(tier);
   }, []);
 
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   const handleGetTickets = useCallback(async () => {
-    if (!eventData) return;
+    if (!eventData || isCheckingOut) return;
     // Block ticket purchase for past events
     const now = new Date();
     if (eventData.endDate && new Date(eventData.endDate) < now) {
@@ -346,6 +355,109 @@ export default function EventDetailScreen() {
         return;
       }
     }
+
+    // ── Stripe checkout path (when ticketing feature is ON) ──
+    if (isFeatureEnabled("ticketing_enabled") && eventData.ticketingEnabled) {
+      setIsCheckingOut(true);
+      try {
+        const result = await ticketsApi.checkout({
+          eventId,
+          ticketTypeId: selectedTier?.id || "",
+          quantity: 1,
+          userId: user?.id || "",
+        });
+
+        if (result.error) {
+          showToast("error", "Checkout Failed", result.error);
+          return;
+        }
+
+        // Free ticket — issued server-side, store locally
+        if (result.free && result.tickets?.length) {
+          const t = result.tickets[0];
+          setTicket(eventId, {
+            id: t.id,
+            eventId,
+            userId: user?.id || "",
+            paid: false,
+            status: "valid",
+            qrToken: t.qr_token,
+            tier: selectedTier?.tier || "ga",
+            tierName: selectedTier?.name || undefined,
+            transferable: false,
+            eventTitle: eventData.title,
+            eventDate: eventData.date,
+            eventEndDate: eventData.endDate,
+            eventLocation: eventData.location,
+            eventImage: eventData.image,
+          });
+          toggleRsvp(eventId);
+          setEventData((prev) =>
+            prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+          );
+          queryClient.invalidateQueries({ queryKey: eventKeys.all });
+          showToast(
+            "success",
+            "Confirmed",
+            `You're going to ${eventData.title}!`,
+          );
+          return;
+        }
+
+        // Paid ticket — open Stripe Checkout in browser
+        if (result.url) {
+          await WebBrowser.openBrowserAsync(result.url, {
+            presentationStyle:
+              Platform.OS === "ios"
+                ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+                : undefined,
+          });
+          // After browser closes, check if ticket was created by webhook
+          const myTickets = await ticketsApi.getMyTickets();
+          const newTicket = myTickets.find(
+            (t) =>
+              String(t.event_id) === String(eventId) && t.status === "active",
+          );
+          if (newTicket) {
+            setTicket(eventId, {
+              id: newTicket.id,
+              eventId,
+              userId: user?.id || "",
+              paid: true,
+              status: "valid",
+              qrToken: newTicket.qr_token,
+              tier: selectedTier?.tier || "ga",
+              tierName: newTicket.ticket_type_name || selectedTier?.name,
+              transferable: false,
+              eventTitle: eventData.title,
+              eventDate: eventData.date,
+              eventEndDate: eventData.endDate,
+              eventLocation: eventData.location,
+              eventImage: eventData.image,
+            });
+            toggleRsvp(eventId);
+            setEventData((prev) =>
+              prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+            );
+            queryClient.invalidateQueries({ queryKey: eventKeys.all });
+            showToast(
+              "success",
+              "Ticket Purchased",
+              `You're going to ${eventData.title}!`,
+            );
+          }
+          return;
+        }
+      } catch (err: any) {
+        console.error("[EventDetail] Checkout error:", err);
+        showToast("error", "Error", err.message || "Checkout failed");
+      } finally {
+        setIsCheckingOut(false);
+      }
+      return;
+    }
+
+    // ── Legacy RSVP path (ticketing OFF) ──
     toggleRsvp(eventId);
 
     // Optimistically update local attendee count
@@ -391,6 +503,7 @@ export default function EventDetailScreen() {
     eventData,
     selectedTier,
     user?.id,
+    isCheckingOut,
     toggleRsvp,
     setTicket,
     showToast,
@@ -584,6 +697,41 @@ export default function EventDetailScreen() {
               followingCount={0}
             />
           </View>
+
+          {/* ── 3.25 HOST ORGANIZER TOOLS ──────────────────────────── */}
+          {isHost && isFeatureEnabled("organizer_tools_enabled") ? (
+            <View style={s.section}>
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <Pressable
+                  onPress={() =>
+                    router.push(
+                      `/(protected)/events/${eventId}/organizer` as any,
+                    )
+                  }
+                  style={[s.organizerButton, { flex: 1 }]}
+                >
+                  <LayoutDashboard size={16} color="#8A40CF" />
+                  <Text style={s.organizerButtonText}>Dashboard</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() =>
+                    router.push(`/(protected)/events/${eventId}/scanner` as any)
+                  }
+                  style={[s.organizerButton, { flex: 1 }]}
+                >
+                  <ScanLine size={16} color="#22C55E" />
+                  <Text style={s.organizerButtonText}>Scanner</Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
+          {event.locationLat && event.locationLng ? (
+            <View style={s.section}>
+              <WeatherModule lat={event.locationLat} lng={event.locationLng} />
+            </View>
+          ) : null}
 
           {/* ── 4. COLLAPSIBLE EVENT DETAILS ─────────────────────── */}
           <View style={s.collapsibleSection}>
@@ -1291,5 +1439,21 @@ const s = StyleSheet.create({
   backLinkText: {
     color: "rgba(255,255,255,0.5)",
     fontSize: 14,
+  },
+  organizerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  organizerButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
   },
 });

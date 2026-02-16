@@ -124,6 +124,13 @@ export default {
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
       [
+        "@stripe/stripe-react-native",
+        {
+          merchantIdentifier: "merchant.com.deviant",
+          enableGooglePay: true,
+        },
+      ],
+      [
         "expo-router",
         {
           origin: routerOrigin,

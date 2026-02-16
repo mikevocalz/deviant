@@ -15,6 +15,12 @@ export const STORY_ASPECT_RATIO = 9 / 16;
 export const CANVAS_WIDTH = 1080;
 export const CANVAS_HEIGHT = 1920;
 
+// Default text font size in CANVAS units (not screen pts).
+// At surface.scale ≈ 0.364 on iPhone, 120cu ≈ 44pts on screen.
+export const DEFAULT_TEXT_FONT_SIZE = 120;
+// Minimum allowed fontSize in canvas units — sanity floor
+export const MIN_TEXT_FONT_SIZE = 40;
+
 // ---- Color Palettes ----
 
 export const EDITOR_COLORS = {
@@ -98,20 +104,30 @@ export const COLOR_PALETTES: ColorPalette[] = [
 
 // ---- Text Presets ----
 
+// Font asset registry — maps fontFamily → bundled .ttf for Skia's useFont
+export const FONT_ASSETS: Record<string, number> = {
+  "Inter-Regular": require("@/assets/fonts/Inter-Regular.ttf"),
+  "Inter-SemiBold": require("@/assets/fonts/Inter-SemiBold.ttf"),
+  "Inter-Bold": require("@/assets/fonts/Inter-Bold.ttf"),
+  "SpaceGrotesk-Regular": require("@/assets/fonts/SpaceGrotesk-Regular.ttf"),
+  "SpaceGrotesk-Bold": require("@/assets/fonts/SpaceGrotesk-Bold.ttf"),
+  "Republica-Minor": require("@/assets/fonts/Republica-Minor.ttf"),
+  BraveGates: require("@/assets/fonts/BraveGates.ttf"),
+  LightBrighter: require("@/assets/fonts/LightBrighter.ttf"),
+  Oasis: require("@/assets/fonts/oasis.ttf"),
+  RedHat: require("@/assets/fonts/redhat.ttf"),
+};
+
 export const TEXT_FONTS = [
-  { id: "system", name: "Classic", fontFamily: "System" },
-  { id: "serif", name: "Serif", fontFamily: "Georgia" },
-  { id: "mono", name: "Typewriter", fontFamily: "Courier" },
-  {
-    id: "condensed",
-    name: "Condensed",
-    fontFamily: "AvenirNextCondensed-Bold",
-  },
-  { id: "rounded", name: "Rounded", fontFamily: "ArialRoundedMTBold" },
-  { id: "handwritten", name: "Handwritten", fontFamily: "MarkerFelt-Wide" },
-  { id: "bold", name: "Impact", fontFamily: "Impact" },
-  { id: "elegant", name: "Elegant", fontFamily: "Didot" },
-  { id: "comic", name: "Playful", fontFamily: "ChalkboardSE-Bold" },
+  { id: "inter", name: "Classic", fontFamily: "Inter-Regular" },
+  { id: "inter-bold", name: "Bold", fontFamily: "Inter-Bold" },
+  { id: "space", name: "Space", fontFamily: "SpaceGrotesk-Regular" },
+  { id: "space-bold", name: "Space Bold", fontFamily: "SpaceGrotesk-Bold" },
+  { id: "republica", name: "Republica", fontFamily: "Republica-Minor" },
+  { id: "brave", name: "Brave Gates", fontFamily: "BraveGates" },
+  { id: "light", name: "Light", fontFamily: "LightBrighter" },
+  { id: "oasis", name: "Oasis", fontFamily: "Oasis" },
+  { id: "redhat", name: "Red Hat", fontFamily: "RedHat" },
 ];
 
 export interface TextStyleConfig {
@@ -226,7 +242,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "clarendon",
     name: "Clarendon",
     matrix: [
-      1.2, 0, 0, 0, 10, 0, 1.2, 0, 0, 10, 0, 0, 1.3, 0, 20, 0, 0, 0, 1, 0,
+      1.2, 0, 0, 0, 0.039, 0, 1.2, 0, 0, 0.039, 0, 0, 1.3, 0, 0.078, 0, 0, 0, 1,
+      0,
     ],
     intensity: 1.0,
   },
@@ -234,8 +251,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "gingham",
     name: "Gingham",
     matrix: [
-      1.05, 0.1, 0.05, 0, 10, 0.05, 1.05, 0.05, 0, 10, 0.05, 0.1, 1.0, 0, 15, 0,
-      0, 0, 1, 0,
+      1.05, 0.1, 0.05, 0, 0.039, 0.05, 1.05, 0.05, 0, 0.039, 0.05, 0.1, 1.0, 0,
+      0.059, 0, 0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -243,8 +260,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "moon",
     name: "Moon",
     matrix: [
-      0.33, 0.33, 0.33, 0, 20, 0.33, 0.33, 0.33, 0, 20, 0.33, 0.33, 0.33, 0, 20,
-      0, 0, 0, 1, 0,
+      0.33, 0.33, 0.33, 0, 0.078, 0.33, 0.33, 0.33, 0, 0.078, 0.33, 0.33, 0.33,
+      0, 0.078, 0, 0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -252,8 +269,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "lark",
     name: "Lark",
     matrix: [
-      1.2, 0.1, 0, 0, 15, 0, 1.1, 0.05, 0, 10, 0, 0.05, 0.9, 0, 5, 0, 0, 0, 1,
-      0,
+      1.2, 0.1, 0, 0, 0.059, 0, 1.1, 0.05, 0, 0.039, 0, 0.05, 0.9, 0, 0.02, 0,
+      0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -261,7 +278,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "reyes",
     name: "Reyes",
     matrix: [
-      1.1, 0, 0, 0, 30, 0, 1.05, 0, 0, 25, 0, 0, 0.95, 0, 20, 0, 0, 0, 0.85, 0,
+      1.1, 0, 0, 0, 0.118, 0, 1.05, 0, 0, 0.098, 0, 0, 0.95, 0, 0.078, 0, 0, 0,
+      0.85, 0,
     ],
     intensity: 1.0,
   },
@@ -275,8 +293,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "slumber",
     name: "Slumber",
     matrix: [
-      0.9, 0.1, 0.1, 0, 10, 0.1, 0.85, 0.1, 0, 10, 0.1, 0.1, 0.9, 0, 20, 0, 0,
-      0, 0.9, 0,
+      0.9, 0.1, 0.1, 0, 0.039, 0.1, 0.85, 0.1, 0, 0.039, 0.1, 0.1, 0.9, 0,
+      0.078, 0, 0, 0, 0.9, 0,
     ],
     intensity: 1.0,
   },
@@ -284,8 +302,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "crema",
     name: "Crema",
     matrix: [
-      1.1, 0.05, 0, 0, 15, 0, 1.05, 0.05, 0, 10, 0, 0, 0.95, 0, 5, 0, 0, 0, 1,
-      0,
+      1.1, 0.05, 0, 0, 0.059, 0, 1.05, 0.05, 0, 0.039, 0, 0, 0.95, 0, 0.02, 0,
+      0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -293,7 +311,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "ludwig",
     name: "Ludwig",
     matrix: [
-      1.15, 0, 0, 0, -10, 0, 1.05, 0, 0, -5, 0, 0, 0.9, 0, 0, 0, 0, 0, 1, 0,
+      1.15, 0, 0, 0, -0.039, 0, 1.05, 0, 0, -0.02, 0, 0, 0.9, 0, 0, 0, 0, 0, 1,
+      0,
     ],
     intensity: 1.0,
   },
@@ -301,8 +320,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "aden",
     name: "Aden",
     matrix: [
-      0.95, 0.1, 0.05, 0, 20, 0.05, 0.95, 0.1, 0, 15, 0, 0, 0.85, 0, 10, 0, 0,
-      0, 0.9, 0,
+      0.95, 0.1, 0.05, 0, 0.078, 0.05, 0.95, 0.1, 0, 0.059, 0, 0, 0.85, 0,
+      0.039, 0, 0, 0, 0.9, 0,
     ],
     intensity: 1.0,
   },
@@ -310,8 +329,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "perpetua",
     name: "Perpetua",
     matrix: [
-      1.05, 0, 0.15, 0, 10, 0, 1.1, 0.05, 0, 10, 0, 0.1, 1.0, 0, 20, 0, 0, 0, 1,
-      0,
+      1.05, 0, 0.15, 0, 0.039, 0, 1.1, 0.05, 0, 0.039, 0, 0.1, 1.0, 0, 0.078, 0,
+      0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -319,7 +338,7 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "valencia",
     name: "Valencia",
     matrix: [
-      1.2, 0.1, 0, 0, 10, 0, 1.0, 0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0, 0, 1, 0,
+      1.2, 0.1, 0, 0, 0.039, 0, 1.0, 0, 0, 0, 0, 0, 0.8, 0, 0, 0, 0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -327,8 +346,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "xpro2",
     name: "X-Pro II",
     matrix: [
-      1.3, 0, 0.1, 0, -10, 0, 1.0, 0.1, 0, 0, -0.1, 0, 1.2, 0, 10, 0, 0, 0, 1,
-      0,
+      1.3, 0, 0.1, 0, -0.039, 0, 1.0, 0.1, 0, 0, -0.1, 0, 1.2, 0, 0.039, 0, 0,
+      0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -336,7 +355,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "lofi",
     name: "Lo-Fi",
     matrix: [
-      1.4, 0, 0, 0, -20, 0, 1.4, 0, 0, -20, 0, 0, 1.4, 0, -20, 0, 0, 0, 1, 0,
+      1.4, 0, 0, 0, -0.078, 0, 1.4, 0, 0, -0.078, 0, 0, 1.4, 0, -0.078, 0, 0, 0,
+      1, 0,
     ],
     intensity: 1.0,
   },
@@ -353,7 +373,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "earlybird",
     name: "Earlybird",
     matrix: [
-      1.2, 0.15, 0, 0, 20, 0, 1.0, 0.1, 0, 10, 0, 0, 0.7, 0, 0, 0, 0, 0, 0.9, 0,
+      1.2, 0.15, 0, 0, 0.078, 0, 1.0, 0.1, 0, 0.039, 0, 0, 0.7, 0, 0, 0, 0, 0,
+      0.9, 0,
     ],
     intensity: 1.0,
   },
@@ -361,8 +382,8 @@ export const LUT_FILTERS: LUTFilter[] = [
     id: "nashville",
     name: "Nashville",
     matrix: [
-      1.2, 0.15, 0, 0, 25, 0, 1.05, 0, 0, 15, -0.1, 0, 0.8, 0, 30, 0, 0, 0, 1,
-      0,
+      1.2, 0.15, 0, 0, 0.098, 0, 1.05, 0, 0, 0.059, -0.1, 0, 0.8, 0, 0.118, 0,
+      0, 0, 1, 0,
     ],
     intensity: 1.0,
   },
@@ -629,208 +650,354 @@ export const IMAGE_STICKER_PACKS: ImageStickerPack[] = [
   },
 ];
 
-// ---- .cube LUT Filter Files ----
-// These reference bundled .cube LUT files in assets/luts/.
-// Full .cube → Skia integration requires a runtime shader parser (future work).
-// For now they're listed with friendly names for the filter picker UI.
+// ---- Effect Filters (Skia ColorMatrix) ----
+// Pure Skia ColorMatrix-based effects — no .cube file parsing needed.
+// Each uses a 4×5 color matrix, same as LUT_FILTERS above.
 
-export interface CubeLUTFilter {
+export interface EffectFilter {
   id: string;
   name: string;
   category: "film" | "fujifilm" | "vivid" | "cinematic" | "log";
-  filename: string;
+  matrix: number[];
+  intensity: number;
 }
 
-export const CUBE_LUT_FILTERS: CubeLUTFilter[] = [
-  // ── Film Look ──
+export const EFFECT_FILTERS: EffectFilter[] = [
+  // ── Film ──────────────────────────────────────────────────────────
   {
     id: "film-look",
     name: "Film Look",
     category: "film",
-    filename: "Film_Look.cube",
+    matrix: [
+      1.1, 0.05, 0.02, 0, 0.02, 0, 1.0, 0.05, 0, 0.01, -0.02, 0.05, 0.95, 0,
+      0.02, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "vintage-color",
     name: "Vintage",
     category: "film",
-    filename: "Vintage_Color.cube",
+    matrix: [
+      1.0, 0.15, 0, 0, 0.06, 0, 0.95, 0.1, 0, 0.04, 0, 0, 0.8, 0, 0.04, 0, 0, 0,
+      0.85, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "faded-print",
+    name: "Faded Print",
+    category: "film",
+    matrix: [
+      0.9, 0.1, 0.05, 0, 0.06, 0.05, 0.9, 0.1, 0, 0.05, 0, 0.08, 0.85, 0, 0.06,
+      0, 0, 0, 0.9, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "kodak-gold",
+    name: "Kodak Gold",
+    category: "film",
+    matrix: [
+      1.15, 0.08, 0, 0, 0.04, 0, 1.05, 0.04, 0, 0.02, -0.05, 0, 0.85, 0, 0, 0,
+      0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "portra-400",
+    name: "Portra 400",
+    category: "film",
+    matrix: [
+      1.05, 0.06, 0.02, 0, 0.02, 0.02, 1.02, 0.04, 0, 0.01, -0.02, 0.02, 0.95,
+      0, 0.03, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
 
-  // ── IWLTBAP Cinematic ──
-  {
-    id: "iwltbap-k25",
-    name: "K25",
-    category: "cinematic",
-    filename: "IWLTBAP_K25.cube",
-  },
-  {
-    id: "iwltbap-k64",
-    name: "K64",
-    category: "cinematic",
-    filename: "IWLTBAP_K64.cube",
-  },
-  {
-    id: "iwltbap-k99",
-    name: "K99",
-    category: "cinematic",
-    filename: "IWLTBAP_K99.cube",
-  },
-
-  // ── Vivid ──
-  {
-    id: "vivid-1",
-    name: "Vivid I",
-    category: "vivid",
-    filename: "Vivid_LUTs_1.cube",
-  },
-  {
-    id: "vivid-2",
-    name: "Vivid II",
-    category: "vivid",
-    filename: "Vivid_LUTs_2.cube",
-  },
-  {
-    id: "vivid-3",
-    name: "Vivid III",
-    category: "vivid",
-    filename: "Vivid_LUTs_3.cube",
-  },
-  {
-    id: "vivid-4",
-    name: "Vivid IV",
-    category: "vivid",
-    filename: "Vivid_LUTs_4.cube",
-  },
-  {
-    id: "vivid-5",
-    name: "Vivid V",
-    category: "vivid",
-    filename: "Vivid_LUTs_5.cube",
-  },
-
-  // ── Fujifilm Simulations ──
+  // ── Fujifilm ──────────────────────────────────────────────────────
   {
     id: "fuji-provia",
     name: "Provia",
     category: "fujifilm",
-    filename: "FLog2C_to_PROVIA_VLog.cube",
+    matrix: [
+      1.15, 0, 0, 0, 0.01, 0, 1.1, 0, 0, 0.01, 0, 0, 1.15, 0, 0, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-velvia",
     name: "Velvia",
     category: "fujifilm",
-    filename: "FLog2C_to_Velvia_VLog.cube",
+    matrix: [
+      1.35, -0.05, 0, 0, -0.02, 0, 1.25, -0.05, 0, -0.02, 0, -0.05, 1.35, 0, 0,
+      0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-astia",
     name: "Astia",
     category: "fujifilm",
-    filename: "FLog2C_to_ASTIA_VLog.cube",
+    matrix: [
+      1.08, 0.04, 0, 0, 0.01, 0.02, 1.06, 0.02, 0, 0.01, 0, 0.02, 1.05, 0, 0.02,
+      0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-classic-chrome",
     name: "Classic Chrome",
     category: "fujifilm",
-    filename: "FLog2C_to_CLASSIC-CHROME_VLog.cube",
+    matrix: [
+      1.05, 0.05, 0.02, 0, 0.01, 0.02, 0.95, 0.05, 0, 0.01, 0, 0.02, 0.88, 0,
+      0.02, 0, 0, 0, 0.95, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-classic-neg",
     name: "Classic Neg",
     category: "fujifilm",
-    filename: "FLog2C_to_CLASSIC-Neg_VLog.cube",
+    matrix: [
+      1.1, 0.08, 0, 0, 0.04, 0, 0.95, 0.08, 0, 0.02, -0.05, 0.05, 0.9, 0, 0.04,
+      0, 0, 0, 0.92, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-eterna",
     name: "Eterna",
     category: "fujifilm",
-    filename: "FLog2C_to_ETERNA_VLog.cube",
+    matrix: [
+      0.92, 0.06, 0.04, 0, 0.02, 0.04, 0.92, 0.06, 0, 0.02, 0.02, 0.05, 0.9, 0,
+      0.03, 0, 0, 0, 0.95, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-eterna-bb",
     name: "Eterna BB",
     category: "fujifilm",
-    filename: "FLog2C_to_ETERNA-BB_VLog.cube",
+    matrix: [
+      0.85, 0.15, 0.1, 0, -0.02, 0.1, 0.85, 0.1, 0, -0.02, 0.05, 0.1, 0.82, 0,
+      0, 0, 0, 0, 0.9, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-acros",
     name: "Acros",
     category: "fujifilm",
-    filename: "FLog2C_to_ACROS_VLog.cube",
+    matrix: [
+      0.35, 0.55, 0.15, 0, -0.02, 0.3, 0.55, 0.2, 0, -0.02, 0.25, 0.5, 0.25, 0,
+      -0.02, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-reala",
     name: "Reala Ace",
     category: "fujifilm",
-    filename: "FLog2C_to_REALA-ACE_VLog.cube",
+    matrix: [
+      1.06, 0.02, 0, 0, 0.01, 0, 1.04, 0.02, 0, 0.01, 0, 0, 1.02, 0, 0.01, 0, 0,
+      0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-pro-neg",
     name: "Pro Neg Std",
     category: "fujifilm",
-    filename: "FLog2C_to_PRO-Neg_Std_VLog.cube",
+    matrix: [
+      1.02, 0.04, 0.02, 0, 0.02, 0.02, 0.98, 0.04, 0, 0.02, 0, 0.02, 0.96, 0,
+      0.03, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
 
-  // ── Cinematic / Log ──
+  // ── Vivid ─────────────────────────────────────────────────────────
+  {
+    id: "vivid-1",
+    name: "Vivid I",
+    category: "vivid",
+    matrix: [
+      1.25, 0, 0, 0, 0, 0, 1.2, 0, 0, 0, 0, 0, 1.25, 0, 0, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "vivid-2",
+    name: "Vivid II",
+    category: "vivid",
+    matrix: [
+      1.3, -0.05, 0, 0, 0.02, 0, 1.25, -0.05, 0, 0.02, -0.05, 0, 1.35, 0, 0, 0,
+      0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "vivid-3",
+    name: "Vivid III",
+    category: "vivid",
+    matrix: [
+      1.15, 0.1, 0, 0, 0, -0.05, 1.3, 0, 0, 0, 0, -0.05, 1.4, 0, 0, 0, 0, 0, 1,
+      0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "vivid-4",
+    name: "Vivid IV",
+    category: "vivid",
+    matrix: [
+      1.4, -0.1, 0, 0, 0, 0, 1.15, -0.1, 0, 0, -0.1, 0, 1.4, 0, 0.02, 0, 0, 0,
+      1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "vivid-5",
+    name: "Vivid V",
+    category: "vivid",
+    matrix: [
+      1.5, -0.15, -0.05, 0, 0, -0.05, 1.35, -0.1, 0, 0, -0.1, -0.05, 1.5, 0, 0,
+      0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+
+  // ── Cinematic ─────────────────────────────────────────────────────
+  {
+    id: "cine-k25",
+    name: "K25",
+    category: "cinematic",
+    matrix: [
+      1.2, 0.05, 0, 0, 0.02, 0.03, 1.05, 0, 0, 0.01, 0, 0.02, 0.9, 0, 0.02, 0,
+      0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "cine-k64",
+    name: "K64",
+    category: "cinematic",
+    matrix: [
+      1.18, 0.08, -0.02, 0, 0.01, 0, 1.08, 0.02, 0, 0.01, -0.04, 0.02, 0.95, 0,
+      0.03, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
+  },
+  {
+    id: "cine-k99",
+    name: "K99",
+    category: "cinematic",
+    matrix: [
+      1.15, 0.1, 0, 0, 0.03, 0, 0.98, 0.06, 0, 0.02, -0.05, 0, 0.88, 0, 0.04, 0,
+      0, 0, 0.95, 0,
+    ],
+    intensity: 1.0,
+  },
   {
     id: "arri-709",
     name: "ARRI 709",
     category: "cinematic",
-    filename: "ARRI_LogC2Video_Classic709_VLog.cube",
+    matrix: [
+      1.08, 0.04, 0.02, 0, -0.01, 0.02, 1.05, 0.03, 0, -0.01, 0, 0.02, 1.02, 0,
+      0.01, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "kodak-2383",
     name: "Kodak 2383",
     category: "cinematic",
-    filename: "Cineon_to_Kodak_2383_D65_VLog.cube",
+    matrix: [
+      1.12, 0.06, 0, 0, 0.03, 0, 1.0, 0.04, 0, 0.01, -0.04, 0, 0.88, 0, 0.01, 0,
+      0, 0, 0.95, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "fuji-3513",
     name: "Fuji 3513",
     category: "cinematic",
-    filename: "Cineon_to_Fuji_3513DI_D65_VLog.cube",
+    matrix: [
+      1.05, 0.02, 0.04, 0, 0.01, 0, 1.02, 0.06, 0, 0.01, 0.02, 0.04, 1.0, 0,
+      0.02, 0, 0, 0, 0.98, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "red-film",
     name: "RED Film",
     category: "cinematic",
-    filename: "RED_FilmBias_Rec2020_N-Log_to_Rec709_BT1886_VLog.cube",
+    matrix: [
+      1.1, 0.05, 0.02, 0, 0.02, 0, 1.05, 0.05, 0, 0, -0.02, 0.02, 0.92, 0, 0.01,
+      0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
     id: "red-bleach",
-    name: "RED Bleach",
+    name: "Bleach Bypass",
     category: "cinematic",
-    filename:
-      "RED_FilmBiasBleachBypass_Rec2020_N-Log_to_Rec709_BT1886_VLog.cube",
+    matrix: [
+      0.9, 0.2, 0.1, 0, -0.03, 0.1, 0.9, 0.15, 0, -0.03, 0.05, 0.15, 0.85, 0,
+      -0.02, 0, 0, 0, 0.9, 0,
+    ],
+    intensity: 1.0,
   },
   {
-    id: "red-achromic",
-    name: "RED B&W",
+    id: "red-bw",
+    name: "Cinema B&W",
     category: "cinematic",
-    filename: "RED_Achromic_Rec2020_N-Log_to_Rec709_VLog.cube",
+    matrix: [
+      0.33, 0.56, 0.11, 0, 0.02, 0.33, 0.56, 0.11, 0, 0.02, 0.33, 0.56, 0.11, 0,
+      0.02, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
+
+  // ── Log ───────────────────────────────────────────────────────────
   {
-    id: "rec709-soft",
+    id: "log-soft",
     name: "Soft Contrast",
     category: "log",
-    filename: "REC709_MEDIUM_CONTRAST_Soft_VLog.cube",
+    matrix: [
+      0.92, 0.04, 0.02, 0, 0.04, 0.02, 0.92, 0.04, 0, 0.04, 0.02, 0.02, 0.92, 0,
+      0.04, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
-    id: "llog-classic",
-    name: "L-Log Classic",
+    id: "log-classic",
+    name: "Classic",
     category: "log",
-    filename: "L-Log_to_Classic_VLog.cube",
+    matrix: [
+      1.08, 0.04, 0, 0, 0.02, 0, 1.04, 0.02, 0, 0.02, 0, 0, 0.98, 0, 0.03, 0, 0,
+      0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
-    id: "llog-natural",
-    name: "L-Log Natural",
+    id: "log-natural",
+    name: "Natural",
     category: "log",
-    filename: "L-Log_to_Natural_VLog.cube",
+    matrix: [
+      1.02, 0.02, 0, 0, 0.01, 0, 1.02, 0.02, 0, 0.01, 0, 0, 1.0, 0, 0.02, 0, 0,
+      0, 1, 0,
+    ],
+    intensity: 1.0,
   },
   {
-    id: "nlog-709",
-    name: "N-Log 709",
+    id: "log-709",
+    name: "Rec 709",
     category: "log",
-    filename: "N-Log_BT2020_to_REC709_BT1886_VLog.cube",
+    matrix: [
+      1.1, 0.02, 0, 0, 0, 0, 1.06, 0.02, 0, 0, 0, 0, 1.04, 0, 0, 0, 0, 0, 1, 0,
+    ],
+    intensity: 1.0,
   },
 ];
 

@@ -8,6 +8,7 @@ export type NotificationType =
   | "comment"
   | "follow"
   | "mention"
+  | "tag"
   | "event_invite"
   | "event_update"
   | "message";

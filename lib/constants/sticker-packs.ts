@@ -1,9 +1,8 @@
 /**
- * Sticker packs for the photo editor
+ * Sticker packs for the stories editor
  *
- * All stickers are remote URLs loaded by @baronha/react-native-photo-editor.
- * Using Twemoji (Twitter emoji) via jsDelivr CDN — free, high quality, reliable.
- * Using PNG format (72x72) for native photo editor compatibility.
+ * All stickers are remote URLs using Twemoji (Twitter emoji) via jsDelivr CDN.
+ * Using PNG format (72x72) for broad compatibility.
  *
  * DVNT and Ballroom packs use local bundled assets (require()).
  * These are resolved to file URIs at runtime via resolveLocalStickers().

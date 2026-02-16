@@ -5,17 +5,11 @@
 // Instagram-style horizontal scroll of color circles.
 
 import React from "react";
-import {
-  View,
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ScrollView,
-} from "react-native";
+import { View, Pressable, ScrollView } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { EDITOR_COLORS, STORY_BACKGROUNDS, StoryBackground } from "../../constants";
+import { STORY_BACKGROUNDS, StoryBackground } from "../../constants";
 
-const SWATCH_SIZE = 32;
+const SWATCH = 32;
 
 interface BackgroundPickerProps {
   selectedId: string;
@@ -27,84 +21,71 @@ export const BackgroundPicker: React.FC<BackgroundPickerProps> = ({
   onSelect,
 }) => {
   return (
-    <View style={styles.container}>
+    <View className="absolute bottom-[100px] left-0 right-0">
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          gap: 10,
+          alignItems: "center",
+        }}
       >
         {STORY_BACKGROUNDS.map((bg) => {
           const isSelected = bg.id === selectedId;
-
           return (
-            <TouchableOpacity
+            <Pressable
               key={bg.id}
-              style={[styles.swatchOuter, isSelected && styles.swatchSelected]}
+              className={`items-center justify-center border-2 ${
+                isSelected ? "border-white" : "border-transparent"
+              }`}
+              style={{
+                width: SWATCH + 6,
+                height: SWATCH + 6,
+                borderRadius: (SWATCH + 6) / 2,
+              }}
               onPress={() => onSelect(bg)}
-              activeOpacity={0.7}
             >
               {bg.type === "gradient" && bg.colors ? (
                 <LinearGradient
                   colors={bg.colors as [string, string, ...string[]]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={styles.swatch}
+                  style={{
+                    width: SWATCH,
+                    height: SWATCH,
+                    borderRadius: SWATCH / 2,
+                    overflow: "hidden",
+                  }}
                 />
               ) : (
                 <View
-                  style={[styles.swatch, { backgroundColor: bg.color }]}
+                  style={{
+                    width: SWATCH,
+                    height: SWATCH,
+                    borderRadius: SWATCH / 2,
+                    backgroundColor: bg.color,
+                    overflow: "hidden",
+                  }}
                 >
                   {bg.color === "#000000" && (
-                    <View style={styles.darkIndicator} />
+                    <View
+                      className="absolute border border-neutral-600"
+                      style={{
+                        top: SWATCH / 2 - 4,
+                        left: SWATCH / 2 - 4,
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                      }}
+                    />
                   )}
                 </View>
               )}
-            </TouchableOpacity>
+            </Pressable>
           );
         })}
       </ScrollView>
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    position: "absolute",
-    bottom: 100,
-    left: 0,
-    right: 0,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    gap: 10,
-    alignItems: "center",
-  },
-  swatchOuter: {
-    width: SWATCH_SIZE + 6,
-    height: SWATCH_SIZE + 6,
-    borderRadius: (SWATCH_SIZE + 6) / 2,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
-  },
-  swatchSelected: {
-    borderColor: "#FFFFFF",
-  },
-  swatch: {
-    width: SWATCH_SIZE,
-    height: SWATCH_SIZE,
-    borderRadius: SWATCH_SIZE / 2,
-    overflow: "hidden",
-  },
-  darkIndicator: {
-    position: "absolute",
-    top: SWATCH_SIZE / 2 - 4,
-    left: SWATCH_SIZE / 2 - 4,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#444",
-  },
-});

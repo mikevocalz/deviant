@@ -19,6 +19,7 @@ import {
   Hash,
   Play,
   Pause,
+  UserPlus,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -32,6 +33,11 @@ import { useMediaPicker } from "@/lib/hooks";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useCreatePostStore } from "@/lib/stores/create-post-store";
 import { useCreatePost } from "@/lib/hooks/use-posts";
+import { postTagsApi } from "@/lib/api/post-tags";
+import {
+  TagPeopleSheet,
+  type TagCandidate,
+} from "@/components/tags/TagPeopleSheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
@@ -46,7 +52,7 @@ const ASPECT_RATIO = 5 / 4;
 
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
-const MIN_CAPTION_LENGTH = 20;
+const MIN_CAPTION_LENGTH = 10;
 
 function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -140,8 +146,11 @@ export default function CreateScreen() {
     removeTag,
     reset,
   } = useCreatePostStore();
-  const { selectedMedia, setSelectedMedia } = useCreatePostStore();
+  const { selectedMedia, setSelectedMedia, placedTags, setPlacedTags } =
+    useCreatePostStore();
   const [tagInput, setTagInput] = useState("");
+  const [showTagSheet, setShowTagSheet] = useState(false);
+  const [selectedTagUsers, setSelectedTagUsers] = useState<TagCandidate[]>([]);
   const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
     useMediaPicker();
   const { mutate: createPost, isPending: isCreating } = useCreatePost();
@@ -413,10 +422,30 @@ export default function CreateScreen() {
           isNSFW,
         },
         {
-          onSuccess: (newPost) => {
+          onSuccess: async (newPost) => {
             console.log("[Create] Post created successfully:", newPost?.id);
+
+            // Save placed tags to backend (fire-and-forget)
+            if (newPost?.id && placedTags.length > 0) {
+              try {
+                await postTagsApi.addTags(
+                  String(newPost.id),
+                  placedTags.map((t) => ({
+                    userId: t.userId,
+                    x: t.x,
+                    y: t.y,
+                    mediaIndex: t.mediaIndex,
+                  })),
+                );
+                console.log("[Create] Saved", placedTags.length, "tags");
+              } catch (tagErr) {
+                console.error("[Create] Failed to save tags:", tagErr);
+              }
+            }
+
             showToast("success", "Posted!", "Your post is now live");
             reset();
+            setSelectedTagUsers([]);
             router.back();
           },
           onError: (error: any) => {
@@ -522,7 +551,7 @@ export default function CreateScreen() {
             }
             handlePost();
           }}
-          disabled={isUploading || isCreating || !isValid}
+          disabled={isUploading || isCreating}
           hitSlop={12}
           style={{ marginRight: 8 }}
         >
@@ -597,6 +626,54 @@ export default function CreateScreen() {
             onClear={() => setLocationData(null)}
           />
         </View>
+
+        {/* Tag People Button */}
+        {selectedMedia.length > 0 && !hasVideo && (
+          <Pressable
+            onPress={() => setShowTagSheet(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              marginHorizontal: 16,
+              marginBottom: 16,
+              backgroundColor: "#111",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: placedTags.length > 0 ? "#FF5BFC" : "#333",
+            }}
+          >
+            <UserPlus
+              size={18}
+              color={placedTags.length > 0 ? "#FF5BFC" : "#999"}
+            />
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: "500",
+                flex: 1,
+              }}
+            >
+              {placedTags.length > 0
+                ? `${placedTags.length} ${placedTags.length === 1 ? "person" : "people"} tagged`
+                : "Tag People"}
+            </Text>
+            {placedTags.length > 0 && (
+              <Pressable
+                onPress={() => {
+                  setPlacedTags([]);
+                  setSelectedTagUsers([]);
+                }}
+                hitSlop={12}
+              >
+                <X size={16} color="#999" />
+              </Pressable>
+            )}
+          </Pressable>
+        )}
 
         {/* Tags Input */}
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
@@ -965,6 +1042,26 @@ export default function CreateScreen() {
           </View>
         )}
       </KeyboardAwareScrollView>
+
+      {/* Tag People Sheet */}
+      <TagPeopleSheet
+        visible={showTagSheet}
+        onClose={() => setShowTagSheet(false)}
+        selectedUsers={selectedTagUsers}
+        onSelectionChange={(users: TagCandidate[]) => {
+          setSelectedTagUsers(users);
+          // Convert selected users to placed tags at default center position
+          const newPlacedTags = users.map((u) => ({
+            userId: u.id,
+            username: u.username,
+            avatar: u.avatar,
+            x: 0.5,
+            y: 0.5,
+            mediaIndex: 0,
+          }));
+          setPlacedTags(newPlacedTags);
+        }}
+      />
 
       {/* Progress Overlay */}
       {isUploading && (

@@ -1,48 +1,191 @@
 import { supabase } from "../supabase/client";
+import { getCurrentUserAuthId } from "./auth-helper";
+
+export interface TicketRecord {
+  id: string;
+  event_id: number;
+  ticket_type_id: string;
+  user_id: string;
+  status: "active" | "scanned" | "refunded" | "void";
+  qr_token: string;
+  checked_in_at: string | null;
+  checked_in_by: string | null;
+  purchase_amount_cents: number | null;
+  created_at: string;
+  // Joined fields
+  ticket_type_name?: string;
+  event_title?: string;
+  event_image?: string;
+  event_date?: string;
+  event_location?: string;
+  username?: string;
+}
 
 export const ticketsApi = {
   /**
-   * Get tickets for an event
+   * Get all tickets for an event (organizer view)
    */
-  async getEventTickets<T>(eventId: string): Promise<{ tickets: T[] }> {
+  async getEventTickets(eventId: string): Promise<TicketRecord[]> {
     try {
-      console.log("[Tickets] getEventTickets - not yet implemented");
-      // TODO: Implement when tickets table is available
-      return { tickets: [] };
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("*, ticket_types(name)")
+        .eq("event_id", parseInt(eventId))
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((t: any) => ({
+        ...t,
+        ticket_type_name: t.ticket_types?.name || "General",
+      }));
     } catch (error) {
       console.error("[Tickets] getEventTickets error:", error);
-      return { tickets: [] };
+      return [];
     }
   },
 
   /**
-   * Check in a ticket by ID
+   * Get current user's tickets across all events
    */
-  async checkInTicket(ticketId: string): Promise<{ success: boolean }> {
+  async getMyTickets(): Promise<TicketRecord[]> {
     try {
-      console.log("[Tickets] checkInTicket - not yet implemented");
-      // TODO: Implement when tickets table is available
-      return { success: false };
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return [];
+
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(
+          "*, ticket_types(name), events(title, cover_image_url, start_date, location)",
+        )
+        .eq("user_id", authId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      return (data || []).map((t: any) => ({
+        ...t,
+        ticket_type_name: t.ticket_types?.name || "General",
+        event_title: t.events?.title || "",
+        event_image: t.events?.cover_image_url || "",
+        event_date: t.events?.start_date || "",
+        event_location: t.events?.location || "",
+      }));
     } catch (error) {
-      console.error("[Tickets] checkInTicket error:", error);
-      return { success: false };
+      console.error("[Tickets] getMyTickets error:", error);
+      return [];
     }
   },
 
   /**
-   * Check in a ticket by QR token
+   * Purchase tickets (free or paid via Stripe Checkout)
    */
+  async checkout(params: {
+    eventId: string;
+    ticketTypeId: string;
+    quantity: number;
+    userId: string;
+  }): Promise<{
+    url?: string;
+    tickets?: any[];
+    free?: boolean;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "ticket-checkout",
+        {
+          body: {
+            event_id: params.eventId,
+            ticket_type_id: params.ticketTypeId,
+            quantity: params.quantity,
+            user_id: params.userId,
+          },
+        },
+      );
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("[Tickets] checkout error:", error);
+      return { error: error.message || "Checkout failed" };
+    }
+  },
+
+  /**
+   * Scan/validate a ticket by QR token (organizer)
+   */
+  async scanTicket(
+    qrToken: string,
+    scannedBy?: string,
+  ): Promise<{
+    valid: boolean;
+    reason?: string;
+    ticket?: any;
+  }> {
+    try {
+      const { data, error } = await supabase.functions.invoke("ticket-scan", {
+        body: { qr_token: qrToken, scanned_by: scannedBy },
+      });
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("[Tickets] scanTicket error:", error);
+      return { valid: false, reason: "network_error" };
+    }
+  },
+
+  /**
+   * Get ticket types for an event
+   */
+  async getTicketTypes(eventId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("ticket_types")
+        .select("*")
+        .eq("event_id", parseInt(eventId))
+        .order("price_cents", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error("[Tickets] getTicketTypes error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Get event financials (organizer)
+   */
+  async getEventFinancials(eventId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("event_financials")
+        .select("*")
+        .eq("event_id", parseInt(eventId))
+        .single();
+
+      if (error && error.code !== "PGRST116") throw error;
+      return data;
+    } catch (error) {
+      console.error("[Tickets] getEventFinancials error:", error);
+      return null;
+    }
+  },
+
+  // Legacy compat
+  async checkInTicket(ticketId: string): Promise<{ success: boolean }> {
+    return { success: false };
+  },
   async checkIn(data: {
     qrToken: string;
   }): Promise<{ success: boolean; alreadyCheckedIn?: boolean }> {
-    try {
-      console.log("[Tickets] checkIn - not yet implemented");
-      // TODO: Implement when tickets table is available
-      return { success: false };
-    } catch (error) {
-      console.error("[Tickets] checkIn error:", error);
-      return { success: false };
-    }
+    const result = await ticketsApi.scanTicket(data.qrToken);
+    return {
+      success: result.valid,
+      alreadyCheckedIn: result.reason === "already_scanned",
+    };
   },
 };
 

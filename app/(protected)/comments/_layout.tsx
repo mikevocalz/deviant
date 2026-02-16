@@ -4,7 +4,7 @@ import { useCallback, useRef, useEffect } from "react";
 import { Slot, useRouter } from "expo-router";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 
-const SNAP_POINTS = ["70%"];
+const SNAP_POINTS = ["90%"];
 
 export default function CommentsLayout() {
   const router = useRouter();

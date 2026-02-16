@@ -37,6 +37,14 @@ import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
+import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
+import { usePostTags } from "@/lib/hooks/use-post-tags";
+import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
+import {
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from "react-native-reanimated";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -167,6 +175,28 @@ function PostDetailScreenContent() {
       bookmarkedPostIds.includes(postId) || bookmarkStore.isBookmarked(postId)
     );
   }, [postId, bookmarkedPostIds, bookmarkStore]);
+
+  // Post tags (Instagram-style tap-to-reveal)
+  const { data: postTags = [] } = usePostTags(postId);
+  const tagsVisible = usePostTagsUIStore((s) => s.visibleTags[postId] ?? false);
+  const toggleTags = usePostTagsUIStore((s) => s.toggleTags);
+  const tagProgress = useSharedValue(0);
+
+  const handleImageTap = useCallback(() => {
+    if (postTags.length > 0) {
+      const nextVisible = !tagsVisible;
+      toggleTags(postId);
+      if (nextVisible) {
+        tagProgress.value = withSpring(1, {
+          damping: 18,
+          stiffness: 180,
+          mass: 0.8,
+        });
+      } else {
+        tagProgress.value = withTiming(0, { duration: 180 });
+      }
+    }
+  }, [postTags.length, tagsVisible, toggleTags, postId, tagProgress]);
 
   // Carousel state - track current slide for multi-image posts
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -451,6 +481,26 @@ function PostDetailScreenContent() {
                     No media available
                   </Text>
                 </View>
+              )}
+
+              {/* Tag overlay — tap image to toggle, sits on top of all media */}
+              {!isVideo && postTags.length > 0 && (
+                <Pressable
+                  onPress={handleImageTap}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }}
+                >
+                  <TagOverlayViewer
+                    postId={postId}
+                    mediaIndex={currentSlide}
+                    tagProgress={tagProgress}
+                  />
+                </Pressable>
               )}
             </View>
           ) : (
