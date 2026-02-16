@@ -18,6 +18,7 @@ import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -207,6 +208,7 @@ export default function EventsScreen() {
   const [activeTab, setActiveTab] = useState(0);
   const pagerRef = useRef<any>(null);
   const trace = useScreenTrace("Events");
+  useBootstrapEvents();
 
   // Fetch real events from API
   const { data: events = [], isLoading, error } = useEvents();

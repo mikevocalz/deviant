@@ -186,12 +186,10 @@ export default function ActivityScreen() {
     refetch,
   } = useActivitiesQuery();
 
-  // Store — mutations, follow state, realtime
+  // Store — follow state + mutations only (query is source of truth for activities)
   const {
-    activities: storeActivities,
     markActivityAsRead,
     markAllAsRead,
-    fetchFromBackend,
     subscribeToNotifications,
     fetchFollowingState,
   } = useActivityStore();
@@ -200,24 +198,15 @@ export default function ActivityScreen() {
   const followedUsers = useActivityStore((s) => s.followedUsers);
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
 
-  // Sync store from query data — re-seeds whenever query returns fresh data
-  // This ensures fresh notifications flow through after prefetch/refetch
-  const prevQueryDataRef = useRef<Activity[] | null>(null);
+  // Seed follow state once on mount (for follow-back buttons)
   useEffect(() => {
     if (queryActivities && queryActivities.length > 0) {
-      // Only re-seed if query data actually changed (new reference = TanStack refetched)
-      if (prevQueryDataRef.current !== queryActivities) {
-        prevQueryDataRef.current = queryActivities;
-        useActivityStore.getState().setActivities(queryActivities as any);
-        fetchFollowingState();
-      }
+      fetchFollowingState();
     }
-  }, [queryActivities, fetchFollowingState]);
+  }, [!!queryActivities]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Always prefer query data (source of truth) — store is for mutations only
-  const activities: Activity[] = (queryActivities ||
-    storeActivities ||
-    []) as Activity[];
+  // RC-8: Query is the SINGLE source of truth — no Zustand mirror
+  const activities: Activity[] = (queryActivities || []) as Activity[];
 
   const unreadCount = useMemo(
     () => activities.filter((a) => !a.isRead).length,
@@ -281,15 +270,13 @@ export default function ActivityScreen() {
     console.log("[Activity] Refreshing activities...");
     try {
       await refetch();
-      // Also refresh store so mutations stay in sync
-      await fetchFromBackend();
       console.log("[Activity] Refresh complete");
     } catch (error) {
       console.error("[Activity] Refresh failed:", error);
     } finally {
       setRefreshing(false);
     }
-  }, [refetch, fetchFromBackend]);
+  }, [refetch]);
 
   const handleUserPress = useCallback(
     (username: string) => {

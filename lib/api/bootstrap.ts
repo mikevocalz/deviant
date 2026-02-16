@@ -72,7 +72,12 @@ export interface BootstrapProfileResponse {
     viewerIsFollowing: boolean;
     viewerIsFollowedBy: boolean;
   };
-  posts: { id: string; thumbnailUrl: string; type: string; likesCount: number }[];
+  posts: {
+    id: string;
+    thumbnailUrl: string;
+    type: string;
+    likesCount: number;
+  }[];
   nextCursor: number | null;
   hasMore: boolean;
 }
@@ -92,6 +97,49 @@ export interface BootstrapNotificationsResponse {
   }[];
   unreadCount: number;
   viewerFollowing: Record<string, boolean>;
+}
+
+export interface BootstrapMessagesResponse {
+  conversations: {
+    id: string;
+    user: {
+      id: string;
+      authId: string;
+      name: string;
+      username: string;
+      avatar: string;
+    };
+    lastMessage: string;
+    timestamp: string;
+    unread: boolean;
+    isGroup: boolean;
+  }[];
+  unreadInbox: number;
+  unreadSpam: number;
+  _meta?: { elapsed: number; count: number };
+}
+
+export interface BootstrapEventsResponse {
+  events: {
+    id: string;
+    title: string;
+    description: string;
+    date: string;
+    month: string;
+    fullDate?: string;
+    time: string;
+    location: string;
+    image: string;
+    images: any[];
+    youtubeVideoUrl: string | null;
+    price: number;
+    likes: number;
+    attendees: { image: string; initials: string }[] | number;
+    totalAttendees: number;
+    host: { username: string; avatar: string };
+  }[];
+  viewerRsvps: Record<string, string>;
+  _meta?: { elapsed: number; count: number };
 }
 
 export const bootstrapApi = {
@@ -119,7 +167,9 @@ export const bootstrapApi = {
       if (error) throw error;
 
       const elapsed = Date.now() - t0;
-      console.log(`[Bootstrap] Feed loaded in ${elapsed}ms — ${data?.posts?.length || 0} posts, ${data?.stories?.length || 0} stories`);
+      console.log(
+        `[Bootstrap] Feed loaded in ${elapsed}ms — ${data?.posts?.length || 0} posts, ${data?.stories?.length || 0} stories`,
+      );
 
       return data as BootstrapFeedResponse;
     } catch (err) {
@@ -176,6 +226,74 @@ export const bootstrapApi = {
       return data as BootstrapNotificationsResponse;
     } catch (err) {
       console.error("[Bootstrap] Notifications error:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Messages bootstrap — conversations + unread counts in one request.
+   */
+  async messages(params: {
+    userId: string;
+    filter?: "primary" | "requests";
+    limit?: number;
+  }): Promise<BootstrapMessagesResponse | null> {
+    try {
+      const t0 = Date.now();
+      const { data, error } = await supabase.functions.invoke(
+        "bootstrap-messages",
+        {
+          body: {
+            user_id: params.userId,
+            filter: params.filter || "primary",
+            limit: params.limit || 30,
+          },
+        },
+      );
+
+      if (error) throw error;
+
+      const elapsed = Date.now() - t0;
+      console.log(
+        `[Bootstrap] Messages loaded in ${elapsed}ms — ${data?.conversations?.length || 0} conversations`,
+      );
+
+      return data as BootstrapMessagesResponse;
+    } catch (err) {
+      console.error("[Bootstrap] Messages error:", err);
+      return null;
+    }
+  },
+
+  /**
+   * Events bootstrap — events + RSVP state in one request.
+   */
+  async events(params: {
+    userId: string;
+    limit?: number;
+  }): Promise<BootstrapEventsResponse | null> {
+    try {
+      const t0 = Date.now();
+      const { data, error } = await supabase.functions.invoke(
+        "bootstrap-events",
+        {
+          body: {
+            user_id: params.userId,
+            limit: params.limit || 20,
+          },
+        },
+      );
+
+      if (error) throw error;
+
+      const elapsed = Date.now() - t0;
+      console.log(
+        `[Bootstrap] Events loaded in ${elapsed}ms — ${data?.events?.length || 0} events`,
+      );
+
+      return data as BootstrapEventsResponse;
+    } catch (err) {
+      console.error("[Bootstrap] Events error:", err);
       return null;
     }
   },
