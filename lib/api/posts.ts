@@ -402,6 +402,11 @@ export const postsApi = {
     try {
       console.log("[Posts] createPost via Edge Function");
 
+      // Guard: media is required — never allow empty-media posts
+      if (!data.media || data.media.length === 0) {
+        throw new Error("Post must include at least one photo or video");
+      }
+
       const token = await requireBetterAuthToken();
 
       const { data: response, error } =
