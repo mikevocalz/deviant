@@ -205,7 +205,11 @@ export function useNotifications() {
                   }
                   break;
                 case "follow":
-                  if (data.userId || data.senderId) {
+                  if (data.senderUsername) {
+                    router.push(
+                      `/(protected)/profile/${data.senderUsername}` as any,
+                    );
+                  } else if (data.userId || data.senderId) {
                     router.push(
                       `/(protected)/profile/${data.userId || data.senderId}` as any,
                     );

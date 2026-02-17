@@ -164,7 +164,9 @@ export default function RootLayout() {
           if (data.postId) route = `/(protected)/post/${data.postId}`;
           break;
         case "follow":
-          if (data.userId || data.senderId)
+          if (data.senderUsername)
+            route = `/(protected)/profile/${data.senderUsername}`;
+          else if (data.userId || data.senderId)
             route = `/(protected)/profile/${data.userId || data.senderId}`;
           break;
         case "event":
