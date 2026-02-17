@@ -7,6 +7,7 @@ import { commentsApi as commentsApiClient } from "@/lib/api/comments";
 import type { Comment } from "@/lib/types";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { usePostStore } from "@/lib/stores/post-store";
+import { Image } from "expo-image";
 
 // Query keys
 export const commentKeys = {
@@ -52,6 +53,14 @@ export function useComments(postId: string, limit?: number) {
             },
           });
         }
+        // Prefetch avatar images so they appear instantly when comments render
+        const avatarUrls = comments
+          .map((c) => c.avatar)
+          .filter((url): url is string => !!url && url.startsWith("http"));
+        if (avatarUrls.length > 0) {
+          Image.prefetch(avatarUrls).catch(() => {});
+        }
+
         return comments;
       } catch (error) {
         console.error("[useComments] Error fetching comments:", error);
