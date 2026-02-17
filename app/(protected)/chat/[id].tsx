@@ -409,14 +409,19 @@ export default function ChatScreen() {
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
 
+  // Track the resolved conversation ID so useFocusEffect can use it
+  // (chatId may be a username like "ibreathereal", not a numeric conv ID)
+  const resolvedConvIdRef = useRef<string | null>(null);
+
   // Refresh messages on focus to pick up read receipts from the other user
   useFocusEffect(
     useCallback(() => {
-      if (chatId && chatMessages.length > 0) {
-        // Silently reload to pick up readAt changes
-        loadMessages(chatId);
+      const convId = resolvedConvIdRef.current;
+      if (convId && chatMessages.length > 0) {
+        // Silently reload to pick up readAt changes — use RESOLVED conv ID
+        loadMessages(convId);
       }
-    }, [chatId, loadMessages, chatMessages.length > 0]),
+    }, [loadMessages, chatMessages.length > 0]),
   );
 
   // Load messages from backend on mount and mark as read
@@ -440,6 +445,9 @@ export default function ChatScreen() {
               await messagesApiClient.getOrCreateConversation(chatId);
             if (convId) actualConversationId = convId;
           }
+
+          // Store resolved ID for useFocusEffect
+          resolvedConvIdRef.current = actualConversationId;
 
           // Load messages FIRST — this is what the user sees
           await loadMessages(actualConversationId);
