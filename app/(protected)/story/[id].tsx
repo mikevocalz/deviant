@@ -125,7 +125,10 @@ function FloatingReactionEmoji({
 }
 
 export default function StoryViewerScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, username: usernameParam } = useLocalSearchParams<{
+    id: string;
+    username?: string;
+  }>();
   const router = useRouter();
   const {
     currentStoryId,
@@ -182,9 +185,25 @@ export default function StoryViewerScreen() {
     (s) => s.items && s.items.length > 0,
   );
   // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
-  const currentStoryIndex = availableStories.findIndex(
+  let currentStoryIndex = availableStories.findIndex(
     (s) => String(s.id) === String(currentStoryId),
   );
+
+  // Fallback: if storyId didn't match (e.g. stale ID from chat story-reply metadata),
+  // try finding by username param. Group IDs change when new stories are posted.
+  if (currentStoryIndex === -1 && usernameParam) {
+    currentStoryIndex = availableStories.findIndex(
+      (s) => s.username?.toLowerCase() === usernameParam.toLowerCase(),
+    );
+    if (currentStoryIndex !== -1) {
+      const found = availableStories[currentStoryIndex];
+      console.log(
+        `[StoryViewer] ID miss, found by username '${usernameParam}' → id=${found.id}`,
+      );
+      setCurrentStoryId(String(found.id));
+    }
+  }
+
   const story = availableStories[currentStoryIndex];
   const currentItem = story?.items?.[currentItemIndex];
 
