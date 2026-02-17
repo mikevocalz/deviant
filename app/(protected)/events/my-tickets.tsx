@@ -10,28 +10,54 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { ArrowLeft, Ticket, QrCode, Calendar, MapPin } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Ticket,
+  QrCode,
+  Calendar,
+  MapPin,
+} from "lucide-react-native";
 import { Image } from "expo-image";
 import { LegendList } from "@/components/list";
 import { useMyTickets } from "@/lib/hooks/use-tickets";
 import { FeatureGate } from "@/lib/feature-flags";
 import type { TicketRecord } from "@/lib/api/tickets";
 
-const STATUS_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+const STATUS_COLORS: Record<
+  string,
+  { bg: string; text: string; label: string }
+> = {
   active: { bg: "rgba(34, 197, 94, 0.15)", text: "#22C55E", label: "Active" },
   scanned: { bg: "rgba(59, 130, 246, 0.15)", text: "#3B82F6", label: "Used" },
-  refunded: { bg: "rgba(239, 68, 68, 0.15)", text: "#EF4444", label: "Refunded" },
+  refunded: {
+    bg: "rgba(239, 68, 68, 0.15)",
+    text: "#EF4444",
+    label: "Refunded",
+  },
   void: { bg: "rgba(107, 114, 128, 0.15)", text: "#6B7280", label: "Void" },
 };
 
-function TicketCard({ ticket, index }: { ticket: TicketRecord; index: number }) {
+function TicketCard({
+  ticket,
+  index,
+}: {
+  ticket: TicketRecord;
+  index: number;
+}) {
   const router = useRouter();
   const status = STATUS_COLORS[ticket.status] || STATUS_COLORS.void;
 
   return (
-    <Animated.View entering={FadeInDown.delay(index * 60).duration(300).springify().damping(18)}>
+    <Animated.View
+      entering={FadeInDown.delay(index * 60)
+        .duration(300)
+        .springify()
+        .damping(18)}
+    >
       <Pressable
-        onPress={() => router.push(`/(protected)/ticket/${ticket.event_id}` as any)}
+        onPress={() =>
+          router.push(`/(protected)/ticket/${ticket.event_id}` as any)
+        }
         className="mx-4 mb-3 bg-card rounded-2xl border border-border overflow-hidden"
       >
         <View className="flex-row">
@@ -51,10 +77,16 @@ function TicketCard({ ticket, index }: { ticket: TicketRecord; index: number }) 
           {/* Info */}
           <View className="flex-1 p-3 justify-between">
             <View>
-              <Text className="text-sm font-sans-bold text-foreground" numberOfLines={1}>
+              <Text
+                className="text-sm font-sans-bold text-foreground"
+                numberOfLines={1}
+              >
                 {ticket.event_title || "Event"}
               </Text>
-              <Text className="text-xs text-muted-foreground mt-0.5" numberOfLines={1}>
+              <Text
+                className="text-xs text-muted-foreground mt-0.5"
+                numberOfLines={1}
+              >
                 {ticket.ticket_type_name}
               </Text>
             </View>
@@ -74,7 +106,10 @@ function TicketCard({ ticket, index }: { ticket: TicketRecord; index: number }) 
               {ticket.event_location && (
                 <View className="flex-row items-center gap-1">
                   <MapPin size={10} color="#999" />
-                  <Text className="text-[10px] text-muted-foreground" numberOfLines={1}>
+                  <Text
+                    className="text-[10px] text-muted-foreground"
+                    numberOfLines={1}
+                  >
                     {ticket.event_location}
                   </Text>
                 </View>
@@ -88,13 +123,14 @@ function TicketCard({ ticket, index }: { ticket: TicketRecord; index: number }) 
               style={{ backgroundColor: status.bg }}
               className="rounded-full px-2 py-0.5"
             >
-              <Text style={{ color: status.text }} className="text-[10px] font-sans-semibold">
+              <Text
+                style={{ color: status.text }}
+                className="text-[10px] font-sans-semibold"
+              >
                 {status.label}
               </Text>
             </View>
-            {ticket.status === "active" && (
-              <QrCode size={20} color="#8A40CF" />
-            )}
+            {ticket.status === "active" && <QrCode size={20} color="#8A40CF" />}
           </View>
         </View>
       </Pressable>
@@ -161,11 +197,18 @@ function MyTicketsContent() {
         <LegendList
           data={tickets}
           keyExtractor={(item: TicketRecord) => item.id}
-          renderItem={({ item, index }: { item: TicketRecord; index: number }) => (
-            <TicketCard ticket={item} index={index} />
-          )}
+          renderItem={({
+            item,
+            index,
+          }: {
+            item: TicketRecord;
+            index: number;
+          }) => <TicketCard ticket={item} index={index} />}
           estimatedItemSize={110}
-          contentContainerStyle={{ paddingTop: 8, paddingBottom: insets.bottom + 20 }}
+          contentContainerStyle={{
+            paddingTop: 8,
+            paddingBottom: insets.bottom + 20,
+          }}
           onRefresh={refetch}
           refreshing={false}
         />
@@ -175,12 +218,28 @@ function MyTicketsContent() {
 }
 
 export default function MyTicketsScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   return (
     <FeatureGate
       flag="ticketing_enabled"
       fallback={
-        <View className="flex-1 bg-background items-center justify-center">
-          <Text className="text-muted-foreground">Tickets coming soon</Text>
+        <View
+          className="flex-1 bg-background"
+          style={{ paddingTop: insets.top }}
+        >
+          <View className="flex-row items-center px-4 py-3 gap-3">
+            <Pressable onPress={() => router.back()} hitSlop={12}>
+              <ArrowLeft size={22} color="#fff" />
+            </Pressable>
+            <Text className="text-lg font-sans-bold text-foreground flex-1">
+              My Tickets
+            </Text>
+          </View>
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-muted-foreground">Tickets coming soon</Text>
+          </View>
         </View>
       }
     >

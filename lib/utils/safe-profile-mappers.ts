@@ -1,6 +1,6 @@
 /**
  * Safe Profile Mappers
- * 
+ *
  * PHASE 2: Defensive data mappers that NEVER throw
  * These ensure Profile screen cannot crash from malformed data
  */
@@ -43,37 +43,40 @@ export interface SafeGridTile {
  * safeProfile - Converts any profile-like object to SafeProfileData
  * NEVER throws - always returns valid object
  */
-export function safeProfile(
-  profileData: any,
-  authUser: any,
-): SafeProfileData {
+export function safeProfile(profileData: any, authUser: any): SafeProfileData {
   try {
     // Try profile data first, then authUser fallback
     const source = profileData || authUser || {};
-    
+
     return {
       id: String(source.id || authUser?.id || ""),
       username: String(source.username || authUser?.username || ""),
       displayName: String(
-        source.displayName || 
-        source.name || 
-        authUser?.name || 
-        authUser?.displayName || 
-        "User"
+        source.displayName ||
+          source.name ||
+          authUser?.name ||
+          authUser?.displayName ||
+          "User",
       ),
       bio: String(source.bio || authUser?.bio || ""),
       avatar: extractAvatarSafe(source) || extractAvatarSafe(authUser),
       website: source.website || authUser?.website || null,
       location: source.location || authUser?.location || null,
-      hashtags: Array.isArray(source.hashtags) 
-        ? source.hashtags 
-        : Array.isArray(authUser?.hashtags) 
-          ? authUser.hashtags 
+      hashtags: Array.isArray(source.hashtags)
+        ? source.hashtags
+        : Array.isArray(authUser?.hashtags)
+          ? authUser.hashtags
           : [],
-      followersCount: safeNumber(source.followersCount ?? authUser?.followersCount),
-      followingCount: safeNumber(source.followingCount ?? authUser?.followingCount),
+      followersCount: safeNumber(
+        source.followersCount ?? authUser?.followersCount,
+      ),
+      followingCount: safeNumber(
+        source.followingCount ?? authUser?.followingCount,
+      ),
       postsCount: safeNumber(source.postsCount ?? authUser?.postsCount),
-      isVerified: Boolean(source.verified || source.isVerified || authUser?.isVerified),
+      isVerified: Boolean(
+        source.verified || source.isVerified || authUser?.isVerified,
+      ),
       _isPlaceholder: !source.id && !authUser?.id,
     };
   } catch (error) {
@@ -137,9 +140,12 @@ export function safeGridTile(post: any): SafeGridTile {
     }
 
     // Extract cover URL with fallbacks
+    // For video posts, transformPost puts the thumbnail image URL on the
+    // post-level `thumbnail` field (separate from media[0] which is the video).
     let coverUrl: string | null = null;
     if (kind === "video") {
-      coverUrl = media[0]?.posterUrl || media[0]?.thumbnail || media[0]?.url || null;
+      coverUrl =
+        post.thumbnail || media[0]?.posterUrl || media[0]?.thumbnail || null;
     } else {
       coverUrl = media[0]?.thumbnail || media[0]?.url || null;
     }
@@ -181,9 +187,7 @@ export function safeGridTiles(posts: any): SafeGridTile[] {
     if (!posts || !Array.isArray(posts)) {
       return [];
     }
-    return posts
-      .map(safeGridTile)
-      .filter((tile) => tile._isValid && tile.id);
+    return posts.map(safeGridTile).filter((tile) => tile._isValid && tile.id);
   } catch (error) {
     console.error("[safeGridTiles] Error mapping posts:", error);
     return [];
@@ -196,7 +200,7 @@ export function safeGridTiles(posts: any): SafeGridTile[] {
 function extractAvatarSafe(obj: any): string | null {
   try {
     if (!obj) return null;
-    
+
     // Direct string URL
     if (typeof obj.avatar === "string" && obj.avatar.startsWith("http")) {
       return obj.avatar;
@@ -204,12 +208,12 @@ function extractAvatarSafe(obj: any): string | null {
     if (typeof obj.avatarUrl === "string" && obj.avatarUrl.startsWith("http")) {
       return obj.avatarUrl;
     }
-    
+
     // Media object with url
     if (obj.avatar?.url && typeof obj.avatar.url === "string") {
       return obj.avatar.url;
     }
-    
+
     return null;
   } catch {
     return null;
@@ -244,13 +248,13 @@ export function safeBookmarkIds(
     if (Array.isArray(queryData) && queryData.length > 0) {
       return queryData.filter((id) => typeof id === "string" && id.length > 0);
     }
-    
+
     // Then try store
     const storeData = storeGetter();
     if (Array.isArray(storeData)) {
       return storeData.filter((id) => typeof id === "string" && id.length > 0);
     }
-    
+
     return [];
   } catch (error) {
     console.error("[safeBookmarkIds] Error getting bookmarks:", error);

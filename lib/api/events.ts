@@ -359,6 +359,13 @@ export const eventsApi = {
         ageRestriction: data.age_restriction || undefined,
         nsfw: data.nsfw || false,
         shareSlug: data.share_slug || undefined,
+        // Enrichment fields
+        endDate: data.end_date || undefined,
+        dressCode: data.dress_code || undefined,
+        doorPolicy: data.door_policy || undefined,
+        entryWindow: data.entry_window || undefined,
+        lineup: data.lineup || undefined,
+        perks: data.perks || undefined,
       };
     } catch (error) {
       console.error("[Events] getEventById error:", error);
@@ -492,6 +499,11 @@ export const eventsApi = {
       if (eventData.endDate) insertPayload.end_date = eventData.endDate;
       if (eventData.ticketingEnabled != null)
         insertPayload.ticketing_enabled = eventData.ticketingEnabled;
+      if (eventData.dressCode) insertPayload.dress_code = eventData.dressCode;
+      if (eventData.doorPolicy)
+        insertPayload.door_policy = eventData.doorPolicy;
+      if (eventData.lineup) insertPayload.lineup = eventData.lineup;
+      if (eventData.perks) insertPayload.perks = eventData.perks;
 
       const { data, error } = await supabase
         .from(DB.events.table)
