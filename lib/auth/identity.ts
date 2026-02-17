@@ -26,6 +26,15 @@ let cachedUserRow: UserRow | null = null;
 let cachedUserRowExpiry = 0;
 const CACHE_TTL_MS = 60000; // 1 minute
 
+/**
+ * Get the cached integer user ID synchronously.
+ * Used as a fallback when the auth store has a non-numeric ID.
+ * Returns null if the cache hasn't been populated yet.
+ */
+export function getCachedUserIdInt(): number | null {
+  return cachedUserRow?.id ?? null;
+}
+
 export interface UserRow {
   id: number;
   authId: string;

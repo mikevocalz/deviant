@@ -5,8 +5,25 @@ import {
   getCurrentUserAuthId,
   resolveUserIdInt,
 } from "./auth-helper";
-import { requireBetterAuthToken } from "../auth/identity";
+import {
+  requireBetterAuthToken,
+  getCurrentUserId as getCurrentUserIdAsync,
+} from "../auth/identity";
 import { useAuthStore } from "../stores/auth-store";
+
+/**
+ * Resilient visitor ID resolver — tries sync first, falls back to async.
+ * Prevents silent null returns that break all message queries.
+ */
+async function resolveVisitorIdInt(): Promise<number | null> {
+  const syncId = getCurrentUserIdInt();
+  if (syncId) return syncId;
+  // Sync failed (non-numeric user.id) — resolve via DB lookup
+  const asyncId = await getCurrentUserIdAsync();
+  if (asyncId) return asyncId;
+  console.warn("[Messages] resolveVisitorIdInt: could not resolve visitor ID");
+  return null;
+}
 
 interface SendMessageResponse {
   ok: boolean;
@@ -49,90 +66,100 @@ export const messagesApi = {
         (data || []).map(async (conv: any) => {
           const convId = conv.conversation[DB.conversations.id];
 
-          // Get last message
-          const { data: lastMessage } = await supabase
-            .from(DB.messages.table)
-            .select(
-              `
-              ${DB.messages.content},
-              ${DB.messages.createdAt},
-              sender:${DB.messages.senderId}(${DB.users.username})
-            `,
-            )
-            .eq(DB.messages.conversationId, convId)
-            .order(DB.messages.createdAt, { ascending: false })
-            .limit(1)
-            .single();
-
-          // Get other participant's auth_id
-          // conversations_rels.users_id is TEXT (auth_id), not a FK — can't use Supabase join
-          const { data: participants } = await supabase
-            .from(DB.conversationsRels.table)
-            .select(DB.conversationsRels.usersId)
-            .eq(DB.conversationsRels.parentId, convId)
-            .neq(DB.conversationsRels.usersId, authId)
-            .limit(1);
-
-          const otherAuthId = participants?.[0]?.[DB.conversationsRels.usersId];
-          let otherUserData: any = null;
-          if (otherAuthId) {
-            const { data: userData } = await supabase
-              .from(DB.users.table)
-              .select(
-                `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-              )
-              .eq(DB.users.authId, otherAuthId)
-              .single();
-            otherUserData = userData;
-          }
-
-          // Check for unread messages (not sent by me, read_at is null)
-          const visitorIntId = getCurrentUserIdInt();
-          let hasUnread = false;
-          if (visitorIntId) {
-            const { count } = await supabase
+          try {
+            // Get last message (no join — sender info unused, avoids FK ambiguity)
+            const { data: lastMessage } = await supabase
               .from(DB.messages.table)
-              .select(DB.messages.id, { count: "exact", head: true })
+              .select(
+                `
+              ${DB.messages.content},
+              ${DB.messages.createdAt}
+            `,
+              )
               .eq(DB.messages.conversationId, convId)
-              .is(DB.messages.readAt, null)
-              .neq(DB.messages.senderId, visitorIntId);
-            hasUnread = (count ?? 0) > 0;
+              .order(DB.messages.createdAt, { ascending: false })
+              .limit(1)
+              .single();
+
+            // Get other participant's auth_id
+            // conversations_rels.users_id is TEXT (auth_id), not a FK — can't use Supabase join
+            const { data: participants } = await supabase
+              .from(DB.conversationsRels.table)
+              .select(DB.conversationsRels.usersId)
+              .eq(DB.conversationsRels.parentId, convId)
+              .neq(DB.conversationsRels.usersId, authId)
+              .limit(1);
+
+            const otherAuthId =
+              participants?.[0]?.[DB.conversationsRels.usersId];
+            let otherUserData: any = null;
+            if (otherAuthId) {
+              const { data: userData } = await supabase
+                .from(DB.users.table)
+                .select(
+                  `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+                )
+                .eq(DB.users.authId, otherAuthId)
+                .single();
+              otherUserData = userData;
+            }
+
+            // Check for unread messages (not sent by me, read_at is null)
+            const visitorIntId = await resolveVisitorIdInt();
+            let hasUnread = false;
+            if (visitorIntId) {
+              const { count } = await supabase
+                .from(DB.messages.table)
+                .select(DB.messages.id, { count: "exact", head: true })
+                .eq(DB.messages.conversationId, convId)
+                .is(DB.messages.readAt, null)
+                .neq(DB.messages.senderId, visitorIntId);
+              hasUnread = (count ?? 0) > 0;
+            }
+
+            const rawTs =
+              lastMessage?.[DB.messages.createdAt] ||
+              conv.conversation[DB.conversations.lastMessageAt] ||
+              "";
+
+            return {
+              id: String(convId),
+              user: {
+                id: otherUserData?.[DB.users.id]
+                  ? String(otherUserData[DB.users.id])
+                  : "",
+                authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
+                name: otherUserData?.[DB.users.username] || "Unknown",
+                username: otherUserData?.[DB.users.username] || "unknown",
+                avatar: otherUserData?.avatar?.url || "",
+              },
+              lastMessage: lastMessage?.[DB.messages.content] || "",
+              timestamp: formatTimeAgo(rawTs),
+              unread: hasUnread,
+              isGroup: !!conv.conversation[DB.conversations.isGroup],
+              _rawTs: rawTs,
+            };
+          } catch (convError) {
+            console.error(
+              "[Messages] Error processing conversation",
+              convId,
+              convError,
+            );
+            return null;
           }
-
-          const rawTs =
-            lastMessage?.[DB.messages.createdAt] ||
-            conv.conversation[DB.conversations.lastMessageAt] ||
-            "";
-
-          return {
-            id: String(convId),
-            user: {
-              id: otherUserData?.[DB.users.id]
-                ? String(otherUserData[DB.users.id])
-                : "",
-              authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
-              name: otherUserData?.[DB.users.username] || "Unknown",
-              username: otherUserData?.[DB.users.username] || "unknown",
-              avatar: otherUserData?.avatar?.url || "",
-            },
-            lastMessage: lastMessage?.[DB.messages.content] || "",
-            timestamp: formatTimeAgo(rawTs),
-            unread: hasUnread,
-            isGroup: !!conv.conversation[DB.conversations.isGroup],
-            _rawTs: rawTs,
-          };
         }),
       );
 
-      // Sort by most recent message first
-      conversations.sort((a: any, b: any) => {
+      // Filter out failed conversations, sort by most recent
+      const valid = conversations.filter(Boolean);
+      valid.sort((a: any, b: any) => {
         const tA = new Date(a._rawTs || 0).getTime();
         const tB = new Date(b._rawTs || 0).getTime();
         return tB - tA;
       });
 
       // Strip internal field before returning
-      return conversations.map(({ _rawTs, ...rest }: any) => rest);
+      return valid.map(({ _rawTs, ...rest }: any) => rest);
     } catch (error) {
       console.error("[Messages] getConversations error:", error);
       return [];
@@ -146,8 +173,22 @@ export const messagesApi = {
     try {
       console.log("[Messages] getMessages:", conversationId);
 
-      const visitorId = getCurrentUserIdInt();
-      if (!visitorId) return [];
+      const visitorId = await resolveVisitorIdInt();
+      if (!visitorId) {
+        console.error(
+          "[Messages] getMessages: no visitor ID, cannot load messages",
+        );
+        return [];
+      }
+
+      const convIdInt = parseInt(conversationId);
+      if (isNaN(convIdInt)) {
+        console.error(
+          "[Messages] getMessages: invalid conversationId:",
+          conversationId,
+        );
+        return [];
+      }
 
       const { data, error } = await supabase
         .from(DB.messages.table)
@@ -161,7 +202,7 @@ export const messagesApi = {
           ${DB.messages.readAt}
         `,
         )
-        .eq(DB.messages.conversationId, parseInt(conversationId))
+        .eq(DB.messages.conversationId, convIdInt)
         .order(DB.messages.createdAt, { ascending: true })
         .limit(limit);
 
@@ -290,7 +331,7 @@ export const messagesApi = {
   async getUnreadCount() {
     try {
       const authId = await getCurrentUserAuthId();
-      const visitorIntId = getCurrentUserIdInt();
+      const visitorIntId = await resolveVisitorIdInt();
       if (!authId) return 0;
 
       // Get IDs of users the current user is following (inbox = followed users)
@@ -337,7 +378,7 @@ export const messagesApi = {
   async getSpamUnreadCount() {
     try {
       const authId = await getCurrentUserAuthId();
-      const visitorIntId = getCurrentUserIdInt();
+      const visitorIntId = await resolveVisitorIdInt();
       if (!authId) return 0;
 
       // Get IDs of users the current user is following
@@ -486,7 +527,7 @@ export const messagesApi = {
    */
   async deleteMessage(messageId: string) {
     try {
-      const visitorIntId = getCurrentUserIdInt();
+      const visitorIntId = await resolveVisitorIdInt();
       if (!visitorIntId) throw new Error("Not authenticated");
 
       const { error } = await supabase
@@ -508,7 +549,7 @@ export const messagesApi = {
    */
   async editMessage(messageId: string, newContent: string) {
     try {
-      const visitorIntId = getCurrentUserIdInt();
+      const visitorIntId = await resolveVisitorIdInt();
       if (!visitorIntId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
@@ -598,7 +639,7 @@ export const messagesApi = {
    */
   async getFollowingIds(): Promise<string[]> {
     try {
-      const visitorId = getCurrentUserIdInt();
+      const visitorId = await resolveVisitorIdInt();
       if (!visitorId) return [];
 
       const { data, error } = await supabase

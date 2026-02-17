@@ -1,5 +1,5 @@
 import { useAuthStore } from "../stores/auth-store";
-import { getCurrentUserRow } from "../auth/identity";
+import { getCurrentUserRow, getCachedUserIdInt } from "../auth/identity";
 
 /**
  * Get current user ID from Better Auth store
@@ -37,15 +37,19 @@ export function getCurrentUserId(): string | null {
  */
 export function getCurrentUserIdInt(): number | null {
   const id = getCurrentUserId();
-  if (!id) return null;
-
-  const parsed = parseInt(id, 10);
-  if (isNaN(parsed)) {
-    console.warn("[auth-helper] getCurrentUserIdInt failed to parse:", id);
-    return null;
+  if (id) {
+    const parsed = parseInt(id, 10);
+    if (!isNaN(parsed)) return parsed;
   }
 
-  return parsed;
+  // Fallback: check identity cache (populated by getCurrentUserRow during boot)
+  const cachedId = getCachedUserIdInt();
+  if (cachedId) return cachedId;
+
+  if (id) {
+    console.warn("[auth-helper] getCurrentUserIdInt failed to parse:", id);
+  }
+  return null;
 }
 
 /**
