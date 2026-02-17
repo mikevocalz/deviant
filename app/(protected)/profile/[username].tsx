@@ -780,13 +780,18 @@ function UserProfileScreenComponent() {
                       width: "100%",
                       height: "100%",
                       backgroundColor: "#1a1a1a",
+                      borderRadius: 8,
                       alignItems: "center",
                       justifyContent: "center",
                     }}
                   >
-                    <Text className="text-muted-foreground text-xs">
-                      No image
-                    </Text>
+                    {post.type === "video" ? (
+                      <Play size={24} color="#666" fill="#666" />
+                    ) : (
+                      <Text className="text-muted-foreground text-xs">
+                        No image
+                      </Text>
+                    )}
                   </View>
                 )}
               </Pressable>

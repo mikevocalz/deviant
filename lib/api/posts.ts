@@ -58,13 +58,12 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const thumbnailEntry = allMedia.find((m: any) => m.type === "thumbnail");
   const media = allMedia.filter((m: any) => m.type !== "thumbnail");
 
-  // For video posts, use the stored thumbnail image; otherwise use first media URL
+  // For video posts, use the stored thumbnail image; for images use first media URL
+  // NEVER use a video URL as thumbnail — expo-image can't render it
   const firstMedia = media[0];
   const type = firstMedia?.type || "image";
   const thumbnail =
-    type === "video" && thumbnailEntry?.url
-      ? thumbnailEntry.url
-      : firstMedia?.url || "";
+    type === "video" ? thumbnailEntry?.url || "" : firstMedia?.url || "";
   const hasMultipleImages = media.length > 1;
 
   return {
