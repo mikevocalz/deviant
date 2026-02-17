@@ -60,10 +60,13 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
 
   // For video posts, use the stored thumbnail image; for images use first media URL
   // NEVER use a video URL as thumbnail — expo-image can't render it
+  // Use undefined (not "") when missing — empty string breaks safeGridTile fallback chain
   const firstMedia = media[0];
   const type = firstMedia?.type || "image";
   const thumbnail =
-    type === "video" ? thumbnailEntry?.url || "" : firstMedia?.url || "";
+    type === "video"
+      ? thumbnailEntry?.url || undefined
+      : firstMedia?.url || undefined;
   const hasMultipleImages = media.length > 1;
 
   return {
