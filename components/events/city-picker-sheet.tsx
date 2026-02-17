@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,7 +7,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import BottomSheet, {
-  BottomSheetModal,
   BottomSheetBackdrop,
   BottomSheetFlatList,
 } from "@gorhom/bottom-sheet";
@@ -35,7 +28,7 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
   visible,
   onDismiss,
 }) => {
-  const sheetRef = useRef<BottomSheetModal>(null);
+  const sheetRef = useRef<BottomSheet>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [requestingLocation, setRequestingLocation] = useState(false);
 
@@ -48,15 +41,14 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
   const { data: allCities = [], isLoading: citiesLoading } = useCities();
   const { data: searchResults = [] } = useCitySearch(searchQuery);
 
-  const snapPoints = useMemo(() => ["65%"], []);
+  const snapPoints = useMemo(() => ["75%"], []);
 
-  useEffect(() => {
-    if (visible) {
-      sheetRef.current?.present();
-    } else {
-      sheetRef.current?.dismiss();
-    }
-  }, [visible]);
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1) onDismiss();
+    },
+    [onDismiss],
+  );
 
   const handleSelectCity = useCallback(
     (city: City) => {
@@ -163,11 +155,14 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
     [activeCity, handleSelectCity],
   );
 
+  if (!visible) return null;
+
   return (
-    <BottomSheetModal
+    <BottomSheet
       ref={sheetRef}
+      index={0}
       snapPoints={snapPoints}
-      onDismiss={onDismiss}
+      onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
       enablePanDownToClose
       backgroundStyle={{
@@ -271,6 +266,6 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
           contentContainerStyle={{ paddingBottom: 40 }}
         />
       )}
-    </BottomSheetModal>
+    </BottomSheet>
   );
 };

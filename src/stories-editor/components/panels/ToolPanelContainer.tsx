@@ -1,14 +1,14 @@
 // ============================================================
 // ToolPanelContainer — @gorhom/bottom-sheet powered tool panels
 // ============================================================
-// Uses BottomSheetModal for native-feeling slide-up panels.
-// Visibility controlled via `visible` prop — auto-presents/dismisses.
+// Uses plain BottomSheet (not BottomSheetModal) for reliable
+// slide-up behavior inside nested navigation stacks.
+// BottomSheetModal uses portals which can fail in deep stacks.
 // ============================================================
 
-import React, { useCallback, useEffect, useRef, useMemo } from "react";
+import React, { useCallback, useRef, useMemo } from "react";
 import { useWindowDimensions } from "react-native";
 import BottomSheet, {
-  BottomSheetModal,
   BottomSheetBackdrop,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
@@ -23,7 +23,7 @@ interface ToolPanelContainerProps {
 
 export const ToolPanelContainer: React.FC<ToolPanelContainerProps> = React.memo(
   ({ visible, onDismiss, heightRatio = 0.42, children }) => {
-    const sheetRef = useRef<BottomSheetModal>(null);
+    const sheetRef = useRef<BottomSheet>(null);
     const { height: screenH } = useWindowDimensions();
 
     const snapPoints = useMemo(
@@ -31,17 +31,14 @@ export const ToolPanelContainer: React.FC<ToolPanelContainerProps> = React.memo(
       [screenH, heightRatio],
     );
 
-    useEffect(() => {
-      if (visible) {
-        sheetRef.current?.present();
-      } else {
-        sheetRef.current?.dismiss();
-      }
-    }, [visible]);
-
-    const handleDismiss = useCallback(() => {
-      onDismiss();
-    }, [onDismiss]);
+    const handleSheetChange = useCallback(
+      (index: number) => {
+        if (index === -1) {
+          onDismiss();
+        }
+      },
+      [onDismiss],
+    );
 
     const renderBackdrop = useCallback(
       (props: any) => (
@@ -56,13 +53,16 @@ export const ToolPanelContainer: React.FC<ToolPanelContainerProps> = React.memo(
       [],
     );
 
+    if (!visible) return null;
+
     return (
-      <BottomSheetModal
+      <BottomSheet
         ref={sheetRef}
+        index={0}
         snapPoints={snapPoints}
-        onDismiss={handleDismiss}
-        backdropComponent={renderBackdrop}
+        onChange={handleSheetChange}
         enablePanDownToClose
+        backdropComponent={renderBackdrop}
         backgroundStyle={{
           backgroundColor: "#1a1a1a",
           borderTopLeftRadius: 20,
@@ -79,7 +79,7 @@ export const ToolPanelContainer: React.FC<ToolPanelContainerProps> = React.memo(
         }}
       >
         <BottomSheetView style={{ flex: 1 }}>{children}</BottomSheetView>
-      </BottomSheetModal>
+      </BottomSheet>
     );
   },
 );
