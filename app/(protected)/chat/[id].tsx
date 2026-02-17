@@ -409,6 +409,16 @@ export default function ChatScreen() {
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
 
+  // Refresh messages on focus to pick up read receipts from the other user
+  useFocusEffect(
+    useCallback(() => {
+      if (chatId && chatMessages.length > 0) {
+        // Silently reload to pick up readAt changes
+        loadMessages(chatId);
+      }
+    }, [chatId, loadMessages, chatMessages.length > 0]),
+  );
+
   // Load messages from backend on mount and mark as read
   useEffect(() => {
     if (chatId) {
@@ -473,7 +483,9 @@ export default function ChatScreen() {
             actualConversationId,
           );
           await messagesApiClient.markAsRead(actualConversationId);
-          // Refresh the message badge count
+          // Reload messages to pick up updated readAt values for read receipts
+          await loadMessages(actualConversationId);
+          // Refresh the message badge count + conversations list
           await refreshMessageCounts();
           console.log("[Chat] Messages marked as read, badge refreshed");
         } catch (error) {
@@ -1041,7 +1053,7 @@ export default function ChatScreen() {
           data={chatMessages}
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           initialScrollAtEnd
           maintainScrollAtEnd
           alignItemsAtEnd

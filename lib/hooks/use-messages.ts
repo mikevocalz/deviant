@@ -113,6 +113,10 @@ export function useRefreshMessageCounts() {
         queryKey: messageKeys.unreadCount(viewerId),
       });
     }
+    // Also invalidate conversations list so unread flags update
+    await queryClient.invalidateQueries({
+      queryKey: ["messages", "filtered"],
+    });
     // Also refresh store
     await refreshMessagesUnread();
   };

@@ -40,6 +40,7 @@ try {
  * Keep this list tight — only data needed for instant boot.
  */
 const PERSISTED_KEY_PREFIXES = [
+  "stories", // stories bar (above the fold — must render instantly)
   "posts", // feed pages
   "messages", // unread counts, conversations, filtered inbox
   "profile", // my profile

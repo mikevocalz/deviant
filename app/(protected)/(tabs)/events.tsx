@@ -2,7 +2,7 @@ import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { Heart, Plus, Ticket } from "lucide-react-native";
+import { Heart, Plus, Ticket, MapPin, ChevronDown } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
@@ -19,6 +19,13 @@ import { useEvents, type Event } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { CityPickerSheet } from "@/components/events/city-picker-sheet";
+import { WeatherStrip } from "@/components/events/weather-strip";
+import {
+  FilterPills,
+  type EventFilter,
+} from "@/components/events/filter-pills";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -206,9 +213,14 @@ export default function EventsScreen() {
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
+  const [activeFilters, setActiveFilters] = useState<EventFilter[]>([]);
+  const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const pagerRef = useRef<any>(null);
   const trace = useScreenTrace("Events");
   useBootstrapEvents();
+
+  // Location store
+  const activeCity = useEventsLocationStore((s) => s.activeCity);
 
   // Fetch real events from API
   const { data: events = [], isLoading, error } = useEvents();
@@ -226,28 +238,67 @@ export default function EventsScreen() {
     return likes.toString();
   };
 
-  // Filter events based on tab index
+  const handleToggleFilter = useCallback((filter: EventFilter) => {
+    setActiveFilters((prev) =>
+      prev.includes(filter)
+        ? prev.filter((f) => f !== filter)
+        : [...prev, filter],
+    );
+  }, []);
+
+  // Filter events based on tab index and active filters
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
+      let filtered = events;
       switch (tabIndex) {
         case 1: // upcoming
-          return events.filter(
+          filtered = events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
+          break;
         case 2: // past_events
-          return events.filter(
+          filtered = events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
-        default: // all_events
-          return events;
+          break;
       }
+
+      // Apply active filters
+      if (activeFilters.includes("tonight")) {
+        const tonight = new Date();
+        tonight.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(
+          (e: Event) =>
+            e.fullDate &&
+            new Date(e.fullDate) >= today &&
+            new Date(e.fullDate) <= tonight,
+        );
+      }
+
+      if (activeFilters.includes("this_weekend")) {
+        const dayOfWeek = today.getDay();
+        const saturday = new Date(today);
+        saturday.setDate(today.getDate() + (6 - dayOfWeek));
+        saturday.setHours(0, 0, 0, 0);
+        const sunday = new Date(saturday);
+        sunday.setDate(saturday.getDate() + 1);
+        sunday.setHours(23, 59, 59, 999);
+        filtered = filtered.filter(
+          (e: Event) =>
+            e.fullDate &&
+            new Date(e.fullDate) >= saturday &&
+            new Date(e.fullDate) <= sunday,
+        );
+      }
+
+      return filtered;
     },
-    [events],
+    [events, activeFilters],
   );
 
   const handleTabPress = (index: number) => {
@@ -280,45 +331,78 @@ export default function EventsScreen() {
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
       <Main className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-          <View>
-            <Text className="text-xs uppercase tracking-wide text-muted-foreground">
-              {new Date().toLocaleDateString("en-US", {
-                weekday: "long",
-                month: "short",
-                day: "numeric",
-              })}
-            </Text>
-            <Text className="text-2xl font-bold text-foreground">Events</Text>
-          </View>
-          <View className="flex-row items-center gap-2">
-            <Motion.View
-              whileTap={{ scale: 0.9 }}
-              className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
-            >
+        {/* Header — Near Me style */}
+        <View className="px-4 pt-2 pb-1">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1">
+              <Text className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                })}
+              </Text>
+              <Text className="text-2xl font-bold text-foreground mt-0.5">
+                Events
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-2">
+              {/* City Picker trigger */}
               <Pressable
-                onPress={() =>
-                  router.push("/(protected)/events/my-tickets" as any)
-                }
-                className="w-full h-full items-center justify-center"
+                onPress={() => setCityPickerVisible(true)}
+                className="flex-row items-center gap-1.5 px-3.5 py-2 rounded-full border border-border bg-card"
               >
-                <Ticket size={18} color={colors.foreground} />
+                <MapPin size={14} color="#3EA4E5" strokeWidth={2} />
+                <Text
+                  className="text-sm font-semibold text-foreground"
+                  numberOfLines={1}
+                >
+                  {activeCity?.name || "All Cities"}
+                </Text>
+                <ChevronDown
+                  size={14}
+                  color={colors.mutedForeground}
+                  strokeWidth={2}
+                />
               </Pressable>
-            </Motion.View>
-            <Motion.View
-              whileTap={{ scale: 0.9 }}
-              className="h-10 w-10 items-center justify-center rounded-full bg-primary"
-            >
-              <Pressable
-                onPress={() => router.push("/(protected)/events/create" as any)}
-                className="w-full h-full items-center justify-center"
+              <Motion.View
+                whileTap={{ scale: 0.9 }}
+                className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
               >
-                <Plus size={20} color="#fff" />
-              </Pressable>
-            </Motion.View>
+                <Pressable
+                  onPress={() =>
+                    router.push("/(protected)/events/my-tickets" as any)
+                  }
+                  className="w-full h-full items-center justify-center"
+                >
+                  <Ticket size={18} color={colors.foreground} />
+                </Pressable>
+              </Motion.View>
+              <Motion.View
+                whileTap={{ scale: 0.9 }}
+                className="h-10 w-10 items-center justify-center rounded-full bg-primary"
+              >
+                <Pressable
+                  onPress={() =>
+                    router.push("/(protected)/events/create" as any)
+                  }
+                  className="w-full h-full items-center justify-center"
+                >
+                  <Plus size={20} color="#fff" />
+                </Pressable>
+              </Motion.View>
+            </View>
           </View>
         </View>
+
+        {/* Weather Strip — keyed by active city */}
+        <WeatherStrip lat={activeCity?.lat} lng={activeCity?.lng} />
+
+        {/* Filter Pills */}
+        <FilterPills
+          activeFilters={activeFilters}
+          onToggle={handleToggleFilter}
+        />
 
         {/* Tab Navigation */}
         <View className="flex-row border-b border-border">
@@ -348,35 +432,49 @@ export default function EventsScreen() {
             const filteredEvents = getFilteredEvents(tabIndex);
             return (
               <View key={tab.key} className="flex-1">
-                <View className="px-4 py-2 bg-muted">
-                  <Text className="text-sm text-muted-foreground">
-                    Showing {filteredEvents.length} events
-                  </Text>
-                </View>
-                <Animated.ScrollView
-                  className="flex-1"
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={{ padding: 16 }}
-                  onScroll={scrollHandler}
-                  scrollEventThrottle={16}
-                >
-                  {filteredEvents.map((event, index) => (
-                    <EventCard
-                      key={event.id}
-                      event={event}
-                      index={index}
-                      scrollY={scrollY}
-                      colors={colors}
-                      router={router}
-                      formatLikes={formatLikes}
-                    />
-                  ))}
-                </Animated.ScrollView>
+                {filteredEvents.length === 0 ? (
+                  <View className="flex-1 items-center justify-center px-8 gap-3">
+                    <Text className="text-lg font-semibold text-muted-foreground">
+                      No events found
+                    </Text>
+                    <Text className="text-sm text-muted-foreground text-center">
+                      {activeFilters.length > 0
+                        ? "Try removing some filters"
+                        : "Check back later for new events"}
+                    </Text>
+                  </View>
+                ) : (
+                  <Animated.ScrollView
+                    className="flex-1"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ padding: 16 }}
+                    onScroll={scrollHandler}
+                    scrollEventThrottle={16}
+                  >
+                    {filteredEvents.map((event, index) => (
+                      <EventCard
+                        key={event.id}
+                        event={event}
+                        index={index}
+                        scrollY={scrollY}
+                        colors={colors}
+                        router={router}
+                        formatLikes={formatLikes}
+                      />
+                    ))}
+                  </Animated.ScrollView>
+                )}
               </View>
             );
           })}
         </PagerViewWrapper>
       </Main>
+
+      {/* City Picker Bottom Sheet */}
+      <CityPickerSheet
+        visible={cityPickerVisible}
+        onDismiss={() => setCityPickerVisible(false)}
+      />
     </View>
   );
 }

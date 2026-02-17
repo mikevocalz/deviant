@@ -62,11 +62,23 @@ export const presenceApi = {
       return [];
     }
 
-    return (data || []).map((row: any) => ({
-      userId: row.user_id,
-      isOnline: row.is_online,
-      lastSeenAt: row.last_seen_at,
-    }));
+    const STALE_THRESHOLD_MS = 2 * 60 * 1000; // 2 min
+    const now = Date.now();
+
+    return (data || []).map((row: any) => {
+      let isOnline = row.is_online ?? false;
+      if (isOnline && row.last_seen_at) {
+        const lastSeen = new Date(row.last_seen_at).getTime();
+        if (now - lastSeen > STALE_THRESHOLD_MS) {
+          isOnline = false;
+        }
+      }
+      return {
+        userId: row.user_id,
+        isOnline,
+        lastSeenAt: row.last_seen_at,
+      };
+    });
   },
 
   /**

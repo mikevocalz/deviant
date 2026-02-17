@@ -318,6 +318,28 @@ export const DB = {
     stripePaymentIntentId: "stripe_payment_intent_id",
     createdAt: "created_at",
   },
+  // ── Cities (Near Me) ─────────────────────────────────────────
+  cities: {
+    table: "cities",
+    id: "id",
+    name: "name",
+    state: "state",
+    country: "country",
+    lat: "lat",
+    lng: "lng",
+    timezone: "timezone",
+    population: "population",
+    slug: "slug",
+    createdAt: "created_at",
+  },
+  // ── User location columns ───────────────────────────────────
+  userLocation: {
+    cityId: "city_id",
+    locationMode: "location_mode",
+    deviceLat: "device_lat",
+    deviceLng: "device_lng",
+    locationUpdatedAt: "location_updated_at",
+  },
   // ── Ads config (Decellus scaffold) ─────────────────────────
   adsConfig: {
     table: "ads_config",

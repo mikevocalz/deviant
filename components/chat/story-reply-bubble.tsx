@@ -35,9 +35,7 @@ export function StoryReplyBubble({
 
   const handleProfilePress = useCallback(() => {
     if (storyReply.storyUsername) {
-      router.push(
-        `/(protected)/profile/${storyReply.storyUsername}` as any,
-      );
+      router.push(`/(protected)/profile/${storyReply.storyUsername}` as any);
     }
   }, [storyReply.storyUsername, router]);
 
@@ -48,10 +46,9 @@ export function StoryReplyBubble({
       }`}
       style={{ maxWidth: 280 }}
     >
-      {/* Story context header */}
+      {/* Story context header — tap navigates to author profile, not story */}
       <Pressable
-        onPress={handleStoryPress}
-        disabled={storyReply.isExpired}
+        onPress={handleProfilePress}
         className="flex-row items-center gap-2 px-3 pt-2.5 pb-1.5"
       >
         {/* Mini avatar */}
