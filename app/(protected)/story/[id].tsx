@@ -745,30 +745,43 @@ export default function StoryViewerScreen() {
     }
   }, [isInputFocused, player, progress, isMountedRef, isSafeToOperate]);
 
+  // Refs for latest values — avoids stale closures in the debouncer callback
+  const storyRef = useRef(story);
+  const currentItemIndexRef = useRef(currentItemIndex);
+  const resolvedUserIdRef = useRef(resolvedUserId);
+  storyRef.current = story;
+  currentItemIndexRef.current = currentItemIndex;
+  resolvedUserIdRef.current = resolvedUserId;
+
   // Send story emoji reaction as DM — debounced via TanStack Debouncer
   const reactionDebouncer = useRef(
     new Debouncer(
       async (emoji: string) => {
         try {
+          const userId = resolvedUserIdRef.current;
+          const s = storyRef.current;
+          const idx = currentItemIndexRef.current;
+          if (!userId || !s) return;
+
           const conversationId =
-            await messagesApiClient.getOrCreateConversation(resolvedUserId!);
+            await messagesApiClient.getOrCreateConversation(userId);
           if (!conversationId) return;
 
-          const currentItem = story?.items?.[currentItemIndex];
+          const item = s.items?.[idx];
           const previewUrl =
-            currentItem?.type === "video"
-              ? currentItem?.thumbnail || currentItem?.url || ""
-              : currentItem?.url || "";
+            item?.type === "video"
+              ? item?.thumbnail || item?.url || ""
+              : item?.url || "";
 
           await messagesApiClient.sendMessage({
             conversationId,
             content: emoji,
             metadata: {
               type: "story_reaction",
-              storyId: story?.id || "",
+              storyId: s.id || "",
               storyMediaUrl: previewUrl,
-              storyUsername: story?.username || "",
-              storyAvatar: story?.avatar || "",
+              storyUsername: s.username || "",
+              storyAvatar: s.avatar || "",
               reactionEmoji: emoji,
               storyExpiresAt: new Date(
                 Date.now() + 24 * 60 * 60 * 1000,

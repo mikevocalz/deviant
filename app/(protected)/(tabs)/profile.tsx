@@ -1146,12 +1146,20 @@ function ProfileScreenContent() {
                       />
                     ) : (
                       <View
-                        className="flex-1 items-center justify-center bg-border"
-                        style={{ width: "100%", height: "100%" }}
+                        className="flex-1 items-center justify-center"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          backgroundColor: "#1a1a1a",
+                        }}
                       >
-                        <Text className="text-xs text-muted-foreground text-center">
-                          No preview
-                        </Text>
+                        {item.kind === "video" ? (
+                          <Play size={24} color="#666" fill="#666" />
+                        ) : (
+                          <Text className="text-xs text-muted-foreground text-center">
+                            No preview
+                          </Text>
+                        )}
                       </View>
                     )}
                     {item.kind === "video" && (
