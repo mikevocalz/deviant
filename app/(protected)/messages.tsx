@@ -503,7 +503,7 @@ export default function MessagesScreen() {
 
       return {
         id: conv.id,
-        oderpantId: conv.id,
+        oderpantId: otherUser.id || conv.id,
         user: {
           username: otherUser.username,
           name: otherUser.name || otherUser.username,

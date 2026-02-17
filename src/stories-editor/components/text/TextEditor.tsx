@@ -231,13 +231,27 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     [setFontSize],
   );
 
+  const sliderFrameCount = useSharedValue(0);
   const sliderPan = Gesture.Pan()
+    .onStart(() => {
+      "worklet";
+      sliderFrameCount.value = 0;
+    })
     .onUpdate((e) => {
       "worklet";
       // Invert Y: dragging UP = bigger
       const progress = 1 - Math.max(0, Math.min(1, e.y / SLIDER_HEIGHT));
       sliderProgress.value = progress;
-      runOnJS(updateFontSizeFromSlider)(progress);
+      // Throttle JS bridge: only sync store every 3rd frame
+      sliderFrameCount.value += 1;
+      if (sliderFrameCount.value % 3 === 0) {
+        runOnJS(updateFontSizeFromSlider)(progress);
+      }
+    })
+    .onEnd(() => {
+      "worklet";
+      // Final sync to ensure store matches visual
+      runOnJS(updateFontSizeFromSlider)(sliderProgress.value);
     })
     .hitSlop({ left: 20, right: 20, top: 10, bottom: 10 });
 

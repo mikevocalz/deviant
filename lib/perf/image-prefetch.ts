@@ -9,7 +9,7 @@
 
 import { Image } from "expo-image";
 
-const MAX_PREFETCH_BATCH = 10;
+const MAX_PREFETCH_BATCH = 30;
 const PREFETCH_DELAY_MS = 500;
 
 /**
@@ -66,9 +66,7 @@ export function extractFeedImageUrls(
 /**
  * Prefetch avatar URLs from a list of users.
  */
-export function prefetchAvatars(
-  avatarUrls: (string | null | undefined)[],
-) {
+export function prefetchAvatars(avatarUrls: (string | null | undefined)[]) {
   const valid = avatarUrls.filter((u): u is string => !!u && u.length > 0);
   if (valid.length > 0) {
     prefetchImages(valid);

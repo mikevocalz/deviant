@@ -748,141 +748,198 @@ export default function CreateStoryScreen() {
                 )}
               </View>
             ) : (
-              /* ── Empty state (fullscreen) ────────────────────────────── */
-              <LinearGradient
-                colors={["#111", "#0a0a0a", "#111"]}
+              /* ── Pre-editor entry hub — 3 big buttons ────────────────── */
+              <View
                 style={{
                   flex: 1,
-                  alignItems: "center",
+                  backgroundColor: "#000",
                   justifyContent: "center",
-                  gap: 24,
+                  alignItems: "center",
+                  paddingHorizontal: 24,
+                  gap: 16,
                 }}
               >
-                <View
-                  style={{
-                    width: 100,
-                    height: 100,
+                {/* Gallery — largest button, full width */}
+                <Pressable
+                  onPress={handlePickLibrary}
+                  style={({ pressed }) => ({
+                    width: "100%",
+                    height: 140,
                     borderRadius: 24,
-                    borderWidth: 2,
-                    borderColor: "rgba(62,164,229,0.3)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
+                    borderCurve: "continuous",
+                    overflow: "hidden",
+                    opacity: pressed ? 0.85 : 1,
+                    transform: [{ scale: pressed ? 0.97 : 1 }],
+                  })}
                 >
                   <LinearGradient
-                    colors={["#3EA4E5", "#FF6DC1"]}
+                    colors={["#1a2a3a", "#0d1b2a"]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 20,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Plus size={32} color="#fff" strokeWidth={2.5} />
-                  </LinearGradient>
-                </View>
-                <View style={{ alignItems: "center", gap: 6 }}>
-                  <Text
-                    style={{
-                      color: "#fff",
-                      fontSize: 20,
-                      fontWeight: "700",
-                      letterSpacing: -0.3,
-                    }}
-                  >
-                    Create Your Story
-                  </Text>
-                  <Text
-                    style={{
-                      color: "rgba(255,255,255,0.45)",
-                      fontSize: 14,
-                      fontWeight: "500",
-                    }}
-                  >
-                    Add a photo, video, or text to get started
-                  </Text>
-                </View>
-                <View style={{ flexDirection: "row", gap: 12, marginTop: 8 }}>
-                  <Pressable
-                    onPress={handlePickLibrary}
-                    style={{
+                      flex: 1,
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 8,
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      paddingHorizontal: 20,
-                      paddingVertical: 12,
-                      borderRadius: 28,
+                      paddingHorizontal: 28,
+                      gap: 20,
                       borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.1)",
+                      borderColor: "rgba(62,164,229,0.2)",
+                      borderRadius: 24,
                     }}
                   >
-                    <ImageIcon size={18} color="#fff" />
-                    <Text
+                    <View
                       style={{
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: "600",
+                        width: 64,
+                        height: 64,
+                        borderRadius: 20,
+                        backgroundColor: "rgba(62,164,229,0.15)",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
-                      Gallery
-                    </Text>
-                  </Pressable>
+                      <ImageIcon size={30} color="#3EA4E5" />
+                    </View>
+                    <View style={{ flex: 1, gap: 4 }}>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 22,
+                          fontWeight: "800",
+                          letterSpacing: -0.5,
+                        }}
+                      >
+                        Gallery
+                      </Text>
+                      <Text
+                        style={{
+                          color: "rgba(255,255,255,0.5)",
+                          fontSize: 14,
+                          fontWeight: "500",
+                        }}
+                      >
+                        Pick photos or videos
+                      </Text>
+                    </View>
+                  </LinearGradient>
+                </Pressable>
+
+                {/* Camera + Text — two equal-width buttons side by side */}
+                <View style={{ flexDirection: "row", gap: 16, width: "100%" }}>
                   <Pressable
                     onPress={handleOpenCamera}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      paddingHorizontal: 20,
-                      paddingVertical: 12,
-                      borderRadius: 28,
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.1)",
-                    }}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      height: 160,
+                      borderRadius: 24,
+                      borderCurve: "continuous",
+                      overflow: "hidden",
+                      opacity: pressed ? 0.85 : 1,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    })}
                   >
-                    <Camera size={18} color="#fff" />
-                    <Text
+                    <LinearGradient
+                      colors={["#1a1a2e", "#16213e"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
                       style={{
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: "600",
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 12,
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.08)",
+                        borderRadius: 24,
                       }}
                     >
-                      Camera
-                    </Text>
+                      <View
+                        style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          backgroundColor: "rgba(255,255,255,0.08)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Camera size={30} color="#fff" />
+                      </View>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 18,
+                          fontWeight: "700",
+                          letterSpacing: -0.3,
+                        }}
+                      >
+                        Camera
+                      </Text>
+                    </LinearGradient>
                   </Pressable>
+
                   <Pressable
                     onPress={handleCreateTextStory}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                      backgroundColor: "rgba(138,64,207,0.2)",
-                      paddingHorizontal: 20,
-                      paddingVertical: 12,
-                      borderRadius: 28,
-                      borderWidth: 1,
-                      borderColor: "rgba(138,64,207,0.4)",
-                    }}
+                    style={({ pressed }) => ({
+                      flex: 1,
+                      height: 160,
+                      borderRadius: 24,
+                      borderCurve: "continuous",
+                      overflow: "hidden",
+                      opacity: pressed ? 0.85 : 1,
+                      transform: [{ scale: pressed ? 0.97 : 1 }],
+                    })}
                   >
-                    <Type size={18} color="#fff" />
-                    <Text
+                    <LinearGradient
+                      colors={["#2a1a3a", "#1a0d2e"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
                       style={{
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: "600",
+                        flex: 1,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 12,
+                        borderWidth: 1,
+                        borderColor: "rgba(138,64,207,0.25)",
+                        borderRadius: 24,
                       }}
                     >
-                      Text
-                    </Text>
+                      <View
+                        style={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 32,
+                          backgroundColor: "rgba(138,64,207,0.15)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Type size={30} color="#A855F7" />
+                      </View>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 18,
+                          fontWeight: "700",
+                          letterSpacing: -0.3,
+                        }}
+                      >
+                        Text
+                      </Text>
+                    </LinearGradient>
                   </Pressable>
                 </View>
-              </LinearGradient>
+
+                {/* Subtitle */}
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.3)",
+                    fontSize: 13,
+                    fontWeight: "500",
+                    marginTop: 8,
+                  }}
+                >
+                  Create a story that disappears in 24 hours
+                </Text>
+              </View>
             )}
           </View>
         </View>

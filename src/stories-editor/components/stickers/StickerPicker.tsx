@@ -14,6 +14,7 @@ import {
 import { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { Search } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useEditorStore } from "../../stores/editor-store";
 import { IMAGE_STICKER_PACKS } from "../../constants";
 import {
@@ -162,6 +163,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                 className="items-center justify-center p-2"
                 style={{ width: imageStickerSize }}
                 onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   if (onSelectImageSticker) {
                     onSelectImageSticker(item.source, item.id);
                   } else {
@@ -203,7 +205,10 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                   width: (screenWidth - 64) / 5,
                   height: (screenWidth - 64) / 5,
                 }}
-                onPress={() => onSelectSticker(item)}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onSelectSticker(item);
+                }}
               >
                 <Image
                   source={{ uri: item }}

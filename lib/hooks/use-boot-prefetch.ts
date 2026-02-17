@@ -32,8 +32,11 @@ import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { bookmarkKeys } from "@/lib/hooks/use-bookmarks";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
+import { storyKeys } from "@/lib/hooks/use-stories";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { useChatStore } from "@/lib/stores/chat-store";
+import { prefetchImages } from "@/lib/perf/image-prefetch";
+import { storiesApi as storiesApiClient } from "@/lib/api/stories";
 
 /**
  * Check if the persisted cache has enough data for instant render.
@@ -50,6 +53,7 @@ function detectCacheStatus(queryClient: any, userId: string): string {
     postKeys.profilePosts(userId),
   );
   const hasActivities = !!queryClient.getQueryData(activityKeys.list(userId));
+  const hasStories = !!queryClient.getQueryData(storyKeys.list());
 
   const hits = [
     hasFeed,
@@ -58,8 +62,9 @@ function detectCacheStatus(queryClient: any, userId: string): string {
     hasEvents,
     hasProfilePosts,
     hasActivities,
+    hasStories,
   ].filter(Boolean).length;
-  if (hits >= 5) return "full";
+  if (hits >= 6) return "full";
   if (hits > 0) return "partial";
   return "empty";
 }
@@ -100,17 +105,22 @@ export function useBootPrefetch() {
     const logLane = (lane: number, results: PromiseSettledResult<any>[]) => {
       const ok = results.filter((r) => r.status === "fulfilled").length;
       const fail = results.filter((r) => r.status === "rejected").length;
-      console.log(`[BootPrefetch] Lane ${lane}: ${ok} ok, ${fail} failed (${Date.now() - t0}ms)`);
+      console.log(
+        `[BootPrefetch] Lane ${lane}: ${ok} ok, ${fail} failed (${Date.now() - t0}ms)`,
+      );
       if (__DEV__) {
         results.forEach((r, i) => {
           if (r.status === "rejected") {
-            console.warn(`[BootPrefetch] Lane ${lane}[${i}] failed:`, (r as PromiseRejectedResult).reason);
+            console.warn(
+              `[BootPrefetch] Lane ${lane}[${i}] failed:`,
+              (r as PromiseRejectedResult).reason,
+            );
           }
         });
       }
     };
 
-    // Lane 0: Critical — feed + profile (instant render priority)
+    // Lane 0: Critical — feed + profile + stories (above the fold)
     Promise.allSettled([
       queryClient.prefetchInfiniteQuery({
         queryKey: postKeys.feedInfinite(),
@@ -122,6 +132,31 @@ export function useBootPrefetch() {
         queryKey: profileKeys.byId(userId),
         queryFn: () => usersApi.getProfileById(userId),
       }),
+      queryClient
+        .prefetchQuery({
+          queryKey: storyKeys.list(),
+          queryFn: () => storiesApiClient.getStories(),
+        })
+        .then(() => {
+          // Warm expo-image cache for story thumbnails after data lands
+          const stories = queryClient.getQueryData<any[]>(storyKeys.list());
+          if (stories?.length) {
+            const thumbUrls: string[] = [];
+            for (const story of stories) {
+              const items = story.items || [];
+              const latest = items[items.length - 1];
+              const thumb = latest?.thumbnail || latest?.url;
+              if (thumb) thumbUrls.push(thumb);
+              // Also prefetch the full-size story images for the viewer
+              for (const item of items) {
+                if (item?.url) thumbUrls.push(item.url);
+              }
+            }
+            if (thumbUrls.length) {
+              prefetchImages(thumbUrls);
+            }
+          }
+        }),
     ]).then((r) => logLane(0, r));
 
     // Lane 1: Badge counts — needed for tab bar badges
@@ -169,7 +204,10 @@ export function useBootPrefetch() {
                 entityType: n.entityType,
                 entityId: n.entityId,
                 post: n.post
-                  ? { id: String(n.post.id || ""), thumbnail: n.post.thumbnail || "" }
+                  ? {
+                      id: String(n.post.id || ""),
+                      thumbnail: n.post.thumbnail || "",
+                    }
                   : undefined,
                 event: n.event
                   ? { id: String(n.event.id || ""), title: n.event.title }
@@ -250,7 +288,9 @@ export function useBootPrefetch() {
       const totalElapsed = Date.now() - t0;
       console.log(
         `[BootPrefetch] All lanes dispatched in ${totalElapsed}ms` +
-          (cacheStatus === "full" ? " (background refresh)" : " (initial load)"),
+          (cacheStatus === "full"
+            ? " (background refresh)"
+            : " (initial load)"),
       );
     }, 2000);
   }, [userId, queryClient]);
