@@ -147,13 +147,31 @@ Deno.serve(async (req) => {
 
     // Insert media if provided
     if (media && media.length > 0) {
-      const mediaInserts = media.map((m, index) => ({
-        _parent_id: post.id,
-        type: m.type,
-        url: m.url,
-        _order: index,
-        id: `${post.id}_${index}`,
-      }));
+      const mediaInserts: Array<Record<string, unknown>> = [];
+      media.forEach((m: any, index: number) => {
+        mediaInserts.push({
+          _parent_id: post.id,
+          type: m.type,
+          url: m.url,
+          _order: index,
+          id: `${post.id}_${index}`,
+        });
+        // For video posts: store the uploaded thumbnail as a separate row
+        // so the feed/grid can show a real image instead of a video URL
+        if (m.type === "video" && m.thumbnail) {
+          mediaInserts.push({
+            _parent_id: post.id,
+            type: "thumbnail",
+            url: m.thumbnail,
+            _order: index,
+            id: `${post.id}_thumb_${index}`,
+          });
+          console.log(
+            "[Edge:create-post] Video thumbnail stored:",
+            m.thumbnail,
+          );
+        }
+      });
 
       const { error: mediaError } = await supabaseAdmin
         .from("posts_media")
@@ -165,7 +183,7 @@ Deno.serve(async (req) => {
       } else {
         console.log(
           "[Edge:create-post] Media inserted:",
-          media.length,
+          mediaInserts.length,
           "items",
         );
       }

@@ -107,19 +107,25 @@ export const notificationsApi = {
         .map((n: any) => parseInt(n.entity_id))
         .filter((id: number) => !isNaN(id));
 
-      // Fetch post thumbnails in batch
+      // Fetch post thumbnails in batch from posts_media
       let postMap: Record<string, { thumbnail: string }> = {};
       if (postIds.length > 0) {
         const uniquePostIds = [...new Set(postIds)];
-        const { data: posts } = await supabase
-          .from("posts")
-          .select("id, media:media_id(url)")
-          .in("id", uniquePostIds);
-        if (posts) {
-          for (const p of posts) {
-            postMap[String(p.id)] = {
-              thumbnail: (p as any).media?.url || "",
-            };
+        const { data: mediaRows } = await supabase
+          .from("posts_media")
+          .select("_parent_id, type, url")
+          .in("_parent_id", uniquePostIds)
+          .order("_order", { ascending: true });
+        if (mediaRows) {
+          for (const m of mediaRows as any[]) {
+            const pid = String(m._parent_id);
+            if (m.type === "thumbnail") {
+              // Thumbnail entry always wins (video cover image)
+              postMap[pid] = { thumbnail: m.url };
+            } else if (!postMap[pid] && m.type !== "thumbnail") {
+              // First non-thumbnail media as fallback
+              postMap[pid] = { thumbnail: m.url };
+            }
           }
         }
       }
