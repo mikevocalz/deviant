@@ -28,8 +28,14 @@ export function StoryReplyBubble({
 
   const handleStoryPress = useCallback(() => {
     if (storyReply.isExpired) return;
-    if (storyReply.storyId) {
-      router.push(`/(protected)/story/${storyReply.storyId}` as any);
+    if (storyReply.storyId || storyReply.storyUsername) {
+      // Pass username as fallback — group IDs change when new stories are posted,
+      // so stale storyId from metadata may not match the current group ID.
+      const storyId = storyReply.storyId || "0";
+      const usernameParam = storyReply.storyUsername
+        ? `?username=${encodeURIComponent(storyReply.storyUsername)}`
+        : "";
+      router.push(`/(protected)/story/${storyId}${usernameParam}` as any);
     }
   }, [storyReply, router]);
 
@@ -41,10 +47,13 @@ export function StoryReplyBubble({
 
   return (
     <View
-      className={`rounded-2xl overflow-hidden ${
-        isOwnMessage ? "bg-primary/10" : "bg-secondary"
-      }`}
-      style={{ maxWidth: 280 }}
+      className="rounded-2xl overflow-hidden"
+      style={{
+        maxWidth: 300,
+        backgroundColor: isOwnMessage
+          ? "rgba(62, 164, 229, 0.08)"
+          : "rgba(55, 55, 55, 0.9)",
+      }}
     >
       {/* Story context header — tap navigates to author profile, not story */}
       <Pressable
@@ -67,7 +76,7 @@ export function StoryReplyBubble({
             </Text>
           </View>
         )}
-        <Text className="text-muted-foreground text-[11px]">
+        <Text className="text-muted-foreground text-[11px]" numberOfLines={2}>
           {isOwnMessage
             ? `You replied to ${storyReply.storyUsername}'s story`
             : `Replied to your story`}
