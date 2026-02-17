@@ -39,8 +39,11 @@ export const messagesApi = {
     try {
       console.log("[Messages] getConversations");
 
-      // conversations_rels.users_id is a UUID column → use auth_id
-      const authId = await getCurrentUserAuthId();
+      // Resolve auth + visitor ID in parallel — ONCE, not per-conversation
+      const [authId, visitorIntId] = await Promise.all([
+        getCurrentUserAuthId(),
+        resolveVisitorIdInt(),
+      ]);
       if (!authId) return [];
 
       // Get conversations where user is a participant
@@ -61,37 +64,47 @@ export const messagesApi = {
 
       if (error) throw error;
 
-      // Get last message and other participant for each conversation
+      // Process each conversation — parallel queries within each, all convs in parallel
       const conversations = await Promise.all(
         (data || []).map(async (conv: any) => {
           const convId = conv.conversation[DB.conversations.id];
 
           try {
-            // Get last message (no join — sender info unused, avoids FK ambiguity)
-            const { data: lastMessage } = await supabase
-              .from(DB.messages.table)
-              .select(
-                `
-              ${DB.messages.content},
-              ${DB.messages.createdAt}
-            `,
-              )
-              .eq(DB.messages.conversationId, convId)
-              .order(DB.messages.createdAt, { ascending: false })
-              .limit(1)
-              .single();
+            // Fire independent queries in parallel
+            const [lastMessageResult, participantsResult, unreadResult] =
+              await Promise.all([
+                // Last message (no join — avoids FK ambiguity)
+                supabase
+                  .from(DB.messages.table)
+                  .select(`${DB.messages.content}, ${DB.messages.createdAt}`)
+                  .eq(DB.messages.conversationId, convId)
+                  .order(DB.messages.createdAt, { ascending: false })
+                  .limit(1)
+                  .single(),
+                // Other participant's auth_id
+                supabase
+                  .from(DB.conversationsRels.table)
+                  .select(DB.conversationsRels.usersId)
+                  .eq(DB.conversationsRels.parentId, convId)
+                  .neq(DB.conversationsRels.usersId, authId)
+                  .limit(1),
+                // Unread count
+                visitorIntId
+                  ? supabase
+                      .from(DB.messages.table)
+                      .select(DB.messages.id, { count: "exact", head: true })
+                      .eq(DB.messages.conversationId, convId)
+                      .is(DB.messages.readAt, null)
+                      .neq(DB.messages.senderId, visitorIntId)
+                  : Promise.resolve({ count: 0 }),
+              ]);
 
-            // Get other participant's auth_id
-            // conversations_rels.users_id is TEXT (auth_id), not a FK — can't use Supabase join
-            const { data: participants } = await supabase
-              .from(DB.conversationsRels.table)
-              .select(DB.conversationsRels.usersId)
-              .eq(DB.conversationsRels.parentId, convId)
-              .neq(DB.conversationsRels.usersId, authId)
-              .limit(1);
+            const lastMessage = lastMessageResult.data;
+            const hasUnread = ((unreadResult as any).count ?? 0) > 0;
 
+            // Other user lookup — depends on participant result (only sequential dep)
             const otherAuthId =
-              participants?.[0]?.[DB.conversationsRels.usersId];
+              participantsResult.data?.[0]?.[DB.conversationsRels.usersId];
             let otherUserData: any = null;
             if (otherAuthId) {
               const { data: userData } = await supabase
@@ -102,19 +115,6 @@ export const messagesApi = {
                 .eq(DB.users.authId, otherAuthId)
                 .single();
               otherUserData = userData;
-            }
-
-            // Check for unread messages (not sent by me, read_at is null)
-            const visitorIntId = await resolveVisitorIdInt();
-            let hasUnread = false;
-            if (visitorIntId) {
-              const { count } = await supabase
-                .from(DB.messages.table)
-                .select(DB.messages.id, { count: "exact", head: true })
-                .eq(DB.messages.conversationId, convId)
-                .is(DB.messages.readAt, null)
-                .neq(DB.messages.senderId, visitorIntId);
-              hasUnread = (count ?? 0) > 0;
             }
 
             const rawTs =
@@ -330,18 +330,21 @@ export const messagesApi = {
    */
   async getUnreadCount() {
     try {
-      const authId = await getCurrentUserAuthId();
-      const visitorIntId = await resolveVisitorIdInt();
+      // Resolve auth IDs in parallel
+      const [authId, visitorIntId] = await Promise.all([
+        getCurrentUserAuthId(),
+        resolveVisitorIdInt(),
+      ]);
       if (!authId) return 0;
 
-      // Get IDs of users the current user is following (inbox = followed users)
-      const followingIds = await this.getFollowingIds();
-
-      // Get conversations where user is a participant
-      const { data: convs } = await supabase
-        .from(DB.conversationsRels.table)
-        .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, authId);
+      // followingIds + conversations query in parallel
+      const [followingIds, { data: convs }] = await Promise.all([
+        this.getFollowingIds(),
+        supabase
+          .from(DB.conversationsRels.table)
+          .select(DB.conversationsRels.parentId)
+          .eq(DB.conversationsRels.usersId, authId),
+      ]);
 
       if (!convs || convs.length === 0) return 0;
 
@@ -377,18 +380,21 @@ export const messagesApi = {
    */
   async getSpamUnreadCount() {
     try {
-      const authId = await getCurrentUserAuthId();
-      const visitorIntId = await resolveVisitorIdInt();
+      // Resolve auth IDs in parallel
+      const [authId, visitorIntId] = await Promise.all([
+        getCurrentUserAuthId(),
+        resolveVisitorIdInt(),
+      ]);
       if (!authId) return 0;
 
-      // Get IDs of users the current user is following
-      const followingIds = await this.getFollowingIds();
-
-      // Get conversations where user is a participant
-      const { data: convs } = await supabase
-        .from(DB.conversationsRels.table)
-        .select(DB.conversationsRels.parentId)
-        .eq(DB.conversationsRels.usersId, authId);
+      // followingIds + conversations query in parallel
+      const [followingIds, { data: convs }] = await Promise.all([
+        this.getFollowingIds(),
+        supabase
+          .from(DB.conversationsRels.table)
+          .select(DB.conversationsRels.parentId)
+          .eq(DB.conversationsRels.usersId, authId),
+      ]);
 
       if (!convs || convs.length === 0) return 0;
 
@@ -610,8 +616,11 @@ export const messagesApi = {
    */
   async getFilteredConversations(filter: "primary" | "requests") {
     try {
-      const conversations = await this.getConversations();
-      const followingIds = await this.getFollowingIds();
+      // Parallel — conversations and followingIds are independent
+      const [conversations, followingIds] = await Promise.all([
+        this.getConversations(),
+        this.getFollowingIds(),
+      ]);
 
       if (filter === "primary") {
         // Inbox: conversations from users you follow

@@ -424,81 +424,41 @@ export default function ChatScreen() {
     if (chatId) {
       console.log("[Chat] Loading messages for conversation:", chatId);
 
-      // Ensure conversation exists before loading messages
-      const ensureConversationAndLoadMessages = async () => {
+      // Resolve conversation ID then load messages — NO waterfalls
+      const loadChat = async () => {
         try {
           let actualConversationId = chatId;
 
-          // Check if chatId is a conversation ID or username
-          // If it contains only letters/numbers and underscores, it might be a username
-          if (/^[a-zA-Z0-9_]+$/.test(chatId) && !chatId.includes("-")) {
-            console.log(
-              "[Chat] chatId appears to be username, creating conversation...",
-            );
-            // Try to create conversation with this username
-            const newConversation =
+          // If chatId looks like a username (alphanumeric, no hyphens) → resolve to conversation ID
+          const looksLikeUsername =
+            /^[a-zA-Z0-9_]+$/.test(chatId) &&
+            !chatId.includes("-") &&
+            !/^\d+$/.test(chatId);
+          if (looksLikeUsername) {
+            console.log("[Chat] chatId is username, resolving conversation...");
+            const convId =
               await messagesApiClient.getOrCreateConversation(chatId);
-            if (newConversation) {
-              actualConversationId =
-                typeof newConversation === "string"
-                  ? newConversation
-                  : newConversation;
-              console.log(
-                "[Chat] Created new conversation with ID:",
-                actualConversationId,
-              );
-            }
-          } else {
-            // It's likely a conversation ID, verify it exists
-            const conversations = await messagesApiClient.getConversations();
-            const conversation = conversations.find((c) => c.id === chatId);
-
-            if (!conversation) {
-              console.log(
-                "[Chat] Conversation not found, might be username fallback...",
-              );
-              // Try to create conversation as username fallback
-              const newConversation =
-                await messagesApiClient.getOrCreateConversation(chatId);
-              if (newConversation) {
-                actualConversationId =
-                  typeof newConversation === "string"
-                    ? newConversation
-                    : newConversation;
-                console.log(
-                  "[Chat] Created new conversation from fallback:",
-                  actualConversationId,
-                );
-              }
-            }
+            if (convId) actualConversationId = convId;
           }
 
-          // Load messages for the conversation
+          // Load messages FIRST — this is what the user sees
           await loadMessages(actualConversationId);
 
-          // Mark messages as read when opening conversation
-          // This updates the backend and refreshes the Messages badge
-          console.log(
-            "[Chat] Marking messages as read for:",
-            actualConversationId,
-          );
-          await messagesApiClient.markAsRead(actualConversationId);
-          // Reload messages to pick up updated readAt values for read receipts
-          await loadMessages(actualConversationId);
-          // Refresh the message badge count + conversations list
-          await refreshMessageCounts();
-          console.log("[Chat] Messages marked as read, badge refreshed");
+          // Mark as read + reload read receipts + refresh badge — all background, no blocking
+          messagesApiClient.markAsRead(actualConversationId).then(async () => {
+            await Promise.all([
+              loadMessages(actualConversationId),
+              refreshMessageCounts(),
+            ]);
+            console.log("[Chat] Read receipts + badge refreshed");
+          });
         } catch (error) {
-          console.error(
-            "[Chat] Error in ensureConversationAndLoadMessages:",
-            error,
-          );
-          // Still try to load messages with original chatId as fallback
+          console.error("[Chat] loadChat error:", error);
           await loadMessages(chatId);
         }
       };
 
-      ensureConversationAndLoadMessages();
+      loadChat();
     }
   }, [chatId, loadMessages, refreshMessageCounts]);
   const currentUser = useAuthStore((s) => s.user);
