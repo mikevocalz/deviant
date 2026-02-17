@@ -22,6 +22,7 @@ import { shareProfile } from "@/lib/utils/sharing";
 import { Motion } from "@legendapp/motion";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileActionSheet } from "@/components/profile-action-sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { useCallback, memo, useState, useMemo, useEffect } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
@@ -698,8 +699,17 @@ function UserProfileScreenComponent() {
 
         {/* Posts Grid */}
         {isLoading || isLoadingPosts || !resolvedUserId ? (
-          <View className="p-4 items-center">
-            <Text className="text-muted-foreground">Loading...</Text>
+          <View className="flex-row flex-wrap">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View
+                key={i}
+                style={{ width: columnWidth, height: columnWidth, padding: 1 }}
+              >
+                <Skeleton
+                  style={{ width: "100%", height: "100%", borderRadius: 8 }}
+                />
+              </View>
+            ))}
           </View>
         ) : userPosts.length === 0 ? (
           <View className="p-4 items-center flex-1">
