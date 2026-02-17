@@ -73,14 +73,19 @@ Deno.serve(async (req) => {
 
     const authUserId = sessionData.userId;
 
-    let body: { postId: number; content?: string; location?: string };
+    let body: {
+      postId: number;
+      content?: string;
+      location?: string;
+      isNSFW?: boolean;
+    };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { postId, content, location } = body;
+    const { postId, content, location, isNSFW } = body;
     if (!postId) return errorResponse("validation_error", "postId is required");
 
     const userData = await resolveOrProvisionUser(
@@ -106,6 +111,7 @@ Deno.serve(async (req) => {
     const updateData: any = {};
     if (content !== undefined) updateData.content = content;
     if (location !== undefined) updateData.location = location;
+    if (isNSFW !== undefined) updateData.is_nsfw = isNSFW;
 
     const { data: updated, error } = await supabaseAdmin
       .from("posts")

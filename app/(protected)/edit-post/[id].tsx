@@ -22,6 +22,7 @@ import {
   Dimensions,
   Alert,
   ScrollView as RNScrollView,
+  Switch,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -38,6 +39,7 @@ import {
   AlertCircle,
   ImageIcon,
   Play,
+  Flame,
 } from "lucide-react-native";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
@@ -74,6 +76,8 @@ export default function EditPostScreen() {
   const [location, setLocation] = useState("");
   const [originalCaption, setOriginalCaption] = useState("");
   const [originalLocation, setOriginalLocation] = useState("");
+  const [isNSFW, setIsNSFW] = useState(false);
+  const [originalIsNSFW, setOriginalIsNSFW] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
 
   // ─── Post tags (Instagram-style) ───
@@ -97,13 +101,25 @@ export default function EditPostScreen() {
       setLocation(post.location || "");
       setOriginalCaption(post.caption || "");
       setOriginalLocation(post.location || "");
+      setIsNSFW(post.isNSFW || false);
+      setOriginalIsNSFW(post.isNSFW || false);
     }
   }, [post]);
 
   // ─── Dirty detection ───
   const isDirty = useMemo(
-    () => caption !== originalCaption || location !== originalLocation,
-    [caption, originalCaption, location, originalLocation],
+    () =>
+      caption !== originalCaption ||
+      location !== originalLocation ||
+      isNSFW !== originalIsNSFW,
+    [
+      caption,
+      originalCaption,
+      location,
+      originalLocation,
+      isNSFW,
+      originalIsNSFW,
+    ],
   );
 
   const captionOverLimit = caption.length > MAX_CAPTION;
@@ -118,8 +134,11 @@ export default function EditPostScreen() {
 
   // ─── Optimistic mutation ───
   const updateMutation = useMutation({
-    mutationFn: (updates: { content?: string; location?: string }) =>
-      postsApi.updatePost(id!, updates),
+    mutationFn: (updates: {
+      content?: string;
+      location?: string;
+      isNSFW?: boolean;
+    }) => postsApi.updatePost(id!, updates),
 
     onMutate: async (updates) => {
       // Cancel outgoing refetches
@@ -208,6 +227,7 @@ export default function EditPostScreen() {
     updateMutation.mutate({
       content: caption.trim(),
       location: location.trim() || undefined,
+      ...(isNSFW !== originalIsNSFW ? { isNSFW } : {}),
     });
 
     // Navigate back immediately (optimistic)
@@ -218,6 +238,8 @@ export default function EditPostScreen() {
     captionOverLimit,
     caption,
     location,
+    isNSFW,
+    originalIsNSFW,
     updateMutation,
     router,
   ]);
@@ -599,6 +621,61 @@ export default function EditPostScreen() {
             className="text-[15px]"
             returnKeyType="done"
           />
+        </Motion.View>
+
+        {/* ─── Spicy Toggle ─── */}
+        <Motion.View
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            type: "spring",
+            damping: 25,
+            stiffness: 300,
+            delay: 250,
+          }}
+          className="px-4 pb-3"
+        >
+          <Text className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+            CONTENT RATING
+          </Text>
+          <Pressable
+            onPress={() => setIsNSFW(!isNSFW)}
+            className="flex-row items-center justify-between p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]"
+          >
+            <View className="flex-row items-center gap-3 flex-1">
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 10,
+                  backgroundColor: isNSFW
+                    ? "rgba(239, 68, 68, 0.15)"
+                    : "rgba(255,255,255,0.05)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Flame
+                  size={18}
+                  color={isNSFW ? "#ef4444" : "rgba(255,255,255,0.4)"}
+                />
+              </View>
+              <View className="flex-1">
+                <Text className="text-foreground text-sm font-semibold">
+                  Spicy Content
+                </Text>
+                <Text className="text-muted-foreground text-xs mt-0.5">
+                  Mark as 18+ / sensitive content
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={isNSFW}
+              onValueChange={setIsNSFW}
+              trackColor={{ false: "#333", true: "rgba(239, 68, 68, 0.5)" }}
+              thumbColor={isNSFW ? "#ef4444" : "#666"}
+            />
+          </Pressable>
         </Motion.View>
 
         {/* ─── Info Banner ─── */}
