@@ -30,6 +30,9 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { Dimensions } from "react-native";
 import { BiometricLock } from "@/components/BiometricLock";
 import { LayoutAnimationConfig } from "react-native-reanimated";
+import { useShareIntent } from "expo-share-intent";
+import { useSpotifyShareStore } from "@/lib/spotify/spotify-share-store";
+import { SpotifyShareSheet } from "@/components/share/spotify-share-sheet";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
@@ -105,6 +108,19 @@ export default function RootLayout() {
   // This prevents update checks from interfering with splash animation
   // and ensures updates work correctly in production builds
   useUpdates({ enabled: splashAnimationFinished });
+
+  // ── Share Intent — receive content from other apps ──────────────────
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
+  const processSharedText = useSpotifyShareStore((s) => s.processSharedText);
+
+  useEffect(() => {
+    if (!hasShareIntent || !shareIntent) return;
+    const text = shareIntent.text || shareIntent.webUrl || "";
+    if (text) {
+      processSharedText(text);
+    }
+    resetShareIntent();
+  }, [hasShareIntent, shareIntent, processSharedText, resetShareIntent]);
 
   // Initialize push notifications
   useNotifications();
@@ -312,6 +328,8 @@ export default function RootLayout() {
                     </Stack>
                     {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
                     {isAuthenticated && <BiometricLock />}
+                    {/* Spotify share sheet — renders when a Spotify link is received */}
+                    <SpotifyShareSheet />
                     {/* Auth loading overlay — covers content but does NOT unmount navigation */}
                     {!authSettled && (
                       <View
