@@ -26,47 +26,42 @@ export const storiesApi = {
 
       const userId = getCurrentUserId();
       const userIdInt = getCurrentUserIdInt();
-      const authId = await getCurrentUserAuthId();
       if (!userId) return [];
 
-      // Get non-expired stories
+      // ── PARALLEL: authId + stories + close_friends ────────────────
       const now = new Date().toISOString();
 
-      const { data, error } = await supabase
-        .from(DB.stories.table)
-        .select(
-          `
-          *,
-          media:${DB.stories.mediaId}(url, mime_type),
-          thumbnail:${DB.stories.thumbnailId}(url)
-        `,
-        )
-        .gt(DB.stories.expiresAt, now)
-        .order(DB.stories.createdAt, { ascending: false })
-        .limit(50);
+      const [authId, storiesResult, cfResult] = await Promise.all([
+        getCurrentUserAuthId(),
+        supabase
+          .from(DB.stories.table)
+          .select(
+            `
+            *,
+            media:${DB.stories.mediaId}(url, mime_type),
+            thumbnail:${DB.stories.thumbnailId}(url)
+          `,
+          )
+          .gt(DB.stories.expiresAt, now)
+          .order(DB.stories.createdAt, { ascending: false })
+          .limit(50),
+        // close_friends is independent — fire in parallel
+        userIdInt
+          ? supabase
+              .from("close_friends")
+              .select("owner_id")
+              .eq("friend_id", userIdInt)
+              .then((res) => res.data ?? null)
+          : Promise.resolve(null),
+      ]);
 
+      const { data, error } = storiesResult;
       if (error) throw error;
 
-      // ── VISIBILITY ENFORCEMENT (server-side) ──────────────────────
-      // Fetch which story owners have the current user as a close friend
-      // so we can filter close_friends stories appropriately.
-      let closeFriendOfSet = new Set<string>(); // auth_ids of owners who have me as close friend
-      if (userIdInt) {
-        try {
-          const { data: cfRows } = await supabase
-            .from("close_friends")
-            .select("owner_id")
-            .eq("friend_id", userIdInt);
-          closeFriendOfSet = new Set(
-            (cfRows || []).map((r: any) => r.owner_id),
-          );
-        } catch (cfError) {
-          // close_friends table may not exist yet — continue without filtering
-          console.warn(
-            "[Stories] close_friends query failed, skipping:",
-            cfError,
-          );
-        }
+      // ── VISIBILITY ENFORCEMENT ────────────────────────────────────
+      let closeFriendOfSet = new Set<string>();
+      if (cfResult) {
+        closeFriendOfSet = new Set(cfResult.map((r: any) => r.owner_id));
       }
 
       // Filter: remove close_friends stories the viewer isn't allowed to see
