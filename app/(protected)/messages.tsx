@@ -26,6 +26,7 @@ import { MessagesSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { type Conversation } from "@/lib/api/messages";
+import { messagesApiClient } from "@/lib/api/messages";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   useUnreadMessageCount,
@@ -98,6 +99,7 @@ function ConversationList({
   onRefresh,
   onChatPress,
   onProfilePress,
+  onMarkAsRead,
   emptyTitle,
   emptyDescription,
   emptyIcon,
@@ -108,6 +110,7 @@ function ConversationList({
   onRefresh: () => void;
   onChatPress: (id: string, item?: ConversationItem) => void;
   onProfilePress: (username: string) => void;
+  onMarkAsRead?: (id: string) => void;
   emptyTitle: string;
   emptyDescription: string;
   emptyIcon: typeof MessageSquare;
@@ -143,6 +146,10 @@ function ConversationList({
 
           <TouchableOpacity
             onPress={() => onChatPress(item.id, item)}
+            onLongPress={() => {
+              if (item.unread && onMarkAsRead) onMarkAsRead(item.id);
+            }}
+            delayLongPress={400}
             activeOpacity={0.7}
             className="flex-1"
           >
@@ -560,6 +567,24 @@ export default function MessagesScreen() {
     [router],
   );
 
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleMarkAsRead = useCallback(
+    async (conversationId: string) => {
+      try {
+        await messagesApiClient.markAsRead(conversationId);
+        queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+        queryClient.invalidateQueries({
+          queryKey: ["messages", "unreadCount"],
+        });
+        showToast("success", "Done", "Marked as read");
+      } catch (err) {
+        console.error("[Messages] markAsRead error:", err);
+      }
+    },
+    [queryClient, showToast],
+  );
+
   const handleTabPress = useCallback((index: number) => {
     setActiveTab(index);
     pagerRef.current?.setPage(index);
@@ -697,6 +722,7 @@ export default function MessagesScreen() {
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
+            onMarkAsRead={handleMarkAsRead}
             emptyTitle="No Messages"
             emptyDescription="Messages from people you follow will appear here"
             emptyIcon={Inbox}
@@ -710,6 +736,7 @@ export default function MessagesScreen() {
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
+            onMarkAsRead={handleMarkAsRead}
             emptyTitle="No Message Requests"
             emptyDescription="Messages from people you don't follow will appear here"
             emptyIcon={ShieldAlert}

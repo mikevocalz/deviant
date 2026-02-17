@@ -162,7 +162,7 @@ export function getRouteForActivity(activity: Activity): string {
       case "comment":
         return `/(protected)/post/${entityId}`;
       case "user":
-        return `/(protected)/profile/${entityId}`;
+        return `/(protected)/profile/${user.username}`;
       case "event":
         return `/(protected)/events/${entityId}`;
     }

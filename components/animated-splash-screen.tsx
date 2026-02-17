@@ -18,7 +18,7 @@ const SUPABASE_URL =
   "https://npfjanxturvmjyevoyfo.supabase.co";
 
 const BOOT_TIMEOUT_MS = 10000; // 10 second boot timeout
-const ANIMATION_DURATION_MS = 7000; // 7 second animation
+const ANIMATION_DURATION_MS = 8000; // 8 second animation
 
 // Module-level flag - persists across component remounts
 let hasCalledFinish = false;

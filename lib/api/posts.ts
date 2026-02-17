@@ -49,15 +49,22 @@ async function fetchViewerLikedPostIds(
  */
 function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
-  const media = (dbPost.media || []).map((m: any) => ({
+  const allMedia = (dbPost.media || []).map((m: any) => ({
     type: m[DB.postsMedia.type] || "image",
     url: m[DB.postsMedia.url] || "",
   }));
 
-  // Get first media for thumbnail
+  // Separate thumbnail entries from visible media
+  const thumbnailEntry = allMedia.find((m: any) => m.type === "thumbnail");
+  const media = allMedia.filter((m: any) => m.type !== "thumbnail");
+
+  // For video posts, use the stored thumbnail image; otherwise use first media URL
   const firstMedia = media[0];
-  const thumbnail = firstMedia?.url || "";
   const type = firstMedia?.type || "image";
+  const thumbnail =
+    type === "video" && thumbnailEntry?.url
+      ? thumbnailEntry.url
+      : firstMedia?.url || "";
   const hasMultipleImages = media.length > 1;
 
   return {
@@ -437,7 +444,10 @@ export const postsApi = {
         timeAgo: "Just now",
         location: data.location,
         isNSFW: data.isNSFW || false,
-        thumbnail: data.media?.[0]?.url || "",
+        thumbnail:
+          data.media?.[0]?.type === "video"
+            ? (data.media[0] as any).thumbnail || data.media[0].url
+            : data.media?.[0]?.url || "",
         type: data.media?.[0]?.type || "image",
         hasMultipleImages: (data.media?.length || 0) > 1,
       };
