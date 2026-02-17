@@ -475,10 +475,11 @@ function PostDetailScreenContent() {
                     height: "100%",
                     alignItems: "center",
                     justifyContent: "center",
+                    paddingHorizontal: 24,
                   }}
                 >
-                  <Text className="text-muted-foreground">
-                    No media available
+                  <Text className="text-foreground text-base font-medium text-center leading-6">
+                    {post?.caption || "Media unavailable"}
                   </Text>
                 </View>
               )}
@@ -505,10 +506,17 @@ function PostDetailScreenContent() {
             </View>
           ) : (
             <View
-              style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
-              className="bg-muted items-center justify-center"
+              style={{
+                width: SCREEN_WIDTH,
+                minHeight: SCREEN_WIDTH * 0.6,
+                paddingHorizontal: 24,
+                paddingVertical: 32,
+              }}
+              className="bg-card items-center justify-center"
             >
-              <Text className="text-muted-foreground">No media</Text>
+              <Text className="text-foreground text-lg font-semibold text-center leading-7">
+                {post?.caption || ""}
+              </Text>
             </View>
           )}
 

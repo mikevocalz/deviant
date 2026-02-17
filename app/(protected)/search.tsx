@@ -216,7 +216,7 @@ function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
                 justifyContent: "center",
               }}
             >
-              <Text style={{ color: "#666", fontSize: 10 }}>No media</Text>
+              <Text style={{ color: "#444", fontSize: 10 }}>Aa</Text>
             </View>
           )}
         </Pressable>

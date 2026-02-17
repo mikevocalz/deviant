@@ -100,16 +100,31 @@ Deno.serve(async (req) => {
 
     const { content, location, isNSFW, visibility, media } = body;
 
-    // Must have content or media
-    if (
-      (!content || content.trim().length === 0) &&
-      (!media || media.length === 0)
-    ) {
+    // Media is REQUIRED — this is a media-first app
+    if (!media || !Array.isArray(media) || media.length === 0) {
       return errorResponse(
         "validation_error",
-        "Post must have content or media",
+        "Post must include at least one photo or video",
         400,
       );
+    }
+
+    // Validate each media item has a valid URL
+    for (const m of media) {
+      if (!m.url || typeof m.url !== "string" || !m.url.startsWith("http")) {
+        return errorResponse(
+          "validation_error",
+          "Each media item must have a valid URL",
+          400,
+        );
+      }
+      if (!["image", "video"].includes(m.type)) {
+        return errorResponse(
+          "validation_error",
+          "Each media item must have type 'image' or 'video'",
+          400,
+        );
+      }
     }
 
     // Get user's integer ID and profile info (auto-provision if needed)
