@@ -207,6 +207,20 @@ export default {
       "@config-plugins/react-native-callkeep",
       "./plugins/with-voip-push",
       "expo-secure-store",
+      "expo-sharing",
+      [
+        "expo-share-intent",
+        {
+          iosActivationRules: {
+            NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+            NSExtensionActivationSupportsText: true,
+          },
+          androidIntentFilters: ["text/*"],
+          androidMainActivityAttributes: {
+            "android:launchMode": "singleTask",
+          },
+        },
+      ],
       "react-native-compressor",
       [
         "expo-calendar",

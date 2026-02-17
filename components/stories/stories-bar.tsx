@@ -2,7 +2,8 @@ import { View, Text, Pressable, Dimensions, StyleSheet } from "react-native";
 import { Section } from "@expo/html-elements";
 import { Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { prefetchImagesRN } from "@/lib/perf/image-prefetch";
 import { StoriesBarSkeleton } from "@/components/skeletons";
 import { StoryRing } from "./story-ring";
 import InstaStory from "react-native-insta-story";
@@ -130,6 +131,22 @@ export function StoriesBar() {
       };
     });
   }, [otherStories, user?.id]);
+
+  // Warm React Native's Image cache for InstaStory thumbnails.
+  // InstaStory uses RN's built-in Image (NOT expo-image), so expo-image
+  // prefetch does nothing for it. Must use RN Image.prefetch.
+  useEffect(() => {
+    if (!instaData.length) return;
+    const urls: string[] = [];
+    for (const story of instaData) {
+      if (story.user_image) urls.push(story.user_image);
+      // Also prefetch fullscreen story images for instant viewer
+      for (const item of story.stories || []) {
+        if (item.story_image) urls.push(item.story_image);
+      }
+    }
+    if (urls.length) prefetchImagesRN(urls);
+  }, [instaData]);
 
   const handleStoryStart = useCallback((item?: IUserStory) => {
     console.log("[StoriesBar] Story viewer opened:", item?.user_name);
