@@ -27,7 +27,7 @@ export function ProfileActionSheet({
   onBlock,
 }: ProfileActionSheetProps) {
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["38%"], []);
+  const snapPoints = useMemo(() => ["52%"], []);
 
   useEffect(() => {
     if (visible) {

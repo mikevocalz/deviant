@@ -39,7 +39,7 @@ export function PostActionSheet({
 }: PostActionSheetProps) {
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => [isOwner ? "45%" : "35%"], [isOwner]);
+  const snapPoints = useMemo(() => [isOwner ? "55%" : "48%"], [isOwner]);
 
   useEffect(() => {
     if (visible) {
