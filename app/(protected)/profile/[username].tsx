@@ -304,10 +304,10 @@ function UserProfileScreenComponent() {
   const isLoading =
     isLoadingUser || (!userData && !!authId && isLoadingAuthUser);
 
-  // Fetch user posts — always use the resolved internal ID (integer) to avoid username lookup issues
-  const resolvedUserId = resolvedUserData?.id || "";
-  const { data: userPosts = [], isLoading: isLoadingPosts } =
-    useProfilePosts(resolvedUserId);
+  // Fetch user posts — fires in parallel with user query (no waterfall)
+  const { data: userPosts = [], isLoading: isLoadingPosts } = useProfilePosts(
+    safeUsername || "",
+  );
 
   // Follow state — read directly from query cache (optimistically updated by useFollow)
   const isFollowing = !!(resolvedUserData as any)?.isFollowing;
@@ -698,7 +698,7 @@ function UserProfileScreenComponent() {
         </View>
 
         {/* Posts Grid */}
-        {isLoading || isLoadingPosts || !resolvedUserId ? (
+        {isLoading || isLoadingPosts ? (
           <View className="flex-row flex-wrap">
             {Array.from({ length: 6 }).map((_, i) => (
               <View
