@@ -5,7 +5,7 @@
 import React from "react";
 import { View, Pressable, Text, ScrollView } from "react-native";
 import Animated, { SlideInDown, SlideOutDown } from "react-native-reanimated";
-import Slider from "@react-native-community/slider";
+import { RoundedSlider } from "../ui/RoundedSlider";
 import {
   Pen,
   PenTool,
@@ -101,7 +101,7 @@ export const DrawingToolbar: React.FC<DrawingToolbarProps> = ({
             minHeight: 4,
           }}
         />
-        <Slider
+        <RoundedSlider
           style={{ flex: 1, height: 40 }}
           minimumValue={toolConfig.minWidth}
           maximumValue={toolConfig.maxWidth}
@@ -109,7 +109,6 @@ export const DrawingToolbar: React.FC<DrawingToolbarProps> = ({
           onValueChange={onStrokeWidthChange}
           minimumTrackTintColor="#0095F6"
           maximumTrackTintColor="#2a2a2a"
-          thumbTintColor="#FFFFFF"
         />
       </View>
 

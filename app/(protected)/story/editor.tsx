@@ -24,7 +24,7 @@ export default function StoryEditorRoute() {
   }, [navigation]);
 
   const handleClose = () => {
-    router.navigate("/(protected)/story/create");
+    router.back();
     deferredReset.current.maybeExecute();
   };
 
