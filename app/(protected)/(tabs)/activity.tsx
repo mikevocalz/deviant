@@ -82,6 +82,7 @@ function getActivityText(activity: Activity): string {
 interface ActivityItemProps {
   activity: Activity;
   isFollowed: boolean;
+  isFollowPending: boolean;
   onActivityPress: (activity: Activity) => void;
   onUserPress: (username: string) => void;
   onPostPress: (postId: string) => void;
@@ -92,6 +93,7 @@ const ActivityItem = memo(
   ({
     activity,
     isFollowed,
+    isFollowPending,
     onActivityPress,
     onUserPress,
     onPostPress,
@@ -151,9 +153,11 @@ const ActivityItem = memo(
       {activity.type === "follow" && (
         <Pressable
           onPress={() => onFollowBack(activity.user.username)}
+          disabled={isFollowPending}
           className={`px-4 py-2 rounded-lg ml-3 ${
             isFollowed ? "bg-transparent border border-border" : "bg-primary"
           }`}
+          style={isFollowPending ? { opacity: 0.5 } : undefined}
         >
           <Text
             className={`text-[13px] font-semibold ${
@@ -197,6 +201,7 @@ export default function ActivityScreen() {
   // REACTIVE follow state — subscribe to followedUsers Set so component re-renders
   const followedUsers = useActivityStore((s) => s.followedUsers);
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
+  const pendingFollowUser = useRef<string | null>(null);
 
   // Seed follow state once on mount (for follow-back buttons)
   useEffect(() => {
@@ -298,6 +303,7 @@ export default function ActivityScreen() {
 
   const handleFollowBack = useCallback(
     (username: string) => {
+      if (isFollowPending) return;
       console.log("[Activity] Following back:", username);
       // Find the user's integer ID from activities
       const activity = activities.find((a) => a.user.username === username);
@@ -308,9 +314,17 @@ export default function ActivityScreen() {
       }
       const isCurrentlyFollowed = followedUsers.has(username);
       const action = isCurrentlyFollowed ? "unfollow" : "follow";
-      followMutate({ userId: targetUserId, action, username });
+      pendingFollowUser.current = username;
+      followMutate(
+        { userId: targetUserId, action, username },
+        {
+          onSettled: () => {
+            pendingFollowUser.current = null;
+          },
+        },
+      );
     },
-    [activities, followedUsers, followMutate],
+    [activities, followedUsers, followMutate, isFollowPending],
   );
 
   const handleActivityPress = useCallback(
@@ -343,6 +357,10 @@ export default function ActivityScreen() {
       <ActivityItem
         activity={activity}
         isFollowed={followedUsers.has(activity.user.username)}
+        isFollowPending={
+          isFollowPending &&
+          pendingFollowUser.current === activity.user.username
+        }
         onActivityPress={handleActivityPress}
         onUserPress={handleUserPress}
         onPostPress={handlePostPress}
@@ -355,6 +373,7 @@ export default function ActivityScreen() {
       handlePostPress,
       handleFollowBack,
       followedUsers,
+      isFollowPending,
     ],
   );
 
@@ -468,6 +487,7 @@ export default function ActivityScreen() {
         estimatedItemSize={80}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        extraData={followedUsers}
       />
     </View>
   );
