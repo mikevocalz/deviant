@@ -232,16 +232,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   type: m.type as "image" | "video",
                   uri: m.url || m.uri,
                 }))
-              : meta?.mediaUrl &&
-                  meta.type !== "shared_post" &&
-                  meta.type !== "story_reply"
-                ? [
-                    {
-                      type: (meta.mediaType as "image" | "video") || "image",
-                      uri: meta.mediaUrl as string,
-                    },
-                  ]
-                : undefined,
+              : Array.isArray(meta?.mediaItems) && meta.mediaItems.length > 0
+                ? meta.mediaItems.map((m: any) => ({
+                    type: (m.type as "image" | "video") || "image",
+                    uri: m.uri || m.url,
+                  }))
+                : meta?.mediaUrl &&
+                    meta.type !== "shared_post" &&
+                    meta.type !== "story_reply"
+                  ? [
+                      {
+                        type: (meta.mediaType as "image" | "video") || "image",
+                        uri: meta.mediaUrl as string,
+                      },
+                    ]
+                  : undefined,
           readAt: msg.readAt || null,
           storyReply,
           sharedPost,
@@ -334,7 +339,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           });
         }
 
-        // Parse media safely — check result.media array, then metadata.mediaUrl, then local fallback
+        // Parse media safely — check result.media array, then metadata.mediaItems, then metadata.mediaUrl, then local fallback
         const resMeta = result.metadata;
         const serverMedia: MediaAttachment[] | undefined =
           Array.isArray(result.media) && result.media.length > 0
@@ -342,19 +347,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 type: m.type as "image" | "video",
                 uri: m.url || m.uri,
               }))
-            : resMeta?.mediaUrl
-              ? [
-                  {
-                    type: (resMeta.mediaType as "image" | "video") || "image",
-                    uri: resMeta.mediaUrl as string,
-                  },
-                ]
-              : mediaToSend.length > 0
-                ? mediaToSend.map((item, i) => ({
-                    type: item.type,
-                    uri: uploadedUrls[i] || item.uri,
-                  }))
-                : undefined;
+            : Array.isArray(resMeta?.mediaItems) &&
+                resMeta.mediaItems.length > 0
+              ? resMeta.mediaItems.map((m: any) => ({
+                  type: (m.type as "image" | "video") || "image",
+                  uri: m.uri || m.url,
+                }))
+              : resMeta?.mediaUrl
+                ? [
+                    {
+                      type: (resMeta.mediaType as "image" | "video") || "image",
+                      uri: resMeta.mediaUrl as string,
+                    },
+                  ]
+                : mediaToSend.length > 0
+                  ? mediaToSend.map((item, i) => ({
+                      type: item.type,
+                      uri: uploadedUrls[i] || item.uri,
+                    }))
+                  : undefined;
 
         const existingMessages = get().messages[conversationId] || [];
         const newMessage: Message = {
