@@ -174,6 +174,54 @@ export const ticketsApi = {
     }
   },
 
+  /**
+   * Download all active QR tokens for an event (offline check-in).
+   * Returns array of qr_token strings that the host can validate locally.
+   */
+  async downloadOfflineTokens(eventId: string): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from("tickets")
+        .select("qr_token")
+        .eq("event_id", parseInt(eventId))
+        .in("status", ["active"])
+        .not("qr_token", "is", null);
+
+      if (error) throw error;
+      return (data || []).map((t: any) => t.qr_token).filter(Boolean);
+    } catch (error) {
+      console.error("[Tickets] downloadOfflineTokens error:", error);
+      return [];
+    }
+  },
+
+  /**
+   * Sync offline scans back to the server.
+   * Calls ticket-scan edge function for each pending scan.
+   */
+  async syncOfflineScans(
+    scans: { qrToken: string; scannedAt: string; scannedBy?: string }[],
+  ): Promise<{ synced: string[]; failed: string[] }> {
+    const synced: string[] = [];
+    const failed: string[] = [];
+    for (const scan of scans) {
+      try {
+        const { data, error } = await supabase.functions.invoke("ticket-scan", {
+          body: {
+            qr_token: scan.qrToken,
+            scanned_by: scan.scannedBy,
+            offline_scanned_at: scan.scannedAt,
+          },
+        });
+        if (error) throw error;
+        synced.push(scan.qrToken);
+      } catch {
+        failed.push(scan.qrToken);
+      }
+    }
+    return { synced, failed };
+  },
+
   // Legacy compat
   async checkInTicket(ticketId: string): Promise<{ success: boolean }> {
     return { success: false };
