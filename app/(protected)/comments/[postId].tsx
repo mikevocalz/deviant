@@ -291,9 +291,12 @@ export default function CommentsScreen() {
   );
 
   const handleProfilePress = useCallback(
-    (username: string) => {
+    (username: string, avatar?: string) => {
       if (!username) return;
-      router.push(`/(protected)/profile/${username}`);
+      router.push({
+        pathname: `/(protected)/profile/${username}`,
+        params: avatar ? { avatar } : {},
+      } as any);
     },
     [router],
   );
