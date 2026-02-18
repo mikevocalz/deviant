@@ -30,6 +30,8 @@ export const commentsApi = {
         return [];
       }
 
+      const viewerId = getCurrentUserIdInt();
+
       const { data, error } = await supabase
         .from(DB.comments.table)
         .select(
@@ -40,7 +42,8 @@ export const commentsApi = {
             ${DB.users.username},
             ${DB.users.firstName},
             avatar:${DB.users.avatarId}(url)
-          )
+          ),
+          comment_likes!left(user_id)
         `,
         )
         .eq(DB.comments.postId, postIdInt)
@@ -57,7 +60,10 @@ export const commentsApi = {
           text: c[DB.comments.content] || "",
           timeAgo: formatTimeAgo(c[DB.comments.createdAt]),
           likes: Number(c[DB.comments.likesCount]) || 0,
-          hasLiked: false,
+          hasLiked: viewerId
+            ? Array.isArray(c.comment_likes) &&
+              c.comment_likes.some((l: any) => l.user_id === viewerId)
+            : false,
           replies: [] as Comment[],
         }),
       );
@@ -128,29 +134,16 @@ export const commentsApi = {
       const userId = getCurrentUserIdInt();
       if (!userId) throw new Error("Not authenticated");
 
-      const newLikedState = !isLiked;
+      const { data, error } = await supabase.rpc("toggle_comment_like", {
+        p_comment_id: parseInt(commentId),
+        p_user_id: userId,
+      });
 
-      if (newLikedState) {
-        // Add like - using comment_likes table if it exists, otherwise update count directly
-        await supabase.rpc("increment_comment_likes", {
-          comment_id: parseInt(commentId),
-        });
-      } else {
-        await supabase.rpc("decrement_comment_likes", {
-          comment_id: parseInt(commentId),
-        });
-      }
-
-      // Get updated likes count
-      const { data: commentData } = await supabase
-        .from(DB.comments.table)
-        .select(DB.comments.likesCount)
-        .eq(DB.comments.id, commentId)
-        .single();
+      if (error) throw error;
 
       return {
-        liked: newLikedState,
-        likes: commentData?.[DB.comments.likesCount] || 0,
+        liked: (data as any)?.liked ?? !isLiked,
+        likes: (data as any)?.likes_count ?? 0,
       };
     } catch (error) {
       console.error("[Comments] likeComment error:", error);
