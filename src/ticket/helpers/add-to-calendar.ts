@@ -5,29 +5,29 @@
 
 import * as Calendar from "expo-calendar";
 import { Platform, Alert, Linking } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkv } from "@/lib/mmkv-zustand";
 import type { Ticket } from "@/lib/stores/ticket-store";
 
 const CALENDAR_EVENTS_KEY = "@deviant/calendar_events";
 
 /** Persist which tickets have been added to calendar */
-async function getAddedEvents(): Promise<Record<string, string>> {
+function getAddedEvents(): Record<string, string> {
   try {
-    const raw = await AsyncStorage.getItem(CALENDAR_EVENTS_KEY);
+    const raw = mmkv.getString(CALENDAR_EVENTS_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 }
 
-async function markEventAdded(ticketId: string, calendarEventId: string) {
-  const map = await getAddedEvents();
+function markEventAdded(ticketId: string, calendarEventId: string) {
+  const map = getAddedEvents();
   map[ticketId] = calendarEventId;
-  await AsyncStorage.setItem(CALENDAR_EVENTS_KEY, JSON.stringify(map));
+  mmkv.set(CALENDAR_EVENTS_KEY, JSON.stringify(map));
 }
 
-async function isAlreadyAdded(ticketId: string): Promise<boolean> {
-  const map = await getAddedEvents();
+function isAlreadyAdded(ticketId: string): boolean {
+  const map = getAddedEvents();
   return Boolean(map[ticketId]);
 }
 
@@ -99,7 +99,7 @@ export async function addTicketToCalendar(
 ): Promise<AddToCalendarResult> {
   try {
     // 1. Check duplicate
-    if (await isAlreadyAdded(ticket.id)) {
+    if (isAlreadyAdded(ticket.id)) {
       return { success: true, alreadyAdded: true };
     }
 
@@ -146,7 +146,7 @@ export async function addTicketToCalendar(
     });
 
     // 5. Persist
-    await markEventAdded(ticket.id, calendarEventId);
+    markEventAdded(ticket.id, calendarEventId);
 
     return { success: true };
   } catch (err: any) {

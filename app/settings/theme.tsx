@@ -4,7 +4,7 @@ import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Sun, Moon, Smartphone, Check } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkv } from "@/lib/mmkv-zustand";
 import { useEffect, useState } from "react";
 
 type ThemeOption = "system" | "light" | "dark";
@@ -16,16 +16,15 @@ export default function ThemeScreen() {
   const [selectedTheme, setSelectedTheme] = useState<ThemeOption>("system");
 
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((stored) => {
-      if (stored === "light" || stored === "dark" || stored === "system") {
-        setSelectedTheme(stored);
-      }
-    });
+    const stored = mmkv.getString(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark" || stored === "system") {
+      setSelectedTheme(stored);
+    }
   }, []);
 
-  const handleSelectTheme = async (theme: ThemeOption) => {
+  const handleSelectTheme = (theme: ThemeOption) => {
     setSelectedTheme(theme);
-    await AsyncStorage.setItem(THEME_STORAGE_KEY, theme);
+    mmkv.set(THEME_STORAGE_KEY, theme);
     setColorScheme(theme);
   };
 

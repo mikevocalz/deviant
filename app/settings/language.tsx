@@ -4,7 +4,7 @@ import { Main } from "@expo/html-elements";
 import { useRouter } from "expo-router";
 import { ChevronLeft, Check } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkv } from "@/lib/mmkv-zustand";
 import { useEffect, useState } from "react";
 import { toast } from "sonner-native";
 
@@ -29,14 +29,13 @@ export default function LanguageScreen() {
   const [selectedLanguage, setSelectedLanguage] = useState("en");
 
   useEffect(() => {
-    AsyncStorage.getItem(LANGUAGE_STORAGE_KEY).then((stored) => {
-      if (stored) setSelectedLanguage(stored);
-    });
+    const stored = mmkv.getString(LANGUAGE_STORAGE_KEY);
+    if (stored) setSelectedLanguage(stored);
   }, []);
 
-  const handleSelectLanguage = async (code: string) => {
+  const handleSelectLanguage = (code: string) => {
     setSelectedLanguage(code);
-    await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, code);
+    mmkv.set(LANGUAGE_STORAGE_KEY, code);
     if (code !== "en") {
       toast.info("Language saved", {
         description:

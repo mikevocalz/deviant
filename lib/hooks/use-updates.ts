@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import { AppState, type AppStateStatus, Platform } from "react-native";
 import { toast } from "sonner-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkv } from "@/lib/mmkv-zustand";
 
 const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
