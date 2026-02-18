@@ -4,7 +4,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getWeatherForecast } from "@/lib/api/weather";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 export const weatherKeys = {
@@ -16,12 +15,7 @@ export function useWeatherForecast(lat?: number, lng?: number) {
   return useQuery({
     queryKey: weatherKeys.forecast(lat ?? 0, lng ?? 0),
     queryFn: () => getWeatherForecast(lat!, lng!),
-    enabled:
-      lat != null &&
-      lng != null &&
-      lat !== 0 &&
-      lng !== 0 &&
-      isFeatureEnabled("event_weather_enabled"),
+    enabled: lat != null && lng != null && lat !== 0 && lng !== 0,
     staleTime: STALE_TIMES.weather,
     gcTime: GC_TIMES.long,
     retry: 1,
