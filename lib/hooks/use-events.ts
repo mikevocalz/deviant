@@ -2,7 +2,12 @@
  * React Query hooks for events
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
@@ -67,6 +72,8 @@ export const eventKeys = {
 };
 
 // Fetch all events with optional filters
+// placeholderData: keepPreviousData keeps old results visible while new filter query loads
+// This prevents UI "jump" when toggling filter pills
 export function useEvents(filters?: EventFilters) {
   return useQuery({
     queryKey: eventKeys.list(filters),
@@ -79,6 +86,7 @@ export function useEvents(filters?: EventFilters) {
         sort: filters?.sort,
       }),
     staleTime: STALE_TIMES.events,
+    placeholderData: keepPreviousData,
   });
 }
 
