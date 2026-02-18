@@ -1,9 +1,9 @@
 /**
  * Profile Routing Helper
- * 
+ *
  * SINGLE SOURCE OF TRUTH for profile navigation.
  * Ensures correct routing to MyProfile vs UserProfile screens.
- * 
+ *
  * Rules:
  * - If targetUserId === viewerId → /profile/me (MyProfile)
  * - Otherwise → /profile/[username] (UserProfile)
@@ -14,13 +14,14 @@ import { Router } from "expo-router";
 interface RouteToProfileParams {
   targetUserId: string | number | undefined;
   targetUsername: string | undefined;
+  targetAvatar?: string | undefined;
   viewerId: string | number | undefined;
   router: Router;
 }
 
 /**
  * Navigate to the correct profile screen based on ownership.
- * 
+ *
  * @example
  * // From feed post author tap
  * routeToProfile({
@@ -33,6 +34,7 @@ interface RouteToProfileParams {
 export function routeToProfile({
   targetUserId,
   targetUsername,
+  targetAvatar,
   viewerId,
   router,
 }: RouteToProfileParams): void {
@@ -57,8 +59,16 @@ export function routeToProfile({
   }
 
   // Otherwise, route to user profile by username
+  // Pass avatar as route param to eliminate initials waterfall
   if (targetUsername) {
-    router.push(`/(protected)/profile/${targetUsername}`);
+    const params: Record<string, string> = {};
+    if (targetAvatar && targetAvatar.length > 0) {
+      params.avatar = targetAvatar;
+    }
+    router.push({
+      pathname: `/(protected)/profile/${targetUsername}`,
+      params,
+    } as any);
     return;
   }
 

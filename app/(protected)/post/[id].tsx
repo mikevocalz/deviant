@@ -211,8 +211,11 @@ function PostDetailScreenContent() {
   const handleProfilePress = useCallback(() => {
     if (!post?.author?.username) return;
     console.log(`[PostDetail] Navigating to profile: ${post.author.username}`);
-    router.push(`/(protected)/profile/${post.author.username}`);
-  }, [post?.author?.username, router]);
+    router.push({
+      pathname: `/(protected)/profile/${post.author.username}`,
+      params: post.author.avatar ? { avatar: post.author.avatar } : {},
+    } as any);
+  }, [post?.author?.username, post?.author?.avatar, router]);
 
   const handleShare = useCallback(async () => {
     if (!postId || !post) return;
