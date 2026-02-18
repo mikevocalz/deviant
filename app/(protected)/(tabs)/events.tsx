@@ -12,7 +12,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
 } from "react-native-reanimated";
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import { useEvents, type Event } from "@/lib/hooks/use-events";
@@ -22,6 +22,8 @@ import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { CityPickerSheet } from "@/components/events/city-picker-sheet";
 import { WeatherStrip } from "@/components/events/weather-strip";
+import { useCities } from "@/lib/hooks/use-cities";
+import * as Location from "expo-location";
 import {
   FilterPills,
   type EventFilter,
@@ -221,6 +223,42 @@ export default function EventsScreen() {
 
   // Location store
   const activeCity = useEventsLocationStore((s) => s.activeCity);
+  const setActiveCity = useEventsLocationStore((s) => s.setActiveCity);
+  const setDeviceLocation = useEventsLocationStore((s) => s.setDeviceLocation);
+  const setLocationMode = useEventsLocationStore((s) => s.setLocationMode);
+  const { data: allCities = [] } = useCities();
+
+  // Auto-detect location on first visit when no city is selected
+  useEffect(() => {
+    if (activeCity || allCities.length === 0) return;
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+        const loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        setDeviceLocation(loc.coords.latitude, loc.coords.longitude);
+        setLocationMode("device");
+        // Find nearest city
+        let nearest: (typeof allCities)[0] | null = null;
+        let minDist = Infinity;
+        for (const city of allCities) {
+          const dist = Math.sqrt(
+            Math.pow(city.lat - loc.coords.latitude, 2) +
+              Math.pow(city.lng - loc.coords.longitude, 2),
+          );
+          if (dist < minDist) {
+            minDist = dist;
+            nearest = city;
+          }
+        }
+        if (nearest) setActiveCity(nearest);
+      } catch (err) {
+        console.warn("[Events] Auto-location failed:", err);
+      }
+    })();
+  }, [activeCity, allCities]);
 
   // Fetch real events from API
   const { data: events = [], isLoading, error } = useEvents();

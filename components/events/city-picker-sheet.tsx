@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -41,7 +47,14 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
   const { data: allCities = [], isLoading: citiesLoading } = useCities();
   const { data: searchResults = [] } = useCitySearch(searchQuery);
 
-  const snapPoints = useMemo(() => ["75%"], []);
+  const snapPoints = useMemo(() => ["90%"], []);
+
+  // Auto-request location permission when sheet becomes visible
+  useEffect(() => {
+    if (visible) {
+      Location.requestForegroundPermissionsAsync().catch(() => {});
+    }
+  }, [visible]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
