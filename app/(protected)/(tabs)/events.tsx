@@ -39,7 +39,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useRef, useCallback, useMemo, useEffect } from "react";
 import { Debouncer } from "@tanstack/react-pacer";
-import { EventsSkeleton } from "@/components/skeletons";
+import { EventCardSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import {
   useEvents,
@@ -491,17 +491,8 @@ export default function EventsScreen() {
   const showCollections =
     debouncedSearch.length < 2 && activeFilters.length === 0;
 
-  // Skeleton ONLY when truly no data (first ever boot, no cache)
-  // With MMKV persistence, cache-hit means zero skeleton on cold start
-  if (isLoading && events.length === 0) {
-    return (
-      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-        <Main className="flex-1">
-          <EventsSkeleton />
-        </Main>
-      </View>
-    );
-  }
+  // Whether events are still loading (show inline skeletons, never block layout)
+  const showEventSkeletons = isLoading && events.length === 0;
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
@@ -753,6 +744,18 @@ export default function EventsScreen() {
                           }
                         />
                       )
+                    ) : showEventSkeletons ? (
+                      <ScrollView
+                        className="flex-1"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{
+                          padding: 16,
+                          paddingBottom: 32,
+                        }}
+                      >
+                        <EventCardSkeleton />
+                        <EventCardSkeleton />
+                      </ScrollView>
                     ) : (
                       <Animated.ScrollView
                         className="flex-1"

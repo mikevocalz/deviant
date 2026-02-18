@@ -7,7 +7,7 @@ import {
 
 const CARD_HEIGHT = 500;
 
-function EventCardSkeleton() {
+export function EventCardSkeleton() {
   return (
     <View style={styles.cardContainer}>
       <View style={styles.card}>
