@@ -10,7 +10,8 @@ import type { City } from "@/lib/stores/events-location-store";
  * useBootLocation — runs ONCE on app boot inside ProtectedLayout.
  *
  * If location permission is already granted AND no activeCity is persisted,
- * silently fetches device coords, finds the nearest city, and sets it.
+ * silently fetches device coords, reverse-geocodes to get the city name,
+ * and sets activeCity. Falls back to nearest DB city if geocoding fails.
  * Never prompts the user — only uses already-granted permission.
  */
 export function useBootLocation() {
@@ -42,9 +43,10 @@ export function useBootLocation() {
           accuracy: Location.Accuracy.Balanced,
         });
 
+        const { latitude, longitude } = loc.coords;
         const { setDeviceLocation, setLocationMode, setActiveCity } =
           useEventsLocationStore.getState();
-        setDeviceLocation(loc.coords.latitude, loc.coords.longitude);
+        setDeviceLocation(latitude, longitude);
         setLocationMode("device");
 
         // Get cities (from cache or fetch)
@@ -58,15 +60,13 @@ export function useBootLocation() {
           });
         }
 
-        if (cities.length === 0) return;
-
-        // Find nearest city
+        // Try to find nearest DB city (within ~50km / ~0.5 deg)
         let nearest: City | null = null;
         let minDist = Infinity;
         for (const city of cities) {
           const dist = Math.sqrt(
-            Math.pow(city.lat - loc.coords.latitude, 2) +
-              Math.pow(city.lng - loc.coords.longitude, 2),
+            Math.pow(city.lat - latitude, 2) +
+              Math.pow(city.lng - longitude, 2),
           );
           if (dist < minDist) {
             minDist = dist;
@@ -74,8 +74,52 @@ export function useBootLocation() {
           }
         }
 
+        // If a close DB city exists, use it
+        if (nearest && minDist < 0.5) {
+          console.log("[BootLocation] Nearest DB city:", nearest.name);
+          setActiveCity(nearest);
+          return;
+        }
+
+        // Reverse geocode to get actual city name from coords
+        try {
+          const [geo] = await Location.reverseGeocodeAsync({
+            latitude,
+            longitude,
+          });
+          if (geo?.city) {
+            console.log("[BootLocation] Reverse geocoded city:", geo.city);
+            // Check if a DB city matches the geocoded name
+            const dbMatch = cities.find(
+              (c) => c.name.toLowerCase() === geo.city!.toLowerCase(),
+            );
+            if (dbMatch) {
+              setActiveCity(dbMatch);
+            } else {
+              // Create a synthetic city from geocode result
+              setActiveCity({
+                id: -1,
+                name: geo.city,
+                state: geo.region ?? null,
+                country: geo.country ?? "US",
+                lat: latitude,
+                lng: longitude,
+                timezone: null,
+                slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
+              });
+            }
+            return;
+          }
+        } catch (geoErr) {
+          console.warn("[BootLocation] Reverse geocode failed:", geoErr);
+        }
+
+        // Last resort: use nearest DB city regardless of distance
         if (nearest) {
-          console.log("[BootLocation] Nearest city:", nearest.name);
+          console.log(
+            "[BootLocation] Fallback to nearest DB city:",
+            nearest.name,
+          );
           setActiveCity(nearest);
         }
       } catch (err) {
