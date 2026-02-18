@@ -19,6 +19,12 @@ interface LocationData {
   placeId?: string;
 }
 
+interface CoOrganizer {
+  id: string;
+  username: string;
+  avatar: string;
+}
+
 interface TicketTier {
   id: string;
   name: string;
@@ -52,6 +58,7 @@ interface DraftFields {
   lineup: string[];
   perks: string[];
   ticketTiers: TicketTier[];
+  coOrganizers: CoOrganizer[];
 }
 
 // UI-only fields (not persisted, but in store to comply with no-useState rule)
@@ -66,6 +73,13 @@ interface UIFields {
   lineupInput: string;
   perksInput: string;
   ticketTierName: string;
+  coOrganizerSearch: string;
+  coOrganizerResults: {
+    id: string;
+    username: string;
+    avatar: string;
+    name: string;
+  }[];
 }
 
 interface CreateEventActions {
@@ -89,7 +103,9 @@ interface CreateEventActions {
   setDoorPolicy: (v: string) => void;
   setLineup: (v: string[] | ((prev: string[]) => string[])) => void;
   setPerks: (v: string[] | ((prev: string[]) => string[])) => void;
-  setTicketTiers: (v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[])) => void;
+  setTicketTiers: (
+    v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[]),
+  ) => void;
 
   // UI-only setters
   setShowDatePicker: (v: boolean) => void;
@@ -108,6 +124,14 @@ interface CreateEventActions {
   addCustomTag: () => void;
   addLineupItem: () => void;
   addPerk: () => void;
+  addCoOrganizer: (user: CoOrganizer) => void;
+  removeCoOrganizer: (userId: string) => void;
+  setCoOrganizerSearch: (v: string) => void;
+  setCoOrganizerResults: (
+    v: { id: string; username: string; avatar: string; name: string }[],
+  ) => void;
+  removeLineupItem: (index: number) => void;
+  removePerk: (index: number) => void;
   hasDraft: () => boolean;
   resetDraft: () => void;
 }
@@ -135,6 +159,7 @@ const DRAFT_DEFAULTS: DraftFields = {
   lineup: [],
   perks: [],
   ticketTiers: [],
+  coOrganizers: [],
 };
 
 const UI_DEFAULTS: UIFields = {
@@ -148,6 +173,8 @@ const UI_DEFAULTS: UIFields = {
   lineupInput: "",
   perksInput: "",
   ticketTierName: "",
+  coOrganizerSearch: "",
+  coOrganizerResults: [],
 };
 
 // Helper to resolve functional updaters
@@ -227,9 +254,37 @@ export const useCreateEventStore = create<CreateEventState>()(
         }
       },
 
+      addCoOrganizer: (user) => {
+        if (!get().coOrganizers.some((c) => c.id === user.id)) {
+          set((s) => ({
+            coOrganizers: [...s.coOrganizers, user],
+            coOrganizerSearch: "",
+          }));
+        }
+      },
+
+      removeCoOrganizer: (userId) =>
+        set((s) => ({
+          coOrganizers: s.coOrganizers.filter((c) => c.id !== userId),
+        })),
+
+      setCoOrganizerSearch: (v) => set({ coOrganizerSearch: v }),
+
+      setCoOrganizerResults: (v) => set({ coOrganizerResults: v }),
+
+      removeLineupItem: (index) =>
+        set((s) => ({ lineup: s.lineup.filter((_, i) => i !== index) })),
+
+      removePerk: (index) =>
+        set((s) => ({ perks: s.perks.filter((_, i) => i !== index) })),
+
       hasDraft: () => {
         const s = get();
-        return !!(s.title.trim() || s.description.trim() || s.eventImages.length > 0);
+        return !!(
+          s.title.trim() ||
+          s.description.trim() ||
+          s.eventImages.length > 0
+        );
       },
 
       resetDraft: () => set({ ...DRAFT_DEFAULTS, ...UI_DEFAULTS }),
@@ -259,6 +314,7 @@ export const useCreateEventStore = create<CreateEventState>()(
         lineup: state.lineup,
         perks: state.perks,
         ticketTiers: state.ticketTiers,
+        coOrganizers: state.coOrganizers,
       }),
     },
   ),

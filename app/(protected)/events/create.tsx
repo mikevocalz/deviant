@@ -70,6 +70,9 @@ import {
   type CreateTicketTypeParams,
 } from "@/lib/api/ticket-types";
 import { YouTubeEmbed, extractVideoId } from "@/components/youtube-embed";
+import { usersApi } from "@/lib/api/users";
+import { Avatar } from "@/components/ui/avatar";
+import { Debouncer } from "@tanstack/react-pacer";
 
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
@@ -178,6 +181,15 @@ export default function CreateEventScreen() {
     setTicketTiers,
     addLineupItem,
     addPerk,
+    coOrganizers,
+    addCoOrganizer,
+    removeCoOrganizer,
+    coOrganizerSearch,
+    setCoOrganizerSearch,
+    coOrganizerResults,
+    setCoOrganizerResults,
+    removeLineupItem,
+    removePerk,
     resetDraft,
   } = store;
 
@@ -191,6 +203,34 @@ export default function CreateEventScreen() {
   useEffect(() => {
     requestPermissions();
   }, [requestPermissions]);
+
+  // Debounced co-organizer search
+  const coOrgSearchDebouncer = useMemo(
+    () =>
+      new Debouncer(
+        async (query: string) => {
+          if (query.length < 2) {
+            setCoOrganizerResults([]);
+            return;
+          }
+          const { docs } = await usersApi.searchUsers(query, 6);
+          setCoOrganizerResults(
+            docs.map((u: any) => ({
+              id: u.id,
+              username: u.username,
+              avatar: u.avatar,
+              name: u.name,
+            })),
+          );
+        },
+        { wait: 300 },
+      ),
+    [setCoOrganizerResults],
+  );
+
+  useEffect(() => {
+    coOrgSearchDebouncer.maybeExecute(coOrganizerSearch);
+  }, [coOrganizerSearch, coOrgSearchDebouncer]);
 
   const handlePickImages = async () => {
     const remaining = 4 - eventImages.length;
@@ -1162,9 +1202,7 @@ export default function CreateEventScreen() {
                   >
                     <Text className="text-sm text-foreground">{performer}</Text>
                     <Pressable
-                      onPress={() =>
-                        setLineup((p) => p.filter((_, i) => i !== idx))
-                      }
+                      onPress={() => removeLineupItem(idx)}
                       hitSlop={8}
                     >
                       <X size={12} color={colors.mutedForeground} />
@@ -1207,12 +1245,7 @@ export default function CreateEventScreen() {
                     className="flex-row items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full"
                   >
                     <Text className="text-sm text-foreground">{perk}</Text>
-                    <Pressable
-                      onPress={() =>
-                        setPerks((p) => p.filter((_, i) => i !== idx))
-                      }
-                      hitSlop={8}
-                    >
+                    <Pressable onPress={() => removePerk(idx)} hitSlop={8}>
                       <X size={12} color={colors.mutedForeground} />
                     </Pressable>
                   </View>
@@ -1235,6 +1268,95 @@ export default function CreateEventScreen() {
                 </Pressable>
               )}
             </View>
+          </View>
+        </View>
+
+        {/* Co-Organizers */}
+        <View className="mb-6">
+          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+            Co-Organizers
+          </Text>
+          <View className="bg-card rounded-2xl p-4">
+            <View className="flex-row items-center gap-2 mb-3">
+              <UserPlus size={18} color={colors.mutedForeground} />
+              <Text className="text-sm font-semibold text-foreground">
+                Invite Co-Organizers
+              </Text>
+            </View>
+
+            {/* Selected co-organizers */}
+            {coOrganizers.length > 0 && (
+              <View className="flex-row flex-wrap gap-2 mb-3">
+                {coOrganizers.map((org) => (
+                  <View
+                    key={org.id}
+                    className="flex-row items-center gap-2 bg-muted px-3 py-1.5 rounded-full"
+                  >
+                    <Avatar
+                      uri={org.avatar}
+                      username={org.username}
+                      size={20}
+                    />
+                    <Text className="text-sm text-foreground">
+                      @{org.username}
+                    </Text>
+                    <Pressable
+                      onPress={() => removeCoOrganizer(org.id)}
+                      hitSlop={8}
+                    >
+                      <X size={12} color={colors.mutedForeground} />
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Search input */}
+            <TextInput
+              className="py-2.5 text-base text-foreground"
+              placeholder="Search by username..."
+              placeholderTextColor={colors.mutedForeground}
+              value={coOrganizerSearch}
+              onChangeText={setCoOrganizerSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            {/* Search results */}
+            {coOrganizerResults.length > 0 && (
+              <View className="mt-2 border-t border-border pt-2">
+                {coOrganizerResults
+                  .filter((u) => !coOrganizers.some((c) => c.id === u.id))
+                  .map((user) => (
+                    <Pressable
+                      key={user.id}
+                      onPress={() =>
+                        addCoOrganizer({
+                          id: user.id,
+                          username: user.username,
+                          avatar: user.avatar,
+                        })
+                      }
+                      className="flex-row items-center gap-3 py-2.5"
+                    >
+                      <Avatar
+                        uri={user.avatar}
+                        username={user.username}
+                        size={32}
+                      />
+                      <View className="flex-1">
+                        <Text className="text-sm font-semibold text-foreground">
+                          {user.name}
+                        </Text>
+                        <Text className="text-xs text-muted-foreground">
+                          @{user.username}
+                        </Text>
+                      </View>
+                      <Plus size={16} color={colors.primary} />
+                    </Pressable>
+                  ))}
+              </View>
+            )}
           </View>
         </View>
 
