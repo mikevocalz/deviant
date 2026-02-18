@@ -32,23 +32,41 @@ export const commentsApi = {
 
       const viewerId = getCurrentUserIdInt();
 
-      const { data, error } = await supabase
-        .from(DB.comments.table)
-        .select(
-          `
+      // Try with comment_likes join first; fall back without it if the join
+      // fails (e.g. missing GRANT on comment_likes for anon role).
+      const baseSelect = `
           *,
           author:${DB.comments.authorId}(
             ${DB.users.id},
             ${DB.users.username},
             ${DB.users.firstName},
             avatar:${DB.users.avatarId}(url)
-          ),
-          comment_likes!left(user_id)
-        `,
-        )
+          )`;
+      const withLikesSelect = `${baseSelect},
+          comment_likes!left(user_id)`;
+
+      let { data, error } = await supabase
+        .from(DB.comments.table)
+        .select(withLikesSelect)
         .eq(DB.comments.postId, postIdInt)
         .order(DB.comments.createdAt, { ascending: false })
         .limit(limit);
+
+      // Fallback: if comment_likes join failed, retry without it
+      if (error) {
+        console.warn(
+          "[Comments] comment_likes join failed, retrying without:",
+          error.message,
+        );
+        const fallback = await supabase
+          .from(DB.comments.table)
+          .select(baseSelect)
+          .eq(DB.comments.postId, postIdInt)
+          .order(DB.comments.createdAt, { ascending: false })
+          .limit(limit);
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
 
