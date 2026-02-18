@@ -23,6 +23,7 @@ import { postsApi } from "@/lib/api/posts";
 import { usersApi } from "@/lib/api/users";
 import { BadgeCheck, UserPlus } from "lucide-react-native";
 import { LegendList } from "@/components/list";
+import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import type { Post } from "@/lib/types";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -157,7 +158,10 @@ function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
   const renderItem = useCallback(
     ({ item }: { item: Post }) => {
       const isVideo = item.type === "video";
-      const uri = item.thumbnail || item.media?.[0]?.url;
+      const videoUrl = isVideo ? item.media?.[0]?.url : undefined;
+      // For video posts, NEVER use the video URL as image source — expo-image can't render it
+      const imageUri =
+        item.thumbnail || (!isVideo ? item.media?.[0]?.url : undefined);
       return (
         <Pressable
           onPress={() => router.push(`/(protected)/post/${item.id}`)}
@@ -168,12 +172,13 @@ function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
             overflow: "hidden",
           }}
         >
-          {uri ? (
+          {imageUri ? (
             <>
               <Image
-                source={{ uri }}
+                source={{ uri: imageUri }}
                 style={{ width: "100%", height: "100%" }}
                 contentFit="cover"
+                cachePolicy="memory-disk"
               />
               {isVideo && (
                 <View
@@ -205,6 +210,19 @@ function DiscoverGrid({ router }: { router: ReturnType<typeof useRouter> }) {
                   </Text>
                 </View>
               )}
+            </>
+          ) : isVideo && videoUrl ? (
+            <>
+              <VideoThumbnailImage videoUrl={videoUrl} />
+              <View
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 6,
+                }}
+              >
+                <Play size={16} color="#fff" fill="#fff" />
+              </View>
             </>
           ) : (
             <View

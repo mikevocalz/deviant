@@ -30,6 +30,7 @@ import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi } from "@/lib/api/users";
 import { Image } from "expo-image";
+import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
@@ -811,6 +812,28 @@ function UserProfileScreenComponent() {
                       </View>
                     )}
                   </View>
+                ) : post.type === "video" && post.media?.[0]?.url ? (
+                  <View
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      position: "relative",
+                    }}
+                  >
+                    <VideoThumbnailImage videoUrl={post.media[0].url} />
+                    <View
+                      style={{
+                        position: "absolute",
+                        top: 8,
+                        right: 8,
+                        backgroundColor: "rgba(0,0,0,0.6)",
+                        borderRadius: 12,
+                        padding: 6,
+                      }}
+                    >
+                      <Play size={16} color="#fff" fill="#fff" />
+                    </View>
+                  </View>
                 ) : (
                   <View
                     style={{
@@ -822,13 +845,9 @@ function UserProfileScreenComponent() {
                       justifyContent: "center",
                     }}
                   >
-                    {post.type === "video" ? (
-                      <Play size={24} color="#666" fill="#666" />
-                    ) : (
-                      <Text className="text-muted-foreground text-xs">
-                        No image
-                      </Text>
-                    )}
+                    <Text className="text-muted-foreground text-xs">
+                      No preview
+                    </Text>
                   </View>
                 )}
               </Pressable>
