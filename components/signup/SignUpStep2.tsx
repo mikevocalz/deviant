@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Platform,
   PermissionsAndroid,
   ScrollView,
+  InteractionManager,
 } from "react-native";
 import { router } from "expo-router";
 import { Camera as VisionCamera } from "react-native-vision-camera";
@@ -70,6 +71,7 @@ export function SignUpStep2() {
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   // Record terms acceptance - calls API directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
@@ -125,7 +127,6 @@ export function SignUpStep2() {
         toast.error("Registration Failed", {
           description: error.message || "Could not create account",
         });
-        setIsSubmitting(false);
         return;
       }
 
@@ -134,7 +135,6 @@ export function SignUpStep2() {
         toast.error("Registration Failed", {
           description: "Could not create account",
         });
-        setIsSubmitting(false);
         return;
       }
 
@@ -148,11 +148,10 @@ export function SignUpStep2() {
         console.log("[SignUp] User synced, ID:", profile.id);
       } catch (syncError) {
         console.warn(
-          "[SignUp] syncAuthUser attempt 1 failed, retrying in 2s:",
+          "[SignUp] syncAuthUser attempt 1 failed, retrying:",
           syncError,
         );
         try {
-          await new Promise((r) => setTimeout(r, 2000));
           profile = await syncAuthUser();
           console.log("[SignUp] User synced on retry, ID:", profile.id);
         } catch (retryError) {
@@ -250,6 +249,7 @@ export function SignUpStep2() {
       toast.error("Failed to create account", {
         description: errorMsg,
       });
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -257,6 +257,16 @@ export function SignUpStep2() {
   useEffect(() => {
     checkAndRequestPermissions();
   }, []);
+
+  // Auto-scroll to "Complete Signup" button when verification succeeds
+  useEffect(() => {
+    if (idVerification.isVerified) {
+      const task = InteractionManager.runAfterInteractions(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      });
+      return () => task.cancel();
+    }
+  }, [idVerification.isVerified]);
 
   // Sync verification store images to auth store
   useEffect(() => {
@@ -585,6 +595,7 @@ export function SignUpStep2() {
 
   return (
     <ScrollView
+      ref={scrollRef}
       className="flex-1"
       contentContainerStyle={{
         gap: 12,
@@ -730,9 +741,10 @@ export function SignUpStep2() {
               Verification Successful
             </Text>
             <Text className="text-sm text-white/80">
-              Your identity has been verified successfully -
-              {matchConfidence &&
-                ` with ${matchConfidence.toFixed(1)}% confidence.`}
+              Your identity has been verified successfully
+              {matchConfidence != null && matchConfidence > 0
+                ? ` with ${matchConfidence.toFixed(1)}% confidence.`
+                : "."}
             </Text>
           </View>
         </View>
