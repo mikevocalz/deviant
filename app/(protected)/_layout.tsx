@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
+import { useBootLocation } from "@/lib/hooks/use-boot-location";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -56,6 +57,8 @@ export default function ProtectedLayout() {
   useBootPrefetch();
   // Silent background refresh on app resume (throttled 30s)
   useAppResume();
+  // Silently resolve device location → nearest city on boot (if already permitted)
+  useBootLocation();
 
   const user = useAuthStore((s) => s.user);
 

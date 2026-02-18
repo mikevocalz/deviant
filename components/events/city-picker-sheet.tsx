@@ -12,7 +12,8 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import BottomSheet, {
+import {
+  BottomSheetModal,
   BottomSheetBackdrop,
   BottomSheetFlatList,
 } from "@gorhom/bottom-sheet";
@@ -34,7 +35,7 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
   visible,
   onDismiss,
 }) => {
-  const sheetRef = useRef<BottomSheet>(null);
+  const sheetRef = useRef<BottomSheetModal>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [requestingLocation, setRequestingLocation] = useState(false);
 
@@ -47,12 +48,14 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
   const { data: allCities = [], isLoading: citiesLoading } = useCities();
   const { data: searchResults = [] } = useCitySearch(searchQuery);
 
-  const snapPoints = useMemo(() => ["90%"], []);
+  const snapPoints = useMemo(() => ["70%"], []);
 
-  // Auto-request location permission when sheet becomes visible
+  // Present/dismiss the modal based on visible prop
   useEffect(() => {
     if (visible) {
-      Location.requestForegroundPermissionsAsync().catch(() => {});
+      sheetRef.current?.present();
+    } else {
+      sheetRef.current?.dismiss();
     }
   }, [visible]);
 
@@ -168,20 +171,20 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
     [activeCity, handleSelectCity],
   );
 
-  if (!visible) return null;
-
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={sheetRef}
-      index={0}
       snapPoints={snapPoints}
+      enableDynamicSizing={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
       enablePanDownToClose
+      detached={true}
+      bottomInset={46}
+      style={{ marginHorizontal: 16 }}
       backgroundStyle={{
         backgroundColor: "#111",
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        borderRadius: 24,
       }}
       handleIndicatorStyle={{
         backgroundColor: "#555",
@@ -279,6 +282,6 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
           contentContainerStyle={{ paddingBottom: 40 }}
         />
       )}
-    </BottomSheet>
+    </BottomSheetModal>
   );
 };

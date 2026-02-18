@@ -23,7 +23,6 @@ import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { CityPickerSheet } from "@/components/events/city-picker-sheet";
 import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
-import * as Location from "expo-location";
 import {
   FilterPills,
   type EventFilter,
@@ -224,8 +223,6 @@ export default function EventsScreen() {
   // Location store
   const activeCity = useEventsLocationStore((s) => s.activeCity);
   const setActiveCity = useEventsLocationStore((s) => s.setActiveCity);
-  const setDeviceLocation = useEventsLocationStore((s) => s.setDeviceLocation);
-  const setLocationMode = useEventsLocationStore((s) => s.setLocationMode);
   const deviceLat = useEventsLocationStore((s) => s.deviceLat);
   const deviceLng = useEventsLocationStore((s) => s.deviceLng);
   const { data: allCities = [] } = useCities();
@@ -234,56 +231,22 @@ export default function EventsScreen() {
   const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
-  // Auto-detect location on first visit when no city is selected
-  // If permission denied, fall back to first available city (usually New York)
+  // Fallback: if boot location hook didn't resolve a city (no permission yet),
+  // set first available city so weather + events still work
   useEffect(() => {
     if (activeCity || allCities.length === 0) return;
-
-    const findNearestCity = (lat: number, lng: number) => {
-      let nearest: (typeof allCities)[0] | null = null;
-      let minDist = Infinity;
-      for (const city of allCities) {
-        const dist = Math.sqrt(
-          Math.pow(city.lat - lat, 2) + Math.pow(city.lng - lng, 2),
-        );
-        if (dist < minDist) {
-          minDist = dist;
-          nearest = city;
-        }
-      }
-      return nearest;
-    };
-
-    (async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
-          });
-          setDeviceLocation(loc.coords.latitude, loc.coords.longitude);
-          setLocationMode("device");
-          const nearest = findNearestCity(
-            loc.coords.latitude,
-            loc.coords.longitude,
-          );
-          if (nearest) {
-            setActiveCity(nearest);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("[Events] Auto-location failed:", err);
-      }
-      // Fallback: set first city so weather + events always work
-      if (allCities.length > 0) {
+    // Give boot hook 2s to resolve before falling back
+    const timer = setTimeout(() => {
+      const current = useEventsLocationStore.getState().activeCity;
+      if (!current && allCities.length > 0) {
         console.log(
           "[Events] Falling back to default city:",
           allCities[0].name,
         );
         setActiveCity(allCities[0]);
       }
-    })();
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [activeCity, allCities]);
 
   // Fetch real events from API
