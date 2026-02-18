@@ -26,6 +26,7 @@ import { X, Heart } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/components/ui/avatar";
 import { usePostLikers } from "@/lib/hooks/use-post-likers";
+import { useColorScheme } from "@/lib/hooks";
 import type { PostLiker } from "@/lib/api/likes";
 
 interface LikesSheetProps {
@@ -81,6 +82,7 @@ function LikerRow({
 
 export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const router = useRouter();
+  const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["50%"], []);
 
@@ -152,17 +154,28 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
       enableOverDrag={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
-      backgroundStyle={styles.sheetBackground}
-      handleIndicatorStyle={styles.handleIndicator}
+      detached={true}
+      bottomInset={46}
+      backgroundStyle={{
+        backgroundColor: colors.card,
+        borderRadius: 24,
+      }}
+      handleIndicatorStyle={{
+        backgroundColor: colors.mutedForeground,
+        width: 40,
+      }}
+      style={styles.sheetContainer}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <Heart size={18} color="#FF5BFC" fill="#FF5BFC" />
-          <Text style={styles.headerTitle}>Likes</Text>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            Likes
+          </Text>
         </View>
         <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
-          <X size={20} color="#fff" />
+          <X size={20} color={colors.mutedForeground} />
         </Pressable>
       </View>
 
@@ -170,12 +183,16 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
       {isLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="small" color="#FF5BFC" />
-          <Text style={styles.loadingText}>Loading likes...</Text>
+          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
+            Loading likes...
+          </Text>
         </View>
       ) : likers.length === 0 ? (
         <View style={styles.centered}>
           <Heart size={32} color="rgba(255,255,255,0.2)" />
-          <Text style={styles.emptyText}>No likes yet</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            No likes yet
+          </Text>
         </View>
       ) : (
         <BottomSheetFlatList
@@ -191,12 +208,10 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
 }
 
 const styles = StyleSheet.create({
-  sheetBackground: {
-    backgroundColor: "#1a1a1a",
-  },
-  handleIndicator: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    width: 40,
+  sheetContainer: {
+    marginHorizontal: 16,
+    overflow: "hidden",
+    borderRadius: 24,
   },
   header: {
     flexDirection: "row",
@@ -205,7 +220,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.06)",
   },
   headerLeft: {
     flexDirection: "row",
@@ -215,12 +229,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#fff",
   },
   closeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
@@ -249,9 +262,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "rgba(255,255,255,0.4)",
   },
-  listContent: {
-    paddingBottom: 16,
-  },
   centered: {
     alignItems: "center",
     justifyContent: "center",
@@ -259,11 +269,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   loadingText: {
-    color: "rgba(255,255,255,0.5)",
     fontSize: 13,
   },
   emptyText: {
-    color: "rgba(255,255,255,0.4)",
     fontSize: 14,
+  },
+  listContent: {
+    paddingBottom: 16,
   },
 });
