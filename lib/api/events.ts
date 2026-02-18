@@ -55,111 +55,66 @@ function formatEventDate(isoDate: string | null | undefined) {
 
 export const eventsApi = {
   /**
-   * Get upcoming events
+   * Get events via batch RPC (single round-trip).
+   * Replaces the old 4-request waterfall.
    */
-  async getEvents(limit: number = 20, category?: string) {
+  async getEvents(
+    limit: number = 20,
+    category?: string,
+    filters?: {
+      online?: boolean;
+      tonight?: boolean;
+      weekend?: boolean;
+      search?: string;
+    },
+  ) {
     try {
-      console.log("[Events] getEvents");
+      console.log("[Events] getEvents (batch RPC)");
 
-      // Fetch ALL events with a valid start_date — UI tabs handle upcoming/past filtering
-      const { data, error } = await supabase
-        .from(DB.events.table)
-        .select("*")
-        .not(DB.events.startDate, "is", null)
-        .order(DB.events.startDate, { ascending: true })
-        .limit(limit);
+      const viewerId = getCurrentUserIdInt();
+
+      const { data, error } = await supabase.rpc("get_events_home", {
+        p_limit: limit,
+        p_offset: 0,
+        p_viewer_id: viewerId ?? null,
+        p_city_id: null,
+        p_filter_online: filters?.online ?? null,
+        p_filter_tonight: filters?.tonight ?? false,
+        p_filter_weekend: filters?.weekend ?? false,
+        p_search: filters?.search || null,
+        p_category: category || null,
+      });
 
       if (error) throw error;
 
-      // Fetch host data separately
-      const hostIds = [
-        ...new Set(
-          (data || []).map((e: any) => e[DB.events.hostId]).filter(Boolean),
-        ),
-      ];
-      let hostsMap = new Map();
-
-      if (hostIds.length > 0) {
-        const { data: hosts } = await supabase
-          .from(DB.users.table)
-          .select(
-            `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-          )
-          .in(DB.users.authId, hostIds);
-
-        hostsMap = new Map(
-          (hosts || []).map((h: any) => [h[DB.users.authId], h]),
-        );
-      }
-
-      // Fetch RSVP attendees with avatars for event card avatar stacks
-      const eventIds = (data || []).map((e: any) => e[DB.events.id]);
-      const attendeesMap = new Map<
-        number,
-        { image?: string; initials?: string }[]
-      >();
-
-      if (eventIds.length > 0) {
-        const { data: rsvps } = await supabase
-          .from(DB.eventRsvps.table)
-          .select(`${DB.eventRsvps.eventId}, ${DB.eventRsvps.userId}`)
-          .in(DB.eventRsvps.eventId, eventIds)
-          .eq(DB.eventRsvps.status, "going");
-
-        if (rsvps && rsvps.length > 0) {
-          const rsvpAuthIds = [
-            ...new Set(rsvps.map((r: any) => r[DB.eventRsvps.userId])),
-          ];
-          const { data: rsvpUsers } = await supabase
-            .from(DB.users.table)
-            .select(
-              `${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-            )
-            .in(DB.users.authId, rsvpAuthIds);
-
-          const userMap = new Map(
-            (rsvpUsers || []).map((u: any) => [u[DB.users.authId], u]),
-          );
-
-          for (const rsvp of rsvps) {
-            const eid = rsvp[DB.eventRsvps.eventId];
-            const u = userMap.get(rsvp[DB.eventRsvps.userId]);
-            const attendee = {
-              image: (u?.avatar as any)?.url || "",
-              initials:
-                u?.[DB.users.username]?.slice(0, 2)?.toUpperCase() || "??",
-            };
-            if (!attendeesMap.has(eid)) attendeesMap.set(eid, []);
-            attendeesMap.get(eid)!.push(attendee);
-          }
-        }
-      }
-
-      return (data || []).map((event: any) => {
-        const host = hostsMap.get(event[DB.events.hostId]);
-        const dateParts = formatEventDate(event[DB.events.startDate]);
-        const eid = event[DB.events.id];
-        const rsvpAttendees = attendeesMap.get(eid) || [];
+      // RPC returns JSON array — map to client shape
+      return ((data as any[]) || []).map((event: any) => {
+        const dateParts = formatEventDate(event.start_date);
+        const avatars = Array.isArray(event.attendee_avatars)
+          ? event.attendee_avatars
+          : [];
         const totalCount = Math.max(
-          Number(event[DB.events.totalAttendees]) || 0,
-          rsvpAttendees.length,
+          Number(event.total_attendees) || 0,
+          Number(event.rsvp_count) || 0,
         );
         return {
-          id: String(eid),
-          title: event[DB.events.title],
-          description: event[DB.events.description],
+          id: String(event.id),
+          title: event.title,
+          description: event.description,
           ...dateParts,
-          location: event[DB.events.location],
-          image: resolveEventImage(event),
-          images: parseJsonbArray(event[DB.events.images]),
-          youtubeVideoUrl: event[DB.events.youtubeVideoUrl] || null,
-          price: Number(event[DB.events.price]) || 0,
-          likes: Number(event.likes) || 0,
-          attendees: rsvpAttendees.length > 0 ? rsvpAttendees : totalCount,
+          location: event.location,
+          image: event.image || "",
+          images: parseJsonbArray(event.images),
+          youtubeVideoUrl: event.youtube_video_url || null,
+          price: Number(event.price) || 0,
+          likes: 0,
+          isLiked: event.is_liked || false,
+          attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
+          category: event.category || undefined,
           host: {
-            username: host?.[DB.users.username] || "unknown",
-            avatar: host?.avatar?.url || "",
+            username: event.host_username || "unknown",
+            avatar: event.host_avatar || "",
           },
         };
       });
@@ -294,78 +249,79 @@ export const eventsApi = {
   },
 
   /**
-   * Get single event
+   * Get single event with ALL detail data via batch RPC.
+   * Returns event + host + isLiked + reviews + comments + tiers + attendees
+   * in a SINGLE round-trip.
    */
   async getEventById(id: string) {
     try {
-      const { data, error } = await supabase
-        .from(DB.events.table)
-        .select("*")
-        .eq(DB.events.id, parseInt(id))
-        .single();
+      console.log("[Events] getEventById (batch RPC)");
+      const viewerId = getCurrentUserIdInt();
+
+      const { data, error } = await supabase.rpc("get_event_detail", {
+        p_event_id: parseInt(id),
+        p_viewer_id: viewerId ?? null,
+      });
 
       if (error) throw error;
+      if (!data || !data.event) return null;
 
-      console.log(
-        "[Events] getEventById raw images:",
-        JSON.stringify(data["images"]),
-        "type:",
-        typeof data["images"],
-      );
+      const ev = data.event;
+      const host = data.host || {};
+      const dateParts = formatEventDate(ev.start_date);
 
-      // Fetch host data separately
-      let host = null;
-      if (data[DB.events.hostId]) {
-        const { data: hostData } = await supabase
-          .from(DB.users.table)
-          .select(
-            `${DB.users.id}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-          )
-          .eq(DB.users.authId, data[DB.events.hostId])
-          .single();
-        host = hostData;
-      }
-
-      const dateParts = formatEventDate(data[DB.events.startDate]);
       return {
-        id: String(data[DB.events.id]),
-        title: data[DB.events.title],
-        description: data[DB.events.description],
+        id: String(ev.id),
+        title: ev.title,
+        description: ev.description,
         ...dateParts,
-        location: data[DB.events.location],
-        image: resolveEventImage(data),
-        images: parseJsonbArray(data[DB.events.images]),
-        youtubeVideoUrl: data[DB.events.youtubeVideoUrl] || null,
-        price: Number(data[DB.events.price]) || 0,
-        likes: Number(data.likes) || 0,
-        attendees: Number(data[DB.events.totalAttendees]) || 0,
-        maxAttendees: Number(data[DB.events.maxAttendees]),
+        location: ev.location,
+        image: ev.image || "",
+        images: parseJsonbArray(ev.images),
+        youtubeVideoUrl: ev.youtube_video_url || null,
+        price: Number(ev.price) || 0,
+        likes: 0,
+        isLiked: data.is_liked || false,
+        attendees: Number(ev.total_attendees) || 0,
+        maxAttendees: Number(ev.max_attendees),
         host: {
-          id: host?.[DB.users.id] ? String(host[DB.users.id]) : undefined,
-          username: host?.[DB.users.username] || "unknown",
-          avatar: (host?.avatar as any)?.url || "",
+          id: host.id ? String(host.id) : undefined,
+          username: host.username || "unknown",
+          name: host.first_name || undefined,
+          avatar: host.avatar || "",
+          verified: host.verified || false,
+          followersCount: host.followers_count || 0,
         },
-        coOrganizer: null, // Not yet implemented in schema
+        coOrganizer: null,
         // V2 fields
         locationLat:
-          data.location_lat != null ? Number(data.location_lat) : undefined,
+          ev.location_lat != null ? Number(ev.location_lat) : undefined,
         locationLng:
-          data.location_lng != null ? Number(data.location_lng) : undefined,
-        locationName: data.location_name || undefined,
-        locationType: data.location_type || undefined,
-        visibility: data.visibility || undefined,
-        ticketingEnabled: data.ticketing_enabled || false,
-        category: data.category || undefined,
-        ageRestriction: data.age_restriction || undefined,
-        nsfw: data.nsfw || false,
-        shareSlug: data.share_slug || undefined,
+          ev.location_lng != null ? Number(ev.location_lng) : undefined,
+        locationName: ev.location_name || undefined,
+        locationType: ev.location_type || undefined,
+        visibility: ev.visibility || undefined,
+        ticketingEnabled: ev.ticketing_enabled || false,
+        category: ev.category || undefined,
+        ageRestriction: ev.age_restriction || undefined,
+        nsfw: ev.nsfw || false,
+        shareSlug: ev.share_slug || undefined,
         // Enrichment fields
-        endDate: data.end_date || undefined,
-        dressCode: data.dress_code || undefined,
-        doorPolicy: data.door_policy || undefined,
-        entryWindow: data.entry_window || undefined,
-        lineup: data.lineup || undefined,
-        perks: data.perks || undefined,
+        endDate: ev.end_date || undefined,
+        dressCode: ev.dress_code || undefined,
+        doorPolicy: ev.door_policy || undefined,
+        entryWindow: ev.entry_window || undefined,
+        lineup: ev.lineup || undefined,
+        perks: ev.perks || undefined,
+        // Batch payload fields
+        userRsvpStatus: data.user_rsvp_status || null,
+        ticketTiers: data.ticket_tiers || [],
+        attendeeAvatars: data.attendees?.avatars || [],
+        rsvpCount: data.attendees?.rsvp_count || 0,
+        averageRating: data.review_summary?.average || 0,
+        reviewCount: data.review_summary?.count || 0,
+        topReviews: data.top_reviews || [],
+        topComments: data.top_comments || [],
       };
     } catch (error) {
       console.error("[Events] getEventById error:", error);

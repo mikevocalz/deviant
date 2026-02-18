@@ -7,6 +7,15 @@ import { eventsApi as eventsApiClient } from "@/lib/api/events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
+// Filter params for events home
+export interface EventFilters {
+  online?: boolean;
+  tonight?: boolean;
+  weekend?: boolean;
+  search?: string;
+  category?: string;
+}
+
 // Event type for components
 export interface Event {
   id: string;
@@ -32,26 +41,45 @@ export interface Event {
   time?: string;
   category?: string;
   likes?: number;
+  isLiked?: boolean;
 }
 
 // Query keys
 export const eventKeys = {
   all: ["events"] as const,
-  list: () => [...eventKeys.all, "list"] as const,
+  list: (filters?: EventFilters) =>
+    [...eventKeys.all, "list", filters ?? {}] as const,
   upcoming: () => [...eventKeys.all, "upcoming"] as const,
   past: () => [...eventKeys.all, "past"] as const,
   detail: (id: string) => [...eventKeys.all, "detail", id] as const,
   byCategory: (category: string) =>
     [...eventKeys.all, "category", category] as const,
   liked: (userId: number) => [...eventKeys.all, "liked", userId] as const,
+  search: (q: string) => [...eventKeys.all, "search", q] as const,
 };
 
-// Fetch all events
-export function useEvents(category?: string) {
+// Fetch all events with optional filters
+export function useEvents(filters?: EventFilters) {
   return useQuery({
-    queryKey: category ? eventKeys.byCategory(category) : eventKeys.list(),
-    queryFn: () => eventsApiClient.getEvents(20, category),
+    queryKey: eventKeys.list(filters),
+    queryFn: () =>
+      eventsApiClient.getEvents(20, filters?.category, {
+        online: filters?.online,
+        tonight: filters?.tonight,
+        weekend: filters?.weekend,
+        search: filters?.search,
+      }),
     staleTime: STALE_TIMES.events,
+  });
+}
+
+// Search events (debounced from UI)
+export function useEventSearch(query: string) {
+  return useQuery({
+    queryKey: eventKeys.search(query),
+    queryFn: () => eventsApiClient.getEvents(30, undefined, { search: query }),
+    enabled: query.length >= 2,
+    staleTime: 2 * 60 * 1000, // 2 min
   });
 }
 

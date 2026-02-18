@@ -1,8 +1,23 @@
-import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Dimensions,
+  TextInput,
+} from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { Heart, Plus, Ticket, MapPin, ChevronDown } from "lucide-react-native";
+import {
+  Heart,
+  Plus,
+  Ticket,
+  MapPin,
+  ChevronDown,
+  Search,
+  X,
+} from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,7 +30,11 @@ import Animated, {
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
-import { useEvents, type Event } from "@/lib/hooks/use-events";
+import {
+  useEvents,
+  type Event,
+  type EventFilters,
+} from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
@@ -215,6 +234,7 @@ export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
   const [activeFilters, setActiveFilters] = useState<EventFilter[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const pagerRef = useRef<any>(null);
   const trace = useScreenTrace("Events");
@@ -276,8 +296,18 @@ export default function EventsScreen() {
     return () => clearTimeout(timer);
   }, [activeCity, allCities]);
 
-  // Fetch real events from API
-  const { data: events = [], isLoading, error } = useEvents();
+  // Build server-side filters from active pills + search
+  const eventFilters = useMemo<EventFilters>(() => {
+    const f: EventFilters = {};
+    if (activeFilters.includes("online")) f.online = true;
+    if (activeFilters.includes("tonight")) f.tonight = true;
+    if (activeFilters.includes("this_weekend")) f.weekend = true;
+    if (searchQuery.length >= 2) f.search = searchQuery;
+    return f;
+  }, [activeFilters, searchQuery]);
+
+  // Fetch events via single batch RPC with server-side filters
+  const { data: events = [], isLoading, error } = useEvents(eventFilters);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -300,59 +330,28 @@ export default function EventsScreen() {
     );
   }, []);
 
-  // Filter events based on tab index and active filters
+  // Filter events by tab (upcoming/past) — server handles pill filters
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      let filtered = events;
       switch (tabIndex) {
         case 1: // upcoming
-          filtered = events.filter(
+          return events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
-          break;
         case 2: // past_events
-          filtered = events.filter(
+          return events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
-          break;
+        default:
+          return events;
       }
-
-      // Apply active filters
-      if (activeFilters.includes("tonight")) {
-        const tonight = new Date();
-        tonight.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(
-          (e: Event) =>
-            e.fullDate &&
-            new Date(e.fullDate) >= today &&
-            new Date(e.fullDate) <= tonight,
-        );
-      }
-
-      if (activeFilters.includes("this_weekend")) {
-        const dayOfWeek = today.getDay();
-        const saturday = new Date(today);
-        saturday.setDate(today.getDate() + (6 - dayOfWeek));
-        saturday.setHours(0, 0, 0, 0);
-        const sunday = new Date(saturday);
-        sunday.setDate(saturday.getDate() + 1);
-        sunday.setHours(23, 59, 59, 999);
-        filtered = filtered.filter(
-          (e: Event) =>
-            e.fullDate &&
-            new Date(e.fullDate) >= saturday &&
-            new Date(e.fullDate) <= sunday,
-        );
-      }
-
-      return filtered;
     },
-    [events, activeFilters],
+    [events],
   );
 
   const handleTabPress = (index: number) => {
@@ -446,6 +445,28 @@ export default function EventsScreen() {
                 </Pressable>
               </Motion.View>
             </View>
+          </View>
+        </View>
+
+        {/* Search Bar */}
+        <View className="px-4 pb-2">
+          <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 py-2.5">
+            <Search size={18} color={colors.mutedForeground} strokeWidth={2} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search events, venues, hosts..."
+              placeholderTextColor={colors.mutedForeground}
+              className="flex-1 ml-3 text-sm text-foreground"
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+            {searchQuery.length > 0 && (
+              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+                <X size={16} color={colors.mutedForeground} />
+              </Pressable>
+            )}
           </View>
         </View>
 
