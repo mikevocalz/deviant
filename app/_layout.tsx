@@ -258,7 +258,11 @@ export default function RootLayout() {
   const showAnimatedSplash = !splashAnimationFinished;
 
   if (showAnimatedSplash) {
-    return <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />;
+    return (
+      <LayoutAnimationConfig skipEntering skipExiting>
+        <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
+      </LayoutAnimationConfig>
+    );
   }
 
   return (

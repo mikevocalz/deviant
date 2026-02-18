@@ -225,15 +225,16 @@ export default function EditProfileScreen() {
       const updatedUser = await usersApi.updateProfile(updateData);
       console.log("[EditProfile] Profile updated:", updatedUser);
 
-      // Update local auth store
+      // Update local auth store — use server response, then form values as fallback
+      // Do NOT use || (which prevents clearing fields to empty string)
       setUser({
         ...user,
-        name: editName.trim() || user.name,
-        username: trimmedUsername || user.username,
-        bio: editBio.trim() || user.bio,
-        website: editWebsite.trim() || user.website,
-        location: editLocation.trim() || user.location,
-        avatar: avatarUrl || user.avatar,
+        name: updatedUser.name ?? editName.trim(),
+        username: updatedUser.username ?? trimmedUsername,
+        bio: updatedUser.bio ?? editBio.trim(),
+        website: updatedUser.website ?? editWebsite.trim(),
+        location: updatedUser.location ?? editLocation.trim(),
+        avatar: avatarUrl ?? user.avatar,
       });
 
       // CRITICAL: Patch all caches where MY avatar appears
