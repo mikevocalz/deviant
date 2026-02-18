@@ -84,7 +84,7 @@ interface ActivityItemProps {
   isFollowed: boolean;
   isFollowPending: boolean;
   onActivityPress: (activity: Activity) => void;
-  onUserPress: (username: string) => void;
+  onUserPress: (username: string, avatar?: string) => void;
   onPostPress: (postId: string) => void;
   onFollowBack: (username: string) => void;
 }
@@ -107,7 +107,9 @@ const ActivityItem = memo(
       style={{ paddingLeft: 16, paddingRight: 16 }}
     >
       <Pressable
-        onPress={() => onUserPress(activity.user.username)}
+        onPress={() =>
+          onUserPress(activity.user.username, activity.user.avatar)
+        }
         style={{ overflow: "visible", marginRight: 4 }}
       >
         <View style={{ overflow: "visible", width: 48, height: 48 }}>
@@ -130,7 +132,9 @@ const ActivityItem = memo(
         <Text className="text-sm text-foreground" numberOfLines={2}>
           <Text
             className="font-semibold text-foreground"
-            onPress={() => onUserPress(activity.user.username)}
+            onPress={() =>
+              onUserPress(activity.user.username, activity.user.avatar)
+            }
           >
             {activity.user.username}
           </Text>
@@ -284,9 +288,12 @@ export default function ActivityScreen() {
   }, [refetch]);
 
   const handleUserPress = useCallback(
-    (username: string) => {
+    (username: string, avatar?: string) => {
       console.log("[Activity] Navigating to profile:", username);
-      router.push(`/(protected)/profile/${username}`);
+      router.push({
+        pathname: `/(protected)/profile/${username}`,
+        params: avatar ? { avatar } : {},
+      } as any);
     },
     [router],
   );
@@ -487,7 +494,7 @@ export default function ActivityScreen() {
         estimatedItemSize={80}
         refreshing={refreshing}
         onRefresh={onRefresh}
-        extraData={followedUsers}
+        extraData={{ followedUsers, isFollowPending }}
       />
     </View>
   );

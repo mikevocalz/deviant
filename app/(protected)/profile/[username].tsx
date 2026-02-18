@@ -398,10 +398,35 @@ function UserProfileScreenComponent() {
   const handleMessagePress = useCallback(async () => {
     if (!user.id || isCreatingConversation) return;
 
+    // Fast path: check conversations cache for existing conversation
+    // Keys are scoped: ["messages", "conversations", viewerId] and ["messages", "filtered", filter, viewerId]
+    const allConvCaches = queryClient.getQueriesData<any[]>({
+      queryKey: ["messages"],
+    });
+    let existingConv: any = null;
+    for (const [, data] of allConvCaches) {
+      if (!Array.isArray(data)) continue;
+      const match = data.find(
+        (c: any) =>
+          c?.user?.id === String(user.id) ||
+          c?.user?.authId === String(user.id) ||
+          c?.user?.username === username,
+      );
+      if (match?.id) {
+        existingConv = match;
+        break;
+      }
+    }
+    if (existingConv?.id) {
+      console.log("[Profile] Cache hit — navigating to chat:", existingConv.id);
+      router.push(`/(protected)/chat/${existingConv.id}`);
+      return;
+    }
+
     setIsCreatingConversation(true);
     try {
       console.log(
-        "[Profile] Creating/getting conversation with user:",
+        "[Profile] Cache miss — creating conversation with user:",
         user.id,
       );
       const conversationId = await messagesApiClient.getOrCreateConversation(
@@ -427,7 +452,14 @@ function UserProfileScreenComponent() {
     } finally {
       setIsCreatingConversation(false);
     }
-  }, [user.id, router, isCreatingConversation, showToast]);
+  }, [
+    user.id,
+    username,
+    router,
+    isCreatingConversation,
+    showToast,
+    queryClient,
+  ]);
 
   // DEFENSIVE: Early return for missing username - show safe error state
   if (!safeUsername) {
