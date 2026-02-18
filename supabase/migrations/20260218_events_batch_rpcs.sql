@@ -15,7 +15,8 @@ CREATE OR REPLACE FUNCTION public.get_events_home(
   p_filter_tonight boolean DEFAULT false,  -- today only
   p_filter_weekend boolean DEFAULT false,  -- this Sat/Sun
   p_search   text DEFAULT NULL,            -- title/description/location search
-  p_category text DEFAULT NULL             -- category filter
+  p_category text DEFAULT NULL,            -- category filter
+  p_sort     text DEFAULT 'soonest'        -- soonest|newest|popular|price_low|price_high
 )
 RETURNS JSON AS $$
 DECLARE
@@ -115,7 +116,14 @@ BEGIN
            e.description ILIKE '%' || p_search || '%' OR
            e.location ILIKE '%' || p_search || '%')
       AND (p_category IS NULL OR p_category = '' OR e.category = p_category)
-    ORDER BY e.start_date ASC
+    ORDER BY
+      CASE p_sort
+        WHEN 'newest'     THEN extract(epoch FROM e.created_at) * -1
+        WHEN 'popular'    THEN COALESCE(e.total_attendees, 0) * -1
+        WHEN 'price_low'  THEN COALESCE(e.price, 0)
+        WHEN 'price_high' THEN COALESCE(e.price, 0) * -1
+        ELSE extract(epoch FROM e.start_date)  -- 'soonest' default
+      END ASC
     LIMIT p_limit
     OFFSET p_offset
   ) t;

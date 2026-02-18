@@ -66,6 +66,7 @@ export const eventsApi = {
       tonight?: boolean;
       weekend?: boolean;
       search?: string;
+      sort?: string;
     },
   ) {
     try {
@@ -83,6 +84,7 @@ export const eventsApi = {
         p_filter_weekend: filters?.weekend ?? false,
         p_search: filters?.search || null,
         p_category: category || null,
+        p_sort: filters?.sort || "soonest",
       });
 
       if (error) throw error;

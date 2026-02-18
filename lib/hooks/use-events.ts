@@ -8,12 +8,20 @@ import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 // Filter params for events home
+export type EventSort =
+  | "soonest"
+  | "newest"
+  | "popular"
+  | "price_low"
+  | "price_high";
+
 export interface EventFilters {
   online?: boolean;
   tonight?: boolean;
   weekend?: boolean;
   search?: string;
   category?: string;
+  sort?: EventSort;
 }
 
 // Event type for components
@@ -68,6 +76,7 @@ export function useEvents(filters?: EventFilters) {
         tonight: filters?.tonight,
         weekend: filters?.weekend,
         search: filters?.search,
+        sort: filters?.sort,
       }),
     staleTime: STALE_TIMES.events,
   });

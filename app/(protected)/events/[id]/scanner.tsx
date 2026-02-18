@@ -31,6 +31,7 @@ import {
 } from "lucide-react-native";
 import { useScanTicket } from "@/lib/hooks/use-tickets";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { FeatureGate } from "@/lib/feature-flags";
 import * as Haptics from "expo-haptics";
 
@@ -77,7 +78,9 @@ function ScanResultOverlay({
   }, []);
 
   const isSuccess = result.type === "success";
-  const bgColor = isSuccess ? "rgba(34, 197, 94, 0.95)" : "rgba(239, 68, 68, 0.95)";
+  const bgColor = isSuccess
+    ? "rgba(34, 197, 94, 0.95)"
+    : "rgba(239, 68, 68, 0.95)";
   const Icon = isSuccess
     ? CheckCircle2
     : result.type === "already_scanned"
@@ -97,7 +100,10 @@ function ScanResultOverlay({
         zIndex: 100,
       }}
     >
-      <Pressable onPress={onDismiss} style={{ flex: 1, justifyContent: "center" }}>
+      <Pressable
+        onPress={onDismiss}
+        style={{ flex: 1, justifyContent: "center" }}
+      >
         <Animated.View
           style={[
             {
@@ -112,7 +118,14 @@ function ScanResultOverlay({
           ]}
         >
           <Icon size={56} color="#fff" strokeWidth={2} />
-          <Text style={{ color: "#fff", fontSize: 22, fontWeight: "700", textAlign: "center" }}>
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: 22,
+              fontWeight: "700",
+              textAlign: "center",
+            }}
+          >
             {isSuccess
               ? "Checked In!"
               : result.type === "already_scanned"
@@ -122,7 +135,13 @@ function ScanResultOverlay({
                   : "Scan Error"}
           </Text>
           {result.name && (
-            <Text style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: "500" }}>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.9)",
+                fontSize: 16,
+                fontWeight: "500",
+              }}
+            >
               {result.name}
             </Text>
           )}
@@ -132,11 +151,23 @@ function ScanResultOverlay({
             </Text>
           )}
           {result.message && (
-            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 13, textAlign: "center" }}>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 13,
+                textAlign: "center",
+              }}
+            >
               {result.message}
             </Text>
           )}
-          <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 8 }}>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 12,
+              marginTop: 8,
+            }}
+          >
             Tap anywhere to scan next
           </Text>
         </Animated.View>
@@ -150,6 +181,8 @@ function ScannerContent({ eventId }: { eventId: string }) {
   const insets = useSafeAreaInsets();
   const authUser = useAuthStore((s) => s.user);
   const scanMutation = useScanTicket();
+  const offlineStore = useOfflineCheckinStore();
+  const hasOfflineData = offlineStore.hasOfflineData(eventId);
 
   const [torchOn, setTorchOn] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -160,7 +193,9 @@ function ScannerContent({ eventId }: { eventId: string }) {
   // VisionCamera setup
   const hasVisionCamera = Camera != null && useCameraDevice != null;
   const device = hasVisionCamera ? useCameraDevice("back") : null;
-  const permission = hasVisionCamera ? useCameraPermission() : { hasPermission: false, requestPermission: async () => {} };
+  const permission = hasVisionCamera
+    ? useCameraPermission()
+    : { hasPermission: false, requestPermission: async () => {} };
 
   useEffect(() => {
     if (hasVisionCamera && !permission.hasPermission) {
@@ -195,7 +230,9 @@ function ScannerContent({ eventId }: { eventId: string }) {
         {
           onSuccess: (data) => {
             if (data.valid) {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              );
               setScanResult({
                 type: "success",
                 name: data.ticket?.name,
@@ -205,7 +242,10 @@ function ScannerContent({ eventId }: { eventId: string }) {
             } else {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               setScanResult({
-                type: data.reason === "already_scanned" ? "already_scanned" : "not_found",
+                type:
+                  data.reason === "already_scanned"
+                    ? "already_scanned"
+                    : "not_found",
                 message:
                   data.reason === "already_scanned"
                     ? "This ticket was already scanned"
@@ -216,11 +256,44 @@ function ScannerContent({ eventId }: { eventId: string }) {
             }
           },
           onError: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            setScanResult({
-              type: "error",
-              message: "Network error. Check connection.",
-            });
+            // Offline fallback: validate against downloaded tokens
+            if (hasOfflineData) {
+              if (offlineStore.isAlreadyScanned(eventId, qrToken)) {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error,
+                );
+                setScanResult({
+                  type: "already_scanned",
+                  message: "This ticket was already scanned (offline)",
+                });
+              } else if (offlineStore.isTokenValid(eventId, qrToken)) {
+                offlineStore.markScannedOffline(eventId, qrToken, authUser?.id);
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Success,
+                );
+                setScanResult({
+                  type: "success",
+                  name: "Verified Offline",
+                  tierName: undefined,
+                });
+                setScanCount((c) => c + 1);
+              } else {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Error,
+                );
+                setScanResult({
+                  type: "not_found",
+                  message: "Not a valid ticket (offline check)",
+                });
+              }
+            } else {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              setScanResult({
+                type: "error",
+                message:
+                  "Network error. Download tickets for offline scanning.",
+              });
+            }
           },
         },
       );
@@ -228,12 +301,13 @@ function ScannerContent({ eventId }: { eventId: string }) {
     [scanResult, scanMutation, authUser?.id, eventId],
   );
 
-  const codeScanner = hasVisionCamera && useCodeScanner
-    ? useCodeScanner({
-        codeTypes: ["qr"],
-        onCodeScanned: handleCodeScanned,
-      })
-    : null;
+  const codeScanner =
+    hasVisionCamera && useCodeScanner
+      ? useCodeScanner({
+          codeTypes: ["qr"],
+          onCodeScanned: handleCodeScanned,
+        })
+      : null;
 
   const dismissResult = useCallback(() => {
     setScanResult(null);
@@ -250,7 +324,8 @@ function ScannerContent({ eventId }: { eventId: string }) {
           Camera Scanner Unavailable
         </Text>
         <Text className="text-white/60 text-sm mt-2 text-center">
-          react-native-vision-camera is required for ticket scanning. Please install it in your development build.
+          react-native-vision-camera is required for ticket scanning. Please
+          install it in your development build.
         </Text>
         <Pressable
           onPress={() => router.back()}
@@ -273,7 +348,9 @@ function ScannerContent({ eventId }: { eventId: string }) {
           onPress={() => permission.requestPermission()}
           className="mt-6 bg-primary rounded-full px-6 py-3"
         >
-          <Text className="text-black font-sans-semibold">Grant Permission</Text>
+          <Text className="text-black font-sans-semibold">
+            Grant Permission
+          </Text>
         </Pressable>
       </View>
     );

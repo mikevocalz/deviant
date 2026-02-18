@@ -29,6 +29,7 @@ import {
   QrCode,
   LayoutDashboard,
   ScanLine,
+  CalendarPlus,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,6 +46,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
 import { ticketsApi } from "@/lib/api/tickets";
 import * as WebBrowser from "expo-web-browser";
+import * as Calendar from "expo-calendar";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
@@ -52,6 +54,7 @@ import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import {
   CountdownTimer,
@@ -198,6 +201,34 @@ export default function EventDetailScreen() {
   const showToast = useUIStore((s) => s.showToast);
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
+  const offlineCheckin = useOfflineCheckinStore();
+  const offlineTokenCount = (offlineCheckin.tokensByEvent[eventId] || [])
+    .length;
+
+  const handleDownloadOffline = useCallback(async () => {
+    if (!eventId) return;
+    showToast("info", "Downloading...", "Fetching ticket data for offline use");
+    try {
+      const tokens = await ticketsApi.downloadOfflineTokens(eventId);
+      if (tokens.length === 0) {
+        showToast(
+          "warning",
+          "No Tickets",
+          "No active tickets found for this event",
+        );
+        return;
+      }
+      offlineCheckin.setTokensForEvent(eventId, tokens);
+      showToast(
+        "success",
+        "Downloaded",
+        `${tokens.length} tickets cached for offline check-in`,
+      );
+    } catch (err) {
+      console.error("[EventDetail] Offline download error:", err);
+      showToast("error", "Error", "Failed to download offline data");
+    }
+  }, [eventId, offlineCheckin, showToast]);
 
   // ── Local UI state ──────────────────────────────────────────────────
   const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null);
@@ -560,6 +591,66 @@ export default function EventDetailScreen() {
     }
   }, [eventId, eventData?.title, showToast]);
 
+  const handleAddToCalendar = useCallback(async () => {
+    if (!eventData) return;
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "Permission Denied",
+          "Calendar access is required to add events",
+        );
+        return;
+      }
+
+      // Get default calendar
+      const calendars = await Calendar.getCalendarsAsync(
+        Calendar.EntityTypes.EVENT,
+      );
+      const defaultCal =
+        calendars.find(
+          (c) => c.allowsModifications && c.source?.name === "iCloud",
+        ) ||
+        calendars.find((c) => c.allowsModifications) ||
+        calendars[0];
+
+      if (!defaultCal) {
+        showToast(
+          "error",
+          "No Calendar",
+          "No writable calendar found on this device",
+        );
+        return;
+      }
+
+      const startDate = eventData.fullDate
+        ? new Date(eventData.fullDate)
+        : new Date(eventData.date);
+      const endDate = eventData.endDate
+        ? new Date(eventData.endDate)
+        : new Date(startDate.getTime() + 3 * 60 * 60 * 1000); // default 3h
+
+      await Calendar.createEventAsync(defaultCal.id, {
+        title: eventData.title,
+        startDate,
+        endDate,
+        location: eventData.location || eventData.locationName || "",
+        notes: eventData.description || "",
+        timeZone: "America/New_York",
+      });
+
+      showToast(
+        "success",
+        "Added to Calendar",
+        `${eventData.title} has been added to your calendar`,
+      );
+    } catch (err) {
+      console.error("[EventDetail] Calendar error:", err);
+      showToast("error", "Error", "Failed to add event to calendar");
+    }
+  }, [eventData, showToast]);
+
   // CRITICAL: useMemo MUST be called before any early returns (React hooks rules)
   const isPast = useMemo(() => {
     if (!eventData) return false;
@@ -573,6 +664,27 @@ export default function EventDetailScreen() {
       return false;
     }
   }, [eventData]);
+
+  // Rating eligibility: event ended + user has ticket/RSVP + not the host
+  const isHostUser = !!(
+    user?.id &&
+    eventData?.host?.id &&
+    String(user.id) === String(eventData.host.id)
+  );
+
+  const canRate = useMemo(() => {
+    if (!isPast) return false;
+    if (!hasTicket) return false;
+    if (isHostUser) return false;
+    return true;
+  }, [isPast, hasTicket, isHostUser]);
+
+  const ratingIneligibleReason = useMemo(() => {
+    if (isHostUser) return "Hosts cannot rate their own event";
+    if (!isPast) return "Ratings unlock after the event ends";
+    if (!hasTicket) return "Only verified attendees can rate";
+    return "";
+  }, [isPast, hasTicket, isHostUser]);
 
   // ── Loading state ───────────────────────────────────────────────────
   if (isLoading) {
@@ -728,6 +840,16 @@ export default function EventDetailScreen() {
                   <Text style={s.organizerButtonText}>Scanner</Text>
                 </Pressable>
               </View>
+              <Pressable
+                onPress={handleDownloadOffline}
+                style={[s.organizerButton, { marginTop: 8 }]}
+              >
+                <Text style={s.organizerButtonText}>
+                  {offlineTokenCount > 0
+                    ? `✅ ${offlineTokenCount} tickets cached for offline`
+                    : "📲 Download for Offline Check-in"}
+                </Text>
+              </Pressable>
             </View>
           ) : null}
 
@@ -859,13 +981,25 @@ export default function EventDetailScreen() {
                 )}
             </View>
 
-            <Pressable
-              onPress={() => setShowRatingModal(true)}
-              style={s.rateButton}
-            >
-              <Star size={16} color="#FF5BFC" />
-              <Text style={s.rateButtonText}>Rate This Event</Text>
-            </Pressable>
+            {canRate ? (
+              <Pressable
+                onPress={() => setShowRatingModal(true)}
+                style={s.rateButton}
+              >
+                <Star size={16} color="#FF5BFC" />
+                <Text style={s.rateButtonText}>Rate This Event</Text>
+              </Pressable>
+            ) : (
+              <View
+                style={[s.rateButton, { opacity: 0.4 }]}
+                pointerEvents="none"
+              >
+                <Star size={16} color="#666" />
+                <Text style={[s.rateButtonText, { color: "#666" }]}>
+                  {ratingIneligibleReason}
+                </Text>
+              </View>
+            )}
 
             {isLoadingReviews ? (
               <Text style={s.mutedText}>Loading reviews...</Text>
@@ -1028,6 +1162,13 @@ export default function EventDetailScreen() {
                 <Trash2 size={20} color="#ef4444" />
               </Pressable>
             )}
+            <Pressable
+              onPress={handleAddToCalendar}
+              style={s.headerButton}
+              hitSlop={12}
+            >
+              <CalendarPlus size={20} color="#fff" />
+            </Pressable>
             <Pressable
               onPress={handleShare}
               style={s.headerButton}

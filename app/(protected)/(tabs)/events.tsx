@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Search,
   X,
+  ArrowUpDown,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -34,6 +35,7 @@ import {
   useEvents,
   type Event,
   type EventFilters,
+  type EventSort,
 } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
@@ -234,6 +236,7 @@ export default function EventsScreen() {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState(0);
   const [activeFilters, setActiveFilters] = useState<EventFilter[]>([]);
+  const [activeSort, setActiveSort] = useState<EventSort>("soonest");
   const [searchQuery, setSearchQuery] = useState("");
   const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const pagerRef = useRef<any>(null);
@@ -303,8 +306,9 @@ export default function EventsScreen() {
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
     if (searchQuery.length >= 2) f.search = searchQuery;
+    if (activeSort !== "soonest") f.sort = activeSort;
     return f;
-  }, [activeFilters, searchQuery]);
+  }, [activeFilters, searchQuery, activeSort]);
 
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);
@@ -473,11 +477,46 @@ export default function EventsScreen() {
         {/* Weather Strip — shows skeleton while loading, never disappears */}
         <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
-        {/* Filter Pills */}
-        <FilterPills
-          activeFilters={activeFilters}
-          onToggle={handleToggleFilter}
-        />
+        {/* Filter Pills + Sort */}
+        <View className="flex-row items-center">
+          <View className="flex-1">
+            <FilterPills
+              activeFilters={activeFilters}
+              onToggle={handleToggleFilter}
+            />
+          </View>
+          <Pressable
+            onPress={() => {
+              const sortOptions: EventSort[] = [
+                "soonest",
+                "newest",
+                "popular",
+                "price_low",
+                "price_high",
+              ];
+              const idx = sortOptions.indexOf(activeSort);
+              setActiveSort(sortOptions[(idx + 1) % sortOptions.length]);
+            }}
+            className="flex-row items-center gap-1.5 mr-4 px-3 py-2 rounded-full border border-border bg-card"
+          >
+            <ArrowUpDown
+              size={13}
+              color={colors.mutedForeground}
+              strokeWidth={2}
+            />
+            <Text className="text-xs font-semibold text-muted-foreground">
+              {
+                {
+                  soonest: "Soonest",
+                  newest: "Newest",
+                  popular: "Popular",
+                  price_low: "Price ↑",
+                  price_high: "Price ↓",
+                }[activeSort]
+              }
+            </Text>
+          </Pressable>
+        </View>
 
         {/* Tab Navigation */}
         <View className="flex-row border-b border-border">
