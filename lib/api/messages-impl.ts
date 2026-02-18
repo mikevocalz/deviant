@@ -100,6 +100,11 @@ export const messagesApi = {
               ]);
 
             const lastMessage = lastMessageResult.data;
+
+            // Skip conversations with no messages — these are "ghost" conversations
+            // created by getOrCreateConversation but never actually used
+            if (!lastMessage) return null;
+
             const hasUnread = ((unreadResult as any).count ?? 0) > 0;
 
             // Other user lookup — depends on participant result (only sequential dep)
@@ -626,14 +631,14 @@ export const messagesApi = {
         // Inbox: conversations from users you follow
         return conversations.filter((c: any) => {
           const otherUserId = c.user?.id;
-          if (!otherUserId) return true; // keep unknown users in inbox as fallback
+          if (!otherUserId) return false; // unknown users go to requests, not inbox
           return followingIds.includes(String(otherUserId));
         });
       } else {
-        // Requests: conversations from users you DON'T follow
+        // Requests: conversations from users you DON'T follow (+ unknown users)
         return conversations.filter((c: any) => {
           const otherUserId = c.user?.id;
-          if (!otherUserId) return false;
+          if (!otherUserId) return true; // unknown users go to requests
           return !followingIds.includes(String(otherUserId));
         });
       }
