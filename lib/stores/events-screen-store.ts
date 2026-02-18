@@ -24,6 +24,10 @@ interface EventsScreenState {
   // City picker
   cityPickerVisible: boolean;
   setCityPickerVisible: (visible: boolean) => void;
+
+  // Map view
+  showMapView: boolean;
+  toggleMapView: () => void;
 }
 
 const SORT_OPTIONS: EventSort[] = [
@@ -60,4 +64,7 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
 
   cityPickerVisible: false,
   setCityPickerVisible: (visible) => set({ cityPickerVisible: visible }),
+
+  showMapView: false,
+  toggleMapView: () => set((s) => ({ showMapView: !s.showMapView })),
 }));

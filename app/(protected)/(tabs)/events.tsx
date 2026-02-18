@@ -3,8 +3,8 @@ import {
   Text,
   Pressable,
   ScrollView,
-  Dimensions,
   TextInput,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,10 +23,13 @@ import {
   SlidersHorizontal,
   PartyPopper,
   History,
+  Map,
+  List,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
+import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
 import Animated, {
@@ -53,10 +56,7 @@ import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
 import { FilterPills } from "@/components/events/filter-pills";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
-const CARD_HEIGHT = Math.round(CARD_WIDTH * 1); // 1:1 aspect ratio
+import { EventsMapView } from "@/components/events/events-map-view";
 
 function EventCard({
   event,
@@ -65,6 +65,9 @@ function EventCard({
   colors,
   router,
   formatLikes,
+  cardWidth,
+  cardHeight,
+  compact,
 }: {
   event: Event;
   index: number;
@@ -72,10 +75,13 @@ function EventCard({
   colors: any;
   router: any;
   formatLikes: (likes: number) => string;
+  cardWidth: number;
+  cardHeight: number;
+  compact?: boolean;
 }) {
   const animatedImageStyle = useAnimatedStyle(() => {
     "worklet";
-    const translateY = (scrollY.value - index * (CARD_HEIGHT + 20)) * -0.15;
+    const translateY = (scrollY.value - index * (cardHeight + 20)) * -0.15;
     return {
       transform: [{ translateY }],
     };
@@ -108,13 +114,13 @@ function EventCard({
         <Pressable
           onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
         >
-          <View style={{ height: CARD_HEIGHT }} className="w-full">
+          <View style={{ height: cardHeight }} className="w-full">
             {/* Parallax image layer */}
             <Animated.View
               style={[
                 {
                   width: "100%",
-                  height: CARD_HEIGHT + 100,
+                  height: cardHeight + 100,
                   position: "absolute",
                   top: -50,
                 },
@@ -160,16 +166,24 @@ function EventCard({
             </Motion.View>
 
             {/* Event Details */}
-            <Animated.View className="absolute bottom-0 left-0 right-0 p-6">
-              <View className="bg-white/20 px-3 py-1.5 rounded-xl self-start mb-3">
+            <Animated.View
+              className="absolute bottom-0 left-0 right-0"
+              style={{ padding: compact ? 16 : 24 }}
+            >
+              <View className="bg-white/20 px-3 py-1.5 rounded-xl self-start mb-2">
                 <Text className="text-white text-xs font-medium">
                   {event.category}
                 </Text>
               </View>
-              <Text className="text-white text-[28px] font-bold mb-2">
+              <Text
+                className={`text-white font-bold ${compact ? "text-lg mb-1" : "text-[28px] mb-2"}`}
+                numberOfLines={compact ? 1 : 2}
+              >
                 {event.title}
               </Text>
-              <Text className="text-white/80 text-sm mb-4">
+              <Text
+                className={`text-white/80 ${compact ? "text-xs mb-2" : "text-sm mb-4"}`}
+              >
                 {event.time} •{" "}
                 {(() => {
                   const count = Array.isArray(event.attendees)
@@ -196,7 +210,7 @@ function EventCard({
                           <Avatar
                             uri={attendee.image}
                             username={attendee.initials || "??"}
-                            size={32}
+                            size={compact ? 24 : 32}
                             variant="roundedSquare"
                           />
                         </View>
@@ -243,6 +257,16 @@ export default function EventsScreen() {
   const trace = useScreenTrace("Events");
   useBootstrapEvents();
 
+  // Responsive grid — 2-col on tablet
+  const { width: screenWidth } = useWindowDimensions();
+  const isLargeScreen = useIsLargeScreen();
+  const numColumns = isLargeScreen ? 2 : 1;
+  const gridGap = isLargeScreen ? 12 : 0;
+  const cardWidth = isLargeScreen
+    ? (Math.min(screenWidth, 768) - 32 - gridGap) / 2
+    : screenWidth - 12;
+  const cardHeight = Math.round(cardWidth * (isLargeScreen ? 0.85 : 1));
+
   // Zustand store — replaces all useState
   const activeTab = useEventsScreenStore((s) => s.activeTab);
   const setActiveTab = useEventsScreenStore((s) => s.setActiveTab);
@@ -255,6 +279,8 @@ export default function EventsScreen() {
   const debouncedSearch = useEventsScreenStore((s) => s.debouncedSearch);
   const setDebouncedSearch = useEventsScreenStore((s) => s.setDebouncedSearch);
   const cityPickerVisible = useEventsScreenStore((s) => s.cityPickerVisible);
+  const showMapView = useEventsScreenStore((s) => s.showMapView);
+  const toggleMapView = useEventsScreenStore((s) => s.toggleMapView);
   const setCityPickerVisible = useEventsScreenStore(
     (s) => s.setCityPickerVisible,
   );
@@ -519,6 +545,21 @@ export default function EventsScreen() {
                 className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
               >
                 <Pressable
+                  onPress={toggleMapView}
+                  className="w-full h-full items-center justify-center"
+                >
+                  {showMapView ? (
+                    <List size={18} color={colors.foreground} />
+                  ) : (
+                    <Map size={18} color={colors.foreground} />
+                  )}
+                </Pressable>
+              </Motion.View>
+              <Motion.View
+                whileTap={{ scale: 0.9 }}
+                className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
+              >
+                <Pressable
                   onPress={() =>
                     router.push("/(protected)/events/my-tickets" as any)
                   }
@@ -600,161 +641,183 @@ export default function EventsScreen() {
           </Pressable>
         </View>
 
-        {/* Tab Navigation */}
-        <View className="flex-row border-b border-border">
-          {tabs.map((tab, index) => (
-            <Pressable
-              key={tab.key}
-              onPress={() => handleTabPress(index)}
-              className={`flex-1 py-3 ${activeTab === index ? "border-b-2 border-primary" : ""}`}
-            >
-              <Text
-                className={`text-center font-medium ${activeTab === index ? "text-primary" : "text-muted-foreground"}`}
-              >
-                {tab.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-
-        {/* Swipeable Pages */}
-        <PagerViewWrapper
-          pagerRef={pagerRef}
-          style={{ flex: 1 }}
-          initialPage={activeTab}
-          onPageSelected={handlePageSelected}
-        >
-          {tabs.map((tab, tabIndex) => {
-            const filteredEvents = getFilteredEvents(tabIndex);
-            return (
-              <View key={tab.key} className="flex-1">
-                {filteredEvents.length === 0 ? (
-                  debouncedSearch.length >= 2 ? (
-                    <EmptyState
-                      icon={SearchX}
-                      title="No matches"
-                      description={`Nothing matched "${debouncedSearch}". Try a different keyword or check spelling.`}
-                      action={
-                        <Pressable
-                          onPress={handleClearSearch}
-                          className="bg-primary px-6 py-3 rounded-full"
-                        >
-                          <Text className="text-primary-foreground font-semibold text-sm">
-                            Clear Search
-                          </Text>
-                        </Pressable>
-                      }
-                    />
-                  ) : activeFilters.length > 0 ? (
-                    <EmptyState
-                      icon={SlidersHorizontal}
-                      title="Too filtered"
-                      description="No events match your current filters. Try removing some to see more."
-                      action={
-                        <Pressable
-                          onPress={() => {
-                            activeFilters.forEach((f) => toggleFilter(f));
-                          }}
-                          className="bg-primary px-6 py-3 rounded-full"
-                        >
-                          <Text className="text-primary-foreground font-semibold text-sm">
-                            Clear Filters
-                          </Text>
-                        </Pressable>
-                      }
-                    />
-                  ) : tabIndex === 2 ? (
-                    <EmptyState
-                      icon={History}
-                      title="No past events"
-                      description="Events you've attended will appear here after they end."
-                    />
-                  ) : tabIndex === 1 ? (
-                    <EmptyState
-                      icon={PartyPopper}
-                      title="Nothing upcoming"
-                      description="Be the first to create an event in your area!"
-                      action={
-                        <Pressable
-                          onPress={() =>
-                            router.push("/(protected)/events/create" as any)
-                          }
-                          className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
-                        >
-                          <Plus size={16} color="#fff" />
-                          <Text className="text-primary-foreground font-semibold text-sm">
-                            Create Event
-                          </Text>
-                        </Pressable>
-                      }
-                    />
-                  ) : (
-                    <EmptyState
-                      icon={CalendarOff}
-                      title="No events yet"
-                      description="Check back later or create one to get the party started!"
-                      action={
-                        <Pressable
-                          onPress={() =>
-                            router.push("/(protected)/events/create" as any)
-                          }
-                          className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
-                        >
-                          <Plus size={16} color="#fff" />
-                          <Text className="text-primary-foreground font-semibold text-sm">
-                            Create Event
-                          </Text>
-                        </Pressable>
-                      }
-                    />
-                  )
-                ) : (
-                  <Animated.ScrollView
-                    className="flex-1"
-                    showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 16 }}
-                    onScroll={scrollHandler}
-                    scrollEventThrottle={16}
+        {showMapView ? (
+          <EventsMapView events={events} />
+        ) : (
+          <>
+            {/* Tab Navigation */}
+            <View className="flex-row border-b border-border">
+              {tabs.map((tab, index) => (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => handleTabPress(index)}
+                  className={`flex-1 py-3 ${activeTab === index ? "border-b-2 border-primary" : ""}`}
+                >
+                  <Text
+                    className={`text-center font-medium ${activeTab === index ? "text-primary" : "text-muted-foreground"}`}
                   >
-                    {/* Curated collections — only on All Events tab, no search/filters */}
-                    {tabIndex === 0 && showCollections && (
-                      <View className="pt-4">
-                        <EventCollectionRow
-                          title="This Weekend"
-                          emoji="\uD83C\uDF89"
-                          events={collections.weekend}
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* Swipeable Pages */}
+            <PagerViewWrapper
+              pagerRef={pagerRef}
+              style={{ flex: 1 }}
+              initialPage={activeTab}
+              onPageSelected={handlePageSelected}
+            >
+              {tabs.map((tab, tabIndex) => {
+                const filteredEvents = getFilteredEvents(tabIndex);
+                return (
+                  <View key={tab.key} className="flex-1">
+                    {filteredEvents.length === 0 ? (
+                      debouncedSearch.length >= 2 ? (
+                        <EmptyState
+                          icon={SearchX}
+                          title="No matches"
+                          description={`Nothing matched "${debouncedSearch}". Try a different keyword or check spelling.`}
+                          action={
+                            <Pressable
+                              onPress={handleClearSearch}
+                              className="bg-primary px-6 py-3 rounded-full"
+                            >
+                              <Text className="text-primary-foreground font-semibold text-sm">
+                                Clear Search
+                              </Text>
+                            </Pressable>
+                          }
                         />
-                        <EventCollectionRow
-                          title="Trending"
-                          emoji="\uD83D\uDD25"
-                          events={collections.trending}
+                      ) : activeFilters.length > 0 ? (
+                        <EmptyState
+                          icon={SlidersHorizontal}
+                          title="Too filtered"
+                          description="No events match your current filters. Try removing some to see more."
+                          action={
+                            <Pressable
+                              onPress={() => {
+                                activeFilters.forEach((f) => toggleFilter(f));
+                              }}
+                              className="bg-primary px-6 py-3 rounded-full"
+                            >
+                              <Text className="text-primary-foreground font-semibold text-sm">
+                                Clear Filters
+                              </Text>
+                            </Pressable>
+                          }
                         />
-                        <EventCollectionRow
-                          title="New & Notable"
-                          emoji="\u2728"
-                          events={collections.fresh}
+                      ) : tabIndex === 2 ? (
+                        <EmptyState
+                          icon={History}
+                          title="No past events"
+                          description="Events you've attended will appear here after they end."
                         />
-                      </View>
+                      ) : tabIndex === 1 ? (
+                        <EmptyState
+                          icon={PartyPopper}
+                          title="Nothing upcoming"
+                          description="Be the first to create an event in your area!"
+                          action={
+                            <Pressable
+                              onPress={() =>
+                                router.push("/(protected)/events/create" as any)
+                              }
+                              className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
+                            >
+                              <Plus size={16} color="#fff" />
+                              <Text className="text-primary-foreground font-semibold text-sm">
+                                Create Event
+                              </Text>
+                            </Pressable>
+                          }
+                        />
+                      ) : (
+                        <EmptyState
+                          icon={CalendarOff}
+                          title="No events yet"
+                          description="Check back later or create one to get the party started!"
+                          action={
+                            <Pressable
+                              onPress={() =>
+                                router.push("/(protected)/events/create" as any)
+                              }
+                              className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
+                            >
+                              <Plus size={16} color="#fff" />
+                              <Text className="text-primary-foreground font-semibold text-sm">
+                                Create Event
+                              </Text>
+                            </Pressable>
+                          }
+                        />
+                      )
+                    ) : (
+                      <Animated.ScrollView
+                        className="flex-1"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={{ paddingBottom: 16 }}
+                        onScroll={scrollHandler}
+                        scrollEventThrottle={16}
+                      >
+                        {/* Curated collections — only on All Events tab, no search/filters */}
+                        {tabIndex === 0 && showCollections && (
+                          <View className="pt-4">
+                            <EventCollectionRow
+                              title="This Weekend"
+                              emoji="\uD83C\uDF89"
+                              events={collections.weekend}
+                            />
+                            <EventCollectionRow
+                              title="Trending"
+                              emoji="\uD83D\uDD25"
+                              events={collections.trending}
+                            />
+                            <EventCollectionRow
+                              title="New & Notable"
+                              emoji="\u2728"
+                              events={collections.fresh}
+                            />
+                          </View>
+                        )}
+                        <View
+                          style={{
+                            paddingHorizontal: 16,
+                            flexDirection: isLargeScreen ? "row" : "column",
+                            flexWrap: isLargeScreen ? "wrap" : "nowrap",
+                            gap: gridGap,
+                          }}
+                        >
+                          {filteredEvents.map((event, index) => (
+                            <View
+                              key={event.id}
+                              style={
+                                isLargeScreen ? { width: cardWidth } : undefined
+                              }
+                            >
+                              <EventCard
+                                event={event}
+                                index={index}
+                                scrollY={scrollY}
+                                colors={colors}
+                                router={router}
+                                formatLikes={formatLikes}
+                                cardWidth={cardWidth}
+                                cardHeight={cardHeight}
+                                compact={isLargeScreen}
+                              />
+                            </View>
+                          ))}
+                        </View>
+                      </Animated.ScrollView>
                     )}
-                    <View style={{ paddingHorizontal: 16 }}>
-                      {filteredEvents.map((event, index) => (
-                        <EventCard
-                          key={event.id}
-                          event={event}
-                          index={index}
-                          scrollY={scrollY}
-                          colors={colors}
-                          router={router}
-                          formatLikes={formatLikes}
-                        />
-                      ))}
-                    </View>
-                  </Animated.ScrollView>
-                )}
-              </View>
-            );
-          })}
-        </PagerViewWrapper>
+                  </View>
+                );
+              })}
+            </PagerViewWrapper>
+          </>
+        )}
       </Main>
 
       {/* City Picker Bottom Sheet */}

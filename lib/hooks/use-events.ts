@@ -55,6 +55,9 @@ export interface Event {
   category?: string;
   likes?: number;
   isLiked?: boolean;
+  locationLat?: number;
+  locationLng?: number;
+  locationName?: string;
 }
 
 // Query keys
