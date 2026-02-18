@@ -11,7 +11,7 @@ import {
 import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
@@ -47,11 +47,7 @@ import { ticketsApi } from "@/lib/api/tickets";
 import * as WebBrowser from "expo-web-browser";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
-import {
-  useEventReviews,
-  useCreateEventReview,
-} from "@/lib/hooks/use-event-reviews";
-import { useEventComments } from "@/lib/hooks/use-event-comments";
+import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
@@ -206,9 +202,6 @@ export default function EventDetailScreen() {
   // ── Local UI state ──────────────────────────────────────────────────
   const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null);
   const [showRatingModal, setShowRatingModal] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const [eventData, setEventData] = useState<EventDetail | null>(null);
   const [isLiked, setIsLiked] = useState(false);
   const scrollY = useSharedValue(0);
 
@@ -248,51 +241,33 @@ export default function EventDetailScreen() {
 
   const hasTicket = hasValidTicket(eventId) || isRsvped[eventId] || false;
 
-  // ── Fetch event data ────────────────────────────────────────────────
-  const { data: reviews = [], isLoading: isLoadingReviews } = useEventReviews(
-    eventId,
-    5,
-  );
-  const { data: comments = [], isLoading: isLoadingComments } =
-    useEventComments(eventId, 5);
+  // ── Fetch event data via single batch RPC ─────────────────────────
   const createReview = useCreateEventReview();
 
-  const fetchEvent = useCallback(async () => {
-    if (!eventId) return;
-    setIsLoading(true);
-    setHasError(false);
-    try {
-      const fetched = await eventsApi.getEventById(eventId);
-      console.log(
-        "[EventDetail] fetched images:",
-        JSON.stringify(fetched?.images),
-      );
-      console.log("[EventDetail] fetched image (cover):", fetched?.image);
-      if (fetched) {
-        setEventData(fetched as EventDetail);
-      } else {
-        setHasError(true);
-      }
-    } catch (error) {
-      console.error("[EventDetail] Error fetching event:", error);
-      setHasError(true);
-    } finally {
-      setIsLoading(false);
+  const {
+    data: eventData,
+    isLoading,
+    isError: hasError,
+    refetch: fetchEvent,
+  } = useQuery({
+    queryKey: eventKeys.detail(eventId),
+    queryFn: () => eventsApi.getEventById(eventId),
+    enabled: !!eventId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Sync isLiked from batch payload
+  useEffect(() => {
+    if (eventData?.isLiked != null) {
+      setIsLiked(eventData.isLiked);
     }
-  }, [eventId]);
+  }, [eventData?.isLiked]);
 
-  useEffect(() => {
-    fetchEvent();
-  }, [fetchEvent]);
-
-  // Check if user has liked this event
-  useEffect(() => {
-    if (!eventId) return;
-    eventsApi
-      .isEventLiked(eventId)
-      .then(setIsLiked)
-      .catch(() => {});
-  }, [eventId]);
+  // Derive reviews + comments from batch payload
+  const reviews = eventData?.topReviews || [];
+  const comments = eventData?.topComments || [];
+  const isLoadingReviews = isLoading;
+  const isLoadingComments = isLoading;
 
   const handleToggleLike = useCallback(async () => {
     if (!eventId) return;
@@ -316,15 +291,45 @@ export default function EventDetailScreen() {
   }, [eventId, isLiked, showToast, queryClient]);
 
   // ── Derived data ────────────────────────────────────────────────────
-  const ticketTiers = useMemo(
-    () => (eventData ? buildTicketTiers(eventData) : []),
-    [eventData],
-  );
+  // Use real ticket tiers from DB when available, fall back to synthetic
+  const ticketTiers = useMemo(() => {
+    if (!eventData) return [];
+    const dbTiers = eventData.ticketTiers;
+    if (Array.isArray(dbTiers) && dbTiers.length > 0) {
+      return dbTiers.map((t: any, i: number) => ({
+        id: t.id,
+        name: t.name,
+        price: (t.price_cents || 0) / 100,
+        originalPrice: undefined,
+        perks: [],
+        remaining: t.quantity_total
+          ? Math.max(0, t.quantity_total - (t.quantity_sold || 0))
+          : undefined,
+        maxPerOrder: t.max_per_user || 4,
+        isSoldOut: t.quantity_total
+          ? (t.quantity_sold || 0) >= t.quantity_total
+          : false,
+        tier: i === 0 ? "ga" : i === 1 ? "vip" : "table",
+        glowColor: ["#34A2DF", "#8A40CF", "#FF5BFC"][i % 3],
+        saleStart: t.sale_start,
+        saleEnd: t.sale_end,
+      })) as TicketTier[];
+    }
+    return buildTicketTiers(eventData);
+  }, [eventData]);
 
-  const mockAttendees = useMemo(
-    () => buildMockAttendees(eventData?.attendees || 0),
-    [eventData?.attendees],
-  );
+  // Use real attendee avatars from batch payload, fall back to mock
+  const realAttendees = useMemo(() => {
+    const avatars = eventData?.attendeeAvatars;
+    if (Array.isArray(avatars) && avatars.length > 0) {
+      return avatars.map((a: any) => ({
+        id: String(a.id || ""),
+        avatar: a.avatar || "",
+        color: "#3b82f6",
+      }));
+    }
+    return buildMockAttendees(eventData?.attendees || 0);
+  }, [eventData?.attendeeAvatars, eventData?.attendees]);
 
   // Auto-select first tier
   useEffect(() => {
@@ -392,8 +397,8 @@ export default function EventDetailScreen() {
             eventImage: eventData.image,
           });
           toggleRsvp(eventId);
-          setEventData((prev) =>
-            prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+          queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
+            old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
           );
           queryClient.invalidateQueries({ queryKey: eventKeys.all });
           showToast(
@@ -436,8 +441,8 @@ export default function EventDetailScreen() {
               eventImage: eventData.image,
             });
             toggleRsvp(eventId);
-            setEventData((prev) =>
-              prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+            queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
+              old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
             );
             queryClient.invalidateQueries({ queryKey: eventKeys.all });
             showToast(
@@ -461,8 +466,8 @@ export default function EventDetailScreen() {
     toggleRsvp(eventId);
 
     // Optimistically update local attendee count
-    setEventData((prev) =>
-      prev ? { ...prev, attendees: (prev.attendees || 0) + 1 } : prev,
+    queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
+      old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
     );
 
     // Persist RSVP to database (increments total_attendees via RPC)
@@ -584,7 +589,7 @@ export default function EventDetailScreen() {
         <Text style={s.errorSubtitle}>
           This event may have been removed or the link is invalid.
         </Text>
-        <Pressable onPress={fetchEvent} style={s.retryButton}>
+        <Pressable onPress={() => fetchEvent()} style={s.retryButton}>
           <Text style={s.retryText}>Try Again</Text>
         </Pressable>
         <Pressable onPress={() => router.back()} style={s.backLink}>
@@ -692,7 +697,7 @@ export default function EventDetailScreen() {
           {/* ── 3. SOCIAL PROOF ──────────────────────────────────── */}
           <View style={s.section}>
             <SocialProofRow
-              attendees={mockAttendees}
+              attendees={realAttendees}
               totalCount={event.attendees || 0}
               followingCount={0}
             />
@@ -870,7 +875,8 @@ export default function EventDetailScreen() {
                   <View key={review.id} style={s.reviewCard}>
                     <View style={s.reviewHeader}>
                       <Text style={s.reviewAuthor}>
-                        {review.user?.username ||
+                        {review.username ||
+                          review.user?.username ||
                           review.user?.name ||
                           "Anonymous"}
                       </Text>
@@ -925,13 +931,14 @@ export default function EventDetailScreen() {
                   <View key={comment.id} style={s.commentRow}>
                     <Image
                       source={{
-                        uri: comment.author?.avatar || "",
+                        uri: comment.avatar || comment.author?.avatar || "",
                       }}
                       style={s.commentAvatar}
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={s.commentAuthor}>
-                        {comment.author?.username ||
+                        {comment.username ||
+                          comment.author?.username ||
                           comment.author?.name ||
                           "User"}
                       </Text>
