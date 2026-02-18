@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { mmkv } from "@/lib/mmkv-zustand";
 
 const NSFW_STORAGE_KEY = "app_nsfw_enabled";
 
@@ -65,17 +65,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (route) set({ pendingNotificationRoute: null });
     return route;
   },
-  setNsfwEnabled: async (enabled) => {
+  setNsfwEnabled: (enabled) => {
     set({ nsfwEnabled: enabled });
     try {
-      await AsyncStorage.setItem(NSFW_STORAGE_KEY, JSON.stringify(enabled));
+      mmkv.set(NSFW_STORAGE_KEY, JSON.stringify(enabled));
     } catch (error) {
       console.log("Error saving NSFW setting:", error);
     }
   },
   loadNsfwSetting: async () => {
     try {
-      const stored = await AsyncStorage.getItem(NSFW_STORAGE_KEY);
+      const stored = mmkv.getString(NSFW_STORAGE_KEY) ?? null;
       if (stored !== null) {
         set({ nsfwEnabled: JSON.parse(stored), nsfwLoaded: true });
       } else {

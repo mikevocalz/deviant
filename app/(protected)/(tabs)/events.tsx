@@ -226,7 +226,13 @@ export default function EventsScreen() {
   const setActiveCity = useEventsLocationStore((s) => s.setActiveCity);
   const setDeviceLocation = useEventsLocationStore((s) => s.setDeviceLocation);
   const setLocationMode = useEventsLocationStore((s) => s.setLocationMode);
+  const deviceLat = useEventsLocationStore((s) => s.deviceLat);
+  const deviceLng = useEventsLocationStore((s) => s.deviceLng);
   const { data: allCities = [] } = useCities();
+
+  // Weather coords: prefer active city → device location
+  const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
+  const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
   // Auto-detect location on first visit when no city is selected
   // If permission denied, fall back to first available city (usually New York)
@@ -453,8 +459,8 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {/* Weather Strip — keyed by active city */}
-        <WeatherStrip lat={activeCity?.lat} lng={activeCity?.lng} />
+        {/* Weather Strip — always shows (NYC fallback when no city selected) */}
+        <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
         {/* Filter Pills */}
         <FilterPills
