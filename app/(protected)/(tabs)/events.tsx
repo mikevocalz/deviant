@@ -28,26 +28,24 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
 } from "react-native-reanimated";
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useRef, useCallback, useMemo, useEffect } from "react";
+import { Debouncer } from "@tanstack/react-pacer";
 import { EventsSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import {
   useEvents,
   type Event,
   type EventFilters,
-  type EventSort,
 } from "@/lib/hooks/use-events";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { CityPickerSheet } from "@/components/events/city-picker-sheet";
 import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
-import {
-  FilterPills,
-  type EventFilter,
-} from "@/components/events/filter-pills";
+import { FilterPills } from "@/components/events/filter-pills";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -234,14 +232,49 @@ export default function EventsScreen() {
   const { colors } = useColorScheme();
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState(0);
-  const [activeFilters, setActiveFilters] = useState<EventFilter[]>([]);
-  const [activeSort, setActiveSort] = useState<EventSort>("soonest");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [cityPickerVisible, setCityPickerVisible] = useState(false);
   const pagerRef = useRef<any>(null);
   const trace = useScreenTrace("Events");
   useBootstrapEvents();
+
+  // Zustand store — replaces all useState
+  const activeTab = useEventsScreenStore((s) => s.activeTab);
+  const setActiveTab = useEventsScreenStore((s) => s.setActiveTab);
+  const activeFilters = useEventsScreenStore((s) => s.activeFilters);
+  const toggleFilter = useEventsScreenStore((s) => s.toggleFilter);
+  const activeSort = useEventsScreenStore((s) => s.activeSort);
+  const cycleSort = useEventsScreenStore((s) => s.cycleSort);
+  const searchQuery = useEventsScreenStore((s) => s.searchQuery);
+  const setSearchQuery = useEventsScreenStore((s) => s.setSearchQuery);
+  const debouncedSearch = useEventsScreenStore((s) => s.debouncedSearch);
+  const setDebouncedSearch = useEventsScreenStore((s) => s.setDebouncedSearch);
+  const cityPickerVisible = useEventsScreenStore((s) => s.cityPickerVisible);
+  const setCityPickerVisible = useEventsScreenStore(
+    (s) => s.setCityPickerVisible,
+  );
+
+  // TanStack Debouncer for search — 400ms delay prevents query-per-keystroke
+  const searchDebouncerRef = useRef(
+    new Debouncer(
+      (q: string) => {
+        setDebouncedSearch(q);
+      },
+      { wait: 400 },
+    ),
+  );
+
+  const handleSearchChange = useCallback(
+    (text: string) => {
+      setSearchQuery(text);
+      searchDebouncerRef.current.maybeExecute(text);
+    },
+    [setSearchQuery],
+  );
+
+  const handleClearSearch = useCallback(() => {
+    setSearchQuery("");
+    setDebouncedSearch("");
+    searchDebouncerRef.current.cancel();
+  }, [setSearchQuery, setDebouncedSearch]);
 
   // Location store
   const activeCity = useEventsLocationStore((s) => s.activeCity);
@@ -255,60 +288,68 @@ export default function EventsScreen() {
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
   // Fallback: if boot location hook didn't resolve a city yet,
-  // wait 2s then set first DB city or reverse-geocode from device coords
+  // debounce 2s then set first DB city or reverse-geocode from device coords
+  const cityFallbackRef = useRef(
+    new Debouncer(
+      async () => {
+        const store = useEventsLocationStore.getState();
+        if (store.activeCity) return; // boot hook resolved in time
+
+        // Option A: DB cities available
+        const cities = allCities;
+        if (cities.length > 0) {
+          console.log("[Events] Fallback to first DB city:", cities[0].name);
+          store.setActiveCity(cities[0]);
+          return;
+        }
+
+        // Option B: device coords exist — reverse geocode
+        const { deviceLat: lat, deviceLng: lng } = store;
+        if (lat != null && lng != null) {
+          try {
+            const Location = await import("expo-location");
+            const [geo] = await Location.reverseGeocodeAsync({
+              latitude: lat,
+              longitude: lng,
+            });
+            if (geo?.city) {
+              console.log("[Events] Fallback reverse geocode:", geo.city);
+              store.setActiveCity({
+                id: -1,
+                name: geo.city,
+                state: geo.region ?? null,
+                country: geo.country ?? "US",
+                lat,
+                lng,
+                timezone: null,
+                slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
+              });
+            }
+          } catch (e) {
+            console.warn("[Events] Fallback geocode failed:", e);
+          }
+        }
+      },
+      { wait: 2000 },
+    ),
+  );
+
   useEffect(() => {
     if (activeCity) return;
-    const timer = setTimeout(async () => {
-      const store = useEventsLocationStore.getState();
-      if (store.activeCity) return; // boot hook resolved in time
-
-      // Option A: DB cities available
-      if (allCities.length > 0) {
-        console.log("[Events] Fallback to first DB city:", allCities[0].name);
-        store.setActiveCity(allCities[0]);
-        return;
-      }
-
-      // Option B: device coords exist — reverse geocode
-      const { deviceLat: lat, deviceLng: lng } = store;
-      if (lat != null && lng != null) {
-        try {
-          const Location = await import("expo-location");
-          const [geo] = await Location.reverseGeocodeAsync({
-            latitude: lat,
-            longitude: lng,
-          });
-          if (geo?.city) {
-            console.log("[Events] Fallback reverse geocode:", geo.city);
-            store.setActiveCity({
-              id: -1,
-              name: geo.city,
-              state: geo.region ?? null,
-              country: geo.country ?? "US",
-              lat,
-              lng,
-              timezone: null,
-              slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
-            });
-          }
-        } catch (e) {
-          console.warn("[Events] Fallback geocode failed:", e);
-        }
-      }
-    }, 2000);
-    return () => clearTimeout(timer);
+    cityFallbackRef.current.maybeExecute();
+    return () => cityFallbackRef.current.cancel();
   }, [activeCity, allCities]);
 
-  // Build server-side filters from active pills + search
+  // Build server-side filters from active pills + debounced search
   const eventFilters = useMemo<EventFilters>(() => {
     const f: EventFilters = {};
     if (activeFilters.includes("online")) f.online = true;
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
-    if (searchQuery.length >= 2) f.search = searchQuery;
+    if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     return f;
-  }, [activeFilters, searchQuery, activeSort]);
+  }, [activeFilters, debouncedSearch, activeSort]);
 
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);
@@ -326,13 +367,12 @@ export default function EventsScreen() {
     return likes.toString();
   };
 
-  const handleToggleFilter = useCallback((filter: EventFilter) => {
-    setActiveFilters((prev) =>
-      prev.includes(filter)
-        ? prev.filter((f) => f !== filter)
-        : [...prev, filter],
-    );
-  }, []);
+  const handleToggleFilter = useCallback(
+    (filter: Parameters<typeof toggleFilter>[0]) => {
+      toggleFilter(filter);
+    },
+    [toggleFilter],
+  );
 
   // Filter events by tab (upcoming/past) — server handles pill filters
   const getFilteredEvents = useCallback(
@@ -358,14 +398,20 @@ export default function EventsScreen() {
     [events],
   );
 
-  const handleTabPress = (index: number) => {
-    setActiveTab(index);
-    pagerRef.current?.setPage(index);
-  };
+  const handleTabPress = useCallback(
+    (index: number) => {
+      setActiveTab(index);
+      pagerRef.current?.setPage(index);
+    },
+    [setActiveTab],
+  );
 
-  const handlePageSelected = (e: any) => {
-    setActiveTab(e.nativeEvent.position);
-  };
+  const handlePageSelected = useCallback(
+    (e: any) => {
+      setActiveTab(e.nativeEvent.position);
+    },
+    [setActiveTab],
+  );
 
   const tabs = [
     { key: "all_events", label: "All Events" },
@@ -458,7 +504,7 @@ export default function EventsScreen() {
             <Search size={18} color={colors.mutedForeground} strokeWidth={2} />
             <TextInput
               value={searchQuery}
-              onChangeText={setSearchQuery}
+              onChangeText={handleSearchChange}
               placeholder="Search events, venues, hosts..."
               placeholderTextColor={colors.mutedForeground}
               className="flex-1 ml-3 text-sm text-foreground"
@@ -467,7 +513,7 @@ export default function EventsScreen() {
               returnKeyType="search"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Pressable onPress={handleClearSearch} hitSlop={8}>
                 <X size={16} color={colors.mutedForeground} />
               </Pressable>
             )}
@@ -486,17 +532,7 @@ export default function EventsScreen() {
             />
           </View>
           <Pressable
-            onPress={() => {
-              const sortOptions: EventSort[] = [
-                "soonest",
-                "newest",
-                "popular",
-                "price_low",
-                "price_high",
-              ];
-              const idx = sortOptions.indexOf(activeSort);
-              setActiveSort(sortOptions[(idx + 1) % sortOptions.length]);
-            }}
+            onPress={cycleSort}
             className="flex-row items-center gap-1.5 mr-4 px-3 py-2 rounded-full border border-border bg-card"
           >
             <ArrowUpDown
