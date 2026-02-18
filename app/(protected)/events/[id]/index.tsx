@@ -1028,7 +1028,25 @@ export default function EventDetailScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={s.mutedText}>No ratings yet. Be the first!</Text>
+              <View
+                style={{ alignItems: "center", paddingVertical: 20, gap: 6 }}
+              >
+                <Star size={28} color="#333" strokeWidth={1.5} />
+                <Text style={[s.mutedText, { marginTop: 4 }]}>
+                  No ratings yet
+                </Text>
+                {canRate && (
+                  <Text
+                    style={{
+                      color: "#FF5BFC",
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Be the first to rate this event
+                  </Text>
+                )}
+              </View>
             )}
           </View>
 
@@ -1113,7 +1131,19 @@ export default function EventDetailScreen() {
                 ))}
               </View>
             ) : (
-              <Text style={s.mutedText}>No comments yet. Be the first!</Text>
+              <View
+                style={{ alignItems: "center", paddingVertical: 20, gap: 6 }}
+              >
+                <MessageCircle size={28} color="#333" strokeWidth={1.5} />
+                <Text style={[s.mutedText, { marginTop: 4 }]}>
+                  No comments yet
+                </Text>
+                <Text
+                  style={{ color: "#34A2DF", fontSize: 13, fontWeight: "600" }}
+                >
+                  Start the conversation
+                </Text>
+              </View>
             )}
 
             <Pressable

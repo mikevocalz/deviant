@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -42,6 +42,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useCreateEventStore } from "@/lib/stores/create-event-store";
 // Popover removed — inline expanding pickers used instead
 
 // Conditionally import expo-maps (requires dev build, not available in Expo Go)
@@ -111,37 +112,81 @@ export default function CreateEventScreen() {
     progress: mediaUploadProgress,
   } = useMediaUpload({ folder: "events" });
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
-  const [eventImages, setEventImages] = useState<string[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
-  const [customTag, setCustomTag] = useState("");
-  const [eventDate, setEventDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [ticketPrice, setTicketPrice] = useState("");
-  const [maxAttendees, setMaxAttendees] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [ticketingEnabled, setTicketingEnabled] = useState(false);
-  const [ticketTierName, setTicketTierName] = useState("");
-  // New fields
-  const [endDate, setEndDate] = useState<Date | null>(null);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-  const [visibility, setVisibility] = useState<VisibilityOption>("public");
-  const [ageRestriction, setAgeRestriction] = useState<AgeRestriction>("none");
-  const [isOnline, setIsOnline] = useState(false);
-  const [dressCode, setDressCode] = useState("");
-  const [doorPolicy, setDoorPolicy] = useState("");
-  const [lineup, setLineup] = useState<string[]>([]);
-  const [lineupInput, setLineupInput] = useState("");
-  const [perks, setPerks] = useState<string[]>([]);
-  const [perksInput, setPerksInput] = useState("");
-  const [ticketTiers, setTicketTiers] = useState<TicketTier[]>([]);
+  // All form state from Zustand (MMKV-persisted draft)
+  const store = useCreateEventStore();
+  const {
+    title,
+    setTitle,
+    description,
+    setDescription,
+    location,
+    setLocation,
+    locationData,
+    setLocationData,
+    eventImages,
+    setEventImages,
+    tags,
+    toggleTag,
+    customTag,
+    setCustomTag,
+    addCustomTag,
+    eventDate: eventDateISO,
+    setEventDate: setEventDateISO,
+    endDate: endDateISO,
+    setEndDate: setEndDateISO,
+    ticketPrice,
+    setTicketPrice,
+    maxAttendees,
+    setMaxAttendees,
+    youtubeUrl,
+    setYoutubeUrl,
+    isSubmitting,
+    setIsSubmitting,
+    uploadProgress,
+    setUploadProgress,
+    ticketingEnabled,
+    setTicketingEnabled,
+    ticketTierName,
+    setTicketTierName,
+    showDatePicker,
+    setShowDatePicker,
+    showTimePicker,
+    setShowTimePicker,
+    showEndDatePicker,
+    setShowEndDatePicker,
+    showEndTimePicker,
+    setShowEndTimePicker,
+    visibility,
+    setVisibility,
+    ageRestriction,
+    setAgeRestriction,
+    isOnline,
+    setIsOnline,
+    dressCode,
+    setDressCode,
+    doorPolicy,
+    setDoorPolicy,
+    lineup,
+    setLineup,
+    lineupInput,
+    setLineupInput,
+    perks,
+    setPerks,
+    perksInput,
+    setPerksInput,
+    ticketTiers,
+    setTicketTiers,
+    addLineupItem,
+    addPerk,
+    resetDraft,
+  } = store;
+
+  // Convert ISO strings to Date objects for pickers
+  const eventDate = useMemo(() => new Date(eventDateISO), [eventDateISO]);
+  const endDate = useMemo(
+    () => (endDateISO ? new Date(endDateISO) : null),
+    [endDateISO],
+  );
 
   useEffect(() => {
     requestPermissions();
@@ -173,7 +218,7 @@ export default function CreateEventScreen() {
       newDate.setFullYear(selectedDate.getFullYear());
       newDate.setMonth(selectedDate.getMonth());
       newDate.setDate(selectedDate.getDate());
-      setEventDate(newDate);
+      setEventDateISO(newDate.toISOString());
     }
   };
 
@@ -183,7 +228,7 @@ export default function CreateEventScreen() {
       const newDate = new Date(eventDate);
       newDate.setHours(selectedTime.getHours());
       newDate.setMinutes(selectedTime.getMinutes());
-      setEventDate(newDate);
+      setEventDateISO(newDate.toISOString());
     }
   };
 
@@ -201,20 +246,6 @@ export default function CreateEventScreen() {
       hour: "numeric",
       minute: "2-digit",
     });
-  };
-
-  const toggleTag = (tag: string) => {
-    setTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
-  };
-
-  const addCustomTag = () => {
-    const trimmed = customTag.trim().toLowerCase();
-    if (trimmed && !tags.includes(trimmed)) {
-      setTags((prev) => [...prev, trimmed]);
-      setCustomTag("");
-    }
   };
 
   const isValid = title.trim() && description.trim() && location.trim();
@@ -283,9 +314,6 @@ export default function CreateEventScreen() {
         );
       }
 
-      // Format date as ISO string for Payload
-      const eventDateISO = eventDate.toISOString();
-
       const eventData: Record<string, any> = {
         title: title.trim(),
         description: description.trim(),
@@ -306,7 +334,7 @@ export default function CreateEventScreen() {
         isOnline,
         ticketingEnabled,
         // V2 fields — new
-        endDate: endDate ? endDate.toISOString() : undefined,
+        endDate: endDateISO || undefined,
         visibility,
         ageRestriction: ageRestriction !== "none" ? ageRestriction : undefined,
         dressCode: dressCode.trim() || undefined,
@@ -364,10 +392,8 @@ export default function CreateEventScreen() {
 
           setUploadProgress(100);
           showToast("success", "Success", "Event created successfully!");
-          setTimeout(() => {
-            setIsSubmitting(false);
-            router.back();
-          }, 300);
+          resetDraft();
+          router.back();
         },
         onError: (error: any) => {
           setIsSubmitting(false);
@@ -544,7 +570,7 @@ export default function CreateEventScreen() {
           {/* Date row */}
           <Pressable
             onPress={() => {
-              setShowDatePicker((v) => !v);
+              setShowDatePicker(!showDatePicker);
               setShowTimePicker(false);
             }}
             className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mb-3"
@@ -577,7 +603,7 @@ export default function CreateEventScreen() {
           {/* Time row */}
           <Pressable
             onPress={() => {
-              setShowTimePicker((v) => !v);
+              setShowTimePicker(!showTimePicker);
               setShowDatePicker(false);
             }}
             className="flex-row items-center bg-card rounded-2xl p-4 gap-3"
@@ -612,7 +638,7 @@ export default function CreateEventScreen() {
               onPress={() => {
                 const d = new Date(eventDate);
                 d.setHours(d.getHours() + 3);
-                setEndDate(d);
+                setEndDateISO(d.toISOString());
               }}
               className="flex-row items-center gap-2 mt-3 px-1"
             >
@@ -625,7 +651,7 @@ export default function CreateEventScreen() {
             <>
               <Pressable
                 onPress={() => {
-                  setShowEndDatePicker((v) => !v);
+                  setShowEndDatePicker(!showEndDatePicker);
                   setShowEndTimePicker(false);
                 }}
                 className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
@@ -641,7 +667,7 @@ export default function CreateEventScreen() {
                     {formatDate(endDate)}
                   </Text>
                 </View>
-                <Pressable onPress={() => setEndDate(null)} hitSlop={12}>
+                <Pressable onPress={() => setEndDateISO(null)} hitSlop={12}>
                   <X size={16} color={colors.mutedForeground} />
                 </Pressable>
               </Pressable>
@@ -662,7 +688,7 @@ export default function CreateEventScreen() {
                           d.getMonth(),
                           d.getDate(),
                         );
-                        setEndDate(nd);
+                        setEndDateISO(nd.toISOString());
                       }
                     }}
                     minimumDate={eventDate}
@@ -674,7 +700,7 @@ export default function CreateEventScreen() {
 
               <Pressable
                 onPress={() => {
-                  setShowEndTimePicker((v) => !v);
+                  setShowEndTimePicker(!showEndTimePicker);
                   setShowEndDatePicker(false);
                 }}
                 className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
@@ -704,7 +730,7 @@ export default function CreateEventScreen() {
                       if (t) {
                         const nd = new Date(endDate!);
                         nd.setHours(t.getHours(), t.getMinutes());
-                        setEndDate(nd);
+                        setEndDateISO(nd.toISOString());
                       }
                     }}
                     themeVariant="dark"
@@ -1154,26 +1180,11 @@ export default function CreateEventScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={lineupInput}
                 onChangeText={setLineupInput}
-                onSubmitEditing={() => {
-                  const trimmed = lineupInput.trim();
-                  if (trimmed) {
-                    setLineup((p) => [...p, trimmed]);
-                    setLineupInput("");
-                  }
-                }}
+                onSubmitEditing={addLineupItem}
                 returnKeyType="done"
               />
               {lineupInput.trim() !== "" && (
-                <Pressable
-                  onPress={() => {
-                    const trimmed = lineupInput.trim();
-                    if (trimmed) {
-                      setLineup((p) => [...p, trimmed]);
-                      setLineupInput("");
-                    }
-                  }}
-                  className="p-2"
-                >
+                <Pressable onPress={addLineupItem} className="p-2">
                   <Plus size={20} color={colors.primary} />
                 </Pressable>
               )}
@@ -1215,26 +1226,11 @@ export default function CreateEventScreen() {
                 placeholderTextColor={colors.mutedForeground}
                 value={perksInput}
                 onChangeText={setPerksInput}
-                onSubmitEditing={() => {
-                  const trimmed = perksInput.trim();
-                  if (trimmed) {
-                    setPerks((p) => [...p, trimmed]);
-                    setPerksInput("");
-                  }
-                }}
+                onSubmitEditing={addPerk}
                 returnKeyType="done"
               />
               {perksInput.trim() !== "" && (
-                <Pressable
-                  onPress={() => {
-                    const trimmed = perksInput.trim();
-                    if (trimmed) {
-                      setPerks((p) => [...p, trimmed]);
-                      setPerksInput("");
-                    }
-                  }}
-                  className="p-2"
-                >
+                <Pressable onPress={addPerk} className="p-2">
                   <Plus size={20} color={colors.primary} />
                 </Pressable>
               )}

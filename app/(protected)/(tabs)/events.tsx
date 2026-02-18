@@ -18,7 +18,13 @@ import {
   Search,
   X,
   ArrowUpDown,
+  CalendarOff,
+  SearchX,
+  SlidersHorizontal,
+  PartyPopper,
+  History,
 } from "lucide-react-native";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { LinearGradient } from "expo-linear-gradient";
@@ -46,6 +52,7 @@ import { CityPickerSheet } from "@/components/events/city-picker-sheet";
 import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
 import { FilterPills } from "@/components/events/filter-pills";
+import { EventCollectionRow } from "@/components/events/event-collection-row";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 12; // 16px padding each side
@@ -419,6 +426,45 @@ export default function EventsScreen() {
     { key: "past_events", label: "Past Events" },
   ];
 
+  // Compute curated collections from existing events
+  const collections = useMemo(() => {
+    if (events.length === 0) return { weekend: [], trending: [], fresh: [] };
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const satStart = new Date(now);
+    satStart.setDate(now.getDate() + ((6 - dayOfWeek + 7) % 7));
+    satStart.setHours(0, 0, 0, 0);
+    const sunEnd = new Date(satStart);
+    sunEnd.setDate(satStart.getDate() + 1);
+    sunEnd.setHours(23, 59, 59, 999);
+
+    const weekend = events.filter((e: Event) => {
+      if (!e.fullDate) return false;
+      const d = new Date(e.fullDate);
+      return d >= satStart && d <= sunEnd;
+    });
+
+    const trending = [...events]
+      .sort(
+        (a: Event, b: Event) =>
+          (b.totalAttendees ?? 0) - (a.totalAttendees ?? 0),
+      )
+      .slice(0, 6);
+
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fresh = events
+      .filter((e: Event) => {
+        if (!e.fullDate) return false;
+        return new Date(e.fullDate) >= now;
+      })
+      .slice(0, 6);
+
+    return { weekend, trending, fresh };
+  }, [events]);
+
+  const showCollections =
+    debouncedSearch.length < 2 && activeFilters.length === 0;
+
   // Skeleton ONLY when truly no data (first ever boot, no cache)
   // With MMKV persistence, cache-hit means zero skeleton on cold start
   if (isLoading && events.length === 0) {
@@ -583,35 +629,126 @@ export default function EventsScreen() {
             return (
               <View key={tab.key} className="flex-1">
                 {filteredEvents.length === 0 ? (
-                  <View className="flex-1 items-center justify-center px-8 gap-3">
-                    <Text className="text-lg font-semibold text-muted-foreground">
-                      No events found
-                    </Text>
-                    <Text className="text-sm text-muted-foreground text-center">
-                      {activeFilters.length > 0
-                        ? "Try removing some filters"
-                        : "Check back later for new events"}
-                    </Text>
-                  </View>
+                  debouncedSearch.length >= 2 ? (
+                    <EmptyState
+                      icon={SearchX}
+                      title="No matches"
+                      description={`Nothing matched "${debouncedSearch}". Try a different keyword or check spelling.`}
+                      action={
+                        <Pressable
+                          onPress={handleClearSearch}
+                          className="bg-primary px-6 py-3 rounded-full"
+                        >
+                          <Text className="text-primary-foreground font-semibold text-sm">
+                            Clear Search
+                          </Text>
+                        </Pressable>
+                      }
+                    />
+                  ) : activeFilters.length > 0 ? (
+                    <EmptyState
+                      icon={SlidersHorizontal}
+                      title="Too filtered"
+                      description="No events match your current filters. Try removing some to see more."
+                      action={
+                        <Pressable
+                          onPress={() => {
+                            activeFilters.forEach((f) => toggleFilter(f));
+                          }}
+                          className="bg-primary px-6 py-3 rounded-full"
+                        >
+                          <Text className="text-primary-foreground font-semibold text-sm">
+                            Clear Filters
+                          </Text>
+                        </Pressable>
+                      }
+                    />
+                  ) : tabIndex === 2 ? (
+                    <EmptyState
+                      icon={History}
+                      title="No past events"
+                      description="Events you've attended will appear here after they end."
+                    />
+                  ) : tabIndex === 1 ? (
+                    <EmptyState
+                      icon={PartyPopper}
+                      title="Nothing upcoming"
+                      description="Be the first to create an event in your area!"
+                      action={
+                        <Pressable
+                          onPress={() =>
+                            router.push("/(protected)/events/create" as any)
+                          }
+                          className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
+                        >
+                          <Plus size={16} color="#fff" />
+                          <Text className="text-primary-foreground font-semibold text-sm">
+                            Create Event
+                          </Text>
+                        </Pressable>
+                      }
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={CalendarOff}
+                      title="No events yet"
+                      description="Check back later or create one to get the party started!"
+                      action={
+                        <Pressable
+                          onPress={() =>
+                            router.push("/(protected)/events/create" as any)
+                          }
+                          className="bg-primary px-6 py-3 rounded-full flex-row items-center gap-2"
+                        >
+                          <Plus size={16} color="#fff" />
+                          <Text className="text-primary-foreground font-semibold text-sm">
+                            Create Event
+                          </Text>
+                        </Pressable>
+                      }
+                    />
+                  )
                 ) : (
                   <Animated.ScrollView
                     className="flex-1"
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ padding: 16 }}
+                    contentContainerStyle={{ paddingBottom: 16 }}
                     onScroll={scrollHandler}
                     scrollEventThrottle={16}
                   >
-                    {filteredEvents.map((event, index) => (
-                      <EventCard
-                        key={event.id}
-                        event={event}
-                        index={index}
-                        scrollY={scrollY}
-                        colors={colors}
-                        router={router}
-                        formatLikes={formatLikes}
-                      />
-                    ))}
+                    {/* Curated collections — only on All Events tab, no search/filters */}
+                    {tabIndex === 0 && showCollections && (
+                      <View className="pt-4">
+                        <EventCollectionRow
+                          title="This Weekend"
+                          emoji="\uD83C\uDF89"
+                          events={collections.weekend}
+                        />
+                        <EventCollectionRow
+                          title="Trending"
+                          emoji="\uD83D\uDD25"
+                          events={collections.trending}
+                        />
+                        <EventCollectionRow
+                          title="New & Notable"
+                          emoji="\u2728"
+                          events={collections.fresh}
+                        />
+                      </View>
+                    )}
+                    <View style={{ paddingHorizontal: 16 }}>
+                      {filteredEvents.map((event, index) => (
+                        <EventCard
+                          key={event.id}
+                          event={event}
+                          index={index}
+                          scrollY={scrollY}
+                          colors={colors}
+                          router={router}
+                          formatLikes={formatLikes}
+                        />
+                      ))}
+                    </View>
                   </Animated.ScrollView>
                 )}
               </View>
