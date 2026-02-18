@@ -44,17 +44,7 @@ import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useCreateEventStore } from "@/lib/stores/create-event-store";
 // Popover removed — inline expanding pickers used instead
-
-// Conditionally import expo-maps (requires dev build, not available in Expo Go)
-let AppleMaps: typeof import("expo-maps").AppleMaps | null = null;
-let GoogleMaps: typeof import("expo-maps").GoogleMaps | null = null;
-try {
-  const expoMaps = require("expo-maps");
-  AppleMaps = expoMaps.AppleMaps;
-  GoogleMaps = expoMaps.GoogleMaps;
-} catch {
-  // expo-maps not available (e.g., in Expo Go)
-}
+import { DvntMap } from "@/src/components/map";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { Motion } from "@legendapp/motion";
 import { Badge } from "@/components/ui/badge";
@@ -492,35 +482,8 @@ export default function CreateEventScreen() {
       headerRight: () => (
         <Pressable
           onPress={() => {
-            console.log(
-              "[CreateEvent] Create button pressed, isValid:",
-              isValid,
-              "isSubmitting:",
-              isSubmitting,
-            );
             if (!isSubmitting && isValid) {
               handleSubmit();
-            } else if (!isValid) {
-              // Show which fields are missing
-              if (!title.trim()) {
-                showToast(
-                  "warning",
-                  "Missing Title",
-                  "Please enter an event title",
-                );
-              } else if (!description.trim()) {
-                showToast(
-                  "warning",
-                  "Missing Description",
-                  "Please enter an event description",
-                );
-              } else if (!location.trim()) {
-                showToast(
-                  "warning",
-                  "Missing Location",
-                  "Please enter a location",
-                );
-              }
             }
           }}
           disabled={isSubmitting || !isValid}
@@ -542,18 +505,7 @@ export default function CreateEventScreen() {
         </Pressable>
       ),
     });
-  }, [
-    navigation,
-    colors,
-    isValid,
-    isSubmitting,
-    title,
-    description,
-    location,
-    handleSubmit,
-    showToast,
-    router,
-  ]);
+  }, [navigation, colors, isValid, isSubmitting, handleSubmit, router]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -813,69 +765,17 @@ export default function CreateEventScreen() {
               className="mt-3 rounded-2xl overflow-hidden"
               style={{ height: 180 }}
             >
-              {Platform.OS === "ios" ? (
-                AppleMaps ? (
-                  <AppleMaps.View
-                    style={{ flex: 1 }}
-                    cameraPosition={{
-                      coordinates: {
-                        latitude: locationData.latitude,
-                        longitude: locationData.longitude,
-                      },
-                      zoom: 15,
-                    }}
-                    markers={[
-                      {
-                        id: "event-location",
-                        coordinates: {
-                          latitude: locationData.latitude,
-                          longitude: locationData.longitude,
-                        },
-                      },
-                    ]}
-                  />
-                ) : (
-                  <View className="flex-1 bg-muted items-center justify-center">
-                    <Text className="text-muted-foreground text-sm">
-                      Map preview requires dev build
-                    </Text>
-                  </View>
-                )
-              ) : Platform.OS === "android" ? (
-                GoogleMaps ? (
-                  <GoogleMaps.View
-                    style={{ flex: 1 }}
-                    cameraPosition={{
-                      coordinates: {
-                        latitude: locationData.latitude,
-                        longitude: locationData.longitude,
-                      },
-                      zoom: 15,
-                    }}
-                    markers={[
-                      {
-                        id: "event-location",
-                        coordinates: {
-                          latitude: locationData.latitude,
-                          longitude: locationData.longitude,
-                        },
-                      },
-                    ]}
-                  />
-                ) : (
-                  <View className="flex-1 bg-muted items-center justify-center">
-                    <Text className="text-muted-foreground text-sm">
-                      Map preview requires dev build
-                    </Text>
-                  </View>
-                )
-              ) : (
-                <View className="flex-1 bg-muted items-center justify-center">
-                  <Text className="text-muted-foreground text-sm">
-                    Maps only available on iOS and Android
-                  </Text>
-                </View>
-              )}
+              <DvntMap
+                center={[locationData.longitude, locationData.latitude]}
+                zoom={15}
+                markers={[
+                  {
+                    id: "event-location",
+                    coordinate: [locationData.longitude, locationData.latitude],
+                  },
+                ]}
+                showControls={false}
+              />
             </View>
           )}
         </View>

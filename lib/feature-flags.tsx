@@ -35,6 +35,8 @@ export const FeatureFlags = {
   perf_prefetch_router: "EXPO_PUBLIC_FF_PERF_PREFETCH_ROUTER",
   /** Performance: enable production perf logging */
   perf_instrumentation: "EXPO_PUBLIC_FF_PERF_INSTRUMENTATION",
+  /** MapLibre + MapTiler map view */
+  maps_enabled: "EXPO_PUBLIC_FF_MAPS_ENABLED",
 } as const;
 
 export type FeatureFlagKey = keyof typeof FeatureFlags;
