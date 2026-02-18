@@ -231,19 +231,46 @@ export default function EventsScreen() {
   const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
-  // Fallback: if boot location hook didn't resolve a city (no permission yet),
-  // set first available city so weather + events still work
+  // Fallback: if boot location hook didn't resolve a city yet,
+  // wait 2s then set first DB city or reverse-geocode from device coords
   useEffect(() => {
-    if (activeCity || allCities.length === 0) return;
-    // Give boot hook 2s to resolve before falling back
-    const timer = setTimeout(() => {
-      const current = useEventsLocationStore.getState().activeCity;
-      if (!current && allCities.length > 0) {
-        console.log(
-          "[Events] Falling back to default city:",
-          allCities[0].name,
-        );
-        setActiveCity(allCities[0]);
+    if (activeCity) return;
+    const timer = setTimeout(async () => {
+      const store = useEventsLocationStore.getState();
+      if (store.activeCity) return; // boot hook resolved in time
+
+      // Option A: DB cities available
+      if (allCities.length > 0) {
+        console.log("[Events] Fallback to first DB city:", allCities[0].name);
+        store.setActiveCity(allCities[0]);
+        return;
+      }
+
+      // Option B: device coords exist — reverse geocode
+      const { deviceLat: lat, deviceLng: lng } = store;
+      if (lat != null && lng != null) {
+        try {
+          const Location = await import("expo-location");
+          const [geo] = await Location.reverseGeocodeAsync({
+            latitude: lat,
+            longitude: lng,
+          });
+          if (geo?.city) {
+            console.log("[Events] Fallback reverse geocode:", geo.city);
+            store.setActiveCity({
+              id: -1,
+              name: geo.city,
+              state: geo.region ?? null,
+              country: geo.country ?? "US",
+              lat,
+              lng,
+              timezone: null,
+              slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
+            });
+          }
+        } catch (e) {
+          console.warn("[Events] Fallback geocode failed:", e);
+        }
       }
     }, 2000);
     return () => clearTimeout(timer);
