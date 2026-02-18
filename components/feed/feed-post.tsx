@@ -756,10 +756,22 @@ function FeedPostComponent({
           </Pressable>
           {caption && (
             <View className="mt-1">
-              <HashtagText
-                text={`${author?.username || "Unknown User"} ${caption}`}
-                textStyle={{ fontSize: 14, color: colors.foreground }}
-              />
+              <Text style={{ fontSize: 14, color: colors.foreground }}>
+                <Text
+                  style={{ fontWeight: "700" }}
+                  onPress={() =>
+                    router.push(
+                      `/(protected)/profile/${author?.username}` as any,
+                    )
+                  }
+                >
+                  {author?.username || "Unknown User"}{" "}
+                </Text>
+                <HashtagText
+                  text={caption}
+                  textStyle={{ fontSize: 14, color: colors.foreground }}
+                />
+              </Text>
             </View>
           )}
           {recentComments.length > 0 || commentCount > 0 ? (
@@ -780,7 +792,7 @@ function FeedPostComponent({
                         <Text className="font-semibold text-foreground">
                           {comment.username}
                         </Text>
-                        <Text className="text-foreground">{comment.text}</Text>
+                        <Text className="text-foreground"> {comment.text}</Text>
                       </Text>
                     </Pressable>
                   ))}
