@@ -29,6 +29,7 @@
     "@legendapp/list": "beta",
     "@legendapp/motion": "^2.5.3",
     "@lodev09/react-native-true-sheet": "^3.7.3",
+    "@maplibre/maplibre-react-native": "^10.4.2",
     "@nandorojo/galeria": "^2.0.2",
     "@react-native-async-storage/async-storage": "~2.2.0",
     "@react-native-community/datetimepicker": "8.6.0",

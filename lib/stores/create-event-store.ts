@@ -80,6 +80,8 @@ interface UIFields {
     avatar: string;
     name: string;
   }[];
+  currentStep: number;
+  totalSteps: number;
 }
 
 interface CreateEventActions {
@@ -132,6 +134,10 @@ interface CreateEventActions {
   ) => void;
   removeLineupItem: (index: number) => void;
   removePerk: (index: number) => void;
+  setCurrentStep: (step: number) => void;
+  nextStep: () => void;
+  prevStep: () => void;
+  canProceed: () => boolean;
   hasDraft: () => boolean;
   resetDraft: () => void;
 }
@@ -175,6 +181,8 @@ const UI_DEFAULTS: UIFields = {
   ticketTierName: "",
   coOrganizerSearch: "",
   coOrganizerResults: [],
+  currentStep: 0,
+  totalSteps: 5,
 };
 
 // Helper to resolve functional updaters
@@ -277,6 +285,34 @@ export const useCreateEventStore = create<CreateEventState>()(
 
       removePerk: (index) =>
         set((s) => ({ perks: s.perks.filter((_, i) => i !== index) })),
+
+      setCurrentStep: (step) => set({ currentStep: step }),
+
+      nextStep: () =>
+        set((s) => ({
+          currentStep: Math.min(s.currentStep + 1, s.totalSteps - 1),
+        })),
+
+      prevStep: () =>
+        set((s) => ({ currentStep: Math.max(s.currentStep - 1, 0) })),
+
+      canProceed: () => {
+        const s = get();
+        switch (s.currentStep) {
+          case 0: // Info
+            return s.title.trim().length > 0;
+          case 1: // Media
+            return true; // optional
+          case 2: // Venue
+            return s.location.trim().length > 0 || s.isOnline;
+          case 3: // Tickets
+            return true; // optional
+          case 4: // Review
+            return true;
+          default:
+            return true;
+        }
+      },
 
       hasDraft: () => {
         const s = get();

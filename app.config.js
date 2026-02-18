@@ -204,6 +204,7 @@ export default {
             "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
         },
       ],
+      "@maplibre/maplibre-react-native",
       "@config-plugins/react-native-callkeep",
       "./plugins/with-voip-push",
       "expo-secure-store",
