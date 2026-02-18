@@ -78,14 +78,14 @@ export default function EditProfileScreen() {
         avatar,
       });
 
-      // Update local store
+      // Update local store — use ?? not || so empty strings are preserved
       updateUser({
-        name: updatedUser.name || name,
-        username: updatedUser.username || username,
-        bio: updatedUser.bio || bio,
-        location: updatedUser.location || location,
-        website: (updatedUser as any).website || website,
-        avatar: updatedUser.avatar || avatar,
+        name: updatedUser.name ?? name,
+        username: updatedUser.username ?? username,
+        bio: updatedUser.bio ?? bio,
+        location: updatedUser.location ?? location,
+        website: updatedUser.website ?? website,
+        avatar: updatedUser.avatar ?? avatar,
       });
 
       showToast("success", "Success", "Profile updated successfully!");

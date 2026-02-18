@@ -29,7 +29,13 @@ const ICON_MAP: Record<string, React.FC<any>> = {
   wind: Wind,
 };
 
-function WeatherIcon({ iconKey, size = 18 }: { iconKey: string; size?: number }) {
+function WeatherIcon({
+  iconKey,
+  size = 18,
+}: {
+  iconKey: string;
+  size?: number;
+}) {
   const Icon = ICON_MAP[iconKey] || CloudSun;
   const color =
     iconKey === "sun"
@@ -48,10 +54,65 @@ function getDayLabel(period: WeatherPeriod, index: number): string {
   return date.toLocaleDateString("en-US", { weekday: "short" });
 }
 
-export const WeatherStrip: React.FC<WeatherStripProps> = ({ lat, lng }) => {
-  const { data: periods, isLoading } = useWeatherForecast(lat, lng);
+function WeatherStripSkeleton() {
+  return (
+    <View className="py-2">
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        scrollEnabled={false}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}
+      >
+        {Array.from({ length: 7 }).map((_, i) => (
+          <View
+            key={i}
+            className="items-center px-3 py-2.5 rounded-2xl"
+            style={{ backgroundColor: "rgba(255,255,255,0.04)", minWidth: 64 }}
+          >
+            <View
+              style={{
+                width: 28,
+                height: 10,
+                borderRadius: 4,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                marginBottom: 6,
+              }}
+            />
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                marginBottom: 6,
+              }}
+            />
+            <View
+              style={{
+                width: 24,
+                height: 14,
+                borderRadius: 4,
+                backgroundColor: "rgba(255,255,255,0.08)",
+              }}
+            />
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
 
-  if (isLoading || !periods || periods.length === 0) return null;
+export const WeatherStrip: React.FC<WeatherStripProps> = ({ lat, lng }) => {
+  const { data: periods, isLoading, isError } = useWeatherForecast(lat, lng);
+
+  const hasPeriods = Array.isArray(periods) && periods.length > 0;
+
+  // Show skeleton while loading (never return null — prevents layout shift)
+  if (isLoading && !hasPeriods) return <WeatherStripSkeleton />;
+  // If fetch failed and no cached data, silently hide
+  if (isError && !hasPeriods) return null;
+  // No data at all (no coords provided)
+  if (!hasPeriods) return <WeatherStripSkeleton />;
 
   return (
     <View className="py-2">

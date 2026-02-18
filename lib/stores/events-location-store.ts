@@ -90,8 +90,12 @@ export const useEventsLocationStore = create<EventsLocationState>()(
       partialize: (state) => ({
         activeCity: state.activeCity,
         locationMode: state.locationMode,
+        deviceLat: state.deviceLat,
+        deviceLng: state.deviceLng,
         recentCities: state.recentCities,
-        // Don't persist weather (re-fetch on app open)
+        weatherData: state.weatherData,
+        weatherCityId: state.weatherCityId,
+        weatherFetchedAt: state.weatherFetchedAt,
       }),
     },
   ),

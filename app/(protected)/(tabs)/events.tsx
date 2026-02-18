@@ -459,7 +459,7 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {/* Weather Strip — always shows (NYC fallback when no city selected) */}
+        {/* Weather Strip — shows skeleton while loading, never disappears */}
         <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
         {/* Filter Pills */}
