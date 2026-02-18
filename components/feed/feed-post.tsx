@@ -475,10 +475,11 @@ function FeedPostComponent({
     routeToProfile({
       targetUserId: author?.id,
       targetUsername: author?.username,
+      targetAvatar: author?.avatar,
       viewerId: currentUserId,
       router,
     });
-  }, [router, author?.username, author?.id, currentUserId]);
+  }, [router, author?.username, author?.id, author?.avatar, currentUserId]);
 
   return (
     <View className={containerClass}>

@@ -229,33 +229,53 @@ export default function EventsScreen() {
   const { data: allCities = [] } = useCities();
 
   // Auto-detect location on first visit when no city is selected
+  // If permission denied, fall back to first available city (usually New York)
   useEffect(() => {
     if (activeCity || allCities.length === 0) return;
+
+    const findNearestCity = (lat: number, lng: number) => {
+      let nearest: (typeof allCities)[0] | null = null;
+      let minDist = Infinity;
+      for (const city of allCities) {
+        const dist = Math.sqrt(
+          Math.pow(city.lat - lat, 2) + Math.pow(city.lng - lng, 2),
+        );
+        if (dist < minDist) {
+          minDist = dist;
+          nearest = city;
+        }
+      }
+      return nearest;
+    };
+
     (async () => {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted") return;
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setDeviceLocation(loc.coords.latitude, loc.coords.longitude);
-        setLocationMode("device");
-        // Find nearest city
-        let nearest: (typeof allCities)[0] | null = null;
-        let minDist = Infinity;
-        for (const city of allCities) {
-          const dist = Math.sqrt(
-            Math.pow(city.lat - loc.coords.latitude, 2) +
-              Math.pow(city.lng - loc.coords.longitude, 2),
+        if (status === "granted") {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          setDeviceLocation(loc.coords.latitude, loc.coords.longitude);
+          setLocationMode("device");
+          const nearest = findNearestCity(
+            loc.coords.latitude,
+            loc.coords.longitude,
           );
-          if (dist < minDist) {
-            minDist = dist;
-            nearest = city;
+          if (nearest) {
+            setActiveCity(nearest);
+            return;
           }
         }
-        if (nearest) setActiveCity(nearest);
       } catch (err) {
         console.warn("[Events] Auto-location failed:", err);
+      }
+      // Fallback: set first city so weather + events always work
+      if (allCities.length > 0) {
+        console.log(
+          "[Events] Falling back to default city:",
+          allCities[0].name,
+        );
+        setActiveCity(allCities[0]);
       }
     })();
   }, [activeCity, allCities]);

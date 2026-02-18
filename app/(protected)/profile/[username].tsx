@@ -263,9 +263,14 @@ const mockPosts = [
 ];
 
 function UserProfileScreenComponent() {
-  const { username, authId } = useLocalSearchParams<{
+  const {
+    username,
+    authId,
+    avatar: avatarParam,
+  } = useLocalSearchParams<{
     username: string;
     authId?: string;
+    avatar?: string;
   }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -355,12 +360,12 @@ function UserProfileScreenComponent() {
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
   // over the useUser cache which may be stale after an avatar change.
   // NEVER use currentUser.avatar as fallback for OTHER users — that leaks viewer's avatar
+  // avatarParam from route is available INSTANTLY (no query needed) — eliminates waterfall
   const resolvedAvatar = isOwnProfile
     ? currentUser?.avatar ||
       (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null)
-    : rawUser.avatar && rawUser.avatar.length > 0
-      ? rawUser.avatar
-      : null;
+    : (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null) ||
+      (avatarParam && avatarParam.length > 0 ? avatarParam : null);
   const user = { ...rawUser, avatar: resolvedAvatar || undefined };
 
   // Create a followMutation-like object for compatibility
