@@ -34,6 +34,7 @@ export interface SafeGridTile {
   id: string;
   kind: "image" | "carousel" | "video";
   coverUrl: string | null;
+  videoUrl: string | null;
   mediaCount: number;
   // Flag for invalid tiles that should not be rendered
   _isValid: boolean;
@@ -112,6 +113,7 @@ export function safeGridTile(post: any): SafeGridTile {
         id: "",
         kind: "image",
         coverUrl: null,
+        videoUrl: null,
         mediaCount: 0,
         _isValid: false,
       };
@@ -123,6 +125,7 @@ export function safeGridTile(post: any): SafeGridTile {
         id: "",
         kind: "image",
         coverUrl: null,
+        videoUrl: null,
         mediaCount: 0,
         _isValid: false,
       };
@@ -159,10 +162,15 @@ export function safeGridTile(post: any): SafeGridTile {
       coverUrl = null;
     }
 
+    // For video posts, preserve the video URL for client-side thumbnail generation
+    const videoUrl =
+      kind === "video" && media[0]?.url ? String(media[0].url) : null;
+
     return {
       id: String(postId),
       kind,
       coverUrl,
+      videoUrl,
       mediaCount,
       _isValid: true,
     };
@@ -172,6 +180,7 @@ export function safeGridTile(post: any): SafeGridTile {
       id: String(post?.id || ""),
       kind: "image",
       coverUrl: null,
+      videoUrl: null,
       mediaCount: 0,
       _isValid: false,
     };

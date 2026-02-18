@@ -184,11 +184,17 @@ export function ShareToInboxSheet({
       enableOverDrag={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: colors.card }}
+      detached={true}
+      bottomInset={46}
+      backgroundStyle={{
+        backgroundColor: colors.card,
+        borderRadius: 24,
+      }}
       handleIndicatorStyle={{
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
+      style={styles.sheetContainer}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -254,7 +260,7 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
@@ -293,9 +299,14 @@ const styles = StyleSheet.create({
   sendButton: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sheetContainer: {
+    marginHorizontal: 16,
+    overflow: "hidden",
+    borderRadius: 24,
   },
   centered: {
     alignItems: "center",

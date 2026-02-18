@@ -51,6 +51,7 @@ import { usersApi } from "@/lib/api/users";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import {
   safeProfile,
   safeGridTiles,
@@ -1144,6 +1145,8 @@ function ProfileScreenContent() {
                         transition={200}
                         cachePolicy="memory-disk"
                       />
+                    ) : item.kind === "video" && item.videoUrl ? (
+                      <VideoThumbnailImage videoUrl={item.videoUrl} />
                     ) : (
                       <View
                         className="flex-1 items-center justify-center"
@@ -1153,13 +1156,9 @@ function ProfileScreenContent() {
                           backgroundColor: "#1a1a1a",
                         }}
                       >
-                        {item.kind === "video" ? (
-                          <Play size={24} color="#666" fill="#666" />
-                        ) : (
-                          <Text className="text-xs text-muted-foreground text-center">
-                            No preview
-                          </Text>
-                        )}
+                        <Text className="text-xs text-muted-foreground text-center">
+                          No preview
+                        </Text>
                       </View>
                     )}
                     {item.kind === "video" && (
