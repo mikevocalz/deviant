@@ -736,4 +736,54 @@ export const usersApi = {
       return null;
     }
   },
+
+  /**
+   * Submit a host verification request
+   */
+  async submitVerificationRequest(reason?: string, socialUrl?: string) {
+    try {
+      const authId = await getCurrentUserId();
+      if (!authId) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.rpc(
+        "submit_verification_request",
+        {
+          p_user_auth_id: authId,
+          p_reason: reason || null,
+          p_social_url: socialUrl || null,
+        },
+      );
+
+      if (error) throw error;
+      return data as { success: boolean; error?: string; request_id?: number };
+    } catch (error) {
+      console.error("[Users] submitVerificationRequest error:", error);
+      return { success: false, error: "Failed to submit request" };
+    }
+  },
+
+  /**
+   * Get current user's verification status
+   */
+  async getVerificationStatus() {
+    try {
+      const authId = await getCurrentUserId();
+      if (!authId) return null;
+
+      const { data, error } = await supabase.rpc("get_verification_status", {
+        p_user_auth_id: authId,
+      });
+
+      if (error) throw error;
+      return data as {
+        is_verified: boolean;
+        has_pending_request: boolean;
+        last_request_status: string | null;
+        last_request_date: string | null;
+      };
+    } catch (error) {
+      console.error("[Users] getVerificationStatus error:", error);
+      return null;
+    }
+  },
 };
