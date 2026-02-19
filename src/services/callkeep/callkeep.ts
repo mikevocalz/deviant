@@ -253,6 +253,7 @@ export async function setupCallKeep(): Promise<void> {
         maximumCallGroups: "1",
         maximumCallsPerCallGroup: "1",
         includesCallsInRecents: true,
+        ringtoneSound: "dvnt-ring.wav",
         audioSession: {
           categoryOptions: 0x1 | 0x4 | 0x8 | 0x20, // mixWithOthers | allowBluetooth | defaultToSpeaker | allowBluetoothA2DP
           mode: "AVAudioSessionModeVideoChat",

@@ -69,3 +69,23 @@ CREATE POLICY "Cities are publicly readable" ON cities FOR SELECT USING (true);
 GRANT SELECT ON cities TO anon, authenticated;
 GRANT ALL ON cities TO service_role;
 GRANT USAGE, SELECT ON SEQUENCE cities_id_seq TO service_role;
+
+-- Deferred FK from event_spotlight_campaigns.city_id → cities(id)
+-- (20260302 created the column but cities didn't exist yet, so FK was skipped)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'event_spotlight_campaigns'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+      WHERE constraint_name = 'fk_spotlight_city'
+        AND table_name = 'event_spotlight_campaigns'
+    ) THEN
+      ALTER TABLE event_spotlight_campaigns
+        ADD CONSTRAINT fk_spotlight_city
+        FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE SET NULL;
+    END IF;
+  END IF;
+END $$;

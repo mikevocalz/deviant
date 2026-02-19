@@ -59,6 +59,7 @@ interface DraftFields {
   perks: string[];
   ticketTiers: TicketTier[];
   coOrganizers: CoOrganizer[];
+  flyerImage: string | null;
 }
 
 // UI-only fields (not persisted, but in store to comply with no-useState rule)
@@ -108,6 +109,7 @@ interface CreateEventActions {
   setTicketTiers: (
     v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[]),
   ) => void;
+  setFlyerImage: (v: string | null) => void;
 
   // UI-only setters
   setShowDatePicker: (v: boolean) => void;
@@ -166,6 +168,7 @@ const DRAFT_DEFAULTS: DraftFields = {
   perks: [],
   ticketTiers: [],
   coOrganizers: [],
+  flyerImage: null,
 };
 
 const UI_DEFAULTS: UIFields = {
@@ -220,6 +223,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setPerks: (v) => set((s) => ({ perks: resolve(v, s.perks) })),
       setTicketTiers: (v) =>
         set((s) => ({ ticketTiers: resolve(v, s.ticketTiers) })),
+      setFlyerImage: (v) => set({ flyerImage: v }),
 
       // UI-only setters
       setShowDatePicker: (v) => set({ showDatePicker: v }),
@@ -351,6 +355,7 @@ export const useCreateEventStore = create<CreateEventState>()(
         perks: state.perks,
         ticketTiers: state.ticketTiers,
         coOrganizers: state.coOrganizers,
+        flyerImage: state.flyerImage,
       }),
     },
   ),

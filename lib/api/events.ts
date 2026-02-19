@@ -522,6 +522,8 @@ export const eventsApi = {
         insertPayload.door_policy = eventData.doorPolicy;
       if (eventData.lineup) insertPayload.lineup = eventData.lineup;
       if (eventData.perks) insertPayload.perks = eventData.perks;
+      if (eventData.flyerImageUrl)
+        insertPayload.flyer_image_url = eventData.flyerImageUrl;
 
       const { data, error } = await supabase
         .from(DB.events.table)

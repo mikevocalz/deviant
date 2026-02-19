@@ -59,6 +59,7 @@ export interface Event {
   locationLat?: number;
   locationLng?: number;
   locationName?: string;
+  isPromoted?: boolean;
 }
 
 // Query keys

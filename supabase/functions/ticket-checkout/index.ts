@@ -51,7 +51,12 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { event_id, ticket_type_id, quantity = 1, user_id } = await req.json();
+    const {
+      event_id,
+      ticket_type_id,
+      quantity = 1,
+      user_id,
+    } = await req.json();
 
     if (!event_id || !ticket_type_id || !user_id) {
       return new Response(
@@ -70,10 +75,10 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (ttError || !ticketType) {
-      return new Response(
-        JSON.stringify({ error: "Ticket type not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Ticket type not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Check availability
@@ -130,10 +135,10 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", ticket_type_id);
 
-      return new Response(
-        JSON.stringify({ tickets: issued, free: true }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ tickets: issued, free: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // ── Paid tickets: create Stripe Checkout Session ─────────
@@ -145,10 +150,10 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (!event?.host_id) {
-      return new Response(
-        JSON.stringify({ error: "Event not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Event not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const { data: organizer } = await supabase
@@ -166,20 +171,26 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Calculate fees: DVNT fee = 5% of base + $1 per ticket
+    // ── Fee structure ──────────────────────────────────────────
+    // Customer: 2.5% + $1/ticket  |  Organizer: 2.5% + $1/ticket
+    // DVNT total: 5% + $2/ticket (covers Stripe processing + platform fee)
     const unitPrice = ticketType.price_cents;
-    const totalBase = unitPrice * quantity;
-    const dvntFee = Math.round(totalBase * 0.05) + 100 * quantity; // 5% + $1/ticket
+    const buyerSurcharge = Math.round(unitPrice * 0.025) + 100; // 2.5% + $1
+    const chargePerTicket = unitPrice + buyerSurcharge;
+
+    // application_fee = buyer(2.5%+$1) + organizer(2.5%+$1)
+    const applicationFee =
+      Math.round(unitPrice * quantity * 0.05) + 200 * quantity;
 
     // Create Stripe Checkout Session with destination charge
     const params: Record<string, string> = {
-      "mode": "payment",
+      mode: "payment",
       "payment_method_types[0]": "card",
       "line_items[0][price_data][currency]": ticketType.currency || "usd",
-      "line_items[0][price_data][unit_amount]": unitPrice.toString(),
+      "line_items[0][price_data][unit_amount]": chargePerTicket.toString(),
       "line_items[0][price_data][product_data][name]": ticketType.name,
       "line_items[0][quantity]": quantity.toString(),
-      "payment_intent_data[application_fee_amount]": dvntFee.toString(),
+      "payment_intent_data[application_fee_amount]": applicationFee.toString(),
       "payment_intent_data[transfer_data][destination]":
         organizer.stripe_account_id,
       "metadata[type]": "event_ticket",
@@ -187,8 +198,8 @@ Deno.serve(async (req: Request) => {
       "metadata[ticket_type_id]": ticket_type_id,
       "metadata[user_id]": user_id,
       "metadata[quantity]": quantity.toString(),
-      "success_url": `${APP_SCHEME}://tickets/success?eventId=${event_id}&session_id={CHECKOUT_SESSION_ID}`,
-      "cancel_url": `${APP_SCHEME}://tickets/cancel?eventId=${event_id}`,
+      success_url: `${APP_SCHEME}://tickets/success?eventId=${event_id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_SCHEME}://tickets/cancel?eventId=${event_id}`,
     };
 
     const session = await stripeRequest("/checkout/sessions", params);

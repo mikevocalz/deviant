@@ -207,6 +207,7 @@ export default {
       "@maplibre/maplibre-react-native",
       "@config-plugins/react-native-callkeep",
       "./plugins/with-voip-push",
+      "./plugins/with-custom-ringtone",
       "expo-secure-store",
       "expo-sharing",
       [

@@ -25,6 +25,7 @@ import {
   History,
   Map,
   List,
+  Zap,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "expo-router";
@@ -61,6 +62,12 @@ import { useCities } from "@/lib/hooks/use-cities";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapView } from "@/components/events/events-map-view";
 import { EventFilterSheet } from "@/components/events/event-filter-sheet";
+import { SpotlightSection } from "@/components/events/spotlight-carousel";
+import { PromoteEventSheet } from "@/components/events/promote-event-sheet";
+import {
+  useSpotlightFeed,
+  usePromotedEventIds,
+} from "@/lib/hooks/use-promotions";
 
 function EventCard({
   event,
@@ -183,10 +190,20 @@ function EventCard({
               className="absolute bottom-0 left-0 right-0"
               style={{ padding: compact ? 16 : 24 }}
             >
-              <View className="bg-white/20 px-3 py-1.5 rounded-xl self-start mb-2">
-                <Text className="text-white text-xs font-medium">
-                  {event.category}
-                </Text>
+              <View className="flex-row items-center gap-1.5 mb-2">
+                <View className="bg-white/20 px-3 py-1.5 rounded-xl">
+                  <Text className="text-white text-xs font-medium">
+                    {event.category}
+                  </Text>
+                </View>
+                {event.isPromoted && (
+                  <View className="bg-amber-500/90 px-2.5 py-1.5 rounded-xl flex-row items-center gap-1">
+                    <Zap size={10} color="#fff" fill="#fff" />
+                    <Text className="text-white text-[10px] font-bold uppercase tracking-wider">
+                      Promoted
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text
                 className={`text-white font-bold ${compact ? "text-lg mb-1" : "text-[28px] mb-2"}`}
@@ -412,6 +429,33 @@ export default function EventsScreen() {
   const { data: forYouEvents = [], isLoading: forYouLoading } =
     useForYouEvents();
 
+  // Spotlight + promoted event IDs
+  const { data: spotlightItems = [] } = useSpotlightFeed();
+  const { data: promotedIds } = usePromotedEventIds();
+
+  // Merge is_promoted flag into events (de-dupe: skip spotlight IDs in first 6 items)
+  const spotlightEventIds = useMemo(
+    () => new Set(spotlightItems.map((s) => String(s.event_id))),
+    [spotlightItems],
+  );
+
+  const eventsWithPromotion = useMemo(() => {
+    let spotlightSkipCount = 0;
+    return events
+      .map((ev: Event, idx: number) => {
+        const numericId = parseInt(ev.id);
+        const isPromoted = promotedIds?.has(numericId) ?? false;
+        const inSpotlight = spotlightEventIds.has(ev.id);
+        // De-dupe: if event is in spotlight, skip it in first 6 regular items
+        if (inSpotlight && spotlightSkipCount < 6 && idx < 6) {
+          spotlightSkipCount++;
+          return { ...ev, isPromoted, _deduped: true };
+        }
+        return { ...ev, isPromoted };
+      })
+      .filter((ev: any) => !ev._deduped);
+  }, [events, promotedIds, spotlightEventIds]);
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
@@ -434,6 +478,7 @@ export default function EventsScreen() {
 
   // Filter events by tab — server handles pill filters
   // Tab indices: 0=For You, 1=All Events, 2=Upcoming, 3=Past
+  // Uses eventsWithPromotion (has is_promoted flag + de-duped) for All/Upcoming/Past
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
@@ -443,20 +488,20 @@ export default function EventsScreen() {
         case 0: // For You
           return forYouEvents;
         case 2: // upcoming
-          return events.filter(
+          return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
         case 3: // past_events
-          return events.filter(
+          return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
         default: // All Events (1)
-          return events;
+          return eventsWithPromotion;
       }
     },
-    [events, forYouEvents],
+    [eventsWithPromotion, forYouEvents],
   );
 
   const handleTabPress = useCallback(
@@ -709,8 +754,13 @@ export default function EventsScreen() {
           </View>
         )}
 
+        {/* Spotlight Section — above tabs when items exist */}
+        {spotlightItems.length > 0 && !showMapView && (
+          <SpotlightSection items={spotlightItems} />
+        )}
+
         {showMapView ? (
-          <EventsMapView events={events} />
+          <EventsMapView events={eventsWithPromotion} />
         ) : (
           <>
             {/* Tab Navigation */}
@@ -934,6 +984,9 @@ export default function EventsScreen() {
         visible={filterSheetVisible}
         onDismiss={() => setFilterSheetVisible(false)}
       />
+
+      {/* Promote Event Sheet (organizer bottom sheet) */}
+      <PromoteEventSheet />
     </View>
   );
 }
