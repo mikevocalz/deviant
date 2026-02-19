@@ -432,7 +432,7 @@ export default function EventDetailScreen() {
             tierName: selectedTier?.name || undefined,
             transferable: false,
             eventTitle: eventData.title,
-            eventDate: eventData.date,
+            eventDate: eventData.fullDate || eventData.date,
             eventEndDate: eventData.endDate,
             eventLocation: eventData.location,
             eventImage: eventData.image,
@@ -476,7 +476,7 @@ export default function EventDetailScreen() {
               tierName: newTicket.ticket_type_name || selectedTier?.name,
               transferable: false,
               eventTitle: eventData.title,
-              eventDate: eventData.date,
+              eventDate: eventData.fullDate || eventData.date,
               eventEndDate: eventData.endDate,
               eventLocation: eventData.location,
               eventImage: eventData.image,
@@ -540,7 +540,7 @@ export default function EventDetailScreen() {
       tierName: selectedTier?.name || undefined,
       transferable: tierLevel === "vip" || tierLevel === "table",
       eventTitle: eventData.title,
-      eventDate: eventData.date,
+      eventDate: eventData.fullDate || eventData.date,
       eventEndDate: eventData.endDate,
       eventLocation: eventData.location,
       eventImage: eventData.image,
@@ -641,9 +641,7 @@ export default function EventDetailScreen() {
         return;
       }
 
-      const startDate = eventData.fullDate
-        ? new Date(eventData.fullDate)
-        : new Date(eventData.date);
+      const startDate = new Date(eventData.fullDate || eventData.date);
       const endDate = eventData.endDate
         ? new Date(eventData.endDate)
         : new Date(startDate.getTime() + 3 * 60 * 60 * 1000); // default 3h
@@ -733,8 +731,10 @@ export default function EventDetailScreen() {
 
   const event = eventData;
   const host = event.host;
-  const dateStr = formatEventDate(event.date);
-  const timeStr = formatEventTime(event.date);
+  // CRITICAL: event.date is the day number ("22"), event.fullDate is the ISO string
+  const isoDate = event.fullDate || event.date;
+  const dateStr = formatEventDate(isoDate);
+  const timeStr = formatEventTime(isoDate);
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
@@ -796,7 +796,7 @@ export default function EventDetailScreen() {
 
           {/* Countdown */}
           <View style={s.heroCountdown}>
-            <CountdownTimer targetDate={event.date} />
+            <CountdownTimer targetDate={event.fullDate || event.date} />
           </View>
         </View>
 
