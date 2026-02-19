@@ -796,7 +796,10 @@ export default function EventDetailScreen() {
 
           {/* Countdown */}
           <View style={s.heroCountdown}>
-            <CountdownTimer targetDate={event.fullDate || event.date} />
+            <CountdownTimer
+              targetDate={event.fullDate || event.date}
+              endDate={event.endDate}
+            />
           </View>
         </View>
 
