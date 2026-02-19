@@ -55,7 +55,16 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "latest"
+        "image": "latest",
+        "appExtensions": [
+          {
+            "targetName": "ShareExtension",
+            "bundleIdentifier": "com.dvnt.app.share-extension",
+            "entitlements": {
+              "com.apple.security.application-groups": ["group.com.dvnt.app"]
+            }
+          }
+        ]
       },
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
