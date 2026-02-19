@@ -11,9 +11,14 @@ interface EventsScreenState {
   activeFilters: EventFilter[];
   toggleFilter: (filter: EventFilter) => void;
 
+  // Categories
+  activeCategories: string[];
+  toggleCategory: (category: string) => void;
+
   // Sort
   activeSort: EventSort;
   cycleSort: () => void;
+  setActiveSort: (sort: EventSort) => void;
 
   // Search
   searchQuery: string;
@@ -25,9 +30,19 @@ interface EventsScreenState {
   cityPickerVisible: boolean;
   setCityPickerVisible: (visible: boolean) => void;
 
+  // Filter sheet
+  filterSheetVisible: boolean;
+  setFilterSheetVisible: (visible: boolean) => void;
+
   // Map view
   showMapView: boolean;
   toggleMapView: () => void;
+
+  // Clear all
+  clearAllFilters: () => void;
+
+  // Active filter count (for badge)
+  activeFilterCount: () => number;
 }
 
 const SORT_OPTIONS: EventSort[] = [
@@ -50,12 +65,21 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
         : [...s.activeFilters, filter],
     })),
 
+  activeCategories: [],
+  toggleCategory: (category) =>
+    set((s) => ({
+      activeCategories: s.activeCategories.includes(category)
+        ? s.activeCategories.filter((c) => c !== category)
+        : [...s.activeCategories, category],
+    })),
+
   activeSort: "soonest",
   cycleSort: () =>
     set((s) => {
       const idx = SORT_OPTIONS.indexOf(s.activeSort);
       return { activeSort: SORT_OPTIONS[(idx + 1) % SORT_OPTIONS.length] };
     }),
+  setActiveSort: (sort) => set({ activeSort: sort }),
 
   searchQuery: "",
   debouncedSearch: "",
@@ -65,6 +89,21 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
   cityPickerVisible: false,
   setCityPickerVisible: (visible) => set({ cityPickerVisible: visible }),
 
+  filterSheetVisible: false,
+  setFilterSheetVisible: (visible) => set({ filterSheetVisible: visible }),
+
   showMapView: false,
   toggleMapView: () => set((s) => ({ showMapView: !s.showMapView })),
+
+  clearAllFilters: () =>
+    set({ activeFilters: [], activeCategories: [], activeSort: "soonest" }),
+
+  activeFilterCount: () => {
+    const s = get();
+    return (
+      s.activeFilters.length +
+      s.activeCategories.length +
+      (s.activeSort !== "soonest" ? 1 : 0)
+    );
+  },
 }));

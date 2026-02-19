@@ -26,6 +26,7 @@ export interface EventFilters {
   weekend?: boolean;
   search?: string;
   category?: string;
+  categories?: string[];
   sort?: EventSort;
 }
 
