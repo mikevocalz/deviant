@@ -58,9 +58,9 @@ import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { CityPickerSheet } from "@/components/events/city-picker-sheet";
 import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
-import { FilterPills } from "@/components/events/filter-pills";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapView } from "@/components/events/events-map-view";
+import { EventFilterSheet } from "@/components/events/event-filter-sheet";
 
 function EventCard({
   event,
@@ -298,6 +298,12 @@ export default function EventsScreen() {
   const setCityPickerVisible = useEventsScreenStore(
     (s) => s.setCityPickerVisible,
   );
+  const filterSheetVisible = useEventsScreenStore((s) => s.filterSheetVisible);
+  const setFilterSheetVisible = useEventsScreenStore(
+    (s) => s.setFilterSheetVisible,
+  );
+  const activeFilterCount = useEventsScreenStore((s) => s.activeFilterCount);
+  const activeCategories = useEventsScreenStore((s) => s.activeCategories);
 
   // TanStack Debouncer for search — 400ms delay prevents query-per-keystroke
   const searchDebouncerRef = useRef(
@@ -387,7 +393,7 @@ export default function EventsScreen() {
     return () => cityFallbackRef.current.cancel();
   }, [activeCity, allCities]);
 
-  // Build server-side filters from active pills + debounced search
+  // Build server-side filters from active pills + debounced search + categories
   const eventFilters = useMemo<EventFilters>(() => {
     const f: EventFilters = {};
     if (activeFilters.includes("online")) f.online = true;
@@ -395,8 +401,9 @@ export default function EventsScreen() {
     if (activeFilters.includes("this_weekend")) f.weekend = true;
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
+    if (activeCategories.length > 0) f.categories = activeCategories;
     return f;
-  }, [activeFilters, debouncedSearch, activeSort]);
+  }, [activeFilters, debouncedSearch, activeSort, activeCategories]);
 
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);
@@ -519,10 +526,10 @@ export default function EventsScreen() {
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
       <Main className="flex-1">
-        {/* Header — Near Me style */}
+        {/* Header — date+title left, actions right */}
         <View className="px-4 pt-2 pb-1">
           <View className="flex-row items-center justify-between">
-            <View className="flex-1">
+            <View>
               <Text className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
                 {new Date().toLocaleDateString("en-US", {
                   weekday: "long",
@@ -538,7 +545,7 @@ export default function EventsScreen() {
               {/* City Picker trigger */}
               <Pressable
                 onPress={() => setCityPickerVisible(true)}
-                className="flex-row items-center gap-1.5 px-3.5 py-2 rounded-full border border-border bg-card"
+                className="flex-row items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-border bg-card"
               >
                 <MapPin size={14} color="#3EA4E5" strokeWidth={2} />
                 <Text
@@ -555,22 +562,7 @@ export default function EventsScreen() {
               </Pressable>
               <Motion.View
                 whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
-              >
-                <Pressable
-                  onPress={toggleMapView}
-                  className="w-full h-full items-center justify-center"
-                >
-                  {showMapView ? (
-                    <List size={18} color={colors.foreground} />
-                  ) : (
-                    <Map size={18} color={colors.foreground} />
-                  )}
-                </Pressable>
-              </Motion.View>
-              <Motion.View
-                whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-full bg-card border border-border"
+                className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
               >
                 <Pressable
                   onPress={() =>
@@ -583,7 +575,7 @@ export default function EventsScreen() {
               </Motion.View>
               <Motion.View
                 whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-full bg-primary"
+                className="h-10 w-10 items-center justify-center rounded-xl bg-primary"
               >
                 <Pressable
                   onPress={() =>
@@ -598,7 +590,7 @@ export default function EventsScreen() {
           </View>
         </View>
 
-        {/* Search Bar */}
+        {/* Search Bar with inline filter button */}
         <View className="px-4 pb-2">
           <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 py-2.5">
             <Search size={18} color={colors.mutedForeground} strokeWidth={2} />
@@ -613,46 +605,109 @@ export default function EventsScreen() {
               returnKeyType="search"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={handleClearSearch} hitSlop={8}>
+              <Pressable
+                onPress={handleClearSearch}
+                hitSlop={8}
+                className="mr-2"
+              >
                 <X size={16} color={colors.mutedForeground} />
               </Pressable>
             )}
+            {/* Filter button */}
+            <Pressable
+              onPress={() => setFilterSheetVisible(true)}
+              hitSlop={8}
+              className="relative"
+            >
+              <SlidersHorizontal
+                size={18}
+                color={
+                  activeFilterCount() > 0
+                    ? colors.primary
+                    : colors.mutedForeground
+                }
+                strokeWidth={2}
+              />
+              {activeFilterCount() > 0 && (
+                <View
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full items-center justify-center"
+                  style={{ backgroundColor: colors.primary }}
+                >
+                  <Text className="text-[9px] font-bold text-white">
+                    {activeFilterCount()}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
           </View>
         </View>
 
         {/* Weather Strip — shows skeleton while loading, never disappears */}
         <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
-        {/* Filter Pills + Sort */}
-        <View className="flex-row items-center">
-          <View className="flex-1">
-            <FilterPills
-              activeFilters={activeFilters}
-              onToggle={handleToggleFilter}
-            />
+        {/* Active filter chips — show inline when filters are active */}
+        {(activeFilters.length > 0 ||
+          activeCategories.length > 0 ||
+          activeSort !== "soonest") && (
+          <View className="px-4 pb-1">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 6 }}
+            >
+              {activeFilters.map((f) => (
+                <Pressable
+                  key={f}
+                  onPress={() => toggleFilter(f)}
+                  className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30"
+                >
+                  <Text className="text-xs font-semibold text-primary">
+                    {f
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </Text>
+                  <X size={12} color={colors.primary} strokeWidth={2} />
+                </Pressable>
+              ))}
+              {activeSort !== "soonest" && (
+                <View className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30">
+                  <ArrowUpDown
+                    size={11}
+                    color={colors.primary}
+                    strokeWidth={2}
+                  />
+                  <Text className="text-xs font-semibold text-primary">
+                    {
+                      {
+                        soonest: "Soonest",
+                        newest: "Newest",
+                        popular: "Popular",
+                        price_low: "Price ↑",
+                        price_high: "Price ↓",
+                      }[activeSort]
+                    }
+                  </Text>
+                </View>
+              )}
+              {activeCategories.map((cat) => (
+                <Pressable
+                  key={cat}
+                  onPress={() =>
+                    useEventsScreenStore.getState().toggleCategory(cat)
+                  }
+                  className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30"
+                >
+                  <Text className="text-xs font-semibold text-primary">
+                    {cat
+                      .replace(/_/g, " ")
+                      .replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </Text>
+                  <X size={12} color={colors.primary} strokeWidth={2} />
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-          <Pressable
-            onPress={cycleSort}
-            className="flex-row items-center gap-1.5 mr-4 px-3 py-2 rounded-full border border-border bg-card"
-          >
-            <ArrowUpDown
-              size={13}
-              color={colors.mutedForeground}
-              strokeWidth={2}
-            />
-            <Text className="text-xs font-semibold text-muted-foreground">
-              {
-                {
-                  soonest: "Soonest",
-                  newest: "Newest",
-                  popular: "Popular",
-                  price_low: "Price ↑",
-                  price_high: "Price ↓",
-                }[activeSort]
-              }
-            </Text>
-          </Pressable>
-        </View>
+        )}
 
         {showMapView ? (
           <EventsMapView events={events} />
@@ -872,6 +927,12 @@ export default function EventsScreen() {
       <CityPickerSheet
         visible={cityPickerVisible}
         onDismiss={() => setCityPickerVisible(false)}
+      />
+
+      {/* Event Filter Sheet */}
+      <EventFilterSheet
+        visible={filterSheetVisible}
+        onDismiss={() => setFilterSheetVisible(false)}
       />
     </View>
   );
