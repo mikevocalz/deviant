@@ -669,6 +669,7 @@ export default function EventsScreen() {
                         <EmptyState
                           icon={SearchX}
                           title="No matches"
+                          accent="#f97316"
                           description={`Nothing matched "${debouncedSearch}". Try a different keyword or check spelling.`}
                           action={
                             <Pressable
@@ -685,6 +686,7 @@ export default function EventsScreen() {
                         <EmptyState
                           icon={SlidersHorizontal}
                           title="Too filtered"
+                          accent="#8b5cf6"
                           description="No events match your current filters. Try removing some to see more."
                           action={
                             <Pressable
@@ -703,12 +705,14 @@ export default function EventsScreen() {
                         <EmptyState
                           icon={History}
                           title="No past events"
+                          accent="#6b7280"
                           description="Events you've attended will appear here after they end."
                         />
                       ) : tabIndex === 1 ? (
                         <EmptyState
                           icon={PartyPopper}
                           title="Nothing upcoming"
+                          accent="#FF5BFC"
                           description="Be the first to create an event in your area!"
                           action={
                             <Pressable
@@ -728,6 +732,7 @@ export default function EventsScreen() {
                         <EmptyState
                           icon={CalendarOff}
                           title="No events yet"
+                          accent="#3FDCFF"
                           description="Check back later or create one to get the party started!"
                           action={
                             <Pressable
