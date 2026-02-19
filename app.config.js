@@ -263,6 +263,23 @@ export default {
         "e921bfe88b244ced97fdd1d8d9a2c6f0",
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
+        build: {
+          experimental: {
+            ios: {
+              appExtensions: [
+                {
+                  targetName: "ShareExtension",
+                  bundleIdentifier: "com.dvnt.app.share-extension",
+                  entitlements: {
+                    "com.apple.security.application-groups": [
+                      "group.com.dvnt.app",
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
       },
     },
   },
