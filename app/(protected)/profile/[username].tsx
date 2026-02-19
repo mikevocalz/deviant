@@ -24,7 +24,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileActionSheet } from "@/components/profile-action-sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { useCallback, memo, useState, useMemo, useEffect } from "react";
+import { useCallback, memo, useState, useMemo, useEffect, useRef } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
 import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import { Galeria } from "@nandorojo/galeria";
+import { Debouncer } from "@tanstack/react-pacer";
 
 const GRID_GAP = 2;
 
@@ -395,12 +396,26 @@ function UserProfileScreenComponent() {
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const showToast = useUIStore((s) => s.showToast);
+  const creatingConvRef = useRef(false);
+
+  // Safety timeout: reset loading state if the call hangs for 10s
+  const safetyResetRef = useRef(
+    new Debouncer(
+      () => {
+        if (creatingConvRef.current) {
+          console.warn("[Profile] Message button safety timeout — resetting");
+          creatingConvRef.current = false;
+          setIsCreatingConversation(false);
+        }
+      },
+      { wait: 10000 },
+    ),
+  );
 
   const handleMessagePress = useCallback(async () => {
-    if (!user.id || isCreatingConversation) return;
+    if (!user.id || creatingConvRef.current) return;
 
     // Fast path: check conversations cache for existing conversation
-    // Keys are scoped: ["messages", "conversations", viewerId] and ["messages", "filtered", filter, viewerId]
     const allConvCaches = queryClient.getQueriesData<any[]>({
       queryKey: ["messages"],
     });
@@ -424,14 +439,16 @@ function UserProfileScreenComponent() {
       return;
     }
 
+    creatingConvRef.current = true;
     setIsCreatingConversation(true);
+    safetyResetRef.current.maybeExecute();
     try {
       console.log(
         "[Profile] Cache miss — creating conversation with user:",
         user.id,
       );
       const conversationId = await messagesApiClient.getOrCreateConversation(
-        user.id,
+        String(user.id),
       );
 
       if (conversationId) {
@@ -451,16 +468,11 @@ function UserProfileScreenComponent() {
         error?.message || "Failed to start conversation",
       );
     } finally {
+      safetyResetRef.current.cancel();
+      creatingConvRef.current = false;
       setIsCreatingConversation(false);
     }
-  }, [
-    user.id,
-    username,
-    router,
-    isCreatingConversation,
-    showToast,
-    queryClient,
-  ]);
+  }, [user.id, username, router, showToast, queryClient]);
 
   // DEFENSIVE: Early return for missing username - show safe error state
   if (!safeUsername) {
