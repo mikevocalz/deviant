@@ -181,6 +181,9 @@
     "overrides": {
       "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
       "hermes-compiler": "250829098.0.4"
+    },
+    "patchedDependencies": {
+      "expo-modules-core@55.0.9": "patches/expo-modules-core@55.0.9.patch"
     }
   }
 }
