@@ -953,16 +953,15 @@ function ProfileScreenContent() {
                             >
                               {event.title}
                             </Text>
-                            {event.date && (
+                            {(event.fullDate || event.date) && (
                               <Text className="text-muted-foreground text-xs mt-0.5">
-                                {new Date(event.date).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  },
-                                )}
+                                {new Date(
+                                  event.fullDate || event.date,
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
                               </Text>
                             )}
                             {event.location && (
@@ -1063,16 +1062,15 @@ function ProfileScreenContent() {
                             >
                               {event.title}
                             </Text>
-                            {event.date && (
+                            {(event.fullDate || event.date) && (
                               <Text className="text-muted-foreground text-xs mt-0.5">
-                                {new Date(event.date).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    month: "short",
-                                    day: "numeric",
-                                    year: "numeric",
-                                  },
-                                )}
+                                {new Date(
+                                  event.fullDate || event.date,
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
                               </Text>
                             )}
                             {event.location && (

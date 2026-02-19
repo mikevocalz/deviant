@@ -298,6 +298,90 @@ export function useLikedEvents() {
   });
 }
 
+// Toggle event like with optimistic update across all event list caches
+export function useToggleEventLike() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      eventId,
+      isLiked,
+    }: {
+      eventId: string;
+      isLiked: boolean;
+    }) => {
+      if (isLiked) {
+        await eventsApiClient.unlikeEvent(eventId);
+        return { liked: false };
+      } else {
+        await eventsApiClient.likeEvent(eventId);
+        return { liked: true };
+      }
+    },
+    onMutate: async ({ eventId, isLiked }) => {
+      // Cancel outgoing refetches for event lists
+      await queryClient.cancelQueries({ queryKey: eventKeys.all });
+
+      // Snapshot all event list caches for rollback
+      const previousData = queryClient.getQueriesData({
+        queryKey: eventKeys.all,
+      });
+
+      // Helper to patch a single event in any event array cache
+      const patchEvent = (old: any) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((ev: any) =>
+          String(ev.id) === eventId
+            ? {
+                ...ev,
+                isLiked: !isLiked,
+                likes: isLiked
+                  ? Math.max((ev.likes ?? 0) - 1, 0)
+                  : (ev.likes ?? 0) + 1,
+              }
+            : ev,
+        );
+      };
+
+      // Optimistically update all event list caches
+      queryClient.setQueriesData<Event[]>(
+        { queryKey: eventKeys.all },
+        patchEvent,
+      );
+
+      // Also patch event detail cache if it exists
+      queryClient.setQueryData(eventKeys.detail(eventId), (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          isLiked: !isLiked,
+          likes: isLiked
+            ? Math.max((old.likes ?? 0) - 1, 0)
+            : (old.likes ?? 0) + 1,
+        };
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _variables, context) => {
+      // Rollback all event caches
+      if (context?.previousData) {
+        context.previousData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+    onSuccess: (_result, { eventId }) => {
+      // Refresh liked events list and event detail
+      const uid = getCurrentUserIdInt();
+      if (uid) {
+        queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
+      }
+      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+    },
+  });
+}
+
 // RSVP to event mutation
 export function useRsvpEvent() {
   const queryClient = useQueryClient();

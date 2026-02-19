@@ -4,12 +4,19 @@ import { Heart, Share2, Bookmark } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
+import { useCallback } from "react";
 import { AVATAR_COLORS } from "@/lib/constants/events";
 import { useRouter } from "expo-router";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
+import { useToggleEventLike } from "@/lib/hooks/use-events";
 
 export function EventCard({ event, index, scrollY, formatLikes }: any) {
   const router = useRouter();
+  const toggleLike = useToggleEventLike();
+
+  const handleLike = useCallback(() => {
+    toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
+  }, [event.id, event.isLiked, toggleLike]);
 
   // Responsive sizing: full width on phone, max 614px centered on tablet
   const {
@@ -131,20 +138,28 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
 
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center gap-3">
-                  <Pressable className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-full">
-                    <Heart size={16} color="#fff" />
+                  <Pressable
+                    onPress={handleLike}
+                    hitSlop={8}
+                    className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-xl"
+                  >
+                    <Heart
+                      size={16}
+                      color={event.isLiked ? "#FF5BFC" : "#fff"}
+                      fill={event.isLiked ? "#FF5BFC" : "transparent"}
+                    />
                     <Text className="text-white text-sm font-medium">
-                      {formatLikes(event.likes)}
+                      {formatLikes(event.likes ?? 0)}
                     </Text>
                   </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-full">
+                  <Pressable className="bg-white/20 p-2 rounded-xl">
                     <Share2 size={16} color="#fff" />
                   </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-full">
+                  <Pressable className="bg-white/20 p-2 rounded-xl">
                     <Bookmark size={16} color="#fff" />
                   </Pressable>
                 </View>
-                <View className="bg-primary px-5 py-2 rounded-full">
+                <View className="bg-primary px-5 py-2 rounded-xl">
                   <Text className="text-white text-base font-bold">
                     ${event.price}
                   </Text>

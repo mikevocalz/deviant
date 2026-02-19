@@ -45,6 +45,7 @@ import { PagerViewWrapper } from "@/components/ui/pager-view";
 import {
   useEvents,
   useForYouEvents,
+  useToggleEventLike,
   eventKeys,
   type Event,
   type EventFilters,
@@ -92,6 +93,12 @@ function EventCard({
   compact?: boolean;
   queryClient: any;
 }) {
+  const toggleLike = useToggleEventLike();
+
+  const handleLike = useCallback(() => {
+    toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
+  }, [event.id, event.isLiked, toggleLike]);
+
   const animatedImageStyle = useAnimatedStyle(() => {
     "worklet";
     const translateY = (scrollY.value - index * (cardHeight + 20)) * -0.15;
@@ -162,8 +169,16 @@ function EventCard({
 
             {/* Like Button — top-left */}
             <View className="absolute top-4 left-4">
-              <Pressable className="flex-row items-center gap-1.5 bg-black/40 px-4 py-2 rounded-full">
-                <Heart size={16} color="#fff" />
+              <Pressable
+                onPress={handleLike}
+                hitSlop={8}
+                className="flex-row items-center gap-1.5 bg-black/40 px-4 py-2 rounded-xl"
+              >
+                <Heart
+                  size={16}
+                  color={event.isLiked ? "#FF5BFC" : "#fff"}
+                  fill={event.isLiked ? "#FF5BFC" : "transparent"}
+                />
                 <Text className="text-white text-sm font-medium">
                   {formatLikes(event.likes ?? 0)}
                 </Text>

@@ -231,6 +231,23 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO service_role;
 - Settings avatar → `authUser.avatar` (ONLY allowed place)
 - Regression test: `tests/identity-ownership.spec.ts`
 
+### Events — DATE FIELD IS NOT AN ISO STRING
+
+**`event.date` is the DAY NUMBER (e.g. `"22"`), NOT an ISO date string.** The `formatEventDate()` in `lib/api/events.ts` spreads `...dateParts` which sets `date` to the day number. The ISO date is in `event.fullDate`.
+
+```
+✅ CORRECT: new Date(event.fullDate || event.date)
+✅ CORRECT: formatEventDate(event.fullDate || event.date)
+❌ WRONG:   new Date(event.date)          — parses "22" as year 22 AD
+❌ WRONG:   formatEventDate(event.date)   — produces garbage like "FRI, JAN 2"
+```
+
+- **Always use `event.fullDate`** when you need an ISO date for Date parsing, formatting, or countdown
+- `event.date` is only safe for display as a day number (e.g. in the event card badge)
+- `event.month` is the pre-formatted month abbreviation (e.g. "FEB")
+- `event.time` is the pre-formatted time string (e.g. "8:00 PM")
+- Key files: `lib/api/events.ts`, `app/(protected)/events/[id]/index.tsx`, `app/(protected)/(tabs)/profile.tsx`
+
 ---
 
 ## �🔧 SEV-0 FIXES (2026-02-01)
