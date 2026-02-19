@@ -43,6 +43,7 @@ import { EventCardSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import {
   useEvents,
+  useForYouEvents,
   eventKeys,
   type Event,
   type EventFilters,
@@ -400,6 +401,10 @@ export default function EventsScreen() {
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);
 
+  // "For You" personalized feed (separate query, 15min cache)
+  const { data: forYouEvents = [], isLoading: forYouLoading } =
+    useForYouEvents();
+
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
@@ -420,28 +425,31 @@ export default function EventsScreen() {
     [toggleFilter],
   );
 
-  // Filter events by tab (upcoming/past) — server handles pill filters
+  // Filter events by tab — server handles pill filters
+  // Tab indices: 0=For You, 1=All Events, 2=Upcoming, 3=Past
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       switch (tabIndex) {
-        case 1: // upcoming
+        case 0: // For You
+          return forYouEvents;
+        case 2: // upcoming
           return events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
-        case 2: // past_events
+        case 3: // past_events
           return events.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
-        default:
+        default: // All Events (1)
           return events;
       }
     },
-    [events],
+    [events, forYouEvents],
   );
 
   const handleTabPress = useCallback(
@@ -460,6 +468,7 @@ export default function EventsScreen() {
   );
 
   const tabs = [
+    { key: "for_you", label: "For You" },
     { key: "all_events", label: "All Events" },
     { key: "upcoming", label: "Upcoming" },
     { key: "past_events", label: "Past Events" },
@@ -714,14 +723,14 @@ export default function EventsScreen() {
                             </Pressable>
                           }
                         />
-                      ) : tabIndex === 2 ? (
+                      ) : tabIndex === 3 ? (
                         <EmptyState
                           icon={History}
                           title="No past events"
                           accent="#6b7280"
                           description="Events you've attended will appear here after they end."
                         />
-                      ) : tabIndex === 1 ? (
+                      ) : tabIndex === 2 ? (
                         <EmptyState
                           icon={PartyPopper}
                           title="Nothing upcoming"
@@ -737,6 +746,23 @@ export default function EventsScreen() {
                               <Plus size={16} color="#fff" />
                               <Text className="text-primary-foreground font-semibold text-sm">
                                 Create Event
+                              </Text>
+                            </Pressable>
+                          }
+                        />
+                      ) : tabIndex === 0 ? (
+                        <EmptyState
+                          icon={Heart}
+                          title="Your feed is building"
+                          accent="#8A40CF"
+                          description="Like and RSVP to events to train your personalized feed."
+                          action={
+                            <Pressable
+                              onPress={() => handleTabPress(1)}
+                              className="bg-primary px-6 py-3 rounded-full"
+                            >
+                              <Text className="text-primary-foreground font-semibold text-sm">
+                                Browse All Events
                               </Text>
                             </Pressable>
                           }
@@ -783,7 +809,7 @@ export default function EventsScreen() {
                         scrollEventThrottle={16}
                       >
                         {/* Curated collections — only on All Events tab, no search/filters */}
-                        {tabIndex === 0 && showCollections && (
+                        {tabIndex === 1 && showCollections && (
                           <View className="pt-4">
                             <EventCollectionRow
                               title="This Weekend"

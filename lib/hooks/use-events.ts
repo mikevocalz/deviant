@@ -72,6 +72,7 @@ export const eventKeys = {
     [...eventKeys.all, "category", category] as const,
   liked: (userId: number) => [...eventKeys.all, "liked", userId] as const,
   search: (q: string) => [...eventKeys.all, "search", q] as const,
+  forYou: () => [...eventKeys.all, "forYou"] as const,
 };
 
 // Fetch all events with optional filters
@@ -90,6 +91,15 @@ export function useEvents(filters?: EventFilters) {
       }),
     staleTime: STALE_TIMES.events,
     placeholderData: keepPreviousData,
+  });
+}
+
+// Personalized "For You" events (scored by social + affinity + recency)
+export function useForYouEvents() {
+  return useQuery({
+    queryKey: eventKeys.forYou(),
+    queryFn: () => eventsApiClient.getForYouEvents(),
+    staleTime: 15 * 60 * 1000, // 15 min cache per audit spec
   });
 }
 

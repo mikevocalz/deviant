@@ -127,6 +127,66 @@ export const eventsApi = {
   },
 
   /**
+   * Get personalized "For You" events via scoring RPC.
+   * Scores events by social signal, category affinity, recency, popularity.
+   */
+  async getForYouEvents(limit: number = 20) {
+    try {
+      const viewerId = getCurrentUserIdInt();
+      if (!viewerId) return this.getEvents(limit);
+
+      const { data, error } = await supabase.rpc("get_events_for_you", {
+        p_viewer_id: viewerId,
+        p_limit: limit,
+        p_offset: 0,
+      });
+
+      if (error) {
+        console.warn(
+          "[Events] getForYouEvents RPC failed, falling back:",
+          error.message,
+        );
+        return this.getEvents(limit);
+      }
+
+      return ((data as any[]) || []).map((event: any) => {
+        const dateParts = formatEventDate(event.start_date);
+        const avatars = Array.isArray(event.attendee_avatars)
+          ? event.attendee_avatars
+          : [];
+        const totalCount = Math.max(
+          Number(event.total_attendees) || 0,
+          Number(event.rsvp_count) || 0,
+        );
+        return {
+          id: String(event.id),
+          title: event.title,
+          description: event.description,
+          ...dateParts,
+          location: event.location,
+          image: event.image || "",
+          images: parseJsonbArray(event.images),
+          youtubeVideoUrl: event.youtube_video_url || null,
+          price: Number(event.price) || 0,
+          likes: 0,
+          isLiked: event.is_liked || false,
+          attendees: avatars.length > 0 ? avatars : totalCount,
+          totalAttendees: totalCount,
+          category: event.category || undefined,
+          friendsGoing: event.friends_going || 0,
+          host: {
+            username: event.host_username || "unknown",
+            avatar: event.host_avatar || "",
+          },
+        };
+      });
+    } catch (error) {
+      console.error("[Events] getForYouEvents error:", error);
+      return this.getEvents(limit);
+    }
+  },
+
+  /**
    * Get upcoming events
    */
   async getUpcomingEvents(limit: number = 20) {
