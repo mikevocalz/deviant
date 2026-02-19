@@ -389,8 +389,8 @@ export default function EventDetailScreen() {
       showToast("warning", "Event Ended", "This event has already ended.");
       return;
     }
-    if (!eventData.endDate) {
-      const dayEnd = new Date(eventData.date);
+    if (!eventData.endDate && eventData.fullDate) {
+      const dayEnd = new Date(eventData.fullDate);
       dayEnd.setHours(23, 59, 59, 999);
       if (dayEnd < now) {
         showToast("warning", "Event Ended", "This event has already ended.");
@@ -674,9 +674,12 @@ export default function EventDetailScreen() {
     try {
       const now = new Date();
       if (eventData.endDate) return new Date(eventData.endDate) < now;
-      const start = new Date(eventData.date);
-      start.setHours(23, 59, 59, 999);
-      return start < now;
+      if (eventData.fullDate) {
+        const start = new Date(eventData.fullDate);
+        start.setHours(23, 59, 59, 999);
+        return start < now;
+      }
+      return false;
     } catch {
       return false;
     }
