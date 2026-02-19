@@ -2,10 +2,17 @@ import { View, Text, Pressable, TextInput } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Camera, Loader2 } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Camera,
+  Loader2,
+  BadgeCheck,
+  Clock,
+  ShieldCheck,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useState } from "react";
+import React, { useState } from "react";
 import { Image } from "expo-image";
 import { useMediaPicker } from "@/lib/hooks";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
@@ -25,10 +32,55 @@ export default function EditProfileScreen() {
   const [avatar, setAvatar] = useState(user?.avatar || "");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<{
+    is_verified: boolean;
+    has_pending_request: boolean;
+  } | null>(null);
+  const [isRequestingVerification, setIsRequestingVerification] =
+    useState(false);
+  const [verificationLoaded, setVerificationLoaded] = useState(false);
 
   const { pickFromLibrary } = useMediaPicker();
   const { uploadSingle } = useMediaUpload({ folder: "avatars" });
   const showToast = useUIStore((s) => s.showToast);
+
+  // Load verification status on mount
+  React.useEffect(() => {
+    (async () => {
+      const { usersApi } = await import("@/lib/api/users");
+      const status = await usersApi.getVerificationStatus();
+      if (status) setVerificationStatus(status);
+      setVerificationLoaded(true);
+    })();
+  }, []);
+
+  const handleRequestVerification = async () => {
+    setIsRequestingVerification(true);
+    try {
+      const { usersApi } = await import("@/lib/api/users");
+      const result = await usersApi.submitVerificationRequest(
+        bio ? `Host on DVNT. ${bio.slice(0, 100)}` : undefined,
+        website || undefined,
+      );
+      if (result.success) {
+        showToast(
+          "success",
+          "Request Submitted",
+          "We'll review your profile and get back to you.",
+        );
+        setVerificationStatus({
+          is_verified: false,
+          has_pending_request: true,
+        });
+      } else {
+        showToast("info", "Info", result.error || "Could not submit request");
+      }
+    } catch (error) {
+      showToast("error", "Error", "Failed to submit verification request");
+    } finally {
+      setIsRequestingVerification(false);
+    }
+  };
 
   const handleAvatarPress = async () => {
     try {
@@ -259,6 +311,66 @@ export default function EditProfileScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Verification Section */}
+        {verificationLoaded && (
+          <View className="mx-4 mt-6 rounded-2xl border border-border bg-card p-4">
+            <View className="flex-row items-center gap-3 mb-2">
+              <ShieldCheck
+                size={20}
+                color={
+                  verificationStatus?.is_verified
+                    ? "#22C55E"
+                    : colors.mutedForeground
+                }
+              />
+              <Text className="text-base font-semibold text-foreground">
+                Verification
+              </Text>
+            </View>
+
+            {verificationStatus?.is_verified ? (
+              <View className="flex-row items-center gap-2 mt-1">
+                <BadgeCheck size={16} color="#8A40CF" />
+                <Text className="text-sm text-green-500 font-sans-medium">
+                  Your account is verified
+                </Text>
+              </View>
+            ) : verificationStatus?.has_pending_request ? (
+              <View className="flex-row items-center gap-2 mt-1">
+                <Clock size={16} color="#FBBF24" />
+                <Text className="text-sm text-yellow-500 font-sans-medium">
+                  Verification request pending review
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text className="text-sm text-muted-foreground mb-3">
+                  Get a verified badge to build trust with attendees. We review
+                  your profile, events hosted, and social presence.
+                </Text>
+                <Pressable
+                  onPress={handleRequestVerification}
+                  disabled={isRequestingVerification}
+                  className="bg-primary rounded-xl py-3 items-center flex-row justify-center gap-2"
+                >
+                  {isRequestingVerification ? (
+                    <Loader2
+                      size={16}
+                      color={colors.primaryForeground}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <BadgeCheck size={16} color={colors.primaryForeground} />
+                  )}
+                  <Text className="text-primary-foreground font-semibold text-sm">
+                    Request Verification
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        )}
 
         <View className="h-8" />
       </KeyboardAwareScrollView>
