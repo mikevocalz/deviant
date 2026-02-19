@@ -222,6 +222,32 @@ export const ticketsApi = {
     return { synced, failed };
   },
 
+  /**
+   * Issue a ticket for a free RSVP (legacy path when ticketing is OFF).
+   * Creates a real DB row with a crypto-random token via server-side RPC.
+   */
+  async issueRsvpTicket(params: {
+    eventId: string;
+    userId: string;
+  }): Promise<{
+    id: string;
+    qr_token: string;
+    already_existed: boolean;
+  } | null> {
+    try {
+      const { data, error } = await supabase.rpc("issue_rsvp_ticket", {
+        p_event_id: parseInt(params.eventId),
+        p_user_auth_id: params.userId,
+      });
+
+      if (error) throw error;
+      return data as { id: string; qr_token: string; already_existed: boolean };
+    } catch (error) {
+      console.error("[Tickets] issueRsvpTicket error:", error);
+      return null;
+    }
+  },
+
   // Legacy compat
   async checkInTicket(ticketId: string): Promise<{ success: boolean }> {
     return { success: false };
