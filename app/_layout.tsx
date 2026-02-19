@@ -30,10 +30,10 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { Dimensions } from "react-native";
 import { BiometricLock } from "@/components/BiometricLock";
 import { LayoutAnimationConfig } from "react-native-reanimated";
-import { useShareIntent } from "expo-share-intent";
+import { useShareIntentSafe as useShareIntent } from "@/lib/safe-native-modules";
 import { useSpotifyShareStore } from "@/lib/spotify/spotify-share-store";
 import { SpotifyShareSheet } from "@/components/share/spotify-share-sheet";
-import { StripeProvider } from "@stripe/stripe-react-native";
+import { SafeStripeProvider as StripeProvider } from "@/lib/safe-native-modules";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();

@@ -3,7 +3,7 @@
  * Handles permissions, duplicate detection, and graceful fallbacks.
  */
 
-import * as Calendar from "expo-calendar";
+import { SafeCalendar as Calendar } from "@/lib/safe-native-modules";
 import { Platform, Alert, Linking } from "react-native";
 import { mmkv } from "@/lib/mmkv-zustand";
 import type { Ticket } from "@/lib/stores/ticket-store";
@@ -98,6 +98,11 @@ export async function addTicketToCalendar(
   ticket: Ticket,
 ): Promise<AddToCalendarResult> {
   try {
+    // 0. Guard: Calendar module may not be in this native binary
+    if (!Calendar) {
+      return { success: false, error: "calendar_not_available" };
+    }
+
     // 1. Check duplicate
     if (isAlreadyAdded(ticket.id)) {
       return { success: true, alreadyAdded: true };

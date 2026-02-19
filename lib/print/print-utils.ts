@@ -5,7 +5,7 @@
  * Supports AirPrint (iOS) and Android print dialog.
  */
 
-import * as Print from "expo-print";
+import { SafePrint as Print } from "@/lib/safe-native-modules";
 import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Platform } from "react-native";

@@ -9,7 +9,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { useStripe } from "@stripe/stripe-react-native";
+import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { supabase } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/stores/ui-store";
 
@@ -64,7 +64,8 @@ export function useTicketCheckout() {
         }
 
         // Step 2: Initialize native PaymentSheet
-        const { paymentIntent, ephemeralKey, customer, publishableKey } = result;
+        const { paymentIntent, ephemeralKey, customer, publishableKey } =
+          result;
 
         if (!paymentIntent || !ephemeralKey || !customer) {
           throw new Error("Missing PaymentSheet parameters from server");
@@ -96,7 +97,10 @@ export function useTicketCheckout() {
         });
 
         if (initError) {
-          console.error("[useTicketCheckout] initPaymentSheet error:", initError);
+          console.error(
+            "[useTicketCheckout] initPaymentSheet error:",
+            initError,
+          );
           throw new Error(initError.message || "Failed to initialize payment");
         }
 
