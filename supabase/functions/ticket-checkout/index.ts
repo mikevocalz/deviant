@@ -135,6 +135,32 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", ticket_type_id);
 
+      // ── Create order row for free ticket ─────────────────
+      const { data: freeOrder } = await supabase
+        .from("orders")
+        .insert({
+          user_id,
+          type: "event_ticket",
+          status: "paid",
+          subtotal_cents: 0,
+          total_cents: 0,
+          event_id: parseInt(event_id),
+          paid_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+
+      if (freeOrder?.id) {
+        await supabase.from("order_timeline").insert([
+          { order_id: freeOrder.id, type: "created", label: "Order created" },
+          {
+            order_id: freeOrder.id,
+            type: "payment_captured",
+            label: "Free ticket issued",
+          },
+        ]);
+      }
+
       return new Response(JSON.stringify({ tickets: issued, free: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
@@ -203,6 +229,20 @@ Deno.serve(async (req: Request) => {
     };
 
     const session = await stripeRequest("/checkout/sessions", params);
+
+    // ── Create order row in payment_pending state ────────
+    const totalCents = chargePerTicket * quantity;
+    const platformFeeCents = applicationFee;
+    await supabase.from("orders").insert({
+      user_id,
+      type: "event_ticket",
+      status: "payment_pending",
+      subtotal_cents: unitPrice * quantity,
+      platform_fee_cents: platformFeeCents,
+      total_cents: totalCents,
+      event_id: parseInt(event_id),
+      stripe_checkout_session_id: session.id,
+    });
 
     return new Response(
       JSON.stringify({ url: session.url, session_id: session.id }),

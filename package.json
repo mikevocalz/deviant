@@ -82,6 +82,7 @@
     "expo-network": "~55.0.5",
     "expo-notifications": "~55.0.6",
     "expo-paste-input": "^0.1.7",
+    "expo-print": "~55.0.6",
     "expo-router": "55.0.0-preview.8",
     "expo-screen-orientation": "^9.0.8",
     "expo-secure-store": "~55.0.5",
