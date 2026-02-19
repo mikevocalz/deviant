@@ -143,7 +143,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
   ];
 }
 
-function buildMockAttendees(count: number): EventAttendee[] {
+function buildPlaceholderAttendees(count: number): EventAttendee[] {
   const colors = [
     "#22c55e",
     "#f97316",
@@ -158,7 +158,7 @@ function buildMockAttendees(count: number): EventAttendee[] {
   ];
   return Array.from({ length: Math.min(count, 8) }, (_, i) => ({
     id: String(i),
-    avatar: `https://i.pravatar.cc/150?img=${i + 1}`,
+    avatar: "",
     color: colors[i % colors.length],
   }));
 }
@@ -359,7 +359,7 @@ export default function EventDetailScreen() {
         color: "#3b82f6",
       }));
     }
-    return buildMockAttendees(eventData?.attendees || 0);
+    return buildPlaceholderAttendees(eventData?.attendees || 0);
   }, [eventData?.attendeeAvatars, eventData?.attendees]);
 
   // Auto-select first tier
