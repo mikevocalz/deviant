@@ -3,39 +3,121 @@
     "apps": [],
     "details": [
       {
-        "appIDs": ["<TEAM_ID>.com.dvnt.app"],
+        "appIDs": [
+          "Q9NDPV378Y.com.dvnt.app"
+        ],
         "components": [
-          { "/": "/u/*", "comment": "User profiles" },
-          { "/": "/p/*", "comment": "Posts" },
-          { "/": "/e/*", "comment": "Events" },
-          { "/": "/profile/*", "comment": "Profile alias" },
-          { "/": "/post/*", "comment": "Post alias" },
-          { "/": "/events/*", "comment": "Events alias" },
-          { "/": "/story/*", "comment": "Stories" },
-          { "/": "/chat/*", "comment": "Chat threads" },
-          { "/": "/messages", "comment": "Messages" },
-          { "/": "/ticket/*", "comment": "Tickets" },
-          { "/": "/call/*", "comment": "Video calls" },
-          { "/": "/room/*", "comment": "Video rooms" },
-          { "/": "/rooms", "comment": "Video rooms list" },
-          { "/": "/comments/*", "comment": "Comments" },
-          { "/": "/sneaky-lynk/*", "comment": "Sneaky Lynk" },
-          { "/": "/search", "comment": "Search" },
-          { "/": "/activity", "comment": "Activity" },
-          { "/": "/create", "comment": "Create" },
-          { "/": "/home", "comment": "Home" },
-          { "/": "/close-friends", "comment": "Close Friends" },
-          { "/": "/settings", "comment": "Settings root" },
-          { "/": "/settings/*", "comment": "Settings pages" },
-          { "/": "/auth/*", "comment": "Auth flows" },
-          { "/": "/login", "comment": "Login" },
-          { "/": "/signup", "comment": "Sign up" },
-          { "/": "/forgot-password", "comment": "Forgot password" }
+          {
+            "/": "/u/*",
+            "comment": "User profiles"
+          },
+          {
+            "/": "/p/*",
+            "comment": "Posts"
+          },
+          {
+            "/": "/e/*",
+            "comment": "Events"
+          },
+          {
+            "/": "/profile/*",
+            "comment": "Profile alias"
+          },
+          {
+            "/": "/post/*",
+            "comment": "Post alias"
+          },
+          {
+            "/": "/events/*",
+            "comment": "Events alias"
+          },
+          {
+            "/": "/story/*",
+            "comment": "Stories"
+          },
+          {
+            "/": "/chat/*",
+            "comment": "Chat threads"
+          },
+          {
+            "/": "/messages",
+            "comment": "Messages"
+          },
+          {
+            "/": "/ticket/*",
+            "comment": "Tickets"
+          },
+          {
+            "/": "/call/*",
+            "comment": "Video calls"
+          },
+          {
+            "/": "/room/*",
+            "comment": "Video rooms"
+          },
+          {
+            "/": "/rooms",
+            "comment": "Video rooms list"
+          },
+          {
+            "/": "/comments/*",
+            "comment": "Comments"
+          },
+          {
+            "/": "/sneaky-lynk/*",
+            "comment": "Sneaky Lynk"
+          },
+          {
+            "/": "/search",
+            "comment": "Search"
+          },
+          {
+            "/": "/activity",
+            "comment": "Activity"
+          },
+          {
+            "/": "/create",
+            "comment": "Create"
+          },
+          {
+            "/": "/home",
+            "comment": "Home"
+          },
+          {
+            "/": "/close-friends",
+            "comment": "Close Friends"
+          },
+          {
+            "/": "/settings",
+            "comment": "Settings root"
+          },
+          {
+            "/": "/settings/*",
+            "comment": "Settings pages"
+          },
+          {
+            "/": "/auth/*",
+            "comment": "Auth flows"
+          },
+          {
+            "/": "/login",
+            "comment": "Login"
+          },
+          {
+            "/": "/signup",
+            "comment": "Sign up"
+          },
+          {
+            "/": "/forgot-password",
+            "comment": "Forgot password"
+          }
         ]
       }
     ]
   },
   "webcredentials": {
-    "apps": ["<TEAM_ID>.com.dvnt.app"]
+    "apps": [
+      "Q9NDPV378Y.com.dvnt.app"
+    ]
   }
 }
