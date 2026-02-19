@@ -30,6 +30,7 @@ import {
   LayoutDashboard,
   ScanLine,
   CalendarPlus,
+  Zap,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -56,6 +57,8 @@ import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { MENTION_COLOR } from "@/src/constants/mentions";
+import { usePromotionStore } from "@/lib/stores/promotion-store";
+import { PromoteEventSheet } from "@/components/events/promote-event-sheet";
 import {
   CountdownTimer,
   SocialProofRow,
@@ -848,6 +851,20 @@ export default function EventDetailScreen() {
                 </Pressable>
               </View>
               <Pressable
+                onPress={() =>
+                  usePromotionStore
+                    .getState()
+                    .openSheet(eventId, eventData?.title || "Event")
+                }
+                style={[
+                  s.organizerButton,
+                  { marginTop: 8, flexDirection: "row", gap: 6 },
+                ]}
+              >
+                <Zap size={16} color="#f59e0b" />
+                <Text style={s.organizerButtonText}>Promote to Spotlight</Text>
+              </Pressable>
+              <Pressable
                 onPress={handleDownloadOffline}
                 style={[s.organizerButton, { marginTop: 8 }]}
               >
@@ -1251,6 +1268,9 @@ export default function EventDetailScreen() {
           });
         }}
       />
+
+      {/* Promote Event Sheet (organizer) */}
+      <PromoteEventSheet />
     </View>
   );
 }

@@ -362,6 +362,18 @@ export default function CreateEventScreen() {
         );
       }
 
+      // Upload flyer image if provided
+      let flyerImageUrl = "";
+      if (store.flyerImage) {
+        console.log("[CreateEvent] Uploading flyer image");
+        const flyerResults = await uploadMultiple([
+          { uri: store.flyerImage, type: "image" as const },
+        ]);
+        if (flyerResults[0]?.success) {
+          flyerImageUrl = flyerResults[0].url;
+        }
+      }
+
       const eventData: Record<string, any> = {
         title: title.trim(),
         description: description.trim(),
@@ -374,6 +386,7 @@ export default function CreateEventScreen() {
         category: tags[0] || "Event",
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
         youtubeVideoUrl: youtubeUrl.trim() || undefined,
+        flyerImageUrl: flyerImageUrl || undefined,
         // V2 fields — location coordinates from autocomplete
         locationLat: locationData?.latitude,
         locationLng: locationData?.longitude,
@@ -1089,6 +1102,71 @@ export default function CreateEventScreen() {
                   </Pressable>
                 )}
               </View>
+            </View>
+
+            {/* Flyer Image (Optional) — 3:5 aspect ratio for Spotlight */}
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center mb-3">
+                <View>
+                  <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                    Flyer (Optional)
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-0.5">
+                    3:5 portrait for Spotlight carousel
+                  </Text>
+                </View>
+              </View>
+
+              {store.flyerImage ? (
+                <View
+                  className="relative rounded-2xl overflow-hidden self-start"
+                  style={{ width: "60%", aspectRatio: 3 / 5 }}
+                >
+                  <Image
+                    source={{ uri: store.flyerImage }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                  />
+                  <Pressable
+                    onPress={() => store.setFlyerImage(null)}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
+                  >
+                    <X size={16} color="#fff" />
+                  </Pressable>
+                  <View className="absolute bottom-2 left-2 bg-amber-500/90 px-2 py-1 rounded-lg">
+                    <Text className="text-xs font-medium text-white">
+                      Flyer
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <Pressable
+                  onPress={async () => {
+                    await requestPermissions();
+                    const result = await pickFromLibrary({
+                      allowsMultipleSelection: false,
+                      maxSelection: 1,
+                    });
+                    if (result && result.length > 0) {
+                      store.setFlyerImage(result[0].uri);
+                    }
+                  }}
+                  className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border self-start"
+                  style={{ width: "60%", aspectRatio: 3 / 5 }}
+                >
+                  <View className="items-center justify-center gap-2">
+                    <View className="w-12 h-12 rounded-xl bg-muted items-center justify-center">
+                      <Plus size={24} color={colors.mutedForeground} />
+                    </View>
+                    <Text className="text-xs text-muted-foreground font-medium text-center px-4">
+                      Add Flyer Image
+                    </Text>
+                    <Text className="text-[10px] text-muted-foreground/60 text-center px-4">
+                      Used for Spotlight promotions
+                    </Text>
+                  </View>
+                </Pressable>
+              )}
             </View>
           </>
         )}

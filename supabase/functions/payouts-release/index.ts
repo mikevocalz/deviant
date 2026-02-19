@@ -12,9 +12,13 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
-const RESEND_FROM = Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <noreply@dvntapp.live>";
+const RESEND_FROM =
+  Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <noreply@dvntapp.live>";
 
-async function stripeRequest(endpoint: string, body: Record<string, string>): Promise<any> {
+async function stripeRequest(
+  endpoint: string,
+  body: Record<string, string>,
+): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "POST",
     headers: {
@@ -65,7 +69,11 @@ Deno.serve(async (req: Request) => {
             .from("events")
             .update({ payout_status: "on_hold" })
             .eq("id", event.id);
-          results.push({ event_id: event.id, status: "on_hold", reason: "dispute" });
+          results.push({
+            event_id: event.id,
+            status: "on_hold",
+            reason: "dispute",
+          });
           continue;
         }
 
@@ -76,8 +84,12 @@ Deno.serve(async (req: Request) => {
           .eq("event_id", event.id);
 
         const allTickets = tickets || [];
-        const activeTickets = allTickets.filter((t: any) => t.status !== "refunded");
-        const refundedTickets = allTickets.filter((t: any) => t.status === "refunded");
+        const activeTickets = allTickets.filter(
+          (t: any) => t.status !== "refunded",
+        );
+        const refundedTickets = allTickets.filter(
+          (t: any) => t.status === "refunded",
+        );
 
         const grossCents = activeTickets.reduce(
           (sum: number, t: any) => sum + (t.purchase_amount_cents || 0),
@@ -88,12 +100,18 @@ Deno.serve(async (req: Request) => {
           0,
         );
 
-        // DVNT fee: 5% + $1 per ticket
+        // ── Fee structure ──────────────────────────────────────────
+        // Customer: 2.5% + $1/ticket  |  Organizer: 2.5% + $1/ticket
+        // DVNT total: 5% + $2/ticket (covers Stripe processing + platform fee)
         const ticketCount = activeTickets.length;
-        const dvntFeeCents = Math.round(grossCents * 0.05) + 100 * ticketCount;
-        // Estimate Stripe fee: ~2.9% + $0.30 per charge (approximation)
-        const stripeFeeCents = Math.round(grossCents * 0.029) + 30 * ticketCount;
-        const netCents = Math.max(0, grossCents - dvntFeeCents - stripeFeeCents - refundsCents);
+        const organizerFeeCents =
+          Math.round(grossCents * 0.025) + 100 * ticketCount; // 2.5% + $1/ticket
+        const dvntFeeCents = organizerFeeCents; // organizer's share of DVNT fee
+        const stripeFeeCents = 0; // absorbed by the $2/ticket total
+        const netCents = Math.max(
+          0,
+          grossCents - organizerFeeCents - refundsCents,
+        );
 
         // Upsert financials
         await supabase.from("event_financials").upsert({
@@ -111,7 +129,11 @@ Deno.serve(async (req: Request) => {
             .from("events")
             .update({ payout_status: "released" })
             .eq("id", event.id);
-          results.push({ event_id: event.id, status: "released", net_cents: 0 });
+          results.push({
+            event_id: event.id,
+            status: "released",
+            net_cents: 0,
+          });
           continue;
         }
 
@@ -204,8 +226,7 @@ Deno.serve(async (req: Request) => {
                     <hr/>
                     <p><strong>Gross Revenue:</strong> $${(grossCents / 100).toFixed(2)}</p>
                     <p><strong>Refunds:</strong> -$${(refundsCents / 100).toFixed(2)}</p>
-                    <p><strong>DVNT Platform Fee:</strong> -$${(dvntFeeCents / 100).toFixed(2)}</p>
-                    <p><strong>Payment Processing:</strong> -$${(stripeFeeCents / 100).toFixed(2)}</p>
+                    <p><strong>DVNT Platform Fee (2.5% + $1/ticket):</strong> -$${(organizerFeeCents / 100).toFixed(2)}</p>
                     <hr/>
                     <p><strong>Net Payout:</strong> $${(netCents / 100).toFixed(2)}</p>
                     <p><strong>Release Date:</strong> ${new Date(event.payout_release_at).toLocaleDateString()}</p>
@@ -219,10 +240,21 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        results.push({ event_id: event.id, status: "released", net_cents: netCents });
+        results.push({
+          event_id: event.id,
+          status: "released",
+          net_cents: netCents,
+        });
       } catch (eventErr: any) {
-        console.error(`[payouts] Error processing event ${event.id}:`, eventErr);
-        results.push({ event_id: event.id, status: "error", error: eventErr.message });
+        console.error(
+          `[payouts] Error processing event ${event.id}:`,
+          eventErr,
+        );
+        results.push({
+          event_id: event.id,
+          status: "error",
+          error: eventErr.message,
+        });
       }
     }
 
@@ -232,9 +264,9 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err: any) {
     console.error("[payouts-release] Error:", err);
-    return new Response(
-      JSON.stringify({ error: err.message }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: err.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });
