@@ -38,6 +38,10 @@ import {
   UserPlus,
   Trash2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  Eye,
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
@@ -77,6 +81,14 @@ interface TicketTier {
   saleStart: string;
   saleEnd: string;
 }
+
+const WIZARD_STEPS = [
+  { label: "Info", icon: FileText },
+  { label: "Media", icon: ImageIcon },
+  { label: "Venue", icon: Calendar },
+  { label: "Details", icon: Music },
+  { label: "Review", icon: Eye },
+] as const;
 
 const SUGGESTED_TAGS = [
   "music",
@@ -180,6 +192,12 @@ export default function CreateEventScreen() {
     setCoOrganizerResults,
     removeLineupItem,
     removePerk,
+    currentStep,
+    setCurrentStep,
+    nextStep,
+    prevStep,
+    canProceed,
+    totalSteps,
     resetDraft,
   } = store;
 
@@ -454,7 +472,7 @@ export default function CreateEventScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerTitle: "Create Event",
+      headerTitle: `${WIZARD_STEPS[currentStep]?.label ?? "Create"} (${currentStep + 1}/${totalSteps})`,
       headerTitleAlign: "left" as const,
       headerStyle: {
         backgroundColor: colors.background,
@@ -466,7 +484,13 @@ export default function CreateEventScreen() {
       },
       headerLeft: () => (
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            if (currentStep > 0) {
+              prevStep();
+            } else {
+              router.back();
+            }
+          }}
           hitSlop={12}
           style={{
             marginLeft: 8,
@@ -476,36 +500,31 @@ export default function CreateEventScreen() {
             justifyContent: "center",
           }}
         >
-          <X size={24} color={colors.foreground} strokeWidth={2.5} />
+          {currentStep > 0 ? (
+            <ChevronLeft
+              size={24}
+              color={colors.foreground}
+              strokeWidth={2.5}
+            />
+          ) : (
+            <X size={24} color={colors.foreground} strokeWidth={2.5} />
+          )}
         </Pressable>
       ),
       headerRight: () => (
-        <Pressable
-          onPress={() => {
-            if (!isSubmitting && isValid) {
-              handleSubmit();
-            }
+        <Text
+          style={{
+            fontSize: 13,
+            fontWeight: "500",
+            color: colors.mutedForeground,
+            marginRight: 12,
           }}
-          disabled={isSubmitting || !isValid}
-          hitSlop={12}
-          style={{ marginRight: 8 }}
         >
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "600",
-              color:
-                isValid && !isSubmitting
-                  ? colors.primary
-                  : colors.mutedForeground,
-            }}
-          >
-            {isSubmitting ? "Creating..." : "Create"}
-          </Text>
-        </Pressable>
+          Step {currentStep + 1} of {totalSteps}
+        </Text>
       ),
     });
-  }, [navigation, colors, isValid, isSubmitting, handleSubmit, router]);
+  }, [navigation, colors, currentStep, totalSteps, prevStep, router]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -521,982 +540,1257 @@ export default function CreateEventScreen() {
         bottomOffset={100}
         enabled={true}
       >
-        {/* Title & Description */}
-        <View className="mb-6">
-          <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-            <FileText size={20} color={colors.primary} />
-            <TextInput
-              className="flex-1 ml-3 py-4 text-lg font-semibold text-foreground"
-              placeholder="Event Title"
-              placeholderTextColor={colors.mutedForeground}
-              value={title}
-              onChangeText={setTitle}
-              maxLength={200}
-            />
-          </View>
-
-          <View className="bg-card rounded-2xl p-4">
-            <TextInput
-              className="text-base text-foreground min-h-[100px]"
-              placeholder="Describe your event... What will attendees experience?"
-              placeholderTextColor={colors.mutedForeground}
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={4}
-              maxLength={2000}
-              textAlignVertical="top"
-            />
-            <Text className="text-xs text-muted-foreground text-right mt-2">
-              {description.length}/2000
-            </Text>
-          </View>
+        {/* Step Progress Indicator */}
+        <View className="flex-row items-center justify-center gap-2 mb-6">
+          {WIZARD_STEPS.map((step, idx) => {
+            const StepIcon = step.icon;
+            const isActive = idx === currentStep;
+            const isCompleted = idx < currentStep;
+            return (
+              <Pressable
+                key={step.label}
+                onPress={() => {
+                  if (idx <= currentStep || isCompleted) setCurrentStep(idx);
+                }}
+                className="items-center gap-1"
+              >
+                <View
+                  className="w-10 h-10 rounded-full items-center justify-center"
+                  style={{
+                    backgroundColor: isActive
+                      ? colors.primary
+                      : isCompleted
+                        ? `${colors.primary}30`
+                        : `${colors.foreground}10`,
+                  }}
+                >
+                  {isCompleted ? (
+                    <Check size={16} color={colors.primary} strokeWidth={3} />
+                  ) : (
+                    <StepIcon
+                      size={16}
+                      color={isActive ? "#fff" : colors.mutedForeground}
+                      strokeWidth={2}
+                    />
+                  )}
+                </View>
+                <Text
+                  className="text-[10px] font-medium"
+                  style={{
+                    color: isActive ? colors.primary : colors.mutedForeground,
+                  }}
+                >
+                  {step.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* Date & Time */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Date & Time
-          </Text>
+        {/* ==================== STEP 0: INFO ==================== */}
+        {currentStep === 0 && (
+          <>
+            {/* Title & Description */}
+            <View className="mb-6">
+              <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                <FileText size={20} color={colors.primary} />
+                <TextInput
+                  className="flex-1 ml-3 py-4 text-lg font-semibold text-foreground"
+                  placeholder="Event Title"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={title}
+                  onChangeText={setTitle}
+                  maxLength={200}
+                />
+              </View>
 
-          {/* Date row */}
-          <Pressable
-            onPress={() => {
-              setShowDatePicker(!showDatePicker);
-              setShowTimePicker(false);
-            }}
-            className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mb-3"
-          >
-            <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-              <Calendar size={18} color={colors.primary} />
+              <View className="bg-card rounded-2xl p-4">
+                <TextInput
+                  className="text-base text-foreground min-h-[100px]"
+                  placeholder="Describe your event... What will attendees experience?"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={description}
+                  onChangeText={setDescription}
+                  multiline
+                  numberOfLines={4}
+                  maxLength={2000}
+                  textAlignVertical="top"
+                />
+                <Text className="text-xs text-muted-foreground text-right mt-2">
+                  {description.length}/2000
+                </Text>
+              </View>
             </View>
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground mb-0.5">Date</Text>
-              <Text className="text-sm font-semibold text-foreground">
-                {formatDate(eventDate)}
+
+            {/* Date & Time */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Date & Time
               </Text>
-            </View>
-          </Pressable>
 
-          {showDatePicker && (
-            <View className="bg-card rounded-2xl mb-3 overflow-hidden">
-              <DateTimePicker
-                value={eventDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleDateChange}
-                minimumDate={new Date()}
-                themeVariant="dark"
-                style={{ width: "100%" }}
-              />
-            </View>
-          )}
-
-          {/* Time row */}
-          <Pressable
-            onPress={() => {
-              setShowTimePicker(!showTimePicker);
-              setShowDatePicker(false);
-            }}
-            className="flex-row items-center bg-card rounded-2xl p-4 gap-3"
-          >
-            <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-              <Clock size={18} color={colors.primary} />
-            </View>
-            <View className="flex-1">
-              <Text className="text-xs text-muted-foreground mb-0.5">Time</Text>
-              <Text className="text-sm font-semibold text-foreground">
-                {formatTime(eventDate)}
-              </Text>
-            </View>
-          </Pressable>
-
-          {showTimePicker && (
-            <View className="bg-card rounded-2xl mt-3 overflow-hidden">
-              <DateTimePicker
-                value={eventDate}
-                mode="time"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleTimeChange}
-                themeVariant="dark"
-                style={{ width: "100%" }}
-              />
-            </View>
-          )}
-
-          {/* End Date toggle + pickers */}
-          {!endDate ? (
-            <Pressable
-              onPress={() => {
-                const d = new Date(eventDate);
-                d.setHours(d.getHours() + 3);
-                setEndDateISO(d.toISOString());
-              }}
-              className="flex-row items-center gap-2 mt-3 px-1"
-            >
-              <Plus size={16} color={colors.primary} />
-              <Text className="text-sm font-semibold text-primary">
-                Add End Date & Time
-              </Text>
-            </Pressable>
-          ) : (
-            <>
+              {/* Date row */}
               <Pressable
                 onPress={() => {
-                  setShowEndDatePicker(!showEndDatePicker);
-                  setShowEndTimePicker(false);
+                  setShowDatePicker(!showDatePicker);
+                  setShowTimePicker(false);
                 }}
-                className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
+                className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mb-3"
               >
                 <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
                   <Calendar size={18} color={colors.primary} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-xs text-muted-foreground mb-0.5">
-                    End Date
+                    Date
                   </Text>
                   <Text className="text-sm font-semibold text-foreground">
-                    {formatDate(endDate)}
+                    {formatDate(eventDate)}
                   </Text>
                 </View>
-                <Pressable onPress={() => setEndDateISO(null)} hitSlop={12}>
-                  <X size={16} color={colors.mutedForeground} />
-                </Pressable>
               </Pressable>
 
-              {showEndDatePicker && (
-                <View className="bg-card rounded-2xl mt-3 overflow-hidden">
+              {showDatePicker && (
+                <View className="bg-card rounded-2xl mb-3 overflow-hidden">
                   <DateTimePicker
-                    value={endDate}
+                    value={eventDate}
                     mode="date"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e: unknown, d?: Date) => {
-                      if (Platform.OS === "android")
-                        setShowEndDatePicker(false);
-                      if (d) {
-                        const nd = new Date(endDate!);
-                        nd.setFullYear(
-                          d.getFullYear(),
-                          d.getMonth(),
-                          d.getDate(),
-                        );
-                        setEndDateISO(nd.toISOString());
-                      }
-                    }}
-                    minimumDate={eventDate}
+                    onChange={handleDateChange}
+                    minimumDate={new Date()}
                     themeVariant="dark"
                     style={{ width: "100%" }}
                   />
                 </View>
               )}
 
+              {/* Time row */}
               <Pressable
                 onPress={() => {
-                  setShowEndTimePicker(!showEndTimePicker);
-                  setShowEndDatePicker(false);
+                  setShowTimePicker(!showTimePicker);
+                  setShowDatePicker(false);
                 }}
-                className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
+                className="flex-row items-center bg-card rounded-2xl p-4 gap-3"
               >
                 <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
                   <Clock size={18} color={colors.primary} />
                 </View>
                 <View className="flex-1">
                   <Text className="text-xs text-muted-foreground mb-0.5">
-                    End Time
+                    Time
                   </Text>
                   <Text className="text-sm font-semibold text-foreground">
-                    {formatTime(endDate)}
+                    {formatTime(eventDate)}
                   </Text>
                 </View>
               </Pressable>
 
-              {showEndTimePicker && (
+              {showTimePicker && (
                 <View className="bg-card rounded-2xl mt-3 overflow-hidden">
                   <DateTimePicker
-                    value={endDate}
+                    value={eventDate}
                     mode="time"
                     display={Platform.OS === "ios" ? "spinner" : "default"}
-                    onChange={(_e: unknown, t?: Date) => {
-                      if (Platform.OS === "android")
-                        setShowEndTimePicker(false);
-                      if (t) {
-                        const nd = new Date(endDate!);
-                        nd.setHours(t.getHours(), t.getMinutes());
-                        setEndDateISO(nd.toISOString());
-                      }
-                    }}
+                    onChange={handleTimeChange}
                     themeVariant="dark"
                     style={{ width: "100%" }}
                   />
                 </View>
               )}
-            </>
-          )}
-        </View>
 
-        {/* Location */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Location
-          </Text>
-          <LocationAutocomplete
-            value={location}
-            placeholder="Search venue or address"
-            onLocationSelect={(data: LocationData) => {
-              setLocation(data.name);
-              setLocationData(data);
-            }}
-            onTextChange={(text: string) => {
-              // Update location as user types (enables form validation)
-              setLocation(text);
-              // Clear coordinates since we only have text, not a selected place
-              if (!text) {
-                setLocationData(null);
-              }
-            }}
-            onClear={() => {
-              setLocation("");
-              setLocationData(null);
-            }}
-          />
-
-          {locationData?.latitude && locationData?.longitude && (
-            <View
-              className="mt-3 rounded-2xl overflow-hidden"
-              style={{ height: 180 }}
-            >
-              <DvntMap
-                center={[locationData.longitude, locationData.latitude]}
-                zoom={15}
-                markers={[
-                  {
-                    id: "event-location",
-                    coordinate: [locationData.longitude, locationData.latitude],
-                  },
-                ]}
-                showControls={false}
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Event Settings — Visibility, Age, Virtual */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Event Settings
-          </Text>
-
-          {/* Virtual / Online toggle */}
-          <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
-            <View className="flex-row items-center gap-3 flex-1 mr-3">
-              <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                <Wifi size={18} color={colors.primary} />
-              </View>
-              <View>
-                <Text className="text-sm font-semibold text-foreground">
-                  Virtual Event
-                </Text>
-                <Text className="text-xs text-muted-foreground">
-                  Online-only, no physical venue
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isOnline}
-              onValueChange={setIsOnline}
-              trackColor={{ false: "#333", true: colors.primary }}
-              thumbColor="#fff"
-            />
-          </View>
-
-          {/* Visibility */}
-          <View className="bg-card rounded-2xl p-4 mb-3">
-            <View className="flex-row items-center gap-3 mb-3">
-              <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                <Globe size={18} color={colors.primary} />
-              </View>
-              <Text className="text-sm font-semibold text-foreground">
-                Visibility
-              </Text>
-            </View>
-            <View className="flex-row gap-2">
-              {(["public", "private", "link_only"] as VisibilityOption[]).map(
-                (opt) => {
-                  const labels: Record<VisibilityOption, string> = {
-                    public: "Public",
-                    private: "Private",
-                    link_only: "Link Only",
-                  };
-                  const isActive = visibility === opt;
-                  return (
-                    <Pressable
-                      key={opt}
-                      onPress={() => setVisibility(opt)}
-                      className="flex-1 py-2.5 rounded-xl items-center"
-                      style={{
-                        backgroundColor: isActive
-                          ? `${colors.primary}20`
-                          : "rgba(255,255,255,0.04)",
-                        borderWidth: 1,
-                        borderColor: isActive
-                          ? `${colors.primary}60`
-                          : "rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <Text
-                        className="text-xs font-semibold"
-                        style={{
-                          color: isActive
-                            ? colors.primary
-                            : colors.mutedForeground,
-                        }}
-                      >
-                        {labels[opt]}
+              {/* End Date toggle + pickers */}
+              {!endDate ? (
+                <Pressable
+                  onPress={() => {
+                    const d = new Date(eventDate);
+                    d.setHours(d.getHours() + 3);
+                    setEndDateISO(d.toISOString());
+                  }}
+                  className="flex-row items-center gap-2 mt-3 px-1"
+                >
+                  <Plus size={16} color={colors.primary} />
+                  <Text className="text-sm font-semibold text-primary">
+                    Add End Date & Time
+                  </Text>
+                </Pressable>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={() => {
+                      setShowEndDatePicker(!showEndDatePicker);
+                      setShowEndTimePicker(false);
+                    }}
+                    className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
+                  >
+                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                      <Calendar size={18} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-xs text-muted-foreground mb-0.5">
+                        End Date
                       </Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {formatDate(endDate)}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => setEndDateISO(null)} hitSlop={12}>
+                      <X size={16} color={colors.mutedForeground} />
                     </Pressable>
-                  );
-                },
+                  </Pressable>
+
+                  {showEndDatePicker && (
+                    <View className="bg-card rounded-2xl mt-3 overflow-hidden">
+                      <DateTimePicker
+                        value={endDate}
+                        mode="date"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={(_e: unknown, d?: Date) => {
+                          if (Platform.OS === "android")
+                            setShowEndDatePicker(false);
+                          if (d) {
+                            const nd = new Date(endDate!);
+                            nd.setFullYear(
+                              d.getFullYear(),
+                              d.getMonth(),
+                              d.getDate(),
+                            );
+                            setEndDateISO(nd.toISOString());
+                          }
+                        }}
+                        minimumDate={eventDate}
+                        themeVariant="dark"
+                        style={{ width: "100%" }}
+                      />
+                    </View>
+                  )}
+
+                  <Pressable
+                    onPress={() => {
+                      setShowEndTimePicker(!showEndTimePicker);
+                      setShowEndDatePicker(false);
+                    }}
+                    className="flex-row items-center bg-card rounded-2xl p-4 gap-3 mt-3"
+                  >
+                    <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                      <Clock size={18} color={colors.primary} />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-xs text-muted-foreground mb-0.5">
+                        End Time
+                      </Text>
+                      <Text className="text-sm font-semibold text-foreground">
+                        {formatTime(endDate)}
+                      </Text>
+                    </View>
+                  </Pressable>
+
+                  {showEndTimePicker && (
+                    <View className="bg-card rounded-2xl mt-3 overflow-hidden">
+                      <DateTimePicker
+                        value={endDate}
+                        mode="time"
+                        display={Platform.OS === "ios" ? "spinner" : "default"}
+                        onChange={(_e: unknown, t?: Date) => {
+                          if (Platform.OS === "android")
+                            setShowEndTimePicker(false);
+                          if (t) {
+                            const nd = new Date(endDate!);
+                            nd.setHours(t.getHours(), t.getMinutes());
+                            setEndDateISO(nd.toISOString());
+                          }
+                        }}
+                        themeVariant="dark"
+                        style={{ width: "100%" }}
+                      />
+                    </View>
+                  )}
+                </>
               )}
             </View>
-          </View>
+          </>
+        )}
 
-          {/* Age Restriction */}
-          <View className="bg-card rounded-2xl p-4">
-            <View className="flex-row items-center gap-3 mb-3">
-              <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
-                <Shield size={18} color={colors.primary} />
-              </View>
-              <Text className="text-sm font-semibold text-foreground">
-                Age Restriction
+        {/* ==================== STEP 2: VENUE ==================== */}
+        {currentStep === 2 && (
+          <>
+            {/* Location */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Location
               </Text>
-            </View>
-            <View className="flex-row gap-2">
-              {(["none", "18+", "21+"] as AgeRestriction[]).map((opt) => {
-                const labels: Record<AgeRestriction, string> = {
-                  none: "All Ages",
-                  "18+": "18+",
-                  "21+": "21+",
-                };
-                const isActive = ageRestriction === opt;
-                return (
-                  <Pressable
-                    key={opt}
-                    onPress={() => setAgeRestriction(opt)}
-                    className="flex-1 py-2.5 rounded-xl items-center"
-                    style={{
-                      backgroundColor: isActive
-                        ? `${colors.primary}20`
-                        : "rgba(255,255,255,0.04)",
-                      borderWidth: 1,
-                      borderColor: isActive
-                        ? `${colors.primary}60`
-                        : "rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <Text
-                      className="text-xs font-semibold"
-                      style={{
-                        color: isActive
-                          ? colors.primary
-                          : colors.mutedForeground,
-                      }}
-                    >
-                      {labels[opt]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-
-        {/* YouTube Video URL */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            YouTube Video (Optional)
-          </Text>
-          <View className="flex-row items-center bg-card rounded-2xl px-4">
-            <Youtube size={20} color={colors.primary} />
-            <TextInput
-              className="flex-1 ml-3 py-4 text-base text-foreground"
-              placeholder="Paste YouTube URL or video ID"
-              placeholderTextColor={colors.mutedForeground}
-              value={youtubeUrl}
-              onChangeText={setYoutubeUrl}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="url"
-            />
-            {youtubeUrl.trim() !== "" && (
-              <Pressable onPress={() => setYoutubeUrl("")} className="p-2">
-                <X size={18} color={colors.mutedForeground} />
-              </Pressable>
-            )}
-          </View>
-
-          {/* Live YouTube preview */}
-          {youtubeUrl.trim() !== "" && extractVideoId(youtubeUrl.trim()) && (
-            <View className="mt-3">
-              <YouTubeEmbed url={youtubeUrl.trim()} height={200} />
-            </View>
-          )}
-        </View>
-
-        {/* Event Images */}
-        <View className="mb-6">
-          <View className="flex-row justify-between items-center mb-3">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
-              Event Images
-            </Text>
-            <Text className="text-xs text-muted-foreground">
-              {eventImages.length}/4
-            </Text>
-          </View>
-
-          <View className="flex-row flex-wrap gap-3">
-            {eventImages.map((uri, index) => (
-              <View
-                key={uri}
-                className="relative rounded-2xl overflow-hidden"
-                style={{ width: "48%", aspectRatio: 1 }}
-              >
-                <Image
-                  source={{ uri }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                />
-                <Pressable
-                  onPress={() => removeImage(index)}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
-                >
-                  <X size={16} color="#fff" />
-                </Pressable>
-                {index === 0 && (
-                  <View className="absolute bottom-2 left-2 bg-primary px-2 py-1 rounded-lg">
-                    <Text className="text-xs font-medium text-primary-foreground">
-                      Cover
-                    </Text>
-                  </View>
-                )}
-              </View>
-            ))}
-
-            {eventImages.length < 4 && (
-              <Pressable
-                onPress={handlePickImages}
-                className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border"
-                style={{
-                  width: "48%",
-                  aspectRatio: 1,
-                  justifyContent: "center",
+              <LocationAutocomplete
+                value={location}
+                placeholder="Search venue or address"
+                onLocationSelect={(data: LocationData) => {
+                  setLocation(data.name);
+                  setLocationData(data);
                 }}
-              >
-                <View className="items-center justify-center gap-2 mb-8">
-                  <View className="w-12 h-12 rounded-xl bg-muted items-center justify-center">
-                    <Plus size={24} color={colors.mutedForeground} />
+                onTextChange={(text: string) => {
+                  // Update location as user types (enables form validation)
+                  setLocation(text);
+                  // Clear coordinates since we only have text, not a selected place
+                  if (!text) {
+                    setLocationData(null);
+                  }
+                }}
+                onClear={() => {
+                  setLocation("");
+                  setLocationData(null);
+                }}
+              />
+
+              {locationData?.latitude && locationData?.longitude && (
+                <View
+                  className="mt-3 rounded-2xl overflow-hidden"
+                  style={{ height: 180 }}
+                >
+                  <DvntMap
+                    center={[locationData.longitude, locationData.latitude]}
+                    zoom={15}
+                    markers={[
+                      {
+                        id: "event-location",
+                        coordinate: [
+                          locationData.longitude,
+                          locationData.latitude,
+                        ],
+                      },
+                    ]}
+                    showControls={false}
+                  />
+                </View>
+              )}
+            </View>
+
+            {/* Event Settings — Visibility, Age, Virtual */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Event Settings
+              </Text>
+
+              {/* Virtual / Online toggle */}
+              <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center gap-3 flex-1 mr-3">
+                  <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                    <Wifi size={18} color={colors.primary} />
                   </View>
-                  <Text className="text-xs text-muted-foreground font-medium">
-                    Add Image
+                  <View>
+                    <Text className="text-sm font-semibold text-foreground">
+                      Virtual Event
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      Online-only, no physical venue
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isOnline}
+                  onValueChange={setIsOnline}
+                  trackColor={{ false: "#333", true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {/* Visibility */}
+              <View className="bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center gap-3 mb-3">
+                  <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                    <Globe size={18} color={colors.primary} />
+                  </View>
+                  <Text className="text-sm font-semibold text-foreground">
+                    Visibility
                   </Text>
                 </View>
-              </Pressable>
-            )}
-          </View>
-        </View>
+                <View className="flex-row gap-2">
+                  {(
+                    ["public", "private", "link_only"] as VisibilityOption[]
+                  ).map((opt) => {
+                    const labels: Record<VisibilityOption, string> = {
+                      public: "Public",
+                      private: "Private",
+                      link_only: "Link Only",
+                    };
+                    const isActive = visibility === opt;
+                    return (
+                      <Pressable
+                        key={opt}
+                        onPress={() => setVisibility(opt)}
+                        className="flex-1 py-2.5 rounded-xl items-center"
+                        style={{
+                          backgroundColor: isActive
+                            ? `${colors.primary}20`
+                            : "rgba(255,255,255,0.04)",
+                          borderWidth: 1,
+                          borderColor: isActive
+                            ? `${colors.primary}60`
+                            : "rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <Text
+                          className="text-xs font-semibold"
+                          style={{
+                            color: isActive
+                              ? colors.primary
+                              : colors.mutedForeground,
+                          }}
+                        >
+                          {labels[opt]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
 
-        {/* Tags */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Suggested Tags
-          </Text>
-          <View className="flex-row flex-wrap gap-2 mb-3">
-            {SUGGESTED_TAGS.map((tag) => (
-              <Pressable key={tag} onPress={() => toggleTag(tag)}>
-                <Badge variant={tags.includes(tag) ? "default" : "outline"}>
-                  <UIText>{tag}</UIText>
-                </Badge>
-              </Pressable>
-            ))}
-          </View>
+              {/* Age Restriction */}
+              <View className="bg-card rounded-2xl p-4">
+                <View className="flex-row items-center gap-3 mb-3">
+                  <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center">
+                    <Shield size={18} color={colors.primary} />
+                  </View>
+                  <Text className="text-sm font-semibold text-foreground">
+                    Age Restriction
+                  </Text>
+                </View>
+                <View className="flex-row gap-2">
+                  {(["none", "18+", "21+"] as AgeRestriction[]).map((opt) => {
+                    const labels: Record<AgeRestriction, string> = {
+                      none: "All Ages",
+                      "18+": "18+",
+                      "21+": "21+",
+                    };
+                    const isActive = ageRestriction === opt;
+                    return (
+                      <Pressable
+                        key={opt}
+                        onPress={() => setAgeRestriction(opt)}
+                        className="flex-1 py-2.5 rounded-xl items-center"
+                        style={{
+                          backgroundColor: isActive
+                            ? `${colors.primary}20`
+                            : "rgba(255,255,255,0.04)",
+                          borderWidth: 1,
+                          borderColor: isActive
+                            ? `${colors.primary}60`
+                            : "rgba(255,255,255,0.08)",
+                        }}
+                      >
+                        <Text
+                          className="text-xs font-semibold"
+                          style={{
+                            color: isActive
+                              ? colors.primary
+                              : colors.mutedForeground,
+                          }}
+                        >
+                          {labels[opt]}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </>
+        )}
 
-          {/* Selected custom tags */}
-          {tags.filter((t) => !SUGGESTED_TAGS.includes(t)).length > 0 && (
-            <View className="flex-row flex-wrap gap-2 mb-3">
-              {tags
-                .filter((t) => !SUGGESTED_TAGS.includes(t))
-                .map((tag) => (
+        {/* ==================== STEP 1: MEDIA ==================== */}
+        {currentStep === 1 && (
+          <>
+            {/* YouTube Video URL */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                YouTube Video (Optional)
+              </Text>
+              <View className="flex-row items-center bg-card rounded-2xl px-4">
+                <Youtube size={20} color={colors.primary} />
+                <TextInput
+                  className="flex-1 ml-3 py-4 text-base text-foreground"
+                  placeholder="Paste YouTube URL or video ID"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={youtubeUrl}
+                  onChangeText={setYoutubeUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                />
+                {youtubeUrl.trim() !== "" && (
+                  <Pressable onPress={() => setYoutubeUrl("")} className="p-2">
+                    <X size={18} color={colors.mutedForeground} />
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Live YouTube preview */}
+              {youtubeUrl.trim() !== "" &&
+                extractVideoId(youtubeUrl.trim()) && (
+                  <View className="mt-3">
+                    <YouTubeEmbed url={youtubeUrl.trim()} height={200} />
+                  </View>
+                )}
+            </View>
+
+            {/* Event Images */}
+            <View className="mb-6">
+              <View className="flex-row justify-between items-center mb-3">
+                <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Event Images
+                </Text>
+                <Text className="text-xs text-muted-foreground">
+                  {eventImages.length}/4
+                </Text>
+              </View>
+
+              <View className="flex-row flex-wrap gap-3">
+                {eventImages.map((uri, index) => (
+                  <View
+                    key={uri}
+                    className="relative rounded-2xl overflow-hidden"
+                    style={{ width: "48%", aspectRatio: 1 }}
+                  >
+                    <Image
+                      source={{ uri }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                    <Pressable
+                      onPress={() => removeImage(index)}
+                      className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
+                    >
+                      <X size={16} color="#fff" />
+                    </Pressable>
+                    {index === 0 && (
+                      <View className="absolute bottom-2 left-2 bg-primary px-2 py-1 rounded-lg">
+                        <Text className="text-xs font-medium text-primary-foreground">
+                          Cover
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+
+                {eventImages.length < 4 && (
+                  <Pressable
+                    onPress={handlePickImages}
+                    className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border"
+                    style={{
+                      width: "48%",
+                      aspectRatio: 1,
+                      justifyContent: "center",
+                    }}
+                  >
+                    <View className="items-center justify-center gap-2 mb-8">
+                      <View className="w-12 h-12 rounded-xl bg-muted items-center justify-center">
+                        <Plus size={24} color={colors.mutedForeground} />
+                      </View>
+                      <Text className="text-xs text-muted-foreground font-medium">
+                        Add Image
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* ==================== STEP 3: DETAILS ==================== */}
+        {currentStep === 3 && (
+          <>
+            {/* Tags */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Suggested Tags
+              </Text>
+              <View className="flex-row flex-wrap gap-2 mb-3">
+                {SUGGESTED_TAGS.map((tag) => (
                   <Pressable key={tag} onPress={() => toggleTag(tag)}>
-                    <Badge variant="secondary">
+                    <Badge variant={tags.includes(tag) ? "default" : "outline"}>
                       <UIText>{tag}</UIText>
-                      <X size={12} color={colors.secondaryForeground} />
                     </Badge>
                   </Pressable>
                 ))}
-            </View>
-          )}
-
-          {/* Add custom tag */}
-          <View className="flex-row items-center bg-card rounded-2xl px-4 gap-2">
-            <Tag size={18} color={colors.mutedForeground} />
-            <TextInput
-              className="flex-1 py-4 text-base text-foreground"
-              placeholder="Add custom tag..."
-              placeholderTextColor={colors.mutedForeground}
-              value={customTag}
-              onChangeText={setCustomTag}
-              onSubmitEditing={addCustomTag}
-              returnKeyType="done"
-            />
-            {customTag.trim() && (
-              <Pressable onPress={addCustomTag} className="p-2">
-                <Plus size={20} color={colors.primary} />
-              </Pressable>
-            )}
-          </View>
-        </View>
-
-        {/* Enrichment Fields — Dress Code, Door Policy, Lineup, Perks */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Event Details (Optional)
-          </Text>
-
-          {/* Dress Code */}
-          <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-            <Shirt size={18} color={colors.mutedForeground} />
-            <TextInput
-              className="flex-1 ml-3 py-4 text-base text-foreground"
-              placeholder="Dress code (e.g. Smart Casual)"
-              placeholderTextColor={colors.mutedForeground}
-              value={dressCode}
-              onChangeText={setDressCode}
-            />
-          </View>
-
-          {/* Door Policy */}
-          <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-            <DoorOpen size={18} color={colors.mutedForeground} />
-            <TextInput
-              className="flex-1 ml-3 py-4 text-base text-foreground"
-              placeholder="Door policy (e.g. Guest list only)"
-              placeholderTextColor={colors.mutedForeground}
-              value={doorPolicy}
-              onChangeText={setDoorPolicy}
-            />
-          </View>
-
-          {/* Lineup */}
-          <View className="bg-card rounded-2xl p-4 mb-3">
-            <View className="flex-row items-center gap-2 mb-3">
-              <Music size={18} color={colors.mutedForeground} />
-              <Text className="text-sm font-semibold text-foreground">
-                Lineup / Performers
-              </Text>
-            </View>
-            {lineup.length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {lineup.map((performer, idx) => (
-                  <View
-                    key={idx}
-                    className="flex-row items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full"
-                  >
-                    <Text className="text-sm text-foreground">{performer}</Text>
-                    <Pressable
-                      onPress={() => removeLineupItem(idx)}
-                      hitSlop={8}
-                    >
-                      <X size={12} color={colors.mutedForeground} />
-                    </Pressable>
-                  </View>
-                ))}
               </View>
-            )}
-            <View className="flex-row items-center gap-2">
-              <TextInput
-                className="flex-1 py-2.5 text-base text-foreground"
-                placeholder="Add performer name..."
-                placeholderTextColor={colors.mutedForeground}
-                value={lineupInput}
-                onChangeText={setLineupInput}
-                onSubmitEditing={addLineupItem}
-                returnKeyType="done"
-              />
-              {lineupInput.trim() !== "" && (
-                <Pressable onPress={addLineupItem} className="p-2">
-                  <Plus size={20} color={colors.primary} />
-                </Pressable>
+
+              {/* Selected custom tags */}
+              {tags.filter((t) => !SUGGESTED_TAGS.includes(t)).length > 0 && (
+                <View className="flex-row flex-wrap gap-2 mb-3">
+                  {tags
+                    .filter((t) => !SUGGESTED_TAGS.includes(t))
+                    .map((tag) => (
+                      <Pressable key={tag} onPress={() => toggleTag(tag)}>
+                        <Badge variant="secondary">
+                          <UIText>{tag}</UIText>
+                          <X size={12} color={colors.secondaryForeground} />
+                        </Badge>
+                      </Pressable>
+                    ))}
+                </View>
               )}
-            </View>
-          </View>
 
-          {/* Perks */}
-          <View className="bg-card rounded-2xl p-4">
-            <View className="flex-row items-center gap-2 mb-3">
-              <Gift size={18} color={colors.mutedForeground} />
-              <Text className="text-sm font-semibold text-foreground">
-                Perks / What's Included
-              </Text>
-            </View>
-            {perks.length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {perks.map((perk, idx) => (
-                  <View
-                    key={idx}
-                    className="flex-row items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full"
-                  >
-                    <Text className="text-sm text-foreground">{perk}</Text>
-                    <Pressable onPress={() => removePerk(idx)} hitSlop={8}>
-                      <X size={12} color={colors.mutedForeground} />
-                    </Pressable>
-                  </View>
-                ))}
+              {/* Add custom tag */}
+              <View className="flex-row items-center bg-card rounded-2xl px-4 gap-2">
+                <Tag size={18} color={colors.mutedForeground} />
+                <TextInput
+                  className="flex-1 py-4 text-base text-foreground"
+                  placeholder="Add custom tag..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={customTag}
+                  onChangeText={setCustomTag}
+                  onSubmitEditing={addCustomTag}
+                  returnKeyType="done"
+                />
+                {customTag.trim() && (
+                  <Pressable onPress={addCustomTag} className="p-2">
+                    <Plus size={20} color={colors.primary} />
+                  </Pressable>
+                )}
               </View>
-            )}
-            <View className="flex-row items-center gap-2">
-              <TextInput
-                className="flex-1 py-2.5 text-base text-foreground"
-                placeholder="Add perk (e.g. Open bar, VIP access)"
-                placeholderTextColor={colors.mutedForeground}
-                value={perksInput}
-                onChangeText={setPerksInput}
-                onSubmitEditing={addPerk}
-                returnKeyType="done"
-              />
-              {perksInput.trim() !== "" && (
-                <Pressable onPress={addPerk} className="p-2">
-                  <Plus size={20} color={colors.primary} />
-                </Pressable>
-              )}
             </View>
-          </View>
-        </View>
 
-        {/* Co-Organizers */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Co-Organizers
-          </Text>
-          <View className="bg-card rounded-2xl p-4">
-            <View className="flex-row items-center gap-2 mb-3">
-              <UserPlus size={18} color={colors.mutedForeground} />
-              <Text className="text-sm font-semibold text-foreground">
-                Invite Co-Organizers
+            {/* Enrichment Fields — Dress Code, Door Policy, Lineup, Perks */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Event Details (Optional)
               </Text>
-            </View>
 
-            {/* Selected co-organizers */}
-            {coOrganizers.length > 0 && (
-              <View className="flex-row flex-wrap gap-2 mb-3">
-                {coOrganizers.map((org) => (
-                  <View
-                    key={org.id}
-                    className="flex-row items-center gap-2 bg-muted px-3 py-1.5 rounded-full"
-                  >
-                    <Avatar
-                      uri={org.avatar}
-                      username={org.username}
-                      size={20}
-                    />
-                    <Text className="text-sm text-foreground">
-                      @{org.username}
-                    </Text>
-                    <Pressable
-                      onPress={() => removeCoOrganizer(org.id)}
-                      hitSlop={8}
-                    >
-                      <X size={12} color={colors.mutedForeground} />
-                    </Pressable>
-                  </View>
-                ))}
+              {/* Dress Code */}
+              <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                <Shirt size={18} color={colors.mutedForeground} />
+                <TextInput
+                  className="flex-1 ml-3 py-4 text-base text-foreground"
+                  placeholder="Dress code (e.g. Smart Casual)"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={dressCode}
+                  onChangeText={setDressCode}
+                />
               </View>
-            )}
 
-            {/* Search input */}
-            <TextInput
-              className="py-2.5 text-base text-foreground"
-              placeholder="Search by username..."
-              placeholderTextColor={colors.mutedForeground}
-              value={coOrganizerSearch}
-              onChangeText={setCoOrganizerSearch}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+              {/* Door Policy */}
+              <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                <DoorOpen size={18} color={colors.mutedForeground} />
+                <TextInput
+                  className="flex-1 ml-3 py-4 text-base text-foreground"
+                  placeholder="Door policy (e.g. Guest list only)"
+                  placeholderTextColor={colors.mutedForeground}
+                  value={doorPolicy}
+                  onChangeText={setDoorPolicy}
+                />
+              </View>
 
-            {/* Search results */}
-            {coOrganizerResults.length > 0 && (
-              <View className="mt-2 border-t border-border pt-2">
-                {coOrganizerResults
-                  .filter((u) => !coOrganizers.some((c) => c.id === u.id))
-                  .map((user) => (
-                    <Pressable
-                      key={user.id}
-                      onPress={() =>
-                        addCoOrganizer({
-                          id: user.id,
-                          username: user.username,
-                          avatar: user.avatar,
-                        })
-                      }
-                      className="flex-row items-center gap-3 py-2.5"
-                    >
-                      <Avatar
-                        uri={user.avatar}
-                        username={user.username}
-                        size={32}
-                      />
-                      <View className="flex-1">
-                        <Text className="text-sm font-semibold text-foreground">
-                          {user.name}
+              {/* Lineup */}
+              <View className="bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center gap-2 mb-3">
+                  <Music size={18} color={colors.mutedForeground} />
+                  <Text className="text-sm font-semibold text-foreground">
+                    Lineup / Performers
+                  </Text>
+                </View>
+                {lineup.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2 mb-3">
+                    {lineup.map((performer, idx) => (
+                      <View
+                        key={idx}
+                        className="flex-row items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full"
+                      >
+                        <Text className="text-sm text-foreground">
+                          {performer}
                         </Text>
-                        <Text className="text-xs text-muted-foreground">
-                          @{user.username}
-                        </Text>
+                        <Pressable
+                          onPress={() => removeLineupItem(idx)}
+                          hitSlop={8}
+                        >
+                          <X size={12} color={colors.mutedForeground} />
+                        </Pressable>
                       </View>
-                      <Plus size={16} color={colors.primary} />
+                    ))}
+                  </View>
+                )}
+                <View className="flex-row items-center gap-2">
+                  <TextInput
+                    className="flex-1 py-2.5 text-base text-foreground"
+                    placeholder="Add performer name..."
+                    placeholderTextColor={colors.mutedForeground}
+                    value={lineupInput}
+                    onChangeText={setLineupInput}
+                    onSubmitEditing={addLineupItem}
+                    returnKeyType="done"
+                  />
+                  {lineupInput.trim() !== "" && (
+                    <Pressable onPress={addLineupItem} className="p-2">
+                      <Plus size={20} color={colors.primary} />
                     </Pressable>
-                  ))}
+                  )}
+                </View>
               </View>
-            )}
-          </View>
-        </View>
 
-        {/* Ticketing */}
-        <View className="mb-6">
-          <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-            Ticketing
-          </Text>
-
-          {/* Ticketing toggle */}
-          <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
-            <View className="flex-1 mr-3">
-              <Text className="text-sm font-semibold text-foreground">
-                Enable Paid Ticketing
-              </Text>
-              <Text className="text-xs text-muted-foreground mt-0.5">
-                Sell tickets via Stripe (5% + $1/ticket fee)
-              </Text>
+              {/* Perks */}
+              <View className="bg-card rounded-2xl p-4">
+                <View className="flex-row items-center gap-2 mb-3">
+                  <Gift size={18} color={colors.mutedForeground} />
+                  <Text className="text-sm font-semibold text-foreground">
+                    Perks / What's Included
+                  </Text>
+                </View>
+                {perks.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2 mb-3">
+                    {perks.map((perk, idx) => (
+                      <View
+                        key={idx}
+                        className="flex-row items-center gap-1.5 bg-muted px-3 py-1.5 rounded-full"
+                      >
+                        <Text className="text-sm text-foreground">{perk}</Text>
+                        <Pressable onPress={() => removePerk(idx)} hitSlop={8}>
+                          <X size={12} color={colors.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                <View className="flex-row items-center gap-2">
+                  <TextInput
+                    className="flex-1 py-2.5 text-base text-foreground"
+                    placeholder="Add perk (e.g. Open bar, VIP access)"
+                    placeholderTextColor={colors.mutedForeground}
+                    value={perksInput}
+                    onChangeText={setPerksInput}
+                    onSubmitEditing={addPerk}
+                    returnKeyType="done"
+                  />
+                  {perksInput.trim() !== "" && (
+                    <Pressable onPress={addPerk} className="p-2">
+                      <Plus size={20} color={colors.primary} />
+                    </Pressable>
+                  )}
+                </View>
+              </View>
             </View>
-            <Switch
-              value={ticketingEnabled}
-              onValueChange={setTicketingEnabled}
-              trackColor={{ false: "#333", true: colors.primary }}
-              thumbColor="#fff"
-            />
-          </View>
 
-          {ticketingEnabled && (
-            <>
-              {/* Default single tier name (used if no multi-tiers added) */}
-              {ticketTiers.length === 0 && (
-                <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-                  <Ticket size={18} color={colors.mutedForeground} />
+            {/* Co-Organizers */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Co-Organizers
+              </Text>
+              <View className="bg-card rounded-2xl p-4">
+                <View className="flex-row items-center gap-2 mb-3">
+                  <UserPlus size={18} color={colors.mutedForeground} />
+                  <Text className="text-sm font-semibold text-foreground">
+                    Invite Co-Organizers
+                  </Text>
+                </View>
+
+                {/* Selected co-organizers */}
+                {coOrganizers.length > 0 && (
+                  <View className="flex-row flex-wrap gap-2 mb-3">
+                    {coOrganizers.map((org) => (
+                      <View
+                        key={org.id}
+                        className="flex-row items-center gap-2 bg-muted px-3 py-1.5 rounded-full"
+                      >
+                        <Avatar
+                          uri={org.avatar}
+                          username={org.username}
+                          size={20}
+                        />
+                        <Text className="text-sm text-foreground">
+                          @{org.username}
+                        </Text>
+                        <Pressable
+                          onPress={() => removeCoOrganizer(org.id)}
+                          hitSlop={8}
+                        >
+                          <X size={12} color={colors.mutedForeground} />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Search input */}
+                <TextInput
+                  className="py-2.5 text-base text-foreground"
+                  placeholder="Search by username..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={coOrganizerSearch}
+                  onChangeText={setCoOrganizerSearch}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+
+                {/* Search results */}
+                {coOrganizerResults.length > 0 && (
+                  <View className="mt-2 border-t border-border pt-2">
+                    {coOrganizerResults
+                      .filter((u) => !coOrganizers.some((c) => c.id === u.id))
+                      .map((user) => (
+                        <Pressable
+                          key={user.id}
+                          onPress={() =>
+                            addCoOrganizer({
+                              id: user.id,
+                              username: user.username,
+                              avatar: user.avatar,
+                            })
+                          }
+                          className="flex-row items-center gap-3 py-2.5"
+                        >
+                          <Avatar
+                            uri={user.avatar}
+                            username={user.username}
+                            size={32}
+                          />
+                          <View className="flex-1">
+                            <Text className="text-sm font-semibold text-foreground">
+                              {user.name}
+                            </Text>
+                            <Text className="text-xs text-muted-foreground">
+                              @{user.username}
+                            </Text>
+                          </View>
+                          <Plus size={16} color={colors.primary} />
+                        </Pressable>
+                      ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Ticketing */}
+            <View className="mb-6">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                Ticketing
+              </Text>
+
+              {/* Ticketing toggle */}
+              <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-1 mr-3">
+                  <Text className="text-sm font-semibold text-foreground">
+                    Enable Paid Ticketing
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-0.5">
+                    Sell tickets via Stripe (5% + $1/ticket fee)
+                  </Text>
+                </View>
+                <Switch
+                  value={ticketingEnabled}
+                  onValueChange={setTicketingEnabled}
+                  trackColor={{ false: "#333", true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {ticketingEnabled && (
+                <>
+                  {/* Default single tier name (used if no multi-tiers added) */}
+                  {ticketTiers.length === 0 && (
+                    <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                      <Ticket size={18} color={colors.mutedForeground} />
+                      <TextInput
+                        className="flex-1 ml-3 py-4 text-base text-foreground"
+                        placeholder="Ticket tier name (e.g. General Admission)"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={ticketTierName}
+                        onChangeText={setTicketTierName}
+                      />
+                    </View>
+                  )}
+
+                  {/* Multi-tier ticket list */}
+                  {ticketTiers.map((tier, idx) => (
+                    <View
+                      key={tier.id}
+                      className="bg-card rounded-2xl p-4 mb-3"
+                    >
+                      <View className="flex-row items-center justify-between mb-3">
+                        <Text className="text-sm font-semibold text-foreground">
+                          Tier {idx + 1}
+                        </Text>
+                        <Pressable
+                          onPress={() =>
+                            setTicketTiers((prev) =>
+                              prev.filter((t) => t.id !== tier.id),
+                            )
+                          }
+                          hitSlop={12}
+                        >
+                          <Trash2 size={16} color="#EF4444" />
+                        </Pressable>
+                      </View>
+
+                      <TextInput
+                        className="bg-muted rounded-xl px-4 py-3 text-base text-foreground mb-2"
+                        placeholder="Tier name (e.g. VIP, Early Bird)"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={tier.name}
+                        onChangeText={(v) =>
+                          setTicketTiers((prev) =>
+                            prev.map((t) =>
+                              t.id === tier.id ? { ...t, name: v } : t,
+                            ),
+                          )
+                        }
+                      />
+
+                      <TextInput
+                        className="bg-muted rounded-xl px-4 py-3 text-base text-foreground mb-2"
+                        placeholder="Description (optional)"
+                        placeholderTextColor={colors.mutedForeground}
+                        value={tier.description}
+                        onChangeText={(v) =>
+                          setTicketTiers((prev) =>
+                            prev.map((t) =>
+                              t.id === tier.id ? { ...t, description: v } : t,
+                            ),
+                          )
+                        }
+                      />
+
+                      <View className="flex-row gap-2 mb-2">
+                        <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
+                          <DollarSign
+                            size={14}
+                            color={colors.mutedForeground}
+                          />
+                          <TextInput
+                            className="flex-1 ml-2 py-3 text-sm text-foreground"
+                            placeholder="Price"
+                            placeholderTextColor={colors.mutedForeground}
+                            value={
+                              tier.priceCents > 0
+                                ? (tier.priceCents / 100).toString()
+                                : ""
+                            }
+                            onChangeText={(v) =>
+                              setTicketTiers((prev) =>
+                                prev.map((t) =>
+                                  t.id === tier.id
+                                    ? {
+                                        ...t,
+                                        priceCents: v
+                                          ? Math.round(parseFloat(v) * 100)
+                                          : 0,
+                                      }
+                                    : t,
+                                ),
+                              )
+                            }
+                            keyboardType="decimal-pad"
+                          />
+                        </View>
+                        <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
+                          <Users size={14} color={colors.mutedForeground} />
+                          <TextInput
+                            className="flex-1 ml-2 py-3 text-sm text-foreground"
+                            placeholder="Quantity"
+                            placeholderTextColor={colors.mutedForeground}
+                            value={
+                              tier.quantity > 0 ? tier.quantity.toString() : ""
+                            }
+                            onChangeText={(v) =>
+                              setTicketTiers((prev) =>
+                                prev.map((t) =>
+                                  t.id === tier.id
+                                    ? {
+                                        ...t,
+                                        quantity: v ? parseInt(v, 10) : 0,
+                                      }
+                                    : t,
+                                ),
+                              )
+                            }
+                            keyboardType="number-pad"
+                          />
+                        </View>
+                        <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
+                          <TextInput
+                            className="flex-1 py-3 text-sm text-foreground"
+                            placeholder="Max/user"
+                            placeholderTextColor={colors.mutedForeground}
+                            value={
+                              tier.maxPerUser > 0
+                                ? tier.maxPerUser.toString()
+                                : ""
+                            }
+                            onChangeText={(v) =>
+                              setTicketTiers((prev) =>
+                                prev.map((t) =>
+                                  t.id === tier.id
+                                    ? {
+                                        ...t,
+                                        maxPerUser: v ? parseInt(v, 10) : 4,
+                                      }
+                                    : t,
+                                ),
+                              )
+                            }
+                            keyboardType="number-pad"
+                          />
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Add tier button */}
+                  <Pressable
+                    onPress={() =>
+                      setTicketTiers((prev) => [
+                        ...prev,
+                        {
+                          id: `tier-${Date.now()}`,
+                          name: "",
+                          priceCents: 0,
+                          quantity: 100,
+                          maxPerUser: 4,
+                          description: "",
+                          saleStart: "",
+                          saleEnd: "",
+                        },
+                      ])
+                    }
+                    className="flex-row items-center justify-center gap-2 bg-card rounded-2xl p-4 mb-3 border border-dashed border-border"
+                  >
+                    <Plus size={16} color={colors.primary} />
+                    <Text className="text-sm font-semibold text-primary">
+                      {ticketTiers.length === 0
+                        ? "Add Multiple Ticket Tiers"
+                        : "Add Another Tier"}
+                    </Text>
+                  </Pressable>
+                </>
+              )}
+
+              <View className="flex-row gap-3">
+                <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
+                  <DollarSign size={18} color={colors.mutedForeground} />
                   <TextInput
                     className="flex-1 ml-3 py-4 text-base text-foreground"
-                    placeholder="Ticket tier name (e.g. General Admission)"
+                    placeholder="Price (0 = free)"
                     placeholderTextColor={colors.mutedForeground}
-                    value={ticketTierName}
-                    onChangeText={setTicketTierName}
+                    value={ticketPrice}
+                    onChangeText={setTicketPrice}
+                    keyboardType="decimal-pad"
                   />
                 </View>
-              )}
 
-              {/* Multi-tier ticket list */}
-              {ticketTiers.map((tier, idx) => (
-                <View key={tier.id} className="bg-card rounded-2xl p-4 mb-3">
-                  <View className="flex-row items-center justify-between mb-3">
-                    <Text className="text-sm font-semibold text-foreground">
-                      Tier {idx + 1}
-                    </Text>
-                    <Pressable
-                      onPress={() =>
-                        setTicketTiers((prev) =>
-                          prev.filter((t) => t.id !== tier.id),
-                        )
-                      }
-                      hitSlop={12}
-                    >
-                      <Trash2 size={16} color="#EF4444" />
-                    </Pressable>
-                  </View>
-
+                <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
+                  <Users size={18} color={colors.mutedForeground} />
                   <TextInput
-                    className="bg-muted rounded-xl px-4 py-3 text-base text-foreground mb-2"
-                    placeholder="Tier name (e.g. VIP, Early Bird)"
+                    className="flex-1 ml-3 py-4 text-base text-foreground"
+                    placeholder="Max attendees"
                     placeholderTextColor={colors.mutedForeground}
-                    value={tier.name}
-                    onChangeText={(v) =>
-                      setTicketTiers((prev) =>
-                        prev.map((t) =>
-                          t.id === tier.id ? { ...t, name: v } : t,
-                        ),
-                      )
-                    }
+                    value={maxAttendees}
+                    onChangeText={setMaxAttendees}
+                    keyboardType="number-pad"
                   />
-
-                  <TextInput
-                    className="bg-muted rounded-xl px-4 py-3 text-base text-foreground mb-2"
-                    placeholder="Description (optional)"
-                    placeholderTextColor={colors.mutedForeground}
-                    value={tier.description}
-                    onChangeText={(v) =>
-                      setTicketTiers((prev) =>
-                        prev.map((t) =>
-                          t.id === tier.id ? { ...t, description: v } : t,
-                        ),
-                      )
-                    }
-                  />
-
-                  <View className="flex-row gap-2 mb-2">
-                    <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
-                      <DollarSign size={14} color={colors.mutedForeground} />
-                      <TextInput
-                        className="flex-1 ml-2 py-3 text-sm text-foreground"
-                        placeholder="Price"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={
-                          tier.priceCents > 0
-                            ? (tier.priceCents / 100).toString()
-                            : ""
-                        }
-                        onChangeText={(v) =>
-                          setTicketTiers((prev) =>
-                            prev.map((t) =>
-                              t.id === tier.id
-                                ? {
-                                    ...t,
-                                    priceCents: v
-                                      ? Math.round(parseFloat(v) * 100)
-                                      : 0,
-                                  }
-                                : t,
-                            ),
-                          )
-                        }
-                        keyboardType="decimal-pad"
-                      />
-                    </View>
-                    <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
-                      <Users size={14} color={colors.mutedForeground} />
-                      <TextInput
-                        className="flex-1 ml-2 py-3 text-sm text-foreground"
-                        placeholder="Quantity"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={
-                          tier.quantity > 0 ? tier.quantity.toString() : ""
-                        }
-                        onChangeText={(v) =>
-                          setTicketTiers((prev) =>
-                            prev.map((t) =>
-                              t.id === tier.id
-                                ? { ...t, quantity: v ? parseInt(v, 10) : 0 }
-                                : t,
-                            ),
-                          )
-                        }
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                    <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
-                      <TextInput
-                        className="flex-1 py-3 text-sm text-foreground"
-                        placeholder="Max/user"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={
-                          tier.maxPerUser > 0 ? tier.maxPerUser.toString() : ""
-                        }
-                        onChangeText={(v) =>
-                          setTicketTiers((prev) =>
-                            prev.map((t) =>
-                              t.id === tier.id
-                                ? { ...t, maxPerUser: v ? parseInt(v, 10) : 4 }
-                                : t,
-                            ),
-                          )
-                        }
-                        keyboardType="number-pad"
-                      />
-                    </View>
-                  </View>
                 </View>
-              ))}
+              </View>
+            </View>
 
-              {/* Add tier button */}
-              <Pressable
-                onPress={() =>
-                  setTicketTiers((prev) => [
-                    ...prev,
-                    {
-                      id: `tier-${Date.now()}`,
-                      name: "",
-                      priceCents: 0,
-                      quantity: 100,
-                      maxPerUser: 4,
-                      description: "",
-                      saleStart: "",
-                      saleEnd: "",
-                    },
-                  ])
-                }
-                className="flex-row items-center justify-center gap-2 bg-card rounded-2xl p-4 mb-3 border border-dashed border-border"
+            {/* Info Card */}
+            <View className="flex-row bg-card rounded-2xl p-4 gap-3.5 border border-border">
+              <View
+                className="w-11 h-11 rounded-xl items-center justify-center"
+                style={{ backgroundColor: `${colors.primary}20` }}
               >
-                <Plus size={16} color={colors.primary} />
-                <Text className="text-sm font-semibold text-primary">
-                  {ticketTiers.length === 0
-                    ? "Add Multiple Ticket Tiers"
-                    : "Add Another Tier"}
+                <Ticket size={20} color={colors.primary} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-foreground mb-1">
+                  Secure Ticketing
                 </Text>
-              </Pressable>
-            </>
-          )}
+                <Text className="text-sm text-muted-foreground leading-5">
+                  Each ticket will be generated with a unique QR code for secure
+                  check-in. Attendees can add tickets to Apple Wallet or Google
+                  Wallet.
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
 
-          <View className="flex-row gap-3">
-            <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
-              <DollarSign size={18} color={colors.mutedForeground} />
-              <TextInput
-                className="flex-1 ml-3 py-4 text-base text-foreground"
-                placeholder="Price (0 = free)"
-                placeholderTextColor={colors.mutedForeground}
-                value={ticketPrice}
-                onChangeText={setTicketPrice}
-                keyboardType="decimal-pad"
-              />
+        {/* ==================== STEP 4: REVIEW ==================== */}
+        {currentStep === 4 && (
+          <View className="gap-4">
+            <Text className="text-lg font-semibold text-foreground mb-2">
+              Review Your Event
+            </Text>
+
+            {/* Title */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                Title
+              </Text>
+              <Text className="text-base font-semibold text-foreground">
+                {title || "—"}
+              </Text>
             </View>
 
-            <View className="flex-1 flex-row items-center bg-card rounded-2xl px-4">
-              <Users size={18} color={colors.mutedForeground} />
-              <TextInput
-                className="flex-1 ml-3 py-4 text-base text-foreground"
-                placeholder="Max attendees"
-                placeholderTextColor={colors.mutedForeground}
-                value={maxAttendees}
-                onChangeText={setMaxAttendees}
-                keyboardType="number-pad"
-              />
+            {/* Description */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                Description
+              </Text>
+              <Text className="text-sm text-foreground" numberOfLines={4}>
+                {description || "—"}
+              </Text>
+            </View>
+
+            {/* Date & Time */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                Date & Time
+              </Text>
+              <Text className="text-sm text-foreground">
+                {formatDate(eventDate)} at {formatTime(eventDate)}
+                {endDate
+                  ? ` — ${formatDate(endDate)} at ${formatTime(endDate)}`
+                  : ""}
+              </Text>
+            </View>
+
+            {/* Location */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                {isOnline ? "Virtual Event" : "Location"}
+              </Text>
+              <Text className="text-sm text-foreground">{location || "—"}</Text>
+            </View>
+
+            {/* Media */}
+            {(eventImages.length > 0 || youtubeUrl.trim()) && (
+              <View className="bg-card rounded-2xl p-4">
+                <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                  Media
+                </Text>
+                {eventImages.length > 0 && (
+                  <View className="flex-row gap-2 mb-2">
+                    {eventImages.map((uri) => (
+                      <Image
+                        key={uri}
+                        source={{ uri }}
+                        style={{ width: 56, height: 56, borderRadius: 12 }}
+                        contentFit="cover"
+                      />
+                    ))}
+                  </View>
+                )}
+                {youtubeUrl.trim() !== "" && (
+                  <Text className="text-sm text-muted-foreground">
+                    YouTube: {youtubeUrl}
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* Tags */}
+            {tags.length > 0 && (
+              <View className="bg-card rounded-2xl p-4">
+                <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                  Tags
+                </Text>
+                <View className="flex-row flex-wrap gap-2">
+                  {tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      <UIText>{tag}</UIText>
+                    </Badge>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Settings summary */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-xs text-muted-foreground uppercase tracking-wide mb-2">
+                Settings
+              </Text>
+              <View className="gap-1.5">
+                <Text className="text-sm text-foreground">
+                  Visibility:{" "}
+                  {visibility === "link_only"
+                    ? "Link Only"
+                    : visibility.charAt(0).toUpperCase() + visibility.slice(1)}
+                </Text>
+                {ageRestriction !== "none" && (
+                  <Text className="text-sm text-foreground">
+                    Age: {ageRestriction}
+                  </Text>
+                )}
+                {ticketingEnabled && (
+                  <Text className="text-sm text-foreground">
+                    Ticketing: Enabled{" "}
+                    {ticketTiers.length > 0
+                      ? `(${ticketTiers.length} tiers)`
+                      : ""}
+                  </Text>
+                )}
+                {coOrganizers.length > 0 && (
+                  <Text className="text-sm text-foreground">
+                    Co-organizers:{" "}
+                    {coOrganizers.map((c) => `@${c.username}`).join(", ")}
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
-        </View>
-
-        {/* Info Card */}
-        <View className="flex-row bg-card rounded-2xl p-4 gap-3.5 border border-border">
-          <View
-            className="w-11 h-11 rounded-xl items-center justify-center"
-            style={{ backgroundColor: `${colors.primary}20` }}
-          >
-            <Ticket size={20} color={colors.primary} />
-          </View>
-          <View className="flex-1">
-            <Text className="text-base font-semibold text-foreground mb-1">
-              Secure Ticketing
-            </Text>
-            <Text className="text-sm text-muted-foreground leading-5">
-              Each ticket will be generated with a unique QR code for secure
-              check-in. Attendees can add tickets to Apple Wallet or Google
-              Wallet.
-            </Text>
-          </View>
-        </View>
+        )}
       </KeyboardAwareScrollView>
+
+      {/* ==================== WIZARD FOOTER ==================== */}
+      <View
+        className="flex-row items-center justify-between px-5 py-3 border-t border-border bg-background"
+        style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+      >
+        {/* Back button */}
+        {currentStep > 0 ? (
+          <Pressable
+            onPress={prevStep}
+            className="flex-row items-center gap-1.5 px-5 py-3 rounded-full bg-card border border-border"
+          >
+            <ChevronLeft size={16} color={colors.foreground} />
+            <Text className="text-sm font-semibold text-foreground">Back</Text>
+          </Pressable>
+        ) : (
+          <View />
+        )}
+
+        {/* Next / Create button */}
+        {currentStep < totalSteps - 1 ? (
+          <Pressable
+            onPress={() => {
+              if (canProceed()) nextStep();
+            }}
+            className="flex-row items-center gap-1.5 px-6 py-3 rounded-full"
+            style={{
+              backgroundColor: canProceed()
+                ? colors.primary
+                : `${colors.primary}40`,
+            }}
+          >
+            <Text className="text-sm font-semibold text-primary-foreground">
+              Next
+            </Text>
+            <ChevronRight size={16} color="#fff" />
+          </Pressable>
+        ) : (
+          <Pressable
+            onPress={() => {
+              if (!isSubmitting && isValid) handleSubmit();
+            }}
+            disabled={isSubmitting || !isValid}
+            className="flex-row items-center gap-1.5 px-6 py-3 rounded-full"
+            style={{
+              backgroundColor:
+                isValid && !isSubmitting
+                  ? colors.primary
+                  : `${colors.primary}40`,
+            }}
+          >
+            <Check size={16} color="#fff" />
+            <Text className="text-sm font-semibold text-primary-foreground">
+              {isSubmitting ? "Creating..." : "Create Event"}
+            </Text>
+          </Pressable>
+        )}
+      </View>
 
       {/* Progress Overlay */}
       {isSubmitting && (
