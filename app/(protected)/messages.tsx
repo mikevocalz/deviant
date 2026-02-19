@@ -535,7 +535,12 @@ export default function MessagesScreen() {
 
   const isLoading = inboxLoading && inboxConversations.length === 0;
 
+  // Track user-initiated pull-to-refresh so background refetches don't show spinner
+  const isManualRefresh = useRef(false);
+  if (!inboxRefetching) isManualRefresh.current = false;
+
   const handleRefresh = useCallback(() => {
+    isManualRefresh.current = true;
     queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
   }, [queryClient]);
 
@@ -718,7 +723,7 @@ export default function MessagesScreen() {
         <View key="inbox" style={{ flex: 1 }}>
           <ConversationList
             conversations={inboxConversations}
-            isRefreshing={inboxRefetching}
+            isRefreshing={isManualRefresh.current && inboxRefetching}
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
@@ -732,7 +737,7 @@ export default function MessagesScreen() {
         <View key="requests" style={{ flex: 1 }}>
           <ConversationList
             conversations={spamConversations}
-            isRefreshing={inboxRefetching}
+            isRefreshing={isManualRefresh.current && inboxRefetching}
             onRefresh={handleRefresh}
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
