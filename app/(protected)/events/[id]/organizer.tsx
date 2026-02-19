@@ -7,7 +7,7 @@
  * - See check-in status
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -26,12 +26,15 @@ import {
   ArrowLeft,
   User,
   Settings,
+  WifiOff,
+  CloudUpload,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
-// import { ticketsApi } from "@/lib/api/tickets";
+import { ticketsApi } from "@/lib/api/tickets";
 import { TicketQRScanner } from "@/components/ticket-qr-scanner";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 
 interface Ticket {
   id: string;
@@ -56,6 +59,67 @@ export default function EventOrganizerScreen() {
   const [showScanner, setShowScanner] = useState(false);
 
   const eventId = id || "";
+
+  // Offline check-in state
+  const offlineStore = useOfflineCheckinStore();
+  const hasOfflineData = offlineStore.hasOfflineData(eventId);
+  const pendingScans = offlineStore.pendingScans.filter(
+    (s) => s.eventId === eventId,
+  );
+  const lastDownloaded = offlineStore.lastDownloaded[eventId];
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleDownloadForOffline = useCallback(async () => {
+    setIsDownloading(true);
+    try {
+      const tokens = await ticketsApi.downloadOfflineTokens(eventId);
+      if (tokens.length > 0) {
+        offlineStore.setTokensForEvent(eventId, tokens);
+        showToast(
+          "success",
+          "Downloaded",
+          `${tokens.length} tickets ready for offline scanning`,
+        );
+      } else {
+        showToast("info", "No Tickets", "No active tickets to download");
+      }
+    } catch (err) {
+      console.error("[Organizer] Download offline tokens error:", err);
+      showToast("error", "Error", "Failed to download tickets for offline use");
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [eventId, offlineStore, showToast]);
+
+  const handleSyncPendingScans = useCallback(async () => {
+    if (pendingScans.length === 0) return;
+    setIsSyncing(true);
+    try {
+      const result = await ticketsApi.syncOfflineScans(pendingScans);
+      if (result.synced.length > 0) {
+        offlineStore.removePendingScans(eventId, result.synced);
+        showToast(
+          "success",
+          "Synced",
+          `${result.synced.length} offline scan(s) synced`,
+        );
+        loadTickets(); // refresh ticket list
+      }
+      if (result.failed.length > 0) {
+        showToast(
+          "error",
+          "Sync Partial",
+          `${result.failed.length} scan(s) failed to sync`,
+        );
+      }
+    } catch (err) {
+      console.error("[Organizer] Sync error:", err);
+      showToast("error", "Error", "Failed to sync offline scans");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [pendingScans, eventId, offlineStore, showToast]);
 
   const loadTickets = async () => {
     try {
@@ -215,8 +279,9 @@ export default function EventOrganizerScreen() {
         </View>
       </View>
 
-      {/* Scan Button */}
-      <View style={{ padding: 16 }}>
+      {/* Action Buttons */}
+      <View style={{ padding: 16, gap: 10 }}>
+        {/* Scan Button */}
         <Pressable
           onPress={() => setShowScanner(true)}
           style={{
@@ -234,6 +299,98 @@ export default function EventOrganizerScreen() {
             Scan QR Code
           </Text>
         </Pressable>
+
+        {/* Download for Offline / Sync Row */}
+        <View style={{ flexDirection: "row", gap: 10 }}>
+          <Pressable
+            onPress={handleDownloadForOffline}
+            disabled={isDownloading}
+            style={{
+              flex: 1,
+              backgroundColor: hasOfflineData
+                ? "rgba(34,197,94,0.1)"
+                : "rgba(255,255,255,0.06)",
+              borderWidth: 1,
+              borderColor: hasOfflineData
+                ? "rgba(34,197,94,0.3)"
+                : colors.border,
+              paddingVertical: 12,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            {isDownloading ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <WifiOff
+                size={16}
+                color={hasOfflineData ? "#22c55e" : colors.mutedForeground}
+              />
+            )}
+            <Text
+              style={{
+                color: hasOfflineData ? "#22c55e" : colors.foreground,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              {hasOfflineData ? "Offline Ready" : "Download Offline"}
+            </Text>
+          </Pressable>
+
+          {pendingScans.length > 0 && (
+            <Pressable
+              onPress={handleSyncPendingScans}
+              disabled={isSyncing}
+              style={{
+                flex: 1,
+                backgroundColor: "rgba(249,115,22,0.1)",
+                borderWidth: 1,
+                borderColor: "rgba(249,115,22,0.3)",
+                paddingVertical: 12,
+                borderRadius: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              {isSyncing ? (
+                <ActivityIndicator size="small" color="#f97316" />
+              ) : (
+                <CloudUpload size={16} color="#f97316" />
+              )}
+              <Text
+                style={{ color: "#f97316", fontSize: 13, fontWeight: "600" }}
+              >
+                Sync {pendingScans.length} Scan
+                {pendingScans.length !== 1 ? "s" : ""}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+
+        {/* Offline status info */}
+        {hasOfflineData && lastDownloaded && (
+          <Text
+            style={{
+              fontSize: 11,
+              color: colors.mutedForeground,
+              textAlign: "center",
+            }}
+          >
+            Last downloaded:{" "}
+            {new Date(lastDownloaded).toLocaleString("en-US", {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </Text>
+        )}
       </View>
 
       {/* Tickets List */}
