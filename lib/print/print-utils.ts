@@ -17,12 +17,32 @@ export interface PrintResult {
 
 /**
  * Print HTML content via system print dialog (AirPrint / Android).
+ *
+ * iOS 26+: Passing raw HTML to printAsync crashes the native TurboModule.
+ * Workaround: render to a temp PDF first, then print the file URI.
  */
 export async function printHtml(html: string): Promise<PrintResult> {
   try {
-    await Print.printAsync({ html });
+    if (!html) {
+      return { success: false, error: "No content to print" };
+    }
+
+    if (Platform.OS === "ios") {
+      // Safe path: HTML → temp PDF → print URI (avoids native SIGSEGV)
+      const { uri } = await Print.printToFileAsync({ html });
+      await Print.printAsync({ uri });
+      // Clean up temp file
+      FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+    } else {
+      await Print.printAsync({ html });
+    }
+
     return { success: true };
   } catch (err: any) {
+    // User cancellation is not an error
+    if (err.message?.includes("cancel") || err.message?.includes("dismiss")) {
+      return { success: true };
+    }
     console.error("[Print] printHtml error:", err);
     return { success: false, error: err.message || "Print failed" };
   }

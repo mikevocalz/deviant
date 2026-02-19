@@ -296,6 +296,13 @@ ${ticket ? `<div class="ticket-id">Ticket: ${escapeHtml(ticket.id.slice(0, 8).to
 
 export function receiptPdfHtml(data: ReceiptData): string {
   const { order, branding } = data;
+  const fees = order.fees || {
+    subtotalCents: 0,
+    platformFeeCents: 0,
+    processingFeeCents: 0,
+    taxCents: 0,
+    totalCents: 0,
+  };
   const eventTitle = order.event?.title || "Purchase";
 
   const dvntLogoHtml = `<div style="font-size:24px;font-weight:900;letter-spacing:3px;color:#8A40CF;">DVNT</div>`;
@@ -312,7 +319,7 @@ export function receiptPdfHtml(data: ReceiptData): string {
     <tr>
       <td style="padding:8px 0;border-bottom:1px solid #eee;">${escapeHtml(t.ticketTypeName)}</td>
       <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:center;">1</td>
-      <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">${formatCents(order.fees.subtotalCents / (order.tickets?.length || 1))}</td>
+      <td style="padding:8px 0;border-bottom:1px solid #eee;text-align:right;">${formatCents(fees.subtotalCents / (order.tickets?.length || 1))}</td>
     </tr>`,
     )
     .join("\n");
@@ -361,16 +368,16 @@ export function receiptPdfHtml(data: ReceiptData): string {
 <table>
   <thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>
   <tbody>
-    ${ticketRows || `<tr><td style="padding:8px 0;">${escapeHtml(order.type.replace(/_/g, " "))}</td><td style="text-align:center;">1</td><td style="text-align:right;">${formatCents(order.fees.subtotalCents)}</td></tr>`}
+    ${ticketRows || `<tr><td style="padding:8px 0;">${escapeHtml(order.type.replace(/_/g, " "))}</td><td style="text-align:center;">1</td><td style="text-align:right;">${formatCents(fees.subtotalCents)}</td></tr>`}
   </tbody>
 </table>
 
 <div class="totals">
-  <div class="row"><span>Subtotal</span><span>${formatCents(order.fees.subtotalCents)}</span></div>
-  ${order.fees.platformFeeCents > 0 ? `<div class="row"><span>Service Fee</span><span>${formatCents(order.fees.platformFeeCents)}</span></div>` : ""}
-  ${order.fees.processingFeeCents > 0 ? `<div class="row"><span>Processing</span><span>${formatCents(order.fees.processingFeeCents)}</span></div>` : ""}
-  ${order.fees.taxCents > 0 ? `<div class="row"><span>Tax</span><span>${formatCents(order.fees.taxCents)}</span></div>` : ""}
-  <div class="row total"><span>Total</span><span>${formatCents(order.fees.totalCents)}</span></div>
+  <div class="row"><span>Subtotal</span><span>${formatCents(fees.subtotalCents)}</span></div>
+  ${fees.platformFeeCents > 0 ? `<div class="row"><span>Service Fee</span><span>${formatCents(fees.platformFeeCents)}</span></div>` : ""}
+  ${fees.processingFeeCents > 0 ? `<div class="row"><span>Processing</span><span>${formatCents(fees.processingFeeCents)}</span></div>` : ""}
+  ${fees.taxCents > 0 ? `<div class="row"><span>Tax</span><span>${formatCents(fees.taxCents)}</span></div>` : ""}
+  <div class="row total"><span>Total</span><span>${formatCents(fees.totalCents)}</span></div>
 </div>
 
 ${order.paymentMethodBrand ? `<div style="margin-top:16px;font-size:13px;color:#666;">Paid with ${escapeHtml(order.paymentMethodBrand)} ending in ${escapeHtml(order.paymentMethodLast4 || "")}</div>` : ""}
