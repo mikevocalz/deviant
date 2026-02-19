@@ -6,7 +6,13 @@
  * Falls back gracefully if VisionCamera is unavailable.
  */
 
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -56,6 +62,14 @@ type ScanResult = {
   name?: string;
   tierName?: string;
   message?: string;
+};
+
+type ScanHistoryEntry = {
+  id: string;
+  type: ScanResult["type"];
+  name?: string;
+  tierName?: string;
+  timestamp: number;
 };
 
 function ScanResultOverlay({
@@ -187,6 +201,8 @@ function ScannerContent({ eventId }: { eventId: string }) {
   const [torchOn, setTorchOn] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanCount, setScanCount] = useState(0);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const lastScannedRef = useRef<string>("");
   const cooldownRef = useRef(false);
 
@@ -230,29 +246,49 @@ function ScannerContent({ eventId }: { eventId: string }) {
         {
           onSuccess: (data) => {
             if (data.valid) {
-              Haptics.notificationAsync(
-                Haptics.NotificationFeedbackType.Success,
-              );
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+              const entry: ScanHistoryEntry = {
+                id: `${Date.now()}`,
+                type: "success",
+                name: data.ticket?.name,
+                tierName: data.ticket?.tier_name,
+                timestamp: Date.now(),
+              };
               setScanResult({
                 type: "success",
                 name: data.ticket?.name,
                 tierName: data.ticket?.tier_name,
               });
               setScanCount((c) => c + 1);
+              setScanHistory((h) => [entry, ...h].slice(0, 50));
             } else {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              const isDuplicate = data.reason === "already_scanned";
+              Haptics.notificationAsync(
+                isDuplicate
+                  ? Haptics.NotificationFeedbackType.Warning
+                  : Haptics.NotificationFeedbackType.Error,
+              );
+              const resultType = isDuplicate
+                ? ("already_scanned" as const)
+                : ("not_found" as const);
               setScanResult({
-                type:
-                  data.reason === "already_scanned"
-                    ? "already_scanned"
-                    : "not_found",
-                message:
-                  data.reason === "already_scanned"
-                    ? "This ticket was already scanned"
-                    : data.reason === "refunded"
-                      ? "This ticket has been refunded"
-                      : "This QR code is not a valid ticket",
+                type: resultType,
+                message: isDuplicate
+                  ? "This ticket was already scanned"
+                  : data.reason === "refunded"
+                    ? "This ticket has been refunded"
+                    : "This QR code is not a valid ticket",
               });
+              setScanHistory((h) =>
+                [
+                  {
+                    id: `${Date.now()}`,
+                    type: resultType,
+                    timestamp: Date.now(),
+                  },
+                  ...h,
+                ].slice(0, 50),
+              );
             }
           },
           onError: () => {
@@ -260,23 +296,42 @@ function ScannerContent({ eventId }: { eventId: string }) {
             if (hasOfflineData) {
               if (offlineStore.isAlreadyScanned(eventId, qrToken)) {
                 Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Error,
+                  Haptics.NotificationFeedbackType.Warning,
                 );
                 setScanResult({
                   type: "already_scanned",
                   message: "This ticket was already scanned (offline)",
                 });
+                setScanHistory((h) =>
+                  [
+                    {
+                      id: `${Date.now()}`,
+                      type: "already_scanned" as const,
+                      timestamp: Date.now(),
+                    },
+                    ...h,
+                  ].slice(0, 50),
+                );
               } else if (offlineStore.isTokenValid(eventId, qrToken)) {
                 offlineStore.markScannedOffline(eventId, qrToken, authUser?.id);
-                Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Success,
-                );
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
                 setScanResult({
                   type: "success",
                   name: "Verified Offline",
                   tierName: undefined,
                 });
                 setScanCount((c) => c + 1);
+                setScanHistory((h) =>
+                  [
+                    {
+                      id: `${Date.now()}`,
+                      type: "success" as const,
+                      name: "Verified Offline",
+                      timestamp: Date.now(),
+                    },
+                    ...h,
+                  ].slice(0, 50),
+                );
               } else {
                 Haptics.notificationAsync(
                   Haptics.NotificationFeedbackType.Error,
@@ -285,6 +340,16 @@ function ScannerContent({ eventId }: { eventId: string }) {
                   type: "not_found",
                   message: "Not a valid ticket (offline check)",
                 });
+                setScanHistory((h) =>
+                  [
+                    {
+                      id: `${Date.now()}`,
+                      type: "not_found" as const,
+                      timestamp: Date.now(),
+                    },
+                    ...h,
+                  ].slice(0, 50),
+                );
               }
             } else {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -432,29 +497,104 @@ function ScannerContent({ eventId }: { eventId: string }) {
         </Pressable>
       </View>
 
-      {/* Bottom stats */}
+      {/* Bottom stats + history */}
       <View
         style={{
           position: "absolute",
           bottom: 0,
           left: 0,
           right: 0,
-          paddingBottom: insets.bottom + 16,
+          paddingBottom: insets.bottom + 12,
           paddingHorizontal: 16,
-          paddingTop: 16,
-          backgroundColor: "rgba(0,0,0,0.6)",
-          alignItems: "center",
+          paddingTop: 12,
+          backgroundColor: "rgba(0,0,0,0.75)",
+          maxHeight: showHistory ? 320 : undefined,
         }}
       >
-        <View className="flex-row items-center gap-2">
-          <CheckCircle2 size={16} color="#22C55E" />
-          <Text className="text-white font-sans-semibold text-sm">
-            {scanCount} scanned this session
-          </Text>
-        </View>
-        <Text className="text-white/50 text-xs mt-1">
-          Point camera at ticket QR code
-        </Text>
+        {/* Stats row */}
+        <Pressable
+          onPress={() => setShowHistory((v) => !v)}
+          className="flex-row items-center justify-between"
+        >
+          <View className="flex-row items-center gap-2">
+            <CheckCircle2 size={16} color="#22C55E" />
+            <Text className="text-white font-sans-semibold text-sm">
+              {scanCount} scanned
+            </Text>
+          </View>
+          {scanHistory.length > 0 && (
+            <Text className="text-white/50 text-xs">
+              {showHistory
+                ? "Hide history"
+                : `${scanHistory.length} recent · Tap to expand`}
+            </Text>
+          )}
+          {scanHistory.length === 0 && (
+            <Text className="text-white/50 text-xs">
+              Point camera at QR code
+            </Text>
+          )}
+        </Pressable>
+
+        {/* Scan history list */}
+        {showHistory && scanHistory.length > 0 && (
+          <ScrollView
+            style={{ maxHeight: 220, marginTop: 10 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {scanHistory.map((entry) => {
+              const isOk = entry.type === "success";
+              const isDup = entry.type === "already_scanned";
+              const color = isOk ? "#22C55E" : isDup ? "#FBBF24" : "#EF4444";
+              const label = isOk
+                ? entry.name || "Checked In"
+                : isDup
+                  ? "Already Scanned"
+                  : "Invalid";
+              const time = new Date(entry.timestamp).toLocaleTimeString(
+                "en-US",
+                {
+                  hour: "numeric",
+                  minute: "2-digit",
+                  second: "2-digit",
+                },
+              );
+              return (
+                <View
+                  key={entry.id}
+                  className="flex-row items-center justify-between py-2"
+                  style={{
+                    borderTopWidth: 1,
+                    borderTopColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <View className="flex-row items-center gap-2 flex-1">
+                    <View
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 4,
+                        backgroundColor: color,
+                      }}
+                    />
+                    <Text
+                      className="text-white text-xs font-sans-medium"
+                      numberOfLines={1}
+                    >
+                      {label}
+                    </Text>
+                    {entry.tierName && (
+                      <Text className="text-white/40 text-xs">
+                        · {entry.tierName}
+                      </Text>
+                    )}
+                  </View>
+                  <Text className="text-white/30 text-[10px]">{time}</Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
 
       {/* Scan result overlay */}
