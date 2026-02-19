@@ -43,9 +43,12 @@ import { EventCardSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
 import {
   useEvents,
+  eventKeys,
   type Event,
   type EventFilters,
 } from "@/lib/hooks/use-events";
+import { eventsApi } from "@/lib/api/events";
+import { useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
@@ -68,6 +71,7 @@ function EventCard({
   cardWidth,
   cardHeight,
   compact,
+  queryClient,
 }: {
   event: Event;
   index: number;
@@ -78,6 +82,7 @@ function EventCard({
   cardWidth: number;
   cardHeight: number;
   compact?: boolean;
+  queryClient: any;
 }) {
   const animatedImageStyle = useAnimatedStyle(() => {
     "worklet";
@@ -112,6 +117,13 @@ function EventCard({
         }}
       >
         <Pressable
+          onPressIn={() => {
+            queryClient.prefetchQuery({
+              queryKey: eventKeys.detail(event.id),
+              queryFn: () => eventsApi.getEventById(event.id),
+              staleTime: 5 * 60 * 1000,
+            });
+          }}
           onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
         >
           <View style={{ height: cardHeight }} className="w-full">
@@ -253,6 +265,7 @@ export default function EventsScreen() {
   const { colors } = useColorScheme();
   const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const pagerRef = useRef<any>(null);
   const trace = useScreenTrace("Events");
   useBootstrapEvents();
@@ -814,6 +827,7 @@ export default function EventsScreen() {
                                 cardWidth={cardWidth}
                                 cardHeight={cardHeight}
                                 compact={isLargeScreen}
+                                queryClient={queryClient}
                               />
                             </View>
                           ))}
