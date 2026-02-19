@@ -505,7 +505,8 @@ export default function ChatScreen() {
     return map;
   }, [isGroupChat, chatMessages]);
 
-  // FIXED: Load recipient info from conversation data
+  // Load recipient info via direct conversation lookup (no ghost filter, no heavy getConversations)
+  // NEVER call getOrCreateConversation(chatId) — chatId is a conversation ID, not a user ID.
   useEffect(() => {
     const loadRecipientFromConversation = async () => {
       if (!chatId || !currentUser) {
@@ -516,13 +517,12 @@ export default function ChatScreen() {
       try {
         console.log("[Chat] Loading conversation data for:", chatId);
 
-        // Fetch conversation to get participants
-        const conversations = await messagesApiClient.getConversations();
-        const conversation = conversations.find((c) => c.id === chatId);
+        // Direct single-conversation query — works for new (empty) conversations too
+        const conversation =
+          await messagesApiClient.getConversationById(chatId);
 
         if (conversation) {
           setIsGroupChat(!!conversation.isGroup);
-          // Use the user object from conversation (the other participant)
           const otherUser = conversation.user;
 
           if (otherUser) {
@@ -539,65 +539,9 @@ export default function ChatScreen() {
           }
         } else {
           console.warn("[Chat] Conversation not found:", chatId);
-          // Fallback - chatId might be a username from old navigation
-          // Try to create conversation with this user
-          try {
-            const newConversation =
-              await messagesApiClient.getOrCreateConversation(chatId);
-            if (newConversation) {
-              // Reload conversations to get the updated list
-              const newConvId =
-                typeof newConversation === "string"
-                  ? newConversation
-                  : newConversation;
-              const updatedConversations =
-                await messagesApiClient.getConversations();
-              const updatedConversation = updatedConversations.find(
-                (c) => c.id === newConvId,
-              );
-
-              if (updatedConversation) {
-                const otherUser = updatedConversation.user;
-
-                if (otherUser) {
-                  setRecipient({
-                    id: otherUser.id,
-                    authId: otherUser.authId || "",
-                    username: otherUser.username,
-                    name: otherUser.name || otherUser.username,
-                    avatar: otherUser.avatar || "",
-                  });
-                }
-              }
-            } else {
-              // Final fallback - treat chatId as username
-              setRecipient({
-                id: chatId,
-                username: chatId,
-                name: chatId,
-                avatar: "",
-              });
-            }
-          } catch (createError) {
-            console.error("[Chat] Error creating conversation:", createError);
-            // Final fallback
-            setRecipient({
-              id: chatId,
-              username: chatId,
-              name: chatId,
-              avatar: "",
-            });
-          }
         }
       } catch (error) {
         console.error("[Chat] Error loading conversation:", error);
-        // Fallback - treat chatId as username
-        setRecipient({
-          id: chatId,
-          username: chatId,
-          name: chatId,
-          avatar: "",
-        });
       } finally {
         setIsLoadingRecipient(false);
       }

@@ -172,6 +172,74 @@ export const messagesApi = {
   },
 
   /**
+   * Get a single conversation by ID — NO ghost filter.
+   * Used by the chat screen to resolve recipient info for any conversation,
+   * including newly created ones with zero messages.
+   */
+  async getConversationById(conversationId: string) {
+    try {
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return null;
+
+      const convIdInt = parseInt(conversationId);
+      if (isNaN(convIdInt)) return null;
+
+      // Get conversation + other participant in parallel
+      const [convResult, participantsResult] = await Promise.all([
+        supabase
+          .from(DB.conversations.table)
+          .select(
+            `${DB.conversations.id}, ${DB.conversations.isGroup}, ${DB.conversations.groupName}`,
+          )
+          .eq(DB.conversations.id, convIdInt)
+          .single(),
+        supabase
+          .from(DB.conversationsRels.table)
+          .select(DB.conversationsRels.usersId)
+          .eq(DB.conversationsRels.parentId, convIdInt)
+          .neq(DB.conversationsRels.usersId, authId)
+          .limit(1),
+      ]);
+
+      if (convResult.error || !convResult.data) return null;
+
+      const otherAuthId =
+        participantsResult.data?.[0]?.[DB.conversationsRels.usersId];
+      let otherUserData: any = null;
+      if (otherAuthId) {
+        const { data: userData } = await supabase
+          .from(DB.users.table)
+          .select(
+            `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, ${DB.users.firstName}, avatar:${DB.users.avatarId}(url)`,
+          )
+          .eq(DB.users.authId, otherAuthId)
+          .single();
+        otherUserData = userData;
+      }
+
+      return {
+        id: String(convIdInt),
+        user: {
+          id: otherUserData?.[DB.users.id]
+            ? String(otherUserData[DB.users.id])
+            : "",
+          authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
+          name:
+            otherUserData?.[DB.users.firstName] ||
+            otherUserData?.[DB.users.username] ||
+            "Unknown",
+          username: otherUserData?.[DB.users.username] || "unknown",
+          avatar: otherUserData?.avatar?.url || "",
+        },
+        isGroup: !!convResult.data[DB.conversations.isGroup],
+      };
+    } catch (error) {
+      console.error("[Messages] getConversationById error:", error);
+      return null;
+    }
+  },
+
+  /**
    * Get messages for a conversation
    */
   async getMessages(conversationId: string, limit: number = 50) {
