@@ -24,14 +24,13 @@ async function verifyStripeSignature(
   secret: string,
 ): Promise<boolean> {
   try {
-    const parts = sigHeader.split(",").reduce(
-      (acc: Record<string, string>, part: string) => {
+    const parts = sigHeader
+      .split(",")
+      .reduce((acc: Record<string, string>, part: string) => {
         const [k, v] = part.split("=");
         acc[k.trim()] = v;
         return acc;
-      },
-      {},
-    );
+      }, {});
 
     const timestamp = parts["t"];
     const signature = parts["v1"];
@@ -82,7 +81,11 @@ Deno.serve(async (req: Request) => {
   const sigHeader = req.headers.get("stripe-signature") || "";
 
   if (STRIPE_WEBHOOK_SECRET) {
-    const valid = await verifyStripeSignature(body, sigHeader, STRIPE_WEBHOOK_SECRET);
+    const valid = await verifyStripeSignature(
+      body,
+      sigHeader,
+      STRIPE_WEBHOOK_SECRET,
+    );
     if (!valid) {
       console.error("[stripe-webhook] Invalid signature");
       return new Response("Invalid signature", { status: 400 });
@@ -166,6 +169,73 @@ Deno.serve(async (req: Request) => {
               .eq("id", ticketTypeId);
           }
 
+          // ── Update order → paid + add timeline ────────
+          const { data: orderRow } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("stripe_checkout_session_id", session.id)
+            .single();
+
+          if (orderRow) {
+            // Get payment method details from charge
+            let pmBrand = null;
+            let pmLast4 = null;
+            if (session.payment_intent) {
+              try {
+                const piRes = await fetch(
+                  `https://api.stripe.com/v1/payment_intents/${session.payment_intent}`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY") || ""}`,
+                    },
+                  },
+                );
+                const pi = await piRes.json();
+                if (pi.latest_charge) {
+                  const chargeRes = await fetch(
+                    `https://api.stripe.com/v1/charges/${pi.latest_charge}`,
+                    {
+                      headers: {
+                        Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY") || ""}`,
+                      },
+                    },
+                  );
+                  const charge = await chargeRes.json();
+                  pmBrand = charge.payment_method_details?.card?.brand || null;
+                  pmLast4 = charge.payment_method_details?.card?.last4 || null;
+                }
+              } catch (e) {
+                console.error("[stripe-webhook] PM detail fetch error:", e);
+              }
+            }
+
+            await supabase
+              .from("orders")
+              .update({
+                status: "paid",
+                stripe_payment_intent_id: session.payment_intent,
+                payment_method_brand: pmBrand,
+                payment_method_last4: pmLast4,
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", orderRow.id);
+
+            await supabase.from("order_timeline").insert([
+              {
+                order_id: orderRow.id,
+                type: "payment_authorized",
+                label: "Payment authorized",
+              },
+              {
+                order_id: orderRow.id,
+                type: "payment_captured",
+                label: "Payment captured",
+                detail: `${quantity} ticket(s) issued`,
+              },
+            ]);
+          }
+
           console.log(
             `[stripe-webhook] Issued ${quantity} tickets for event ${eventId}`,
           );
@@ -185,6 +255,18 @@ Deno.serve(async (req: Request) => {
             console.error("[stripe-webhook] Sneaky access error:", accessError);
             throw accessError;
           }
+          // Create order for sneaky access purchase
+          await supabase.from("orders").insert({
+            user_id: metadata.user_id,
+            type: "sneaky_access",
+            status: "paid",
+            subtotal_cents: 299,
+            total_cents: 299,
+            stripe_checkout_session_id: session.id,
+            stripe_payment_intent_id: session.payment_intent,
+            paid_at: new Date().toISOString(),
+          });
+
           console.log(
             `[stripe-webhook] Granted sneaky access for session ${metadata.session_id}`,
           );
@@ -206,7 +288,49 @@ Deno.serve(async (req: Request) => {
           if (refundError) {
             console.error("[stripe-webhook] Refund update error:", refundError);
           }
-          console.log("[stripe-webhook] Refunded tickets for PI:", paymentIntent);
+
+          // Update order status + add timeline
+          const { data: refundedOrder } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("stripe_payment_intent_id", paymentIntent)
+            .single();
+
+          if (refundedOrder) {
+            const isFullRefund = charge.amount_refunded >= charge.amount;
+            await supabase
+              .from("orders")
+              .update({
+                status: isFullRefund ? "refunded" : "partially_refunded",
+                refunded_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", refundedOrder.id);
+
+            await supabase.from("order_timeline").insert({
+              order_id: refundedOrder.id,
+              type: "refund_processed",
+              label: isFullRefund
+                ? "Full refund processed"
+                : "Partial refund processed",
+              detail: `$${(charge.amount_refunded / 100).toFixed(2)} refunded`,
+            });
+
+            // Update any pending refund requests to processed
+            await supabase
+              .from("refund_requests")
+              .update({
+                status: "processed",
+                resolved_at: new Date().toISOString(),
+              })
+              .eq("order_id", refundedOrder.id)
+              .eq("status", "pending");
+          }
+
+          console.log(
+            "[stripe-webhook] Refunded tickets for PI:",
+            paymentIntent,
+          );
         }
         break;
       }
@@ -229,6 +353,30 @@ Deno.serve(async (req: Request) => {
               .from("events")
               .update({ payout_status: "on_hold" })
               .eq("id", ticket.event_id);
+
+            // Update order status + add timeline
+            const { data: disputedOrder } = await supabase
+              .from("orders")
+              .select("id")
+              .eq("stripe_payment_intent_id", paymentIntent)
+              .single();
+
+            if (disputedOrder) {
+              await supabase
+                .from("orders")
+                .update({
+                  status: "disputed",
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", disputedOrder.id);
+
+              await supabase.from("order_timeline").insert({
+                order_id: disputedOrder.id,
+                type: "dispute_opened",
+                label: "Dispute opened",
+                detail: `Reason: ${dispute.reason || "unknown"}`,
+              });
+            }
 
             console.log(
               "[stripe-webhook] Event payout on_hold due to dispute:",

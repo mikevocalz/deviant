@@ -205,6 +205,9 @@ importers:
       expo-paste-input:
         specifier: ^0.1.7
         version: 0.1.7(expo@55.0.0-preview.11)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))(react@19.2.3)
+      expo-print:
+        specifier: ~55.0.6
+        version: 55.0.6(expo@55.0.0-preview.11)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))
       expo-router:
         specifier: 55.0.0-preview.8
         version: 55.0.0-preview.8(168ae1b46765697de1f7b2b6b4046f4b)
@@ -3740,6 +3743,12 @@ packages:
     peerDependencies:
       expo: '*'
       react: '*'
+      react-native: '*'
+
+  expo-print@55.0.6:
+    resolution: {integrity: sha512-BAlGesPAjEypKgXxgmLyr9LFLTrv65cAUcewBrLQdcRSG2TXp5W08oek6pezNeLld7wPN3nevNmahVA6jcEXtg==}
+    peerDependencies:
+      expo: '*'
       react-native: '*'
 
   expo-router@55.0.0-preview.8:
@@ -10302,6 +10311,11 @@ snapshots:
     dependencies:
       expo: 55.0.0-preview.11(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.5)(expo-router@55.0.0-preview.8)(react-dom@19.2.3(react@19.2.3))(react-native-webview@13.16.0(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))(react@19.2.3))(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       react: 19.2.3
+      react-native: 0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3)
+
+  expo-print@55.0.6(expo@55.0.0-preview.11)(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3)):
+    dependencies:
+      expo: 55.0.0-preview.11(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.5)(expo-router@55.0.0-preview.8)(react-dom@19.2.3(react@19.2.3))(react-native-webview@13.16.0(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))(react@19.2.3))(react-native@0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
       react-native: 0.84.0(@babel/core@7.29.0)(@types/react@19.2.13)(react@19.2.3)
 
   expo-router@55.0.0-preview.8(168ae1b46765697de1f7b2b6b4046f4b):

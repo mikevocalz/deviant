@@ -36,6 +36,8 @@ import {
   Trash2,
   Fingerprint,
   Download,
+  CreditCard,
+  Banknote,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -279,6 +281,20 @@ export default function SettingsScreenAndroid() {
               icon={<UserX size={22} color="#666" />}
               label="Blocked"
               onPress={() => router.push("/settings/blocked" as any)}
+            />
+          </SettingsSection>
+
+          {/* Payments */}
+          <SettingsSection title="Payments">
+            <SettingsListItem
+              icon={<CreditCard size={22} color="#8A40CF" />}
+              label="Payments"
+              onPress={() => router.push("/settings/payments" as any)}
+            />
+            <SettingsListItem
+              icon={<Banknote size={22} color="#22C55E" />}
+              label="Organizer Payments"
+              onPress={() => router.push("/settings/host-payments" as any)}
             />
           </SettingsSection>
 
