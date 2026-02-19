@@ -56,6 +56,7 @@ import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
+import { useTicketCheckout } from "@/lib/hooks/use-ticket-checkout";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { usePromotionStore } from "@/lib/stores/promotion-store";
 import { PromoteEventSheet } from "@/components/events/promote-event-sheet";
@@ -207,6 +208,8 @@ export default function EventDetailScreen() {
   const offlineCheckin = useOfflineCheckinStore();
   const offlineTokenCount = (offlineCheckin.tokensByEvent[eventId] || [])
     .length;
+  const { checkout: nativeCheckout, isLoading: isNativeCheckoutLoading } =
+    useTicketCheckout();
 
   const handleDownloadOffline = useCallback(async () => {
     if (!eventId) return;
@@ -399,15 +402,19 @@ export default function EventDetailScreen() {
     if (isFeatureEnabled("ticketing_enabled") && eventData.ticketingEnabled) {
       setIsCheckingOut(true);
       try {
-        const result = await ticketsApi.checkout({
+        // Use native PaymentSheet for in-app checkout
+        const authId = user?.authId || user?.id || "";
+        const result = await nativeCheckout({
           eventId,
           ticketTypeId: selectedTier?.id || "",
           quantity: 1,
-          userId: user?.id || "",
+          userId: authId,
         });
 
         if (result.error) {
-          showToast("error", "Checkout Failed", result.error);
+          if (result.error !== "Payment cancelled") {
+            showToast("error", "Checkout Failed", result.error);
+          }
           return;
         }
 
@@ -443,20 +450,20 @@ export default function EventDetailScreen() {
           return;
         }
 
-        // Paid ticket — open Stripe Checkout in browser
-        if (result.url) {
-          await WebBrowser.openBrowserAsync(result.url, {
-            presentationStyle:
-              Platform.OS === "ios"
-                ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-                : undefined,
-          });
-          // After browser closes, check if ticket was created by webhook
-          const myTickets = await ticketsApi.getMyTickets();
-          const newTicket = myTickets.find(
-            (t) =>
-              String(t.event_id) === String(eventId) && t.status === "active",
-          );
+        // Paid ticket succeeded — webhook will finalize tickets
+        if (result.success) {
+          // Poll for ticket creation (webhook may take a moment)
+          let newTicket: any = null;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            await new Promise((r) => setTimeout(r, 1500));
+            const myTickets = await ticketsApi.getMyTickets();
+            newTicket = myTickets.find(
+              (t) =>
+                String(t.event_id) === String(eventId) && t.status === "active",
+            );
+            if (newTicket) break;
+          }
+
           if (newTicket) {
             setTicket(eventId, {
               id: newTicket.id,
@@ -479,12 +486,12 @@ export default function EventDetailScreen() {
               old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
             );
             queryClient.invalidateQueries({ queryKey: eventKeys.all });
-            showToast(
-              "success",
-              "Ticket Purchased",
-              `You're going to ${eventData.title}!`,
-            );
           }
+          showToast(
+            "success",
+            "Ticket Purchased",
+            `You're going to ${eventData.title}!`,
+          );
           return;
         }
       } catch (err: any) {

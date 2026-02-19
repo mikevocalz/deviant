@@ -12,6 +12,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computePayoutReleaseAt } from "../_shared/business-days.ts";
+import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -271,6 +272,171 @@ Deno.serve(async (req: Request) => {
             `[stripe-webhook] Granted sneaky access for session ${metadata.session_id}`,
           );
         }
+        break;
+      }
+
+      case "payment_intent.succeeded": {
+        // Native PaymentSheet flow — PaymentIntent succeeded
+        const pi = event.data.object;
+        const piMetadata = pi.metadata || {};
+
+        if (piMetadata.type === "event_ticket") {
+          const piEventId = parseInt(piMetadata.event_id);
+          const piTicketTypeId = piMetadata.ticket_type_id;
+          const piUserId = piMetadata.user_id;
+          const piQuantity = parseInt(piMetadata.quantity) || 1;
+
+          // Check if tickets already issued (e.g. by checkout.session.completed)
+          const { count: piExistingCount } = await supabase
+            .from("tickets")
+            .select("*", { count: "exact", head: true })
+            .eq("stripe_payment_intent_id", pi.id);
+
+          if ((piExistingCount || 0) > 0) {
+            console.log(
+              "[stripe-webhook] Tickets already issued for PI:",
+              pi.id,
+            );
+            break;
+          }
+
+          // Issue tickets with HMAC-signed QR payloads
+          const piTicketRows = [];
+          for (let i = 0; i < piQuantity; i++) {
+            const ticketUuid = crypto.randomUUID();
+            const { qrToken, qrPayload } = await createSignedQrPayload(
+              ticketUuid,
+              piEventId,
+            );
+            piTicketRows.push({
+              id: ticketUuid,
+              event_id: piEventId,
+              ticket_type_id: piTicketTypeId,
+              user_id: piUserId,
+              status: "active",
+              qr_token: qrToken,
+              qr_payload: qrPayload,
+              stripe_payment_intent_id: pi.id,
+              purchase_amount_cents: Math.round((pi.amount || 0) / piQuantity),
+            });
+          }
+
+          const { error: piTicketError } = await supabase
+            .from("tickets")
+            .insert(piTicketRows);
+
+          if (piTicketError) {
+            console.error(
+              "[stripe-webhook] PI ticket insert error:",
+              piTicketError,
+            );
+            throw piTicketError;
+          }
+
+          // Increment quantity_sold
+          const { data: piTt } = await supabase
+            .from("ticket_types")
+            .select("quantity_sold")
+            .eq("id", piTicketTypeId)
+            .single();
+          await supabase
+            .from("ticket_types")
+            .update({ quantity_sold: (piTt?.quantity_sold || 0) + piQuantity })
+            .eq("id", piTicketTypeId);
+
+          // Convert ticket hold to completed
+          await supabase
+            .from("ticket_holds")
+            .update({ status: "converted" })
+            .eq("payment_intent_id", pi.id)
+            .eq("status", "active");
+
+          // Update order → paid + add timeline
+          const { data: piOrderRow } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("stripe_payment_intent_id", pi.id)
+            .single();
+
+          if (piOrderRow) {
+            let piPmBrand = null;
+            let piPmLast4 = null;
+            if (pi.latest_charge) {
+              try {
+                const piChargeRes = await fetch(
+                  `https://api.stripe.com/v1/charges/${pi.latest_charge}`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY") || ""}`,
+                    },
+                  },
+                );
+                const piCharge = await piChargeRes.json();
+                piPmBrand =
+                  piCharge.payment_method_details?.card?.brand || null;
+                piPmLast4 =
+                  piCharge.payment_method_details?.card?.last4 || null;
+              } catch (e) {
+                console.error("[stripe-webhook] PM detail fetch error:", e);
+              }
+            }
+
+            await supabase
+              .from("orders")
+              .update({
+                status: "paid",
+                payment_method_brand: piPmBrand,
+                payment_method_last4: piPmLast4,
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", piOrderRow.id);
+
+            await supabase.from("order_timeline").insert([
+              {
+                order_id: piOrderRow.id,
+                type: "payment_authorized",
+                label: "Payment authorized",
+              },
+              {
+                order_id: piOrderRow.id,
+                type: "payment_captured",
+                label: "Payment captured",
+                detail: `${piQuantity} ticket(s) issued`,
+              },
+            ]);
+          }
+
+          console.log(
+            `[stripe-webhook] PI succeeded: issued ${piQuantity} tickets for event ${piEventId}`,
+          );
+        }
+        break;
+      }
+
+      case "payment_intent.payment_failed": {
+        // Release hold on failed payment
+        const failedPi = event.data.object;
+        await supabase
+          .from("ticket_holds")
+          .update({ status: "expired" })
+          .eq("payment_intent_id", failedPi.id)
+          .eq("status", "active");
+
+        // Update order status
+        await supabase
+          .from("orders")
+          .update({
+            status: "payment_failed",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("stripe_payment_intent_id", failedPi.id)
+          .eq("status", "payment_pending");
+
+        console.log(
+          "[stripe-webhook] Payment failed, hold released for PI:",
+          failedPi.id,
+        );
         break;
       }
 

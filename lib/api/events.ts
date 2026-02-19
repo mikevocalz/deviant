@@ -768,27 +768,92 @@ export const eventsApi = {
   /**
    * Add co-organizer to event (only host can add)
    */
-  async addCoOrganizer(_eventId: string, _coOrganizerUserId: string) {
-    // event_co_organizers table not yet created in schema
-    console.warn("[Events] addCoOrganizer: not yet implemented");
-    throw new Error("Co-organizers not yet implemented");
+  async addCoOrganizer(
+    eventId: string,
+    coOrganizerUserId: string,
+    role: "viewer" | "scanner" | "editor" | "admin" = "scanner",
+  ) {
+    try {
+      const authId = getCurrentUserAuthId();
+      if (!authId) throw new Error("Not authenticated");
+
+      const { error } = await supabase.from("event_co_organizers").upsert(
+        {
+          event_id: parseInt(eventId),
+          user_id: coOrganizerUserId,
+          role,
+          invited_by: authId,
+          accepted: false,
+        },
+        { onConflict: "event_id,user_id" },
+      );
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("[Events] addCoOrganizer error:", err);
+      throw err;
+    }
   },
 
   /**
    * Remove co-organizer from event (only host can remove)
    */
-  async removeCoOrganizer(_eventId: string, _coOrganizerUserId: string) {
-    // event_co_organizers table not yet created in schema
-    console.warn("[Events] removeCoOrganizer: not yet implemented");
-    throw new Error("Co-organizers not yet implemented");
+  async removeCoOrganizer(eventId: string, coOrganizerUserId: string) {
+    try {
+      const { error } = await supabase
+        .from("event_co_organizers")
+        .delete()
+        .eq("event_id", parseInt(eventId))
+        .eq("user_id", coOrganizerUserId);
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("[Events] removeCoOrganizer error:", err);
+      throw err;
+    }
   },
 
   /**
    * Get co-organizers for an event
    */
-  async getCoOrganizers(_eventId: string) {
-    // event_co_organizers table not yet created in schema
-    return [];
+  async getCoOrganizers(eventId: string) {
+    try {
+      const { data, error } = await supabase
+        .from("event_co_organizers")
+        .select("id, user_id, role, accepted, created_at")
+        .eq("event_id", parseInt(eventId))
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error("[Events] getCoOrganizers error:", err);
+      return [];
+    }
+  },
+
+  /**
+   * Accept co-organizer invitation
+   */
+  async acceptCoOrganizerInvite(eventId: string) {
+    try {
+      const authId = getCurrentUserAuthId();
+      if (!authId) throw new Error("Not authenticated");
+
+      const { error } = await supabase
+        .from("event_co_organizers")
+        .update({ accepted: true })
+        .eq("event_id", parseInt(eventId))
+        .eq("user_id", authId);
+
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("[Events] acceptCoOrganizerInvite error:", err);
+      throw err;
+    }
   },
 
   /**
