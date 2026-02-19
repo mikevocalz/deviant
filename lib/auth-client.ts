@@ -183,6 +183,7 @@ export async function getAuthToken(): Promise<string | null> {
 // App user type for compatibility
 export interface AppUser {
   id: string;
+  authId?: string;
   email: string;
   username: string;
   name: string;

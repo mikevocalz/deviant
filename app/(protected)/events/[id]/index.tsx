@@ -509,16 +509,23 @@ export default function EventDetailScreen() {
     // Invalidate event queries so lists refresh
     queryClient.invalidateQueries({ queryKey: eventKeys.all });
 
-    // Create and store ticket so View Ticket page can find it
+    // Issue a real ticket with crypto-random token via server RPC
     const tierLevel = selectedTier?.tier || "ga";
-    const qrPayload = btoa(JSON.stringify({ eid: eventId, uid: user?.id }));
+    const authId = user?.authId || user?.id || "";
+    const rsvpTicket = await ticketsApi.issueRsvpTicket({
+      eventId,
+      userId: authId,
+    });
+
     setTicket(eventId, {
-      id: `tkt_${Date.now()}`,
+      id: rsvpTicket?.id ? String(rsvpTicket.id) : `tkt_${Date.now()}`,
       eventId,
       userId: user?.id || "",
-      paid: true,
+      paid: false,
       status: "valid",
-      qrToken: qrPayload,
+      qrToken:
+        rsvpTicket?.qr_token ||
+        btoa(JSON.stringify({ eid: eventId, uid: user?.id })),
       tier: tierLevel,
       tierName: selectedTier?.name || undefined,
       transferable: tierLevel === "vip" || tierLevel === "table",
