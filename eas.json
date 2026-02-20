@@ -9,16 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
-        "image": "latest",
-        "appExtensions": [
-          {
-            "targetName": "ShareExtension",
-            "bundleIdentifier": "com.dvnt.app.share-extension",
-            "entitlements": {
-              "com.apple.security.application-groups": ["group.com.dvnt.app"]
-            }
-          }
-        ]
+        "image": "latest"
       },
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
@@ -64,16 +55,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "latest",
-        "appExtensions": [
-          {
-            "targetName": "ShareExtension",
-            "bundleIdentifier": "com.dvnt.app.share-extension",
-            "entitlements": {
-              "com.apple.security.application-groups": ["group.com.dvnt.app"]
-            }
-          }
-        ]
+        "image": "latest"
       },
       "env": {
         "DATABASE_URL": "${DATABASE_URL}",
