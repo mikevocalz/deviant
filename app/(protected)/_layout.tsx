@@ -16,6 +16,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
+import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
+import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -59,6 +61,8 @@ export default function ProtectedLayout() {
   useAppResume();
   // Silently resolve device location → nearest city on boot (if already permitted)
   useBootLocation();
+  // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
+  useEventsTabVisibility();
 
   const user = useAuthStore((s) => s.user);
 
@@ -102,6 +106,9 @@ export default function ProtectedLayout() {
     <>
       {/* CRITICAL: NotificationListener handles incoming call push notifications */}
       <NotificationListener />
+      {/* PERSISTENT: WeatherGPUEngine mounts once, never remounts on tab switch.
+          pointerEvents="none" — touches pass through to content below. */}
+      <WeatherGPUEngine />
       <Stack
         screenOptions={{
           headerShown: false,

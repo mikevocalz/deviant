@@ -26,7 +26,7 @@
     "@fishjam-cloud/react-native-client": "0.25.0",
     "@fishjam-cloud/react-native-webrtc": "0.25.0",
     "@gorhom/bottom-sheet": "^5.2.8",
-    "@legendapp/list": "beta",
+    "@legendapp/list":,
     "@legendapp/motion": "^2.5.3",
     "@lodev09/react-native-true-sheet": "^3.7.3",
     "@maplibre/maplibre-react-native": "^10.4.2",
@@ -58,6 +58,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "55.0.0-preview.11",
+    "expo-audio": "^1.1.1",
     "expo-blur": "^55.0.5",
     "expo-brightness": "~55.0.5",
     "expo-build-properties": "~55.0.6",
@@ -129,6 +130,7 @@
     "react-native-voip-push-notification": "^3.3.3",
     "react-native-web": "~0.21.2",
     "react-native-webview": "^13.16.0",
+    "react-native-wgpu": "^0.5.4",
     "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
     "react-native-youtube-bridge": "^2.1.4",
     "resend": "^6.9.1",
@@ -183,7 +185,8 @@
       "hermes-compiler": "250829098.0.4"
     },
     "patchedDependencies": {
-      "expo-modules-core@55.0.9": "patches/expo-modules-core@55.0.9.patch"
+      "expo-modules-core@55.0.9": "patches/expo-modules-core@55.0.9.patch",
+      "react-native-worklets@0.8.0-nightly-20260122-45349f895": "patches/react-native-worklets@0.8.0-nightly-20260122-45349f895.patch"
     }
   }
 }
