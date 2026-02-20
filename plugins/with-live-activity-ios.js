@@ -131,107 +131,16 @@ function withLiveActivitySwiftFiles(config) {
   ]);
 }
 
-// Add Widget Extension target to Xcode project
+// Add native module files to main Xcode target (proven pattern from with-voip-push.js)
+// NOTE: Widget Extension target is NOT created here — use expo-apple-targets or manual
+// Xcode setup for the Lock Screen / Dynamic Island UI. The native module in the main
+// target allows RN to start/update/end Live Activities via ActivityKit.
 function withWidgetExtensionTarget(config) {
   return withXcodeProject(config, (config) => {
     const project = config.modResults;
     const projectName = config.modRequest.projectName;
 
-    const existingTarget = project.pbxTargetByName(EXTENSION_NAME);
-    if (existingTarget) return config;
-
-    const buildConfigListUuid = project.generateUuid();
-    const debugConfigUuid = project.generateUuid();
-    const releaseConfigUuid = project.generateUuid();
-
-    const commonSettings = {
-      CLANG_ENABLE_MODULES: "YES",
-      CODE_SIGN_ENTITLEMENTS: `${EXTENSION_NAME}/${EXTENSION_NAME}.entitlements`,
-      CODE_SIGN_STYLE: "Automatic",
-      CURRENT_PROJECT_VERSION: "1",
-      DEVELOPMENT_TEAM: "Q9NDPV378Y",
-      GENERATE_INFOPLIST_FILE: "YES",
-      INFOPLIST_FILE: `${EXTENSION_NAME}/Info.plist`,
-      IPHONEOS_DEPLOYMENT_TARGET: DEPLOYMENT_TARGET,
-      LD_RUNPATH_SEARCH_PATHS:
-        '"$(inherited)" "@executable_path/Frameworks" "@executable_path/../../Frameworks"',
-      PRODUCT_BUNDLE_IDENTIFIER: EXTENSION_BUNDLE_ID,
-      PRODUCT_NAME: "$(TARGET_NAME)",
-      SKIP_INSTALL: "YES",
-      SWIFT_VERSION: "5.0",
-      TARGETED_DEVICE_FAMILY: '"1,2"',
-    };
-
-    project.addXCConfigurationList(
-      [
-        {
-          name: "Debug",
-          uuid: debugConfigUuid,
-          buildSettings: {
-            ...commonSettings,
-            DEBUG_INFORMATION_FORMAT: "dwarf",
-          },
-        },
-        {
-          name: "Release",
-          uuid: releaseConfigUuid,
-          buildSettings: {
-            ...commonSettings,
-            DEBUG_INFORMATION_FORMAT: '"dwarf-with-dsym"',
-          },
-        },
-      ],
-      "Release",
-      `Build configuration list for PBXNativeTarget "${EXTENSION_NAME}"`,
-      buildConfigListUuid,
-    );
-
-    const extensionTarget = project.addTarget(
-      EXTENSION_NAME,
-      "app_extension",
-      EXTENSION_NAME,
-      EXTENSION_BUNDLE_ID,
-      buildConfigListUuid,
-    );
-    const extensionTargetUuid = extensionTarget.uuid;
-
-    const groupKey = project.pbxCreateGroup(EXTENSION_NAME, EXTENSION_NAME);
-    const swiftFiles = [
-      "DVNTLiveAttributes.swift",
-      "DVNTLiveActivityWidget.swift",
-      "DVNTWidgetBundle.swift",
-    ];
-
-    for (const fileName of swiftFiles) {
-      const fileRefUuid = project.generateUuid();
-      const buildFileUuid = project.generateUuid();
-      project.addToPbxFileReferenceSection({
-        fileRef: fileRefUuid,
-        basename: fileName,
-        path: `${EXTENSION_NAME}/${fileName}`,
-        sourceTree: '"<group>"',
-        fileEncoding: 4,
-        lastKnownFileType: "sourcecode.swift",
-        group: EXTENSION_NAME,
-      });
-      project.addToPbxBuildFileSection({
-        uuid: buildFileUuid,
-        fileRef: fileRefUuid,
-        basename: fileName,
-        group: EXTENSION_NAME,
-      });
-      if (groupKey)
-        project.addToPbxGroup(
-          { fileRef: fileRefUuid, basename: fileName },
-          groupKey,
-        );
-    }
-
-    // Add native module files to main target
-    const mainTarget = IOSConfig.XcodeUtils.getApplicationNativeTarget({
-      project,
-      projectName,
-    });
+    // Add native module files to main target (same pattern as VoIP plugin)
     const nativeFiles = [
       { name: "DVNTLiveActivityModule.swift", type: "sourcecode.swift" },
       { name: "DVNTLiveActivityBridge.m", type: "sourcecode.c.objc" },
@@ -239,11 +148,13 @@ function withWidgetExtensionTarget(config) {
     ];
 
     for (const file of nativeFiles) {
-      if (!project.hasFile(`${projectName}/${file.name}`)) {
-        const fr = project.generateUuid();
-        const bf = project.generateUuid();
+      const hasFile = project.hasFile(`${projectName}/${file.name}`);
+      if (!hasFile) {
+        const fileRefUuid = project.generateUuid();
+        const buildFileUuid = project.generateUuid();
+
         project.addToPbxFileReferenceSection({
-          fileRef: fr,
+          fileRef: fileRefUuid,
           basename: file.name,
           path: `${projectName}/${file.name}`,
           sourceTree: '"<group>"',
@@ -251,28 +162,34 @@ function withWidgetExtensionTarget(config) {
           lastKnownFileType: file.type,
           group: projectName,
         });
+
         project.addToPbxBuildFileSection({
-          uuid: bf,
-          fileRef: fr,
+          uuid: buildFileUuid,
+          fileRef: fileRefUuid,
           basename: file.name,
           group: projectName,
         });
+
         project.addToPbxSourcesBuildPhase({
-          uuid: bf,
-          fileRef: fr,
+          uuid: buildFileUuid,
+          fileRef: fileRefUuid,
           basename: file.name,
           group: projectName,
         });
-        const mgk = project.findPBXGroupKey({ name: projectName });
-        if (mgk)
-          project.addToPbxGroup({ fileRef: fr, basename: file.name }, mgk);
+
+        const mainGroupKey = project.findPBXGroupKey({ name: projectName });
+        if (mainGroupKey) {
+          project.addToPbxGroup(
+            { fileRef: fileRefUuid, basename: file.name },
+            mainGroupKey,
+          );
+        }
       }
     }
 
-    // WidgetKit + SwiftUI are auto-linked via CLANG_ENABLE_MODULES + Swift imports
-    project.addTargetDependency(mainTarget.uuid, [extensionTargetUuid]);
-
-    console.log(`[with-live-activity] Added Widget Extension target`);
+    console.log(
+      `[with-live-activity] Added native module files to main target`,
+    );
     return config;
   });
 }
