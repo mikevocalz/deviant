@@ -38,6 +38,7 @@ import {
   Download,
   CreditCard,
   Banknote,
+  CloudRain,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -399,6 +400,12 @@ export default function SettingsScreenIOS() {
               </View>
               <Switch checked={nsfwEnabled} onCheckedChange={setNsfwEnabled} />
             </View>
+            <View className="ml-12 h-px bg-border" />
+            <SettingsListItem
+              icon={<CloudRain size={20} color="#8A40CF" />}
+              label="Weather Ambiance"
+              onPress={() => router.push("/settings/weather-ambiance" as any)}
+            />
             <View className="ml-12 h-px bg-border" />
             <SettingsListItem
               icon={<Moon size={20} color="#666" />}

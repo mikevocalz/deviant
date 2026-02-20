@@ -69,6 +69,7 @@ import {
   useSpotlightFeed,
   usePromotedEventIds,
 } from "@/lib/hooks/use-promotions";
+import { useWeatherRefresh } from "@/src/features/weatherfx/hooks/useWeatherRefresh";
 
 function EventCard({
   event,
@@ -371,6 +372,9 @@ export default function EventsScreen() {
   // Weather coords: prefer active city → device location
   const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
+
+  // Drive GPU weather FX from Open-Meteo data (15min cache, no waterfall)
+  useWeatherRefresh(weatherLat, weatherLng);
 
   // Fallback: if boot location hook didn't resolve a city yet,
   // debounce 2s then set first DB city or reverse-geocode from device coords
