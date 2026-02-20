@@ -16,7 +16,7 @@
     "check:secrets": "npx ts-node scripts/check-secrets.ts",
     "check:guardrails": "npx ts-node scripts/check-secrets.ts",
     "eas-build-pre-install": "COREPACK_INTEGRITY_KEYS=0 corepack enable && COREPACK_INTEGRITY_KEYS=0 corepack prepare pnpm@10.28.0 --activate",
-    "postinstall": "patch-package && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh"
+    "postinstall": "patch-package && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh"
   },
   "dependencies": {
     "@better-auth/expo": "^1.4.18",
@@ -185,8 +185,6 @@
       "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
       "hermes-compiler": "250829098.0.4"
     },
-    "patchedDependencies": {
-      "expo-modules-core@55.0.9": "patches/expo-modules-core@55.0.9.patch"
-    }
+    "patchedDependencies": {}
   }
 }
