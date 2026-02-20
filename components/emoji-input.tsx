@@ -1,17 +1,35 @@
-import { useState, useRef, useCallback } from "react"
-import { View, TextInput, Pressable, StyleSheet, TextInputProps, Platform } from "react-native"
-import { Smile } from "lucide-react-native"
-import { EmojiPopup } from "react-native-emoji-popup"
+import { useState, useRef, useCallback } from "react";
+import {
+  View,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  TextInputProps,
+  Platform,
+} from "react-native";
+import { Smile } from "lucide-react-native";
+// ── Safe import of react-native-emoji-popup ─────────────────────────
+let EmojiPopup: React.ComponentType<any> | null = null;
+try {
+  EmojiPopup = require("react-native-emoji-popup").EmojiPopup;
+} catch {
+  console.warn(
+    "[EmojiInput] react-native-emoji-popup not available in this binary",
+  );
+}
 
-interface EmojiInputProps extends Omit<TextInputProps, "value" | "onChangeText"> {
-  value: string
-  onChangeText: (text: string) => void
-  emojiButtonColor?: string
-  emojiButtonSize?: number
-  inputStyle?: TextInputProps["style"]
-  containerStyle?: object
-  showEmojiButton?: boolean
-  emojiButtonPosition?: "left" | "right"
+interface EmojiInputProps extends Omit<
+  TextInputProps,
+  "value" | "onChangeText"
+> {
+  value: string;
+  onChangeText: (text: string) => void;
+  emojiButtonColor?: string;
+  emojiButtonSize?: number;
+  inputStyle?: TextInputProps["style"];
+  containerStyle?: object;
+  showEmojiButton?: boolean;
+  emojiButtonPosition?: "left" | "right";
 }
 
 export function EmojiInput({
@@ -25,35 +43,41 @@ export function EmojiInput({
   emojiButtonPosition = "right",
   ...textInputProps
 }: EmojiInputProps) {
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
-  const inputRef = useRef<TextInput>(null)
-  const [cursorPosition, setCursorPosition] = useState(value.length)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const [cursorPosition, setCursorPosition] = useState(value.length);
 
-  const handleEmojiSelect = useCallback((emoji: string) => {
-    const before = value.substring(0, cursorPosition)
-    const after = value.substring(cursorPosition)
-    const newText = before + emoji + after
-    onChangeText(newText)
-    setCursorPosition(cursorPosition + emoji.length)
-  }, [value, cursorPosition, onChangeText])
+  const handleEmojiSelect = useCallback(
+    (emoji: string) => {
+      const before = value.substring(0, cursorPosition);
+      const after = value.substring(cursorPosition);
+      const newText = before + emoji + after;
+      onChangeText(newText);
+      setCursorPosition(cursorPosition + emoji.length);
+    },
+    [value, cursorPosition, onChangeText],
+  );
 
   const handleSelectionChange = useCallback((event: any) => {
-    setCursorPosition(event.nativeEvent.selection.end)
-  }, [])
+    setCursorPosition(event.nativeEvent.selection.end);
+  }, []);
 
   const toggleEmojiPicker = useCallback(() => {
-    setShowEmojiPicker(prev => !prev)
-  }, [])
+    setShowEmojiPicker((prev) => !prev);
+  }, []);
 
   const emojiButton = showEmojiButton ? (
-    <Pressable 
-      onPress={toggleEmojiPicker} 
+    <Pressable
+      onPress={toggleEmojiPicker}
       hitSlop={12}
       style={styles.emojiButton}
     >
-      <Smile size={emojiButtonSize} color={showEmojiPicker ? "#3EA4E5" : emojiButtonColor} />
+      <Smile
+        size={emojiButtonSize}
+        color={showEmojiPicker ? "#3EA4E5" : emojiButtonColor}
+      />
     </Pressable>
-  ) : null
+  ) : null;
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -69,19 +93,19 @@ export function EmojiInput({
         />
         {emojiButtonPosition === "right" && emojiButton}
       </View>
-      
-      {Platform.OS !== "web" && showEmojiPicker && (
+
+      {Platform.OS !== "web" && showEmojiPicker && EmojiPopup && (
         <EmojiPopup
           onEmojiSelected={(emoji: string) => {
-            handleEmojiSelect(emoji)
-            setShowEmojiPicker(false)
+            handleEmojiSelect(emoji);
+            setShowEmojiPicker(false);
           }}
         >
           <View />
         </EmojiPopup>
       )}
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -98,4 +122,4 @@ const styles = StyleSheet.create({
   emojiButton: {
     padding: 4,
   },
-})
+});

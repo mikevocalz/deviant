@@ -1,12 +1,24 @@
 // Face comparison utility for React Native using Regula Face SDK
 // Compares face in ID document with selfie for identity verification
 
-import FaceSDK, {
-  MatchFacesRequest,
-  MatchFacesImage,
-  MatchFacesResponse,
-  ImageType,
-} from "@regulaforensics/react-native-face-api";
+// ── Safe import of @regulaforensics/react-native-face-api ─────────────
+let FaceSDK: any = null;
+let MatchFacesRequest: any = null;
+let MatchFacesImage: any = null;
+let MatchFacesResponse: any = null;
+let ImageType: any = null;
+try {
+  const faceApi = require("@regulaforensics/react-native-face-api");
+  FaceSDK = faceApi.default;
+  MatchFacesRequest = faceApi.MatchFacesRequest;
+  MatchFacesImage = faceApi.MatchFacesImage;
+  MatchFacesResponse = faceApi.MatchFacesResponse;
+  ImageType = faceApi.ImageType;
+} catch {
+  console.warn(
+    "[FaceMatcher] @regulaforensics/react-native-face-api not available in this binary",
+  );
+}
 import * as FileSystem from "expo-file-system/legacy";
 
 // Convert file URI to base64
@@ -94,6 +106,9 @@ export async function compareFaces(
   idImageUri: string,
   selfieImageUri: string,
 ): Promise<FaceComparisonResult> {
+  if (!FaceSDK) {
+    throw new Error("Face verification is not available in this app version.");
+  }
   console.log("[FaceMatcher] Starting face comparison...");
   console.log("[FaceMatcher] ID Image:", idImageUri?.substring(0, 50));
   console.log("[FaceMatcher] Selfie Image:", selfieImageUri?.substring(0, 50));
@@ -211,7 +226,7 @@ export async function compareFaces(
 
 // Detect if an image contains a human face using Regula SDK
 export async function detectFaceFromImage(imageUri: string): Promise<boolean> {
-  if (!imageUri) return false;
+  if (!FaceSDK || !imageUri) return false;
 
   try {
     await initializeFaceSDK();
