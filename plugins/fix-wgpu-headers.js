@@ -24,24 +24,28 @@ function withFixWgpuHeaders(config) {
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
       const snippet = `
-    # [fix-wgpu-headers] Add wgpu's own cpp/jsi/ to search paths so the compiler
-    # finds wgpu's JSIConverter.h via the qualified include "jsi/JSIConverter.h".
-    installer.pods_project.targets.each do |target|
-      if target.name == 'react-native-wgpu'
-        target.build_configurations.each do |config|
-          paths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
-          paths = [paths] if paths.is_a?(String)
-          paths << '"$(PODS_TARGET_SRCROOT)/cpp"' unless paths.any? { |p| p.include?('PODS_TARGET_SRCROOT)/cpp"') }
-          paths << '"$(PODS_TARGET_SRCROOT)/cpp/jsi"' unless paths.any? { |p| p.include?('cpp/jsi') }
-          config.build_settings['HEADER_SEARCH_PATHS'] = paths
-        end
-      end
-    end`;
+  # [fix-wgpu-headers] Disable header maps for react-native-wgpu only.
+  # Must run AFTER react_native_post_install to avoid being overwritten.
+  installer.pods_project.targets.each do |t|
+    next unless t.name == 'react-native-wgpu'
+    t.build_configurations.each do |config|
+      config.build_settings['USE_HEADERMAP'] = 'NO'
+      config.build_settings['ALWAYS_SEARCH_USER_PATHS'] = 'NO'
+    end
+  end`;
 
-      // Inject right after the post_install opener
-      const hook = "post_install do |installer|";
-      if (podfile.includes(hook) && !podfile.includes("[fix-wgpu-headers]")) {
-        podfile = podfile.replace(hook, hook + snippet);
+      // Inject just before the final 'end' of the file (closes post_install block),
+      // so it runs AFTER react_native_post_install and won't be overwritten.
+      if (!podfile.includes("[fix-wgpu-headers]")) {
+        // Replace the last occurrence of a bare 'end' line
+        const lastEnd = podfile.lastIndexOf("\nend");
+        if (lastEnd !== -1) {
+          podfile =
+            podfile.slice(0, lastEnd) +
+            snippet +
+            "\nend" +
+            podfile.slice(lastEnd + 4);
+        }
       }
 
       fs.writeFileSync(podfilePath, podfile, "utf8");
