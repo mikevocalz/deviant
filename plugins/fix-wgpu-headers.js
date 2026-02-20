@@ -24,27 +24,28 @@ function withFixWgpuHeaders(config) {
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
       const snippet = `
-  # [fix-wgpu-headers] Disable header maps for react-native-wgpu only.
-  # Must run AFTER react_native_post_install to avoid being overwritten.
-  installer.pods_project.targets.each do |t|
-    next unless t.name == 'react-native-wgpu'
-    t.build_configurations.each do |config|
-      config.build_settings['USE_HEADERMAP'] = 'NO'
-      config.build_settings['ALWAYS_SEARCH_USER_PATHS'] = 'NO'
-    end
-  end`;
+    # [fix-wgpu-headers] Disable header maps for react-native-wgpu only.
+    # Must run AFTER react_native_post_install to avoid being overwritten.
+    installer.pods_project.targets.each do |t|
+      next unless t.name == 'react-native-wgpu'
+      t.build_configurations.each do |config|
+        config.build_settings['USE_HEADERMAP'] = 'NO'
+        config.build_settings['ALWAYS_SEARCH_USER_PATHS'] = 'NO'
+      end
+    end`;
 
-      // Inject just before the final 'end' of the file (closes post_install block),
-      // so it runs AFTER react_native_post_install and won't be overwritten.
+      // Inject just before the closing '  end' of the post_install block.
+      // post_install uses 2-space indent, so its closing line is '\n  end'.
+      // We must inject AFTER react_native_post_install so settings aren't overwritten.
       if (!podfile.includes("[fix-wgpu-headers]")) {
-        // Replace the last occurrence of a bare 'end' line
-        const lastEnd = podfile.lastIndexOf("\nend");
-        if (lastEnd !== -1) {
+        const marker = "\n  end\nend";
+        const idx = podfile.lastIndexOf(marker);
+        if (idx !== -1) {
           podfile =
-            podfile.slice(0, lastEnd) +
+            podfile.slice(0, idx) +
             snippet +
-            "\nend" +
-            podfile.slice(lastEnd + 4);
+            marker +
+            podfile.slice(idx + marker.length);
         }
       }
 
