@@ -1,13 +1,16 @@
 /**
  * Expo Config Plugin: Fix react-native-wgpu header collision with @shopify/react-native-skia
  *
- * Both packages ship a file named JSIConverter.h. Xcode's header map flattens them,
- * causing wgpu's #include "JSIConverter.h" to resolve to Skia's copy (which then
- * fails looking for utils/RNSkLog.h).
+ * Both packages share 6 identically-named C++ headers. CocoaPods flattens private
+ * headers into Pods/Headers/Private/<pod>/ and the Xcode project-level header map
+ * can resolve bare #include "X.h" to Skia's copy instead of wgpu's, causing
+ * 'utils/RNSkLog.h' file not found errors.
  *
- * Fix: In the post_install hook, disable header maps for the wgpu target only
- * and add its own cpp/jsi/ subdirectory to HEADER_SEARCH_PATHS so the compiler
- * finds wgpu's JSIConverter.h via standard include resolution.
+ * The primary fix is in scripts/patch-wgpu.sh which qualifies all colliding includes
+ * with jsi/ or ./ prefixes so they bypass header-map bare-filename lookup.
+ *
+ * This plugin is belt-and-suspenders: it ensures wgpu's cpp/ and cpp/jsi/ are in
+ * HEADER_SEARCH_PATHS so the qualified includes resolve correctly.
  */
 const { withDangerousMod } = require("expo/config-plugins");
 const fs = require("fs");
@@ -24,19 +27,21 @@ function withFixWgpuHeaders(config) {
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
       const snippet = `
-    # [fix-wgpu-headers] Add wgpu's cpp/ to HEADER_SEARCH_PATHS so qualified
-    # includes like "jsi/WGPUJSIConverter.h" resolve to wgpu's own headers.
+    # [fix-wgpu-headers] Ensure wgpu's cpp/ tree is in HEADER_SEARCH_PATHS so
+    # qualified includes like "jsi/NativeObject.h" resolve to wgpu's own headers
+    # instead of Skia's identically-named copies.
     installer.pods_project.targets.each do |t|
       next unless t.name == 'react-native-wgpu'
       t.build_configurations.each do |config|
-        existing = config.build_settings['HEADER_SEARCH_PATHS'] || '$(inherited)'
-        existing = [existing] if existing.is_a?(String)
-        existing << '"$(PODS_TARGET_SRCROOT)/cpp"' unless existing.any? { |p| p.include?('PODS_TARGET_SRCROOT)/cpp"') }
-        config.build_settings['HEADER_SEARCH_PATHS'] = existing
+        paths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
+        paths = [paths] if paths.is_a?(String)
+        paths << '"$(PODS_TARGET_SRCROOT)/cpp"' unless paths.any? { |p| p.include?('PODS_TARGET_SRCROOT)/cpp"') }
+        paths << '"$(PODS_TARGET_SRCROOT)/cpp/jsi"' unless paths.any? { |p| p.include?('cpp/jsi') }
+        config.build_settings['HEADER_SEARCH_PATHS'] = paths
       end
     end`;
 
-      // Inject just before the closing '  end' of the post_install block (after react_native_post_install)
+      // Inject just before the closing '  end' of the post_install block
       if (!podfile.includes("[fix-wgpu-headers]")) {
         const marker = "\n  end\nend";
         const idx = podfile.lastIndexOf(marker);
