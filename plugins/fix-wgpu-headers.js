@@ -24,11 +24,12 @@ function withFixWgpuHeaders(config) {
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
       const snippet = `
-    # [fix-wgpu-headers] Add wgpu's own cpp/jsi/ to search paths so the compiler
-    # finds wgpu's JSIConverter.h via the qualified include "jsi/JSIConverter.h".
+    # [fix-wgpu-headers] Disable header maps for react-native-wgpu to prevent
+    # JSIConverter.h name collision with @shopify/react-native-skia.
     installer.pods_project.targets.each do |target|
       if target.name == 'react-native-wgpu'
         target.build_configurations.each do |config|
+          config.build_settings['USE_HEADERMAP'] = 'NO'
           paths = config.build_settings['HEADER_SEARCH_PATHS'] || ['$(inherited)']
           paths = [paths] if paths.is_a?(String)
           paths << '"$(PODS_TARGET_SRCROOT)/cpp"' unless paths.any? { |p| p.include?('PODS_TARGET_SRCROOT)/cpp"') }
