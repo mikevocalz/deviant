@@ -19,10 +19,10 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  runOnJS,
-  SharedValue,
   cancelAnimation,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
+import type { SharedValue } from "react-native-reanimated";
 import {
   useVideoLifecycle,
   safePlay,
@@ -467,7 +467,7 @@ export default function StoryViewerScreen() {
           ) {
             // Do NOT set hasAdvanced here — handleNext sets it itself.
             // Setting it here would cause handleNext's guard to block the call.
-            runOnJS(callHandleNext)();
+            scheduleOnRN(callHandleNext);
           }
         });
       } else {
