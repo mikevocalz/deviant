@@ -1,0 +1,20 @@
+diff --git a/android/CMakeLists.txt b/android/CMakeLists.txt
+index 4ff85ae772b2c4d6791071547c34a59c19e23a49..801e80815a2579ee02cdc16a4cc3e951a9616faf 100644
+--- a/android/CMakeLists.txt
++++ b/android/CMakeLists.txt
+@@ -16,8 +16,13 @@ string(
+   CMAKE_CXX_FLAGS
+   " -DREACT_NATIVE_MINOR_VERSION=${REACT_NATIVE_MINOR_VERSION}\
+     -DWORKLETS_VERSION=${WORKLETS_VERSION}\
+-    -DWORKLETS_FEATURE_FLAGS=\"${WORKLETS_FEATURE_FLAGS}\"\
+-    -DHERMES_V1_ENABLED=${HERMES_V1_ENABLED}")
++    -DWORKLETS_FEATURE_FLAGS=\"${WORKLETS_FEATURE_FLAGS}\"")
++
++# Only add HERMES_V1_ENABLED manually for RN < 80;
++# RN >= 80 sets it via target_compile_reactnative_options
++if(REACT_NATIVE_MINOR_VERSION LESS 80)
++  string(APPEND CMAKE_CXX_FLAGS " -DHERMES_V1_ENABLED=${HERMES_V1_ENABLED}")
++endif()
+ 
+ string(APPEND CMAKE_CXX_FLAGS " -fno-omit-frame-pointer -fstack-protector-all")
+ 
