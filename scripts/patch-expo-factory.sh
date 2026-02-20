@@ -22,7 +22,7 @@ if [ ! -d "$EXPO_IOS" ]; then
 fi
 
 # Idempotency check
-if grep -q 'bundleConfiguration: .defaultConfiguration()' "$EXPO_IOS/ExpoReactNativeFactory.swift" 2>/dev/null; then
+if grep -q 'bundleConfiguration: .default()' "$EXPO_IOS/ExpoReactNativeFactory.swift" 2>/dev/null; then
   echo "[patch-expo-factory] Already patched, skipping"
   exit 0
 fi
@@ -50,8 +50,8 @@ swift = swift.replace(
         withModuleName: moduleName ?? defaultModuleName,
         initialProperties: initialProps,
         launchOptions: launchOptions,
-        bundleConfiguration: .defaultConfiguration(),
-        devMenuConfiguration: self.devMenuConfiguration ?? .defaultConfiguration()
+        bundleConfiguration: .default(),
+        devMenuConfiguration: self.devMenuConfiguration ?? .default()
       )"""
 )
 
@@ -67,12 +67,12 @@ swift = swift.replace(
         withModuleName: moduleName ?? defaultModuleName,
         initialProperties: initialProps,
         launchOptions: launchOptions ?? [:],
-        bundleConfiguration: .defaultConfiguration(),
-        devMenuConfiguration: self.devMenuConfiguration ?? .defaultConfiguration()
+        bundleConfiguration: .default(),
+        devMenuConfiguration: self.devMenuConfiguration ?? .default()
       )"""
 )
 
-if 'bundleConfiguration: .defaultConfiguration()' not in swift:
+if 'bundleConfiguration: .default()' not in swift:
     errors.append("ExpoReactNativeFactory.swift: patterns not found")
 else:
     with open(swift_path, 'w') as f:
