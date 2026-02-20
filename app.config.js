@@ -118,6 +118,7 @@ export default {
     },
     plugins: [
       "./plugins/android-fixes",
+      "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
       "expo-font",
