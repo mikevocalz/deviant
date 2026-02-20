@@ -18,6 +18,7 @@ import { useAppResume } from "@/lib/hooks/use-app-resume";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
 import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
+import { useLiveSurface } from "@/src/live-surface/hooks/use-live-surface";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -63,6 +64,8 @@ export default function ProtectedLayout() {
   useBootLocation();
   // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
   useEventsTabVisibility();
+  // Live Surface: fetches payload on app open, updates iOS Live Activity / Android notification
+  useLiveSurface();
 
   const user = useAuthStore((s) => s.user);
 

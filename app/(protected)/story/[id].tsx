@@ -152,7 +152,7 @@ export default function StoryViewerScreen() {
   >([]);
   const emojiCounter = useRef(0);
 
-  const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
+  const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮", "😈"];
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPaused = useRef(false);
   const hasAdvanced = useRef(false);
