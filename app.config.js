@@ -209,6 +209,7 @@ export default {
       "@config-plugins/react-native-callkeep",
       "./plugins/with-voip-push",
       "./plugins/with-custom-ringtone",
+      "./plugins/with-live-activity",
       "expo-secure-store",
       "expo-sharing",
       [

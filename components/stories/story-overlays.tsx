@@ -36,7 +36,7 @@ import type {
 
 // ── Reaction Tally Display ──────────────────────────────────────────
 
-const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
+const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮", "😈"];
 
 function ReactionTally({ counts }: { counts: Record<string, number> }) {
   const scale = useRef(new Animated.Value(0.6)).current;

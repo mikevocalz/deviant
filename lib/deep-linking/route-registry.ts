@@ -132,6 +132,12 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     label: "Event Detail",
   },
   {
+    urlPattern: "/events/create",
+    routerPath: "/(protected)/events/create",
+    auth: "auth-required",
+    label: "Create Event",
+  },
+  {
     urlPattern: "/events/:id",
     routerPath: "/(protected)/events/:id",
     auth: "auth-required",
@@ -311,6 +317,21 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     routerPath: "/settings/language",
     auth: "auth-required",
     label: "Language Settings",
+  },
+
+  // ── Recap / Moments ─────────────────────────────────────────────────
+  {
+    urlPattern: "/recap/week",
+    routerPath: "/(protected)/(tabs)/events",
+    auth: "auth-required",
+    label: "Weekly Recap",
+  },
+  {
+    urlPattern: "/moment/:id",
+    routerPath: "/(protected)/post/:id",
+    auth: "auth-required",
+    paramsSchema: idSchema,
+    label: "Moment Detail",
   },
 
   // ── Tabs / Home ────────────────────────────────────────────────────

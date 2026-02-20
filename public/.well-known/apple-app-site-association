@@ -88,6 +88,14 @@
             "comment": "Close Friends"
           },
           {
+            "/": "/recap/*",
+            "comment": "Weekly Recap (Live Surface)"
+          },
+          {
+            "/": "/moment/*",
+            "comment": "Moment detail (Live Surface)"
+          },
+          {
             "/": "/settings",
             "comment": "Settings root"
           },
