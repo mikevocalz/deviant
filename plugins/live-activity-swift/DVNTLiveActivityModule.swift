@@ -3,13 +3,14 @@ import Foundation
 import React
 
 @objc(DVNTLiveActivity)
+@available(iOS 16.2, *)
 class DVNTLiveActivityModule: NSObject {
 
     @objc static func requiresMainQueueSetup() -> Bool { return false }
 
     @objc func areLiveActivitiesEnabled(_ resolve: @escaping RCTPromiseResolveBlock,
                                          rejecter reject: @escaping RCTPromiseRejectBlock) {
-        if #available(iOS 16.1, *) {
+        if #available(iOS 16.2, *) {
             resolve(ActivityAuthorizationInfo().areActivitiesEnabled)
         } else {
             resolve(false)
@@ -17,7 +18,7 @@ class DVNTLiveActivityModule: NSObject {
     }
 
     @objc func updateLiveActivity(_ jsonPayload: String) {
-        guard #available(iOS 16.1, *) else { return }
+        guard #available(iOS 16.2, *) else { return }
         guard let data = jsonPayload.data(using: .utf8),
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             print("[DVNTLiveActivity] Failed to parse payload JSON")
@@ -43,7 +44,7 @@ class DVNTLiveActivityModule: NSObject {
     }
 
     @objc func endLiveActivity() {
-        guard #available(iOS 16.1, *) else { return }
+        guard #available(iOS 16.2, *) else { return }
         Task {
             for activity in Activity<DVNTLiveAttributes>.activities {
                 await activity.end(nil, dismissalPolicy: .immediate)
