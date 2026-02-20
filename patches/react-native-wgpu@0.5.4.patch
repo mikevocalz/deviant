@@ -1,3 +1,16 @@
+diff --git a/cpp/jsi/NativeObject.h b/cpp/jsi/NativeObject.h
+index a90927721c2b096644efd479a94151a7719a8d52..41e5a6aa84cf4b4b4e1830d06560cc98681b57bd 100644
+--- a/cpp/jsi/NativeObject.h
++++ b/cpp/jsi/NativeObject.h
+@@ -23,7 +23,7 @@ template <typename ArgType, typename SFINAE> struct JSIConverter;
+ } // namespace rnwgpu
+ 
+ // Include the converter - must come after forward declaration
+-#include "JSIConverter.h"
++#include "jsi/JSIConverter.h"
+ 
+ namespace rnwgpu {
+ 
 diff --git a/cpp/rnwgpu/ArrayBuffer.h b/cpp/rnwgpu/ArrayBuffer.h
 index 4b28cbd12144315f604bf7a44546501188c414b4..9704d3f01a60dcb4d80a2752bbf6f0bb00b36a0d 100644
 --- a/cpp/rnwgpu/ArrayBuffer.h
