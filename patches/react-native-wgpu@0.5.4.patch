@@ -1,5 +1,5 @@
 diff --git a/cpp/jsi/NativeObject.h b/cpp/jsi/NativeObject.h
-index a90927721c2b096644efd479a94151a7719a8d52..41e5a6aa84cf4b4b4e1830d06560cc98681b57bd 100644
+index a90927721c2b096644efd479a94151a7719a8d52..225014f12f05b3d0b567de8fa67b22f811f5e046 100644
 --- a/cpp/jsi/NativeObject.h
 +++ b/cpp/jsi/NativeObject.h
 @@ -23,7 +23,7 @@ template <typename ArgType, typename SFINAE> struct JSIConverter;
@@ -7,12 +7,16 @@ index a90927721c2b096644efd479a94151a7719a8d52..41e5a6aa84cf4b4b4e1830d06560cc98
  
  // Include the converter - must come after forward declaration
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  namespace rnwgpu {
  
+diff --git a/cpp/jsi/JSIConverter.h b/cpp/jsi/WGPUJSIConverter.h
+similarity index 100%
+rename from cpp/jsi/JSIConverter.h
+rename to cpp/jsi/WGPUJSIConverter.h
 diff --git a/cpp/rnwgpu/ArrayBuffer.h b/cpp/rnwgpu/ArrayBuffer.h
-index 4b28cbd12144315f604bf7a44546501188c414b4..9704d3f01a60dcb4d80a2752bbf6f0bb00b36a0d 100644
+index 4b28cbd12144315f604bf7a44546501188c414b4..c2babdeb392d1ad214e8c6ccc995d9ddf84baec6 100644
 --- a/cpp/rnwgpu/ArrayBuffer.h
 +++ b/cpp/rnwgpu/ArrayBuffer.h
 @@ -3,7 +3,7 @@
@@ -20,12 +24,12 @@ index 4b28cbd12144315f604bf7a44546501188c414b4..9704d3f01a60dcb4d80a2752bbf6f0bb
  #include <memory>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  namespace rnwgpu {
  
 diff --git a/cpp/rnwgpu/api/GPU.cpp b/cpp/rnwgpu/api/GPU.cpp
-index 764a9aa32efb017b1042d7a40ade7d5a34925f73..08d0448e3a6c1c4cd91915b6eafbc7b20cb32378 100644
+index 764a9aa32efb017b1042d7a40ade7d5a34925f73..bc3063c6a6a6178ba9c194b1be18045ef69257c6 100644
 --- a/cpp/rnwgpu/api/GPU.cpp
 +++ b/cpp/rnwgpu/api/GPU.cpp
 @@ -8,7 +8,7 @@
@@ -33,12 +37,12 @@ index 764a9aa32efb017b1042d7a40ade7d5a34925f73..08d0448e3a6c1c4cd91915b6eafbc7b2
  
  #include "Convertors.h"
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "rnwgpu/async/JSIMicrotaskDispatcher.h"
  
  namespace rnwgpu {
 diff --git a/cpp/rnwgpu/api/GPUAdapter.cpp b/cpp/rnwgpu/api/GPUAdapter.cpp
-index 27bf14f8b86ae2b3ecdea068a0cc754f6c6aa209..213ea39a334ab65871c96c92f4b6e36391b43752 100644
+index 27bf14f8b86ae2b3ecdea068a0cc754f6c6aa209..57486a7d10c6cda4dbf991dace86973179cde084 100644
 --- a/cpp/rnwgpu/api/GPUAdapter.cpp
 +++ b/cpp/rnwgpu/api/GPUAdapter.cpp
 @@ -10,7 +10,7 @@
@@ -46,12 +50,12 @@ index 27bf14f8b86ae2b3ecdea068a0cc754f6c6aa209..213ea39a334ab65871c96c92f4b6e363
  
  #include "GPUFeatures.h"
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace rnwgpu {
 diff --git a/cpp/rnwgpu/api/GPUDevice.cpp b/cpp/rnwgpu/api/GPUDevice.cpp
-index 909c4555a1b3381027ef8798eab5dcdc1f97692d..45b4b6b682ab93f475ecff9e9ab9c270c080d414 100644
+index 909c4555a1b3381027ef8798eab5dcdc1f97692d..d0d2f7661c0e747a314ddb31f678460300f30785 100644
 --- a/cpp/rnwgpu/api/GPUDevice.cpp
 +++ b/cpp/rnwgpu/api/GPUDevice.cpp
 @@ -7,7 +7,7 @@
@@ -59,12 +63,12 @@ index 909c4555a1b3381027ef8798eab5dcdc1f97692d..45b4b6b682ab93f475ecff9e9ab9c270
  
  #include "Convertors.h"
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "GPUFeatures.h"
  #include "GPUInternalError.h"
 diff --git a/cpp/rnwgpu/api/GPUExtent3D.h b/cpp/rnwgpu/api/GPUExtent3D.h
-index 4dda4f3c53d5c7341cc6752fbc70a808be19c14a..68281c6c03605c657c01b9472f100c6d54cbe646 100644
+index 4dda4f3c53d5c7341cc6752fbc70a808be19c14a..cf7eca1ec9814f109b386c20d28fff5b90c6d6fd 100644
 --- a/cpp/rnwgpu/api/GPUExtent3D.h
 +++ b/cpp/rnwgpu/api/GPUExtent3D.h
 @@ -2,7 +2,7 @@
@@ -72,12 +76,12 @@ index 4dda4f3c53d5c7341cc6752fbc70a808be19c14a..68281c6c03605c657c01b9472f100c6d
  #include <memory>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "webgpu/webgpu_cpp.h"
  
 diff --git a/cpp/rnwgpu/api/GPUOrigin2D.h b/cpp/rnwgpu/api/GPUOrigin2D.h
-index 35eeec97a989e2892c5310e208c0615c0ddc54df..dd9a9875b94ab056beebaee415a64e66d22651db 100644
+index 35eeec97a989e2892c5310e208c0615c0ddc54df..427632adf4d32bee5de374e8ed8805222bdb726c 100644
 --- a/cpp/rnwgpu/api/GPUOrigin2D.h
 +++ b/cpp/rnwgpu/api/GPUOrigin2D.h
 @@ -2,7 +2,7 @@
@@ -85,12 +89,12 @@ index 35eeec97a989e2892c5310e208c0615c0ddc54df..dd9a9875b94ab056beebaee415a64e66
  #include <memory>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "webgpu/webgpu_cpp.h"
  
 diff --git a/cpp/rnwgpu/api/GPUOrigin3D.h b/cpp/rnwgpu/api/GPUOrigin3D.h
-index 5f8893f7bb57c4115188cde25a6013cd40cf0252..b0100f6c2f21aee028c3761f48ca168cbfd86728 100644
+index 5f8893f7bb57c4115188cde25a6013cd40cf0252..2b5295c5c7abba25b6978830e81ce0b9db0ed42b 100644
 --- a/cpp/rnwgpu/api/GPUOrigin3D.h
 +++ b/cpp/rnwgpu/api/GPUOrigin3D.h
 @@ -2,7 +2,7 @@
@@ -98,12 +102,12 @@ index 5f8893f7bb57c4115188cde25a6013cd40cf0252..b0100f6c2f21aee028c3761f48ca168c
  #include <memory>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "webgpu/webgpu_cpp.h"
  
 diff --git a/cpp/rnwgpu/api/GPUShaderModule.cpp b/cpp/rnwgpu/api/GPUShaderModule.cpp
-index 0127a9c5ea9c4b16b96127dde242fbc05afdbb9b..975113aaa8313a64cd1c4fa4dce660175c6baee1 100644
+index 0127a9c5ea9c4b16b96127dde242fbc05afdbb9b..d0456ce56b30588c15abea2406e41d0aec66dc2a 100644
 --- a/cpp/rnwgpu/api/GPUShaderModule.cpp
 +++ b/cpp/rnwgpu/api/GPUShaderModule.cpp
 @@ -3,7 +3,7 @@
@@ -111,12 +115,12 @@ index 0127a9c5ea9c4b16b96127dde242fbc05afdbb9b..975113aaa8313a64cd1c4fa4dce66017
  #include <utility>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  namespace rnwgpu {
  
 diff --git a/cpp/rnwgpu/api/GPUUncapturedErrorEvent.h b/cpp/rnwgpu/api/GPUUncapturedErrorEvent.h
-index e780ca085f49ba6937e3a9a911d64202c49a7b66..bc30b61a207d5bd5c75f2e4a6f81b296f3f9cdc3 100644
+index e780ca085f49ba6937e3a9a911d64202c49a7b66..733ec8b16d9376b06809662b45f2d5d12512bdb3 100644
 --- a/cpp/rnwgpu/api/GPUUncapturedErrorEvent.h
 +++ b/cpp/rnwgpu/api/GPUUncapturedErrorEvent.h
 @@ -4,7 +4,7 @@
@@ -124,12 +128,12 @@ index e780ca085f49ba6937e3a9a911d64202c49a7b66..bc30b61a207d5bd5c75f2e4a6f81b296
  #include <variant>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "NativeObject.h"
  
  #include "GPUInternalError.h"
 diff --git a/cpp/rnwgpu/api/RNWebGPU.h b/cpp/rnwgpu/api/RNWebGPU.h
-index fbaee35c123bb66a412f042d92baf2d97f2fe00c..1d8013c81719b90783a7f2ce07037f3bc060f253 100644
+index fbaee35c123bb66a412f042d92baf2d97f2fe00c..d666ec2fe84b02c74a6592478c9e8301e5d84c97 100644
 --- a/cpp/rnwgpu/api/RNWebGPU.h
 +++ b/cpp/rnwgpu/api/RNWebGPU.h
 @@ -13,7 +13,7 @@
@@ -137,12 +141,12 @@ index fbaee35c123bb66a412f042d92baf2d97f2fe00c..1d8013c81719b90783a7f2ce07037f3b
  #include <ReactCommon/CallInvoker.h>
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "Promise.h"
  
  namespace rnwgpu {
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBindGroupDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUBindGroupDescriptor.h
-index 9893898b85e1dda612ad49cee76815a7c33834fd..bc833dfea40c6d91e5e9a5cff366993ddd507e5c 100644
+index 9893898b85e1dda612ad49cee76815a7c33834fd..e8e785ff193a786e564005787fd6fd7cb67c13a7 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBindGroupDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBindGroupDescriptor.h
 @@ -6,7 +6,7 @@
@@ -150,12 +154,12 @@ index 9893898b85e1dda612ad49cee76815a7c33834fd..bc833dfea40c6d91e5e9a5cff366993d
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBindGroupEntry.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBindGroupEntry.h b/cpp/rnwgpu/api/descriptors/GPUBindGroupEntry.h
-index ef1570503b37585c3fc901987a1bf227a22fb37a..a2741ac3c9d116dfe13c46c137dbee61303c0d41 100644
+index ef1570503b37585c3fc901987a1bf227a22fb37a..4a53439274cd4002eeddc74c11024dc63b0d4744 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBindGroupEntry.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBindGroupEntry.h
 @@ -9,7 +9,7 @@
@@ -163,12 +167,12 @@ index ef1570503b37585c3fc901987a1bf227a22fb37a..a2741ac3c9d116dfe13c46c137dbee61
  #include "GPUSampler.h"
  #include "GPUTextureView.h"
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutDescriptor.h
-index 01722bc8c1a115260831b4f8fb6392a80b2cf87f..efe03aacec7d5dc68dfcdb01e3bcfa2b21bbcc6a 100644
+index 01722bc8c1a115260831b4f8fb6392a80b2cf87f..e4aab47b4744aced35b2c57187abd6d657ec2899 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutDescriptor.h
 @@ -6,7 +6,7 @@
@@ -176,12 +180,12 @@ index 01722bc8c1a115260831b4f8fb6392a80b2cf87f..efe03aacec7d5dc68dfcdb01e3bcfa2b
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBindGroupLayoutEntry.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutEntry.h b/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutEntry.h
-index 5d044a941b65229b561669fd8ce317b13e54f37c..5737f8d2dd7e590e4bb4cbf625a41478b09d9f73 100644
+index 5d044a941b65229b561669fd8ce317b13e54f37c..da50ae3827cc9bf023a647f6afc76b9b77605db6 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutEntry.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBindGroupLayoutEntry.h
 @@ -4,7 +4,7 @@
@@ -189,12 +193,12 @@ index 5d044a941b65229b561669fd8ce317b13e54f37c..5737f8d2dd7e590e4bb4cbf625a41478
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBufferBindingLayout.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBlendComponent.h b/cpp/rnwgpu/api/descriptors/GPUBlendComponent.h
-index a9db7526c37ab34a972ddd81906e946c34f7f52c..f1fd7be99fd6f3046b7dfa151f4c734a93c2069f 100644
+index a9db7526c37ab34a972ddd81906e946c34f7f52c..95844548b9a5bea3bdcd9b75b26d218b088a74e3 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBlendComponent.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBlendComponent.h
 @@ -4,7 +4,7 @@
@@ -202,12 +206,12 @@ index a9db7526c37ab34a972ddd81906e946c34f7f52c..f1fd7be99fd6f3046b7dfa151f4c734a
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBlendState.h b/cpp/rnwgpu/api/descriptors/GPUBlendState.h
-index b51f547c9f5295d4732c8a3c39d00727fa7e51c2..8a03cc82ca5fddb7652bf64861686a6ef63188cf 100644
+index b51f547c9f5295d4732c8a3c39d00727fa7e51c2..a103d94c6f566b35db22248971aa570875a7d091 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBlendState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBlendState.h
 @@ -4,7 +4,7 @@
@@ -215,12 +219,12 @@ index b51f547c9f5295d4732c8a3c39d00727fa7e51c2..8a03cc82ca5fddb7652bf64861686a6e
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBlendComponent.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBufferBinding.h b/cpp/rnwgpu/api/descriptors/GPUBufferBinding.h
-index b0dceca71d7981d4050182d1d4305b78ae510c8f..f3f9d222bc2fb5b72dd477d136890049e9a66453 100644
+index b0dceca71d7981d4050182d1d4305b78ae510c8f..ca98ed349a6a7714c732093b3080fc4cc8df4ff7 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBufferBinding.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBufferBinding.h
 @@ -4,7 +4,7 @@
@@ -228,12 +232,12 @@ index b0dceca71d7981d4050182d1d4305b78ae510c8f..f3f9d222bc2fb5b72dd477d136890049
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBuffer.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBufferBindingLayout.h b/cpp/rnwgpu/api/descriptors/GPUBufferBindingLayout.h
-index 5150b9029a14d441bcad064c9d03f14e9f05e1f5..ff5b81e756e0b3d66f9ac409c7a58a6545bd0c4b 100644
+index 5150b9029a14d441bcad064c9d03f14e9f05e1f5..33c53a33679d9f3b1409c070f62f0f3e6e67b7ec 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBufferBindingLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBufferBindingLayout.h
 @@ -4,7 +4,7 @@
@@ -241,12 +245,12 @@ index 5150b9029a14d441bcad064c9d03f14e9f05e1f5..ff5b81e756e0b3d66f9ac409c7a58a65
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUBufferDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUBufferDescriptor.h
-index a80129444e5fd4e68396723984ca6f13056c7652..4797e66841ca2e18aa12d3936c98106cc3c0c725 100644
+index a80129444e5fd4e68396723984ca6f13056c7652..c460fe4f6c810e0fc7a5c37af016cbab72696e3d 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUBufferDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUBufferDescriptor.h
 @@ -5,7 +5,7 @@
@@ -254,12 +258,12 @@ index a80129444e5fd4e68396723984ca6f13056c7652..4797e66841ca2e18aa12d3936c98106c
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUCanvasConfiguration.h b/cpp/rnwgpu/api/descriptors/GPUCanvasConfiguration.h
-index c27b4a7fbc8cb0abfa7a458cbf9c3258238091c7..94cbb6e39e3d981fa247c274e7a3ff6f7473948a 100644
+index c27b4a7fbc8cb0abfa7a458cbf9c3258238091c7..382e66b8c5ff05c1d17f355b180cd563c7ea855e 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUCanvasConfiguration.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUCanvasConfiguration.h
 @@ -5,7 +5,7 @@
@@ -267,12 +271,12 @@ index c27b4a7fbc8cb0abfa7a458cbf9c3258238091c7..94cbb6e39e3d981fa247c274e7a3ff6f
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "GPUDevice.h"
  
 diff --git a/cpp/rnwgpu/api/descriptors/GPUColor.h b/cpp/rnwgpu/api/descriptors/GPUColor.h
-index 7b472ecc13aa1c9c51186b3f12f23af46e20d99e..4e1966d1315eab9b93b84d520c879a978a38bef0 100644
+index 7b472ecc13aa1c9c51186b3f12f23af46e20d99e..dcf0f99f0022c53282e3d626e39cadc0142357bb 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUColor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUColor.h
 @@ -4,7 +4,7 @@
@@ -280,12 +284,12 @@ index 7b472ecc13aa1c9c51186b3f12f23af46e20d99e..4e1966d1315eab9b93b84d520c879a97
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUColorTargetState.h b/cpp/rnwgpu/api/descriptors/GPUColorTargetState.h
-index b850428c095492b9a11b9552bea5228800ca5eac..f19737a6aee1face125a5ad54a44232ee5ff9078 100644
+index b850428c095492b9a11b9552bea5228800ca5eac..3e6edd122a586882c1a3efb12f3569e5d0e39dcf 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUColorTargetState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUColorTargetState.h
 @@ -4,7 +4,7 @@
@@ -293,12 +297,12 @@ index b850428c095492b9a11b9552bea5228800ca5eac..f19737a6aee1face125a5ad54a44232e
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBlendState.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUCommandBufferDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUCommandBufferDescriptor.h
-index 5d572660cec5a0dbc28da2828c7b3768309f9f9d..d6c38f5fff55d35d4f402b26a0667b653a82982a 100644
+index 5d572660cec5a0dbc28da2828c7b3768309f9f9d..f25f5dcaeb6e9c6a0b364fed989da303b7b392d6 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUCommandBufferDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUCommandBufferDescriptor.h
 @@ -5,7 +5,7 @@
@@ -306,12 +310,12 @@ index 5d572660cec5a0dbc28da2828c7b3768309f9f9d..d6c38f5fff55d35d4f402b26a0667b65
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUCommandEncoderDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUCommandEncoderDescriptor.h
-index f84fbacda915053633974ab92220e80153974f19..a8f82c9541fc901ffec73958aa1872d36bc916e1 100644
+index f84fbacda915053633974ab92220e80153974f19..45bc6cb5b5e6d33f0e2d6e4eb0b701057c9c8404 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUCommandEncoderDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUCommandEncoderDescriptor.h
 @@ -5,7 +5,7 @@
@@ -319,12 +323,12 @@ index f84fbacda915053633974ab92220e80153974f19..a8f82c9541fc901ffec73958aa1872d3
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUComputePassDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUComputePassDescriptor.h
-index bbd7abd56650820d50882c072e83caae9cc729d4..efb202a61053649a4fde4aa736a08758dc3c34a3 100644
+index bbd7abd56650820d50882c072e83caae9cc729d4..0401fd9bec2000603a663213bf262cfdd1ce99b1 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUComputePassDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUComputePassDescriptor.h
 @@ -5,7 +5,7 @@
@@ -332,12 +336,12 @@ index bbd7abd56650820d50882c072e83caae9cc729d4..efb202a61053649a4fde4aa736a08758
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUComputePassTimestampWrites.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUComputePassTimestampWrites.h b/cpp/rnwgpu/api/descriptors/GPUComputePassTimestampWrites.h
-index 3f25413c22e2c977ff567fe2cc4da670087a317a..c21e9d8d59eda562fdfda16060f9ed03c17f524a 100644
+index 3f25413c22e2c977ff567fe2cc4da670087a317a..9f0b97b59cb8fb1950aac6e6875a6172b882c824 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUComputePassTimestampWrites.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUComputePassTimestampWrites.h
 @@ -4,7 +4,7 @@
@@ -345,12 +349,12 @@ index 3f25413c22e2c977ff567fe2cc4da670087a317a..c21e9d8d59eda562fdfda16060f9ed03
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUQuerySet.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUComputePipelineDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUComputePipelineDescriptor.h
-index 9ed70a0471d872ee9ee08e4752b8bbc8fe345301..a00550e98a48bcdb5ff643ca7f9c71bee44eecb3 100644
+index 9ed70a0471d872ee9ee08e4752b8bbc8fe345301..1c500df5614bd4bea6883acdfd3446ef81a2b050 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUComputePipelineDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUComputePipelineDescriptor.h
 @@ -5,7 +5,7 @@
@@ -358,12 +362,12 @@ index 9ed70a0471d872ee9ee08e4752b8bbc8fe345301..a00550e98a48bcdb5ff643ca7f9c71be
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUPipelineLayout.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUDepthStencilState.h b/cpp/rnwgpu/api/descriptors/GPUDepthStencilState.h
-index b307dec15e0324be5ef36b96ee1dac027a3cd2d9..e8cb06beb289a791b2d65e52b9c1a7842f8a9a79 100644
+index b307dec15e0324be5ef36b96ee1dac027a3cd2d9..8893dc5b7f7c67d14113b3c7bb7ac904e4a550ee 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUDepthStencilState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUDepthStencilState.h
 @@ -4,7 +4,7 @@
@@ -371,12 +375,12 @@ index b307dec15e0324be5ef36b96ee1dac027a3cd2d9..e8cb06beb289a791b2d65e52b9c1a784
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUStencilFaceState.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUDeviceDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUDeviceDescriptor.h
-index 5ec068b4874b5aac7e3bbba208ea4c1039f051a1..7eb25892f781db225b097af661b663e49814d570 100644
+index 5ec068b4874b5aac7e3bbba208ea4c1039f051a1..04910441d190824c62d7f536ef89c2443c06eba6 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUDeviceDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUDeviceDescriptor.h
 @@ -7,7 +7,7 @@
@@ -384,12 +388,12 @@ index 5ec068b4874b5aac7e3bbba208ea4c1039f051a1..7eb25892f781db225b097af661b663e4
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUQueueDescriptor.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUExternalTextureBindingLayout.h b/cpp/rnwgpu/api/descriptors/GPUExternalTextureBindingLayout.h
-index a296a15df14456d6accffc0349c9d764c913bd3f..c22da5f1d0079ce7868e34f4efd699b75f7bc1ee 100644
+index a296a15df14456d6accffc0349c9d764c913bd3f..23f8429dbcea777b2851befdc61d2e2392cdee96 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUExternalTextureBindingLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUExternalTextureBindingLayout.h
 @@ -4,7 +4,7 @@
@@ -397,12 +401,12 @@ index a296a15df14456d6accffc0349c9d764c913bd3f..c22da5f1d0079ce7868e34f4efd699b7
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUExternalTextureDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUExternalTextureDescriptor.h
-index fba6721eea873667c84856fe47a4dec64ee3cd6b..cac23b9a6ea7a6166a86d1c27ffae8439307cd69 100644
+index fba6721eea873667c84856fe47a4dec64ee3cd6b..555443384f677237666119ec21ba2e6be0bce72c 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUExternalTextureDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUExternalTextureDescriptor.h
 @@ -9,7 +9,7 @@
@@ -410,12 +414,12 @@ index fba6721eea873667c84856fe47a4dec64ee3cd6b..cac23b9a6ea7a6166a86d1c27ffae843
  #include "Convertors.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUFragmentState.h b/cpp/rnwgpu/api/descriptors/GPUFragmentState.h
-index 1a39b718e689c13a8f771d4d450c5141bfed86d9..7f4dc986a78cc2e239ca78732c2da16420040309 100644
+index 1a39b718e689c13a8f771d4d450c5141bfed86d9..7f72dc9eb30a1524d1dee46b208a1c18d847da8e 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUFragmentState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUFragmentState.h
 @@ -8,7 +8,7 @@
@@ -423,12 +427,12 @@ index 1a39b718e689c13a8f771d4d450c5141bfed86d9..7f4dc986a78cc2e239ca78732c2da164
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUColorTargetState.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUImageCopyBuffer.h b/cpp/rnwgpu/api/descriptors/GPUImageCopyBuffer.h
-index 4f5359a0649d6620cf8214386f5abcd0aa772703..91ee8dbdc7f9c710a6a7144546a43623fd627aef 100644
+index 4f5359a0649d6620cf8214386f5abcd0aa772703..efb0da2a96a2c1fa624a9bde21a9b1a1324b56fe 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUImageCopyBuffer.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUImageCopyBuffer.h
 @@ -4,7 +4,7 @@
@@ -436,12 +440,12 @@ index 4f5359a0649d6620cf8214386f5abcd0aa772703..91ee8dbdc7f9c710a6a7144546a43623
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBuffer.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUImageCopyExternalImage.h b/cpp/rnwgpu/api/descriptors/GPUImageCopyExternalImage.h
-index 9e0bc2da85b7f4d9e3b9a7190156f044089ec791..756d0a4f84358cb57f937b7e0b64c0c6f3484cc7 100644
+index 9e0bc2da85b7f4d9e3b9a7190156f044089ec791..c1d20f3b4eeb8d61db6e8ee50ffe71b90481a18c 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUImageCopyExternalImage.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUImageCopyExternalImage.h
 @@ -8,7 +8,7 @@
@@ -449,12 +453,12 @@ index 9e0bc2da85b7f4d9e3b9a7190156f044089ec791..756d0a4f84358cb57f937b7e0b64c0c6
  
  #include "Convertors.h"
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  
  #include "GPUOrigin2D.h"
  #include "ImageBitmap.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUImageCopyTexture.h b/cpp/rnwgpu/api/descriptors/GPUImageCopyTexture.h
-index b9324423cda7815967993809281510fc2da59b9a..6e73e315278e2af07d0327c88b9c75849ae60e97 100644
+index b9324423cda7815967993809281510fc2da59b9a..9f0a61303cbd38f5ebf902fc4581335efadd8c38 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUImageCopyTexture.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUImageCopyTexture.h
 @@ -4,7 +4,7 @@
@@ -462,12 +466,12 @@ index b9324423cda7815967993809281510fc2da59b9a..6e73e315278e2af07d0327c88b9c7584
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUOrigin3D.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUImageCopyTextureTagged.h b/cpp/rnwgpu/api/descriptors/GPUImageCopyTextureTagged.h
-index 88c3693fe0da57ca932d7eff9533cfc6ca572c14..274446d57fccd00440f154fd998192ebcd126867 100644
+index 88c3693fe0da57ca932d7eff9533cfc6ca572c14..078b04037c29941f2ae407d735dec0a0935e2146 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUImageCopyTextureTagged.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUImageCopyTextureTagged.h
 @@ -4,7 +4,7 @@
@@ -475,12 +479,12 @@ index 88c3693fe0da57ca932d7eff9533cfc6ca572c14..274446d57fccd00440f154fd998192eb
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "External.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUImageDataLayout.h b/cpp/rnwgpu/api/descriptors/GPUImageDataLayout.h
-index cf8a4fba1cd71b8a2cb4ad837e15e11a877a3f1b..87e75a058466964693e2b058113a7594e06312b2 100644
+index cf8a4fba1cd71b8a2cb4ad837e15e11a877a3f1b..44c34f13269d2bf31025a49f85f1e4899f4cf3b9 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUImageDataLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUImageDataLayout.h
 @@ -4,7 +4,7 @@
@@ -488,12 +492,12 @@ index cf8a4fba1cd71b8a2cb4ad837e15e11a877a3f1b..87e75a058466964693e2b058113a7594
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUMultisampleState.h b/cpp/rnwgpu/api/descriptors/GPUMultisampleState.h
-index cbe7f3bf88a3870a7fb56b8931c7de7aabce53b2..7b6a375124276e5a65e92e24f5633ad89fe4f90d 100644
+index cbe7f3bf88a3870a7fb56b8931c7de7aabce53b2..4723d39c134e89817f21b5cb37225466c3d3a752 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUMultisampleState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUMultisampleState.h
 @@ -4,7 +4,7 @@
@@ -501,12 +505,12 @@ index cbe7f3bf88a3870a7fb56b8931c7de7aabce53b2..7b6a375124276e5a65e92e24f5633ad8
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUPipelineLayoutDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUPipelineLayoutDescriptor.h
-index fbcafd2810a44d243d01c09edfbaf6b90699a89d..1d926628bc227d369a358a0569461345effe0cf8 100644
+index fbcafd2810a44d243d01c09edfbaf6b90699a89d..a0ae7ac89b36a9607efe40038dbaa0441fde81bf 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUPipelineLayoutDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUPipelineLayoutDescriptor.h
 @@ -6,7 +6,7 @@
@@ -514,12 +518,12 @@ index fbcafd2810a44d243d01c09edfbaf6b90699a89d..1d926628bc227d369a358a0569461345
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUBindGroupLayout.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUPrimitiveState.h b/cpp/rnwgpu/api/descriptors/GPUPrimitiveState.h
-index fc917f2defbd30049ecf72f984e1beb97f23696d..6282430b5ffe5cbb811a9f82ad78758b0aa9aa1c 100644
+index fc917f2defbd30049ecf72f984e1beb97f23696d..a7d26cfa1380c96cb8c9e3f77026bf6ba2a8fe34 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUPrimitiveState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUPrimitiveState.h
 @@ -4,7 +4,7 @@
@@ -527,12 +531,12 @@ index fc917f2defbd30049ecf72f984e1beb97f23696d..6282430b5ffe5cbb811a9f82ad78758b
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUProgrammableStage.h b/cpp/rnwgpu/api/descriptors/GPUProgrammableStage.h
-index 90da614449b8a879eb2e45ccc6b518796570c1b8..a6507eea923230ede23c6f78f3f6cb5ded3d9cf3 100644
+index 90da614449b8a879eb2e45ccc6b518796570c1b8..08adc7271e3c8c84af69d48c242350643956a34a 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUProgrammableStage.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUProgrammableStage.h
 @@ -6,7 +6,7 @@
@@ -540,12 +544,12 @@ index 90da614449b8a879eb2e45ccc6b518796570c1b8..a6507eea923230ede23c6f78f3f6cb5d
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUShaderModule.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUQuerySetDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUQuerySetDescriptor.h
-index 4a218bc14310a12d9bcfe3f3e48bd650d08a98d1..cebe68ad4fe2ec1b3ebbce839eda1075f33f1948 100644
+index 4a218bc14310a12d9bcfe3f3e48bd650d08a98d1..ed1257ac32284685fdf80aaa277d50c681d8673e 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUQuerySetDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUQuerySetDescriptor.h
 @@ -5,7 +5,7 @@
@@ -553,12 +557,12 @@ index 4a218bc14310a12d9bcfe3f3e48bd650d08a98d1..cebe68ad4fe2ec1b3ebbce839eda1075
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUQueueDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUQueueDescriptor.h
-index dd7dfea00e538697e6ee021a97f52432e6c15715..03f281de7b676cecacf04c9a68553fdbb767a033 100644
+index dd7dfea00e538697e6ee021a97f52432e6c15715..f8222896b549247df7df042c3205bb01ff5a9ca9 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUQueueDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUQueueDescriptor.h
 @@ -5,7 +5,7 @@
@@ -566,12 +570,12 @@ index dd7dfea00e538697e6ee021a97f52432e6c15715..03f281de7b676cecacf04c9a68553fdb
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderBundleDescriptor.h b/cpp/rnwgpu/api/descriptors/GPURenderBundleDescriptor.h
-index 0fae5fefbee18be3884c07747927cb1aead2a2b4..51f68550b36808be1ef5059ed274eee45432fc93 100644
+index 0fae5fefbee18be3884c07747927cb1aead2a2b4..91e1ca12ff7cc1da1b8f74bd32f950e9ffd61574 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderBundleDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderBundleDescriptor.h
 @@ -5,7 +5,7 @@
@@ -579,12 +583,12 @@ index 0fae5fefbee18be3884c07747927cb1aead2a2b4..51f68550b36808be1ef5059ed274eee4
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderBundleEncoderDescriptor.h b/cpp/rnwgpu/api/descriptors/GPURenderBundleEncoderDescriptor.h
-index fddda4464dde1d18ca507a69e69ec6e03e799763..3a22a072d99a10f4f516e46a3e9c860bd0279002 100644
+index fddda4464dde1d18ca507a69e69ec6e03e799763..f77b8d255243dbb9183664b9be26bed099e05805 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderBundleEncoderDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderBundleEncoderDescriptor.h
 @@ -6,7 +6,7 @@
@@ -592,12 +596,12 @@ index fddda4464dde1d18ca507a69e69ec6e03e799763..3a22a072d99a10f4f516e46a3e9c860b
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderPassColorAttachment.h b/cpp/rnwgpu/api/descriptors/GPURenderPassColorAttachment.h
-index aacab18d31069707a4f290aa6c470b38f8aa1da1..5bf322a76096ba526a5622218d2933a9ce189829 100644
+index aacab18d31069707a4f290aa6c470b38f8aa1da1..5e030dc6fa54ce85dc1e970c2128297a1074119c 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderPassColorAttachment.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderPassColorAttachment.h
 @@ -4,7 +4,7 @@
@@ -605,12 +609,12 @@ index aacab18d31069707a4f290aa6c470b38f8aa1da1..5bf322a76096ba526a5622218d2933a9
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUColor.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderPassDepthStencilAttachment.h b/cpp/rnwgpu/api/descriptors/GPURenderPassDepthStencilAttachment.h
-index 5efe666d370656486fb112aa1ccab3552f8aa37c..f074fa8c1d5d59c904b9873bffb8dea71491b7d8 100644
+index 5efe666d370656486fb112aa1ccab3552f8aa37c..4dc1282d5673c85eb13d4a71611702b7e2f90cd2 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderPassDepthStencilAttachment.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderPassDepthStencilAttachment.h
 @@ -4,7 +4,7 @@
@@ -618,12 +622,12 @@ index 5efe666d370656486fb112aa1ccab3552f8aa37c..f074fa8c1d5d59c904b9873bffb8dea7
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUTextureView.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderPassDescriptor.h b/cpp/rnwgpu/api/descriptors/GPURenderPassDescriptor.h
-index 768bc5b3637890846ea3c590074b0ad667a67236..45b32cad7407ef44f40f073e0bf59e67c6864921 100644
+index 768bc5b3637890846ea3c590074b0ad667a67236..ae1546908757ce2d5a9f88146a53366bce839802 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderPassDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderPassDescriptor.h
 @@ -7,7 +7,7 @@
@@ -631,12 +635,12 @@ index 768bc5b3637890846ea3c590074b0ad667a67236..45b32cad7407ef44f40f073e0bf59e67
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUQuerySet.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderPassTimestampWrites.h b/cpp/rnwgpu/api/descriptors/GPURenderPassTimestampWrites.h
-index bc94e9d233fae07759e55983338de5738e5d850f..73771e513962c8e2ba298a6c84f46ec318fb8ab2 100644
+index bc94e9d233fae07759e55983338de5738e5d850f..832d795fd7f2d9d8b9e82fe4b9945ca5039230af 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderPassTimestampWrites.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderPassTimestampWrites.h
 @@ -4,7 +4,7 @@
@@ -644,12 +648,12 @@ index bc94e9d233fae07759e55983338de5738e5d850f..73771e513962c8e2ba298a6c84f46ec3
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUQuerySet.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPURenderPipelineDescriptor.h b/cpp/rnwgpu/api/descriptors/GPURenderPipelineDescriptor.h
-index 7ceb9d632ca874ba17c353abf08a406b8fe80b2a..77e4ea6ba04707be16b389dd38ec57820edd180a 100644
+index 7ceb9d632ca874ba17c353abf08a406b8fe80b2a..9d7093d46426d139b32177fba76ff82a30175f00 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURenderPipelineDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURenderPipelineDescriptor.h
 @@ -5,7 +5,7 @@
@@ -657,12 +661,12 @@ index 7ceb9d632ca874ba17c353abf08a406b8fe80b2a..77e4ea6ba04707be16b389dd38ec5782
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUDepthStencilState.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPURequestAdapterOptions.h b/cpp/rnwgpu/api/descriptors/GPURequestAdapterOptions.h
-index 8f3113df89ac7743b30684bfcd1cf6520a153c8f..d84d4fae3b5231b110acd9fc8edcaefe10cd14f4 100644
+index 8f3113df89ac7743b30684bfcd1cf6520a153c8f..a530ee8d52e30fcf06d00f2804aafdbc39cdf63f 100644
 --- a/cpp/rnwgpu/api/descriptors/GPURequestAdapterOptions.h
 +++ b/cpp/rnwgpu/api/descriptors/GPURequestAdapterOptions.h
 @@ -4,7 +4,7 @@
@@ -670,12 +674,12 @@ index 8f3113df89ac7743b30684bfcd1cf6520a153c8f..d84d4fae3b5231b110acd9fc8edcaefe
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUSamplerBindingLayout.h b/cpp/rnwgpu/api/descriptors/GPUSamplerBindingLayout.h
-index c60c9aa10419cd57ceef760de7505070bddfecf0..168f5e9fc44ef871db0e411e9c8ba477753696bd 100644
+index c60c9aa10419cd57ceef760de7505070bddfecf0..3c7133791b5e9f3cd84d6a29a063ff273b940fa2 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUSamplerBindingLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUSamplerBindingLayout.h
 @@ -4,7 +4,7 @@
@@ -683,12 +687,12 @@ index c60c9aa10419cd57ceef760de7505070bddfecf0..168f5e9fc44ef871db0e411e9c8ba477
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUSamplerDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUSamplerDescriptor.h
-index 8da56963ac33f14e474c0543cd5645efa1db1c0f..ca5075d6727b87e764f9ddd1d7c14dd74c429600 100644
+index 8da56963ac33f14e474c0543cd5645efa1db1c0f..d29ac28f7ca8d583fb81df8f210c15c892b14d69 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUSamplerDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUSamplerDescriptor.h
 @@ -5,7 +5,7 @@
@@ -696,12 +700,12 @@ index 8da56963ac33f14e474c0543cd5645efa1db1c0f..ca5075d6727b87e764f9ddd1d7c14dd7
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUShaderModuleCompilationHint.h b/cpp/rnwgpu/api/descriptors/GPUShaderModuleCompilationHint.h
-index 12c182f3a82fba4f0fbd66d9e00b22d1b9796c40..eaca19bbc886ce81374cf8b002be584f75a871fa 100644
+index 12c182f3a82fba4f0fbd66d9e00b22d1b9796c40..4ce7d81a36b056d7fa644ff1216ad1894bb9d5de 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUShaderModuleCompilationHint.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUShaderModuleCompilationHint.h
 @@ -5,7 +5,7 @@
@@ -709,12 +713,12 @@ index 12c182f3a82fba4f0fbd66d9e00b22d1b9796c40..eaca19bbc886ce81374cf8b002be584f
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUPipelineLayout.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUShaderModuleDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUShaderModuleDescriptor.h
-index d3e6dc629a17c5f357b84bfcf149073d3638c512..4a6cb0132d49e5f875972680e0dc79329d79aeee 100644
+index d3e6dc629a17c5f357b84bfcf149073d3638c512..2326017de83d8b3429e6ed798df1643fca046e80 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUShaderModuleDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUShaderModuleDescriptor.h
 @@ -6,7 +6,7 @@
@@ -722,12 +726,12 @@ index d3e6dc629a17c5f357b84bfcf149073d3638c512..4a6cb0132d49e5f875972680e0dc7932
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUShaderModuleCompilationHint.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUStencilFaceState.h b/cpp/rnwgpu/api/descriptors/GPUStencilFaceState.h
-index 007dd6447e1f272ce134c9b877a385e23e1d14e1..f20913f26148128c78aad3e03c4b215ca36bef2b 100644
+index 007dd6447e1f272ce134c9b877a385e23e1d14e1..23b76002d1434acd6c35302f1724f5c9a6858a53 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUStencilFaceState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUStencilFaceState.h
 @@ -4,7 +4,7 @@
@@ -735,12 +739,12 @@ index 007dd6447e1f272ce134c9b877a385e23e1d14e1..f20913f26148128c78aad3e03c4b215c
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUStorageTextureBindingLayout.h b/cpp/rnwgpu/api/descriptors/GPUStorageTextureBindingLayout.h
-index 0d9a494201a62e49621d5bc7512a8b5c30898576..212fc3571231bb3968b9c26c3edc20b3f8a967d2 100644
+index 0d9a494201a62e49621d5bc7512a8b5c30898576..2287c381fc85fcf2cec3c51e17e40c9907e12b8f 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUStorageTextureBindingLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUStorageTextureBindingLayout.h
 @@ -4,7 +4,7 @@
@@ -748,12 +752,12 @@ index 0d9a494201a62e49621d5bc7512a8b5c30898576..212fc3571231bb3968b9c26c3edc20b3
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUTextureBindingLayout.h b/cpp/rnwgpu/api/descriptors/GPUTextureBindingLayout.h
-index 76c0e7f7e004d5fbe8f225834b80808d78e9cecd..c473a6d40c865131b57e5e396b7772a2075b9374 100644
+index 76c0e7f7e004d5fbe8f225834b80808d78e9cecd..af71409d96f17b9f6b16fc7641f232581687cb88 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUTextureBindingLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUTextureBindingLayout.h
 @@ -4,7 +4,7 @@
@@ -761,12 +765,12 @@ index 76c0e7f7e004d5fbe8f225834b80808d78e9cecd..c473a6d40c865131b57e5e396b7772a2
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUTextureDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUTextureDescriptor.h
-index 758ebd28b1825a6ff6212c15ea0136f5762f4a1c..744be57ba1f57783a6c196abde97ac8d28b9e5ab 100644
+index 758ebd28b1825a6ff6212c15ea0136f5762f4a1c..aba35ee8b8dfe1c81d0abcd0646e33043ba78f50 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUTextureDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUTextureDescriptor.h
 @@ -6,7 +6,7 @@
@@ -774,12 +778,12 @@ index 758ebd28b1825a6ff6212c15ea0136f5762f4a1c..744be57ba1f57783a6c196abde97ac8d
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUExtent3D.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUTextureViewDescriptor.h b/cpp/rnwgpu/api/descriptors/GPUTextureViewDescriptor.h
-index c429eaf879fdb6e5e580f9fcdc6f8dee9a0a85bf..af4831e76c5542c454f3efdf5a423adbc66db095 100644
+index c429eaf879fdb6e5e580f9fcdc6f8dee9a0a85bf..5ed8ca6224a51726385dfcec6f77ab5cd5a1d2af 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUTextureViewDescriptor.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUTextureViewDescriptor.h
 @@ -5,7 +5,7 @@
@@ -787,12 +791,12 @@ index c429eaf879fdb6e5e580f9fcdc6f8dee9a0a85bf..af4831e76c5542c454f3efdf5a423adb
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUUncapturedErrorEventInit.h b/cpp/rnwgpu/api/descriptors/GPUUncapturedErrorEventInit.h
-index cc4f82da58cafaf09be92bff069f10cd71d2beee..846889cde5d106844b72cef59e9f960860622f77 100644
+index cc4f82da58cafaf09be92bff069f10cd71d2beee..b54c44b475aaf445ae4eb250cba47491f0c1e004 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUUncapturedErrorEventInit.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUUncapturedErrorEventInit.h
 @@ -4,7 +4,7 @@
@@ -800,12 +804,12 @@ index cc4f82da58cafaf09be92bff069f10cd71d2beee..846889cde5d106844b72cef59e9f9608
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUError.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUVertexAttribute.h b/cpp/rnwgpu/api/descriptors/GPUVertexAttribute.h
-index fe521d929ce77eaa49213102d91274f5b7e634f4..030ebd883e83543f39e9f97b6cb7f7f14d27c7dc 100644
+index fe521d929ce77eaa49213102d91274f5b7e634f4..b85393deecc13da3c68a9479941ce036b111c448 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUVertexAttribute.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUVertexAttribute.h
 @@ -4,7 +4,7 @@
@@ -813,12 +817,12 @@ index fe521d929ce77eaa49213102d91274f5b7e634f4..030ebd883e83543f39e9f97b6cb7f7f1
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  namespace jsi = facebook::jsi;
 diff --git a/cpp/rnwgpu/api/descriptors/GPUVertexBufferLayout.h b/cpp/rnwgpu/api/descriptors/GPUVertexBufferLayout.h
-index 8360ca8c2348f11df80f1dd21440ed32e2fca1f0..01f97c439afc299f7e6cceafe1a13e9a7a171452 100644
+index 8360ca8c2348f11df80f1dd21440ed32e2fca1f0..a23ed5542e0365681d0cff0f10f53c9f5fa53739 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUVertexBufferLayout.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUVertexBufferLayout.h
 @@ -5,7 +5,7 @@
@@ -826,12 +830,12 @@ index 8360ca8c2348f11df80f1dd21440ed32e2fca1f0..01f97c439afc299f7e6cceafe1a13e9a
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUVertexAttribute.h"
 diff --git a/cpp/rnwgpu/api/descriptors/GPUVertexState.h b/cpp/rnwgpu/api/descriptors/GPUVertexState.h
-index 0a45ed5a71899b41c30f92164acbd65eefb1cbd9..9eb93f7cb8179c5a8cb477533a808b35b40b904c 100644
+index 0a45ed5a71899b41c30f92164acbd65eefb1cbd9..709d7615bf47d8c9dd6a78facc2512948b658ec3 100644
 --- a/cpp/rnwgpu/api/descriptors/GPUVertexState.h
 +++ b/cpp/rnwgpu/api/descriptors/GPUVertexState.h
 @@ -8,7 +8,7 @@
@@ -839,7 +843,7 @@ index 0a45ed5a71899b41c30f92164acbd65eefb1cbd9..9eb93f7cb8179c5a8cb477533a808b35
  #include "webgpu/webgpu_cpp.h"
  
 -#include "JSIConverter.h"
-+#include "jsi/JSIConverter.h"
++#include "jsi/WGPUJSIConverter.h"
  #include "WGPULogger.h"
  
  #include "GPUShaderModule.h"
