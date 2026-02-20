@@ -82,18 +82,36 @@ function withLiveActivitySwiftFiles(config) {
       // Also copy Attributes to main target (shared type)
       const attrSrc = path.join(swiftSrcDir, "DVNTLiveAttributes.swift");
       if (fs.existsSync(attrSrc)) {
-        fs.copyFileSync(attrSrc, path.join(projectDir, "DVNTLiveAttributes.swift"));
+        fs.copyFileSync(
+          attrSrc,
+          path.join(projectDir, "DVNTLiveAttributes.swift"),
+        );
       } else {
-        fs.writeFileSync(path.join(projectDir, "DVNTLiveAttributes.swift"), getAttributesSwift(), "utf-8");
-        fs.writeFileSync(path.join(extDir, "DVNTLiveAttributes.swift"), getAttributesSwift(), "utf-8");
+        fs.writeFileSync(
+          path.join(projectDir, "DVNTLiveAttributes.swift"),
+          getAttributesSwift(),
+          "utf-8",
+        );
+        fs.writeFileSync(
+          path.join(extDir, "DVNTLiveAttributes.swift"),
+          getAttributesSwift(),
+          "utf-8",
+        );
       }
 
       // Copy native module swift + objc bridge
       const moduleSrc = path.join(swiftSrcDir, "DVNTLiveActivityModule.swift");
       if (fs.existsSync(moduleSrc)) {
-        fs.copyFileSync(moduleSrc, path.join(projectDir, "DVNTLiveActivityModule.swift"));
+        fs.copyFileSync(
+          moduleSrc,
+          path.join(projectDir, "DVNTLiveActivityModule.swift"),
+        );
       }
-      fs.writeFileSync(path.join(projectDir, "DVNTLiveActivityBridge.m"), getObjcModuleExport(), "utf-8");
+      fs.writeFileSync(
+        path.join(projectDir, "DVNTLiveActivityBridge.m"),
+        getObjcModuleExport(),
+        "utf-8",
+      );
 
       // Extension Info.plist
       const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>\n    <key>CFBundleDisplayName</key><string>DVNT Live</string>\n    <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>\n    <key>CFBundleIdentifier</key><string>${EXTENSION_BUNDLE_ID}</string>\n    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>\n    <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>\n    <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>\n    <key>CFBundleShortVersionString</key><string>1.0</string>\n    <key>CFBundleVersion</key><string>1</string>\n    <key>NSExtension</key><dict><key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string></dict>\n    <key>NSSupportsLiveActivities</key><true/>\n</dict>\n</plist>`;
@@ -101,7 +119,11 @@ function withLiveActivitySwiftFiles(config) {
 
       // Extension entitlements
       const ent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>com.apple.security.application-groups</key>\n    <array><string>${APP_GROUP_ID}</string></array>\n</dict>\n</plist>`;
-      fs.writeFileSync(path.join(extDir, `${EXTENSION_NAME}.entitlements`), ent, "utf-8");
+      fs.writeFileSync(
+        path.join(extDir, `${EXTENSION_NAME}.entitlements`),
+        ent,
+        "utf-8",
+      );
 
       console.log(`[with-live-activity] Wrote iOS files`);
       return config;
@@ -118,7 +140,6 @@ function withWidgetExtensionTarget(config) {
     const existingTarget = project.pbxTargetByName(EXTENSION_NAME);
     if (existingTarget) return config;
 
-    const targetUuid = project.generateUuid();
     const buildConfigListUuid = project.generateUuid();
     const debugConfigUuid = project.generateUuid();
     const releaseConfigUuid = project.generateUuid();
@@ -132,7 +153,8 @@ function withWidgetExtensionTarget(config) {
       GENERATE_INFOPLIST_FILE: "YES",
       INFOPLIST_FILE: `${EXTENSION_NAME}/Info.plist`,
       IPHONEOS_DEPLOYMENT_TARGET: DEPLOYMENT_TARGET,
-      LD_RUNPATH_SEARCH_PATHS: '"$(inherited)" "@executable_path/Frameworks" "@executable_path/../../Frameworks"',
+      LD_RUNPATH_SEARCH_PATHS:
+        '"$(inherited)" "@executable_path/Frameworks" "@executable_path/../../Frameworks"',
       PRODUCT_BUNDLE_IDENTIFIER: EXTENSION_BUNDLE_ID,
       PRODUCT_NAME: "$(TARGET_NAME)",
       SKIP_INSTALL: "YES",
@@ -142,29 +164,74 @@ function withWidgetExtensionTarget(config) {
 
     project.addXCConfigurationList(
       [
-        { name: "Debug", uuid: debugConfigUuid, buildSettings: { ...commonSettings, DEBUG_INFORMATION_FORMAT: "dwarf" } },
-        { name: "Release", uuid: releaseConfigUuid, buildSettings: { ...commonSettings, DEBUG_INFORMATION_FORMAT: '"dwarf-with-dsym"' } },
+        {
+          name: "Debug",
+          uuid: debugConfigUuid,
+          buildSettings: {
+            ...commonSettings,
+            DEBUG_INFORMATION_FORMAT: "dwarf",
+          },
+        },
+        {
+          name: "Release",
+          uuid: releaseConfigUuid,
+          buildSettings: {
+            ...commonSettings,
+            DEBUG_INFORMATION_FORMAT: '"dwarf-with-dsym"',
+          },
+        },
       ],
       "Release",
       `Build configuration list for PBXNativeTarget "${EXTENSION_NAME}"`,
       buildConfigListUuid,
     );
 
-    project.addTarget(EXTENSION_NAME, "app_extension", EXTENSION_NAME, EXTENSION_BUNDLE_ID, buildConfigListUuid);
+    const extensionTarget = project.addTarget(
+      EXTENSION_NAME,
+      "app_extension",
+      EXTENSION_NAME,
+      EXTENSION_BUNDLE_ID,
+      buildConfigListUuid,
+    );
+    const extensionTargetUuid = extensionTarget.uuid;
 
     const groupKey = project.pbxCreateGroup(EXTENSION_NAME, EXTENSION_NAME);
-    const swiftFiles = ["DVNTLiveAttributes.swift", "DVNTLiveActivityWidget.swift", "DVNTWidgetBundle.swift"];
+    const swiftFiles = [
+      "DVNTLiveAttributes.swift",
+      "DVNTLiveActivityWidget.swift",
+      "DVNTWidgetBundle.swift",
+    ];
 
     for (const fileName of swiftFiles) {
       const fileRefUuid = project.generateUuid();
       const buildFileUuid = project.generateUuid();
-      project.addToPbxFileReferenceSection({ fileRef: fileRefUuid, basename: fileName, path: `${EXTENSION_NAME}/${fileName}`, sourceTree: '"<group>"', fileEncoding: 4, lastKnownFileType: "sourcecode.swift", group: EXTENSION_NAME });
-      project.addToPbxBuildFileSection({ uuid: buildFileUuid, fileRef: fileRefUuid, basename: fileName, group: EXTENSION_NAME });
-      if (groupKey) project.addToPbxGroup({ fileRef: fileRefUuid, basename: fileName }, groupKey);
+      project.addToPbxFileReferenceSection({
+        fileRef: fileRefUuid,
+        basename: fileName,
+        path: `${EXTENSION_NAME}/${fileName}`,
+        sourceTree: '"<group>"',
+        fileEncoding: 4,
+        lastKnownFileType: "sourcecode.swift",
+        group: EXTENSION_NAME,
+      });
+      project.addToPbxBuildFileSection({
+        uuid: buildFileUuid,
+        fileRef: fileRefUuid,
+        basename: fileName,
+        group: EXTENSION_NAME,
+      });
+      if (groupKey)
+        project.addToPbxGroup(
+          { fileRef: fileRefUuid, basename: fileName },
+          groupKey,
+        );
     }
 
     // Add native module files to main target
-    const mainTarget = IOSConfig.XcodeUtils.getApplicationNativeTarget({ project, projectName });
+    const mainTarget = IOSConfig.XcodeUtils.getApplicationNativeTarget({
+      project,
+      projectName,
+    });
     const nativeFiles = [
       { name: "DVNTLiveActivityModule.swift", type: "sourcecode.swift" },
       { name: "DVNTLiveActivityBridge.m", type: "sourcecode.c.objc" },
@@ -175,17 +242,35 @@ function withWidgetExtensionTarget(config) {
       if (!project.hasFile(`${projectName}/${file.name}`)) {
         const fr = project.generateUuid();
         const bf = project.generateUuid();
-        project.addToPbxFileReferenceSection({ fileRef: fr, basename: file.name, path: `${projectName}/${file.name}`, sourceTree: '"<group>"', fileEncoding: 4, lastKnownFileType: file.type, group: projectName });
-        project.addToPbxBuildFileSection({ uuid: bf, fileRef: fr, basename: file.name, group: projectName });
-        project.addToPbxSourcesBuildPhase({ uuid: bf, fileRef: fr, basename: file.name, group: projectName });
+        project.addToPbxFileReferenceSection({
+          fileRef: fr,
+          basename: file.name,
+          path: `${projectName}/${file.name}`,
+          sourceTree: '"<group>"',
+          fileEncoding: 4,
+          lastKnownFileType: file.type,
+          group: projectName,
+        });
+        project.addToPbxBuildFileSection({
+          uuid: bf,
+          fileRef: fr,
+          basename: file.name,
+          group: projectName,
+        });
+        project.addToPbxSourcesBuildPhase({
+          uuid: bf,
+          fileRef: fr,
+          basename: file.name,
+          group: projectName,
+        });
         const mgk = project.findPBXGroupKey({ name: projectName });
-        if (mgk) project.addToPbxGroup({ fileRef: fr, basename: file.name }, mgk);
+        if (mgk)
+          project.addToPbxGroup({ fileRef: fr, basename: file.name }, mgk);
       }
     }
 
-    project.addFramework("WidgetKit.framework", { target: targetUuid });
-    project.addFramework("SwiftUI.framework", { target: targetUuid });
-    project.addTargetDependency(mainTarget.uuid, [targetUuid]);
+    // WidgetKit + SwiftUI are auto-linked via CLANG_ENABLE_MODULES + Swift imports
+    project.addTargetDependency(mainTarget.uuid, [extensionTargetUuid]);
 
     console.log(`[with-live-activity] Added Widget Extension target`);
     return config;
