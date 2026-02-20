@@ -25,7 +25,7 @@ export default {
     assetBundlePatterns: ["**/*"],
     updates: {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
-      fallbackToCacheTimeout: 3000,
+      fallbackToCacheTimeout: 0,
       checkAutomatically: "ON_LOAD",
       enableBsdiffPatchSupport: true,
     },
