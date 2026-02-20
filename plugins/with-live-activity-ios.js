@@ -140,6 +140,23 @@ function withWidgetExtensionTarget(config) {
     const project = config.modResults;
     const projectName = config.modRequest.projectName;
 
+    // Fix: Adding Swift files to the main RN target triggers Swift/ObjC interop.
+    // The ObjC bridge imports <React/RCTBridgeModule.h> which causes
+    // -Wnon-modular-include-in-framework-module errors. This build setting suppresses them.
+    const dominated = /_comment$/;
+    const configs = Object.keys(project.pbxXCBuildConfigurationSection())
+      .filter((k) => !dominated.test(k))
+      .reduce((acc, k) => {
+        acc[k] = project.pbxXCBuildConfigurationSection()[k];
+        return acc;
+      }, {});
+    for (const key in configs) {
+      const bs = configs[key].buildSettings;
+      if (bs && bs["PRODUCT_NAME"]) {
+        bs["CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES"] = "YES";
+      }
+    }
+
     // Add native module files to main target (same pattern as VoIP plugin)
     const nativeFiles = [
       { name: "DVNTLiveActivityModule.swift", type: "sourcecode.swift" },
