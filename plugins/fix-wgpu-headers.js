@@ -24,19 +24,19 @@ function withFixWgpuHeaders(config) {
       let podfile = fs.readFileSync(podfilePath, "utf8");
 
       const snippet = `
-    # [fix-wgpu-headers] Disable header maps for react-native-wgpu only.
-    # Must run AFTER react_native_post_install to avoid being overwritten.
+    # [fix-wgpu-headers] Add wgpu's cpp/ to HEADER_SEARCH_PATHS so qualified
+    # includes like "jsi/WGPUJSIConverter.h" resolve to wgpu's own headers.
     installer.pods_project.targets.each do |t|
       next unless t.name == 'react-native-wgpu'
       t.build_configurations.each do |config|
-        config.build_settings['USE_HEADERMAP'] = 'NO'
-        config.build_settings['ALWAYS_SEARCH_USER_PATHS'] = 'NO'
+        existing = config.build_settings['HEADER_SEARCH_PATHS'] || '$(inherited)'
+        existing = [existing] if existing.is_a?(String)
+        existing << '"$(PODS_TARGET_SRCROOT)/cpp"' unless existing.any? { |p| p.include?('PODS_TARGET_SRCROOT)/cpp"') }
+        config.build_settings['HEADER_SEARCH_PATHS'] = existing
       end
     end`;
 
-      // Inject just before the closing '  end' of the post_install block.
-      // post_install uses 2-space indent, so its closing line is '\n  end'.
-      // We must inject AFTER react_native_post_install so settings aren't overwritten.
+      // Inject just before the closing '  end' of the post_install block (after react_native_post_install)
       if (!podfile.includes("[fix-wgpu-headers]")) {
         const marker = "\n  end\nend";
         const idx = podfile.lastIndexOf(marker);
