@@ -187,7 +187,8 @@
     },
     "patchedDependencies": {
       "expo-modules-core@55.0.9": "patches/expo-modules-core@55.0.9.patch",
-      "react-native-worklets@0.8.0-nightly-20260122-45349f895": "patches/react-native-worklets@0.8.0-nightly-20260122-45349f895.patch"
+      "react-native-worklets@0.8.0-nightly-20260122-45349f895": "patches/react-native-worklets@0.8.0-nightly-20260122-45349f895.patch",
+      "react-native-wgpu@0.5.4": "patches/react-native-wgpu@0.5.4.patch"
     }
   }
 }
