@@ -1,6 +1,7 @@
 import ActivityKit
 import Foundation
 
+@available(iOS 16.1, *)
 struct DVNTLiveAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var generatedAt: String
