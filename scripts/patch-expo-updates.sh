@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # patch-expo-updates.sh
-# Fixes expo-updates@55.0.7 compilation error with RN 0.84.
-# The module imports expo.modules.rncompatibility.ReactNativeFeatureFlags which doesn't exist.
-# We replace it with the direct RN 0.84 API: com.facebook.react.internal.featureflags.ReactNativeFeatureFlags
-# and change property access to method call (enableBridgelessArchitecture -> enableBridgelessArchitecture())
+# Fix 1: expo-updates@55.0.7 compilation error with RN 0.84.
+#   The module imports expo.modules.rncompatibility.ReactNativeFeatureFlags which doesn't exist.
+#   Replace with com.facebook.react.internal.featureflags.ReactNativeFeatureFlags
+#   and change property access to method call (enableBridgelessArchitecture -> enableBridgelessArchitecture())
+#
+# Fix 2: iOS 26 beta crash — ExpoUpdatesReactDelegateHandler.bundleURL returns nil when
+#   AppController is in DisabledAppController state (DB init fails on iOS 26 sandbox path change).
+#   RCTRootViewFactory force-unwraps the URL → brk 1 / EXC_BREAKPOINT crash at launch.
+#   Fix: fall back to Bundle.main main.jsbundle when launchAssetUrl() returns nil.
 
 set -euo pipefail
 
@@ -37,3 +42,53 @@ done
 if [ "$found" -eq 0 ]; then
   echo "[patch-expo-updates] WARNING: No expo-updates procedures dir found to patch"
 fi
+
+# ── Fix 2: iOS 26 beta crash — bundleURL returns nil when DisabledAppController is used ──
+IOS_DELEGATE_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/ReactDelegateHandler/ExpoUpdatesReactDelegateHandler.swift"
+
+for swift in node_modules/.pnpm/$IOS_DELEGATE_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  # Skip if already patched
+  if grep -q "Fall back to the embedded JS bundle" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] iOS bundleURL fallback already patched"
+    continue
+  fi
+
+  # Replace the one-liner bundleURL with a nil-safe fallback version
+  python3 - "$swift" <<'PYEOF'
+import sys
+
+path = sys.argv[1]
+with open(path, 'r') as f:
+    src = f.read()
+
+old = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
+    AppController.sharedInstance.launchAssetUrl()
+  }"""
+
+new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
+    // When the controller is disabled (e.g. DB init failed on iOS 26 beta sandbox path change),
+    // launchAssetUrl() returns nil because start() was never called (createReactRootView bailed
+    // early on !isActiveController). Fall back to the embedded JS bundle to prevent the
+    // preconditionFailure / brk 1 crash in RCTRootViewFactory.
+    if let url = AppController.sharedInstance.launchAssetUrl() {
+      return url
+    }
+    return Bundle.main.url(
+      forResource: "main",
+      withExtension: "jsbundle"
+    )
+  }"""
+
+if old not in src:
+    print("[patch-expo-updates] WARNING: iOS bundleURL pattern not found — may already be patched or version changed")
+    sys.exit(0)
+
+src = src.replace(old, new)
+with open(path, 'w') as f:
+    f.write(src)
+print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL fallback")
+PYEOF
+
+done
