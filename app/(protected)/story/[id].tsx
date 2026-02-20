@@ -1002,7 +1002,7 @@ export default function StoryViewerScreen() {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: 12,
+          padding: 6, //or 12
         }}
       >
         <Pressable
@@ -1031,7 +1031,7 @@ export default function StoryViewerScreen() {
         >
           <Image
             source={{ uri: story.avatar }}
-            style={{ width: 40, height: 40, borderRadius: 20 }}
+            style={{ width: 40, height: 40, borderRadius: 8 }}
           />
           <View>
             <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
