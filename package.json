@@ -1,6 +1,7 @@
 {
   "name": "dvnt",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.28.0",
   "main": "index.js",
   "scripts": {
     "start": "expo start --clear --dev-client",
