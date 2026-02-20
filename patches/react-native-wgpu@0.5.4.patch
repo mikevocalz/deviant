@@ -1,0 +1,14 @@
+diff --git a/react-native-wgpu.podspec b/react-native-wgpu.podspec
+index cbee57bd7bb2363d278e3afa6df8b3e870e38fc2..b1664be551d828eef1a879047eea1819f2689ebd 100644
+--- a/react-native-wgpu.podspec
++++ b/react-native-wgpu.podspec
+@@ -22,7 +22,8 @@ Pod::Spec.new do |s|
+   s.vendored_frameworks = 'libs/apple/libwebgpu_dawn.xcframework'
+ 
+   s.pod_target_xcconfig = {
+-    'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/cpp',
++    'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)/cpp $(PODS_TARGET_SRCROOT)/cpp/jsi',
++    'USE_HEADERMAP' => 'NO',
+   }
+ 
+   # Use install_modules_dependencies helper to install the dependencies if React Native version >=0.71.0.
