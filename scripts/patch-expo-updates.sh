@@ -49,55 +49,59 @@ IOS_DELEGATE_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/Rea
 for swift in node_modules/.pnpm/$IOS_DELEGATE_PATTERN; do
   [ -f "$swift" ] || continue
 
-  # Skip if already patched (check for EXUpdates.bundle lookup)
-  if grep -q "EXUpdates.bundle" "$swift" 2>/dev/null; then
-    echo "[patch-expo-updates] iOS bundleURL fallback already patched"
+  # Skip if already patched (check for filesystem probe approach)
+  if grep -q "FileManager.default.fileExists" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] iOS bundleURL fallback already patched (filesystem probe)"
     continue
   fi
 
-  # Replace the one-liner bundleURL with a nil-safe fallback that searches EXUpdates.bundle
-  # (where app.bundle actually lives in Expo managed builds) before falling back to Bundle.main.
+  # Replace bundleURL with a filesystem-probe fallback.
+  # Bundle(url:) requires the bundle to already be loaded — unreliable at launch.
+  # FileManager.default.fileExists works on raw paths and is always reliable.
   python3 - "$swift" <<'PYEOF'
-import sys
+import sys, re
 
 path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
-# Pattern 1: original one-liner (fresh install)
-old1 = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
-    AppController.sharedInstance.launchAssetUrl()
-  }"""
-
-# Pattern 2: previous patch that used Bundle.main (wrong location for Expo managed)
-old2_marker = "Expo managed workflow embeds the bundle as app.bundle"
-
 new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
-    // When the controller is disabled (e.g. DB init failed on iOS 26 beta sandbox path change),
-    // launchAssetUrl() returns nil because start() was never called (createReactRootView bailed
-    // early on !isActiveController). Manually run AppLauncherNoDatabase to find the embedded
-    // bundle and return it, preventing the brk 1 / EXC_BREAKPOINT crash in RCTRootViewFactory.
+    // Happy path: controller already started and has a launch URL.
     if let url = AppController.sharedInstance.launchAssetUrl() {
       return url
     }
-    // In Expo managed builds the JS bundle lives inside EXUpdates.bundle (a resource bundle
-    // embedded in the EXUpdates framework), NOT directly in Bundle.main.
-    // Search order: EXUpdates.bundle -> Bundle.main (bare RN fallback).
+    // iOS 26 fallback: DB init failed -> DisabledAppController was created but start() has NOT
+    // been called yet (createReactRootView returned early on !isActiveController).
+    // We must NOT call controller.start() here -- it has a precondition(!isStarted) guard.
+    // Instead, directly probe the filesystem for the embedded JS bundle.
+    //
+    // Layout (static pod, Expo managed):
+    //   DVNT.app/EXUpdates.bundle/app.bundle   <- shallow bundle format
+    //   DVNT.app/EXUpdates.bundle/Contents/Resources/app.bundle  <- deep bundle format
+    // Layout (bare RN):
+    //   DVNT.app/main.jsbundle
+    let mainBundlePath = Bundle.main.bundlePath
     let candidates: [(String, String)] = [
       (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
       (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
     ]
-    // 1) Try EXUpdates.bundle (Expo managed workflow)
-    let frameworkBundle = Bundle(for: EmbeddedAppLoader.self)
-    if let resourceUrl = frameworkBundle.resourceURL,
-       let exUpdatesBundle = Bundle(url: resourceUrl.appendingPathComponent("EXUpdates.bundle")) {
-      for (name, ext) in candidates {
-        if let url = exUpdatesBundle.url(forResource: name, withExtension: ext) {
-          return url
-        }
+    // 1) EXUpdates.bundle/app.bundle (shallow -- most common for static pods)
+    let exUpdatesBundlePath = (mainBundlePath as NSString).appendingPathComponent("EXUpdates.bundle")
+    for (name, ext) in candidates {
+      let filePath = ((exUpdatesBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
+      if FileManager.default.fileExists(atPath: filePath) {
+        return URL(fileURLWithPath: filePath)
       }
     }
-    // 2) Fallback: Bundle.main (bare RN workflow)
+    // 2) EXUpdates.bundle/Contents/Resources/app.bundle (deep -- macOS-style)
+    let deepPath = ((exUpdatesBundlePath as NSString).appendingPathComponent("Contents/Resources") as NSString)
+    for (name, ext) in candidates {
+      let filePath = (deepPath.appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
+      if FileManager.default.fileExists(atPath: filePath) {
+        return URL(fileURLWithPath: filePath)
+      }
+    }
+    // 3) Bundle.main directly (bare RN workflow)
     for (name, ext) in candidates {
       if let url = Bundle.main.url(forResource: name, withExtension: ext) {
         return url
@@ -106,25 +110,15 @@ new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
     return nil
   }"""
 
-if old1 in src:
-    src = src.replace(old1, new)
+# Match any existing bundleURL implementation (original or previously patched)
+pattern = r'  public override func bundleURL\(reactDelegate: ExpoReactDelegate\) -> URL\? \{.*?\n  \}'
+new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
+if count:
     with open(path, 'w') as f:
-        f.write(src)
-    print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (EXUpdates.bundle lookup)")
-elif old2_marker in src:
-    # Already has old patch but with wrong Bundle.main lookup — rewrite the whole bundleURL method
-    import re
-    pattern = r'(  public override func bundleURL\(reactDelegate: ExpoReactDelegate\) -> URL\? \{).*?(  \})'
-    replacement = new
-    new_src, count = re.subn(pattern, replacement, src, count=1, flags=re.DOTALL)
-    if count:
-        with open(path, 'w') as f:
-            f.write(new_src)
-        print("[patch-expo-updates] Re-patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (EXUpdates.bundle lookup)")
-    else:
-        print("[patch-expo-updates] WARNING: Could not re-patch bundleURL method")
+        f.write(new_src)
+    print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (filesystem probe)")
 else:
-    print("[patch-expo-updates] WARNING: iOS bundleURL pattern not found — may already be patched or version changed")
+    print("[patch-expo-updates] WARNING: bundleURL pattern not found in ExpoUpdatesReactDelegateHandler.swift")
 PYEOF
 
 done
