@@ -21,7 +21,7 @@ export const SafeStripeProvider: React.ComponentType<any> = _StripeProvider
   ? _StripeProvider
   : ({ children }: any) => <>{children}</>;
 
-// ── expo-share-intent ───────────────────────────────────────────────
+// ── expo-share-intent (lazy — avoid SDK 55 init crash) ─────────────────
 type ShareIntentResult = {
   hasShareIntent: boolean;
   shareIntent: any;
@@ -29,10 +29,22 @@ type ShareIntentResult = {
 };
 
 let _useShareIntent: (() => ShareIntentResult) | null = null;
-try {
-  _useShareIntent = require("expo-share-intent").useShareIntent;
-} catch (e) {
-  console.warn("[SafeModules] expo-share-intent not available in this binary");
+let _shareIntentAttempted = false;
+
+function getUseShareIntent(): (() => ShareIntentResult) | null {
+  if (_shareIntentAttempted) return _useShareIntent;
+  _shareIntentAttempted = true;
+  try {
+    const expoVersion = require("expo/package.json").version ?? "";
+    if (String(expoVersion).startsWith("55")) {
+      console.warn("[SafeModules] expo-share-intent skipped — SDK 55 not yet supported by expo-share-intent v5.1.1 (expects ^54)");
+      return null;
+    }
+    _useShareIntent = require("expo-share-intent").useShareIntent;
+  } catch (e) {
+    console.warn("[SafeModules] expo-share-intent not available in this binary");
+  }
+  return _useShareIntent;
 }
 
 const noopShareIntent: ShareIntentResult = {
@@ -41,9 +53,10 @@ const noopShareIntent: ShareIntentResult = {
   resetShareIntent: () => {},
 };
 
-export const useShareIntentSafe: () => ShareIntentResult = _useShareIntent
-  ? _useShareIntent
-  : () => noopShareIntent;
+export const useShareIntentSafe: () => ShareIntentResult = () => {
+  const useShareIntentImpl = getUseShareIntent();
+  return useShareIntentImpl ? useShareIntentImpl() : noopShareIntent;
+};
 
 // ── useStripe (also from @stripe/stripe-react-native) ───────────────
 let _useStripe: any = null;

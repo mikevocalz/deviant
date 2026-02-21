@@ -37,9 +37,9 @@ async function getDefaultCalendarId(): Promise<string | null> {
     Calendar.EntityTypes.EVENT,
   );
 
-  // Prefer the default calendar
+  type CalendarRecord = { id: string; allowsModifications?: boolean; source?: { name?: string }; isPrimary?: boolean };
   const defaultCal = calendars.find(
-    (c) =>
+    (c: CalendarRecord) =>
       c.allowsModifications &&
       (c.source?.name === "Default" ||
         c.source?.name === "iCloud" ||
@@ -48,8 +48,7 @@ async function getDefaultCalendarId(): Promise<string | null> {
 
   if (defaultCal) return defaultCal.id;
 
-  // Fallback: first writable calendar
-  const writable = calendars.find((c) => c.allowsModifications);
+  const writable = calendars.find((c: CalendarRecord) => c.allowsModifications);
   if (writable) return writable.id;
 
   // Android: create a local calendar
