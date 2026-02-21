@@ -6,7 +6,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { persistOptions } from "@/lib/query-persistence";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
@@ -20,7 +20,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform, View } from "react-native";
+import { Platform, View, Pressable, Text } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
@@ -30,25 +30,12 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { Dimensions } from "react-native";
 import { BiometricLock } from "@/components/BiometricLock";
 import { LayoutAnimationConfig } from "react-native-reanimated";
-import { useShareIntentSafe as useShareIntent } from "@/lib/safe-native-modules";
-import { useSpotifyShareStore } from "@/lib/spotify/spotify-share-store";
+import { ShareIntentHandler } from "@/components/share-intent-handler";
 import { SpotifyShareSheet } from "@/components/share/spotify-share-sheet";
 import { SafeStripeProvider as StripeProvider } from "@/lib/safe-native-modules";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
-
-// Device-aware screen orientation
-// - Phones: Portrait only (better UX for feed scrolling)
-// - Tablets (768px+): Allow landscape (like Instagram web)
-const { width } = Dimensions.get("window");
-const isTablet = width >= 768;
-if (!isTablet) {
-  ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-} else {
-  // Tablets can rotate freely
-  ScreenOrientation.unlockAsync();
-}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -99,6 +86,12 @@ export default function RootLayout() {
     setSplashAnimationFinished,
   } = useAppStore();
   const insets = useSafeAreaInsets();
+  const [shareIntentReady, setShareIntentReady] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setShareIntentReady(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
 
   // NOTE: We do NOT reset splashAnimationFinished here.
   // Once the splash animation is finished, it should never replay during the app session.
@@ -111,20 +104,28 @@ export default function RootLayout() {
   useUpdates({ enabled: splashAnimationFinished });
 
   // ── Share Intent — receive content from other apps ──────────────────
-  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntent();
-  const processSharedText = useSpotifyShareStore((s) => s.processSharedText);
-
-  useEffect(() => {
-    if (!hasShareIntent || !shareIntent) return;
-    const text = shareIntent.text || shareIntent.webUrl || "";
-    if (text) {
-      processSharedText(text);
-    }
-    resetShareIntent();
-  }, [hasShareIntent, shareIntent, processSharedText, resetShareIntent]);
-
   // Initialize push notifications
   useNotifications();
+
+  // Device-aware screen orientation (deferred to after mount — native module must be ready)
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const { width } = Dimensions.get("window");
+        const tablet = width >= 768;
+        if (!tablet) {
+          await ScreenOrientation.lockAsync(
+            ScreenOrientation.OrientationLock.PORTRAIT_UP,
+          );
+        } else {
+          await ScreenOrientation.unlockAsync();
+        }
+      } catch (e) {
+        console.warn("[RootLayout] ScreenOrientation init failed:", e);
+      }
+    };
+    run();
+  }, []);
 
   // ── Cold-start notification check ──────────────────────────────────
   // If the app was launched by tapping a notification, skip splash
@@ -261,7 +262,18 @@ export default function RootLayout() {
   if (showAnimatedSplash) {
     return (
       <LayoutAnimationConfig skipEntering skipExiting>
-        <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
+        <ErrorBoundary
+          screenName="Splash"
+          fallback={
+            <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
+              <Pressable onPress={() => onAnimationFinish(false)} style={{ padding: 24 }}>
+                <Text style={{ color: "#fff", fontSize: 16 }}>Tap to continue</Text>
+              </Pressable>
+            </View>
+          }
+        >
+          <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
+        </ErrorBoundary>
       </LayoutAnimationConfig>
     );
   }
@@ -343,6 +355,12 @@ export default function RootLayout() {
                           />
                         </Stack.Protected>
                       </Stack>
+                      {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
+                      {shareIntentReady && (
+                        <ErrorBoundary screenName="ShareIntent" fallback={null}>
+                          <ShareIntentHandler />
+                        </ErrorBoundary>
+                      )}
                       {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
                       {isAuthenticated && <BiometricLock />}
                       {/* Spotify share sheet — renders when a Spotify link is received */}
