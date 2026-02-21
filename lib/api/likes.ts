@@ -1,6 +1,5 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface ToggleLikeResponse {
@@ -107,22 +106,36 @@ export const likesApi = {
   },
 
   /**
+   * Batch check: which of the given postIds has the current user liked (Edge Function)
+   */
+  async getViewerLikedPostIds(postIds: number[]): Promise<Set<string>> {
+    try {
+      if (postIds.length === 0) return new Set();
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        postIds?: number[];
+        error?: string;
+      }>("get-viewer-liked-post-ids", {
+        body: { postIds },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error || !data?.postIds) return new Set();
+      return new Set(data.postIds.map(String));
+    } catch {
+      return new Set();
+    }
+  },
+
+  /**
    * Check if current user has liked a post
    */
   async hasLiked(postId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) return false;
-
-      const { data } = await supabase
-        .from(DB.likes.table)
-        .select("id")
-        .eq(DB.likes.userId, userId)
-        .eq(DB.likes.postId, parseInt(postId))
-        .single();
-
-      return !!data;
-    } catch (error) {
+      const postIdInt = parseInt(postId);
+      if (isNaN(postIdInt)) return false;
+      const liked = await this.getViewerLikedPostIds([postIdInt]);
+      return liked.has(postId);
+    } catch {
       return false;
     }
   },

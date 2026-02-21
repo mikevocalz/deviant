@@ -115,31 +115,28 @@ export const followsApi = {
   },
 
   /**
-   * Get followers list
+   * Get followers list (Edge Function — bypasses RLS)
    */
   async getFollowers(userId: string) {
     try {
-      const { data, error } = await supabase
-        .from(DB.follows.table)
-        .select(
-          `
-          follower:${DB.follows.followerId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-        )
-        .eq(DB.follows.followingId, await resolveUserIdInt(userId))
-        .limit(100);
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        docs?: { id: string; username: string; avatar: string }[];
+        error?: string;
+      }>("get-followers", {
+        body: { userId: await resolveUserIdInt(userId), page: 1, limit: 100 },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) throw error;
-
-      return (data || []).map((f: any) => ({
-        id: String(f.follower[DB.users.id]),
-        username: f.follower[DB.users.username],
-        avatar: f.follower.avatar?.url || "",
-      }));
+      if (error) {
+        console.error("[Follows] getFollowers Edge Function error:", error);
+        return [];
+      }
+      if (!data?.docs) {
+        if (data?.error) console.error("[Follows] get-followers:", data.error);
+        return [];
+      }
+      return data.docs.map((d) => ({ id: d.id, username: d.username, avatar: d.avatar }));
     } catch (error) {
       console.error("[Follows] getFollowers error:", error);
       return [];
@@ -147,31 +144,28 @@ export const followsApi = {
   },
 
   /**
-   * Get following list
+   * Get following list (Edge Function — bypasses RLS)
    */
   async getFollowing(userId: string) {
     try {
-      const { data, error } = await supabase
-        .from(DB.follows.table)
-        .select(
-          `
-          following:${DB.follows.followingId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-        )
-        .eq(DB.follows.followerId, await resolveUserIdInt(userId))
-        .limit(100);
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        docs?: { id: string; username: string; avatar: string }[];
+        error?: string;
+      }>("get-following", {
+        body: { userId: await resolveUserIdInt(userId), page: 1, limit: 100 },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      if (error) throw error;
-
-      return (data || []).map((f: any) => ({
-        id: String(f.following[DB.users.id]),
-        username: f.following[DB.users.username],
-        avatar: f.following.avatar?.url || "",
-      }));
+      if (error) {
+        console.error("[Follows] getFollowing Edge Function error:", error);
+        return [];
+      }
+      if (!data?.docs) {
+        if (data?.error) console.error("[Follows] get-following:", data.error);
+        return [];
+      }
+      return data.docs.map((d) => ({ id: d.id, username: d.username, avatar: d.avatar }));
     } catch (error) {
       console.error("[Follows] getFollowing error:", error);
       return [];

@@ -500,34 +500,31 @@ export const storyViewsApi = {
   },
 
   /**
-   * Get list of users who viewed a story (only the story owner should call this)
+   * Get list of users who viewed a story (Edge Function — bypasses RLS)
    */
   async getViewers(storyId: string): Promise<StoryViewer[]> {
     try {
-      const { data, error } = await supabase
-        .from(DB.storyViews.table)
-        .select(
-          `
-          ${DB.storyViews.userId},
-          ${DB.storyViews.viewedAt},
-          user:${DB.storyViews.userId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-        )
-        .eq(DB.storyViews.storyId, parseInt(storyId))
-        .order(DB.storyViews.viewedAt, { ascending: false });
+      const token = await requireBetterAuthToken();
+      const storyIdInt = parseInt(storyId);
+      if (isNaN(storyIdInt)) return [];
 
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke<{
+        viewers?: StoryViewer[];
+        error?: string;
+      }>("get-story-viewers", {
+        body: { storyId: storyIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      return (data || []).map((row: any) => ({
-        userId: row[DB.storyViews.userId],
-        username: row.user?.[DB.users.username] || "unknown",
-        avatar: row.user?.avatar?.url || "",
-        viewedAt: row[DB.storyViews.viewedAt],
-      }));
+      if (error) {
+        console.error("[StoryViews] getViewers Edge Function error:", error);
+        return [];
+      }
+      if (!data?.viewers) {
+        if (data?.error) console.error("[StoryViews] get-story-viewers:", data.error);
+        return [];
+      }
+      return data.viewers;
     } catch (error) {
       console.error("[StoryViews] getViewers error:", error);
       return [];
