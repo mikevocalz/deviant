@@ -61,6 +61,7 @@
         "image": "latest"
       },
       "env": {
+        "APP_ENV": "production",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth",
