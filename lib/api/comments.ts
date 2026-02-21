@@ -140,7 +140,7 @@ export const commentsApi = {
   },
 
   /**
-   * Like/unlike comment
+   * Like/unlike comment via Edge Function (bypasses RLS — Better Auth doesn't set auth.uid())
    */
   async likeComment(
     commentId: string,
@@ -149,19 +149,28 @@ export const commentsApi = {
     try {
       console.log("[Comments] likeComment:", commentId, "isLiked:", isLiked);
 
-      const userId = getCurrentUserIdInt();
-      if (!userId) throw new Error("Not authenticated");
+      const token = await requireBetterAuthToken();
+      const commentIdInt = parseInt(commentId);
+      if (isNaN(commentIdInt)) throw new Error("Invalid comment ID");
 
-      const { data, error } = await supabase.rpc("toggle_comment_like", {
-        p_comment_id: parseInt(commentId),
-        p_user_id: userId,
-      });
+      const { data, error } =
+        await supabase.functions.invoke<{ ok: boolean; data?: { liked: boolean; likesCount: number } }>(
+          "toggle-comment-like",
+          {
+            body: { commentId: commentIdInt },
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
       if (error) throw error;
 
+      if (!data?.ok || !data?.data) {
+        throw new Error((data as any)?.error?.message || "Failed to toggle comment like");
+      }
+
       return {
-        liked: (data as any)?.liked ?? !isLiked,
-        likes: (data as any)?.likes_count ?? 0,
+        liked: data.data.liked,
+        likes: data.data.likesCount ?? 0,
       };
     } catch (error) {
       console.error("[Comments] likeComment error:", error);
