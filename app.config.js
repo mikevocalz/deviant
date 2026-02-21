@@ -117,6 +117,8 @@ export default {
       output: webOutput,
     },
     plugins: [
+      "./plugins/disable-user-script-sandboxing",
+      "./plugins/with-app-controller-init",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
