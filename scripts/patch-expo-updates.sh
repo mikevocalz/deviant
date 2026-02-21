@@ -49,13 +49,14 @@ IOS_DELEGATE_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/Rea
 for swift in node_modules/.pnpm/$IOS_DELEGATE_PATTERN; do
   [ -f "$swift" ] || continue
 
-  # Skip if already patched
-  if grep -q "Fall back to the embedded JS bundle" "$swift" 2>/dev/null; then
+  # Skip if already patched (check for EXUpdates.bundle lookup)
+  if grep -q "EXUpdates.bundle" "$swift" 2>/dev/null; then
     echo "[patch-expo-updates] iOS bundleURL fallback already patched"
     continue
   fi
 
-  # Replace the one-liner bundleURL with a nil-safe fallback version
+  # Replace the one-liner bundleURL with a nil-safe fallback that searches EXUpdates.bundle
+  # (where app.bundle actually lives in Expo managed builds) before falling back to Bundle.main.
   python3 - "$swift" <<'PYEOF'
 import sys
 
@@ -63,9 +64,13 @@ path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
-old = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
+# Pattern 1: original one-liner (fresh install)
+old1 = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
     AppController.sharedInstance.launchAssetUrl()
   }"""
+
+# Pattern 2: previous patch that used Bundle.main (wrong location for Expo managed)
+old2_marker = "Expo managed workflow embeds the bundle as app.bundle"
 
 new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
     // When the controller is disabled (e.g. DB init failed on iOS 26 beta sandbox path change),
@@ -75,12 +80,24 @@ new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
     if let url = AppController.sharedInstance.launchAssetUrl() {
       return url
     }
-    // Expo managed workflow embeds the bundle as app.bundle; bare workflow uses main.jsbundle.
-    // Try both so this fallback works regardless of workflow.
+    // In Expo managed builds the JS bundle lives inside EXUpdates.bundle (a resource bundle
+    // embedded in the EXUpdates framework), NOT directly in Bundle.main.
+    // Search order: EXUpdates.bundle -> Bundle.main (bare RN fallback).
     let candidates: [(String, String)] = [
       (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
       (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
     ]
+    // 1) Try EXUpdates.bundle (Expo managed workflow)
+    let frameworkBundle = Bundle(for: EmbeddedAppLoader.self)
+    if let resourceUrl = frameworkBundle.resourceURL,
+       let exUpdatesBundle = Bundle(url: resourceUrl.appendingPathComponent("EXUpdates.bundle")) {
+      for (name, ext) in candidates {
+        if let url = exUpdatesBundle.url(forResource: name, withExtension: ext) {
+          return url
+        }
+      }
+    }
+    // 2) Fallback: Bundle.main (bare RN workflow)
     for (name, ext) in candidates {
       if let url = Bundle.main.url(forResource: name, withExtension: ext) {
         return url
@@ -89,14 +106,25 @@ new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
     return nil
   }"""
 
-if old not in src:
+if old1 in src:
+    src = src.replace(old1, new)
+    with open(path, 'w') as f:
+        f.write(src)
+    print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (EXUpdates.bundle lookup)")
+elif old2_marker in src:
+    # Already has old patch but with wrong Bundle.main lookup — rewrite the whole bundleURL method
+    import re
+    pattern = r'(  public override func bundleURL\(reactDelegate: ExpoReactDelegate\) -> URL\? \{).*?(  \})'
+    replacement = new
+    new_src, count = re.subn(pattern, replacement, src, count=1, flags=re.DOTALL)
+    if count:
+        with open(path, 'w') as f:
+            f.write(new_src)
+        print("[patch-expo-updates] Re-patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (EXUpdates.bundle lookup)")
+    else:
+        print("[patch-expo-updates] WARNING: Could not re-patch bundleURL method")
+else:
     print("[patch-expo-updates] WARNING: iOS bundleURL pattern not found — may already be patched or version changed")
-    sys.exit(0)
-
-src = src.replace(old, new)
-with open(path, 'w') as f:
-    f.write(src)
-print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL fallback")
 PYEOF
 
 done
@@ -167,19 +195,20 @@ IOS_LAUNCHER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/App
 for swift in node_modules/.pnpm/$IOS_LAUNCHER_PATTERN; do
   [ -f "$swift" ] || continue
 
-  if grep -q "Try Expo managed bundle" "$swift" 2>/dev/null; then
+  if grep -q "EXUpdates.bundle" "$swift" 2>/dev/null; then
     echo "[patch-expo-updates] AppLauncherNoDatabase already patched"
     continue
   fi
 
   python3 - "$swift" <<'PYEOF'
-import sys
+import sys, re
 
 path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
-old = """  public func launchUpdate() {
+# Pattern 1: original bare Bundle.main lookup (fresh install)
+old1 = """  public func launchUpdate() {
     precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
     launchAssetUrl = Bundle.main.url(
       forResource: EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename,
@@ -189,12 +218,25 @@ old = """  public func launchUpdate() {
 
 new = """  public func launchUpdate() {
     precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
-    // Try Expo managed bundle (app.bundle) first, then bare RN bundle (main.jsbundle).
-    // On iOS 26 this path is taken as an emergency fallback when the DB cannot be initialized.
+    // In Expo managed builds the JS bundle lives inside EXUpdates.bundle (a resource bundle
+    // embedded in the EXUpdates framework), NOT directly in Bundle.main.
+    // Search order: EXUpdates.bundle -> Bundle.main (bare RN fallback).
     let candidates: [(String, String)] = [
       (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
       (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
     ]
+    // 1) Try EXUpdates.bundle (Expo managed workflow)
+    let frameworkBundle = Bundle(for: EmbeddedAppLoader.self)
+    if let resourceUrl = frameworkBundle.resourceURL,
+       let exUpdatesBundle = Bundle(url: resourceUrl.appendingPathComponent("EXUpdates.bundle")) {
+      for (name, ext) in candidates {
+        if let url = exUpdatesBundle.url(forResource: name, withExtension: ext) {
+          launchAssetUrl = url
+          return
+        }
+      }
+    }
+    // 2) Fallback: Bundle.main (bare RN workflow)
     for (name, ext) in candidates {
       if let url = Bundle.main.url(forResource: name, withExtension: ext) {
         launchAssetUrl = url
@@ -203,14 +245,23 @@ new = """  public func launchUpdate() {
     }
   }"""
 
-if old not in src:
+if old1 in src:
+    src = src.replace(old1, new)
+    with open(path, 'w') as f:
+        f.write(src)
+    print("[patch-expo-updates] Patched AppLauncherNoDatabase.swift (EXUpdates.bundle lookup)")
+elif "Try Expo managed bundle" in src:
+    # Old patch present but uses Bundle.main — rewrite the launchUpdate method
+    pattern = r'(  public func launchUpdate\(\) \{).*?(  \})'
+    new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
+    if count:
+        with open(path, 'w') as f:
+            f.write(new_src)
+        print("[patch-expo-updates] Re-patched AppLauncherNoDatabase.swift (EXUpdates.bundle lookup)")
+    else:
+        print("[patch-expo-updates] WARNING: Could not re-patch AppLauncherNoDatabase launchUpdate")
+else:
     print("[patch-expo-updates] WARNING: AppLauncherNoDatabase pattern not found")
-    sys.exit(0)
-
-src = src.replace(old, new)
-with open(path, 'w') as f:
-    f.write(src)
-print("[patch-expo-updates] Patched AppLauncherNoDatabase.swift to try app.bundle first")
 PYEOF
 
 done
