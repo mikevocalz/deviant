@@ -137,8 +137,11 @@ IOS_CONTROLLER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/A
 for swift in node_modules/.pnpm/$IOS_CONTROLLER_PATTERN; do
   [ -f "$swift" ] || continue
 
-  if grep -q "iOS 26: start() immediately" "$swift" 2>/dev/null; then
-    echo "[patch-expo-updates] AppController DisabledAppController.start() already patched"
+  # AppController patch: no eager start() — bundleURL probes bundle locations directly.
+  # (Calling start() eagerly caused a precondition(!isStarted) crash when start() was
+  # called a second time by the normal createReactRootView flow.)
+  if grep -q "bundleURL probes bundle" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] AppController already patched (no-op)"
     continue
   fi
 
@@ -149,11 +152,8 @@ path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
-old1 = """        _sharedInstance = DisabledAppController(error: cause)
-        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
-        return"""
-
-new1 = """        let disabledController = DisabledAppController(error: cause)
+# Revert any previous eager start() patch back to stock — bundleURL handles the fallback directly.
+old_eager1 = """        let disabledController = DisabledAppController(error: cause)
         // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
         // Without this, bundleURL returns nil and RCTRootViewFactory crashes with brk 1.
         disabledController.start()
@@ -161,30 +161,40 @@ new1 = """        let disabledController = DisabledAppController(error: cause)
         UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
         return"""
 
-old2 = """      _sharedInstance = DisabledAppController(error: nil)
-    }"""
+stock1 = """        let disabledController = DisabledAppController(error: cause)
+        _sharedInstance = disabledController
+        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
+        return"""
 
-new2 = """      let disabledController = DisabledAppController(error: nil)
+old_eager2 = """      let disabledController = DisabledAppController(error: nil)
       // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
       disabledController.start()
-      _sharedInstance = disabledController
-    }"""
+      _sharedInstance = disabledController"""
+
+stock2 = """      let disabledController = DisabledAppController(error: nil)
+      _sharedInstance = disabledController"""
 
 patched = False
-if old1 in src:
-    src = src.replace(old1, new1)
+if old_eager1 in src:
+    src = src.replace(old_eager1, stock1)
     patched = True
-if old2 in src:
-    src = src.replace(old2, new2)
+if old_eager2 in src:
+    src = src.replace(old_eager2, stock2)
     patched = True
 
-if not patched:
-    print("[patch-expo-updates] WARNING: AppController DisabledAppController patterns not found")
-    sys.exit(0)
+# Add marker comment so skip-check works on subsequent runs
+src = src.replace(
+    "      _sharedInstance = disabledController\n    }",
+    "      _sharedInstance = disabledController\n      // bundleURL probes bundle locations directly — no eager start() needed\n    }",
+    1
+)
 
-with open(path, 'w') as f:
-    f.write(src)
-print("[patch-expo-updates] Patched AppController.swift DisabledAppController.start() on init")
+if patched:
+    with open(path, 'w') as f:
+        f.write(src)
+    print("[patch-expo-updates] Reverted eager start() from AppController.swift (bundleURL handles fallback)")
+else:
+    print("[patch-expo-updates] AppController.swift already at stock (no eager start patch present)")
 PYEOF
 
 done
