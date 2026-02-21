@@ -20,45 +20,34 @@ export interface PostLiker {
 export const likesApi = {
   /**
    * Fetch all users who liked a post, ordered by most recent first.
-   * Joins likes → users → media (avatar) to get profile info.
+   * Uses Edge Function (service role) to bypass RLS and return full list.
    */
   async getPostLikers(postId: string): Promise<PostLiker[]> {
     try {
       const postIdInt = parseInt(postId);
       if (isNaN(postIdInt)) return [];
 
-      const { data, error } = await supabase
-        .from(DB.likes.table)
-        .select(
-          `
-          ${DB.likes.userId},
-          ${DB.likes.createdAt},
-          user:${DB.likes.userId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-        )
-        .eq(DB.likes.postId, postIdInt)
-        .order(DB.likes.createdAt, { ascending: false });
+      const token = await requireBetterAuthToken();
+
+      const { data, error } = await supabase.functions.invoke<{
+        likers?: PostLiker[];
+        error?: string;
+      }>("get-post-likers", {
+        body: { postId: postIdInt },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (error) {
-        console.error("[Likes] getPostLikers error:", error);
+        console.error("[Likes] getPostLikers Edge Function error:", error);
         return [];
       }
 
-      return (data || []).map((row: any) => ({
-        userId: row[DB.likes.userId],
-        username: row.user?.[DB.users.username] || "unknown",
-        avatar: row.user?.avatar?.url || "",
-        displayName:
-          row.user?.[DB.users.firstName] ||
-          row.user?.[DB.users.username] ||
-          "Unknown",
-        likedAt: row[DB.likes.createdAt],
-      }));
+      if (!data?.likers) {
+        if (data?.error) console.error("[Likes] get-post-likers:", data.error);
+        return [];
+      }
+
+      return data.likers;
     } catch (error) {
       console.error("[Likes] getPostLikers error:", error);
       return [];
