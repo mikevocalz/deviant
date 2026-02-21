@@ -70,15 +70,23 @@ old = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
 new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
     // When the controller is disabled (e.g. DB init failed on iOS 26 beta sandbox path change),
     // launchAssetUrl() returns nil because start() was never called (createReactRootView bailed
-    // early on !isActiveController). Fall back to the embedded JS bundle to prevent the
-    // preconditionFailure / brk 1 crash in RCTRootViewFactory.
+    // early on !isActiveController). Manually run AppLauncherNoDatabase to find the embedded
+    // bundle and return it, preventing the brk 1 / EXC_BREAKPOINT crash in RCTRootViewFactory.
     if let url = AppController.sharedInstance.launchAssetUrl() {
       return url
     }
-    return Bundle.main.url(
-      forResource: "main",
-      withExtension: "jsbundle"
-    )
+    // Expo managed workflow embeds the bundle as app.bundle; bare workflow uses main.jsbundle.
+    // Try both so this fallback works regardless of workflow.
+    let candidates: [(String, String)] = [
+      (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
+      (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
+    ]
+    for (name, ext) in candidates {
+      if let url = Bundle.main.url(forResource: name, withExtension: ext) {
+        return url
+      }
+    }
+    return nil
   }"""
 
 if old not in src:
@@ -89,6 +97,120 @@ src = src.replace(old, new)
 with open(path, 'w') as f:
     f.write(src)
 print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL fallback")
+PYEOF
+
+done
+
+# ── Fix 3: AppController.initializeWithoutStarting — call start() on DisabledAppController ──
+# When DisabledAppController is created (DB init failure), start() must be called immediately
+# so launchAssetUrl() is populated before bundleURL() is invoked by RCTRootViewFactory.
+IOS_CONTROLLER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/AppController.swift"
+
+for swift in node_modules/.pnpm/$IOS_CONTROLLER_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  if grep -q "iOS 26: start() immediately" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] AppController DisabledAppController.start() already patched"
+    continue
+  fi
+
+  python3 - "$swift" <<'PYEOF'
+import sys
+
+path = sys.argv[1]
+with open(path, 'r') as f:
+    src = f.read()
+
+old1 = """        _sharedInstance = DisabledAppController(error: cause)
+        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
+        return"""
+
+new1 = """        let disabledController = DisabledAppController(error: cause)
+        // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
+        // Without this, bundleURL returns nil and RCTRootViewFactory crashes with brk 1.
+        disabledController.start()
+        _sharedInstance = disabledController
+        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
+        return"""
+
+old2 = """      _sharedInstance = DisabledAppController(error: nil)
+    }"""
+
+new2 = """      let disabledController = DisabledAppController(error: nil)
+      // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
+      disabledController.start()
+      _sharedInstance = disabledController
+    }"""
+
+patched = False
+if old1 in src:
+    src = src.replace(old1, new1)
+    patched = True
+if old2 in src:
+    src = src.replace(old2, new2)
+    patched = True
+
+if not patched:
+    print("[patch-expo-updates] WARNING: AppController DisabledAppController patterns not found")
+    sys.exit(0)
+
+with open(path, 'w') as f:
+    f.write(src)
+print("[patch-expo-updates] Patched AppController.swift DisabledAppController.start() on init")
+PYEOF
+
+done
+
+# ── Fix 4: AppLauncherNoDatabase — try app.bundle (Expo managed) before main.jsbundle (bare) ──
+IOS_LAUNCHER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/AppLauncher/AppLauncherNoDatabase.swift"
+
+for swift in node_modules/.pnpm/$IOS_LAUNCHER_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  if grep -q "Try Expo managed bundle" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] AppLauncherNoDatabase already patched"
+    continue
+  fi
+
+  python3 - "$swift" <<'PYEOF'
+import sys
+
+path = sys.argv[1]
+with open(path, 'r') as f:
+    src = f.read()
+
+old = """  public func launchUpdate() {
+    precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
+    launchAssetUrl = Bundle.main.url(
+      forResource: EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename,
+      withExtension: EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType
+    )
+  }"""
+
+new = """  public func launchUpdate() {
+    precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
+    // Try Expo managed bundle (app.bundle) first, then bare RN bundle (main.jsbundle).
+    // On iOS 26 this path is taken as an emergency fallback when the DB cannot be initialized.
+    let candidates: [(String, String)] = [
+      (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
+      (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
+    ]
+    for (name, ext) in candidates {
+      if let url = Bundle.main.url(forResource: name, withExtension: ext) {
+        launchAssetUrl = url
+        return
+      }
+    }
+  }"""
+
+if old not in src:
+    print("[patch-expo-updates] WARNING: AppLauncherNoDatabase pattern not found")
+    sys.exit(0)
+
+src = src.replace(old, new)
+with open(path, 'w') as f:
+    f.write(src)
+print("[patch-expo-updates] Patched AppLauncherNoDatabase.swift to try app.bundle first")
 PYEOF
 
 done
