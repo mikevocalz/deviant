@@ -252,8 +252,10 @@ export default {
     scheme: "dvnt",
     experiments: {
       typedRoutes: true,
-      reactCanary: true,
-      reactCompiler: true,
+      // Disable experimental React canary/compiler in production to reduce startup crash risk.
+      // These are only safe to enable in dev/preview builds.
+      reactCanary: process.env.APP_ENV !== "production",
+      reactCompiler: process.env.APP_ENV !== "production",
     },
     extra: {
       router: {
