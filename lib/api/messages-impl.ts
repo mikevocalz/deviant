@@ -717,21 +717,28 @@ export const messagesApi = {
   },
 
   /**
-   * Get IDs of users the current user is following
+   * Get IDs of users the current user is following (Edge Function — bypasses RLS)
    */
   async getFollowingIds(): Promise<string[]> {
     try {
-      const visitorId = await resolveVisitorIdInt();
-      if (!visitorId) return [];
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        followingIds?: string[];
+        error?: string;
+      }>("get-following-ids", {
+        body: {},
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const { data, error } = await supabase
-        .from(DB.follows.table)
-        .select(DB.follows.followingId)
-        .eq(DB.follows.followerId, visitorId);
-
-      if (error) throw error;
-
-      return (data || []).map((f: any) => String(f[DB.follows.followingId]));
+      if (error) {
+        console.error("[Messages] getFollowingIds Edge Function error:", error);
+        return [];
+      }
+      if (!data?.followingIds) {
+        if (data?.error) console.error("[Messages] get-following-ids:", data.error);
+        return [];
+      }
+      return data.followingIds;
     } catch (error) {
       console.error("[Messages] getFollowingIds error:", error);
       return [];

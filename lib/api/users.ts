@@ -367,21 +367,28 @@ export const usersApi = {
   },
 
   /**
-   * Get liked posts for current user
+   * Get liked posts for current user (Edge Function — bypasses RLS)
    */
   async getLikedPosts(): Promise<string[]> {
     try {
-      const userId = getCurrentUserIdInt();
-      if (!userId) return [];
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        postIds?: string[];
+        error?: string;
+      }>("get-liked-posts", {
+        body: {},
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const { data, error } = await supabase
-        .from(DB.likes.table)
-        .select(DB.likes.postId)
-        .eq(DB.likes.userId, userId);
-
-      if (error) throw error;
-
-      return (data || []).map((like: any) => String(like[DB.likes.postId]));
+      if (error) {
+        console.error("[Users] getLikedPosts Edge Function error:", error);
+        return [];
+      }
+      if (!data?.postIds) {
+        if (data?.error) console.error("[Users] get-liked-posts:", data.error);
+        return [];
+      }
+      return data.postIds;
     } catch (error) {
       console.error("[Users] getLikedPosts error:", error);
       return [];
@@ -530,65 +537,35 @@ export const usersApi = {
   },
 
   /**
-   * Get followers for a user (includes isFollowing state for current viewer)
+   * Get followers for a user (Edge Function — bypasses RLS)
    */
   async getFollowers(userId: string, page: number = 1, limit: number = 20) {
     try {
-      const offset = (page - 1) * limit;
-      const currentUserId = getCurrentUserIdInt();
-
-      const { data, error, count } = await supabase
-        .from(DB.follows.table)
-        .select(
-          `
-          follower:${DB.follows.followerId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            ${DB.users.verified},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-          { count: "exact" },
-        )
-        .eq(DB.follows.followingId, userId)
-        .range(offset, offset + limit - 1);
-
-      if (error) throw error;
-
-      // Get IDs of users the current viewer is following
-      let followingIds: number[] = [];
-      if (currentUserId) {
-        const { data: followingData } = await supabase
-          .from(DB.follows.table)
-          .select(DB.follows.followingId)
-          .eq(DB.follows.followerId, currentUserId);
-
-        followingIds = (followingData || []).map(
-          (f: any) => f[DB.follows.followingId],
-        );
-      }
-
-      const docs = (data || []).map((f: any) => {
-        const followerId = f.follower?.[DB.users.id];
-        return {
-          id: String(followerId),
-          username: f.follower?.[DB.users.username] || "unknown",
-          name:
-            f.follower?.[DB.users.firstName] ||
-            f.follower?.[DB.users.username] ||
-            "Unknown",
-          avatar: f.follower?.avatar?.url || "",
-          verified: f.follower?.[DB.users.verified] || false,
-          isFollowing: followingIds.includes(followerId),
-        };
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        docs?: any[];
+        totalDocs?: number;
+        hasNextPage?: boolean;
+        page?: number;
+        error?: string;
+      }>("get-followers", {
+        body: { userId, page, limit },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (error) {
+        console.error("[Users] getFollowers Edge Function error:", error);
+        return { docs: [], totalDocs: 0, hasNextPage: false, page };
+      }
+      if (!data?.docs) {
+        if (data?.error) console.error("[Users] get-followers:", data.error);
+        return { docs: [], totalDocs: 0, hasNextPage: false, page };
+      }
       return {
-        docs,
-        totalDocs: count || 0,
-        hasNextPage: offset + limit < (count || 0),
-        page,
+        docs: data.docs,
+        totalDocs: data.totalDocs ?? 0,
+        hasNextPage: data.hasNextPage ?? false,
+        page: data.page ?? page,
       };
     } catch (error) {
       console.error("[Users] getFollowers error:", error);
@@ -597,65 +574,35 @@ export const usersApi = {
   },
 
   /**
-   * Get following for a user (includes isFollowing state for current viewer)
+   * Get following for a user (Edge Function — bypasses RLS)
    */
   async getFollowing(userId: string, page: number = 1, limit: number = 20) {
     try {
-      const offset = (page - 1) * limit;
-      const currentUserId = getCurrentUserIdInt();
-
-      const { data, error, count } = await supabase
-        .from(DB.follows.table)
-        .select(
-          `
-          following:${DB.follows.followingId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            ${DB.users.verified},
-            avatar:${DB.users.avatarId}(url)
-          )
-        `,
-          { count: "exact" },
-        )
-        .eq(DB.follows.followerId, userId)
-        .range(offset, offset + limit - 1);
-
-      if (error) throw error;
-
-      // Get IDs of users the current viewer is following
-      let viewerFollowingIds: number[] = [];
-      if (currentUserId) {
-        const { data: followingData } = await supabase
-          .from(DB.follows.table)
-          .select(DB.follows.followingId)
-          .eq(DB.follows.followerId, currentUserId);
-
-        viewerFollowingIds = (followingData || []).map(
-          (f: any) => f[DB.follows.followingId],
-        );
-      }
-
-      const docs = (data || []).map((f: any) => {
-        const followingId = f.following?.[DB.users.id];
-        return {
-          id: String(followingId),
-          username: f.following?.[DB.users.username] || "unknown",
-          name:
-            f.following?.[DB.users.firstName] ||
-            f.following?.[DB.users.username] ||
-            "Unknown",
-          avatar: f.following?.avatar?.url || "",
-          verified: f.following?.[DB.users.verified] || false,
-          isFollowing: viewerFollowingIds.includes(followingId),
-        };
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        docs?: any[];
+        totalDocs?: number;
+        hasNextPage?: boolean;
+        page?: number;
+        error?: string;
+      }>("get-following", {
+        body: { userId, page, limit },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
+      if (error) {
+        console.error("[Users] getFollowing Edge Function error:", error);
+        return { docs: [], totalDocs: 0, hasNextPage: false, page };
+      }
+      if (!data?.docs) {
+        if (data?.error) console.error("[Users] get-following:", data.error);
+        return { docs: [], totalDocs: 0, hasNextPage: false, page };
+      }
       return {
-        docs,
-        totalDocs: count || 0,
-        hasNextPage: offset + limit < (count || 0),
-        page,
+        docs: data.docs,
+        totalDocs: data.totalDocs ?? 0,
+        hasNextPage: data.hasNextPage ?? false,
+        page: data.page ?? page,
       };
     } catch (error) {
       console.error("[Users] getFollowing error:", error);

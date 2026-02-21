@@ -1,6 +1,4 @@
 import { supabase } from "../supabase/client";
-import { DB } from "../supabase/db-map";
-import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface ToggleBookmarkResponse {
@@ -11,29 +9,28 @@ interface ToggleBookmarkResponse {
 
 export const bookmarksApi = {
   /**
-   * Get user's bookmarked posts
+   * Get user's bookmarked posts (Edge Function — bypasses RLS)
    */
   async getBookmarks() {
     try {
-      console.log("[Bookmarks] getBookmarks");
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<{
+        postIds?: string[];
+        error?: string;
+      }>("get-bookmarks", {
+        body: {},
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const authId = await getCurrentUserAuthId();
-      if (!authId) return [];
-
-      const { data, error } = await supabase
-        .from(DB.bookmarks.table)
-        .select(
-          `
-          ${DB.bookmarks.postId},
-          ${DB.bookmarks.createdAt}
-        `,
-        )
-        .eq(DB.bookmarks.userId, authId)
-        .order(DB.bookmarks.createdAt, { ascending: false });
-
-      if (error) throw error;
-
-      return (data || []).map((b: any) => String(b[DB.bookmarks.postId]));
+      if (error) {
+        console.error("[Bookmarks] getBookmarks Edge Function error:", error);
+        return [];
+      }
+      if (!data?.postIds) {
+        if (data?.error) console.error("[Bookmarks] get-bookmarks:", data.error);
+        return [];
+      }
+      return data.postIds;
     } catch (error) {
       console.error("[Bookmarks] getBookmarks error:", error);
       return [];

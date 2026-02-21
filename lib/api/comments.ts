@@ -1,8 +1,6 @@
 import { supabase } from "../supabase/client";
-import { DB } from "../supabase/db-map";
 import type { Comment } from "@/lib/types";
-import { getCurrentUserIdInt } from "./auth-helper";
-import { requireBetterAuthToken } from "../auth/identity";
+import { getBetterAuthToken } from "../auth/identity";
 
 interface AddCommentResponse {
   ok: boolean;
@@ -18,73 +16,35 @@ interface DeleteCommentResponse {
 
 export const commentsApi = {
   /**
-   * Get comments for a post
+   * Get comments for a post (Edge Function — bypasses RLS)
    */
   async getComments(postId: string, limit: number = 50) {
     try {
-      console.log("[Comments] getComments, postId:", postId);
-
       const postIdInt = parseInt(postId, 10);
-      if (isNaN(postIdInt)) {
-        console.warn("[Comments] Invalid postId:", postId);
+      if (isNaN(postIdInt)) return [];
+
+      const token = await getBetterAuthToken();
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const { data, error } = await supabase.functions.invoke<{
+        comments?: Comment[];
+        error?: string;
+      }>("get-post-comments", {
+        body: { postId: postIdInt, limit },
+        headers,
+      });
+
+      if (error) {
+        console.error("[Comments] getComments Edge Function error:", error);
         return [];
       }
-
-      const viewerId = getCurrentUserIdInt();
-
-      // Try with comment_likes join first; fall back without it if the join
-      // fails (e.g. missing GRANT on comment_likes for anon role).
-      const baseSelect = `
-          *,
-          author:${DB.comments.authorId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            avatar:${DB.users.avatarId}(url)
-          )`;
-      const withLikesSelect = `${baseSelect},
-          comment_likes!left(user_id)`;
-
-      let { data, error } = await supabase
-        .from(DB.comments.table)
-        .select(withLikesSelect)
-        .eq(DB.comments.postId, postIdInt)
-        .order(DB.comments.createdAt, { ascending: false })
-        .limit(limit);
-
-      // Fallback: if comment_likes join failed, retry without it
-      if (error) {
-        console.warn(
-          "[Comments] comment_likes join failed, retrying without:",
-          error.message,
-        );
-        const fallback = await supabase
-          .from(DB.comments.table)
-          .select(baseSelect)
-          .eq(DB.comments.postId, postIdInt)
-          .order(DB.comments.createdAt, { ascending: false })
-          .limit(limit);
-        data = fallback.data;
-        error = fallback.error;
+      if (!data?.comments) {
+        if (data?.error) console.error("[Comments] get-post-comments:", data.error);
+        return [];
       }
-
-      if (error) throw error;
-
-      return (data || []).map(
-        (c: any): Comment => ({
-          id: String(c[DB.comments.id]),
-          username: c.author?.[DB.users.username] || "unknown",
-          avatar: c.author?.avatar?.url || "",
-          text: c[DB.comments.content] || "",
-          timeAgo: formatTimeAgo(c[DB.comments.createdAt]),
-          likes: Number(c[DB.comments.likesCount]) || 0,
-          hasLiked: viewerId
-            ? Array.isArray(c.comment_likes) &&
-              c.comment_likes.some((l: any) => l.user_id === viewerId)
-            : false,
-          replies: [] as Comment[],
-        }),
-      );
+      return data.comments.map((c) => ({ ...c, replies: [] as Comment[] }));
     } catch (error) {
       console.error("[Comments] getComments error:", error);
       return [];

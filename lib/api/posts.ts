@@ -3,6 +3,7 @@ import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
+import { likesApi } from "./likes";
 
 interface CreatePostResponse {
   ok: boolean;
@@ -13,31 +14,11 @@ interface CreatePostResponse {
 const PAGE_SIZE = 10;
 
 /**
- * Batch-fetch which post IDs the current viewer has liked.
- * Returns a Set of post IDs (as strings) that the viewer liked.
- * Returns empty set on failure — never breaks callers.
+ * Batch-fetch which post IDs the current viewer has liked (Edge Function).
  */
-async function fetchViewerLikedPostIds(
-  postIds: number[],
-): Promise<Set<string>> {
+async function fetchViewerLikedPostIds(postIds: number[]): Promise<Set<string>> {
   try {
-    const viewerIdInt = getCurrentUserIdInt();
-    if (!viewerIdInt || postIds.length === 0) return new Set();
-
-    const { data, error } = await supabase
-      .from(DB.likes.table)
-      .select(DB.likes.postId)
-      .eq(DB.likes.userId, viewerIdInt)
-      .in(DB.likes.postId, postIds);
-
-    if (error) {
-      console.error("[Posts] fetchViewerLikedPostIds error:", error);
-      return new Set();
-    }
-
-    return new Set(
-      (data || []).map((row: any) => String(row[DB.likes.postId])),
-    );
+    return likesApi.getViewerLikedPostIds(postIds);
   } catch (err) {
     console.error("[Posts] fetchViewerLikedPostIds error:", err);
     return new Set();
