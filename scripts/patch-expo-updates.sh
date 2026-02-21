@@ -75,37 +75,24 @@ new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
     // We must NOT call controller.start() here -- it has a precondition(!isStarted) guard.
     // Instead, directly probe the filesystem for the embedded JS bundle.
     //
-    // Layout (static pod, Expo managed):
-    //   DVNT.app/EXUpdates.bundle/app.bundle   <- shallow bundle format
-    //   DVNT.app/EXUpdates.bundle/Contents/Resources/app.bundle  <- deep bundle format
-    // Layout (bare RN):
-    //   DVNT.app/main.jsbundle
+    // Actual IPA layout: main.jsbundle is at DVNT.app/main.jsbundle
+    // EXUpdates.bundle only contains app.manifest for this project.
     let mainBundlePath = Bundle.main.bundlePath
     let candidates: [(String, String)] = [
       (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
       (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
     ]
-    // 1) EXUpdates.bundle/app.bundle (shallow -- most common for static pods)
+    let fm = FileManager.default
+    // 1) EXUpdates.bundle/app.bundle (shallow)
     let exUpdatesBundlePath = (mainBundlePath as NSString).appendingPathComponent("EXUpdates.bundle")
     for (name, ext) in candidates {
       let filePath = ((exUpdatesBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
-      if FileManager.default.fileExists(atPath: filePath) {
-        return URL(fileURLWithPath: filePath)
-      }
+      if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
     }
-    // 2) EXUpdates.bundle/Contents/Resources/app.bundle (deep -- macOS-style)
-    let deepPath = ((exUpdatesBundlePath as NSString).appendingPathComponent("Contents/Resources") as NSString)
+    // 2) Bundle root (main.jsbundle lives here in Expo managed + bare RN builds)
     for (name, ext) in candidates {
-      let filePath = (deepPath.appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
-      if FileManager.default.fileExists(atPath: filePath) {
-        return URL(fileURLWithPath: filePath)
-      }
-    }
-    // 3) Bundle.main directly (bare RN workflow)
-    for (name, ext) in candidates {
-      if let url = Bundle.main.url(forResource: name, withExtension: ext) {
-        return url
-      }
+      let filePath = ((mainBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
+      if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
     }
     return nil
   }"""
