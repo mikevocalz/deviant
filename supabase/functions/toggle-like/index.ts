@@ -132,8 +132,7 @@ Deno.serve(async (req) => {
         return errorResponse("internal_error", "Failed to unlike");
       }
 
-      // Decrement likes count
-      await supabaseAdmin.rpc("decrement_post_likes", { post_id: postId });
+      // likes_count synced by trigger on likes table
       liked = false;
     } else {
       // Like - insert new like
@@ -146,8 +145,7 @@ Deno.serve(async (req) => {
         return errorResponse("internal_error", "Failed to like");
       }
 
-      // Increment likes count
-      await supabaseAdmin.rpc("increment_post_likes", { post_id: postId });
+      // likes_count synced by trigger on likes table
       liked = true;
 
       // ── Send like notification to post author (fire-and-forget) ──

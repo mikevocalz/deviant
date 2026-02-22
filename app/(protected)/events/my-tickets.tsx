@@ -1,9 +1,9 @@
 /**
  * My Tickets Screen
  *
- * Lists all tickets the current user has purchased.
+ * Lists all tickets the current user has (purchased or RSVP).
  * Tapping a ticket navigates to the ticket detail/QR view.
- * Feature-gated behind ticketing_enabled.
+ * Always enabled — viewing tickets should never be gated.
  */
 
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
@@ -20,7 +20,6 @@ import {
 import { Image } from "expo-image";
 import { LegendList } from "@/components/list";
 import { useMyTickets } from "@/lib/hooks/use-tickets";
-import { FeatureGate } from "@/lib/feature-flags";
 import type { TicketRecord } from "@/lib/api/tickets";
 
 const STATUS_COLORS: Record<
@@ -218,32 +217,5 @@ function MyTicketsContent() {
 }
 
 export default function MyTicketsScreen() {
-  const router = useRouter();
-  const insets = useSafeAreaInsets();
-
-  return (
-    <FeatureGate
-      flag="ticketing_enabled"
-      fallback={
-        <View
-          className="flex-1 bg-background"
-          style={{ paddingTop: insets.top }}
-        >
-          <View className="flex-row items-center px-4 py-3 gap-3">
-            <Pressable onPress={() => router.back()} hitSlop={12}>
-              <ArrowLeft size={22} color="#fff" />
-            </Pressable>
-            <Text className="text-lg font-sans-bold text-foreground flex-1">
-              My Tickets
-            </Text>
-          </View>
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-muted-foreground">Tickets coming soon</Text>
-          </View>
-        </View>
-      }
-    >
-      <MyTicketsContent />
-    </FeatureGate>
-  );
+  return <MyTicketsContent />;
 }

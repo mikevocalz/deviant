@@ -13,7 +13,8 @@ const fs = require("fs");
 const MICAH_TEAM_ID = "436WA3W63V";
 
 function withDevelopmentTeam(config, { teamId } = {}) {
-  const TEAM_ID = teamId || process.env.APPLE_DEVELOPMENT_TEAM_ID || MICAH_TEAM_ID;
+  const TEAM_ID =
+    teamId || process.env.APPLE_DEVELOPMENT_TEAM_ID || MICAH_TEAM_ID;
   return withXcodeProject(config, async (config) => {
     const project = config.modResults;
     const configurations = project.pbxXCBuildConfigurationSection();
@@ -21,24 +22,22 @@ function withDevelopmentTeam(config, { teamId } = {}) {
     for (const key of Object.keys(configurations)) {
       if (key === "comment" || !configurations[key].buildSettings) continue;
       const buildSettings = configurations[key].buildSettings;
-      if (buildSettings.DEVELOPMENT_TEAM) {
-        buildSettings.DEVELOPMENT_TEAM = TEAM_ID;
-      }
+      buildSettings.DEVELOPMENT_TEAM = TEAM_ID;
     }
 
     const pbxPath = path.join(
       config.modRequest.platformProjectRoot,
       config.modRequest.projectName + ".xcodeproj",
-      "project.pbxproj"
+      "project.pbxproj",
     );
     let contents = fs.readFileSync(pbxPath, "utf8");
     contents = contents.replace(
       /DevelopmentTeam = [^;]+;/g,
-      `DevelopmentTeam = ${TEAM_ID};`
+      `DevelopmentTeam = ${TEAM_ID};`,
     );
     contents = contents.replace(
       /DEVELOPMENT_TEAM = [^;]+;/g,
-      `DEVELOPMENT_TEAM = ${TEAM_ID};`
+      `DEVELOPMENT_TEAM = ${TEAM_ID};`,
     );
     fs.writeFileSync(pbxPath, contents);
 

@@ -31,6 +31,7 @@ import {
   ScanLine,
   CalendarPlus,
   Zap,
+  Pencil,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -42,10 +43,12 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { useEventViewStore } from "@/lib/stores/event-store";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
 import { ticketsApi } from "@/lib/api/tickets";
+import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
 import * as Calendar from "expo-calendar";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -201,6 +204,12 @@ export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const eventId = id || "";
   const { isRsvped, toggleRsvp } = useEventViewStore();
+  const deviceLat = useEventsLocationStore(
+    (s) => s.activeCity?.lat ?? s.deviceLat,
+  );
+  const deviceLng = useEventsLocationStore(
+    (s) => s.activeCity?.lng ?? s.deviceLng,
+  );
   const { hasValidTicket, setTicket } = useTicketStore();
   const showToast = useUIStore((s) => s.showToast);
   const { user } = useAuthStore();
@@ -276,8 +285,6 @@ export default function EventDetailScreen() {
     ],
   }));
 
-  const hasTicket = hasValidTicket(eventId) || isRsvped[eventId] || false;
-
   // ── Fetch event data via single batch RPC ─────────────────────────
   const createReview = useCreateEventReview();
 
@@ -292,6 +299,14 @@ export default function EventDetailScreen() {
     enabled: !!eventId,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Server-side RSVP status persists across app restarts
+  const serverHasTicket = !!(
+    eventData?.userRsvpStatus && eventData.userRsvpStatus !== "none"
+  );
+
+  const hasTicket =
+    hasValidTicket(eventId) || isRsvped[eventId] || serverHasTicket;
 
   // Sync isLiked from batch payload
   useEffect(() => {
@@ -437,6 +452,7 @@ export default function EventDetailScreen() {
             eventLocation: eventData.location,
             eventImage: eventData.image,
           });
+          queryClient.invalidateQueries({ queryKey: ticketKeys.myTickets() });
           toggleRsvp(eventId);
           queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
             old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
@@ -481,6 +497,7 @@ export default function EventDetailScreen() {
               eventLocation: eventData.location,
               eventImage: eventData.image,
             });
+            queryClient.invalidateQueries({ queryKey: ticketKeys.myTickets() });
             toggleRsvp(eventId);
             queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
               old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
@@ -549,6 +566,7 @@ export default function EventDetailScreen() {
       entryWindow: eventData.entryWindow,
       perks: selectedTier?.perks || eventData.perks,
     });
+    queryClient.invalidateQueries({ queryKey: ticketKeys.myTickets() });
 
     showToast("success", "Confirmed", `You're going to ${eventData.title}!`);
   }, [
@@ -570,7 +588,8 @@ export default function EventDetailScreen() {
   const isHost = !!(
     user?.id &&
     eventData?.host?.id &&
-    String(user.id) === String(eventData.host.id)
+    (String(user.id) === String(eventData.host.id) ||
+      String(getCurrentUserIdInt()) === String(eventData.host.id))
   );
 
   const handleDeleteEvent = useCallback(() => {
@@ -687,7 +706,8 @@ export default function EventDetailScreen() {
   const isHostUser = !!(
     user?.id &&
     eventData?.host?.id &&
-    String(user.id) === String(eventData.host.id)
+    (String(user.id) === String(eventData.host.id) ||
+      String(getCurrentUserIdInt()) === String(eventData.host.id))
   );
 
   const canRate = useMemo(() => {
@@ -841,6 +861,18 @@ export default function EventDetailScreen() {
           {/* ── 3.25 HOST ORGANIZER TOOLS ──────────────────────────── */}
           {isHost && isFeatureEnabled("organizer_tools_enabled") ? (
             <View style={s.section}>
+              <Pressable
+                onPress={() =>
+                  router.push(`/(protected)/events/${eventId}/edit` as any)
+                }
+                style={[
+                  s.organizerButton,
+                  { marginBottom: 10, flexDirection: "row", gap: 6 },
+                ]}
+              >
+                <Pencil size={16} color="#3FDCFF" />
+                <Text style={s.organizerButtonText}>Edit Event</Text>
+              </Pressable>
               <View style={{ flexDirection: "row", gap: 10 }}>
                 <Pressable
                   onPress={() =>
@@ -891,9 +923,13 @@ export default function EventDetailScreen() {
           ) : null}
 
           {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
-          {event.locationLat && event.locationLng ? (
+          {(event.locationLat && event.locationLng) ||
+          (deviceLat != null && deviceLng != null) ? (
             <View style={s.section}>
-              <WeatherModule lat={event.locationLat} lng={event.locationLng} />
+              <WeatherModule
+                lat={event.locationLat ?? deviceLat!}
+                lng={event.locationLng ?? deviceLng!}
+              />
             </View>
           ) : null}
 

@@ -25,25 +25,36 @@ function hydrateFromNotificationsBootstrap(
   userId: string,
   data: BootstrapNotificationsResponse,
 ) {
-  // 1. Seed the activities query cache
-  const activities = data.activities.map((a) => ({
-    id: a.id,
-    type: a.type || "like",
-    user: {
-      id: a.actor.id,
-      username: a.actor.username,
-      avatar: a.actor.avatarUrl,
-    },
-    entityType: a.entityType,
-    entityId: a.entityId,
-    post: a.post
-      ? { id: a.post.id, thumbnail: a.post.thumbnailUrl }
-      : undefined,
-    comment: a.commentText,
-    timeAgo: "",
-    isRead: a.isRead,
-    createdAt: a.createdAt,
-  }));
+  // viewerFollowing is now keyed by USERNAME (fixed server-side)
+  const viewerFollowingByUsername = data.viewerFollowing || {};
+
+  // 1. Seed the activities query cache — embed viewerFollows directly
+  const activities = data.activities.map((a) => {
+    const username = a.actor.username;
+    // Use actor.viewerFollows (embedded by server) or fall back to username map
+    const viewerFollows =
+      a.actor.viewerFollows ?? !!viewerFollowingByUsername[username];
+
+    return {
+      id: a.id,
+      type: a.type || "like",
+      user: {
+        id: a.actor.id,
+        username,
+        avatar: a.actor.avatarUrl,
+        viewerFollows,
+      },
+      entityType: a.entityType,
+      entityId: a.entityId,
+      post: a.post
+        ? { id: a.post.id, thumbnail: a.post.thumbnailUrl }
+        : undefined,
+      comment: a.commentText,
+      timeAgo: "",
+      isRead: a.isRead,
+      createdAt: a.createdAt,
+    };
+  });
 
   queryClient.setQueryData(activityKeys.list(userId), activities);
 
@@ -52,17 +63,17 @@ function hydrateFromNotificationsBootstrap(
     unreadCount: data.unreadCount,
   });
 
-  // 3. Seed follow state in activity store (for follow-back buttons)
+  // 3. Seed follow state in activity store — NOW USING USERNAMES (not IDs)
   const followedSet = new Set(
-    Object.entries(data.viewerFollowing)
+    Object.entries(viewerFollowingByUsername)
       .filter(([, isFollowing]) => isFollowing)
-      .map(([id]) => id),
+      .map(([username]) => username),
   );
   useActivityStore.setState({ followedUsers: followedSet });
 
   console.log(
     `[BootstrapNotifications] Hydrated cache: ${activities.length} activities, ` +
-      `${data.unreadCount} unread, ${followedSet.size} followed`,
+      `${data.unreadCount} unread, ${followedSet.size} followed (by username)`,
   );
 }
 

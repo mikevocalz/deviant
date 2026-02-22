@@ -18,6 +18,7 @@ import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { likesApi } from "@/lib/api/likes";
 import { postKeys } from "@/lib/hooks/use-posts";
+import { postLikersKeys } from "@/lib/hooks/use-post-likers";
 import type { Post } from "@/lib/types";
 
 interface LikeState {
@@ -237,6 +238,11 @@ export function usePostLikeState(
           },
         );
       }
+
+      // Invalidate likers list so LikesSheet shows correct count after like/unlike
+      queryClient.invalidateQueries({
+        queryKey: postLikersKeys.forPost(normalizedPostId),
+      });
 
       // Update any saved-posts cache (`usePostsByIds`) that contains this post
       queryClient.setQueriesData<Post[]>(

@@ -50,6 +50,7 @@ import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
+import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
@@ -131,6 +132,7 @@ function FeedPostComponent({
   const [showLikesSheet, setShowLikesSheet] = useState(false);
   const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
+  const prefetchLikers = usePrefetchPostLikers();
   const deletePostMutation = useDeletePost();
 
   const isOwner = currentUser?.username === author.username;
@@ -750,9 +752,14 @@ function FeedPostComponent({
 
         {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
-          <Pressable onPress={() => setShowLikesSheet(true)}>
+          <Pressable
+            onPress={() => {
+              prefetchLikers(id);
+              setShowLikesSheet(true);
+            }}
+          >
             <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
-              {formatLikeCount(likeCount)}
+              {formatLikeCount(likesCount)}
             </Text>
           </Pressable>
           {caption && (

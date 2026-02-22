@@ -134,10 +134,7 @@ Deno.serve(async (req) => {
       return errorResponse("internal_error", "Failed to delete comment");
     }
 
-    // Decrement comments count on post
-    await supabaseAdmin.rpc("decrement_post_comments", {
-      post_id: comment.post_id,
-    });
+    // comments_count synced by trigger on comments table
 
     console.log("[Edge:delete-comment] Comment deleted:", commentId);
 

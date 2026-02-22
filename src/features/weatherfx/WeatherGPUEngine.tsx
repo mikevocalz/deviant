@@ -19,7 +19,11 @@ import { View, StyleSheet, AccessibilityInfo, Platform } from "react-native";
 import { GpuRuntime, isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
 import { WorkletRenderLoop } from "@/src/gpu/WorkletRenderLoop";
 import { useWeatherFXStore } from "./WeatherFXStore";
-import { WeatherEffect, CinematicPhase, type LayerUniforms } from "./weatherTypes";
+import {
+  WeatherEffect,
+  CinematicPhase,
+  type LayerUniforms,
+} from "./weatherTypes";
 import { RainLayer } from "./layers/RainLayer";
 import { SnowLayer } from "./layers/SnowLayer";
 import { FogLayer } from "./layers/FogLayer";
@@ -137,7 +141,8 @@ function WeatherCanvas() {
         }
       }
 
-      const finalOpacity = effectOpacity * loopOpacity * Math.min(cinematicMul, 2.5);
+      const finalOpacity =
+        effectOpacity * loopOpacity * Math.min(cinematicMul, 2.5);
       if (finalOpacity < 0.001) return;
 
       // Build uniforms (reused object pattern — no allocation)
@@ -211,7 +216,13 @@ function WeatherCanvas() {
       }
 
       // PostFX (film grain + vignette + color grading)
-      PostFXPass.update(time, resolution, effect, finalOpacity * 0.6, postfxEnabled);
+      PostFXPass.update(
+        time,
+        resolution,
+        effect,
+        finalOpacity * 0.6,
+        postfxEnabled,
+      );
       PostFXPass.render(renderPass, postfxEnabled);
 
       renderPass.end();
@@ -229,12 +240,7 @@ function WeatherCanvas() {
     };
   });
 
-  return (
-    <WgpuCanvas
-      ref={canvasRef}
-      style={StyleSheet.absoluteFill}
-    />
-  );
+  return <WgpuCanvas ref={canvasRef} style={StyleSheet.absoluteFill} />;
 }
 
 // ── Main exported component ─────────────────────────────────────────
@@ -245,9 +251,7 @@ export function WeatherGPUEngine() {
     (s) => s.weatherAmbianceEnabled,
   );
   const gpuReady = useWeatherFXStore((s) => s.gpuReady);
-  const effectIntensityScale = useWeatherFXStore(
-    (s) => s.effectIntensityScale,
-  );
+  const effectIntensityScale = useWeatherFXStore((s) => s.effectIntensityScale);
   const mountedRef = useRef(false);
 
   // ── Singleton guard ─────────────────────────────────────────────
@@ -291,7 +295,9 @@ export function WeatherGPUEngine() {
           // expo-battery not available (OTA without native build)
         }
 
-        useWeatherFXStore.getState().setFlags(reduceMotion, lowPower, batteryLevel);
+        useWeatherFXStore
+          .getState()
+          .setFlags(reduceMotion, lowPower, batteryLevel);
       } catch {}
     };
     checkFlags();
@@ -331,8 +337,7 @@ export function WeatherGPUEngine() {
       !eventsTabVisible ||
       !gpuReady ||
       !weatherAmbianceEnabled ||
-      selectedEffect === WeatherEffect.None ||
-      selectedEffect === WeatherEffect.Clear
+      selectedEffect === WeatherEffect.None
     ) {
       return;
     }

@@ -88,6 +88,6 @@ export const useTicketStore = create<TicketStore>((set, get) => ({
 
   hasValidTicket: (eventId) => {
     const ticket = get().tickets[eventId];
-    return ticket ? ticket.paid && ticket.status === "valid" : false;
+    return ticket ? ticket.status === "valid" : false;
   },
 }));

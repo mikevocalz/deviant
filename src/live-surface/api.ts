@@ -15,40 +15,35 @@ interface LiveSurfaceResponse {
   error?: string;
 }
 
-export async function fetchLiveSurface(): Promise<LiveSurfacePayload | null> {
-  try {
-    const token = await requireBetterAuthToken();
-    const activeCity = useEventsLocationStore.getState().activeCity;
-    const body = activeCity
-      ? { lat: activeCity.lat, lng: activeCity.lng }
-      : undefined;
+export async function fetchLiveSurface(): Promise<LiveSurfacePayload> {
+  const token = await requireBetterAuthToken();
+  const activeCity = useEventsLocationStore.getState().activeCity;
+  const body = activeCity
+    ? { lat: activeCity.lat, lng: activeCity.lng }
+    : undefined;
 
-    const { data, error } =
-      await supabase.functions.invoke<LiveSurfaceResponse>("live-surface", {
-        body,
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const { data, error } = await supabase.functions.invoke<LiveSurfaceResponse>(
+    "live-surface",
+    {
+      body,
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
 
-    if (error) {
-      console.error("[LiveSurface] Edge function error:", error.message);
-      return null;
-    }
-
-    if (!data?.ok || !data?.data) {
-      console.error("[LiveSurface] Bad response:", data?.error);
-      return null;
-    }
-
-    console.log(
-      "[LiveSurface] Payload fetched, cached:",
-      data.cached,
-      "tiles:",
-      data.data.tile2.items.length,
-    );
-
-    return data.data;
-  } catch (err) {
-    console.error("[LiveSurface] fetchLiveSurface error:", err);
-    return null;
+  if (error) {
+    throw new Error(`[LiveSurface] Edge function error: ${error.message}`);
   }
+
+  if (!data?.ok || !data?.data) {
+    throw new Error(`[LiveSurface] Bad response: ${data?.error ?? "no data"}`);
+  }
+
+  console.log(
+    "[LiveSurface] Payload fetched, cached:",
+    data.cached,
+    "tiles:",
+    data.data.tile2.items.length,
+  );
+
+  return data.data;
 }

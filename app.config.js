@@ -4,7 +4,8 @@
 const webOutput = "single";
 
 // Stability: gate experimental flags for production (EAS production profile sets APP_ENV=production)
-const appEnv = process.env.APP_ENV ?? process.env.EXPO_PUBLIC_APP_ENV ?? "development";
+const appEnv =
+  process.env.APP_ENV ?? process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 const isProd = appEnv === "production";
 
 // Dynamic origin - uses Supabase URL with production fallback
@@ -122,7 +123,6 @@ export default {
     },
     plugins: [
       "./plugins/disable-user-script-sandboxing",
-      ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "./plugins/with-app-controller-init",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
@@ -149,7 +149,7 @@ export default {
         "expo-build-properties",
         {
           ios: {
-            deploymentTarget: "16.0",
+            deploymentTarget: "17.0",
           },
           // Disable experimental RN/Hermes flags in production to reduce SIGTRAP crash risk
           buildReactNativeFromSource: !isProd,
@@ -218,6 +218,25 @@ export default {
       "./plugins/with-voip-push",
       "./plugins/with-custom-ringtone",
       "./plugins/with-live-activity",
+      [
+        "voltra",
+        {
+          groupIdentifier: "group.com.dvnt.app",
+          targetName: "DVNTHomeWidgetExtension",
+          enablePushNotifications: true,
+          deploymentTarget: "16.4",
+          widgets: [
+            {
+              id: "dvnt_events",
+              displayName: "DVNT Events",
+              description: "Your next event at a glance",
+              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"],
+            },
+          ],
+        },
+      ],
+      ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
+      "./plugins/fix-voltra-pnpm-podfile",
       "expo-secure-store",
       "expo-sharing",
       [
@@ -268,6 +287,10 @@ export default {
       reactCompiler: !isProd,
     },
     extra: {
+      ios: {
+        widgetBundleIdentifier: "com.dvnt.app.DVNTHomeWidgetExtension",
+        appGroupIdentifier: "group.com.dvnt.app",
+      },
       router: {
         origin: routerOrigin,
       },
@@ -277,6 +300,23 @@ export default {
         "e921bfe88b244ced97fdd1d8d9a2c6f0",
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
+        build: {
+          experimental: {
+            ios: {
+              appExtensions: [
+                {
+                  targetName: "DVNTHomeWidgetExtension",
+                  bundleIdentifier: "com.dvnt.app.DVNTHomeWidgetExtension",
+                  entitlements: {
+                    "com.apple.security.application-groups": [
+                      "group.com.dvnt.app",
+                    ],
+                  },
+                },
+              ],
+            },
+          },
+        },
       },
     },
   },

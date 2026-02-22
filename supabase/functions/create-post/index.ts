@@ -204,8 +204,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Increment user posts count
-    await supabaseAdmin.rpc("increment_posts_count", { user_id: userId });
+    // posts_count synced by trigger on posts table
 
     return jsonResponse({
       ok: true,
