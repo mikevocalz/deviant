@@ -7,9 +7,7 @@ private extension View {
     @ViewBuilder
     func dvntContainerBackground() -> some View {
         if #available(iOS 17.0, *) {
-            self.containerBackground(for: .widget) {
-                Color.black.opacity(0.92)
-            }
+            self.containerBackground(.fill.tertiary, for: .widget)
         } else {
             self.background(Color.black.opacity(0.92))
         }
@@ -62,20 +60,16 @@ struct DVNTHomeWidget: Widget {
 }
 
 struct DVNTHomeProvider: TimelineProvider {
-    private static let previewEntry = DVNTHomeEntry(date: Date(), payload: SurfacePayload.preview())
+    private static let previewEntry: DVNTHomeEntry = {
+        DVNTHomeEntry(date: Date(), payload: SurfacePayload.preview())
+    }()
 
     func placeholder(in context: Context) -> DVNTHomeEntry {
         Self.previewEntry
     }
 
     func getSnapshot(in context: Context, completion: @escaping (DVNTHomeEntry) -> Void) {
-        if context.isPreview {
-            completion(Self.previewEntry)
-            return
-        }
-        let payload = loadPayload()
-        let entry = DVNTHomeEntry(date: Date(), payload: payload ?? SurfacePayload.preview())
-        completion(entry)
+        completion(Self.previewEntry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<DVNTHomeEntry>) -> Void) {
@@ -114,7 +108,7 @@ struct SurfacePayload {
             items: (0..<6).map { i in Tile2Item(id: "p\(i)", deepLink: "https://dvntlive.app") },
             recapDeepLink: "https://dvntlive.app"
         )
-        let weather = WeatherData(icon: "sun", tempF: 72, label: "Sunny")
+        let weather = WeatherData(icon: "sun", tempF: 72, label: "Sunny", hiF: 78, loF: 65, precipPct: 10, feelsLikeF: 74)
         return SurfacePayload(
             tile1: tile1,
             tile2: tile2,
@@ -144,6 +138,10 @@ struct SurfacePayload {
         let icon: String?
         let tempF: Int?
         let label: String?
+        let hiF: Int?
+        let loF: Int?
+        let precipPct: Int?
+        let feelsLikeF: Int?
     }
 
     init(tile1: Tile1Data?, tile2: Tile2Data?, weather: WeatherData?, tile1HeroLocalPath: String?, tile2LocalPaths: [String]) {
@@ -178,7 +176,7 @@ struct SurfacePayload {
             recapDeepLink: tile2Obj?["recapDeepLink"] as? String ?? "https://dvntlive.app"
         )
         let w = obj["weather"] as? [String: Any]
-        weather = w.map { WeatherData(icon: $0["icon"] as? String, tempF: $0["tempF"] as? Int, label: $0["label"] as? String) }
+        weather = w.map { WeatherData(icon: $0["icon"] as? String, tempF: $0["tempF"] as? Int, label: $0["label"] as? String, hiF: $0["hiF"] as? Int, loF: $0["loF"] as? Int, precipPct: $0["precipPct"] as? Int, feelsLikeF: $0["feelsLikeF"] as? Int) }
     }
 }
 
@@ -284,6 +282,9 @@ struct MediumWidgetView: View {
                                 if let t = w.tempF { Text("\(t)°").font(.system(size: 14, weight: .semibold)).foregroundColor(.white) }
                             }
                             if let l = w.label { Text(l).font(.system(size: 10)).foregroundColor(.white.opacity(0.6)) }
+                            if let hi = w.hiF, let lo = w.loF {
+                                Text("H:\(hi)° L:\(lo)°").font(.system(size: 9)).foregroundColor(.white.opacity(0.5))
+                            }
                         }
                     }
                     Spacer(minLength: 0)
@@ -337,6 +338,15 @@ struct LargeWidgetView: View {
                                     if let t = w.tempF { Text("\(t)°").font(.system(size: 16, weight: .semibold)).foregroundColor(.white) }
                                 }
                                 if let l = w.label { Text(l).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)) }
+                                if let hi = w.hiF, let lo = w.loF {
+                                    Text("H:\(hi)° L:\(lo)°").font(.system(size: 10)).foregroundColor(.white.opacity(0.5))
+                                }
+                                if let p = w.precipPct, p > 0 {
+                                    Text("\(p)% precip").font(.system(size: 9)).foregroundColor(.white.opacity(0.5))
+                                }
+                                if let fl = w.feelsLikeF {
+                                    Text("Feels \(fl)°").font(.system(size: 9)).foregroundColor(.white.opacity(0.5))
+                                }
                             }
                         }
                         Spacer(minLength: 0)

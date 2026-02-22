@@ -1,7 +1,7 @@
 /**
  * useLiveSurface Hook
  * Main integration hook — fetches payload, updates native surfaces.
- * Mounted once in the protected layout. No polling — updates on app open + push.
+ * Mounted once in the protected layout. Carousel cycles every 5s when app is active.
  */
 
 import { useEffect, useRef } from "react";
@@ -13,23 +13,32 @@ import type { LiveSurfacePayload } from "../types";
 
 const QUERY_KEY = ["liveSurface"] as const;
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+const CAROUSEL_INTERVAL_MS = 5000;
 
 /**
  * Try to start/update iOS Live Activity via the native module.
  * Safe-wrapped: no-op if module not available (OTA without native build).
+ * Pass currentTile (0-2) for carousel cycling.
  */
-function updateNativeSurface(payload: LiveSurfacePayload): void {
+function updateNativeSurface(
+  payload: LiveSurfacePayload,
+  currentTile = 0,
+): void {
   try {
     if (Platform.OS === "ios") {
-      // Dynamic require — safe if native module not in current build
       const mod = require("@/src/live-surface/native/ios-bridge");
-      mod?.updateLiveActivity?.(payload);
+      mod?.updateLiveActivity?.({ ...payload, currentTile });
+      if (__DEV__) {
+        console.log("[LiveSurface] updateNativeSurface called, tile1:", payload?.tile1?.title);
+      }
     } else if (Platform.OS === "android") {
       const mod = require("@/src/live-surface/native/android-bridge");
       mod?.updateNotification?.(payload);
     }
-  } catch {
-    // Native module not available in this build — silent no-op
+  } catch (e) {
+    if (__DEV__) {
+      console.warn("[LiveSurface] updateNativeSurface failed:", e);
+    }
   }
 }
 
@@ -72,13 +81,30 @@ export function useLiveSurface() {
     if (data) {
       setPayload(data);
       setActive(true);
-      updateNativeSurface(data);
+      updateNativeSurface(data, 0);
+      if (__DEV__) {
+        console.log("[LiveSurface] Payload synced, Live Activity update triggered");
+      }
     }
   }, [data, setPayload, setActive]);
+
+  // Carousel: cycle tiles 0→1→2 every 5s when app is active (iOS Live Activity)
+  useEffect(() => {
+    if (!data || Platform.OS !== "ios") return;
+    let tileIndex = 0;
+    const id = setInterval(() => {
+      tileIndex = (tileIndex + 1) % 3;
+      updateNativeSurface(data, tileIndex);
+    }, CAROUSEL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [data]);
 
   useEffect(() => {
     if (error) {
       setError(error instanceof Error ? error.message : "Unknown error");
+      if (__DEV__) {
+        console.warn("[LiveSurface] Fetch error:", error);
+      }
     }
   }, [error, setError]);
 

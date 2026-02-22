@@ -49,9 +49,9 @@ IOS_DELEGATE_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/Rea
 for swift in node_modules/.pnpm/$IOS_DELEGATE_PATTERN; do
   [ -f "$swift" ] || continue
 
-  # Skip if already patched (check for filesystem probe approach)
-  if grep -q "FileManager.default.fileExists" "$swift" 2>/dev/null; then
-    echo "[patch-expo-updates] iOS bundleURL fallback already patched (filesystem probe)"
+  # Skip if already patched with probe-first order (avoids launchAssetUrl crash when start() not called)
+  if grep -q "PROBE FILESYSTEM FIRST" "$swift" 2>/dev/null; then
+    echo "[patch-expo-updates] iOS bundleURL already patched (probe-first)"
     continue
   fi
 
@@ -66,33 +66,30 @@ with open(path, 'r') as f:
     src = f.read()
 
 new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
-    // Happy path: controller already started and has a launch URL.
-    if let url = AppController.sharedInstance.launchAssetUrl() {
-      return url
-    }
-    // iOS 26 fallback: DB init failed -> DisabledAppController was created but start() has NOT
-    // been called yet (createReactRootView returned early on !isActiveController).
-    // We must NOT call controller.start() here -- it has a precondition(!isStarted) guard.
-    // Instead, directly probe the filesystem for the embedded JS bundle.
-    //
-    // Actual IPA layout: main.jsbundle is at DVNT.app/main.jsbundle
-    // EXUpdates.bundle only contains app.manifest for this project.
+    // PROBE FILESYSTEM FIRST: When AppDelegate uses factory.startReactNative() directly (not
+    // createReactRootView), controller.start() is never called. EnabledAppController.startupProcedure
+    // stays nil. Calling launchAssetUrl() then crashes (force-unwrap of nil).
+    // By probing the embedded bundle locations first, we avoid that crash in Release builds.
     let mainBundlePath = Bundle.main.bundlePath
     let candidates: [(String, String)] = [
       (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
       (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
     ]
     let fm = FileManager.default
-    // 1) EXUpdates.bundle/app.bundle (shallow)
+    // 1) EXUpdates.bundle (Expo managed)
     let exUpdatesBundlePath = (mainBundlePath as NSString).appendingPathComponent("EXUpdates.bundle")
     for (name, ext) in candidates {
       let filePath = ((exUpdatesBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
       if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
     }
-    // 2) Bundle root (main.jsbundle lives here in Expo managed + bare RN builds)
+    // 2) Bundle root (main.jsbundle in bare/Expo builds)
     for (name, ext) in candidates {
       let filePath = ((mainBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
       if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
+    }
+    // 3) Fallback: controller already started with OTA update URL
+    if let url = AppController.sharedInstance.launchAssetUrl() {
+      return url
     }
     return nil
   }"""

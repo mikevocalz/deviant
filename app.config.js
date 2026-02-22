@@ -3,6 +3,10 @@
 // Use the standalone server/ directory for production API deployment
 const webOutput = "single";
 
+// Stability: gate experimental flags for production (EAS production profile sets APP_ENV=production)
+const appEnv = process.env.APP_ENV ?? process.env.EXPO_PUBLIC_APP_ENV ?? "development";
+const isProd = appEnv === "production";
+
 // Dynamic origin - uses Supabase URL with production fallback
 const routerOrigin =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
@@ -118,6 +122,7 @@ export default {
     },
     plugins: [
       "./plugins/disable-user-script-sandboxing",
+      ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "./plugins/with-app-controller-init",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
@@ -146,8 +151,9 @@ export default {
           ios: {
             deploymentTarget: "16.0",
           },
-          buildReactNativeFromSource: true,
-          useHermesV1: true,
+          // Disable experimental RN/Hermes flags in production to reduce SIGTRAP crash risk
+          buildReactNativeFromSource: !isProd,
+          useHermesV1: !isProd,
         },
       ],
       [
@@ -219,9 +225,12 @@ export default {
         {
           iosActivationRules: {
             NSExtensionActivationSupportsWebURLWithMaxCount: 1,
+            NSExtensionActivationSupportsWebPageWithMaxCount: 1,
             NSExtensionActivationSupportsText: true,
+            NSExtensionActivationSupportsImageWithMaxCount: 1,
+            NSExtensionActivationSupportsMovieWithMaxCount: 1,
           },
-          androidIntentFilters: ["text/*"],
+          androidIntentFilters: ["text/*", "image/*"],
           androidMainActivityAttributes: {
             "android:launchMode": "singleTask",
           },
@@ -254,10 +263,9 @@ export default {
     scheme: "dvnt",
     experiments: {
       typedRoutes: true,
-      // Disable experimental React canary/compiler in production to reduce startup crash risk.
-      // These are only safe to enable in dev/preview builds.
-      reactCanary: process.env.APP_ENV !== "production",
-      reactCompiler: process.env.APP_ENV !== "production",
+      // Disable experimental React canary/compiler in production to reduce startup crash risk
+      reactCanary: !isProd,
+      reactCompiler: !isProd,
     },
     extra: {
       router: {

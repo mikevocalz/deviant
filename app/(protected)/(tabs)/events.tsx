@@ -373,9 +373,6 @@ export default function EventsScreen() {
   const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
-  // Drive GPU weather FX from Open-Meteo data (15min cache, no waterfall)
-  useWeatherRefresh(weatherLat, weatherLng);
-
   // Fallback: if boot location hook didn't resolve a city yet,
   // debounce 2s then set first DB city or reverse-geocode from device coords
   const cityFallbackRef = useRef(
@@ -474,6 +471,27 @@ export default function EventsScreen() {
       })
       .filter((ev: any) => !ev._deduped);
   }, [events, promotedIds, spotlightEventIds]);
+
+  const soonestUpcomingEvent = useMemo(() => {
+    if (weatherLat == null || weatherLng == null) return null;
+    const now = new Date();
+    const upcoming = [...events, ...forYouEvents].filter(
+      (ev: Event) => ev.fullDate && new Date(ev.fullDate) > now,
+    );
+    if (upcoming.length === 0) return null;
+    upcoming.sort(
+      (a, b) =>
+        new Date(a.fullDate!).getTime() - new Date(b.fullDate!).getTime(),
+    );
+    const ev = upcoming[0];
+    return {
+      fullDate: ev.fullDate!,
+      locationLat: (ev as Event).locationLat ?? weatherLat,
+      locationLng: (ev as Event).locationLng ?? weatherLng,
+    };
+  }, [events, forYouEvents, weatherLat, weatherLng]);
+
+  useWeatherRefresh(weatherLat, weatherLng, soonestUpcomingEvent);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {

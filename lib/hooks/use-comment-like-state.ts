@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { commentsApi as commentsApiClient } from "@/lib/api/comments";
+import { useUIStore } from "@/lib/stores/ui-store";
 import type { Comment } from "@/lib/types";
 import { commentKeys } from "./use-comments";
 
@@ -17,7 +18,7 @@ interface LikeState {
 
 interface MutationContext {
   previousState?: LikeState;
-  previousComments?: Comment[];
+  previousQueries?: Array<[readonly unknown[], Comment[] | undefined]>;
 }
 
 function logCacheMutation(action: string, key: readonly unknown[]) {
@@ -105,37 +106,44 @@ export function useCommentLikeState(
       logCacheMutation("setQueryData", likeKey);
       queryClient.setQueryData(likeKey, newState);
 
-      const previousComments = queryClient.getQueryData<Comment[]>(
-        commentKeys.byPost(postId),
-      );
+      const previousQueries = queryClient.getQueriesData<Comment[]>({
+        queryKey: commentKeys.byPost(postId),
+      });
 
-      if (previousComments) {
-        logCacheMutation("setQueryData", commentKeys.byPost(postId));
-        queryClient.setQueryData<Comment[]>(
-          commentKeys.byPost(postId),
-          updateCommentLikesTree(
-            previousComments,
+      queryClient.setQueriesData(
+        { queryKey: commentKeys.byPost(postId) },
+        (old: Comment[] | undefined) => {
+          if (!old || !Array.isArray(old)) return old;
+          logCacheMutation("setQueriesData", commentKeys.byPost(postId));
+          return updateCommentLikesTree(
+            old,
             commentId,
             newState.likesCount,
             newState.hasLiked,
-          ),
-        );
-      }
+          );
+        },
+      );
 
-      return { previousState, previousComments } as MutationContext;
+      return { previousState, previousQueries } as MutationContext;
     },
-    onError: (_err, _variables, context) => {
+    onError: (err, _variables, context) => {
       if (!viewerId) return;
+      const showToast = useUIStore.getState().showToast;
+      showToast("error", "Couldn't update like", "Please try again.");
+      if (__DEV__) {
+        console.error("[useCommentLikeState] Like mutation failed:", err);
+      }
       if (context?.previousState) {
-        logCacheMutation("setQueryData", likeKey);
+        logCacheMutation("rollback setQueryData", likeKey);
         queryClient.setQueryData(likeKey, context.previousState);
       }
-      if (context?.previousComments) {
-        logCacheMutation("setQueryData", commentKeys.byPost(postId));
-        queryClient.setQueryData(
-          commentKeys.byPost(postId),
-          context.previousComments,
-        );
+      if (context?.previousQueries?.length) {
+        for (const [qk, data] of context.previousQueries) {
+          if (data !== undefined) {
+            logCacheMutation("rollback setQueryData", qk);
+            queryClient.setQueryData(qk, data);
+          }
+        }
       }
     },
     onSuccess: (data) => {
@@ -146,25 +154,19 @@ export function useCommentLikeState(
       };
       logCacheMutation("setQueryData", likeKey);
       queryClient.setQueryData(likeKey, successState);
-      logCacheMutation("setQueryData", commentKeys.byPost(postId));
-      const updatedComments = updateCommentLikesTree(
-        queryClient.getQueryData(commentKeys.byPost(postId)) || [],
-        commentId,
-        data.likes,
-        data.liked,
+      queryClient.setQueriesData(
+        { queryKey: commentKeys.byPost(postId) },
+        (old: Comment[] | undefined) => {
+          if (!old || !Array.isArray(old)) return old;
+          logCacheMutation("setQueriesData", commentKeys.byPost(postId));
+          return updateCommentLikesTree(
+            old,
+            commentId,
+            data.likes,
+            data.liked,
+          );
+        },
       );
-      queryClient.setQueryData<Comment[]>(
-        commentKeys.byPost(postId),
-        updatedComments,
-      );
-
-      // Only invalidate the specific comment query for this post.
-      // Do NOT invalidate ["feed"], ["posts"], or broad ["comments"] —
-      // those cause full re-renders that flash stale state (flickering).
-      // The optimistic update + onSuccess setQueryData above is sufficient.
-      queryClient.invalidateQueries({
-        queryKey: commentKeys.byPost(postId),
-      });
     },
   });
 

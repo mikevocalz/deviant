@@ -1,7 +1,7 @@
 /**
  * Edge Function: toggle-comment-like
- * Toggle like on a comment with Better Auth verification.
- * Bypasses RLS (auth.uid() is null with Better Auth) by using service role.
+ * Idempotent like/unlike on comments. Service-role gateway — clients never write directly.
+ * Deploy: supabase functions deploy toggle-comment-like --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -13,6 +13,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+interface LikeResponse {
+  commentId: string;
+  likeCount: number;
+  viewerHasLiked: boolean;
+  updatedAt: string;
+}
 
 interface ApiResponse<T = unknown> {
   ok: boolean;
@@ -32,6 +39,10 @@ function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
+function genCorrelationId(): string {
+  return `cl_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -41,9 +52,12 @@ Deno.serve(async (req) => {
     return errorResponse("validation_error", "Method not allowed");
   }
 
+  const correlationId = genCorrelationId();
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
+      console.log(`[Edge:toggle-comment-like] ${correlationId} unauthorized: no token`);
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
@@ -70,6 +84,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionError || !sessionData) {
+      console.log(`[Edge:toggle-comment-like] ${correlationId} unauthorized: invalid session`);
       return errorResponse("unauthorized", "Invalid or expired session");
     }
     if (new Date(sessionData.expiresAt) < new Date()) {
@@ -77,16 +92,15 @@ Deno.serve(async (req) => {
     }
 
     const authUserId = sessionData.userId;
-    console.log("[Edge:toggle-comment-like] Authenticated user:", authUserId);
 
-    let body: { commentId: number };
+    let body: { commentId: number; like?: boolean };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { commentId } = body;
+    const { commentId, like: desiredLike } = body;
     if (!commentId || typeof commentId !== "number") {
       return errorResponse(
         "validation_error",
@@ -99,7 +113,10 @@ Deno.serve(async (req) => {
       authUserId,
       "id",
     );
-    if (!userData) return errorResponse("not_found", "User not found");
+    if (!userData) {
+      console.log(`[Edge:toggle-comment-like] ${correlationId} user_not_found authId=${authUserId}`);
+      return errorResponse("not_found", "User not found");
+    }
 
     const userId = userData.id;
 
@@ -110,7 +127,31 @@ Deno.serve(async (req) => {
       .eq("user_id", userId)
       .single();
 
-    if (existing) {
+    const currentlyLiked = !!existing;
+
+    if (typeof desiredLike === "boolean" && desiredLike === currentlyLiked) {
+      const { data: commentData } = await supabaseAdmin
+        .from("comments")
+        .select("likes_count")
+        .eq("id", commentId)
+        .single();
+      const likesCount = commentData?.likes_count ?? 0;
+      const updatedAt = new Date().toISOString();
+      console.log(`[Edge:toggle-comment-like] ${correlationId} idempotent commentId=${commentId} userId=${userId} liked=${currentlyLiked} count=${likesCount}`);
+      return jsonResponse({
+        ok: true,
+        data: {
+          commentId: String(commentId),
+          likeCount: likesCount,
+          viewerHasLiked: currentlyLiked,
+          updatedAt,
+          liked: currentlyLiked,
+          likesCount,
+        },
+      });
+    }
+
+    if (currentlyLiked) {
       const { error: delErr } = await supabaseAdmin
         .from("comment_likes")
         .delete()
@@ -118,7 +159,7 @@ Deno.serve(async (req) => {
         .eq("user_id", userId);
 
       if (delErr) {
-        console.error("[Edge:toggle-comment-like] Delete error:", delErr);
+        console.error(`[Edge:toggle-comment-like] ${correlationId} delete_error:`, delErr);
         return errorResponse("internal_error", "Failed to unlike");
       }
     } else {
@@ -127,7 +168,28 @@ Deno.serve(async (req) => {
         .insert({ comment_id: commentId, user_id: userId });
 
       if (insertErr) {
-        console.error("[Edge:toggle-comment-like] Insert error:", insertErr);
+        if (insertErr.code === "23505") {
+          const { data: c } = await supabaseAdmin
+            .from("comments")
+            .select("likes_count")
+            .eq("id", commentId)
+            .single();
+          const likesCount = c?.likes_count ?? 0;
+          const updatedAt = new Date().toISOString();
+          console.log(`[Edge:toggle-comment-like] ${correlationId} idempotent_duplicate commentId=${commentId} count=${likesCount}`);
+          return jsonResponse({
+            ok: true,
+            data: {
+              commentId: String(commentId),
+              likeCount: likesCount,
+              viewerHasLiked: true,
+              updatedAt,
+              liked: true,
+              likesCount,
+            },
+          });
+        }
+        console.error(`[Edge:toggle-comment-like] ${correlationId} insert_error:`, insertErr);
         return errorResponse("internal_error", "Failed to like");
       }
     }
@@ -139,14 +201,24 @@ Deno.serve(async (req) => {
       .single();
 
     const likesCount = commentData?.likes_count ?? 0;
-    const liked = !existing;
+    const liked = !currentlyLiked;
+    const updatedAt = new Date().toISOString();
+
+    console.log(`[Edge:toggle-comment-like] ${correlationId} success commentId=${commentId} userId=${userId} action=${currentlyLiked ? "unlike" : "like"} count=${likesCount}`);
 
     return jsonResponse({
       ok: true,
-      data: { liked, likesCount },
+      data: {
+        commentId: String(commentId),
+        likeCount: likesCount,
+        viewerHasLiked: liked,
+        updatedAt,
+        liked,
+        likesCount,
+      },
     });
   } catch (err) {
-    console.error("[Edge:toggle-comment-like] Unexpected error:", err);
+    console.error(`[Edge:toggle-comment-like] ${correlationId} unexpected_error:`, err);
     return errorResponse("internal_error", "An unexpected error occurred");
   }
 });

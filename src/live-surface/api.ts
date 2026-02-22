@@ -5,6 +5,7 @@
 
 import { supabase } from "@/lib/supabase/client";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import type { LiveSurfacePayload } from "./types";
 
 interface LiveSurfaceResponse {
@@ -17,9 +18,14 @@ interface LiveSurfaceResponse {
 export async function fetchLiveSurface(): Promise<LiveSurfacePayload | null> {
   try {
     const token = await requireBetterAuthToken();
+    const activeCity = useEventsLocationStore.getState().activeCity;
+    const body = activeCity
+      ? { lat: activeCity.lat, lng: activeCity.lng }
+      : undefined;
 
     const { data, error } =
       await supabase.functions.invoke<LiveSurfaceResponse>("live-surface", {
+        body,
         headers: { Authorization: `Bearer ${token}` },
       });
 

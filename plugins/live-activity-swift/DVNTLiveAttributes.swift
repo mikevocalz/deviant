@@ -12,11 +12,13 @@ struct DVNTLiveAttributes: ActivityAttributes {
         var tile1VenueName: String?
         var tile1City: String?
         var tile1HeroThumbUrl: String?
+        var tile1HeroLocalPath: String?
         var tile1IsUpcoming: Bool
         var tile1DeepLink: String
         var tile2WeekStartISO: String
         var tile2Ids: [String]
         var tile2ThumbUrls: [String]
+        var tile2LocalPaths: [String]
         var tile2DeepLinks: [String]
         var tile2RecapDeepLink: String
         var tile3EventIds: [String]
