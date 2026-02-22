@@ -29,8 +29,11 @@ interface DeepLinkState {
   lastHandledAt: number;
   /** Whether auth bootstrap is complete */
   authBootstrapComplete: boolean;
+  /** App opened from share intent (dvnt://dataUrl=...); mount ShareIntentHandler immediately */
+  openedFromShareIntent: boolean;
 
   // Actions
+  setOpenedFromShareIntent: (v: boolean) => void;
   setPendingLink: (link: ParsedDeepLink | null) => void;
   consumePendingLink: () => ParsedDeepLink | null;
   markHandled: (url: string) => void;
@@ -45,6 +48,9 @@ export const useDeepLinkStore = create<DeepLinkState>((set, get) => ({
   lastHandledUrl: null,
   lastHandledAt: 0,
   authBootstrapComplete: false,
+  openedFromShareIntent: false,
+
+  setOpenedFromShareIntent: (v) => set({ openedFromShareIntent: v }),
 
   setPendingLink: (link) => {
     console.log("[DeepLink] setPendingLink:", link?.path || "null");

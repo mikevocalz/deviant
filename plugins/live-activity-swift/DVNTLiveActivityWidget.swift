@@ -1,6 +1,9 @@
 import ActivityKit
 import SwiftUI
+import UIKit
 import WidgetKit
+
+private let APP_GROUP = "group.com.dvnt.app"
 
 private let dvntPurple = Color(red: 0.541, green: 0.251, blue: 0.812)
 private let dvntCyan = Color(red: 0.247, green: 0.863, blue: 1.0)
@@ -18,6 +21,40 @@ private func weatherSFSymbol(_ icon: String?) -> String {
     }
 }
 
+private func logoImage(size: CGFloat) -> some View {
+    let bundle = Bundle.main
+    if UIImage(named: "dvnt_logo", in: bundle, with: nil) != nil {
+        return AnyView(
+            Image("dvnt_logo", bundle: bundle)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: max(2, size * 0.22)))
+        )
+    }
+    return AnyView(
+        Image(systemName: "sparkles.circle.fill")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+            .foregroundColor(dvntPurple)
+    )
+}
+
+private func logoGlyphImage(size: CGFloat) -> some View {
+    let bundle = Bundle.main
+    if UIImage(named: "dvnt_logo_glyph", in: bundle, with: nil) != nil {
+        return AnyView(
+            Image("dvnt_logo_glyph", bundle: bundle)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: max(2, size * 0.22)))
+        )
+    }
+    return logoImage(size: size)
+}
+
 private func countdownString(from isoDate: String?) -> String? {
     guard let dateStr = isoDate,
           let date = ISO8601DateFormatter().date(from: dateStr) else { return nil }
@@ -32,24 +69,36 @@ private func countdownString(from isoDate: String?) -> String? {
 struct Tile1View: View {
     let state: DVNTLiveAttributes.ContentState
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(state.tile1Title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(2)
-            if let startAt = state.tile1StartAt {
-                HStack(spacing: 4) {
-                    if state.tile1IsUpcoming, let countdown = countdownString(from: startAt) {
-                        Text(countdown).font(.system(size: 12, weight: .medium)).foregroundColor(dvntPurple)
-                    }
-                    if let venue = state.tile1VenueName {
-                        Text(venue).font(.system(size: 12)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
-                    }
-                    if let city = state.tile1City {
-                        Text("· \(city)").font(.system(size: 12)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
+        HStack(alignment: .top, spacing: 10) {
+            if let path = state.tile1HeroLocalPath, !path.isEmpty,
+               let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
+               let img = UIImage(contentsOfFile: container.appendingPathComponent(path).path) {
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 56, height: 56)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(state.tile1Title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                if let startAt = state.tile1StartAt {
+                    HStack(spacing: 4) {
+                        if state.tile1IsUpcoming, let countdown = countdownString(from: startAt) {
+                            Text(countdown).font(.system(size: 12, weight: .medium)).foregroundColor(dvntPurple)
+                        }
+                        if let venue = state.tile1VenueName {
+                            Text(venue).font(.system(size: 12)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
+                        }
+                        if let city = state.tile1City {
+                            Text("· \(city)").font(.system(size: 12)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
+                        }
                     }
                 }
             }
+            Spacer(minLength: 0)
         }
     }
 }
@@ -65,31 +114,34 @@ struct Tile2View: View {
         LazyVGrid(columns: columns, spacing: 4) {
             ForEach(0..<min(state.tile2Ids.count, 6), id: \.self) { index in
                 let deepLink = index < state.tile2DeepLinks.count ? state.tile2DeepLinks[index] : state.tile2RecapDeepLink
-                let thumbUrl = index < state.tile2ThumbUrls.count ? state.tile2ThumbUrls[index] : ""
                 Link(destination: URL(string: deepLink)!) {
-                    if thumbUrl.isEmpty {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.white.opacity(0.08))
-                            .aspectRatio(1, contentMode: .fit)
-                            .overlay(Image(systemName: "plus").font(.system(size: 14, weight: .medium)).foregroundColor(.white.opacity(0.4)))
-                    } else if let url = URL(string: thumbUrl) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image.resizable().aspectRatio(contentMode: .fill)
-                                    .frame(minWidth: 0, maxWidth: .infinity)
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                            default:
-                                RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)).aspectRatio(1, contentMode: .fit)
-                            }
-                        }
-                    } else {
-                        RoundedRectangle(cornerRadius: 6).fill(Color.white.opacity(0.08)).aspectRatio(1, contentMode: .fit)
-                    }
+                    tile2Cell(index: index)
                 }
             }
         }
+    }
+    private func tile2Cell(index: Int) -> some View {
+        if index < state.tile2LocalPaths.count,
+           !state.tile2LocalPaths[index].isEmpty,
+           let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
+           let img = UIImage(contentsOfFile: container.appendingPathComponent(state.tile2LocalPaths[index]).path) {
+            return AnyView(
+                Image(uiImage: img)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(minWidth: 0, maxWidth: .infinity)
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            )
+        }
+        return AnyView(placeholderCell)
+    }
+
+    private var placeholderCell: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(Color.white.opacity(0.08))
+            .aspectRatio(1, contentMode: .fit)
+            .overlay(Image(systemName: "plus").font(.system(size: 14, weight: .medium)).foregroundColor(.white.opacity(0.4)))
     }
 }
 
@@ -157,21 +209,26 @@ struct WeatherRow: View {
     }
 }
 
+private let TILE_CONTENT_HEIGHT: CGFloat = 156
+
 struct DVNTLockScreenView: View {
     let context: ActivityViewContext<DVNTLiveAttributes>
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(spacing: 6) {
-                Image("dvnt_logo").resizable().aspectRatio(contentMode: .fit).frame(width: 28, height: 28)
+                logoImage(size: 28)
                 WeatherRow(icon: context.state.weatherIcon, tempF: context.state.weatherTempF, label: nil)
             }.frame(width: 32)
             VStack(alignment: .leading, spacing: 6) {
-                switch context.state.currentTile {
-                case 0: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
-                case 1: Tile2View(state: context.state)
-                case 2: Tile3View(state: context.state)
-                default: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
+                Group {
+                    switch context.state.currentTile {
+                    case 0: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
+                    case 1: Tile2View(state: context.state)
+                    case 2: Tile3View(state: context.state)
+                    default: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
+                    }
                 }
+                .frame(minHeight: TILE_CONTENT_HEIGHT, alignment: .topLeading)
                 HStack { Spacer(); PageDots(current: context.state.currentTile, total: 3); Spacer() }
             }
         }
@@ -187,7 +244,18 @@ struct DVNTLiveActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image("dvnt_logo").resizable().aspectRatio(contentMode: .fit).frame(width: 24, height: 24)
+                    VStack(alignment: .leading, spacing: 6) {
+                        logoImage(size: 24)
+                        if let path = context.state.tile1HeroLocalPath, !path.isEmpty,
+                           let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
+                           let img = UIImage(contentsOfFile: container.appendingPathComponent(path).path) {
+                            Image(uiImage: img)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -210,7 +278,7 @@ struct DVNTLiveActivityWidget: Widget {
                     }.padding(.top, 4)
                 }
             } compactLeading: {
-                Image("dvnt_logo").resizable().aspectRatio(contentMode: .fit).frame(width: 16, height: 16)
+                logoGlyphImage(size: 16)
             } compactTrailing: {
                 if context.state.tile1IsUpcoming, let cd = countdownString(from: context.state.tile1StartAt) {
                     Text(cd).font(.system(size: 11, weight: .medium)).foregroundColor(dvntPurple).monospacedDigit()
@@ -218,7 +286,7 @@ struct DVNTLiveActivityWidget: Widget {
                     Text("\(temp)°").font(.system(size: 11, weight: .medium)).foregroundColor(dvntCyan)
                 }
             } minimal: {
-                Image("dvnt_logo").resizable().aspectRatio(contentMode: .fit).frame(width: 14, height: 14)
+                logoGlyphImage(size: 14)
             }
             .widgetURL(URL(string: context.state.tile1DeepLink))
         }

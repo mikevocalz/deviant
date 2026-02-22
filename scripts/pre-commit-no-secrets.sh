@@ -8,6 +8,15 @@ NC='\033[0m' # No Color
 
 BLOCKED=0
 
+# 0. Block .env files (never commit secrets — even if someone force-adds)
+ENV_STAGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '(^|/)\.env$|(^|/)\.env\.' | grep -v '\.env\.example' || true)
+if [ -n "$ENV_STAGED" ]; then
+  echo -e "${RED}🚨 BLOCKED: Do not commit .env files.${NC}"
+  echo "$ENV_STAGED"
+  echo "Secrets belong in environment variables, never in the repository."
+  exit 1
+fi
+
 # Get staged files (only .ts, .tsx, .js, .jsx — skip node_modules, supabase/functions, scripts/check-secrets)
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | \
   grep -E '\.(ts|tsx|js|jsx)$' | \

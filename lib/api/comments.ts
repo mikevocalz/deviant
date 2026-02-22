@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import type { Comment } from "@/lib/types";
-import { getBetterAuthToken } from "../auth/identity";
+import { getBetterAuthToken, requireBetterAuthToken } from "../auth/identity";
 
 interface AddCommentResponse {
   ok: boolean;
@@ -117,7 +117,7 @@ export const commentsApi = {
         await supabase.functions.invoke<{ ok: boolean; data?: { liked: boolean; likesCount: number } }>(
           "toggle-comment-like",
           {
-            body: { commentId: commentIdInt },
+            body: { commentId: commentIdInt, like: !isLiked },
             headers: { Authorization: `Bearer ${token}` },
           },
         );

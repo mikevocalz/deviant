@@ -5,9 +5,10 @@ import BottomSheet, {
   BottomSheetModal,
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
-import { Music, Send, X, ExternalLink } from "lucide-react-native";
+import { Music, Send, X, ExternalLink, ImageIcon } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
+import { useRouter } from "expo-router";
 import { useSpotifyShareStore } from "@/lib/spotify/spotify-share-store";
 import type { SpotifyContentType } from "@/lib/spotify/parse-spotify-link";
 
@@ -34,6 +35,7 @@ const TYPE_COLORS: Record<SpotifyContentType, string> = {
 export const SpotifyShareSheet: React.FC = () => {
   const sheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ["45%"], []);
+  const router = useRouter();
 
   const { pendingLink, oEmbed, isLoading, sheetVisible, hideSheet, clear } =
     useSpotifyShareStore();
@@ -62,6 +64,22 @@ export const SpotifyShareSheet: React.FC = () => {
       Linking.openURL(pendingLink.url);
     }
   }, [pendingLink]);
+
+  const handleShareToStory = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const thumbUrl = oEmbed?.thumbnail_url || pendingLink?.url;
+    if (thumbUrl) {
+      hideSheet();
+      clear();
+      router.push({
+        pathname: "/(protected)/story/editor",
+        params: {
+          uri: encodeURIComponent(thumbUrl),
+          type: "image",
+        },
+      });
+    }
+  }, [oEmbed, pendingLink, hideSheet, clear, router]);
 
   const renderBackdrop = useCallback(
     (props: any) => (
@@ -169,15 +187,16 @@ export const SpotifyShareSheet: React.FC = () => {
         )}
 
         {/* Action Buttons */}
-        <View className="flex-row gap-3">
+        <View className="flex-row gap-3 mb-3">
           <Pressable
-            onPress={handleShareToChat}
+            onPress={handleShareToStory}
+            disabled={isLoading || !oEmbed?.thumbnail_url}
             className="flex-1 flex-row items-center justify-center gap-2 py-3.5 rounded-2xl"
             style={{ backgroundColor: typeColor }}
           >
-            <Send size={16} color="#fff" strokeWidth={2} />
+            <ImageIcon size={16} color="#fff" strokeWidth={2} />
             <Text className="text-base font-bold text-white">
-              Share in Chat
+              Share to Story
             </Text>
           </Pressable>
           <Pressable
@@ -188,6 +207,16 @@ export const SpotifyShareSheet: React.FC = () => {
             <ExternalLink size={16} color="#ccc" strokeWidth={2} />
           </Pressable>
         </View>
+        <Pressable
+          onPress={handleShareToChat}
+          className="flex-row items-center justify-center gap-2 py-3.5 rounded-2xl"
+          style={{ backgroundColor: "rgba(255,255,255,0.06)" }}
+        >
+          <Send size={16} color="#ccc" strokeWidth={2} />
+          <Text className="text-base font-semibold text-neutral-300">
+            Share in Chat
+          </Text>
+        </Pressable>
       </View>
     </BottomSheetModal>
   );

@@ -35,14 +35,9 @@ function getUseShareIntent(): (() => ShareIntentResult) | null {
   if (_shareIntentAttempted) return _useShareIntent;
   _shareIntentAttempted = true;
   try {
-    const expoVersion = require("expo/package.json").version ?? "";
-    if (String(expoVersion).startsWith("55")) {
-      console.warn("[SafeModules] expo-share-intent skipped — SDK 55 not yet supported by expo-share-intent v5.1.1 (expects ^54)");
-      return null;
-    }
     _useShareIntent = require("expo-share-intent").useShareIntent;
   } catch (e) {
-    console.warn("[SafeModules] expo-share-intent not available in this binary");
+    console.warn("[SafeModules] expo-share-intent not available:", e);
   }
   return _useShareIntent;
 }

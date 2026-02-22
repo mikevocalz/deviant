@@ -28,14 +28,18 @@ function getNativeModule(): any | null {
 export function updateLiveActivity(payload: LiveSurfacePayload): void {
   const mod = getNativeModule();
   if (!mod) {
-    console.log("[LiveSurface:iOS] Native module not available, skipping");
+    if (__DEV__) {
+      console.warn("[LiveSurface:iOS] DVNTLiveActivity native module not available — rebuild with native code to enable Live Activity");
+    }
     return;
   }
 
   try {
     const jsonPayload = JSON.stringify(payload);
     mod.updateLiveActivity(jsonPayload);
-    console.log("[LiveSurface:iOS] Updated live activity");
+    if (__DEV__) {
+      console.log("[LiveSurface:iOS] updateLiveActivity called successfully");
+    }
   } catch (err) {
     console.error("[LiveSurface:iOS] updateLiveActivity error:", err);
   }

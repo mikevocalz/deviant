@@ -271,15 +271,27 @@ export function WeatherGPUEngine() {
     };
   }, []);
 
-  // ── Accessibility flags ─────────────────────────────────────────
+  // ── Accessibility + battery/low power flags ───────────────────────
   useEffect(() => {
     const checkFlags = async () => {
       try {
         const reduceMotion = await AccessibilityInfo.isReduceMotionEnabled();
-        // Low power mode: expo-battery could be used; for now use heuristic
-        useWeatherFXStore
-          .getState()
-          .setFlags(reduceMotion, false, null);
+
+        let lowPower = false;
+        let batteryLevel: number | null = null;
+        try {
+          const Battery = require("expo-battery");
+          const [level, lowPowerMode] = await Promise.all([
+            Battery.getBatteryLevelAsync?.().catch(() => null),
+            Battery.isLowPowerModeEnabled?.().catch(() => false),
+          ]);
+          batteryLevel = level;
+          lowPower = lowPowerMode ?? false;
+        } catch {
+          // expo-battery not available (OTA without native build)
+        }
+
+        useWeatherFXStore.getState().setFlags(reduceMotion, lowPower, batteryLevel);
       } catch {}
     };
     checkFlags();
@@ -291,6 +303,7 @@ export function WeatherGPUEngine() {
         s.setFlags(enabled, s.lowPower, s.batteryLevel);
       },
     );
+
     return () => sub.remove();
   }, []);
 

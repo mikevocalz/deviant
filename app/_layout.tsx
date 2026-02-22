@@ -19,6 +19,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
+import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform, View, Pressable, Text } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
@@ -87,11 +88,13 @@ export default function RootLayout() {
   } = useAppStore();
   const insets = useSafeAreaInsets();
   const [shareIntentReady, setShareIntentReady] = useState(false);
+  const openedFromShareIntent = useDeepLinkStore((s) => s.openedFromShareIntent);
 
   useEffect(() => {
-    const t = setTimeout(() => setShareIntentReady(true), 4000);
+    const delay = openedFromShareIntent ? 0 : 1500;
+    const t = setTimeout(() => setShareIntentReady(true), delay);
     return () => clearTimeout(t);
-  }, []);
+  }, [openedFromShareIntent]);
 
   // NOTE: We do NOT reset splashAnimationFinished here.
   // Once the splash animation is finished, it should never replay during the app session.
@@ -240,6 +243,13 @@ export default function RootLayout() {
   // ── BOOT GATE ─────────────────────────────────────────────────────────
   const authSettled = authStatus !== "loading";
 
+  // Skip splash when opening from share intent — get to ShareIntentHandler faster
+  useEffect(() => {
+    if (openedFromShareIntent && !splashAnimationFinished) {
+      onAnimationFinish(false);
+    }
+  }, [openedFromShareIntent, splashAnimationFinished, onAnimationFinish]);
+
   // ── Execute queued notification route ─────────────────────────────────
   // After splash is done + auth settled + authenticated, navigate to the
   // route that was queued from a cold-start notification tap.
@@ -293,7 +303,7 @@ export default function RootLayout() {
           backgroundColor: "#000",
         }}
       >
-        <LayoutAnimationConfig skipEntering skipExiting>
+        <LayoutAnimationConfig skipEntering={false} skipExiting={false}>
           <BottomSheetModalProvider>
             <KeyboardProvider>
               <StripeProvider
@@ -365,8 +375,9 @@ export default function RootLayout() {
                       {isAuthenticated && <BiometricLock />}
                       {/* Spotify share sheet — renders when a Spotify link is received */}
                       <SpotifyShareSheet />
-                      {/* Auth loading overlay — covers content but does NOT unmount navigation */}
-                      {!authSettled && (
+                      {/* Auth loading overlay — covers content but does NOT unmount navigation.
+                          Skip when opened from share intent so user sees content instead of black. */}
+                      {!authSettled && !openedFromShareIntent && (
                         <View
                           style={{
                             position: "absolute",

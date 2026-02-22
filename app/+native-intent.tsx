@@ -8,6 +8,8 @@ import { parseIncomingUrl } from "@/lib/deep-linking/link-engine";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
+const SHARE_INTENT_MARKERS = /dataUrl=|dvntShareKey/i;
+
 export function redirectSystemPath({
   path,
   initial,
@@ -19,6 +21,15 @@ export function redirectSystemPath({
 
   // Skip empty or root paths
   if (!path || path === "/" || path === "") return "/";
+
+  // Share intents from iOS Share Extension open app with dvnt://dataUrl=dvntShareKey#text
+  // (or #media, #weburl, #file). These are not routes — open home; ShareIntentHandler
+  // will process the shared data from native storage.
+  if (SHARE_INTENT_MARKERS.test(path)) {
+    console.log("[NativeIntent] Share intent detected, opening home");
+    useDeepLinkStore.getState().setOpenedFromShareIntent(true);
+    return "/";
+  }
 
   const parsed = parseIncomingUrl(path);
   if (!parsed) {

@@ -56,6 +56,10 @@ export interface LiveSurfaceWeather {
   icon: WeatherIcon;
   tempF?: number;
   label?: string;
+  hiF?: number;
+  loF?: number;
+  precipPct?: number;
+  feelsLikeF?: number;
 }
 
 export interface LiveSurfacePayload {

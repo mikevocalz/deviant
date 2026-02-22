@@ -29,11 +29,7 @@ function HeaderLogo() {
       }}
       hitSlop={12}
     >
-      <Logo
-        width={100}
-        height={36}
-        style={{ marginBottom: Platform.OS === "android" ? 4 : 8 }}
-      />
+      <Logo width={100} height={36} />
     </Pressable>
   );
 }
@@ -87,6 +83,8 @@ export default function TabsLayout() {
         },
         headerShown: true,
         headerTitleAlign: "left",
+        headerLeft: () => null,
+        headerStatusBarHeight: Platform.OS === "ios" ? 44 : 24,
         headerStyle: {
           backgroundColor: colors.background,
           borderBottomWidth: 1,
