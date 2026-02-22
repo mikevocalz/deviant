@@ -15,8 +15,8 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import BottomSheet, {
-  BottomSheetView,
+import {
+  BottomSheetModal,
   BottomSheetFlatList,
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
@@ -83,16 +83,16 @@ function LikerRow({
 export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const bottomSheetRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ["50%"], []);
 
   const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
 
   useEffect(() => {
     if (isOpen) {
-      bottomSheetRef.current?.snapToIndex(0);
+      bottomSheetRef.current?.present();
     } else {
-      bottomSheetRef.current?.close();
+      bottomSheetRef.current?.dismiss();
     }
   }, [isOpen]);
 
@@ -146,16 +146,13 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   if (!isOpen) return null;
 
   return (
-    <BottomSheet
+    <BottomSheetModal
       ref={bottomSheetRef}
-      index={0}
       snapPoints={snapPoints}
       enablePanDownToClose
       enableOverDrag={false}
-      onChange={handleSheetChange}
+      onDismiss={onClose}
       backdropComponent={renderBackdrop}
-      detached={true}
-      bottomInset={46}
       backgroundStyle={{
         backgroundColor: colors.card,
         borderRadius: 24,
@@ -203,7 +200,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </BottomSheet>
+    </BottomSheetModal>
   );
 }
 

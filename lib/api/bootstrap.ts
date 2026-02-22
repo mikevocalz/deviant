@@ -88,7 +88,12 @@ export interface BootstrapNotificationsResponse {
     type: string;
     createdAt: string;
     isRead: boolean;
-    actor: { id: string; username: string; avatarUrl: string };
+    actor: {
+      id: string;
+      username: string;
+      avatarUrl: string;
+      viewerFollows?: boolean;
+    };
     entityType?: string;
     entityId?: string;
     post?: { id: string; thumbnailUrl: string };

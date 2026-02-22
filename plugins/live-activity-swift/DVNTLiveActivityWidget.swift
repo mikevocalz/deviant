@@ -5,8 +5,10 @@ import WidgetKit
 
 private let APP_GROUP = "group.com.dvnt.app"
 
+// ── Brand Colors ──
 private let dvntPurple = Color(red: 0.541, green: 0.251, blue: 0.812)
 private let dvntCyan = Color(red: 0.247, green: 0.863, blue: 1.0)
+private let dvntRed = Color(red: 0.988, green: 0.145, blue: 0.227)
 
 private func weatherSFSymbol(_ icon: String?) -> String {
     switch icon {
@@ -52,7 +54,39 @@ private func logoGlyphImage(size: CGFloat) -> some View {
                 .clipShape(RoundedRectangle(cornerRadius: max(2, size * 0.22)))
         )
     }
-    return logoImage(size: size)
+    return AnyView(logoImage(size: size))
+}
+
+private func heroLocalPathFromDefaults() -> String? {
+    guard let defaults = UserDefaults(suiteName: APP_GROUP),
+          let json = defaults.string(forKey: "surfacePayload"),
+          let data = json.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let tile1 = obj["tile1"] as? [String: Any] else { return nil }
+    return tile1["heroLocalPath"] as? String
+}
+
+private func resolvedHeroPath(contentStatePath: String?) -> String? {
+    if let p = contentStatePath, !p.isEmpty { return p }
+    return heroLocalPathFromDefaults()
+}
+
+private func heroImage(localPath: String?) -> some View {
+    Group {
+        if let p = resolvedHeroPath(contentStatePath: localPath), !p.isEmpty,
+           let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
+           let img = UIImage(contentsOfFile: container.appendingPathComponent(p).path) {
+            Image(uiImage: img)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+        } else {
+            LinearGradient(
+                colors: [dvntPurple.opacity(0.5), Color(red: 0.11, green: 0.11, blue: 0.12)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
 }
 
 private func countdownString(from isoDate: String?) -> String? {
@@ -62,230 +96,223 @@ private func countdownString(from isoDate: String?) -> String? {
     guard diff > 0 else { return nil }
     let hours = Int(diff) / 3600
     let minutes = (Int(diff) % 3600) / 60
-    if hours > 0 { return "in \(hours)h \(minutes)m" }
-    return "in \(minutes)m"
+    if hours > 0 { return "\(hours)h \(minutes)m" }
+    return "\(minutes)m"
 }
 
-struct Tile1View: View {
-    let state: DVNTLiveAttributes.ContentState
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            if let path = state.tile1HeroLocalPath, !path.isEmpty,
-               let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
-               let img = UIImage(contentsOfFile: container.appendingPathComponent(path).path) {
-                Image(uiImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(state.tile1Title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                if let startAt = state.tile1StartAt {
-                    HStack(spacing: 4) {
-                        if state.tile1IsUpcoming, let countdown = countdownString(from: startAt) {
-                            Text(countdown).font(.system(size: 12, weight: .medium)).foregroundColor(dvntPurple)
-                        }
-                        if let venue = state.tile1VenueName {
-                            Text(venue).font(.system(size: 12)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
-                        }
-                        if let city = state.tile1City {
-                            Text("· \(city)").font(.system(size: 12)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
-                        }
-                    }
-                }
-            }
-            Spacer(minLength: 0)
-        }
-    }
+private func dateParts(from iso: String?) -> (day: String, month: String)? {
+    guard let dateStr = iso, let date = ISO8601DateFormatter().date(from: dateStr) else { return nil }
+    let dayF = DateFormatter(); dayF.dateFormat = "d"
+    let monthF = DateFormatter(); monthF.dateFormat = "MMM"
+    return (dayF.string(from: date), monthF.string(from: date).uppercased())
 }
 
-struct Tile2View: View {
-    let state: DVNTLiveAttributes.ContentState
-    private let columns = [
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-        GridItem(.flexible(), spacing: 4),
-    ]
-    var body: some View {
-        LazyVGrid(columns: columns, spacing: 4) {
-            ForEach(0..<min(state.tile2Ids.count, 6), id: \.self) { index in
-                let deepLink = index < state.tile2DeepLinks.count ? state.tile2DeepLinks[index] : state.tile2RecapDeepLink
-                Link(destination: URL(string: deepLink)!) {
-                    tile2Cell(index: index)
-                }
-            }
-        }
-    }
-    private func tile2Cell(index: Int) -> some View {
-        if index < state.tile2LocalPaths.count,
-           !state.tile2LocalPaths[index].isEmpty,
-           let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
-           let img = UIImage(contentsOfFile: container.appendingPathComponent(state.tile2LocalPaths[index]).path) {
-            return AnyView(
-                Image(uiImage: img)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(minWidth: 0, maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-            )
-        }
-        return AnyView(placeholderCell)
-    }
-
-    private var placeholderCell: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .fill(Color.white.opacity(0.08))
-            .aspectRatio(1, contentMode: .fit)
-            .overlay(Image(systemName: "plus").font(.system(size: 14, weight: .medium)).foregroundColor(.white.opacity(0.4)))
-    }
+private func formatShortTime(_ iso: String?) -> String? {
+    guard let dateStr = iso, let date = ISO8601DateFormatter().date(from: dateStr) else { return nil }
+    let f = DateFormatter(); f.dateFormat = "h:mm a"
+    return f.string(from: date)
 }
 
-struct Tile3View: View {
-    let state: DVNTLiveAttributes.ContentState
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(0..<min(state.tile3EventIds.count, 3), id: \.self) { index in
-                let deepLink = index < state.tile3DeepLinks.count ? state.tile3DeepLinks[index] : state.tile3SeeAllDeepLink
-                Link(destination: URL(string: deepLink)!) {
-                    HStack(spacing: 8) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(index < state.tile3Titles.count ? state.tile3Titles[index] : "Event")
-                                .font(.system(size: 13, weight: .semibold)).foregroundColor(.white).lineLimit(1)
-                            if index < state.tile3StartAts.count {
-                                Text(formatShortDate(state.tile3StartAts[index]))
-                                    .font(.system(size: 11)).foregroundColor(.white.opacity(0.6))
-                            }
-                        }
-                        Spacer()
-                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundColor(.white.opacity(0.3))
-                    }
-                    .padding(.vertical, 6).padding(.horizontal, 8)
-                    .background(Color.white.opacity(0.06))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
-            }
-            if !state.tile3SeeAllDeepLink.isEmpty {
-                Link(destination: URL(string: state.tile3SeeAllDeepLink)!) {
-                    Text("See all").font(.system(size: 11, weight: .medium)).foregroundColor(dvntPurple)
-                }
-            }
-        }
-    }
-    private func formatShortDate(_ iso: String) -> String {
-        let formatter = ISO8601DateFormatter()
-        guard let date = formatter.date(from: iso) else { return iso }
-        let df = DateFormatter()
-        df.dateFormat = "EEE, MMM d · h:mm a"
-        return df.string(from: date)
-    }
-}
-
-struct PageDots: View {
-    let current: Int; let total: Int
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(0..<total, id: \.self) { i in
-                Circle().fill(i == current ? Color.white : Color.white.opacity(0.3)).frame(width: 5, height: 5)
-            }
-        }
-    }
-}
-
-struct WeatherRow: View {
-    let icon: String?; let tempF: Int?; let label: String?
-    var body: some View {
-        if icon != nil || tempF != nil {
-            HStack(spacing: 4) {
-                Image(systemName: weatherSFSymbol(icon)).font(.system(size: 10)).foregroundColor(dvntCyan)
-                if let temp = tempF { Text("\(temp)°").font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.8)) }
-                if let lbl = label { Text(lbl).font(.system(size: 10)).foregroundColor(.white.opacity(0.5)).lineLimit(1) }
-            }
-        }
-    }
-}
-
-private let TILE_CONTENT_HEIGHT: CGFloat = 156
-
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// LOCK SCREEN — Event card: hero image left, event info right
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 struct DVNTLockScreenView: View {
     let context: ActivityViewContext<DVNTLiveAttributes>
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(spacing: 6) {
-                logoImage(size: 28)
-                WeatherRow(icon: context.state.weatherIcon, tempF: context.state.weatherTempF, label: nil)
-            }.frame(width: 32)
-            VStack(alignment: .leading, spacing: 6) {
-                Group {
-                    switch context.state.currentTile {
-                    case 0: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
-                    case 1: Tile2View(state: context.state)
-                    case 2: Tile3View(state: context.state)
-                    default: Link(destination: URL(string: context.state.tile1DeepLink)!) { Tile1View(state: context.state) }
+        let s = context.state
+        Link(destination: URL(string: s.tile1DeepLink)!) {
+            HStack(spacing: 0) {
+                // Left: hero image with date badge overlay
+                ZStack(alignment: .bottomLeading) {
+                    heroImage(localPath: s.tile1HeroLocalPath)
+                        .frame(width: 100, height: 100)
+                        .clipped()
+
+                    // Date badge
+                    if let parts = dateParts(from: s.tile1StartAt) {
+                        VStack(spacing: 0) {
+                            Text(parts.day)
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text(parts.month)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                        .frame(width: 34, height: 34)
+                        .background(Color.black.opacity(0.65))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .padding(6)
                     }
                 }
-                .frame(minHeight: TILE_CONTENT_HEIGHT, alignment: .topLeading)
-                HStack { Spacer(); PageDots(current: context.state.currentTile, total: 3); Spacer() }
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.leading, 10).padding(.vertical, 10)
+
+                // Right: event details
+                VStack(alignment: .leading, spacing: 5) {
+                    // Top row: logo + weather
+                    HStack(spacing: 4) {
+                        logoImage(size: 16)
+                        Spacer()
+                        if let icon = s.weatherIcon {
+                            Image(systemName: weatherSFSymbol(icon))
+                                .font(.system(size: 9))
+                                .foregroundColor(dvntCyan)
+                        }
+                        if let temp = s.weatherTempF {
+                            Text("\(temp)°")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                        }
+                    }
+
+                    // Event title
+                    Text(s.tile1Title)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+
+                    Spacer(minLength: 0)
+
+                    // Countdown
+                    if s.tile1IsUpcoming, let cd = countdownString(from: s.tile1StartAt) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 8))
+                                .foregroundColor(dvntPurple)
+                            Text(cd)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(dvntPurple)
+                        }
+                    }
+
+                    // Venue
+                    HStack(spacing: 4) {
+                        if let venue = s.tile1VenueName {
+                            Image(systemName: "mappin")
+                                .font(.system(size: 8))
+                                .foregroundColor(.white.opacity(0.4))
+                            Text(venue)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                        if let city = s.tile1City {
+                            Text("· \(city)")
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.4))
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12).padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .activityBackgroundTint(.black.opacity(0.85))
+        .activityBackgroundTint(.black.opacity(0.9))
     }
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DYNAMIC ISLAND — Event-focused layout
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 struct DVNTLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: DVNTLiveAttributes.self) { context in
             DVNTLockScreenView(context: context)
         } dynamicIsland: { context in
             DynamicIsland {
+                // ── Expanded: event card layout ──
                 DynamicIslandExpandedRegion(.leading) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        logoImage(size: 24)
-                        if let path = context.state.tile1HeroLocalPath, !path.isEmpty,
-                           let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
-                           let img = UIImage(contentsOfFile: container.appendingPathComponent(path).path) {
-                            Image(uiImage: img)
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 40, height: 40)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
+                    // Hero thumbnail
+                    ZStack {
+                        heroImage(localPath: context.state.tile1HeroLocalPath)
+                            .frame(width: 52, height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
+                    .padding(.leading, 2)
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.tile1Title).font(.system(size: 13, weight: .semibold)).foregroundColor(.white).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(context.state.tile1Title)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(2)
                         if let venue = context.state.tile1VenueName {
-                            Text(venue).font(.system(size: 11)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
+                            HStack(spacing: 3) {
+                                Image(systemName: "mappin")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.white.opacity(0.5))
+                                Text(venue)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.white.opacity(0.6))
+                                    .lineLimit(1)
+                            }
                         }
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.tile1IsUpcoming, let cd = countdownString(from: context.state.tile1StartAt) {
-                        Text(cd).font(.system(size: 11, weight: .medium)).foregroundColor(dvntPurple)
+                    // Date badge
+                    if let parts = dateParts(from: context.state.tile1StartAt) {
+                        VStack(spacing: 0) {
+                            Text(parts.day)
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                            Text(parts.month)
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundColor(dvntPurple)
+                        }
+                        .frame(width: 36, height: 36)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack(spacing: 6) {
-                        WeatherRow(icon: context.state.weatherIcon, tempF: context.state.weatherTempF, label: context.state.weatherLabel)
+                    HStack(spacing: 8) {
+                        // Countdown pill
+                        if context.state.tile1IsUpcoming, let cd = countdownString(from: context.state.tile1StartAt) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(dvntPurple)
+                                Text(cd)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(dvntPurple)
+                            }
+                            .padding(.horizontal, 8).padding(.vertical, 4)
+                            .background(dvntPurple.opacity(0.15))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
                         Spacer()
-                        PageDots(current: context.state.currentTile, total: 3)
-                    }.padding(.top, 4)
+                        // Weather
+                        if let icon = context.state.weatherIcon, let temp = context.state.weatherTempF {
+                            HStack(spacing: 3) {
+                                Image(systemName: weatherSFSymbol(icon))
+                                    .font(.system(size: 9))
+                                    .foregroundColor(dvntCyan)
+                                Text("\(temp)°")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.6))
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
                 }
             } compactLeading: {
+                // Compact: logo glyph
                 logoGlyphImage(size: 16)
             } compactTrailing: {
+                // Compact: countdown or temp
                 if context.state.tile1IsUpcoming, let cd = countdownString(from: context.state.tile1StartAt) {
-                    Text(cd).font(.system(size: 11, weight: .medium)).foregroundColor(dvntPurple).monospacedDigit()
+                    Text(cd)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(dvntPurple)
+                        .monospacedDigit()
                 } else if let temp = context.state.weatherTempF {
-                    Text("\(temp)°").font(.system(size: 11, weight: .medium)).foregroundColor(dvntCyan)
+                    Text("\(temp)°")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(dvntCyan)
                 }
             } minimal: {
+                // Minimal: just the logo
                 logoGlyphImage(size: 14)
             }
             .widgetURL(URL(string: context.state.tile1DeepLink))

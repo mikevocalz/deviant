@@ -13,16 +13,16 @@ const {
 const fs = require("fs");
 const path = require("path");
 
-const EXTENSION_NAME = "DVNTLiveActivityExtension";
+const EXTENSION_NAME = "DVNTHomeWidgetExtension";
 const APP_GROUP_ID = "group.com.dvnt.app";
 const BUNDLE_ID = "com.dvnt.app";
-const EXTENSION_BUNDLE_ID = `${BUNDLE_ID}.live-activity`;
+const EXTENSION_BUNDLE_ID = `${BUNDLE_ID}.DVNTHomeWidgetExtension`;
 const DEPLOYMENT_TARGET = "16.4";
 
 // ── Swift Source Templates (loaded from plugins/live-activity-swift/) ──
 
 function getAttributesSwift() {
-  return `import ActivityKit\nimport Foundation\n\n@available(iOS 16.1, *)\nstruct DVNTLiveAttributes: ActivityAttributes {\n    struct ContentState: Codable, Hashable {\n        var generatedAt: String\n        var currentTile: Int\n        var tile1EventId: String?\n        var tile1Title: String\n        var tile1StartAt: String?\n        var tile1VenueName: String?\n        var tile1City: String?\n        var tile1HeroThumbUrl: String?\n        var tile1IsUpcoming: Bool\n        var tile1DeepLink: String\n        var tile2WeekStartISO: String\n        var tile2Ids: [String]\n        var tile2ThumbUrls: [String]\n        var tile2DeepLinks: [String]\n        var tile2RecapDeepLink: String\n        var tile3EventIds: [String]\n        var tile3Titles: [String]\n        var tile3StartAts: [String]\n        var tile3VenueNames: [String]\n        var tile3DeepLinks: [String]\n        var tile3SeeAllDeepLink: String\n        var weatherIcon: String?\n        var weatherTempF: Int?\n        var weatherLabel: String?\n    }\n}\n`;
+  return `import ActivityKit\nimport Foundation\n\n@available(iOS 16.1, *)\nstruct DVNTLiveAttributes: ActivityAttributes {\n    struct ContentState: Codable, Hashable {\n        var generatedAt: String\n        var currentTile: Int\n        var tile1EventId: String?\n        var tile1Title: String\n        var tile1StartAt: String?\n        var tile1VenueName: String?\n        var tile1City: String?\n        var tile1HeroThumbUrl: String?\n        var tile1HeroLocalPath: String?\n        var tile1IsUpcoming: Bool\n        var tile1DeepLink: String\n        var tile2WeekStartISO: String\n        var tile2Ids: [String]\n        var tile2ThumbUrls: [String]\n        var tile2LocalPaths: [String]\n        var tile2DeepLinks: [String]\n        var tile2RecapDeepLink: String\n        var tile3EventIds: [String]\n        var tile3Titles: [String]\n        var tile3StartAts: [String]\n        var tile3VenueNames: [String]\n        var tile3DeepLinks: [String]\n        var tile3SeeAllDeepLink: String\n        var weatherIcon: String?\n        var weatherTempF: Int?\n        var weatherLabel: String?\n    }\n}\n`;
 }
 
 function getObjcModuleExport() {
@@ -129,7 +129,12 @@ function withLiveActivitySwiftFiles(config) {
 
       // Copy dvnt_logo asset for Widget UI (required by DVNTLiveActivityWidget.swift)
       const projectRoot = path.join(__dirname, "..");
-      const iconSrc = path.join(projectRoot, "assets", "images", "ios-icon.png");
+      const iconSrc = path.join(
+        projectRoot,
+        "assets",
+        "images",
+        "ios-icon.png",
+      );
       const assetDir = path.join(extDir, "Assets.xcassets");
       const logoDir = path.join(assetDir, "dvnt_logo.imageset");
       fs.mkdirSync(logoDir, { recursive: true });
@@ -138,34 +143,47 @@ function withLiveActivitySwiftFiles(config) {
         fs.copyFileSync(iconSrc, dest);
         fs.writeFileSync(
           path.join(logoDir, "Contents.json"),
-          JSON.stringify({
-            images: [
-              { filename: "icon.png", idiom: "universal", scale: "1x" },
-              { filename: "icon.png", idiom: "universal", scale: "2x" },
-              { filename: "icon.png", idiom: "universal", scale: "3x" },
-            ],
-            info: { author: "xcode", version: 1 },
-          }, null, 2),
+          JSON.stringify(
+            {
+              images: [
+                { filename: "icon.png", idiom: "universal", scale: "1x" },
+                { filename: "icon.png", idiom: "universal", scale: "2x" },
+                { filename: "icon.png", idiom: "universal", scale: "3x" },
+              ],
+              info: { author: "xcode", version: 1 },
+            },
+            null,
+            2,
+          ),
           "utf-8",
         );
       }
 
       const glyphDir = path.join(assetDir, "dvnt_logo_glyph.imageset");
       fs.mkdirSync(glyphDir, { recursive: true });
-      const glyphSrc = path.join(projectRoot, "assets", "images", "dvnt-glyph.png");
+      const glyphSrc = path.join(
+        projectRoot,
+        "assets",
+        "images",
+        "dvnt-glyph.png",
+      );
       const glyphSource = fs.existsSync(glyphSrc) ? glyphSrc : iconSrc;
       if (fs.existsSync(glyphSource)) {
         fs.copyFileSync(glyphSource, path.join(glyphDir, "icon.png"));
         fs.writeFileSync(
           path.join(glyphDir, "Contents.json"),
-          JSON.stringify({
-            images: [
-              { filename: "icon.png", idiom: "universal", scale: "1x" },
-              { filename: "icon.png", idiom: "universal", scale: "2x" },
-              { filename: "icon.png", idiom: "universal", scale: "3x" },
-            ],
-            info: { author: "xcode", version: 1 },
-          }, null, 2),
+          JSON.stringify(
+            {
+              images: [
+                { filename: "icon.png", idiom: "universal", scale: "1x" },
+                { filename: "icon.png", idiom: "universal", scale: "2x" },
+                { filename: "icon.png", idiom: "universal", scale: "3x" },
+              ],
+              info: { author: "xcode", version: 1 },
+            },
+            null,
+            2,
+          ),
           "utf-8",
         );
       }
@@ -176,35 +194,119 @@ function withLiveActivitySwiftFiles(config) {
   ]);
 }
 
-// Add native module files to main Xcode target (proven pattern from with-voip-push.js)
-// NOTE: Widget Extension target is NOT created here — use expo-apple-targets or manual
-// Xcode setup for the Lock Screen / Dynamic Island UI. The native module in the main
-// target allows RN to start/update/end Live Activities via ActivityKit.
+// Creates Widget Extension Xcode target + adds native module files to main target.
 function withWidgetExtensionTarget(config) {
   return withXcodeProject(config, (config) => {
     const project = config.modResults;
     const projectName = config.modRequest.projectName;
     const version = config.expo?.version ?? "1.0.0";
-
-    // Extension MARKETING_VERSION must match main app (fixes CFBundleShortVersionString warning)
     const dominated = /_comment$/;
-    const configs = project.pbxXCBuildConfigurationSection() || {};
-    for (const key of Object.keys(configs)) {
+
+    // ── Part 1: Create Widget Extension Target ─────────────────────
+    const nativeTargets = project.pbxNativeTargetSection() || {};
+    let extUuid = null;
+
+    for (const key of Object.keys(nativeTargets)) {
       if (dominated.test(key)) continue;
-      const cfg = configs[key];
-      const bs = cfg?.buildSettings;
-      if (
-        bs &&
-        (bs.PRODUCT_BUNDLE_IDENTIFIER === "com.dvnt.app.DVNTLiveActivityExtension" ||
-          bs.INFOPLIST_FILE?.includes("DVNTLiveActivityExtension"))
-      ) {
-        bs.MARKETING_VERSION = version;
+      const name = (nativeTargets[key].name || "").replace(/"/g, "");
+      if (name === EXTENSION_NAME) {
+        extUuid = key;
+        break;
       }
     }
 
-    // Fix: Adding Swift files to the main RN target triggers Swift/ObjC interop.
-    // The ObjC bridge imports <React/RCTBridgeModule.h> which causes
-    // -Wnon-modular-include-in-framework-module errors. This build setting suppresses them.
+    if (!extUuid) {
+      try {
+        const t = project.addTarget(
+          EXTENSION_NAME,
+          "app_extension",
+          EXTENSION_NAME,
+          EXTENSION_BUNDLE_ID,
+        );
+        if (t && t.uuid) extUuid = t.uuid;
+      } catch (e) {
+        console.error("[with-live-activity] addTarget failed:", e.message);
+      }
+    }
+
+    if (extUuid) {
+      // Sources build phase
+      const extFiles = [
+        `${EXTENSION_NAME}/DVNTLiveAttributes.swift`,
+        `${EXTENSION_NAME}/DVNTLiveActivityWidget.swift`,
+        `${EXTENSION_NAME}/DVNTHomeWidget.swift`,
+        `${EXTENSION_NAME}/DVNTWidgetBundle.swift`,
+      ];
+      try {
+        project.addBuildPhase(
+          extFiles,
+          "PBXSourcesBuildPhase",
+          "Sources",
+          extUuid,
+        );
+      } catch (e) {
+        console.warn("[with-live-activity] Sources phase:", e.message);
+      }
+
+      // Frameworks build phase
+      try {
+        project.addBuildPhase(
+          [],
+          "PBXFrameworksBuildPhase",
+          "Frameworks",
+          extUuid,
+        );
+      } catch (e) {
+        console.warn("[with-live-activity] Frameworks phase:", e.message);
+      }
+
+      // Resources build phase
+      try {
+        project.addBuildPhase(
+          [`${EXTENSION_NAME}/Assets.xcassets`],
+          "PBXResourcesBuildPhase",
+          "Resources",
+          extUuid,
+        );
+      } catch (e) {
+        console.warn("[with-live-activity] Resources phase:", e.message);
+      }
+
+      // Build settings for extension target
+      const tObj = project.pbxNativeTargetSection()[extUuid];
+      const clUuid = tObj?.buildConfigurationList;
+      if (clUuid) {
+        const cl = (project.pbxXCConfigurationList() || {})[clUuid];
+        const refs = cl?.buildConfigurations || [];
+        const cfgs = project.pbxXCBuildConfigurationSection() || {};
+        for (const ref of refs) {
+          const c = cfgs[ref.value];
+          if (!c?.buildSettings) continue;
+          const bs = c.buildSettings;
+          bs.INFOPLIST_FILE = `"${EXTENSION_NAME}/Info.plist"`;
+          bs.PRODUCT_BUNDLE_IDENTIFIER = `"${EXTENSION_BUNDLE_ID}"`;
+          bs.SWIFT_VERSION = "5.0";
+          bs.IPHONEOS_DEPLOYMENT_TARGET = `"${DEPLOYMENT_TARGET}"`;
+          bs.TARGETED_DEVICE_FAMILY = `"1,2"`;
+          bs.CODE_SIGN_ENTITLEMENTS = `"${EXTENSION_NAME}/${EXTENSION_NAME}.entitlements"`;
+          bs.MARKETING_VERSION = `"${version}"`;
+          bs.CURRENT_PROJECT_VERSION = "1";
+          bs.GENERATE_INFOPLIST_FILE = "YES";
+          bs.SWIFT_EMIT_LOC_STRINGS = "YES";
+          bs.SKIP_INSTALL = "YES";
+        }
+      }
+
+      // Embedding + code signing handled by EAS via appExtensions in app.config.js.
+      // Manual addBuildPhase for PBXCopyFilesBuildPhase creates orphaned file refs
+      // that break Xcodeproj consistency checks in CocoaPods post_install.
+
+      console.log(
+        `[with-live-activity] Widget Extension target ready: ${extUuid}`,
+      );
+    }
+
+    // ── Part 2: Suppress non-modular header warnings ───────────────
     const allConfigs = Object.keys(project.pbxXCBuildConfigurationSection())
       .filter((k) => !dominated.test(k))
       .reduce((acc, k) => {
@@ -218,19 +320,17 @@ function withWidgetExtensionTarget(config) {
       }
     }
 
-    // Add native module files to main target (same pattern as VoIP plugin)
+    // ── Part 3: Add native module files to main target ─────────────
     const nativeFiles = [
       { name: "DVNTLiveActivityModule.swift", type: "sourcecode.swift" },
       { name: "DVNTLiveActivityBridge.m", type: "sourcecode.c.objc" },
       { name: "DVNTLiveAttributes.swift", type: "sourcecode.swift" },
     ];
-
     for (const file of nativeFiles) {
       const hasFile = project.hasFile(`${projectName}/${file.name}`);
       if (!hasFile) {
         const fileRefUuid = project.generateUuid();
         const buildFileUuid = project.generateUuid();
-
         project.addToPbxFileReferenceSection({
           fileRef: fileRefUuid,
           basename: file.name,
@@ -240,21 +340,18 @@ function withWidgetExtensionTarget(config) {
           lastKnownFileType: file.type,
           group: projectName,
         });
-
         project.addToPbxBuildFileSection({
           uuid: buildFileUuid,
           fileRef: fileRefUuid,
           basename: file.name,
           group: projectName,
         });
-
         project.addToPbxSourcesBuildPhase({
           uuid: buildFileUuid,
           fileRef: fileRefUuid,
           basename: file.name,
           group: projectName,
         });
-
         const mainGroupKey = project.findPBXGroupKey({ name: projectName });
         if (mainGroupKey) {
           project.addToPbxGroup(
@@ -266,7 +363,7 @@ function withWidgetExtensionTarget(config) {
     }
 
     console.log(
-      `[with-live-activity] Added native module files to main target`,
+      "[with-live-activity] Native module files added to main target",
     );
     return config;
   });

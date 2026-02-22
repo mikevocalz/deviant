@@ -34,6 +34,7 @@ export interface Activity {
     id?: string;
     username: string;
     avatar: string;
+    viewerFollows?: boolean;
   };
   entityType?: "post" | "comment" | "user" | "event";
   entityId?: string;

@@ -118,12 +118,7 @@ Deno.serve(async (req) => {
       return errorResponse("internal_error", "Failed to delete post");
     }
 
-    // Decrement user posts count (floor at 0)
-    const newCount = Math.max(0, (userData.posts_count || 1) - 1);
-    await supabaseAdmin
-      .from("users")
-      .update({ posts_count: newCount })
-      .eq("id", userData.id);
+    // posts_count synced by trigger on posts table
 
     return jsonResponse({ ok: true, data: { success: true } });
   } catch (err) {

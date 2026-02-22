@@ -84,9 +84,11 @@ interface Tile1Result {
   startAt: string | null;
   venueName?: string;
   city?: string;
+  category?: string;
   heroThumbUrl?: string | null;
   isUpcoming: boolean;
   deepLink: string;
+  attendeeCount?: number;
 }
 
 async function buildTile1(
@@ -98,7 +100,9 @@ async function buildTile1(
   // Try upcoming first
   const { data: upcoming } = await supabase
     .from("events")
-    .select("id, title, start_date, location, location_name, cover_image_url, image")
+    .select(
+      "id, title, start_date, location, location_name, cover_image_url, image, category, attendees_count",
+    )
     .gte("start_date", now)
     .order("start_date", { ascending: true })
     .limit(1);
@@ -111,16 +115,20 @@ async function buildTile1(
       startAt: ev.start_date,
       venueName: ev.location_name || undefined,
       city: ev.location || undefined,
+      category: ev.category || undefined,
       heroThumbUrl: toAbsoluteUrl(ev.cover_image_url || ev.image) ?? null,
       isUpcoming: true,
       deepLink: buildDeepLink(`/e/${ev.id}`),
+      attendeeCount: ev.attendees_count || undefined,
     };
   }
 
   // Fallback to most recent
   const { data: recent } = await supabase
     .from("events")
-    .select("id, title, start_date, location, location_name, cover_image_url, image")
+    .select(
+      "id, title, start_date, location, location_name, cover_image_url, image, category, attendees_count",
+    )
     .order("start_date", { ascending: false })
     .limit(1);
 
@@ -132,9 +140,11 @@ async function buildTile1(
       startAt: ev.start_date,
       venueName: ev.location_name || undefined,
       city: ev.location || undefined,
+      category: ev.category || undefined,
       heroThumbUrl: toAbsoluteUrl(ev.cover_image_url || ev.image) ?? null,
       isUpcoming: false,
       deepLink: buildDeepLink(`/e/${ev.id}`),
+      attendeeCount: ev.attendees_count || undefined,
     };
   }
 
@@ -172,10 +182,12 @@ async function buildTile2(
   // Get top posts from last 7 days — we fetch more to allow filtering out video-only
   const { data: posts } = await supabase
     .from("posts")
-    .select(`
+    .select(
+      `
       id, content, likes_count,
       media:posts_media(type, url, "order")
-    `)
+    `,
+    )
     .gte("created_at", sevenDaysAgo)
     .eq("visibility", "public")
     .order("likes_count", { ascending: false })
@@ -183,7 +195,9 @@ async function buildTile2(
 
   const items: Tile2Item[] = [];
   const mediaSorted = (arr: any[]) =>
-    Array.isArray(arr) ? [...arr].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0)) : [];
+    Array.isArray(arr)
+      ? [...arr].sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+      : [];
 
   for (const post of posts || []) {
     const mediaArr = mediaSorted(post.media);
@@ -196,9 +210,7 @@ async function buildTile2(
       id: String(post.id),
       thumbUrl: thumb,
       deepLink: buildDeepLink(`/p/${post.id}`),
-      a11yLabel: post.content
-        ? post.content.slice(0, 40)
-        : `Post ${post.id}`,
+      a11yLabel: post.content ? post.content.slice(0, 40) : `Post ${post.id}`,
     });
     if (items.length >= 6) break;
   }
@@ -244,7 +256,9 @@ async function buildTile3(
 
   const { data: events } = await supabase
     .from("events")
-    .select("id, title, start_date, location, location_name, cover_image_url, image")
+    .select(
+      "id, title, start_date, location, location_name, cover_image_url, image",
+    )
     .gte("start_date", now)
     .order("start_date", { ascending: true })
     .limit(3);
@@ -350,14 +364,20 @@ Deno.serve(async (req: Request) => {
     // Verify session
     const session = await verifySession(supabase, token);
     if (!session) {
-      return jsonResponse({ ok: false, error: "Invalid or expired session" }, 401);
+      return jsonResponse(
+        { ok: false, error: "Invalid or expired session" },
+        401,
+      );
     }
 
     // Parse optional body for lat/lng (weather)
     let lat = 40.7128;
     let lng = -74.006;
     try {
-      const body = (await req.json().catch(() => ({}))) as { lat?: number; lng?: number };
+      const body = (await req.json().catch(() => ({}))) as {
+        lat?: number;
+        lng?: number;
+      };
       if (typeof body?.lat === "number" && typeof body?.lng === "number") {
         lat = body.lat;
         lng = body.lng;
@@ -378,7 +398,9 @@ Deno.serve(async (req: Request) => {
       const age = Date.now() - new Date(cached.updated_at).getTime();
       if (age < 5 * 60 * 1000) {
         const cachedPayload =
-          typeof cached.value === "string" ? JSON.parse(cached.value) : cached.value;
+          typeof cached.value === "string"
+            ? JSON.parse(cached.value)
+            : cached.value;
         const weather = await fetchWeather(lat, lng);
         return jsonResponse({
           ok: true,
@@ -404,11 +426,16 @@ Deno.serve(async (req: Request) => {
       ...(weatherResult && { weather: weatherResult }),
     };
 
-    console.log("[live-surface] tile1 heroThumbUrl:", tile1.heroThumbUrl ?? "null");
+    console.log(
+      "[live-surface] tile1 heroThumbUrl:",
+      tile1.heroThumbUrl ?? "null",
+    );
     console.log(
       "[live-surface] tile2 items:",
       tile2.items.length,
-      tile2.items.map((it, i) => `[${i}]${it.thumbUrl ? "ok" : "null"}`).join(" "),
+      tile2.items
+        .map((it, i) => `[${i}]${it.thumbUrl ? "ok" : "null"}`)
+        .join(" "),
     );
 
     // Cache the payload (upsert)
@@ -430,9 +457,6 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ ok: true, data: payload, cached: false });
   } catch (err) {
     console.error("[live-surface] Error:", err);
-    return jsonResponse(
-      { ok: false, error: "Internal server error" },
-      500,
-    );
+    return jsonResponse({ ok: false, error: "Internal server error" }, 500);
   }
 });

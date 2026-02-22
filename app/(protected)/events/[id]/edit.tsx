@@ -38,6 +38,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { eventsApi } from "@/lib/api/events";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LocationAutocomplete,
@@ -92,7 +93,9 @@ export default function EditEventScreen() {
         const hostId =
           typeof event.host === "object" ? (event.host as any).id : event.host;
         const isEventOwner = !!(
-          currentUser?.id && String(hostId) === String(currentUser.id)
+          currentUser?.id &&
+          (String(hostId) === String(currentUser.id) ||
+            String(hostId) === String(getCurrentUserIdInt()))
         );
         setIsOwner(isEventOwner);
 

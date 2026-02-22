@@ -45,6 +45,7 @@ import {
   withTiming,
 } from "react-native-reanimated";
 import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
+import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
@@ -144,6 +145,7 @@ function PostDetailScreenContent() {
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showLikesSheet, setShowLikesSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
+  const prefetchLikers = usePrefetchPostLikers();
 
   // Like state from centralized hook
   const {
@@ -578,7 +580,12 @@ function PostDetailScreenContent() {
 
           {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
-            <Pressable onPress={() => setShowLikesSheet(true)}>
+            <Pressable
+              onPress={() => {
+                prefetchLikers(postId);
+                setShowLikesSheet(true);
+              }}
+            >
               <Text
                 style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
               >

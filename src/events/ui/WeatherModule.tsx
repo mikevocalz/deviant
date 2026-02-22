@@ -11,11 +11,7 @@
 
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { useState, useCallback } from "react";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  Layout,
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown, Layout } from "react-native-reanimated";
 import {
   Sun,
   CloudSun,
@@ -36,25 +32,25 @@ import { mapWeatherToIcon, type WeatherPeriod } from "@/lib/api/weather";
 // ── Lucide icon mapping ─────────────────────────────────────────────
 
 const WEATHER_ICONS: Record<string, typeof Sun> = {
-  "sun": Sun,
+  sun: Sun,
   "cloud-sun": CloudSun,
-  "cloud": Cloud,
+  cloud: Cloud,
   "cloud-rain": CloudRain,
   "cloud-lightning": CloudLightning,
   "cloud-snow": CloudSnow,
   "cloud-fog": CloudFog,
-  "wind": Wind,
+  wind: Wind,
 };
 
 const WEATHER_COLORS: Record<string, string> = {
-  "sun": "#FCD34D",
+  sun: "#FCD34D",
   "cloud-sun": "#93C5FD",
-  "cloud": "#9CA3AF",
+  cloud: "#9CA3AF",
   "cloud-rain": "#60A5FA",
   "cloud-lightning": "#A78BFA",
   "cloud-snow": "#E0E7FF",
   "cloud-fog": "#D1D5DB",
-  "wind": "#6EE7B7",
+  wind: "#6EE7B7",
 };
 
 // ── Skeleton ────────────────────────────────────────────────────────
@@ -110,11 +106,11 @@ function WeatherCard({
     >
       <Pressable
         onPress={onToggle}
-        className="items-center rounded-2xl bg-card border border-border px-3 py-3"
-        style={{ width: 88, minHeight: 120 }}
+        className="items-center justify-between rounded-2xl bg-card border border-border px-3 py-3"
+        style={{ width: 88, height: 158 }}
       >
         {/* Day label */}
-        <Text className="text-xs font-sans-semibold text-muted-foreground mb-1">
+        <Text className="text-xs font-sans-semibold text-muted-foreground">
           {index === 0 ? "Today" : dayName}
         </Text>
 
@@ -124,32 +120,36 @@ function WeatherCard({
         {/* Temperature */}
         <Animated.Text
           entering={FadeIn.delay(index * 80 + 200).duration(300)}
-          className="text-lg font-sans-bold text-foreground mt-1"
+          className="text-lg font-sans-bold text-foreground"
         >
           {period.temperature}°
         </Animated.Text>
 
-        {/* Short forecast */}
-        <Text
-          className="text-[10px] text-muted-foreground text-center mt-0.5"
-          numberOfLines={2}
-        >
-          {period.shortForecast}
-        </Text>
+        {/* Short forecast — fixed 2-line height */}
+        <View style={{ height: 24, justifyContent: "center" }}>
+          <Text
+            className="text-[10px] text-muted-foreground text-center"
+            numberOfLines={2}
+          >
+            {period.shortForecast}
+          </Text>
+        </View>
 
-        {/* Precipitation badge */}
-        {precip != null && precip > 0 && (
-          <View className="flex-row items-center mt-1 gap-0.5">
-            <Droplets size={10} color="#60A5FA" />
-            <Text className="text-[9px] text-blue-400">{precip}%</Text>
-          </View>
-        )}
+        {/* Precipitation badge — always reserve space */}
+        <View style={{ height: 14, justifyContent: "center" }}>
+          {precip != null && precip > 0 ? (
+            <View className="flex-row items-center gap-0.5">
+              <Droplets size={10} color="#60A5FA" />
+              <Text className="text-[9px] text-blue-400">{precip}%</Text>
+            </View>
+          ) : null}
+        </View>
 
         {/* Expand indicator */}
         {expanded ? (
-          <ChevronUp size={12} color="#666" style={{ marginTop: 2 }} />
+          <ChevronUp size={12} color="#666" />
         ) : (
-          <ChevronDown size={12} color="#666" style={{ marginTop: 2 }} />
+          <ChevronDown size={12} color="#666" />
         )}
       </Pressable>
 
@@ -198,22 +198,13 @@ function WeatherError() {
 
 // ── Main Export ──────────────────────────────────────────────────────
 
-export function WeatherModule({
-  lat,
-  lng,
-}: {
-  lat?: number;
-  lng?: number;
-}) {
+export function WeatherModule({ lat, lng }: { lat?: number; lng?: number }) {
   const { data: periods, isLoading, isError } = useWeatherForecast(lat, lng);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
-  const handleToggle = useCallback(
-    (index: number) => {
-      setExpandedIndex((prev) => (prev === index ? null : index));
-    },
-    [],
-  );
+  const handleToggle = useCallback((index: number) => {
+    setExpandedIndex((prev) => (prev === index ? null : index));
+  }, []);
 
   // Don't render if no coordinates
   if (!lat || !lng) return null;

@@ -1,6 +1,10 @@
 /**
  * Edge Function: toggle-follow
- * Follow/unfollow a user with Better Auth verification
+ * Explicit follow/unfollow a user with Better Auth verification.
+ * Accepts `action: "follow" | "unfollow"` for idempotent, race-free mutations.
+ * Returns authoritative counts + viewerFollows + target username.
+ *
+ * Deploy: supabase functions deploy toggle-follow --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -31,6 +35,10 @@ function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
+function genCorrelationId(): string {
+  return `fl_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -40,13 +48,14 @@ Deno.serve(async (req) => {
     return errorResponse("validation_error", "Method not allowed");
   }
 
+  const correlationId = genCorrelationId();
+
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return errorResponse(
         "unauthorized",
         "Missing or invalid Authorization header",
-        401,
       );
     }
 
@@ -77,14 +86,12 @@ Deno.serve(async (req) => {
     }
 
     const authUserId = sessionData.userId;
-    console.log(
-      "[Edge:toggle-follow] authUserId from session:",
-      authUserId,
-      "type:",
-      typeof authUserId,
-    );
 
-    let body: { targetUserId?: number; targetAuthId?: string };
+    let body: {
+      targetUserId?: number;
+      targetAuthId?: string;
+      action?: "follow" | "unfollow";
+    };
     try {
       body = await req.json();
     } catch {
@@ -92,121 +99,34 @@ Deno.serve(async (req) => {
     }
 
     let { targetUserId } = body;
-    const { targetAuthId } = body;
+    const { targetAuthId, action } = body;
+
+    // Validate action — explicit follow/unfollow required
+    // Legacy callers without action fall back to toggle behavior
+    const explicitAction =
+      action === "follow" || action === "unfollow" ? action : null;
 
     if (!targetUserId && !targetAuthId) {
       return errorResponse(
         "validation_error",
         "targetUserId or targetAuthId is required",
-        400,
       );
     }
 
     // Resolve targetAuthId → integer ID (auto-provision if needed)
     if (!targetUserId && targetAuthId) {
-      console.log("[Edge:toggle-follow] Resolving targetAuthId:", targetAuthId);
-
-      // Step 1: Check existing users row
-      const { data: existingUser, error: existErr } = await supabaseAdmin
-        .from("users")
-        .select("id")
-        .eq("auth_id", targetAuthId)
-        .single();
-
-      if (existingUser) {
-        console.log(
-          "[Edge:toggle-follow] Found existing user:",
-          existingUser.id,
-        );
-        targetUserId = existingUser.id;
-      } else {
-        console.log(
-          "[Edge:toggle-follow] No users row, existErr:",
-          existErr?.code,
-        );
-
-        // Step 2: Look up BA user
-        const { data: baUser, error: baErr } = await supabaseAdmin
-          .from("user")
-          .select("id, name, email, image, username")
-          .eq("id", targetAuthId)
-          .single();
-
-        if (!baUser) {
-          return errorResponse(
-            "not_found",
-            `BA user not found for ${targetAuthId}: ${baErr?.message}`,
-          );
-        }
-        console.log(
-          "[Edge:toggle-follow] BA user found:",
-          baUser.email,
-          baUser.username,
-        );
-
-        // Step 3: Auto-provision (id column has no auto-increment, must generate explicitly)
-        const displayName = (baUser.name || "").trim();
-        const autoUsername =
-          baUser.username ||
-          displayName
-            .toLowerCase()
-            .replace(/[^a-z0-9_]/g, "_")
-            .replace(/_+/g, "_")
-            .replace(/^_|_$/g, "") ||
-          `user_${targetAuthId.slice(0, 8)}`;
-
-        // Get next ID
-        const { data: maxRow } = await supabaseAdmin
-          .from("users")
-          .select("id")
-          .order("id", { ascending: false })
-          .limit(1)
-          .single();
-        const nextId = (maxRow?.id || 0) + 1;
-
-        const { data: newRow, error: insertErr } = await supabaseAdmin
-          .from("users")
-          .insert({
-            id: nextId,
-            auth_id: targetAuthId,
-            username: autoUsername,
-            email: baUser.email || "",
-            first_name: displayName.split(" ")[0] || "",
-            last_name: displayName.split(" ").slice(1).join(" ") || "",
-            verified: false,
-            followers_count: 0,
-            following_count: 0,
-            posts_count: 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
-
-        if (newRow) {
-          console.log("[Edge:toggle-follow] Provisioned user:", newRow.id);
-          targetUserId = newRow.id;
-        } else {
-          console.error(
-            "[Edge:toggle-follow] INSERT failed:",
-            JSON.stringify(insertErr),
-          );
-          // Race condition retry
-          const { data: retryRow } = await supabaseAdmin
-            .from("users")
-            .select("id")
-            .eq("auth_id", targetAuthId)
-            .single();
-          if (retryRow) {
-            targetUserId = retryRow.id;
-          } else {
-            return errorResponse(
-              "not_found",
-              `Provision failed: ${insertErr?.message} (username=${autoUsername})`,
-            );
-          }
-        }
+      console.log(
+        `[Edge:toggle-follow] ${correlationId} resolving targetAuthId: ${targetAuthId}`,
+      );
+      const targetData = await resolveOrProvisionUser(
+        supabaseAdmin,
+        targetAuthId,
+        "id",
+      );
+      if (!targetData) {
+        return errorResponse("not_found", "Target user not found");
       }
+      targetUserId = targetData.id;
     }
 
     if (!targetUserId || typeof targetUserId !== "number") {
@@ -230,20 +150,67 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Cannot follow yourself");
     }
 
-    console.log("[Edge:toggle-follow] User:", userId, "Target:", targetUserId);
-
-    // Check if already following
+    // Check current state
     const { data: existingFollow } = await supabaseAdmin
       .from("follows")
       .select("id")
       .eq("follower_id", userId)
       .eq("following_id", targetUserId)
-      .single();
+      .maybeSingle();
+
+    const currentlyFollowing = !!existingFollow;
+
+    // Determine desired state
+    let wantFollow: boolean;
+    if (explicitAction) {
+      wantFollow = explicitAction === "follow";
+    } else {
+      // Legacy toggle behavior
+      wantFollow = !currentlyFollowing;
+    }
+
+    console.log(
+      `[Edge:toggle-follow] ${correlationId} user=${userId} target=${targetUserId} ` +
+        `current=${currentlyFollowing} want=${wantFollow} action=${explicitAction || "toggle"}`,
+    );
 
     let following: boolean;
 
-    if (existingFollow) {
-      // Unfollow
+    // Idempotent: if already in desired state, skip write
+    if (wantFollow === currentlyFollowing) {
+      following = currentlyFollowing;
+      console.log(
+        `[Edge:toggle-follow] ${correlationId} idempotent — already ${following ? "following" : "not following"}`,
+      );
+    } else if (wantFollow) {
+      // FOLLOW — insert (ON CONFLICT DO NOTHING for idempotency)
+      const { error: insertError } = await supabaseAdmin
+        .from("follows")
+        .upsert(
+          { follower_id: userId, following_id: targetUserId },
+          { onConflict: "follower_id,following_id", ignoreDuplicates: true },
+        );
+
+      if (insertError) {
+        console.error(
+          `[Edge:toggle-follow] ${correlationId} insert_error:`,
+          insertError,
+        );
+        return errorResponse("internal_error", "Failed to follow");
+      }
+
+      // follow counts synced by trigger on follows table
+      following = true;
+
+      // ── Send follow notification (fire-and-forget) ──
+      sendFollowNotification(supabaseAdmin, userId, targetUserId).catch((err) =>
+        console.error(
+          `[Edge:toggle-follow] ${correlationId} notification_error:`,
+          err,
+        ),
+      );
+    } else {
+      // UNFOLLOW — delete (idempotent: no error if not found)
       const { error: deleteError } = await supabaseAdmin
         .from("follows")
         .delete()
@@ -251,109 +218,120 @@ Deno.serve(async (req) => {
         .eq("following_id", targetUserId);
 
       if (deleteError) {
-        console.error("[Edge:toggle-follow] Delete error:", deleteError);
+        console.error(
+          `[Edge:toggle-follow] ${correlationId} delete_error:`,
+          deleteError,
+        );
         return errorResponse("internal_error", "Failed to unfollow");
       }
 
-      // Update counts
-      await supabaseAdmin.rpc("decrement_following_count", { user_id: userId });
-      await supabaseAdmin.rpc("decrement_followers_count", {
-        user_id: targetUserId,
-      });
+      // follow counts synced by trigger on follows table
       following = false;
-    } else {
-      // Follow
-      const { error: insertError } = await supabaseAdmin
-        .from("follows")
-        .insert({ follower_id: userId, following_id: targetUserId });
-
-      if (insertError) {
-        console.error("[Edge:toggle-follow] Insert error:", insertError);
-        return errorResponse("internal_error", "Failed to follow");
-      }
-
-      // Update counts
-      await supabaseAdmin.rpc("increment_following_count", { user_id: userId });
-      await supabaseAdmin.rpc("increment_followers_count", {
-        user_id: targetUserId,
-      });
-      following = true;
-
-      // ── Send follow notification to target user (fire-and-forget) ──
-      try {
-        // Get follower's username for the notification message
-        const { data: followerData } = await supabaseAdmin
-          .from("users")
-          .select("username, avatar_id(url)")
-          .eq("id", userId)
-          .single();
-
-        const followerUsername = followerData?.username || "Someone";
-        const followerAvatar = (followerData?.avatar_id as any)?.url || "";
-
-        // 1. Insert into notifications table
-        await supabaseAdmin.from("notifications").insert({
-          recipient_id: targetUserId,
-          actor_id: userId,
-          type: "follow",
-          entity_type: "user",
-          entity_id: String(userId),
-        });
-
-        // 2. Send Expo push notification
-        const { data: tokens } = await supabaseAdmin
-          .from("push_tokens")
-          .select("token")
-          .eq("user_id", targetUserId);
-
-        if (tokens && tokens.length > 0) {
-          const messages = tokens.map((t: { token: string }) => ({
-            to: t.token,
-            title: "New Follower",
-            body: `${followerUsername} started following you`,
-            data: {
-              type: "follow",
-              senderId: String(userId),
-              senderUsername: followerUsername,
-              senderAvatar: followerAvatar,
-              entityType: "user",
-              entityId: String(userId),
-            },
-            sound: "default",
-            channelId: "default",
-          }));
-
-          await fetch("https://exp.host/--/api/v2/push/send", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Accept: "application/json",
-            },
-            body: JSON.stringify(messages),
-          });
-          console.log(
-            "[Edge:toggle-follow] Push notification sent to",
-            tokens.length,
-            "device(s)",
-          );
-        }
-      } catch (notifErr) {
-        // Don't fail the follow if notification fails
-        console.error(
-          "[Edge:toggle-follow] Notification error (non-fatal):",
-          notifErr,
-        );
-      }
     }
 
-    console.log("[Edge:toggle-follow] Result:", { following });
+    // ── Read authoritative counts + target username in ONE query ──
+    const { data: targetUser } = await supabaseAdmin
+      .from("users")
+      .select("username, followers_count, following_count")
+      .eq("id", targetUserId)
+      .single();
+
+    const { data: callerUser } = await supabaseAdmin
+      .from("users")
+      .select("followers_count, following_count")
+      .eq("id", userId)
+      .single();
+
+    const updatedAt = new Date().toISOString();
+
+    console.log(
+      `[Edge:toggle-follow] ${correlationId} success following=${following} ` +
+        `targetFollowers=${targetUser?.followers_count} callerFollowing=${callerUser?.following_count}`,
+    );
 
     return jsonResponse({
       ok: true,
-      data: { following },
+      data: {
+        following,
+        targetUserId: String(targetUserId),
+        targetUsername: targetUser?.username || "",
+        viewerFollows: following,
+        targetFollowersCount: targetUser?.followers_count ?? 0,
+        targetFollowingCount: targetUser?.following_count ?? 0,
+        callerFollowersCount: callerUser?.followers_count ?? 0,
+        callerFollowingCount: callerUser?.following_count ?? 0,
+        updatedAt,
+        correlationId,
+      },
     });
   } catch (err) {
-    console.error("[Edge:toggle-follow] Unexpected error:", err);
+    console.error(
+      `[Edge:toggle-follow] ${correlationId} unexpected_error:`,
+      err,
+    );
     return errorResponse("internal_error", "An unexpected error occurred");
   }
 });
+
+// ── Fire-and-forget notification helper ──
+async function sendFollowNotification(
+  supabaseAdmin: any,
+  followerId: number,
+  targetId: number,
+) {
+  const { data: followerData } = await supabaseAdmin
+    .from("users")
+    .select("username, avatar_id(url)")
+    .eq("id", followerId)
+    .single();
+
+  const followerUsername = followerData?.username || "Someone";
+  const followerAvatar = (followerData?.avatar_id as any)?.url || "";
+
+  // Insert notification row
+  await supabaseAdmin.from("notifications").insert({
+    recipient_id: targetId,
+    actor_id: followerId,
+    type: "follow",
+    entity_type: "user",
+    entity_id: String(followerId),
+  });
+
+  // Send push
+  const { data: tokens } = await supabaseAdmin
+    .from("push_tokens")
+    .select("token")
+    .eq("user_id", targetId);
+
+  if (tokens && tokens.length > 0) {
+    const messages = tokens.map((t: { token: string }) => ({
+      to: t.token,
+      title: "New Follower",
+      body: `${followerUsername} started following you`,
+      data: {
+        type: "follow",
+        senderId: String(followerId),
+        senderUsername: followerUsername,
+        senderAvatar: followerAvatar,
+        entityType: "user",
+        entityId: String(followerId),
+      },
+      sound: "default",
+      channelId: "default",
+    }));
+
+    await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(messages),
+    });
+    console.log(
+      "[Edge:toggle-follow] Push sent to",
+      tokens.length,
+      "device(s)",
+    );
+  }
+}

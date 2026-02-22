@@ -23,6 +23,15 @@ export interface WalletResult {
  * Call a Supabase Edge Function with the user's auth token.
  * Returns the JSON response or throws.
  */
+class EdgeFunctionError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+    this.name = "EdgeFunctionError";
+  }
+}
+
 async function callEdgeFunction<T = any>(
   functionName: string,
   body: Record<string, unknown>,
@@ -32,11 +41,15 @@ async function callEdgeFunction<T = any>(
   });
 
   if (error) {
-    throw new Error(error.message || `Edge function ${functionName} failed`);
+    throw new EdgeFunctionError(
+      "invoke_error",
+      error.message || `Edge function ${functionName} failed`,
+    );
   }
 
   if (!data?.ok) {
-    throw new Error(
+    throw new EdgeFunctionError(
+      data?.error?.code || "unknown",
       data?.error?.message || `Edge function ${functionName} returned error`,
     );
   }
@@ -50,9 +63,7 @@ async function callEdgeFunction<T = any>(
  * 2. Edge Function validates ownership, generates/retrieves .pkpass, returns URL.
  * 3. Client opens the URL — iOS handles .pkpass natively.
  */
-export async function addToAppleWallet(
-  ticket: Ticket,
-): Promise<WalletResult> {
+export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
   if (Platform.OS !== "ios") {
     return { success: false, error: "apple_wallet_ios_only" };
   }
@@ -76,7 +87,8 @@ export async function addToAppleWallet(
     return { success: true };
   } catch (err: any) {
     console.error("[addToAppleWallet] Error:", err);
-    return { success: false, error: err?.message || "unknown" };
+    const code = err?.code || "unknown";
+    return { success: false, error: code };
   }
 }
 
@@ -86,9 +98,7 @@ export async function addToAppleWallet(
  * 2. Edge Function validates ownership, creates Wallet Object, returns Save URL.
  * 3. Client opens the URL — Google Wallet app handles it.
  */
-export async function addToGoogleWallet(
-  ticket: Ticket,
-): Promise<WalletResult> {
+export async function addToGoogleWallet(ticket: Ticket): Promise<WalletResult> {
   if (Platform.OS !== "android") {
     return { success: false, error: "google_wallet_android_only" };
   }
@@ -107,7 +117,8 @@ export async function addToGoogleWallet(
     return { success: true };
   } catch (err: any) {
     console.error("[addToGoogleWallet] Error:", err);
-    return { success: false, error: err?.message || "unknown" };
+    const code = err?.code || "unknown";
+    return { success: false, error: code };
   }
 }
 

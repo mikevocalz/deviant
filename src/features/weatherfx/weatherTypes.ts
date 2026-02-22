@@ -150,13 +150,19 @@ export function computeIntensity(
         speed: 1.5 + windMag * 0.6,
       };
     case WeatherEffect.Clear:
-      return { ...base, opacity: 0 };
+      return {
+        ...base,
+        particleCount: 30,
+        opacity: 0.08,
+        speed: 0.08,
+      };
     case WeatherEffect.Cloudy:
       return {
         ...base,
-        fogDensity: Math.min(cloud / 200, 0.2),
-        opacity: 0.1,
-        speed: 0.1,
+        particleCount: 50,
+        fogDensity: Math.min(cloud / 200, 0.25),
+        opacity: 0.15,
+        speed: 0.12,
       };
     default:
       return base;

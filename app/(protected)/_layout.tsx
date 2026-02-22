@@ -16,8 +16,13 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { refreshWeather } from "@/src/features/weatherfx/WeatherDecisionEngine";
+import { useWeatherFXStore } from "@/src/features/weatherfx/WeatherFXStore";
 import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
+import { WeatherReanimatedOverlay } from "@/src/features/weatherfx/WeatherReanimatedOverlay";
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
+import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
 import { useLiveSurface } from "@/src/live-surface/hooks/use-live-surface";
 
 const screenTransitionConfig = Platform.select({
@@ -69,6 +74,21 @@ export default function ProtectedLayout() {
 
   const user = useAuthStore((s) => s.user);
 
+  // ── Boot-level weather fetch: prime the store as soon as location is available ──
+  const deviceLat = useEventsLocationStore(
+    (s) => s.activeCity?.lat ?? s.deviceLat,
+  );
+  const deviceLng = useEventsLocationStore(
+    (s) => s.activeCity?.lng ?? s.deviceLng,
+  );
+  const weatherCode = useWeatherFXStore((s) => s.weatherCode);
+
+  useEffect(() => {
+    if (deviceLat != null && deviceLng != null && weatherCode == null) {
+      refreshWeather(deviceLat, deviceLng).catch(() => {});
+    }
+  }, [deviceLat, deviceLng, weatherCode]);
+
   // ── Register for push notifications on mount ────────────────────────
   // CRITICAL: This enables incoming calls to ring when app is backgrounded/killed
   useEffect(() => {
@@ -109,9 +129,6 @@ export default function ProtectedLayout() {
     <>
       {/* CRITICAL: NotificationListener handles incoming call push notifications */}
       <NotificationListener />
-      {/* PERSISTENT: WeatherGPUEngine mounts once, never remounts on tab switch.
-          pointerEvents="none" — touches pass through to content below. */}
-      <WeatherGPUEngine />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -182,6 +199,10 @@ export default function ProtectedLayout() {
           options={{ ...fullScreenModalConfig, animation: "fade" }}
         />
       </Stack>
+      {/* PERSISTENT: Weather overlay — renders ON TOP of screens.
+          pointerEvents="none" — touches pass through to content below. */}
+      <WeatherReanimatedOverlay />
+      {isWebGPUAvailable() && <WeatherGPUEngine />}
     </>
   );
 }

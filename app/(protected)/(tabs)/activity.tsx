@@ -195,24 +195,33 @@ export default function ActivityScreen() {
   } = useActivitiesQuery();
 
   // Store — follow state + mutations only (query is source of truth for activities)
-  const {
-    markActivityAsRead,
-    markAllAsRead,
-    subscribeToNotifications,
-    fetchFollowingState,
-  } = useActivityStore();
+  const { markActivityAsRead, markAllAsRead, subscribeToNotifications } =
+    useActivityStore();
 
   // REACTIVE follow state — subscribe to followedUsers Set so component re-renders
   const followedUsers = useActivityStore((s) => s.followedUsers);
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
   const pendingFollowUser = useRef<string | null>(null);
 
-  // Seed follow state once on mount (for follow-back buttons)
+  // Seed follow state from embedded viewerFollows in activity data
+  // NO separate fetchFollowingState() call — eliminates trickle-in
   useEffect(() => {
     if (queryActivities && queryActivities.length > 0) {
-      fetchFollowingState();
+      // Build followedUsers set from embedded viewerFollows data
+      const embedded = new Set<string>();
+      for (const a of queryActivities) {
+        if (a.user?.viewerFollows && a.user.username) {
+          embedded.add(a.user.username);
+        }
+      }
+      if (embedded.size > 0) {
+        // Merge with existing set (don't overwrite optimistic updates)
+        const current = useActivityStore.getState().followedUsers;
+        const merged = new Set([...current, ...embedded]);
+        useActivityStore.setState({ followedUsers: merged });
+      }
     }
-  }, [!!queryActivities]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queryActivities]);
 
   // RC-8: Query is the SINGLE source of truth — no Zustand mirror
   const activities: Activity[] = (queryActivities || []) as Activity[];
@@ -241,9 +250,8 @@ export default function ActivityScreen() {
       // Only refetch if data is older than 60s — prevents thrashing on quick tab switches
       if (dataAge > 60_000) {
         refetch();
-        fetchFollowingState();
       }
-    }, [queryClient, viewerId, refetch, fetchFollowingState]),
+    }, [queryClient, viewerId, refetch]),
   );
 
   const filteredActivities = useMemo(
@@ -360,20 +368,27 @@ export default function ActivityScreen() {
   // CRITICAL: All useCallback hooks MUST be before any early returns
   // to avoid "Rendered more hooks than during the previous render" error
   const renderItem = useCallback(
-    ({ item: activity }: { item: Activity }) => (
-      <ActivityItem
-        activity={activity}
-        isFollowed={followedUsers.has(activity.user.username)}
-        isFollowPending={
-          isFollowPending &&
-          pendingFollowUser.current === activity.user.username
-        }
-        onActivityPress={handleActivityPress}
-        onUserPress={handleUserPress}
-        onPostPress={handlePostPress}
-        onFollowBack={handleFollowBack}
-      />
-    ),
+    ({ item: activity }: { item: Activity }) => {
+      // PRIMARY: embedded viewerFollows from DTO data
+      // FALLBACK: followedUsers Zustand store (for legacy/non-bootstrap path)
+      const isFollowed =
+        activity.user.viewerFollows ??
+        followedUsers.has(activity.user.username);
+      return (
+        <ActivityItem
+          activity={activity}
+          isFollowed={isFollowed}
+          isFollowPending={
+            isFollowPending &&
+            pendingFollowUser.current === activity.user.username
+          }
+          onActivityPress={handleActivityPress}
+          onUserPress={handleUserPress}
+          onPostPress={handlePostPress}
+          onFollowBack={handleFollowBack}
+        />
+      );
+    },
     [
       handleActivityPress,
       handleUserPress,

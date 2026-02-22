@@ -3,94 +3,113 @@ import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt, resolveUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
+interface ToggleFollowResponseData {
+  following: boolean;
+  targetUserId: string;
+  targetUsername: string;
+  viewerFollows: boolean;
+  targetFollowersCount: number;
+  targetFollowingCount: number;
+  callerFollowersCount: number;
+  callerFollowingCount: number;
+  updatedAt: string;
+  correlationId: string;
+}
+
 interface ToggleFollowResponse {
   ok: boolean;
-  data?: { following: boolean };
+  data?: ToggleFollowResponseData;
   error?: { code: string; message: string };
+}
+
+export interface FollowMutationResult {
+  success: boolean;
+  following: boolean;
+  targetUsername: string;
+  targetFollowersCount: number;
+  targetFollowingCount: number;
+  callerFollowersCount: number;
+  callerFollowingCount: number;
+  correlationId: string;
 }
 
 export const followsApi = {
   /**
-   * Follow/unfollow user via Edge Function
+   * Follow/unfollow user via Edge Function.
+   * Accepts explicit action for race-free, idempotent mutations.
+   * Returns authoritative counts from server — NO extra query needed.
+   */
+  async followAction(
+    targetUserId: string,
+    action: "follow" | "unfollow",
+  ): Promise<FollowMutationResult> {
+    console.log(`[Follows] ${action} via Edge Function:`, targetUserId);
+
+    const token = await requireBetterAuthToken();
+
+    // Resolve to integer ID, or fall back to passing auth_id for server-side provisioning
+    let bodyPayload: {
+      targetUserId?: number;
+      targetAuthId?: string;
+      action: string;
+    };
+    try {
+      const targetUserIdInt = await resolveUserIdInt(targetUserId);
+      bodyPayload = { targetUserId: targetUserIdInt, action };
+    } catch (e: any) {
+      if (e?.message?.startsWith("NEEDS_PROVISION:")) {
+        const authId = e.message.replace("NEEDS_PROVISION:", "");
+        console.log(
+          "[Follows] Auth-only user, passing authId for server-side resolution:",
+          authId,
+        );
+        bodyPayload = { targetAuthId: authId, action };
+      } else {
+        throw e;
+      }
+    }
+
+    const { data, error } =
+      await supabase.functions.invoke<ToggleFollowResponse>("toggle-follow", {
+        body: bodyPayload,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+    if (error) {
+      console.error("[Follows] Edge Function error:", error);
+      throw new Error(error.message || `Failed to ${action}`);
+    }
+
+    if (!data?.ok || !data?.data) {
+      const errorMessage = data?.error?.message || `Failed to ${action}`;
+      console.error(`[Follows] ${action} failed:`, errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    const result: FollowMutationResult = {
+      success: true,
+      following: data.data.following,
+      targetUsername: data.data.targetUsername,
+      targetFollowersCount: data.data.targetFollowersCount,
+      targetFollowingCount: data.data.targetFollowingCount,
+      callerFollowersCount: data.data.callerFollowersCount,
+      callerFollowingCount: data.data.callerFollowingCount,
+      correlationId: data.data.correlationId,
+    };
+
+    console.log(`[Follows] ${action} result:`, result);
+    return result;
+  },
+
+  /**
+   * @deprecated Use followAction(targetUserId, action) instead.
+   * Kept for backward compatibility during migration.
    */
   async toggleFollow(targetUserId: string, _isFollowing?: boolean) {
-    try {
-      console.log("[Follows] toggleFollow via Edge Function:", targetUserId);
-
-      const token = await requireBetterAuthToken();
-
-      // Resolve to integer ID, or fall back to passing auth_id for server-side provisioning
-      let bodyPayload: { targetUserId?: number; targetAuthId?: string };
-      try {
-        const targetUserIdInt = await resolveUserIdInt(targetUserId);
-        bodyPayload = { targetUserId: targetUserIdInt };
-      } catch (e: any) {
-        if (e?.message?.startsWith("NEEDS_PROVISION:")) {
-          const authId = e.message.replace("NEEDS_PROVISION:", "");
-          console.log(
-            "[Follows] Auth-only user, passing authId for server-side resolution:",
-            authId,
-          );
-          bodyPayload = { targetAuthId: authId };
-        } else {
-          throw e;
-        }
-      }
-
-      const { data, error } =
-        await supabase.functions.invoke<ToggleFollowResponse>("toggle-follow", {
-          body: bodyPayload,
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-      if (error) {
-        console.error("[Follows] Edge Function error:", error);
-        throw new Error(error.message || "Failed to toggle follow");
-      }
-
-      if (!data?.ok || !data?.data) {
-        const errorMessage = data?.error?.message || "Failed to toggle follow";
-        console.error("[Follows] Toggle failed:", errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      // Get updated counts — resolve target ID for the count query
-      let resolvedTargetId: number | null = null;
-      try {
-        resolvedTargetId = await resolveUserIdInt(targetUserId);
-      } catch {
-        // User was just provisioned server-side, try auth_id lookup
-        const { data: freshRow } = await supabase
-          .from(DB.users.table)
-          .select(DB.users.id)
-          .eq(DB.users.authId, targetUserId)
-          .single();
-        resolvedTargetId = freshRow?.[DB.users.id] ?? null;
-      }
-
-      let followersCount = 0;
-      let followingCount = 0;
-      if (resolvedTargetId) {
-        const { data: targetUser } = await supabase
-          .from(DB.users.table)
-          .select(`${DB.users.followersCount}, ${DB.users.followingCount}`)
-          .eq(DB.users.id, resolvedTargetId)
-          .single();
-        followersCount = targetUser?.[DB.users.followersCount] || 0;
-        followingCount = targetUser?.[DB.users.followingCount] || 0;
-      }
-
-      console.log("[Follows] toggleFollow result:", data.data);
-      return {
-        success: true,
-        following: data.data.following,
-        followersCount,
-        followingCount,
-      };
-    } catch (error) {
-      console.error("[Follows] toggleFollow error:", error);
-      throw error;
-    }
+    return followsApi.followAction(
+      targetUserId,
+      _isFollowing ? "unfollow" : "follow",
+    );
   },
 
   /**
@@ -136,7 +155,11 @@ export const followsApi = {
         if (data?.error) console.error("[Follows] get-followers:", data.error);
         return [];
       }
-      return data.docs.map((d) => ({ id: d.id, username: d.username, avatar: d.avatar }));
+      return data.docs.map((d) => ({
+        id: d.id,
+        username: d.username,
+        avatar: d.avatar,
+      }));
     } catch (error) {
       console.error("[Follows] getFollowers error:", error);
       return [];
@@ -165,7 +188,11 @@ export const followsApi = {
         if (data?.error) console.error("[Follows] get-following:", data.error);
         return [];
       }
-      return data.docs.map((d) => ({ id: d.id, username: d.username, avatar: d.avatar }));
+      return data.docs.map((d) => ({
+        id: d.id,
+        username: d.username,
+        avatar: d.avatar,
+      }));
     } catch (error) {
       console.error("[Follows] getFollowing error:", error);
       return [];

@@ -19,9 +19,11 @@ export interface LiveSurfaceTile1 {
   startAt: string | null;
   venueName?: string;
   city?: string;
+  category?: string;
   heroThumbUrl?: string | null;
   isUpcoming: boolean;
   deepLink: string;
+  attendeeCount?: number;
 }
 
 export interface LiveSurfaceTile2Item {

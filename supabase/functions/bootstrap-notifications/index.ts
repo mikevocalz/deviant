@@ -38,10 +38,10 @@ Deno.serve(async (req: Request) => {
     const { user_id, limit = 50 } = await req.json();
 
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing user_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Missing user_id" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -87,22 +87,31 @@ Deno.serve(async (req: Request) => {
         notifications
           .map((n: any) => n.sender?.id)
           .filter(Boolean)
-          .map(String),
+          .map(Number)
+          .filter((id: number) => !isNaN(id)),
       ),
     ];
 
     // 4. Batch fetch viewer's follow state for all actors
-    let viewerFollowing: Record<string, boolean> = {};
+    // KEY BY USERNAME so client can look up without ID→username mapping
+    let viewerFollowingByUsername: Record<string, boolean> = {};
+    let viewerFollowingByIds: Record<string, boolean> = {};
     if (senderIds.length > 0) {
       const { data: follows } = await supabase
         .from("follows")
-        .select("following_id")
+        .select(
+          "following_id, target:users!follows_following_id_fkey(username)",
+        )
         .eq("follower_id", user_id)
         .in("following_id", senderIds);
 
       if (follows) {
         follows.forEach((f: any) => {
-          viewerFollowing[String(f.following_id)] = true;
+          const username = f.target?.username;
+          if (username) {
+            viewerFollowingByUsername[username] = true;
+          }
+          viewerFollowingByIds[String(f.following_id)] = true;
         });
       }
     }
@@ -123,6 +132,7 @@ Deno.serve(async (req: Request) => {
         postThumbnail = sorted[0]?.url || "";
       }
 
+      const senderUsername = sender?.username || "user";
       return {
         id: String(n.id),
         type: n.type || "like",
@@ -130,8 +140,10 @@ Deno.serve(async (req: Request) => {
         isRead: !!n.read_at,
         actor: {
           id: sender?.id ? String(sender.id) : "",
-          username: sender?.username || "user",
+          username: senderUsername,
           avatarUrl: senderAvatarUrl || "",
+          // Embed viewerFollows directly in actor DTO — no separate lookup needed
+          viewerFollows: !!viewerFollowingByUsername[senderUsername],
         },
         entityType: n.entity_type || null,
         entityId: n.entity_id ? String(n.entity_id) : null,
@@ -147,11 +159,14 @@ Deno.serve(async (req: Request) => {
     const response = {
       activities,
       unreadCount: unreadCountResult.count || 0,
-      viewerFollowing,
+      // Keyed by username for client compatibility
+      viewerFollowing: viewerFollowingByUsername,
+      // Also include ID-keyed version for backward compat
+      viewerFollowingByIds,
       _meta: {
         elapsed,
         activityCount: activities.length,
-        followStateCount: Object.keys(viewerFollowing).length,
+        followStateCount: Object.keys(viewerFollowingByUsername).length,
       },
     };
 

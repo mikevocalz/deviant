@@ -144,9 +144,10 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   toggleFollowUser: (username) => {
     // Optimistic toggle
     const wasFollowed = get().followedUsers.has(username);
+    const action = wasFollowed ? "unfollow" : "follow";
     set((state) => {
       const newFollowedUsers = new Set(state.followedUsers);
-      if (newFollowedUsers.has(username)) {
+      if (wasFollowed) {
         newFollowedUsers.delete(username);
       } else {
         newFollowedUsers.add(username);
@@ -154,12 +155,12 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       return { followedUsers: newFollowedUsers };
     });
 
-    // Find the user's integer ID from activities and call real API
+    // Find the user's integer ID from activities and call explicit API
     const activity = get().activities.find((a) => a.user.username === username);
     const targetUserId = activity?.user?.id;
     if (targetUserId) {
-      followsApi.toggleFollow(targetUserId).catch((err) => {
-        console.error("[ActivityStore] toggleFollow API error:", err);
+      followsApi.followAction(targetUserId, action).catch((err) => {
+        console.error(`[ActivityStore] ${action} API error:`, err);
         // Revert on failure
         set((state) => {
           const reverted = new Set(state.followedUsers);

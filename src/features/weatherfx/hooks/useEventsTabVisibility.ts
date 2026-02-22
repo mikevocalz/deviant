@@ -12,16 +12,17 @@ import { usePathname } from "expo-router";
 import { useWeatherFXStore } from "../WeatherFXStore";
 
 const EVENTS_PATHS = [
-  "/(protected)/(tabs)/events",
   "/events",
+  "/ticket",
+  "/(protected)/(tabs)/events",
+  "/(protected)/events",
+  "/(protected)/ticket",
   "(tabs)/events",
 ];
 
 export function useEventsTabVisibility(): void {
   const pathname = usePathname();
-  const setEventsTabVisible = useWeatherFXStore(
-    (s) => s.setEventsTabVisible,
-  );
+  const setEventsTabVisible = useWeatherFXStore((s) => s.setEventsTabVisible);
 
   useEffect(() => {
     const isEvents = EVENTS_PATHS.some(

@@ -16,11 +16,7 @@ const {
 } = require("./with-live-activity-android");
 
 function withLiveActivity(config) {
-  // iOS
-  config = withLiveActivityInfoPlist(config);
-  config = withAppGroupsEntitlement(config);
-  config = withLiveActivitySwiftFiles(config);
-  config = withWidgetExtensionTarget(config);
+  // iOS is now handled by the "voltra" plugin — see app.config.js
 
   // Android
   config = withAndroidLiveNotification(config);

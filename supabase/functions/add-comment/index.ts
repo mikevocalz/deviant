@@ -128,8 +128,7 @@ Deno.serve(async (req) => {
       return errorResponse("internal_error", "Failed to add comment");
     }
 
-    // Increment comments count on post
-    await supabaseAdmin.rpc("increment_post_comments", { post_id: postId });
+    // comments_count synced by trigger on comments table
 
     console.log("[Edge:add-comment] Comment added:", comment.id);
 

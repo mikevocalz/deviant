@@ -6,21 +6,57 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ticketsApi } from "@/lib/api/tickets";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { useTicketStore } from "@/lib/stores/ticket-store";
 
 export const ticketKeys = {
   all: ["tickets"] as const,
   myTickets: () => [...ticketKeys.all, "mine"] as const,
-  eventTickets: (eventId: string) => [...ticketKeys.all, "event", eventId] as const,
-  ticketTypes: (eventId: string) => [...ticketKeys.all, "types", eventId] as const,
-  financials: (eventId: string) => [...ticketKeys.all, "financials", eventId] as const,
+  eventTickets: (eventId: string) =>
+    [...ticketKeys.all, "event", eventId] as const,
+  ticketTypes: (eventId: string) =>
+    [...ticketKeys.all, "types", eventId] as const,
+  financials: (eventId: string) =>
+    [...ticketKeys.all, "financials", eventId] as const,
 };
 
-/** Current user's tickets across all events */
+/** Current user's tickets across all events — always enabled */
 export function useMyTickets() {
+  const zustandTickets = useTicketStore((s) => s.tickets);
+
   return useQuery({
     queryKey: ticketKeys.myTickets(),
-    queryFn: () => ticketsApi.getMyTickets(),
-    enabled: isFeatureEnabled("ticketing_enabled"),
+    queryFn: async () => {
+      const dbTickets = await ticketsApi.getMyTickets();
+
+      // Merge Zustand store tickets (from RSVP path) that aren't in DB yet
+      const dbEventIds = new Set(dbTickets.map((t) => String(t.event_id)));
+      const storeOnlyTickets = Object.values(zustandTickets)
+        .filter((t) => !dbEventIds.has(String(t.eventId)))
+        .map((t) => ({
+          id: t.id,
+          event_id: parseInt(t.eventId) || 0,
+          ticket_type_id: "",
+          user_id: t.userId,
+          status: (t.status === "valid" ? "active" : t.status) as
+            | "active"
+            | "scanned"
+            | "refunded"
+            | "void",
+          qr_token: t.qrToken,
+          checked_in_at: t.checkedInAt || null,
+          checked_in_by: null,
+          purchase_amount_cents: t.paid ? null : 0,
+          created_at: new Date().toISOString(),
+          ticket_type_name: t.tierName || "Free Entry",
+          event_title: t.eventTitle || "",
+          event_image: t.eventImage || "",
+          event_date: t.eventDate || "",
+          event_location: t.eventLocation || "",
+        }));
+
+      return [...dbTickets, ...storeOnlyTickets];
+    },
+    // Always enabled — viewing tickets should never be gated
   });
 }
 
