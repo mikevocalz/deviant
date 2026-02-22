@@ -69,6 +69,7 @@ function withLiveActivitySwiftFiles(config) {
       const swiftFiles = [
         "DVNTLiveAttributes.swift",
         "DVNTLiveActivityWidget.swift",
+        "DVNTHomeWidget.swift",
         "DVNTWidgetBundle.swift",
       ];
 
@@ -113,17 +114,61 @@ function withLiveActivitySwiftFiles(config) {
         "utf-8",
       );
 
-      // Extension Info.plist
-      const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>\n    <key>CFBundleDisplayName</key><string>DVNT Live</string>\n    <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>\n    <key>CFBundleIdentifier</key><string>${EXTENSION_BUNDLE_ID}</string>\n    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>\n    <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>\n    <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>\n    <key>CFBundleShortVersionString</key><string>1.0</string>\n    <key>CFBundleVersion</key><string>1</string>\n    <key>NSExtension</key><dict><key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string></dict>\n    <key>NSSupportsLiveActivities</key><true/>\n</dict>\n</plist>`;
+      // Extension Info.plist — CFBundleShortVersionString must match main app
+      const version = config.expo?.version ?? "1.0.0";
+      const plist = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>\n    <key>CFBundleDisplayName</key><string>DVNT Live</string>\n    <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>\n    <key>CFBundleIdentifier</key><string>${EXTENSION_BUNDLE_ID}</string>\n    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>\n    <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>\n    <key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>\n    <key>CFBundleShortVersionString</key><string>${version}</string>\n    <key>CFBundleVersion</key><string>1</string>\n    <key>NSExtension</key><dict><key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string></dict>\n    <key>NSSupportsLiveActivities</key><true/>\n</dict>\n</plist>`;
       fs.writeFileSync(path.join(extDir, "Info.plist"), plist, "utf-8");
 
-      // Extension entitlements
-      const ent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>com.apple.security.application-groups</key>\n    <array><string>${APP_GROUP_ID}</string></array>\n</dict>\n</plist>`;
+      // Extension entitlements (App Groups + network for AsyncImage URL loading)
+      const ent = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n<dict>\n    <key>com.apple.security.application-groups</key>\n    <array><string>${APP_GROUP_ID}</string></array>\n    <key>com.apple.security.network.client</key>\n    <true/>\n</dict>\n</plist>`;
       fs.writeFileSync(
         path.join(extDir, `${EXTENSION_NAME}.entitlements`),
         ent,
         "utf-8",
       );
+
+      // Copy dvnt_logo asset for Widget UI (required by DVNTLiveActivityWidget.swift)
+      const projectRoot = path.join(__dirname, "..");
+      const iconSrc = path.join(projectRoot, "assets", "images", "ios-icon.png");
+      const assetDir = path.join(extDir, "Assets.xcassets");
+      const logoDir = path.join(assetDir, "dvnt_logo.imageset");
+      fs.mkdirSync(logoDir, { recursive: true });
+      if (fs.existsSync(iconSrc)) {
+        const dest = path.join(logoDir, "icon.png");
+        fs.copyFileSync(iconSrc, dest);
+        fs.writeFileSync(
+          path.join(logoDir, "Contents.json"),
+          JSON.stringify({
+            images: [
+              { filename: "icon.png", idiom: "universal", scale: "1x" },
+              { filename: "icon.png", idiom: "universal", scale: "2x" },
+              { filename: "icon.png", idiom: "universal", scale: "3x" },
+            ],
+            info: { author: "xcode", version: 1 },
+          }, null, 2),
+          "utf-8",
+        );
+      }
+
+      const glyphDir = path.join(assetDir, "dvnt_logo_glyph.imageset");
+      fs.mkdirSync(glyphDir, { recursive: true });
+      const glyphSrc = path.join(projectRoot, "assets", "images", "dvnt-glyph.png");
+      const glyphSource = fs.existsSync(glyphSrc) ? glyphSrc : iconSrc;
+      if (fs.existsSync(glyphSource)) {
+        fs.copyFileSync(glyphSource, path.join(glyphDir, "icon.png"));
+        fs.writeFileSync(
+          path.join(glyphDir, "Contents.json"),
+          JSON.stringify({
+            images: [
+              { filename: "icon.png", idiom: "universal", scale: "1x" },
+              { filename: "icon.png", idiom: "universal", scale: "2x" },
+              { filename: "icon.png", idiom: "universal", scale: "3x" },
+            ],
+            info: { author: "xcode", version: 1 },
+          }, null, 2),
+          "utf-8",
+        );
+      }
 
       console.log(`[with-live-activity] Wrote iOS files`);
       return config;
@@ -139,19 +184,35 @@ function withWidgetExtensionTarget(config) {
   return withXcodeProject(config, (config) => {
     const project = config.modResults;
     const projectName = config.modRequest.projectName;
+    const version = config.expo?.version ?? "1.0.0";
+
+    // Extension MARKETING_VERSION must match main app (fixes CFBundleShortVersionString warning)
+    const dominated = /_comment$/;
+    const configs = project.pbxXCBuildConfigurationSection() || {};
+    for (const key of Object.keys(configs)) {
+      if (dominated.test(key)) continue;
+      const cfg = configs[key];
+      const bs = cfg?.buildSettings;
+      if (
+        bs &&
+        (bs.PRODUCT_BUNDLE_IDENTIFIER === "com.dvnt.app.DVNTLiveActivityExtension" ||
+          bs.INFOPLIST_FILE?.includes("DVNTLiveActivityExtension"))
+      ) {
+        bs.MARKETING_VERSION = version;
+      }
+    }
 
     // Fix: Adding Swift files to the main RN target triggers Swift/ObjC interop.
     // The ObjC bridge imports <React/RCTBridgeModule.h> which causes
     // -Wnon-modular-include-in-framework-module errors. This build setting suppresses them.
-    const dominated = /_comment$/;
-    const configs = Object.keys(project.pbxXCBuildConfigurationSection())
+    const allConfigs = Object.keys(project.pbxXCBuildConfigurationSection())
       .filter((k) => !dominated.test(k))
       .reduce((acc, k) => {
         acc[k] = project.pbxXCBuildConfigurationSection()[k];
         return acc;
       }, {});
-    for (const key in configs) {
-      const bs = configs[key].buildSettings;
+    for (const key in allConfigs) {
+      const bs = allConfigs[key].buildSettings;
       if (bs && bs["PRODUCT_NAME"]) {
         bs["CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES"] = "YES";
       }
