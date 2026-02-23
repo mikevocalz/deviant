@@ -17,7 +17,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Motion } from "@legendapp/motion";
 import { useTicketStore } from "@/lib/stores/ticket-store";
-import type { TicketTierLevel } from "@/lib/stores/ticket-store";
+import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
+import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
+import type { TicketRecord } from "@/lib/api/tickets";
 import {
   TicketHeroCard,
   TicketQRCode,
@@ -32,21 +34,70 @@ const TIER_ACCENT: Record<TicketTierLevel, string> = {
   table: "#FF5BFC",
 };
 
+/** Map a DB TicketRecord → the Ticket shape used by UI components */
+function dbToTicket(rec: TicketRecord): Ticket {
+  return {
+    id: rec.id,
+    eventId: String(rec.event_id),
+    userId: rec.user_id,
+    paid: (rec.purchase_amount_cents ?? 0) > 0,
+    status:
+      rec.status === "active"
+        ? "valid"
+        : rec.status === "scanned"
+          ? "checked_in"
+          : rec.status === "refunded"
+            ? "revoked"
+            : "expired",
+    checkedInAt: rec.checked_in_at ?? undefined,
+    qrToken: rec.qr_token,
+    tier: (rec.ticket_type_name?.toLowerCase().includes("vip")
+      ? "vip"
+      : rec.ticket_type_name?.toLowerCase().includes("table")
+        ? "table"
+        : (rec.purchase_amount_cents ?? 0) === 0
+          ? "free"
+          : "ga") as TicketTierLevel,
+    tierName: rec.ticket_type_name || "General Admission",
+    eventTitle: rec.event_title || "",
+    eventDate: rec.event_date || "",
+    eventLocation: rec.event_location || "",
+    eventImage: rec.event_image || "",
+  };
+}
+
 export default function ViewTicketScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { getTicketByEventId } = useTicketStore();
 
-  const eventId = id || "lower-east-side-winter-bar-fest";
-  const ticket = getTicketByEventId(eventId);
+  const eventId = id || "";
+  const { data: dbTicket, isLoading, isError } = useMyTicketForEvent(eventId);
+
+  // Also check Zustand store as fallback (for recently RSVPed tickets not yet in DB)
+  const storeTicket = useTicketStore((s) => s.getTicketByEventId(eventId));
+  const ticket: Ticket | undefined = dbTicket
+    ? dbToTicket(dbTicket)
+    : storeTicket;
 
   // ── Loading state ──
-  // Ticket store is synchronous, but guard for missing data
+  if (isLoading && !ticket) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <Pressable onPress={() => router.back()} style={styles.backButton}>
+          <ArrowLeft size={22} color="#fff" />
+        </Pressable>
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color="#8A40CF" />
+        </View>
+      </View>
+    );
+  }
+
+  // ── Not found / error state ──
   if (!ticket) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        {/* Back button */}
         <Pressable onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={22} color="#fff" />
         </Pressable>

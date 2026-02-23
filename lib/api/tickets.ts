@@ -226,10 +226,7 @@ export const ticketsApi = {
    * Issue a ticket for a free RSVP (legacy path when ticketing is OFF).
    * Creates a real DB row with a crypto-random token via server-side RPC.
    */
-  async issueRsvpTicket(params: {
-    eventId: string;
-    userId: string;
-  }): Promise<{
+  async issueRsvpTicket(params: { eventId: string; userId: string }): Promise<{
     id: string;
     qr_token: string;
     already_existed: boolean;
@@ -244,6 +241,42 @@ export const ticketsApi = {
       return data as { id: string; qr_token: string; already_existed: boolean };
     } catch (error) {
       console.error("[Tickets] issueRsvpTicket error:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Get current user's ticket for a specific event
+   */
+  async getMyTicketForEvent(eventId: string): Promise<TicketRecord | null> {
+    try {
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return null;
+
+      const { data, error } = await supabase
+        .from("tickets")
+        .select(
+          "*, ticket_types(name), events(title, cover_image_url, start_date, end_date, location)",
+        )
+        .eq("user_id", authId)
+        .eq("event_id", parseInt(eventId))
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      return {
+        ...data,
+        ticket_type_name: data.ticket_types?.name || "General",
+        event_title: data.events?.title || "",
+        event_image: data.events?.cover_image_url || "",
+        event_date: data.events?.start_date || "",
+        event_location: data.events?.location || "",
+      } as TicketRecord;
+    } catch (error) {
+      console.error("[Tickets] getMyTicketForEvent error:", error);
       return null;
     }
   },
