@@ -2,7 +2,13 @@
  * React Query hooks for comments
  */
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
+import { useCallback } from "react";
 import { commentsApi as commentsApiClient } from "@/lib/api/comments";
 import type { Comment } from "@/lib/types";
 import { postKeys } from "@/lib/hooks/use-posts";
@@ -21,6 +27,8 @@ export const commentKeys = {
 export function useComments(postId: string, limit?: number) {
   return useQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
+    staleTime: 60_000, // 60s — serve from cache instantly, revalidate in background
+    gcTime: 5 * 60_000,
     queryFn: async () => {
       try {
         const comments = await commentsApiClient.getComments(postId, limit);
@@ -69,6 +77,29 @@ export function useComments(postId: string, limit?: number) {
     },
     enabled: !!postId,
   });
+}
+
+/** Prefetch comments for a post before navigating — eliminates loading state. */
+export function prefetchComments(
+  queryClient: QueryClient,
+  postId: string,
+  limit: number = 50,
+): void {
+  if (!postId) return;
+  queryClient.prefetchQuery({
+    queryKey: [...commentKeys.byPost(postId), limit || "all"],
+    queryFn: () => commentsApiClient.getComments(postId, limit),
+    staleTime: 60_000,
+  });
+}
+
+/** Hook that returns prefetch fn for use in Pressable onPress. */
+export function usePrefetchComments() {
+  const queryClient = useQueryClient();
+  return useCallback(
+    (postId: string) => prefetchComments(queryClient, postId),
+    [queryClient],
+  );
 }
 
 // Create comment mutation with optimistic updates

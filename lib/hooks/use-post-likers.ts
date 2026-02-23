@@ -14,6 +14,8 @@ import {
 } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { likesApi, type PostLiker } from "@/lib/api/likes";
+import { likeStateKeys } from "@/lib/hooks/usePostLikeState";
+import { useAuthStore } from "@/lib/stores/auth-store";
 
 export const postLikersKeys = {
   all: ["postLikers"] as const,
@@ -21,11 +23,28 @@ export const postLikersKeys = {
 };
 
 export function usePostLikers(postId: string | undefined, enabled: boolean) {
+  const queryClient = useQueryClient();
+  const viewerId = useAuthStore((s) => s.user?.id) || "";
+
   return useQuery<PostLiker[]>({
     queryKey: postLikersKeys.forPost(postId || ""),
-    queryFn: () => likesApi.getPostLikers(postId!),
+    queryFn: async () => {
+      const result = await likesApi.getPostLikers(postId!);
+
+      // Sync authoritative likesCount from DB into likeState cache
+      // This fixes count/sheet mismatch when likes_count drifted
+      if (viewerId && postId && result.likesCount != null) {
+        const likeKey = likeStateKeys.forPost(viewerId, postId);
+        queryClient.setQueryData(likeKey, (old: any) => {
+          if (!old) return old;
+          return { ...old, likes: result.likesCount };
+        });
+      }
+
+      return result.likers;
+    },
     enabled: !!postId && enabled,
-    staleTime: 15_000,
+    staleTime: 0, // Always fresh when sheet opens — count must match list
     gcTime: 5 * 60 * 1000,
   });
 }

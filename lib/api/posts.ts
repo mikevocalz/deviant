@@ -222,7 +222,7 @@ export const postsApi = {
         );
       const isInteger = /^\d+$/.test(userId);
 
-      let postsQuery: ReturnType<typeof supabase.from>;
+      let postsQuery: any;
 
       if (isInteger) {
         // Fast path: integer ID — query posts directly

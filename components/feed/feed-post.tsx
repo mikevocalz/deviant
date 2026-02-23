@@ -16,7 +16,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useFeedSlideStore } from "@/lib/stores/post-store";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 // Note: usePostStore import removed - like state is managed by usePostLikeState via React Query
-import { useComments } from "@/lib/hooks/use-comments";
+import { useComments, usePrefetchComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -133,6 +133,7 @@ function FeedPostComponent({
   const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
   const prefetchLikers = usePrefetchPostLikers();
+  const prefetchComments = usePrefetchComments();
   const deletePostMutation = useDeletePost();
 
   const isOwner = currentUser?.username === author.username;
@@ -731,6 +732,7 @@ function FeedPostComponent({
               hitSlop={12}
               onPress={() => {
                 if (id) {
+                  prefetchComments(id);
                   router.push(`/(protected)/comments/${id}`);
                 }
               }}

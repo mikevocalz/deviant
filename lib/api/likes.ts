@@ -21,15 +21,18 @@ export const likesApi = {
    * Fetch all users who liked a post, ordered by most recent first.
    * Uses Edge Function (service role) to bypass RLS and return full list.
    */
-  async getPostLikers(postId: string): Promise<PostLiker[]> {
+  async getPostLikers(
+    postId: string,
+  ): Promise<{ likers: PostLiker[]; likesCount: number }> {
     try {
       const postIdInt = parseInt(postId);
-      if (isNaN(postIdInt)) return [];
+      if (isNaN(postIdInt)) return { likers: [], likesCount: 0 };
 
       const token = await requireBetterAuthToken();
 
       const { data, error } = await supabase.functions.invoke<{
         likers?: PostLiker[];
+        likesCount?: number;
         error?: string;
       }>("get-post-likers", {
         body: { postId: postIdInt },
@@ -38,18 +41,21 @@ export const likesApi = {
 
       if (error) {
         console.error("[Likes] getPostLikers Edge Function error:", error);
-        return [];
+        return { likers: [], likesCount: 0 };
       }
 
       if (!data?.likers) {
         if (data?.error) console.error("[Likes] get-post-likers:", data.error);
-        return [];
+        return { likers: [], likesCount: 0 };
       }
 
-      return data.likers;
+      return {
+        likers: data.likers,
+        likesCount: data.likesCount ?? data.likers.length,
+      };
     } catch (error) {
       console.error("[Likes] getPostLikers error:", error);
-      return [];
+      return { likers: [], likesCount: 0 };
     }
   },
 
