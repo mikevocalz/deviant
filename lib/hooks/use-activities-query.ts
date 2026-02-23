@@ -75,6 +75,7 @@ function notificationToActivity(notif: Notification): Activity | null {
         id: notif.sender?.id || "",
         username: senderUsername,
         avatar: notif.sender?.avatar || "",
+        viewerFollows: notif.sender?.viewerFollows,
       },
       entityType: notif.entityType as
         | "post"
