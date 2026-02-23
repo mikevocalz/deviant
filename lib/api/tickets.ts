@@ -1,5 +1,5 @@
 import { supabase } from "../supabase/client";
-import { getCurrentUserAuthId } from "./auth-helper";
+import { getCurrentUserAuthId, getCurrentUserId } from "./auth-helper";
 
 export interface TicketRecord {
   id: string;
@@ -53,12 +53,20 @@ export const ticketsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) return [];
 
+      // Query by auth_id, and also by integer user ID string as fallback
+      // (tickets created before the auth_id fix may have stored user.id instead)
+      const intId = getCurrentUserId();
+      const userIdFilter =
+        intId && intId !== authId
+          ? `user_id.eq.${authId},user_id.eq.${intId}`
+          : `user_id.eq.${authId}`;
+
       const { data, error } = await supabase
         .from("tickets")
         .select(
           "*, ticket_types(name), events(title, cover_image_url, start_date, location)",
         )
-        .eq("user_id", authId)
+        .or(userIdFilter)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -253,12 +261,19 @@ export const ticketsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) return null;
 
+      // Query by auth_id + integer user ID string fallback (same as getMyTickets)
+      const intId = getCurrentUserId();
+      const userIdFilter =
+        intId && intId !== authId
+          ? `user_id.eq.${authId},user_id.eq.${intId}`
+          : `user_id.eq.${authId}`;
+
       const { data, error } = await supabase
         .from("tickets")
         .select(
           "*, ticket_types(name), events(title, cover_image_url, start_date, end_date, location)",
         )
-        .eq("user_id", authId)
+        .or(userIdFilter)
         .eq("event_id", parseInt(eventId))
         .order("created_at", { ascending: false })
         .limit(1)
