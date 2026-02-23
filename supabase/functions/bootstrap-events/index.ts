@@ -45,6 +45,7 @@ Deno.serve(async (req: Request) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
     // ── 1. Fetch events with valid start_date ─────────────────────────
@@ -69,7 +70,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 2. Batch-fetch hosts ──────────────────────────────────────────
-    const hostIds = [...new Set(events.map((e: any) => e.host_id).filter(Boolean))];
+    const hostIds = [
+      ...new Set(events.map((e: any) => e.host_id).filter(Boolean)),
+    ];
     const hostsMap = new Map();
 
     if (hostIds.length > 0) {
@@ -101,7 +104,10 @@ Deno.serve(async (req: Request) => {
 
     // ── 3. Batch-fetch RSVP attendees with avatars ────────────────────
     const eventIds = events.map((e: any) => e.id);
-    const attendeesMap = new Map<number, { image: string; initials: string }[]>();
+    const attendeesMap = new Map<
+      number,
+      { image: string; initials: string }[]
+    >();
 
     const { data: rsvps } = await supabase
       .from("event_rsvps")
@@ -117,7 +123,9 @@ Deno.serve(async (req: Request) => {
         .in("auth_id", rsvpAuthIds);
 
       // Batch avatar lookup
-      const rsvpAvatarIds = (rsvpUsers || []).map((u: any) => u.avatar_id).filter(Boolean);
+      const rsvpAvatarIds = (rsvpUsers || [])
+        .map((u: any) => u.avatar_id)
+        .filter(Boolean);
       const rsvpAvatarMap = new Map();
       if (rsvpAvatarIds.length > 0) {
         const { data: avatars } = await supabase
@@ -181,7 +189,10 @@ Deno.serve(async (req: Request) => {
           : "---",
         fullDate: d ? d.toISOString() : undefined,
         time: d
-          ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+          ? d.toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+            })
           : "",
         location: event.location,
         image: event.cover_image_url || "",
@@ -210,9 +221,9 @@ Deno.serve(async (req: Request) => {
     );
   } catch (err) {
     console.error("[bootstrap-events] Error:", err);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 });

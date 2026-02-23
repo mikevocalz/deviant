@@ -33,7 +33,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
     const userId = await verifySession(supabase, req);
     if (!userId) return errorResponse("Unauthorized", 401);
 
@@ -70,7 +73,9 @@ Deno.serve(async (req: Request) => {
     // Get orders that are disputed for host's events
     const { data: disputedOrders } = await supabase
       .from("orders")
-      .select("id, total_cents, status, created_at, stripe_payment_intent_id, event_id, events(title)")
+      .select(
+        "id, total_cents, status, created_at, stripe_payment_intent_id, event_id, events(title)",
+      )
       .in("event_id", hostEventIds)
       .eq("status", "disputed")
       .order("created_at", { ascending: false })

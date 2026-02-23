@@ -8,7 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -39,7 +40,13 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let body: { secret: string; email: string; username: string; password: string; name: string };
+    let body: {
+      secret: string;
+      email: string;
+      username: string;
+      password: string;
+      name: string;
+    };
     try {
       body = await req.json();
     } catch {
@@ -64,7 +71,10 @@ Deno.serve(async (req) => {
       return errorResponse("internal_error", "Server configuration error");
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
+    });
 
     // Check if user already exists
     const { data: existingUser } = await supabaseAdmin
@@ -107,8 +117,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (createError) {
-      console.error("[Edge:create-test-user] Failed to create user:", createError);
-      return errorResponse("internal_error", `Failed to create user: ${createError.message}`);
+      console.error(
+        "[Edge:create-test-user] Failed to create user:",
+        createError,
+      );
+      return errorResponse(
+        "internal_error",
+        `Failed to create user: ${createError.message}`,
+      );
     }
 
     console.log("[Edge:create-test-user] Created test user:", newUser.id);
