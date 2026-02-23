@@ -33,10 +33,11 @@ async function getVoltra() {
 
 /**
  * Preload hero images for all carousel tiles + upcoming events.
+ * Returns the set of asset keys that succeeded — callers skip tiles whose key is absent.
  */
 async function preloadAllHeroImages(
   payload: LiveSurfacePayload,
-): Promise<void> {
+): Promise<Set<string>> {
   const { preloadImages } = await import("voltra/client");
 
   const images: { url: string; key: string }[] = [];
@@ -53,16 +54,43 @@ async function preloadAllHeroImages(
     }
   });
 
-  if (images.length === 0) return;
+  if (images.length === 0) return new Set();
 
-  const result = await preloadImages(images);
+  // 10s timeout — don't let a slow CDN block the Live Activity push
+  const timeoutPromise = new Promise<{
+    succeeded: string[];
+    failed: { key: string; error?: string }[];
+  }>((resolve) =>
+    setTimeout(
+      () =>
+        resolve({
+          succeeded: [],
+          failed: images.map((image) => ({ key: image.key })),
+        }),
+      10_000,
+    ),
+  );
+
+  type PreloadResult = {
+    succeeded: string[];
+    failed: { key: string; error?: string }[];
+  };
+  const result: PreloadResult = await Promise.race([
+    preloadImages(images),
+    timeoutPromise,
+  ]);
+  const succeededKeys = new Set(result.succeeded);
+
   console.log(
     "[LiveSurface] preloadImages:",
     result.succeeded.length,
     "ok,",
     result.failed.length,
     "failed",
+    result.failed.map((r) => r.key),
   );
+
+  return succeededKeys;
 }
 
 /**
@@ -141,11 +169,14 @@ async function updateVoltraSurfaces(
       await import("@/src/live-surface/voltra-views");
     const { updateWidget } = await import("voltra/client");
 
-    // 1. Preload all hero images
-    await preloadAllHeroImages(payload);
+    // 1. Preload all hero images — get back which keys succeeded
+    const succeededKeys = await preloadAllHeroImages(payload);
 
-    // 2. Build carousel tiles
-    const tiles = buildCarouselTiles(payload.tile1, payload.tile3?.items);
+    // 2. Build carousel tiles, filtering out any whose hero failed to preload
+    const allTiles = buildCarouselTiles(payload.tile1, payload.tile3?.items);
+    const tiles = allTiles.filter(
+      (t) => succeededKeys.has(t.heroAssetName) || allTiles.indexOf(t) === 0,
+    );
     const weather = payload.weather;
 
     // 3. Push first frame immediately
