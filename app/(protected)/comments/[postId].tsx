@@ -63,27 +63,28 @@ export default function CommentsScreen() {
   const handleSend = useCallback(() => {
     // PHASE 1 FIX: Comprehensive duplicate prevention
     const now = Date.now();
-    console.log("[Comments] handleSend called", {
-      isSubmitLocked,
-      isPending: createComment.isPending,
-      timeSinceLastSubmit: now - lastSubmitTimeRef.current,
-    });
+    if (__DEV__)
+      console.log("[Comments] handleSend called", {
+        isSubmitLocked,
+        isPending: createComment.isPending,
+        timeSinceLastSubmit: now - lastSubmitTimeRef.current,
+      });
 
     // CHECK 1: Local submit lock (prevents rapid taps)
     if (isSubmitLocked) {
-      console.log("[Comments] BLOCKED: Submit locked");
+      if (__DEV__) console.log("[Comments] BLOCKED: Submit locked");
       return;
     }
 
     // CHECK 2: Mutation already in flight
     if (createComment.isPending) {
-      console.log("[Comments] BLOCKED: Mutation pending");
+      if (__DEV__) console.log("[Comments] BLOCKED: Mutation pending");
       return;
     }
 
     // CHECK 3: Cooldown period (prevents double-tap even if lock was released)
     if (now - lastSubmitTimeRef.current < submitCooldownMs) {
-      console.log("[Comments] BLOCKED: Cooldown period");
+      if (__DEV__) console.log("[Comments] BLOCKED: Cooldown period");
       return;
     }
 
@@ -117,10 +118,11 @@ export default function CommentsScreen() {
 
     // Generate unique mutation ID for server-side idempotency
     const clientMutationId = generateMutationId();
-    console.log(
-      "[Comments] Submitting with clientMutationId:",
-      clientMutationId,
-    );
+    if (__DEV__)
+      console.log(
+        "[Comments] Submitting with clientMutationId:",
+        clientMutationId,
+      );
 
     const commentText = comment.trim();
     const parentId = replyingTo || undefined;
