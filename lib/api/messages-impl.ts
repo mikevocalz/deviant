@@ -67,6 +67,14 @@ export const messagesApi = {
       // Process each conversation — parallel queries within each, all convs in parallel
       const conversations = await Promise.all(
         (data || []).map(async (conv: any) => {
+          // Guard: FK join on conversations table may return null if RLS blocks
+          // or if the conversation row was deleted. Skip gracefully.
+          if (!conv.conversation) {
+            console.warn(
+              "[Messages] conversation FK join returned null for a conversations_rels row",
+            );
+            return null;
+          }
           const convId = conv.conversation[DB.conversations.id];
 
           try {
@@ -74,13 +82,16 @@ export const messagesApi = {
             const [lastMessageResult, participantsResult, unreadResult] =
               await Promise.all([
                 // Last message (no join — avoids FK ambiguity)
+                // Use maybeSingle() instead of single() — single() throws when
+                // 0 rows match (e.g. RLS blocks access), which cascades to
+                // filtering out the entire conversation as a "ghost".
                 supabase
                   .from(DB.messages.table)
                   .select(`${DB.messages.content}, ${DB.messages.createdAt}`)
                   .eq(DB.messages.conversationId, convId)
                   .order(DB.messages.createdAt, { ascending: false })
                   .limit(1)
-                  .single(),
+                  .maybeSingle(),
                 // Other participant's auth_id
                 supabase
                   .from(DB.conversationsRels.table)
@@ -157,6 +168,17 @@ export const messagesApi = {
 
       // Filter out failed conversations, sort by most recent
       const valid = conversations.filter(Boolean);
+
+      // DIAGNOSTIC: If we got raw rows but all were filtered out, something
+      // is systematically wrong (e.g. RLS blocking messages table reads).
+      // This should never happen in normal operation.
+      if (valid.length === 0 && (data || []).length > 0) {
+        console.error(
+          `[Messages] CRITICAL: ${data!.length} conversations_rels rows returned but ALL were filtered out. ` +
+            `Likely cause: messages table RLS blocking reads, or conversations FK join returning null. ` +
+            `authId=${authId}, visitorIntId=${visitorIntId}`,
+        );
+      }
       valid.sort((a: any, b: any) => {
         const tA = new Date(a._rawTs || 0).getTime();
         const tB = new Date(b._rawTs || 0).getTime();
@@ -695,6 +717,17 @@ export const messagesApi = {
         this.getFollowingIds(),
       ]);
 
+      // CRITICAL GUARD: If getFollowingIds() failed or returned empty,
+      // show ALL conversations in the Inbox rather than hiding everything.
+      // This prevents a silent session-expiry / edge-fn failure from
+      // making the user think all their messages disappeared.
+      if (followingIds.length === 0) {
+        console.warn(
+          "[Messages] getFollowingIds returned empty — showing all conversations in inbox",
+        );
+        return filter === "primary" ? conversations : [];
+      }
+
       if (filter === "primary") {
         // Inbox: conversations from users you follow
         return conversations.filter((c: any) => {
@@ -735,7 +768,8 @@ export const messagesApi = {
         return [];
       }
       if (!data?.followingIds) {
-        if (data?.error) console.error("[Messages] get-following-ids:", data.error);
+        if (data?.error)
+          console.error("[Messages] get-following-ids:", data.error);
         return [];
       }
       return data.followingIds;
