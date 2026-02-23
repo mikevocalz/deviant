@@ -220,10 +220,10 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           });
           updateProgress("Video compressed");
 
-          // Step 3: Generate thumbnail from ORIGINAL video (better quality)
+          // Step 3: Generate thumbnail from ORIGINAL video (non-blocking — upload continues on timeout)
           setStatusMessage("Generating thumbnail...");
           let thumbnailUrl: string | undefined;
-          const thumbResult = await generateVideoThumbnail(file.uri, 500);
+          const thumbResult = await generateVideoThumbnail(file.uri, 500, 6000);
           if (thumbResult.success && thumbResult.uri) {
             let thumbUpload: { success: boolean; url: string; error?: string };
             if (USE_SERVER_UPLOAD) {
