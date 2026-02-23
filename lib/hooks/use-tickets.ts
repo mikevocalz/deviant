@@ -7,6 +7,7 @@ import { ticketsApi } from "@/lib/api/tickets";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTicketStore } from "@/lib/stores/ticket-store";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 export const ticketKeys = {
   all: ["tickets"] as const,
@@ -58,7 +59,8 @@ export function useMyTickets() {
 
       return [...dbTickets, ...storeOnlyTickets];
     },
-    // Always enabled — viewing tickets should never be gated
+    staleTime: STALE_TIMES.bookmarks, // 10min — tickets change only on purchase/scan
+    gcTime: GC_TIMES.standard,
   });
 }
 
@@ -70,6 +72,8 @@ export function useMyTicketForEvent(eventId: string) {
     queryKey: ticketKeys.myTicketForEvent(eventId),
     queryFn: () => ticketsApi.getMyTicketForEvent(eventId),
     enabled: !!eventId,
+    staleTime: STALE_TIMES.bookmarks,
+    gcTime: GC_TIMES.standard,
     // If Zustand store has a ticket (from recent RSVP), use it as placeholder
     placeholderData: storeTicket
       ? ({
@@ -101,6 +105,8 @@ export function useEventTickets(eventId: string) {
     queryKey: ticketKeys.eventTickets(eventId),
     queryFn: () => ticketsApi.getEventTickets(eventId),
     enabled: !!eventId && isFeatureEnabled("organizer_tools_enabled"),
+    staleTime: STALE_TIMES.events,
+    gcTime: GC_TIMES.short,
   });
 }
 
@@ -110,6 +116,8 @@ export function useTicketTypes(eventId: string) {
     queryKey: ticketKeys.ticketTypes(eventId),
     queryFn: () => ticketsApi.getTicketTypes(eventId),
     enabled: !!eventId && isFeatureEnabled("ticketing_enabled"),
+    staleTime: STALE_TIMES.events,
+    gcTime: GC_TIMES.short,
   });
 }
 
@@ -119,6 +127,8 @@ export function useEventFinancials(eventId: string) {
     queryKey: ticketKeys.financials(eventId),
     queryFn: () => ticketsApi.getEventFinancials(eventId),
     enabled: !!eventId && isFeatureEnabled("organizer_tools_enabled"),
+    staleTime: STALE_TIMES.events,
+    gcTime: GC_TIMES.short,
   });
 }
 
