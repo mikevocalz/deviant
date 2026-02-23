@@ -83,14 +83,30 @@ export const eventKeys = {
 export function useEvents(filters?: EventFilters) {
   return useQuery({
     queryKey: eventKeys.list(filters),
-    queryFn: () =>
-      eventsApiClient.getEvents(20, filters?.category, {
+    queryFn: async () => {
+      // Derive category for RPC: single category goes server-side,
+      // multi-category fetches all then filters client-side
+      const categories = filters?.categories ?? [];
+      const singleCategory =
+        categories.length === 1
+          ? categories[0]
+          : (filters?.category ?? undefined);
+
+      const results = await eventsApiClient.getEvents(20, singleCategory, {
         online: filters?.online,
         tonight: filters?.tonight,
         weekend: filters?.weekend,
         search: filters?.search,
         sort: filters?.sort,
-      }),
+      });
+
+      // Client-side filter for multi-category (RPC only supports single p_category)
+      if (categories.length > 1) {
+        const catSet = new Set(categories);
+        return results.filter((e: any) => e.category && catSet.has(e.category));
+      }
+      return results;
+    },
     staleTime: STALE_TIMES.events,
     placeholderData: keepPreviousData,
   });
