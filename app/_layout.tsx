@@ -47,9 +47,11 @@ enforceListPolicy();
 SplashScreen.preventAutoHideAsync();
 
 // Supabase URL for health checks
+const _rawLayoutUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://npfjanxturvmjyevoyfo.supabase.co";
+  typeof _rawLayoutUrl === "string" && _rawLayoutUrl.startsWith("https://")
+    ? _rawLayoutUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
 
 /**
  * ╔══════════════════════════════════════════════════════════════╗

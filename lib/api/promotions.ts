@@ -12,9 +12,11 @@ import type {
   CampaignPlacement,
 } from "@/src/events/promotion-types";
 
+const _rawSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://npfjanxturvmjyevoyfo.supabase.co";
+  typeof _rawSupabaseUrl === "string" && _rawSupabaseUrl.startsWith("https://")
+    ? _rawSupabaseUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
 
 export const promotionsApi = {
   /**

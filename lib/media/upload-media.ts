@@ -62,10 +62,11 @@ export interface UploadMediaResult {
 
 // Edge function URL - uses Supabase project URL
 const getEdgeFunctionUrl = () => {
-  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-  if (!supabaseUrl) {
-    throw new Error("EXPO_PUBLIC_SUPABASE_URL not configured");
-  }
+  const raw = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    typeof raw === "string" && raw.startsWith("https://")
+      ? raw
+      : "https://npfjanxturvmjyevoyfo.supabase.co";
   return `${supabaseUrl}/functions/v1/media-upload`;
 };
 
