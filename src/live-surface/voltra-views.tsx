@@ -263,84 +263,117 @@ export function lockScreenView(
   currentIndex: number,
   totalTiles: number,
 ) {
-  return (
-    <Voltra.HStack
-      spacing={0}
-      style={{ backgroundColor: "rgba(0,0,0,0.92)", borderRadius: 20 }}
-    >
-      {/* Left: hero image with date badge overlay */}
-      <Voltra.ZStack alignment="bottomLeading">
-        <Voltra.Image
-          source={{ assetName: tile.heroAssetName }}
-          resizeMode="cover"
-          style={{ width: 100, height: 100, borderRadius: 14 }}
-          fallback={
-            <Voltra.LinearGradient
-              colors={[PURPLE, DARK_BG]}
-              style={{ width: 100, height: 100, borderRadius: 14 }}
-            />
-          }
-        />
-        <Voltra.VStack style={{ padding: 4 }}>
-          <DateBadge startAt={tile.startAt} size="small" />
-        </Voltra.VStack>
-      </Voltra.ZStack>
+  const time = formatTime(tile.startAt);
 
-      {/* Right: event details */}
+  return (
+    <Voltra.ZStack
+      alignment="bottomLeading"
+      style={{ borderRadius: 20, overflow: "hidden" }}
+    >
+      {/* Full-bleed hero image */}
+      <Voltra.Image
+        source={{ assetName: tile.heroAssetName }}
+        resizeMode="cover"
+        style={{ width: "100%", height: 160, borderRadius: 20 }}
+        fallback={
+          <Voltra.LinearGradient
+            colors={[PURPLE, DARK_BG]}
+            style={{ width: "100%", height: 160, borderRadius: 20 }}
+          />
+        }
+      />
+
+      {/* Dark gradient scrim — bottom 2/3 */}
+      <Voltra.LinearGradient
+        colors={["transparent", "rgba(0,0,0,0.55)", "rgba(0,0,0,0.92)"]}
+        style={{ width: "100%", height: 160, borderRadius: 20 }}
+      />
+
+      {/* Top row: DVNT brand + date badge + weather */}
       <Voltra.VStack
-        alignment="leading"
-        spacing={3}
-        style={{ paddingHorizontal: 12, paddingVertical: 10, flex: 1 }}
+        style={{ width: "100%", height: 160, padding: 12 }}
+        spacing={0}
       >
-        {/* Top row: branding + weather */}
-        <Voltra.HStack spacing={4}>
+        <Voltra.HStack spacing={5}>
           <Voltra.Symbol name="sparkles" tintColor={PURPLE} scale="small" />
           <Voltra.Text
-            style={{ color: PURPLE, fontSize: 10, fontWeight: "700" }}
+            style={{
+              color: PURPLE,
+              fontSize: 11,
+              fontWeight: "700",
+              fontFamily: "Oasis",
+            }}
           >
             DVNT
           </Voltra.Text>
           <Voltra.Spacer />
           <WeatherBadge weather={weather} />
+          <DateBadge startAt={tile.startAt} size="small" />
         </Voltra.HStack>
+        <Voltra.Spacer />
+      </Voltra.VStack>
 
-        {/* Title */}
+      {/* Bottom overlay: all event details */}
+      <Voltra.VStack
+        alignment="leading"
+        spacing={5}
+        style={{ padding: 12, width: "100%" }}
+      >
+        {/* Category pill */}
+        {tile.category && <CategoryPill category={tile.category} />}
+
+        {/* Event title */}
         <Voltra.Text
           numberOfLines={2}
-          style={{ color: WHITE, fontSize: 15, fontWeight: "700" }}
+          style={{ color: WHITE, fontSize: 17, fontWeight: "800" }}
         >
           {tile.title}
         </Voltra.Text>
 
-        <Voltra.Spacer />
+        {/* Time + venue row */}
+        <Voltra.HStack spacing={10}>
+          {time && (
+            <Voltra.HStack spacing={3}>
+              <Voltra.Symbol name="clock" tintColor={WHITE40} scale="small" />
+              <Voltra.Text style={{ color: WHITE60, fontSize: 11 }}>
+                {time}
+              </Voltra.Text>
+            </Voltra.HStack>
+          )}
+          {tile.venueName && (
+            <Voltra.HStack spacing={3}>
+              <Voltra.Symbol name="mappin" tintColor={WHITE40} scale="small" />
+              <Voltra.Text
+                numberOfLines={1}
+                style={{ color: WHITE60, fontSize: 11 }}
+              >
+                {tile.venueName}
+                {tile.city ? ` · ${tile.city}` : ""}
+              </Voltra.Text>
+            </Voltra.HStack>
+          )}
+        </Voltra.HStack>
 
-        {/* Live countdown timer */}
-        {tile.isUpcoming && <LiveTimer startAt={tile.startAt} />}
-
-        {/* Venue + City + Page dots */}
-        <Voltra.HStack spacing={4}>
-          <Voltra.VStack alignment="leading" spacing={0} style={{ flex: 1 }}>
-            {tile.venueName && (
-              <Voltra.HStack spacing={3}>
-                <Voltra.Symbol
-                  name="mappin"
-                  tintColor={WHITE40}
-                  scale="small"
-                />
-                <Voltra.Text
-                  numberOfLines={1}
-                  style={{ color: WHITE60, fontSize: 10 }}
-                >
-                  {tile.venueName}
-                  {tile.city ? ` · ${tile.city}` : ""}
-                </Voltra.Text>
-              </Voltra.HStack>
-            )}
-          </Voltra.VStack>
+        {/* Bottom row: countdown + attendees + page dots */}
+        <Voltra.HStack spacing={8}>
+          {tile.isUpcoming && <LiveTimer startAt={tile.startAt} />}
+          {tile.attendeeCount != null && tile.attendeeCount > 0 && (
+            <Voltra.HStack spacing={3}>
+              <Voltra.Symbol
+                name="person.2.fill"
+                tintColor={WHITE40}
+                scale="small"
+              />
+              <Voltra.Text style={{ color: WHITE60, fontSize: 11 }}>
+                {tile.attendeeCount}
+              </Voltra.Text>
+            </Voltra.HStack>
+          )}
+          <Voltra.Spacer />
           <PageDots total={totalTiles} current={currentIndex} />
         </Voltra.HStack>
       </Voltra.VStack>
-    </Voltra.HStack>
+    </Voltra.ZStack>
   );
 }
 
@@ -375,7 +408,14 @@ export function dynamicIslandVariants(
           style={{ color: PURPLE, fontSize: 14, fontWeight: "700" }}
         />
       ) : (
-        <Voltra.Text style={{ color: WHITE, fontSize: 14, fontWeight: "600" }}>
+        <Voltra.Text
+          style={{
+            color: WHITE,
+            fontSize: 14,
+            fontWeight: "600",
+            fontFamily: "Oasis",
+          }}
+        >
           DVNT
         </Voltra.Text>
       ),
