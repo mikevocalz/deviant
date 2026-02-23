@@ -67,6 +67,7 @@ export const eventsApi = {
       weekend?: boolean;
       search?: string;
       sort?: string;
+      cityId?: number | null;
     },
   ) {
     try {
@@ -78,7 +79,7 @@ export const eventsApi = {
         p_limit: limit,
         p_offset: 0,
         p_viewer_id: viewerId ?? null,
-        p_city_id: null,
+        p_city_id: filters?.cityId ?? null,
         p_filter_online: filters?.online ?? null,
         p_filter_tonight: filters?.tonight ?? false,
         p_filter_weekend: filters?.weekend ?? false,

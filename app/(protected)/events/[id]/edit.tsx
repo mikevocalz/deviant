@@ -38,7 +38,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { eventsApi } from "@/lib/api/events";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LocationAutocomplete,
@@ -89,17 +89,14 @@ export default function EditEventScreen() {
           return;
         }
 
-        // Check ownership
-        const hostId =
-          typeof event.host === "object" ? (event.host as any).id : event.host;
-        const isEventOwner = !!(
-          currentUser?.id &&
-          (String(hostId) === String(currentUser.id) ||
-            String(hostId) === String(getCurrentUserIdInt()))
+        // Check ownership via server-side auth (host_id === auth_id)
+        const canEdit = await eventsApi.canEditEvent(
+          id,
+          (await getCurrentUserAuthId()) || "",
         );
-        setIsOwner(isEventOwner);
+        setIsOwner(canEdit);
 
-        if (!isEventOwner) {
+        if (!canEdit) {
           showToast("error", "Error", "You can only edit your own events");
           router.back();
           return;

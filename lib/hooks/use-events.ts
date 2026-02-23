@@ -28,6 +28,7 @@ export interface EventFilters {
   category?: string;
   categories?: string[];
   sort?: EventSort;
+  cityId?: number | null;
 }
 
 // Event type for components
@@ -98,6 +99,7 @@ export function useEvents(filters?: EventFilters) {
         weekend: filters?.weekend,
         search: filters?.search,
         sort: filters?.sort,
+        cityId: filters?.cityId,
       });
 
       // Client-side filter for multi-category (RPC only supports single p_category)

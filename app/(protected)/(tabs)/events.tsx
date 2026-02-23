@@ -432,11 +432,19 @@ export default function EventsScreen() {
     if (activeFilters.includes("online")) f.online = true;
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
+    if (activeFilters.includes("in_city") && activeCity?.id)
+      f.cityId = activeCity.id;
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     if (activeCategories.length > 0) f.categories = activeCategories;
     return f;
-  }, [activeFilters, debouncedSearch, activeSort, activeCategories]);
+  }, [
+    activeFilters,
+    debouncedSearch,
+    activeSort,
+    activeCategories,
+    activeCity,
+  ]);
 
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);

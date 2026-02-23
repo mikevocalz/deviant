@@ -69,9 +69,7 @@ const TEST_TICKET: Ticket = {
 };
 
 export const useTicketStore = create<TicketStore>((set, get) => ({
-  tickets: {
-    [TEST_TICKET.eventId]: TEST_TICKET,
-  },
+  tickets: {},
 
   setTicket: (eventId, ticket) =>
     set((state) => ({
