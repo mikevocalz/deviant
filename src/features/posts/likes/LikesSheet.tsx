@@ -143,8 +143,6 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     [],
   );
 
-  if (!isOpen) return null;
-
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
