@@ -16,7 +16,9 @@ const PAGE_SIZE = 10;
 /**
  * Batch-fetch which post IDs the current viewer has liked (Edge Function).
  */
-async function fetchViewerLikedPostIds(postIds: number[]): Promise<Set<string>> {
+async function fetchViewerLikedPostIds(
+  postIds: number[],
+): Promise<Set<string>> {
   try {
     return likesApi.getViewerLikedPostIds(postIds);
   } catch (err) {
@@ -214,67 +216,98 @@ export const postsApi = {
    */
   async getProfilePosts(userId: string): Promise<Post[]> {
     try {
-      console.log("[Posts] getProfilePosts, userId:", userId);
-
-      // Determine the type of userId and get internal user ID
-      let internalUserId = userId;
       const isUUID =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           userId,
         );
       const isInteger = /^\d+$/.test(userId);
 
-      if (isUUID) {
-        // It's a UUID (auth_id)
-        const { data: userData } = await supabase
+      let postsQuery: ReturnType<typeof supabase.from>;
+
+      if (isInteger) {
+        // Fast path: integer ID — query posts directly
+        postsQuery = supabase
+          .from(DB.posts.table)
+          .select(
+            `
+            *,
+            author:users!posts_author_id_users_id_fk(
+              ${DB.users.id},
+              ${DB.users.authId},
+              ${DB.users.username},
+              ${DB.users.firstName},
+              ${DB.users.verified},
+              avatar:${DB.users.avatarId}(url)
+            ),
+            media:posts_media(
+              ${DB.postsMedia.type},
+              ${DB.postsMedia.url},
+              ${DB.postsMedia.order}
+            )
+          `,
+          )
+          .eq(DB.posts.authorId, parseInt(userId))
+          .order(DB.posts.createdAt, { ascending: false })
+          .limit(50);
+      } else if (isUUID) {
+        // UUID (auth_id): resolve integer id first, then query posts
+        const { data: userRow } = await supabase
           .from(DB.users.table)
           .select(DB.users.id)
           .eq(DB.users.authId, userId)
           .single();
-
-        if (!userData) {
-          console.log("[Posts] User not found for auth_id:", userId);
-          return [];
-        }
-        internalUserId = String(userData[DB.users.id]);
-      } else if (!isInteger) {
-        // It's a username
-        const { data: userData } = await supabase
-          .from(DB.users.table)
-          .select(DB.users.id)
-          .eq(DB.users.username, userId)
-          .single();
-
-        if (!userData) {
-          console.log("[Posts] User not found for username:", userId);
-          return [];
-        }
-        internalUserId = String(userData[DB.users.id]);
+        if (!userRow) return [];
+        postsQuery = supabase
+          .from(DB.posts.table)
+          .select(
+            `
+            *,
+            author:users!posts_author_id_users_id_fk(
+              ${DB.users.id},
+              ${DB.users.authId},
+              ${DB.users.username},
+              ${DB.users.firstName},
+              ${DB.users.verified},
+              avatar:${DB.users.avatarId}(url)
+            ),
+            media:posts_media(
+              ${DB.postsMedia.type},
+              ${DB.postsMedia.url},
+              ${DB.postsMedia.order}
+            )
+          `,
+          )
+          .eq(DB.posts.authorId, userRow[DB.users.id])
+          .order(DB.posts.createdAt, { ascending: false })
+          .limit(50);
+      } else {
+        // Username: use a join filter on the author FK — single query, no waterfall
+        postsQuery = supabase
+          .from(DB.posts.table)
+          .select(
+            `
+            *,
+            author:users!posts_author_id_users_id_fk!inner(
+              ${DB.users.id},
+              ${DB.users.authId},
+              ${DB.users.username},
+              ${DB.users.firstName},
+              ${DB.users.verified},
+              avatar:${DB.users.avatarId}(url)
+            ),
+            media:posts_media(
+              ${DB.postsMedia.type},
+              ${DB.postsMedia.url},
+              ${DB.postsMedia.order}
+            )
+          `,
+          )
+          .eq("author.username", userId)
+          .order(DB.posts.createdAt, { ascending: false })
+          .limit(50);
       }
 
-      const { data, error } = await supabase
-        .from(DB.posts.table)
-        .select(
-          `
-          *,
-          author:users!posts_author_id_users_id_fk(
-            ${DB.users.id},
-            ${DB.users.authId},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            ${DB.users.verified},
-            avatar:${DB.users.avatarId}(url)
-          ),
-          media:posts_media(
-            ${DB.postsMedia.type},
-            ${DB.postsMedia.url},
-            ${DB.postsMedia.order}
-          )
-        `,
-        )
-        .eq(DB.posts.authorId, internalUserId)
-        .order(DB.posts.createdAt, { ascending: false })
-        .limit(50);
+      const { data, error } = await postsQuery;
 
       if (error) {
         console.error("[Posts] getProfilePosts error:", error);
