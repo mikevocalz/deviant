@@ -89,3 +89,4 @@ logs/
 # Misc
 .vercel
 Thumbs.db
+selfIdentity.plist

@@ -2,9 +2,14 @@ import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+const FALLBACK_SUPABASE_URL = "https://npfjanxturvmjyevoyfo.supabase.co";
+
+// Validate env var is a real URL — Metro can inline garbage values in OTA builds
+const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseUrl =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://npfjanxturvmjyevoyfo.supabase.co";
+  typeof rawUrl === "string" && rawUrl.startsWith("https://")
+    ? rawUrl
+    : FALLBACK_SUPABASE_URL;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
 if (!supabaseAnonKey) {

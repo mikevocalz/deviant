@@ -24,7 +24,11 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 // Supabase URL for debugging
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const _rawDebugUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_URL =
+  typeof _rawDebugUrl === "string" && _rawDebugUrl.startsWith("https://")
+    ? _rawDebugUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Platform } from "react-native";
 

@@ -76,9 +76,11 @@ export function SignUpStep2() {
   // Record terms acceptance - calls API directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
     try {
+      const _rawApiUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
       const API_URL =
-        process.env.EXPO_PUBLIC_SUPABASE_URL ||
-        "https://npfjanxturvmjyevoyfo.supabase.co";
+        typeof _rawApiUrl === "string" && _rawApiUrl.startsWith("https://")
+          ? _rawApiUrl
+          : "https://npfjanxturvmjyevoyfo.supabase.co";
 
       await fetch(`${API_URL}/rest/v1/terms_acceptance`, {
         method: "POST",

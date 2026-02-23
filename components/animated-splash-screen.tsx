@@ -13,9 +13,11 @@ import {
   type RiveError,
 } from "@rive-app/react-native";
 // Supabase URL for health checks
+const _rawSplashUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://npfjanxturvmjyevoyfo.supabase.co";
+  typeof _rawSplashUrl === "string" && _rawSplashUrl.startsWith("https://")
+    ? _rawSplashUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
 
 const BOOT_TIMEOUT_MS = 10000; // 10 second boot timeout
 const ANIMATION_DURATION_MS = 8000; // 8 second animation
