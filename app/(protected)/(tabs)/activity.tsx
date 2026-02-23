@@ -207,18 +207,34 @@ export default function ActivityScreen() {
   // NO separate fetchFollowingState() call — eliminates trickle-in
   useEffect(() => {
     if (queryActivities && queryActivities.length > 0) {
-      // Build followedUsers set from embedded viewerFollows data
-      const embedded = new Set<string>();
-      for (const a of queryActivities) {
-        if (a.user?.viewerFollows && a.user.username) {
-          embedded.add(a.user.username);
+      // Check if API data has explicit viewerFollows booleans (not undefined)
+      const hasExplicitFollowState = queryActivities.some(
+        (a) => typeof a.user?.viewerFollows === "boolean",
+      );
+
+      if (hasExplicitFollowState) {
+        // API returned authoritative follow state — REBUILD the set (not merge)
+        // This correctly handles unfollows too
+        const authoritative = new Set<string>();
+        for (const a of queryActivities) {
+          if (a.user?.viewerFollows === true && a.user.username) {
+            authoritative.add(a.user.username);
+          }
         }
-      }
-      if (embedded.size > 0) {
-        // Merge with existing set (don't overwrite optimistic updates)
-        const current = useActivityStore.getState().followedUsers;
-        const merged = new Set([...current, ...embedded]);
-        useActivityStore.setState({ followedUsers: merged });
+        useActivityStore.setState({ followedUsers: authoritative });
+      } else {
+        // Legacy cached data without viewerFollows — merge only additions
+        const embedded = new Set<string>();
+        for (const a of queryActivities) {
+          if (a.user?.viewerFollows && a.user.username) {
+            embedded.add(a.user.username);
+          }
+        }
+        if (embedded.size > 0) {
+          const current = useActivityStore.getState().followedUsers;
+          const merged = new Set([...current, ...embedded]);
+          useActivityStore.setState({ followedUsers: merged });
+        }
       }
     }
   }, [queryActivities]);

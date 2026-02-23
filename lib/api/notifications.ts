@@ -27,11 +27,13 @@ export interface Notification {
     id: string;
     username: string;
     avatar: string;
+    viewerFollows?: boolean;
   } | null;
   actor?: {
     id: string;
     username: string;
     avatar: string;
+    viewerFollows?: boolean;
   } | null;
   post?: {
     id: string;
@@ -159,12 +161,35 @@ export const notificationsApi = {
         }
       }
 
+      // Batch-query follows table: which actors does the viewer follow?
+      const actorIds = [
+        ...new Set(
+          (data || [])
+            .map((n: any) => n.actor_id)
+            .filter((id: any) => id != null),
+        ),
+      ];
+      let viewerFollowsSet = new Set<number>();
+      if (actorIds.length > 0) {
+        const { data: followRows } = await supabase
+          .from("follows")
+          .select("following_id")
+          .eq("follower_id", userId)
+          .in("following_id", actorIds);
+        if (followRows) {
+          viewerFollowsSet = new Set(
+            followRows.map((r: any) => r.following_id),
+          );
+        }
+      }
+
       const docs = (data || []).map((n: any) => {
         const actorInfo = n.actor
           ? {
               id: String(n.actor.id),
               username: n.actor.username,
               avatar: n.actor.avatar?.url || "",
+              viewerFollows: viewerFollowsSet.has(n.actor_id),
             }
           : null;
 
