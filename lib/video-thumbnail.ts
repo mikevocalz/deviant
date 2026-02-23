@@ -24,15 +24,28 @@ export interface ThumbnailResult {
 export async function generateVideoThumbnail(
   videoUri: string,
   timeMs: number = 0,
+  timeoutMs: number = 8000,
 ): Promise<ThumbnailResult> {
-  console.log("[VideoThumbnail] Generating thumbnail for:", videoUri.substring(0, 80));
+  console.log(
+    "[VideoThumbnail] Generating thumbnail for:",
+    videoUri.substring(0, 80),
+  );
   console.log("[VideoThumbnail] Time position:", timeMs, "ms");
 
   try {
-    const result = await VideoThumbnails.getThumbnailAsync(videoUri, {
+    const thumbnailPromise = VideoThumbnails.getThumbnailAsync(videoUri, {
       time: timeMs,
       quality: 0.8,
     });
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error("Thumbnail generation timed out")),
+        timeoutMs,
+      ),
+    );
+
+    const result = await Promise.race([thumbnailPromise, timeoutPromise]);
 
     console.log("[VideoThumbnail] Generated successfully:", {
       width: result.width,
@@ -76,7 +89,13 @@ export async function generateMultipleThumbnails(
   }
 
   const successCount = results.filter((r) => r.success).length;
-  console.log("[VideoThumbnail] Generated", successCount, "of", timestamps.length, "thumbnails");
+  console.log(
+    "[VideoThumbnail] Generated",
+    successCount,
+    "of",
+    timestamps.length,
+    "thumbnails",
+  );
 
   return results;
 }
