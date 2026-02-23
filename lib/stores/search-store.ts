@@ -1,13 +1,17 @@
-import { create } from "zustand"
+import { create } from "zustand";
 
 interface SearchState {
-  searchQuery: string
-  setSearchQuery: (query: string) => void
-  clearSearch: () => void
+  searchQuery: string;
+  debouncedSearch: string;
+  setSearchQuery: (query: string) => void;
+  setDebouncedSearch: (query: string) => void;
+  clearSearch: () => void;
 }
 
 export const useSearchStore = create<SearchState>((set) => ({
   searchQuery: "",
+  debouncedSearch: "",
   setSearchQuery: (query) => set({ searchQuery: query }),
-  clearSearch: () => set({ searchQuery: "" }),
-}))
+  setDebouncedSearch: (query) => set({ debouncedSearch: query }),
+  clearSearch: () => set({ searchQuery: "", debouncedSearch: "" }),
+}));
