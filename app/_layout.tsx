@@ -34,6 +34,12 @@ import { LayoutAnimationConfig } from "react-native-reanimated";
 import { ShareIntentHandler } from "@/components/share-intent-handler";
 import { SpotifyShareSheet } from "@/components/share/spotify-share-sheet";
 import { SafeStripeProvider as StripeProvider } from "@/lib/safe-native-modules";
+import {
+  isSafeMode,
+  markBootCompleted,
+  getBootDiagnostics,
+} from "@/lib/boot-guard";
+import { SafeModeBanner } from "@/components/safe-mode-banner";
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
@@ -88,7 +94,9 @@ export default function RootLayout() {
   } = useAppStore();
   const insets = useSafeAreaInsets();
   const [shareIntentReady, setShareIntentReady] = useState(false);
-  const openedFromShareIntent = useDeepLinkStore((s) => s.openedFromShareIntent);
+  const openedFromShareIntent = useDeepLinkStore(
+    (s) => s.openedFromShareIntent,
+  );
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -105,6 +113,19 @@ export default function RootLayout() {
   // This prevents update checks from interfering with splash animation
   // and ensures updates work correctly in production builds
   useUpdates({ enabled: splashAnimationFinished });
+
+  // ── Boot Guard: mark boot completed when app is fully up ─────────
+  useEffect(() => {
+    if (splashAnimationFinished && authStatus !== "loading") {
+      markBootCompleted();
+      if (isSafeMode()) {
+        console.warn(
+          "[RootLayout] Boot completed in SAFE MODE",
+          getBootDiagnostics(),
+        );
+      }
+    }
+  }, [splashAnimationFinished, authStatus]);
 
   // ── Share Intent — receive content from other apps ──────────────────
   // Initialize push notifications
@@ -275,9 +296,21 @@ export default function RootLayout() {
         <ErrorBoundary
           screenName="Splash"
           fallback={
-            <View style={{ flex: 1, backgroundColor: "#000", justifyContent: "center", alignItems: "center" }}>
-              <Pressable onPress={() => onAnimationFinish(false)} style={{ padding: 24 }}>
-                <Text style={{ color: "#fff", fontSize: 16 }}>Tap to continue</Text>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: "#000",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Pressable
+                onPress={() => onAnimationFinish(false)}
+                style={{ padding: 24 }}
+              >
+                <Text style={{ color: "#fff", fontSize: 16 }}>
+                  Tap to continue
+                </Text>
               </Pressable>
             </View>
           }
@@ -373,6 +406,8 @@ export default function RootLayout() {
                       )}
                       {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
                       {isAuthenticated && <BiometricLock />}
+                      {/* Safe Mode Banner — shown when boot guard detects crash loop */}
+                      {isSafeMode() && <SafeModeBanner />}
                       {/* Spotify share sheet — renders when a Spotify link is received */}
                       <SpotifyShareSheet />
                       {/* Auth loading overlay — covers content but does NOT unmount navigation.
