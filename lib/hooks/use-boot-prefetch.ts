@@ -37,6 +37,7 @@ import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { prefetchImages, prefetchImagesRN } from "@/lib/perf/image-prefetch";
 import { storiesApi as storiesApiClient } from "@/lib/api/stories";
+import { isSafeMode } from "@/lib/boot-guard";
 
 /**
  * Check if the persisted cache has enough data for instant render.
@@ -78,6 +79,12 @@ export function useBootPrefetch() {
   useEffect(() => {
     if (!userId || hasPrefetched.current) return;
     hasPrefetched.current = true;
+
+    // Safe mode: skip all prefetch to prevent crash loops from bad startup queries
+    if (isSafeMode()) {
+      console.warn("[BootPrefetch] SAFE MODE — skipping all prefetch lanes");
+      return;
+    }
 
     const t0 = Date.now();
     const cacheStatus = detectCacheStatus(queryClient, userId);
