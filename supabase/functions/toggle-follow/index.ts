@@ -291,7 +291,7 @@ async function sendFollowNotification(
   // Insert notification row
   await supabaseAdmin.from("notifications").insert({
     recipient_id: targetId,
-    actor_id: followerId,
+    sender_id: followerId,
     type: "follow",
     entity_type: "user",
     entity_id: String(followerId),
