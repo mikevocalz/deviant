@@ -89,16 +89,27 @@ export function useBootstrapNotifications() {
     if (!enabled || !userId || hasRun.current) return;
     hasRun.current = true;
 
-    // Check if we already have fresh activity data from MMKV cache
+    // Check if cached data already has authoritative viewerFollows state.
+    // If ALL follow-type activities have viewerFollows === undefined, the cache
+    // is stale (pre-fix) and must be busted so the server returns correct state.
     const existingActivities = queryClient.getQueryData(
       activityKeys.list(userId),
-    );
-    if (existingActivities) {
+    ) as any[] | undefined;
+
+    const hasAuthoritativeFollowState =
+      Array.isArray(existingActivities) &&
+      existingActivities.length > 0 &&
+      existingActivities
+        .filter((a) => a.type === "follow")
+        .some((a) => typeof a.user?.viewerFollows === "boolean");
+
+    if (existingActivities && hasAuthoritativeFollowState) {
       trace.markCacheHit();
       trace.markUsable();
       return;
     }
 
+    // Stale or missing — always fetch fresh from server
     bootstrapApi.notifications({ userId }).then((data) => {
       if (!data) return;
       hydrateFromNotificationsBootstrap(queryClient, userId, data);

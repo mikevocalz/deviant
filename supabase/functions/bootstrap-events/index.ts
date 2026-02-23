@@ -158,16 +158,32 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── 4. Get viewer's RSVP state ────────────────────────────────────
-    const viewerRsvps: Record<string, string> = {};
-    const { data: viewerRsvpRows } = await supabase
-      .from("event_rsvps")
-      .select("event_id, status")
-      .eq("user_id", user_id)
-      .in("event_id", eventIds);
+    // Resolve integer users.id — user_id from client is Better Auth UUID
+    let intUserId: number | null = null;
+    const asInt = parseInt(user_id, 10);
+    if (!isNaN(asInt) && String(asInt) === String(user_id)) {
+      intUserId = asInt;
+    } else {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id")
+        .eq("auth_id", user_id)
+        .single();
+      intUserId = userRow?.id ?? null;
+    }
 
-    (viewerRsvpRows || []).forEach((r: any) => {
-      viewerRsvps[String(r.event_id)] = r.status;
-    });
+    const viewerRsvps: Record<string, string> = {};
+    if (intUserId) {
+      const { data: viewerRsvpRows } = await supabase
+        .from("event_rsvps")
+        .select("event_id, status")
+        .eq("user_id", intUserId)
+        .in("event_id", eventIds);
+
+      (viewerRsvpRows || []).forEach((r: any) => {
+        viewerRsvps[String(r.event_id)] = r.status;
+      });
+    }
 
     // ── 5. Format response ────────────────────────────────────────────
     const formattedEvents = events.map((event: any) => {
