@@ -23,6 +23,7 @@ const CAROUSEL_INTERVAL_MS = 5_000;
 let activeActivityId: string | null = null;
 let carouselTimer: ReturnType<typeof setInterval> | null = null;
 let carouselIndex = 0;
+let isUpdating = false;
 
 // ── Voltra lazy imports (cached after first call) ──
 async function getVoltra() {
@@ -81,14 +82,27 @@ async function preloadAllHeroImages(
   ]);
   const succeededKeys = new Set(result.succeeded);
 
-  console.log(
-    "[LiveSurface] preloadImages:",
-    result.succeeded.length,
-    "ok,",
-    result.failed.length,
-    "failed",
-    result.failed.map((r) => r.key),
-  );
+  if (__DEV__) {
+    console.log(
+      "[LiveSurface] preloadImages:",
+      result.succeeded.length,
+      "ok,",
+      result.failed.length,
+      "failed",
+      result.failed.map((r) => r.key),
+    );
+  }
+
+  // CRITICAL: reload existing Live Activities so SwiftUI re-renders
+  // with the newly preloaded images from App Group storage
+  if (succeededKeys.size > 0) {
+    try {
+      const { reloadLiveActivities } = await import("voltra/client");
+      await reloadLiveActivities();
+    } catch {
+      // non-fatal
+    }
+  }
 
   return succeededKeys;
 }
@@ -124,6 +138,14 @@ async function pushCarouselFrame(
   if (activeActivityId && isLiveActivityActive(ACTIVITY_NAME)) {
     await updateLiveActivity(activeActivityId, variants);
   } else {
+    // End any stale activities from previous app sessions before starting fresh
+    try {
+      const { endAllLiveActivities } = await import("voltra/client");
+      await endAllLiveActivities();
+    } catch {
+      // non-fatal
+    }
+    activeActivityId = null;
     activeActivityId = await startLiveActivity(variants, {
       activityName: ACTIVITY_NAME,
       deepLinkUrl: tile.deepLink,
@@ -164,6 +186,9 @@ function stopCarousel(): void {
 async function updateVoltraSurfaces(
   payload: LiveSurfacePayload,
 ): Promise<void> {
+  // Prevent concurrent calls (e.g. rapid re-renders or AppState flips)
+  if (isUpdating) return;
+  isUpdating = true;
   try {
     const { buildCarouselTiles, smallWidget, mediumWidget, largeWidget } =
       await import("@/src/live-surface/voltra-views");
@@ -200,13 +225,17 @@ async function updateVoltraSurfaces(
       },
     );
 
-    console.log(
-      "[LiveSurface] Voltra surfaces updated:",
-      payload.tile1.title,
-      `(${tiles.length} carousel tiles)`,
-    );
+    if (__DEV__) {
+      console.log(
+        "[LiveSurface] Voltra surfaces updated:",
+        payload.tile1.title,
+        `(${tiles.length} carousel tiles)`,
+      );
+    }
   } catch (e) {
     console.error("[LiveSurface] Voltra update failed:", e);
+  } finally {
+    isUpdating = false;
   }
 }
 
