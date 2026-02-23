@@ -59,7 +59,7 @@ export function usePost(id: string) {
   return useQuery({
     queryKey: postKeys.detail(id),
     queryFn: () => {
-      console.log("[usePost] Fetching post:", id);
+      if (__DEV__) console.log("[usePost] Fetching post:", id);
       return postsApi.getPostById(id);
     },
     enabled: !!id && id.length > 0,
@@ -112,9 +112,10 @@ export function useLikePost() {
     }) => {
       // Check if mutation is already in flight for this post
       if (pendingLikeMutations.has(postId)) {
-        console.log(
-          `[useLikePost] Mutation already in flight for ${postId}, skipping`,
-        );
+        if (__DEV__)
+          console.log(
+            `[useLikePost] Mutation already in flight for ${postId}, skipping`,
+          );
         throw new Error("DUPLICATE_MUTATION");
       }
 
@@ -123,7 +124,7 @@ export function useLikePost() {
 
       try {
         const result = await postsApi.likePost(postId, isLiked);
-        console.log(`[useLikePost] Server response:`, result);
+        if (__DEV__) console.log(`[useLikePost] Server response:`, result);
         return result;
       } finally {
         // Always clean up the pending state
@@ -213,7 +214,8 @@ export function useLikePost() {
 
       // Block if already pending
       if (pendingLikeMutations.has(postId)) {
-        console.log(`[useLikePost] Blocked: mutation pending for ${postId}`);
+        if (__DEV__)
+          console.log(`[useLikePost] Blocked: mutation pending for ${postId}`);
         return;
       }
 
@@ -268,7 +270,11 @@ export function useSyncLikedPosts() {
         }
       }
 
-      console.log("[useSyncLikedPosts] Synced liked posts:", likedPosts.length);
+      if (__DEV__)
+        console.log(
+          "[useSyncLikedPosts] Synced liked posts:",
+          likedPosts.length,
+        );
       return likedPosts;
     },
     staleTime: STALE_TIMES.likedPosts,
@@ -364,7 +370,8 @@ export function useCreatePost() {
       }
     },
     onSuccess: (newPost) => {
-      console.log("[useCreatePost] Post created successfully:", newPost?.id);
+      if (__DEV__)
+        console.log("[useCreatePost] Post created successfully:", newPost?.id);
 
       // Replace the optimistic post with the real one instead of invalidating
       // This prevents double posts from appearing
@@ -513,7 +520,11 @@ export function useDeletePost() {
       }
     },
     onSuccess: (_result, deletedPostId) => {
-      console.log("[useDeletePost] Post deleted successfully:", deletedPostId);
+      if (__DEV__)
+        console.log(
+          "[useDeletePost] Post deleted successfully:",
+          deletedPostId,
+        );
       // Invalidate profile to sync server count
       queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
