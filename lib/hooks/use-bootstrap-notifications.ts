@@ -104,6 +104,16 @@ export function useBootstrapNotifications() {
         .some((a) => typeof a.user?.viewerFollows === "boolean");
 
     if (existingActivities && hasAuthoritativeFollowState) {
+      // Re-seed followedUsers store from cached activities.
+      // The Zustand store is NOT persisted — it's empty on every app restart.
+      // Without this, viewerFollows falls back to the empty set → "Follow" shown.
+      const followedSet = new Set<string>();
+      for (const a of existingActivities) {
+        if (a.user?.viewerFollows === true && a.user?.username) {
+          followedSet.add(a.user.username);
+        }
+      }
+      useActivityStore.setState({ followedUsers: followedSet });
       trace.markCacheHit();
       trace.markUsable();
       return;
