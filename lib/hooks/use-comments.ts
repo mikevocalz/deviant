@@ -14,6 +14,7 @@ import type { Comment } from "@/lib/types";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { usePostStore } from "@/lib/stores/post-store";
 import { Image } from "expo-image";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys
 export const commentKeys = {
@@ -27,8 +28,8 @@ export const commentKeys = {
 export function useComments(postId: string, limit?: number) {
   return useQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
-    staleTime: 60_000, // 60s — serve from cache instantly, revalidate in background
-    gcTime: 5 * 60_000,
+    staleTime: STALE_TIMES.comments,
+    gcTime: GC_TIMES.short,
     queryFn: async () => {
       try {
         const comments = await commentsApiClient.getComments(postId, limit);
@@ -89,7 +90,7 @@ export function prefetchComments(
   queryClient.prefetchQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
     queryFn: () => commentsApiClient.getComments(postId, limit),
-    staleTime: 60_000,
+    staleTime: STALE_TIMES.comments,
   });
 }
 

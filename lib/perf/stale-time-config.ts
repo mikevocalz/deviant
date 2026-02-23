@@ -54,6 +54,9 @@ export const STALE_TIMES = {
   /** Post detail — stable, invalidated on interaction */
   postDetail: 5 * 60 * 1000, // 5 min
 
+  /** Post/event comments — serve from cache instantly, revalidate in background */
+  comments: 60 * 1000, // 60 sec
+
   /** Post like state — must be responsive */
   likeState: 30 * 1000, // 30 sec
 
