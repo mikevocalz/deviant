@@ -184,6 +184,35 @@ export const WEATHER_BRAND_COLORS: Record<
   [WeatherEffect.None]: { hex: "#FFFFFF", rgb: [1, 1, 1] },
 };
 
+// ── Severity scoring (higher = more severe) ────────────────────────
+// Used to detect weather worsening so FX burst re-triggers.
+// Within the same category (e.g. rain), heavier codes score higher.
+export function getWeatherSeverity(code: number): number {
+  const SEVERITY_MAP: Record<number, number> = {
+    0: 0,
+    1: 1, // Clear
+    2: 2,
+    3: 3, // Cloudy
+    45: 4,
+    48: 5, // Fog
+    51: 6,
+    53: 7,
+    55: 8, // Drizzle (light → dense)
+    61: 9,
+    63: 10,
+    65: 11, // Rain (slight → heavy)
+    71: 9,
+    73: 10,
+    75: 11, // Snow (slight → heavy / nor'easter)
+    95: 12,
+    99: 13, // Thunderstorm → thunderstorm w/ hail
+  };
+  return SEVERITY_MAP[code] ?? 0;
+}
+
+// ── Burst duration for particle FX ──────────────────────────────────
+export const BURST_DURATION_MS = 30_000; // 30 seconds
+
 // ── Default intensity (no weather) ──────────────────────────────────
 export const DEFAULT_INTENSITY: WeatherIntensity = {
   particleCount: 0,
