@@ -60,11 +60,20 @@ function mapOrderRow(row: any): any {
           location: row.events.location,
         }
       : row.event_id
-        ? { id: row.event_id.toString(), title: "", coverImageUrl: null, startDate: null, location: null }
+        ? {
+            id: row.event_id.toString(),
+            title: "",
+            coverImageUrl: null,
+            startDate: null,
+            location: null,
+          }
         : undefined,
     tickets: row.order_tickets || [],
     timeline: row.order_timeline || [],
-    receiptAvailable: row.status === "paid" || row.status === "refunded" || row.status === "partially_refunded",
+    receiptAvailable:
+      row.status === "paid" ||
+      row.status === "refunded" ||
+      row.status === "partially_refunded",
     invoiceAvailable: false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -76,7 +85,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
     const userId = await verifySession(supabase, req);
     if (!userId) return errorResponse("Unauthorized", 401);
 
@@ -241,7 +253,8 @@ Deno.serve(async (req: Request) => {
       // ── Refund request ────────────────────────────────────
       case "refund_request": {
         const { orderId, reason, notes } = body;
-        if (!orderId || !reason) return errorResponse("orderId and reason required");
+        if (!orderId || !reason)
+          return errorResponse("orderId and reason required");
 
         // Verify order belongs to user and is refundable
         const { data: order } = await supabase
@@ -311,7 +324,12 @@ Deno.serve(async (req: Request) => {
         const refunds = (data || []).map((r: any) => ({
           id: r.id,
           orderId: r.order_id,
-          status: r.status === "approved" || r.status === "processed" ? "succeeded" : r.status === "denied" ? "failed" : r.status,
+          status:
+            r.status === "approved" || r.status === "processed"
+              ? "succeeded"
+              : r.status === "denied"
+                ? "failed"
+                : r.status,
           amountCents: r.amount_cents || 0,
           currency: "usd",
           reason: r.reason,
@@ -329,7 +347,9 @@ Deno.serve(async (req: Request) => {
         // Disputes come from Stripe — query orders that are disputed
         const { data: disputedOrders, error } = await supabase
           .from("orders")
-          .select("id, total_cents, status, created_at, stripe_payment_intent_id")
+          .select(
+            "id, total_cents, status, created_at, stripe_payment_intent_id",
+          )
           .eq("user_id", userId)
           .eq("status", "disputed")
           .order("created_at", { ascending: false })

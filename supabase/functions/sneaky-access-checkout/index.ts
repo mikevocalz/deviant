@@ -14,7 +14,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
 
-async function stripeRequest(endpoint: string, body: Record<string, string>): Promise<any> {
+async function stripeRequest(
+  endpoint: string,
+  body: Record<string, string>,
+): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "POST",
     headers: {
@@ -52,7 +55,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
 
     // Check if user already has access
     const { data: existing } = await supabase
@@ -63,10 +69,10 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (existing) {
-      return new Response(
-        JSON.stringify({ already_paid: true }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ already_paid: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Check if room is the host (host never pays)
@@ -77,15 +83,15 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (room?.host_id === user_id) {
-      return new Response(
-        JSON.stringify({ host: true }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ host: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Create Stripe Checkout Session
     const params: Record<string, string> = {
-      "mode": "payment",
+      mode: "payment",
       "payment_method_types[0]": "card",
       "line_items[0][price_data][currency]": "usd",
       "line_items[0][price_data][unit_amount]": "299",
@@ -94,8 +100,8 @@ Deno.serve(async (req: Request) => {
       "metadata[type]": "sneaky_access",
       "metadata[session_id]": session_id,
       "metadata[user_id]": user_id,
-      "success_url": `${APP_SCHEME}://sneaky/success?sessionId=${session_id}&session_id={CHECKOUT_SESSION_ID}`,
-      "cancel_url": `${APP_SCHEME}://sneaky/cancel?sessionId=${session_id}`,
+      success_url: `${APP_SCHEME}://sneaky/success?sessionId=${session_id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_SCHEME}://sneaky/cancel?sessionId=${session_id}`,
     };
 
     const session = await stripeRequest("/checkout/sessions", params);

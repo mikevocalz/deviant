@@ -14,7 +14,10 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
 
-async function stripeRequest(endpoint: string, body: Record<string, string>): Promise<any> {
+async function stripeRequest(
+  endpoint: string,
+  body: Record<string, string>,
+): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "POST",
     headers: {
@@ -51,7 +54,10 @@ Deno.serve(async (req: Request) => {
 
   try {
     const { action, host_id } = await req.json();
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
 
     if (action === "start") {
       // Check if account already exists
@@ -104,14 +110,16 @@ Deno.serve(async (req: Request) => {
         .single();
 
       if (!account?.stripe_account_id) {
-        return new Response(
-          JSON.stringify({ connected: false }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ connected: false }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       // Fetch from Stripe to get latest status
-      const stripeAccount = await stripeGet(`/accounts/${account.stripe_account_id}`);
+      const stripeAccount = await stripeGet(
+        `/accounts/${account.stripe_account_id}`,
+      );
 
       // Sync to DB
       await supabase
@@ -135,10 +143,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    return new Response(
-      JSON.stringify({ error: "Invalid action" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return new Response(JSON.stringify({ error: "Invalid action" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   } catch (err: any) {
     console.error("[organizer-connect] Error:", err);
     return new Response(

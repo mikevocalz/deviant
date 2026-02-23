@@ -28,7 +28,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
     const userId = await verifySession(supabase, req);
     if (!userId) return errorResponse("Unauthorized", 401);
 
@@ -55,7 +58,9 @@ Deno.serve(async (req: Request) => {
     // 1. Ticket sales (charges) — from orders table
     let ordersQuery = supabase
       .from("orders")
-      .select("id, total_cents, platform_fee_cents, processing_fee_cents, created_at, event_id, events(title)")
+      .select(
+        "id, total_cents, platform_fee_cents, processing_fee_cents, created_at, event_id, events(title)",
+      )
       .in("status", ["paid", "partially_refunded", "refunded"]);
 
     // Filter: orders where the event belongs to this host
@@ -95,7 +100,10 @@ Deno.serve(async (req: Request) => {
           description: `Ticket sale`,
           amountCents: o.total_cents || 0,
           feeCents: (o.platform_fee_cents || 0) + (o.processing_fee_cents || 0),
-          netCents: (o.total_cents || 0) - (o.platform_fee_cents || 0) - (o.processing_fee_cents || 0),
+          netCents:
+            (o.total_cents || 0) -
+            (o.platform_fee_cents || 0) -
+            (o.processing_fee_cents || 0),
           currency: "usd",
           eventId: o.event_id?.toString(),
           eventTitle: eventTitleMap[o.event_id] || o.events?.title || "",
@@ -160,7 +168,9 @@ Deno.serve(async (req: Request) => {
     if (!txnType || txnType === "payout") {
       let payoutQuery = supabase
         .from("payouts")
-        .select("id, net_amount_cents, platform_fee_cents, created_at, event_id, events(title)")
+        .select(
+          "id, net_amount_cents, platform_fee_cents, created_at, event_id, events(title)",
+        )
         .eq("host_id", userId)
         .eq("status", "paid")
         .order("created_at", { ascending: false })

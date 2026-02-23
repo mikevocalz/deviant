@@ -17,7 +17,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_STORE_URL = "https://apps.apple.com/app/id6758054072";
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.dvnt.app";
+const PLAY_STORE_URL =
+  "https://play.google.com/store/apps/details?id=com.dvnt.app";
 const APP_SCHEME = "dvnt";
 const WEB_DOMAIN = "https://dvntlive.app";
 const CDN_URL = Deno.env.get("BUNNY_CDN_URL") || "https://dvnt.b-cdn.net";
@@ -41,7 +42,10 @@ Deno.serve(async (req: Request) => {
     return redirectToHome();
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+  });
 
   try {
     if (type === "event") {
@@ -62,7 +66,9 @@ Deno.serve(async (req: Request) => {
 async function renderEventPage(supabase: any, eventId: string) {
   const { data: event } = await supabase
     .from("events")
-    .select("id, title, description, location, date, end_date, image_url, price, max_attendees")
+    .select(
+      "id, title, description, location, date, end_date, image_url, price, max_attendees",
+    )
     .eq("id", parseInt(eventId))
     .single();
 
@@ -71,9 +77,14 @@ async function renderEventPage(supabase: any, eventId: string) {
   }
 
   const title = event.title || "Event on DVNT";
-  const description = truncate(event.description || "Check out this event on DVNT", 160);
+  const description = truncate(
+    event.description || "Check out this event on DVNT",
+    160,
+  );
   const image = event.image_url
-    ? (event.image_url.startsWith("http") ? event.image_url : `${CDN_URL}/${event.image_url}`)
+    ? event.image_url.startsWith("http")
+      ? event.image_url
+      : `${CDN_URL}/${event.image_url}`
     : `${WEB_DOMAIN}/event-company-logo-music.jpg`;
   const location = event.location || "TBA";
   const date = formatDate(event.date);
@@ -120,7 +131,9 @@ async function renderEventPage(supabase: any, eventId: string) {
 async function renderProfilePage(supabase: any, username: string) {
   const { data: user } = await supabase
     .from("users")
-    .select("id, username, first_name, last_name, bio, avatar, followers_count, posts_count")
+    .select(
+      "id, username, first_name, last_name, bio, avatar, followers_count, posts_count",
+    )
     .eq("username", username)
     .single();
 
@@ -128,10 +141,14 @@ async function renderProfilePage(supabase: any, username: string) {
     return redirectToHome();
   }
 
-  const displayName = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username;
+  const displayName =
+    [user.first_name, user.last_name].filter(Boolean).join(" ") ||
+    user.username;
   const bio = truncate(user.bio || "", 160);
   const avatar = user.avatar
-    ? (user.avatar.startsWith("http") ? user.avatar : `${CDN_URL}/${user.avatar}`)
+    ? user.avatar.startsWith("http")
+      ? user.avatar
+      : `${CDN_URL}/${user.avatar}`
     : `${WEB_DOMAIN}/ai-avatar.jpg`;
   const deepLink = `${APP_SCHEME}://u/${username}`;
 

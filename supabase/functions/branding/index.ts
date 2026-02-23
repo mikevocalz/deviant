@@ -23,7 +23,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
     const userId = await verifySession(supabase, req);
     if (!userId) return errorResponse("Unauthorized", 401);
 
@@ -53,7 +56,8 @@ Deno.serve(async (req: Request) => {
       }
 
       case "update": {
-        const { display_name, fallback_text, logo_url, logo_monochrome_url } = body;
+        const { display_name, fallback_text, logo_url, logo_monochrome_url } =
+          body;
 
         const updateData: Record<string, any> = {
           host_id: userId,
@@ -61,9 +65,11 @@ Deno.serve(async (req: Request) => {
         };
 
         if (display_name !== undefined) updateData.display_name = display_name;
-        if (fallback_text !== undefined) updateData.fallback_text = fallback_text;
+        if (fallback_text !== undefined)
+          updateData.fallback_text = fallback_text;
         if (logo_url !== undefined) updateData.logo_url = logo_url;
-        if (logo_monochrome_url !== undefined) updateData.logo_monochrome_url = logo_monochrome_url;
+        if (logo_monochrome_url !== undefined)
+          updateData.logo_monochrome_url = logo_monochrome_url;
 
         const { error } = await supabase
           .from("organizer_branding")

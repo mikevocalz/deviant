@@ -35,7 +35,10 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
     const userId = await verifySession(supabase, req);
     if (!userId) return errorResponse("Unauthorized", 401);
 
@@ -47,7 +50,10 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (!orgAccount?.stripe_account_id) {
-      return errorResponse("Not an organizer or Stripe account not connected", 403);
+      return errorResponse(
+        "Not an organizer or Stripe account not connected",
+        403,
+      );
     }
 
     const body = await req.json();

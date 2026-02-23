@@ -32,7 +32,10 @@ async function stripeRequest(
 
 Deno.serve(async (req: Request) => {
   // Allow both POST (cron) and GET (manual trigger)
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+  });
   const now = new Date().toISOString();
   const results: any[] = [];
 

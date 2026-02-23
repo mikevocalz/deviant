@@ -170,7 +170,12 @@ Deno.serve(async (req) => {
   }
 
   const jwt = authHeader.replace("Bearer ", "");
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: { Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` },
+    },
+  });
 
   // Verify JWT and get user
   const {
