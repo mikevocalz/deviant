@@ -237,6 +237,7 @@ export default {
       ],
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "./plugins/fix-voltra-pnpm-podfile",
+      "./plugins/fix-widget-maplibre",
       "expo-secure-store",
       "expo-sharing",
       [
