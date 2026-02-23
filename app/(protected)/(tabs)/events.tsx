@@ -521,17 +521,26 @@ export default function EventsScreen() {
     [toggleFilter],
   );
 
+  // Check if any server-side filter or search is active
+  const hasActiveFilters =
+    activeFilters.length > 0 ||
+    activeCategories.length > 0 ||
+    activeSort !== "soonest" ||
+    debouncedSearch.length >= 2;
+
   // Filter events by tab — server handles pill filters
   // Tab indices: 0=For You, 1=All Events, 2=Upcoming, 3=Past
   // Uses eventsWithPromotion (has is_promoted flag + de-duped) for All/Upcoming/Past
+  // When filters/search are active on For You tab, fall back to filtered "All Events"
+  // so that filter pills, search, and sort always take effect regardless of tab.
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       switch (tabIndex) {
-        case 0: // For You
-          return forYouEvents;
+        case 0: // For You — use filtered results when any filter/search is active
+          return hasActiveFilters ? eventsWithPromotion : forYouEvents;
         case 2: // upcoming
           return eventsWithPromotion.filter(
             (event: Event) =>
@@ -546,7 +555,7 @@ export default function EventsScreen() {
           return eventsWithPromotion;
       }
     },
-    [eventsWithPromotion, forYouEvents],
+    [eventsWithPromotion, forYouEvents, hasActiveFilters],
   );
 
   const handleTabPress = useCallback(
