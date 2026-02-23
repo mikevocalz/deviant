@@ -40,16 +40,31 @@ Deno.serve(async (req: Request) => {
     const { user_id, cursor = 0, limit = PAGE_SIZE } = await req.json();
 
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing user_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Missing user_id" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── Resolve integer users.id from auth_id UUID ────────────────
+    // user_id from client is AppUser.id = Better Auth UUID, NOT integer
+    let intUserId: number | null = null;
+    const asInt = parseInt(user_id, 10);
+    if (!isNaN(asInt) && String(asInt) === String(user_id)) {
+      intUserId = asInt;
+    } else {
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id")
+        .eq("auth_id", user_id)
+        .single();
+      intUserId = userRow?.id ?? null;
+    }
 
     // ── Fire ALL queries in parallel — never sequential ──────────
 
@@ -81,17 +96,15 @@ Deno.serve(async (req: Request) => {
         .order("created_at", { ascending: false })
         .range(cursor, cursor + limit - 1),
 
-      // 2. Viewer's liked post IDs (for the current page — resolved below)
-      supabase
-        .from("post_likes")
-        .select("post_id")
-        .eq("user_id", user_id),
+      // 2. Viewer's liked post IDs — use integer ID
+      intUserId
+        ? supabase.from("post_likes").select("post_id").eq("user_id", intUserId)
+        : Promise.resolve({ data: [] }),
 
-      // 3. Viewer's bookmarked post IDs
-      supabase
-        .from("bookmarks")
-        .select("post_id")
-        .eq("user_id", user_id),
+      // 3. Viewer's bookmarked post IDs — use integer ID
+      intUserId
+        ? supabase.from("bookmarks").select("post_id").eq("user_id", intUserId)
+        : Promise.resolve({ data: [] }),
 
       // 4. Stories with unseen items (last 24 hours)
       supabase
@@ -110,21 +123,25 @@ Deno.serve(async (req: Request) => {
         .order("created_at", { ascending: false })
         .limit(30),
 
-      // 5. Unread message count
-      supabase
-        .from("conversations")
-        .select("id", { count: "exact", head: true })
-        .or(`user1_id.eq.${user_id},user2_id.eq.${user_id}`)
-        .gt("unread_count", 0),
+      // 5. Unread message count — use integer ID
+      intUserId
+        ? supabase
+            .from("conversations")
+            .select("id", { count: "exact", head: true })
+            .or(`user1_id.eq.${intUserId},user2_id.eq.${intUserId}`)
+            .gt("unread_count", 0)
+        : Promise.resolve({ count: 0 }),
 
-      // 6. Unread notification count
-      supabase
-        .from("notifications")
-        .select("id", { count: "exact", head: true })
-        .eq("recipient_id", user_id)
-        .is("read_at", null),
+      // 6. Unread notification count — use integer ID
+      intUserId
+        ? supabase
+            .from("notifications")
+            .select("id", { count: "exact", head: true })
+            .eq("recipient_id", intUserId)
+            .is("read_at", null)
+        : Promise.resolve({ count: 0 }),
 
-      // 7. Viewer profile snippet (for header)
+      // 7. Viewer profile snippet (auth_id is UUID — this one is correct)
       supabase
         .from("users")
         .select("id, username, first_name, avatar:avatar_id(url), verified")
