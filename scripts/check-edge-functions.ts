@@ -50,10 +50,10 @@ function checkFunction(fnDir: string): CheckResult {
         "createClient missing { auth: { persistSession: false } } — RLS will block queries",
       );
     }
-    if (
-      !code.includes("Authorization: `Bearer ${supabaseServiceKey}`") &&
-      !code.includes("Authorization: `Bearer ${serviceKey}`")
-    ) {
+    const hasAuthHeader = /Authorization:\s*`Bearer \$\{[A-Za-z_]+\}`/.test(
+      code,
+    );
+    if (!hasAuthHeader) {
       result.errors.push(
         "createClient missing global.headers.Authorization — service role won't work",
       );
@@ -65,7 +65,8 @@ function checkFunction(fnDir: string): CheckResult {
     // Good — uses direct DB lookup. Accept both `sessionData.userId` and `session.userId`
     if (
       !code.includes("sessionData.userId") &&
-      !code.includes("session.userId")
+      !code.includes("session.userId") &&
+      !code.includes("session?.userId")
     ) {
       result.errors.push(
         "Queries session table but never reads userId from result",
