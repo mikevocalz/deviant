@@ -67,7 +67,7 @@ export const likesApi = {
     _isCurrentlyLiked?: boolean,
   ): Promise<{ liked: boolean; likes: number }> {
     try {
-      console.log("[Likes] toggleLike via Edge Function:", postId);
+      if (__DEV__) console.log("[Likes] toggleLike via Edge Function:", postId);
 
       const token = await requireBetterAuthToken();
       const postIdInt = parseInt(postId);
@@ -89,7 +89,7 @@ export const likesApi = {
         throw new Error(errorMessage);
       }
 
-      console.log("[Likes] toggleLike result:", data.data);
+      if (__DEV__) console.log("[Likes] toggleLike result:", data.data);
       return { liked: data.data.liked, likes: data.data.likesCount };
     } catch (error) {
       console.error("[Likes] toggleLike error:", error);
