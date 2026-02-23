@@ -69,11 +69,11 @@ CREATE INDEX IF NOT EXISTS idx_posts_author
 
 -- Stories: author_id + expires_at (active stories)
 CREATE INDEX IF NOT EXISTS idx_stories_author_active
-  ON stories (author_id, expires_at DESC);
+  ON public.stories (author_id, expires_at);
 
 -- Story views: unique per user per story
 CREATE UNIQUE INDEX IF NOT EXISTS idx_story_views_unique
-  ON story_views (story_id, user_id);
+  ON public.story_views (story_id, user_id);
 
 -- Events: start_date for upcoming/past queries
 CREATE INDEX IF NOT EXISTS idx_events_start_date
