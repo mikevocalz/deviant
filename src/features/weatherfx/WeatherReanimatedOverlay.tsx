@@ -10,7 +10,7 @@
  * Brand colors: Rain=#8A40CF  Snow=#3FDCFF  Sunny=#FC253A
  */
 
-import React, { memo, useEffect, useMemo } from "react";
+import React, { memo, useEffect, useMemo, useRef } from "react";
 import { View, StyleSheet, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
@@ -89,8 +89,14 @@ const SnowParticle = memo(function SnowParticle({
       config.delay,
       withRepeat(
         withSequence(
-          withTiming(1, { duration: config.speed / 2, easing: Easing.inOut(Easing.sin) }),
-          withTiming(0, { duration: config.speed / 2, easing: Easing.inOut(Easing.sin) }),
+          withTiming(1, {
+            duration: config.speed / 2,
+            easing: Easing.inOut(Easing.sin),
+          }),
+          withTiming(0, {
+            duration: config.speed / 2,
+            easing: Easing.inOut(Easing.sin),
+          }),
         ),
         -1,
         false,
@@ -104,11 +110,19 @@ const SnowParticle = memo(function SnowParticle({
   }, [config.delay, config.speed]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const y = interpolate(progress.value, [0, 1], [-config.size, SCREEN_H + config.size]);
-    const x = config.x * SCREEN_W + interpolate(driftVal.value, [0, 1], [-config.drift, config.drift]);
+    const y = interpolate(
+      progress.value,
+      [0, 1],
+      [-config.size, SCREEN_H + config.size],
+    );
+    const x =
+      config.x * SCREEN_W +
+      interpolate(driftVal.value, [0, 1], [-config.drift, config.drift]);
     return {
       transform: [{ translateX: x }, { translateY: y }],
-      opacity: config.opacity * interpolate(progress.value, [0, 0.05, 0.9, 1], [0, 1, 1, 0]),
+      opacity:
+        config.opacity *
+        interpolate(progress.value, [0, 0.05, 0.9, 1], [0, 1, 1, 0]),
     };
   }, []);
 
@@ -155,7 +169,9 @@ const RainDrop = memo(function RainDrop({
     const x = config.x * SCREEN_W + config.drift * progress.value;
     return {
       transform: [{ translateX: x }, { translateY: y }],
-      opacity: config.opacity * interpolate(progress.value, [0, 0.02, 0.85, 1], [0, 1, 1, 0]),
+      opacity:
+        config.opacity *
+        interpolate(progress.value, [0, 0.02, 0.85, 1], [0, 1, 1, 0]),
     };
   }, []);
 
@@ -216,13 +232,49 @@ function WeatherReanimatedOverlayInner() {
     (s) => s.weatherAmbianceEnabled,
   );
   const intensity = useWeatherFXStore((s) => s.intensity);
+  const burstActive = useWeatherFXStore((s) => s.burstActive);
+  const burstEndTime = useWeatherFXStore((s) => s.burstEndTime);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Auto-end burst after 30s using burstEndTime from store
+  useEffect(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (!burstActive || !burstEndTime) return;
+
+    const remaining = burstEndTime - Date.now();
+    if (remaining <= 0) {
+      useWeatherFXStore.getState().endBurst();
+      return;
+    }
+
+    // Check every second if burst should end
+    timerRef.current = setInterval(() => {
+      if (Date.now() >= burstEndTime) {
+        useWeatherFXStore.getState().endBurst();
+        if (timerRef.current) clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [burstActive, burstEndTime]);
 
   const snowParticles = useMemo(() => generateSnowParticles(), []);
   const rainParticles = useMemo(() => generateRainParticles(), []);
 
+  // Only render during an active 30s burst
   if (
     !eventsTabVisible ||
     !weatherAmbianceEnabled ||
+    !burstActive ||
     selectedEffect === WeatherEffect.None
   ) {
     return null;
@@ -264,12 +316,18 @@ function WeatherReanimatedOverlayInner() {
 
       {/* Clear — very subtle ambient motes */}
       {isClear &&
-        snowParticles.slice(0, 15).map((config, i) => (
-          <SnowParticle
-            key={`mote-${i}`}
-            config={{ ...config, opacity: config.opacity * 0.15, size: config.size * 0.6 }}
-          />
-        ))}
+        snowParticles
+          .slice(0, 15)
+          .map((config, i) => (
+            <SnowParticle
+              key={`mote-${i}`}
+              config={{
+                ...config,
+                opacity: config.opacity * 0.15,
+                size: config.size * 0.6,
+              }}
+            />
+          ))}
     </Animated.View>
   );
 }

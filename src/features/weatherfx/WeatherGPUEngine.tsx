@@ -120,6 +120,13 @@ function WeatherCanvas() {
         !store.lowPower &&
         (store.batteryLevel == null || store.batteryLevel > 0.2);
 
+      // 30s burst gating — skip rendering when burst is inactive
+      if (!store.burstActive) return;
+      if (store.burstEndTime && Date.now() >= store.burstEndTime) {
+        store.endBurst();
+        return;
+      }
+
       // Cinematic logic
       let cinematicMul = 1;
       if (store.cinematicPhase === CinematicPhase.Playing) {

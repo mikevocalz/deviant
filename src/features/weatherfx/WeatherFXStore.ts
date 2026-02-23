@@ -16,8 +16,10 @@ import {
   WeatherEffect,
   CinematicPhase,
   DEFAULT_INTENSITY,
+  BURST_DURATION_MS,
   mapWeatherCodeToEffect,
   computeIntensity,
+  getWeatherSeverity,
   type WeatherMetrics,
   type WeatherIntensity,
 } from "./weatherTypes";
@@ -60,6 +62,11 @@ interface WeatherFXState {
   eventsTabVisible: boolean;
   gpuReady: boolean;
 
+  // ── Burst state (30s one-shot FX) ──
+  burstActive: boolean;
+  burstEndTime: number | null;
+  lastBurstSeverity: number;
+
   // ── Actions ──
   setWeather: (code: number, metrics: WeatherMetrics) => void;
   markCinematicPlayed: (today: string) => void;
@@ -73,6 +80,7 @@ interface WeatherFXState {
   setGpuReady: (ready: boolean) => void;
   setWeatherAmbianceEnabled: (enabled: boolean) => void;
   setEffectIntensityScale: (scale: number) => void;
+  endBurst: () => void;
 
   // ── Derived / selectors ──
   shouldPlayCinematicToday: (today: string) => boolean;
@@ -102,12 +110,44 @@ export const useWeatherFXStore = create<WeatherFXState>()(
       eventsTabVisible: false,
       gpuReady: false,
 
+      // ── Burst defaults ──
+      burstActive: false,
+      burstEndTime: null,
+      lastBurstSeverity: 0,
+
       // ── Actions ──
 
       setWeather: (code, metrics) => {
         const effect = mapWeatherCodeToEffect(code);
         const intensity = computeIntensity(code, metrics);
-        set({ weatherCode: code, metrics, selectedEffect: effect, intensity });
+        const newSeverity = getWeatherSeverity(code);
+        const s = get();
+
+        // Trigger burst if weather worsened (or first data on this visit)
+        const shouldBurst =
+          s.eventsTabVisible &&
+          s.weatherAmbianceEnabled &&
+          effect !== WeatherEffect.None &&
+          newSeverity > s.lastBurstSeverity;
+
+        if (shouldBurst) {
+          set({
+            weatherCode: code,
+            metrics,
+            selectedEffect: effect,
+            intensity,
+            burstActive: true,
+            burstEndTime: Date.now() + BURST_DURATION_MS,
+            lastBurstSeverity: newSeverity,
+          });
+        } else {
+          set({
+            weatherCode: code,
+            metrics,
+            selectedEffect: effect,
+            intensity,
+          });
+        }
       },
 
       markCinematicPlayed: (today) => {
@@ -123,7 +163,31 @@ export const useWeatherFXStore = create<WeatherFXState>()(
       },
 
       setEventsTabVisible: (visible) => {
-        set({ eventsTabVisible: visible });
+        if (visible) {
+          // Entering events tab — trigger burst for current weather if any
+          const s = get();
+          const severity =
+            s.weatherCode != null ? getWeatherSeverity(s.weatherCode) : 0;
+          const hasEffect =
+            s.selectedEffect !== WeatherEffect.None &&
+            s.selectedEffect !== WeatherEffect.Clear &&
+            s.weatherAmbianceEnabled;
+          set({
+            eventsTabVisible: true,
+            burstActive: hasEffect && severity > 0,
+            burstEndTime:
+              hasEffect && severity > 0 ? Date.now() + BURST_DURATION_MS : null,
+            lastBurstSeverity: severity,
+          });
+        } else {
+          // Leaving events tab — reset so next visit plays fresh
+          set({
+            eventsTabVisible: false,
+            burstActive: false,
+            burstEndTime: null,
+            lastBurstSeverity: 0,
+          });
+        }
       },
 
       setGpuReady: (ready) => {
@@ -136,6 +200,10 @@ export const useWeatherFXStore = create<WeatherFXState>()(
 
       setEffectIntensityScale: (scale) => {
         set({ effectIntensityScale: Math.max(0, Math.min(1, scale)) });
+      },
+
+      endBurst: () => {
+        set({ burstActive: false, burstEndTime: null });
       },
 
       // ── Selectors ──
