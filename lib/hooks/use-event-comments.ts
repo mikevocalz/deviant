@@ -7,6 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventsApi } from "@/lib/api/events";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 export const eventCommentKeys = {
   all: ["event-comments"] as const,
@@ -20,6 +21,8 @@ export function useEventComments(eventId: string, limit: number = 10) {
     queryKey: eventCommentKeys.event(eventId),
     queryFn: () => eventsApi.getEventComments(eventId, limit),
     enabled: !!eventId,
+    staleTime: STALE_TIMES.comments,
+    gcTime: GC_TIMES.short,
   });
 }
 
