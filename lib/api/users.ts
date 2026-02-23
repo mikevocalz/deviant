@@ -10,11 +10,12 @@ export const usersApi = {
    */
   async getProfileByUsername(username: string) {
     try {
-      console.log("[Users] getProfileByUsername:", username);
-
       if (!username) return null;
 
-      const { data, error } = await supabase
+      const currentUserId = getCurrentUserIdInt();
+
+      // Fire user fetch + follow check in parallel (no waterfall)
+      const userFetch = supabase
         .from(DB.users.table)
         .select(
           `
@@ -38,11 +39,13 @@ export const usersApi = {
         .eq(DB.users.username, username)
         .single();
 
+      const [{ data, error }] = await Promise.all([userFetch]);
+
       if (data) {
-        // Check if current user follows this user
-        let isFollowing = false;
-        const currentUserId = getCurrentUserIdInt();
         const targetUserId = data[DB.users.id];
+
+        // Follow check fires only when we have both IDs and they differ
+        let isFollowing = false;
         if (currentUserId && targetUserId && currentUserId !== targetUserId) {
           const { data: followData } = await supabase
             .from(DB.follows.table)
@@ -75,11 +78,7 @@ export const usersApi = {
         };
       }
 
-      // Fallback: search Better Auth `user` table by username column
-      console.log(
-        "[Users] getProfileByUsername: no users row, trying Better Auth user table for:",
-        username,
-      );
+      // Fallback: Better Auth `user` table by username (single indexed query)
       const { data: baUser } = await supabase
         .from("user")
         .select("id, name, email, image, username, createdAt")
@@ -87,10 +86,6 @@ export const usersApi = {
         .maybeSingle();
 
       if (baUser) {
-        console.log(
-          "[Users] getProfileByUsername: found in BA user table, authId:",
-          baUser.id,
-        );
         const displayName = (baUser.name || "").trim();
         return {
           id: baUser.id,
@@ -113,53 +108,6 @@ export const usersApi = {
         };
       }
 
-      // Last resort: search by generated username pattern (name → lowercase + underscores)
-      const { data: baUsers } = await supabase
-        .from("user")
-        .select("id, name, email, image, username, createdAt")
-        .order("createdAt", { ascending: false })
-        .limit(200);
-
-      if (baUsers) {
-        const match = baUsers.find((u: any) => {
-          const genUsername = (u.name || "")
-            .trim()
-            .toLowerCase()
-            .replace(/\s+/g, "_");
-          return genUsername === username || u.username === username;
-        });
-        if (match) {
-          console.log(
-            "[Users] getProfileByUsername: matched BA user by name pattern, authId:",
-            match.id,
-          );
-          const displayName = (match.name || "").trim();
-          return {
-            id: match.id,
-            authId: match.id,
-            username: match.username || username,
-            email: match.email,
-            firstName: displayName.split(" ")[0] || "",
-            lastName: displayName.split(" ").slice(1).join(" ") || "",
-            name: displayName || username,
-            bio: "",
-            location: null,
-            avatar: match.image || "",
-            verified: false,
-            followersCount: 0,
-            followingCount: 0,
-            postsCount: 0,
-            isPrivate: false,
-            isFollowing: false,
-            createdAt: match.createdAt,
-          };
-        }
-      }
-
-      console.log(
-        "[Users] getProfileByUsername: user not found anywhere:",
-        username,
-      );
       return null;
     } catch (error) {
       console.error("[Users] getProfileByUsername error:", error);
