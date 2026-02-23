@@ -10,7 +10,13 @@ const supabaseUrl =
   typeof rawUrl === "string" && rawUrl.startsWith("https://")
     ? rawUrl
     : FALLBACK_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const FALLBACK_SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5wZmphbnh0dXJ2bWp5ZXZveWZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg0MjA0MjMsImV4cCI6MjA4Mzk5NjQyM30.v88MMGqv2db8hn8llr5aToKbKUDOHz-AxZbZYA5RLGM";
+const rawAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseAnonKey =
+  typeof rawAnonKey === "string" && rawAnonKey.startsWith("eyJ")
+    ? rawAnonKey
+    : FALLBACK_SUPABASE_ANON_KEY;
 
 if (!supabaseAnonKey) {
   console.error(
