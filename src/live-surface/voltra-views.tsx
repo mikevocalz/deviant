@@ -482,6 +482,19 @@ export function dynamicIslandVariants(
 
       bottom: (
         <Voltra.HStack spacing={6}>
+          <Voltra.HStack spacing={4}>
+            <Voltra.Symbol name="sparkles" tintColor={PURPLE} scale="small" />
+            <Voltra.Text
+              style={{
+                color: PURPLE,
+                fontSize: 11,
+                fontWeight: "700",
+                fontFamily: "Oasis",
+              }}
+            >
+              DVNT
+            </Voltra.Text>
+          </Voltra.HStack>
           {tile.category && <CategoryPill category={tile.category} />}
           {tile.attendeeCount != null && tile.attendeeCount > 0 && (
             <Voltra.HStack spacing={3}>
