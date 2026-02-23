@@ -13,7 +13,10 @@ import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import {
+  getCurrentUserIdInt,
+  getCurrentUserAuthId,
+} from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -538,10 +541,11 @@ export default function EventDetailScreen() {
 
     // Issue a real ticket with crypto-random token via server RPC
     const tierLevel = selectedTier?.tier || "ga";
-    const authId = user?.authId || user?.id || "";
+    const resolvedAuthId =
+      (await getCurrentUserAuthId()) || user?.authId || user?.id || "";
     const rsvpTicket = await ticketsApi.issueRsvpTicket({
       eventId,
-      userId: authId,
+      userId: resolvedAuthId,
     });
 
     setTicket(eventId, {
