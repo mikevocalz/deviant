@@ -7,6 +7,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eventsApi } from "@/lib/api/events";
+import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 export const eventReviewKeys = {
   all: ["event-reviews"] as const,
@@ -20,6 +21,8 @@ export function useEventReviews(eventId: string, limit: number = 10) {
     queryKey: eventReviewKeys.event(eventId),
     queryFn: () => eventsApi.getEventReviews(eventId, limit),
     enabled: !!eventId,
+    staleTime: STALE_TIMES.events,
+    gcTime: GC_TIMES.short,
   });
 }
 
