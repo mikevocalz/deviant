@@ -280,19 +280,25 @@ export async function uploadToBunny(
     let uploadSuccess = false;
     let uploadError = "";
 
+    // 120s upload timeout — prevents infinite hang on bad network
+    const UPLOAD_TIMEOUT_MS = 120_000;
+
     try {
-      const uploadResult = await FileSystem.uploadAsync(
-        uploadUrl,
-        accessibleUri,
-        {
-          httpMethod: "PUT",
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-          headers: {
-            AccessKey: BUNNY_STORAGE_API_KEY,
-            "Content-Type": "application/octet-stream",
-          },
+      const uploadPromise = FileSystem.uploadAsync(uploadUrl, accessibleUri, {
+        httpMethod: "PUT",
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          AccessKey: BUNNY_STORAGE_API_KEY,
+          "Content-Type": "application/octet-stream",
         },
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error("Upload timed out after 120s")),
+          UPLOAD_TIMEOUT_MS,
+        ),
       );
+      const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
 
       console.log("[Bunny] Upload response status:", uploadResult.status);
       console.log(
@@ -330,24 +336,36 @@ export async function uploadToBunny(
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        const fetchResponse = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            AccessKey: BUNNY_STORAGE_API_KEY,
-            "Content-Type": "application/octet-stream",
-          },
-          body: bytes,
-        });
+        const controller = new AbortController();
+        const fetchTimeout = setTimeout(
+          () => controller.abort(),
+          UPLOAD_TIMEOUT_MS,
+        );
+        try {
+          const fetchResponse = await fetch(uploadUrl, {
+            method: "PUT",
+            headers: {
+              AccessKey: BUNNY_STORAGE_API_KEY,
+              "Content-Type": "application/octet-stream",
+            },
+            body: bytes,
+            signal: controller.signal,
+          });
+          clearTimeout(fetchTimeout);
 
-        console.log("[Bunny] Fetch response status:", fetchResponse.status);
+          console.log("[Bunny] Fetch response status:", fetchResponse.status);
 
-        if (fetchResponse.status === 201 || fetchResponse.status === 200) {
-          uploadSuccess = true;
-          onProgress?.({ loaded: 100, total: 100, percentage: 100 });
-        } else {
-          const responseText = await fetchResponse.text();
-          uploadError = `Fetch upload failed: ${fetchResponse.status} - ${responseText}`;
-          console.error("[Bunny] Fetch upload failed:", uploadError);
+          if (fetchResponse.status === 201 || fetchResponse.status === 200) {
+            uploadSuccess = true;
+            onProgress?.({ loaded: 100, total: 100, percentage: 100 });
+          } else {
+            const responseText = await fetchResponse.text();
+            uploadError = `Fetch upload failed: ${fetchResponse.status} - ${responseText}`;
+            console.error("[Bunny] Fetch upload failed:", uploadError);
+          }
+        } catch (fetchError) {
+          clearTimeout(fetchTimeout);
+          throw fetchError;
         }
       } catch (fetchError) {
         console.error("[Bunny] Method 2 also failed:", fetchError);
