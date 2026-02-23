@@ -49,6 +49,30 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
+    // ── Resolve integer user_id from auth_id (UUID) or integer string ──
+    // user_id from client is AppUser.id = Better Auth UUID (auth_id), NOT integer
+    let intUserId: number | null = null;
+    const asInt = parseInt(user_id, 10);
+    if (!isNaN(asInt) && String(asInt) === String(user_id)) {
+      // Already an integer string
+      intUserId = asInt;
+    } else {
+      // It's a UUID — resolve via auth_id
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id")
+        .eq("auth_id", user_id)
+        .single();
+      intUserId = userRow?.id ?? null;
+    }
+
+    if (!intUserId) {
+      return new Response(JSON.stringify({ error: "User not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     // ── Fire ALL queries in parallel ──────────────────────────────
 
     const [notificationsResult, unreadCountResult] = await Promise.all([
@@ -67,7 +91,7 @@ Deno.serve(async (req: Request) => {
           )
         `,
         )
-        .eq("recipient_id", user_id)
+        .eq("recipient_id", intUserId)
         .order("created_at", { ascending: false })
         .limit(limit),
 
@@ -75,7 +99,7 @@ Deno.serve(async (req: Request) => {
       supabase
         .from("notifications")
         .select("id", { count: "exact", head: true })
-        .eq("recipient_id", user_id)
+        .eq("recipient_id", intUserId)
         .is("read_at", null),
     ]);
 
@@ -102,7 +126,7 @@ Deno.serve(async (req: Request) => {
         .select(
           "following_id, target:users!follows_following_id_fkey(username)",
         )
-        .eq("follower_id", user_id)
+        .eq("follower_id", intUserId)
         .in("following_id", senderIds);
 
       if (follows) {
