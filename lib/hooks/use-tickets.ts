@@ -11,6 +11,8 @@ import { useTicketStore } from "@/lib/stores/ticket-store";
 export const ticketKeys = {
   all: ["tickets"] as const,
   myTickets: () => [...ticketKeys.all, "mine"] as const,
+  myTicketForEvent: (eventId: string) =>
+    [...ticketKeys.all, "mine", eventId] as const,
   eventTickets: (eventId: string) =>
     [...ticketKeys.all, "event", eventId] as const,
   ticketTypes: (eventId: string) =>
@@ -57,6 +59,39 @@ export function useMyTickets() {
       return [...dbTickets, ...storeOnlyTickets];
     },
     // Always enabled — viewing tickets should never be gated
+  });
+}
+
+/** Current user's ticket for a specific event */
+export function useMyTicketForEvent(eventId: string) {
+  const storeTicket = useTicketStore((s) => s.getTicketByEventId(eventId));
+
+  return useQuery({
+    queryKey: ticketKeys.myTicketForEvent(eventId),
+    queryFn: () => ticketsApi.getMyTicketForEvent(eventId),
+    enabled: !!eventId,
+    // If Zustand store has a ticket (from recent RSVP), use it as placeholder
+    placeholderData: storeTicket
+      ? ({
+          id: storeTicket.id,
+          event_id: parseInt(storeTicket.eventId) || 0,
+          ticket_type_id: "",
+          user_id: storeTicket.userId,
+          status: (storeTicket.status === "valid"
+            ? "active"
+            : storeTicket.status) as any,
+          qr_token: storeTicket.qrToken,
+          checked_in_at: storeTicket.checkedInAt || null,
+          checked_in_by: null,
+          purchase_amount_cents: storeTicket.paid ? null : 0,
+          created_at: new Date().toISOString(),
+          ticket_type_name: storeTicket.tierName || "Free Entry",
+          event_title: storeTicket.eventTitle || "",
+          event_image: storeTicket.eventImage || "",
+          event_date: storeTicket.eventDate || "",
+          event_location: storeTicket.eventLocation || "",
+        } as any)
+      : undefined,
   });
 }
 
