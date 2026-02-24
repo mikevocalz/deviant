@@ -13,6 +13,12 @@ export interface MediaAsset {
   duration?: number;
   fileName?: string;
   fileSize?: number;
+  originalUri?: string;
+  cropState?: {
+    scale: number;
+    translateX: number;
+    translateY: number;
+  };
 }
 
 export interface StoryMediaOptions {
