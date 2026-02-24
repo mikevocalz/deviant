@@ -252,6 +252,21 @@ async function updateVoltraSurfaces(
       },
     );
 
+    // 6. CRITICAL: Also update the native DVNTLiveActivity module.
+    //    The native DVNTLiveActivityWidget (@main in DVNTWidgetBundle) reads hero
+    //    images from the App Group container. The native module downloads them there.
+    //    Without this call, the native widget shows a black fallback gradient.
+    try {
+      const { updateLiveActivity: updateNativeLA } =
+        await import("@/src/live-surface/native/ios-bridge");
+      updateNativeLA(payload);
+    } catch (nativeErr) {
+      // Non-fatal — Voltra path already ran
+      if (__DEV__) {
+        console.warn("[LiveSurface] Native bridge update failed:", nativeErr);
+      }
+    }
+
     if (__DEV__) {
       console.log(
         "[LiveSurface] Voltra surfaces updated:",
@@ -288,6 +303,14 @@ async function endNativeSurface(): Promise<void> {
       const { endAllLiveActivities } = await import("voltra/client");
       await endAllLiveActivities();
       activeActivityId = null;
+      // Also end the native DVNTLiveActivity
+      try {
+        const { endLiveActivity } =
+          await import("@/src/live-surface/native/ios-bridge");
+        endLiveActivity();
+      } catch {
+        // non-fatal
+      }
     } else if (Platform.OS === "android") {
       const mod = require("@/src/live-surface/native/android-bridge");
       mod?.dismissNotification?.();
