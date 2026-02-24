@@ -1,9 +1,8 @@
 /**
  * Video Compression Utility for Deviant
  *
- * NOTE: ffmpeg-kit-react-native has been RETIRED (Jan 2025).
- * This module now uses a pass-through approach until a replacement is implemented.
- * Videos are uploaded without local compression - server-side processing handles optimization.
+ * Uses react-native-compressor for client-side video compression.
+ * Falls back to pass-through if native module is unavailable.
  *
  * Target Output (Feed-Safe):
  * - Container: MP4
@@ -16,14 +15,27 @@
  * - Max Duration: 60s
  */
 
-// FFmpeg-Kit has been retired - using pass-through approach
-// import { FFmpegKit, FFmpegKitConfig, ReturnCode } from "ffmpeg-kit-react-native";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 
 const FileSystem = LegacyFileSystem;
 
-// Flag to indicate FFmpeg is not available
-const FFMPEG_AVAILABLE = false;
+// Safe import — native module may not be in older builds
+let RNCompressorVideo: typeof import("react-native-compressor").Video | null =
+  null;
+let RNCompressorGetMeta:
+  | typeof import("react-native-compressor").getVideoMetaData
+  | null = null;
+try {
+  const mod = require("react-native-compressor");
+  RNCompressorVideo = mod.Video;
+  RNCompressorGetMeta = mod.getVideoMetaData;
+} catch {
+  console.warn(
+    "[VideoCompression] react-native-compressor not available, using pass-through",
+  );
+}
+
+const COMPRESSOR_AVAILABLE = !!RNCompressorVideo;
 
 // Validation limits
 const MAX_DURATION_SECONDS = 60;
@@ -72,7 +84,8 @@ export interface CompressionProgress {
 
 /**
  * Get video metadata
- * NOTE: FFmpeg-Kit retired - returns basic file info only
+ * Uses react-native-compressor's getVideoMetaData for real values.
+ * Falls back to file-size-only estimates if native module unavailable.
  */
 export async function getVideoMetadata(
   videoUri: string,
@@ -83,7 +96,6 @@ export async function getVideoMetadata(
   );
 
   try {
-    // Get basic file info since FFmpeg is not available
     const fileInfo = await FileSystem.getInfoAsync(videoUri);
     if (!fileInfo.exists) {
       console.error("[VideoCompression] File does not exist");
@@ -92,17 +104,39 @@ export async function getVideoMetadata(
 
     const fileSize = (fileInfo as any).size || 0;
 
-    // Return estimated metadata - actual values would require FFprobe
+    // Use real metadata from react-native-compressor if available
+    if (RNCompressorGetMeta) {
+      try {
+        const meta = await RNCompressorGetMeta(videoUri);
+        const metadata: VideoMetadata = {
+          duration: meta.duration || 0,
+          width: meta.width || 1920,
+          height: meta.height || 1080,
+          bitrate: 0,
+          codec: "unknown",
+          fileSize: meta.size || fileSize,
+          fps: 30,
+        };
+        console.log("[VideoCompression] Metadata (real):", metadata);
+        return metadata;
+      } catch (metaErr) {
+        console.warn(
+          "[VideoCompression] Native metadata failed, using estimates:",
+          metaErr,
+        );
+      }
+    }
+
+    // Fallback: estimated metadata
     const metadata: VideoMetadata = {
-      duration: 30, // Estimated - actual duration unknown without FFprobe
-      width: 1920, // Estimated
-      height: 1080, // Estimated
+      duration: 30,
+      width: 1920,
+      height: 1080,
       bitrate: 0,
       codec: "unknown",
       fileSize,
       fps: 30,
     };
-
     console.log("[VideoCompression] Metadata (estimated):", metadata);
     return metadata;
   } catch (error) {
@@ -185,17 +219,15 @@ export async function validateVideo(
 }
 
 /**
- * Compress video
- * NOTE: FFmpeg-Kit has been RETIRED (Jan 2025).
- * This now uses a pass-through approach - returns original video.
- * Server-side processing will handle optimization if needed.
+ * Compress video using react-native-compressor.
+ * Falls back to pass-through if native module is unavailable.
  */
 export async function compressVideo(
   inputUri: string,
   onProgress?: (progress: CompressionProgress) => void,
 ): Promise<CompressionResult> {
   console.log("[VideoCompression] ==========================================");
-  console.log("[VideoCompression] FFmpeg-Kit RETIRED - using pass-through");
+  console.log("[VideoCompression] Compressor available:", COMPRESSOR_AVAILABLE);
   console.log("[VideoCompression] Input:", inputUri.substring(0, 80));
 
   try {
@@ -211,8 +243,70 @@ export async function compressVideo(
 
     const metadata = validation.metadata!;
     const originalSize = metadata.fileSize;
+    const startTime = Date.now();
 
-    // Report instant progress since we're not actually compressing
+    // Use real compression if available
+    if (COMPRESSOR_AVAILABLE && RNCompressorVideo) {
+      console.log("[VideoCompression] Starting native compression...");
+
+      const compressedUri = await RNCompressorVideo.compress(
+        inputUri,
+        {
+          compressionMethod: "auto",
+          minimumFileSizeForCompress: 0,
+        },
+        (progress: number) => {
+          if (onProgress) {
+            const elapsed = (Date.now() - startTime) / 1000;
+            const pct = Math.round(progress * 100);
+            onProgress({
+              percentage: pct,
+              timeElapsed: elapsed,
+              estimatedTimeRemaining:
+                pct > 0 ? (elapsed / pct) * (100 - pct) : undefined,
+            });
+          }
+        },
+      );
+
+      // Get compressed file size
+      const compressedInfo = await FileSystem.getInfoAsync(compressedUri);
+      const compressedSize = (compressedInfo as any).size || originalSize;
+      const ratio =
+        originalSize > 0
+          ? Math.round((1 - compressedSize / originalSize) * 100)
+          : 0;
+
+      console.log(
+        "[VideoCompression] ==========================================",
+      );
+      console.log("[VideoCompression] Compression SUCCESS");
+      console.log(
+        "[VideoCompression] Original:",
+        Math.round(originalSize / 1024 / 1024),
+        "MB",
+      );
+      console.log(
+        "[VideoCompression] Compressed:",
+        Math.round(compressedSize / 1024 / 1024),
+        "MB",
+      );
+      console.log("[VideoCompression] Reduction:", ratio + "%");
+      console.log(
+        "[VideoCompression] ==========================================",
+      );
+
+      return {
+        success: true,
+        outputPath: compressedUri,
+        originalSize,
+        compressedSize,
+        compressionRatio: ratio,
+      };
+    }
+
+    // Fallback: pass-through (no native compressor)
+    console.log("[VideoCompression] Pass-through (no native compressor)");
     if (onProgress) {
       onProgress({
         percentage: 100,
@@ -221,20 +315,6 @@ export async function compressVideo(
       });
     }
 
-    console.log(
-      "[VideoCompression] ==========================================",
-    );
-    console.log("[VideoCompression] Pass-through SUCCESS (no compression)");
-    console.log(
-      "[VideoCompression] Size:",
-      Math.round(originalSize / 1024 / 1024),
-      "MB",
-    );
-    console.log(
-      "[VideoCompression] ==========================================",
-    );
-
-    // Return original file as "compressed" output
     return {
       success: true,
       outputPath: inputUri,
@@ -243,11 +323,25 @@ export async function compressVideo(
       compressionRatio: 0,
     };
   } catch (error) {
-    console.error("[VideoCompression] Unexpected error:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
+    console.error("[VideoCompression] Compression error:", error);
+    // On compression failure, fall back to pass-through rather than blocking upload
+    console.warn("[VideoCompression] Falling back to pass-through");
+    try {
+      const fileInfo = await FileSystem.getInfoAsync(inputUri);
+      const fileSize = (fileInfo as any).size || 0;
+      return {
+        success: true,
+        outputPath: inputUri,
+        originalSize: fileSize,
+        compressedSize: fileSize,
+        compressionRatio: 0,
+      };
+    } catch {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Compression failed",
+      };
+    }
   }
 }
 
