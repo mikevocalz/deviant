@@ -751,11 +751,11 @@ function FeedPostComponent({
             </Pressable>
             <Pressable
               hitSlop={12}
+              onPressIn={() => {
+                if (id) prefetchComments(id);
+              }}
               onPress={() => {
-                if (id) {
-                  prefetchComments(id);
-                  router.push(`/(protected)/comments/${id}`);
-                }
+                if (id) router.push(`/(protected)/comments/${id}`);
               }}
             >
               <MessageCircle size={24} color={colors.foreground} />
@@ -776,10 +776,8 @@ function FeedPostComponent({
         {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
           <Pressable
-            onPress={() => {
-              prefetchLikers(id);
-              onShowLikes?.(id);
-            }}
+            onPressIn={() => prefetchLikers(id)}
+            onPress={() => onShowLikes?.(id)}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
               {formatLikeCount(likesCount)}
