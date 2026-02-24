@@ -51,6 +51,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useRef,
   useCallback,
@@ -611,11 +612,15 @@ export default function ChatScreen() {
     return [];
   }, [mentionQuery, recipient]);
 
+  const queryClient = useQueryClient();
+
   const handleSend = useCallback(() => {
     // Read fresh state from store — avoids stale closure bugs
     const store = useChatStore.getState();
     if (!store.currentMessage.trim() && store.pendingMedia.length === 0) return;
     if (store.isSending) return;
+
+    const messageText = store.currentMessage.trim();
 
     Animated.sequence([
       Animated.timing(sendButtonScale, {
@@ -634,8 +639,34 @@ export default function ChatScreen() {
     // Use the resolved numeric conversation ID — chatId may be a username string
     // which parseInt() turns into NaN, causing the edge function to reject the send.
     const convId = resolvedConvIdRef.current || chatId;
+
+    // OPTIMISTIC: patch conversations list cache so lastMessage updates instantly
+    // without waiting for a full refetch of the conversations list.
+    if (messageText) {
+      const nowStr = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      queryClient.setQueriesData<any[]>(
+        { queryKey: ["messages", "filtered"] },
+        (old) => {
+          if (!Array.isArray(old)) return old;
+          return old.map((conv: any) =>
+            String(conv.id) === String(convId)
+              ? {
+                  ...conv,
+                  lastMessage: messageText,
+                  timestamp: "Just now",
+                  unread: false,
+                }
+              : conv,
+          );
+        },
+      );
+    }
+
     sendMessageToBackend(convId);
-  }, [chatId, sendMessageToBackend, sendButtonScale]);
+  }, [chatId, sendMessageToBackend, sendButtonScale, queryClient]);
 
   const handleMentionSelect = useCallback(
     (username: string) => {

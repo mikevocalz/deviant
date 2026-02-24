@@ -108,6 +108,23 @@ export const useAuthStore = create<AuthStore>()(
 
           if (!session) {
             console.log("[AuthStore] No active session found");
+            // CRITICAL: If we have a persisted user, keep them authenticated.
+            // getSession returning null does NOT mean "user logged out" — it can
+            // mean the SecureStore token expired, was cleared by iOS, or the
+            // Better Auth edge function returned empty. Never sign out a persisted
+            // user based solely on a null session — require an explicit logout action.
+            const persistedOnNoSession = get().user;
+            if (persistedOnNoSession) {
+              console.log(
+                "[AuthStore] No session but persisted user exists — staying authenticated:",
+                persistedOnNoSession.id,
+              );
+              set({
+                isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
+              });
+              return;
+            }
             set({
               user: null,
               isAuthenticated: false,
@@ -235,16 +252,29 @@ export const useAuthStore = create<AuthStore>()(
               });
             }
           } else {
-            console.log("[AuthStore] No active session found");
-            set({
-              user: null,
-              isAuthenticated: false,
-              authStatus: "unauthenticated" as AuthStatus,
-            });
-            const {
-              clearUserRowCache: clearCache2,
-            } = require("@/lib/auth/identity");
-            clearCache2();
+            console.log("[AuthStore] Session exists but no user object");
+            // Same guard: keep persisted user if available
+            const persistedNoUser = get().user;
+            if (persistedNoUser) {
+              console.log(
+                "[AuthStore] Session.user empty but persisted user exists — staying authenticated:",
+                persistedNoUser.id,
+              );
+              set({
+                isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
+              });
+            } else {
+              set({
+                user: null,
+                isAuthenticated: false,
+                authStatus: "unauthenticated" as AuthStatus,
+              });
+              const {
+                clearUserRowCache: clearCache2,
+              } = require("@/lib/auth/identity");
+              clearCache2();
+            }
           }
         } catch (error) {
           console.error("[AuthStore] loadAuthState error:", error);

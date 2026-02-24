@@ -270,7 +270,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
-    const { currentMessage, pendingMedia, messages, isSending } = get();
+    const { currentMessage, pendingMedia, isSending } = get();
     if (isSending) return; // Re-entrance guard
     if (!currentMessage.trim() && pendingMedia.length === 0) return;
 
@@ -283,15 +283,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Capture values before clearing
     const messageText = currentMessage;
     const mediaToSend = pendingMedia;
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticTime = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
-    // CRITICAL: Clear input immediately (optimistic) so user sees it reset
-    set({
+    // OPTIMISTIC: insert message immediately so it appears on screen before the API call
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      text: messageText,
+      sender: "me",
+      time: optimisticTime,
+      media: mediaToSend.length > 0 ? mediaToSend : undefined,
+    };
+
+    set((state) => ({
       currentMessage: "",
       mentionQuery: "",
       showMentions: false,
       pendingMedia: [],
       isSending: true,
-    });
+      messages: {
+        ...state.messages,
+        [conversationId]: [
+          ...(state.messages[conversationId] || []),
+          optimisticMessage,
+        ],
+      },
+    }));
 
     try {
       // Upload media to Bunny CDN first, then send CDN URL
@@ -327,16 +347,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         try {
           const d = new Date(result.createdAt || result.created_at);
           timeStr = isNaN(d.getTime())
-            ? new Date().toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
+            ? optimisticTime
             : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         } catch {
-          timeStr = new Date().toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+          timeStr = optimisticTime;
         }
 
         // Parse media safely — check result.media array, then metadata.mediaItems, then metadata.mediaUrl, then local fallback
@@ -367,33 +381,41 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     }))
                   : undefined;
 
-        const existingMessages = get().messages[conversationId] || [];
-        const newMessage: Message = {
-          id: result.id || String(Date.now()),
-          text: result.content || result.text || messageText,
-          sender: "me",
-          time: timeStr,
-          media: serverMedia,
-        };
-
-        set({
-          messages: {
-            ...get().messages,
-            [conversationId]: [...existingMessages, newMessage],
-          },
+        // Replace optimistic entry with confirmed server message
+        set((state) => ({
           isSending: false,
-        });
+          messages: {
+            ...state.messages,
+            [conversationId]: (state.messages[conversationId] || []).map((m) =>
+              m.id === optimisticId
+                ? {
+                    ...m,
+                    id: result.id || optimisticId,
+                    text: result.content || result.text || messageText,
+                    time: timeStr,
+                    media: serverMedia,
+                  }
+                : m,
+            ),
+          },
+        }));
       } else {
         set({ isSending: false });
       }
     } catch (error) {
       console.error("[ChatStore] sendMessageToBackend error:", error);
-      // Restore message on error so user doesn't lose their text
-      set({
+      // Remove optimistic message and restore input so user doesn't lose their text
+      set((state) => ({
         currentMessage: messageText,
         pendingMedia: mediaToSend,
         isSending: false,
-      });
+        messages: {
+          ...state.messages,
+          [conversationId]: (state.messages[conversationId] || []).filter(
+            (m) => m.id !== optimisticId,
+          ),
+        },
+      }));
     }
   },
 

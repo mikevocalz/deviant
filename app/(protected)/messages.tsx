@@ -541,7 +541,10 @@ export default function MessagesScreen() {
 
   const handleRefresh = useCallback(() => {
     isManualRefresh.current = true;
-    queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+    // refetchQueries triggers an immediate fetch and resolves when done —
+    // the RefreshControl spinner dismisses as soon as data arrives.
+    // invalidateQueries only marks stale and re-fetches lazily on next render.
+    queryClient.refetchQueries({ queryKey: ["messages", "filtered"] });
   }, [queryClient]);
 
   const handleChatPress = useCallback(
