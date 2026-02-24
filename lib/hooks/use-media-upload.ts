@@ -22,10 +22,6 @@ import {
   type UploadProgress,
 } from "@/lib/server-upload";
 
-import {
-  generateVideoThumbnail,
-  cleanupThumbnail,
-} from "@/lib/video-thumbnail";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import {
   compressVideo,
@@ -106,10 +102,10 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       const results: MediaUploadResult[] = [];
       const videoCount = files.filter((f) => f.type === "video").length;
       const imageCount = files.length - videoCount;
-      // Stories skip thumbnail step: validate + compress + upload = 3 steps
-      // Posts include thumbnail: validate + compress + thumbnail + upload = 4 steps
+      // All uploads: validate + compress + upload = 3 steps per video
+      // Thumbnail generation disabled — expo-video-thumbnails hangs on iOS 26.3
       const isStory = folder === "stories";
-      const videoSteps = isStory ? 3 : 4;
+      const videoSteps = 3;
       const totalSteps = videoCount * videoSteps + imageCount;
       let completedSteps = 0;
 
@@ -194,52 +190,10 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           });
           updateProgress("Video compressed");
 
-          // Step 3: Generate + upload thumbnail (skipped for stories — they expire in 24h)
-          let thumbnailUrl: string | undefined;
-          if (!isStory) {
-            setStatusMessage("Generating thumbnail...");
-            try {
-              const thumbTimeout = new Promise<never>((_, reject) =>
-                setTimeout(
-                  () => reject(new Error("Thumbnail step timed out")),
-                  5000,
-                ),
-              );
-              const thumbWork = (async () => {
-                const thumbResult = await generateVideoThumbnail(
-                  file.uri,
-                  500,
-                  4000,
-                );
-                if (thumbResult.success && thumbResult.uri) {
-                  const thumbUpload = await serverUpload(
-                    thumbResult.uri,
-                    `${folder}/thumbnails`,
-                  );
-                  if (thumbUpload.success) {
-                    console.log(
-                      "[useMediaUpload] Thumbnail uploaded:",
-                      thumbUpload.url,
-                    );
-                    return thumbUpload.url;
-                  }
-                  await cleanupThumbnail(thumbResult.uri);
-                }
-                return undefined;
-              })();
-              thumbnailUrl = await Promise.race([thumbWork, thumbTimeout]);
-            } catch (thumbErr) {
-              console.warn(
-                "[useMediaUpload] Thumbnail step failed/timed out, skipping:",
-                thumbErr,
-              );
-            }
-            updateProgress(
-              thumbnailUrl ? "Thumbnail generated" : "Skipped thumbnail",
-            );
-          } else {
-            console.log("[useMediaUpload] Skipping thumbnail for story");
-          }
+          // Thumbnail generation DISABLED — expo-video-thumbnails hangs on iOS 26.3
+          // Video player renders first frame automatically. Can re-enable with
+          // react-native-compressor's createVideoThumbnail later.
+          const thumbnailUrl: string | undefined = undefined;
 
           // Step 4: Upload COMPRESSED video (never raw)
           setStatusMessage("Uploading video...");
