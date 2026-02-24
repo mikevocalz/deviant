@@ -9,6 +9,7 @@ import {
   Alert,
   StyleSheet,
   Keyboard,
+  InteractionManager,
 } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, {
@@ -637,7 +638,9 @@ export default function ChatScreen() {
       }),
     ]).start();
 
-    Keyboard.dismiss();
+    // PERF: Defer keyboard dismiss — calling it synchronously before send
+    // triggers a layout recalculation that blocks the JS thread on iOS.
+    InteractionManager.runAfterInteractions(() => Keyboard.dismiss());
     // Use the resolved numeric conversation ID — chatId may be a username string
     // which parseInt() turns into NaN, causing the edge function to reject the send.
     const convId = resolvedConvIdRef.current || chatId;
