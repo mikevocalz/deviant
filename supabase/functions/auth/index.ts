@@ -18,8 +18,24 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const RESEND_FROM_EMAIL =
   Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <onboarding@resend.dev>";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const AUTH_BASE_URL = SUPABASE_URL; // Just the origin — no path component!
 const APP_NAME = "DVNT";
+
+// Better Auth generates email URLs as SUPABASE_URL + basePath (e.g. /api/auth/reset-password/TOKEN).
+// But that path doesn't route through the edge function gateway (/functions/v1/auth/...).
+// This helper rewrites the URL to go through the edge function AND includes the anon key
+// so the Supabase API gateway allows browser-initiated GET requests (no Authorization header).
+function fixEmailUrl(url: string): string {
+  const fixed = url.replace(
+    `${SUPABASE_URL}/api/auth/`,
+    `${SUPABASE_URL}/functions/v1/auth/api/auth/`,
+  );
+  const sep = fixed.includes("?") ? "&" : "?";
+  return SUPABASE_ANON_KEY
+    ? `${fixed}${sep}apikey=${SUPABASE_ANON_KEY}`
+    : fixed;
+}
 const BRAND_COLOR = "#6366f1";
 
 console.log("[Auth] Starting edge function...");
@@ -156,13 +172,16 @@ async function getAuth() {
           url: string;
         }) => {
           console.log(`[Auth] Password reset requested for ${user.email}`);
+          console.log(`[Auth] Original reset URL: ${url}`);
+          const resetUrl = fixEmailUrl(url);
+          console.log(`[Auth] Fixed reset URL: ${resetUrl}`);
           const html = baseWrapper(
             [
               '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Reset Your Password</h1>',
               '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">We received a request to reset your password. Tap the button below to choose a new one. This link expires in 1 hour.</p>',
-              ctaButton("Reset Password", url),
+              ctaButton("Reset Password", resetUrl),
               '<p style="color:#71717a;font-size:13px">If you didn\u2019t request this, you can safely ignore this email.</p>',
-              `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
+              `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${resetUrl}</p>`,
             ].join(""),
           );
           await sendEmail(user.email, `Reset your ${APP_NAME} password`, html);
@@ -175,15 +194,16 @@ async function getAuth() {
           url: string;
         }) => {
           console.log(`[Auth] Email verification requested for ${user.email}`);
+          const verifyUrl = fixEmailUrl(url);
           const name = user.name || user.email.split("@")[0];
           const html = baseWrapper(
             [
               '<h1 style="color:#fff;margin:0 0 8px;font-size:28px">Confirm Your Email</h1>',
               `<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Hey ${name},</p>`,
               '<p style="color:#a1a1aa;line-height:1.6;font-size:16px">Tap the button below to verify your email address. This link expires in 24 hours.</p>',
-              ctaButton("Confirm Email", url),
+              ctaButton("Confirm Email", verifyUrl),
               '<p style="color:#71717a;font-size:13px">If you didn\u2019t create an account, you can safely ignore this email.</p>',
-              `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${url}</p>`,
+              `<p style="color:#3f3f46;font-size:12px;word-break:break-all">Or copy this link: ${verifyUrl}</p>`,
             ].join(""),
           );
           await sendEmail(user.email, `Confirm your ${APP_NAME} email`, html);
