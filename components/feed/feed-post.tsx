@@ -815,6 +815,7 @@ function FeedPostComponent({
                       key={comment.id}
                       onPress={() => {
                         if (id) {
+                          prefetchComments(id);
                           router.push(`/(protected)/comments/${id}`);
                         }
                       }}
@@ -833,6 +834,7 @@ function FeedPostComponent({
                 <Pressable
                   onPress={() => {
                     if (id) {
+                      prefetchComments(id);
                       router.push(`/(protected)/comments/${id}`);
                     }
                   }}
