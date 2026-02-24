@@ -7,6 +7,7 @@ import {
 } from "@/lib/utils/storage";
 import { authClient, handleSignOut, type AppUser } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
+import { logAuth } from "@/lib/auth/auth-logger";
 // NOTE: syncAuthUser and clearUserRowCache are imported LAZILY (inline)
 // to break the require cycle: auth-store -> privileged -> identity -> auth-store
 
@@ -70,7 +71,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       loadAuthState: async () => {
-        console.log("[AuthStore] loadAuthState");
+        logAuth("AUTH_SESSION_LOAD_START");
         // CRITICAL: Set loading at the START — UI must not render protected routes
         // until this function completes. Do NOT set isAuthenticated during loading.
         set({ authStatus: "loading" as AuthStatus });
@@ -80,9 +81,9 @@ export const useAuthStore = create<AuthStore>()(
         // MMKV read hasn't completed yet. Every guard that checks "is there a persisted
         // user?" would fail, causing an immediate sign-out on every cold start.
         if (!get()._hasHydrated) {
-          console.log(
-            "[AuthStore] Waiting for rehydration before loadAuthState...",
-          );
+          logAuth("AUTH_REHYDRATION_START");
+          const rehydrateStart = Date.now();
+          let timedOut = false;
           await Promise.race([
             new Promise<void>((resolve) => {
               const unsub = useAuthStore.subscribe((s) => {
@@ -98,12 +99,23 @@ export const useAuthStore = create<AuthStore>()(
               }
             }),
             // Timeout: never hang forever waiting for rehydration
-            new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+            new Promise<void>((resolve) =>
+              setTimeout(() => {
+                timedOut = true;
+                resolve();
+              }, 3000),
+            ),
           ]);
-          console.log(
-            "[AuthStore] Rehydration complete, persisted user:",
-            get().user?.id || "none",
-          );
+          if (timedOut) {
+            logAuth("AUTH_REHYDRATION_TIMEOUT", {
+              durationMs: Date.now() - rehydrateStart,
+            });
+          } else {
+            logAuth("AUTH_REHYDRATION_OK", {
+              durationMs: Date.now() - rehydrateStart,
+              userId: get().user?.id || "none",
+            });
+          }
         }
 
         // SAFETY NET: If Zustand rehydration lost the user (race with persist
@@ -116,11 +128,9 @@ export const useAuthStore = create<AuthStore>()(
               const parsed = JSON.parse(raw);
               const savedState = parsed?.state;
               if (savedState?.user?.id) {
-                console.warn(
-                  "[AuthStore] SAFETY NET: Zustand user was null but MMKV has user:",
-                  savedState.user.id,
-                  "— restoring",
-                );
+                logAuth("AUTH_MMKV_FALLBACK_OK", {
+                  userId: savedState.user.id,
+                });
                 set({
                   user: savedState.user,
                   isAuthenticated: true,
@@ -128,7 +138,7 @@ export const useAuthStore = create<AuthStore>()(
               }
             }
           } catch (mmkvError) {
-            console.warn("[AuthStore] MMKV direct read failed:", mmkvError);
+            logAuth("AUTH_MMKV_FALLBACK_FAIL", { error: String(mmkvError) });
           }
         }
 
@@ -152,13 +162,13 @@ export const useAuthStore = create<AuthStore>()(
           // on the first call. If we have a persisted user, keep them authenticated
           // rather than signing them out due to a transient network failure.
           if (sessionError) {
-            console.warn("[AuthStore] getSession network error:", sessionError);
+            logAuth("AUTH_SESSION_LOAD_FAIL", { error: String(sessionError) });
             const persistedUser = get().user;
             if (persistedUser) {
-              console.log(
-                "[AuthStore] Keeping persisted user despite getSession error:",
-                persistedUser.id,
-              );
+              logAuth("AUTH_PERSISTED_KEEPALIVE", {
+                userId: persistedUser.id,
+                reason: "getSession_error",
+              });
               set({
                 isAuthenticated: true,
                 authStatus: "authenticated" as AuthStatus,
@@ -175,7 +185,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           if (!session) {
-            console.log("[AuthStore] No active session found");
+            logAuth("AUTH_SESSION_LOAD_FAIL", { error: "null_session" });
             // CRITICAL: If we have a persisted user, keep them authenticated.
             // getSession returning null does NOT mean "user logged out" — it can
             // mean the SecureStore token expired, was cleared by iOS, or the
@@ -183,10 +193,10 @@ export const useAuthStore = create<AuthStore>()(
             // user based solely on a null session — require an explicit logout action.
             const persistedOnNoSession = get().user;
             if (persistedOnNoSession) {
-              console.log(
-                "[AuthStore] No session but persisted user exists — staying authenticated:",
-                persistedOnNoSession.id,
-              );
+              logAuth("AUTH_PERSISTED_KEEPALIVE", {
+                userId: persistedOnNoSession.id,
+                reason: "null_session",
+              });
               set({
                 isAuthenticated: true,
                 authStatus: "authenticated" as AuthStatus,
@@ -205,7 +215,10 @@ export const useAuthStore = create<AuthStore>()(
 
           if (session?.user) {
             const sessionAuthId = session.user.id;
-            console.log("[AuthStore] Found session for user:", sessionAuthId);
+            logAuth("AUTH_SESSION_LOAD_OK", {
+              userId: sessionAuthId,
+              sessionPresent: true,
+            });
 
             // CRITICAL: Identity isolation check
             // If persisted user doesn't match the current session, clear stale data
@@ -345,13 +358,14 @@ export const useAuthStore = create<AuthStore>()(
             }
           }
         } catch (error) {
-          console.error("[AuthStore] loadAuthState error:", error);
+          logAuth("AUTH_SESSION_LOAD_FAIL", { error: String(error) });
           // On error, fall back to persisted state if available
           const persisted = get().user;
           if (persisted) {
-            console.log(
-              "[AuthStore] Error during load, keeping persisted user",
-            );
+            logAuth("AUTH_PERSISTED_KEEPALIVE", {
+              userId: persisted.id,
+              reason: "loadAuthState_catch",
+            });
             set({
               isAuthenticated: true,
               authStatus: "authenticated" as AuthStatus,

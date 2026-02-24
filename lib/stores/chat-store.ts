@@ -3,6 +3,8 @@ import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { logChat } from "@/lib/auth/auth-logger";
+import { invalidateTokenCache } from "@/lib/auth-client";
 
 export interface MediaAttachment {
   type: "image" | "video";
@@ -294,6 +296,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const messageText = currentMessage;
     const mediaToSend = pendingMedia;
     const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const sendAttemptId = `send-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    logChat("CHAT_SEND_MUTATION_ENTER", {
+      sendAttemptId,
+      clientMessageId,
+      conversationId,
+    });
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticTime = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -348,10 +356,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
 
       // Send via API with CDN URL
-      const result = await messagesApiClient.sendMessage({
+      logChat("CHAT_SEND_REQUEST_START", {
+        sendAttemptId,
+        clientMessageId,
         conversationId,
-        content: messageText || "",
-        media: mediaItems.length > 0 ? mediaItems : undefined,
+        textLen: messageText.length,
+        attachmentsCount: mediaItems.length,
+      });
+
+      let result: any;
+      try {
+        result = await messagesApiClient.sendMessage({
+          conversationId,
+          content: messageText || "",
+          media: mediaItems.length > 0 ? mediaItems : undefined,
+        });
+      } catch (sendErr: any) {
+        // If auth failure, invalidate cache and retry ONCE
+        const msg = sendErr?.message || "";
+        if (
+          msg.includes("Not authenticated") ||
+          msg.includes("401") ||
+          msg.includes("403")
+        ) {
+          logChat("CHAT_SEND_TOKEN_RETRY", { sendAttemptId, errorCode: msg });
+          invalidateTokenCache();
+          // Retry the send with a fresh token
+          result = await messagesApiClient.sendMessage({
+            conversationId,
+            content: messageText || "",
+            media: mediaItems.length > 0 ? mediaItems : undefined,
+          });
+        } else {
+          throw sendErr;
+        }
+      }
+
+      logChat("CHAT_SEND_RESPONSE", {
+        sendAttemptId,
+        clientMessageId,
+        returnedRowId: result?.id ? String(result.id) : undefined,
+        status: result ? "ok" : "empty",
       });
 
       if (result) {
@@ -416,7 +461,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
       } else {
         set({ isSending: false });
       }
-    } catch (error) {
+    } catch (error: any) {
+      logChat("CHAT_SEND_RESPONSE", {
+        sendAttemptId,
+        clientMessageId,
+        status: "error",
+        errorCode: error?.message || String(error),
+      });
       console.error("[ChatStore] sendMessageToBackend error:", error);
       // Show error toast so user knows the send failed
       useUIStore
