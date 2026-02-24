@@ -419,6 +419,11 @@ export default function ChatScreen() {
     }, [loadMessages, chatMessages.length > 0]),
   );
 
+  // SAFETY: Reset isSending on mount — prevents stuck state from prior chat sessions
+  useEffect(() => {
+    useChatStore.setState({ isSending: false });
+  }, [chatId]);
+
   // Load messages from backend on mount and mark as read
   useEffect(() => {
     if (chatId) {
@@ -641,6 +646,13 @@ export default function ChatScreen() {
     // parseInt() → NaN, and the message silently fails.
     if (!resolvedConvIdRef.current && !/^\d+$/.test(chatId)) {
       console.warn("[Chat] Send blocked — conversation ID not resolved yet");
+      useUIStore
+        .getState()
+        .showToast(
+          "error",
+          "Hold on",
+          "Chat is still loading. Try again in a moment.",
+        );
       return;
     }
 
