@@ -50,14 +50,14 @@ const ALLOWED_IMAGE_MIMES = [
 const ALLOWED_VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/mov"];
 
 const SIZE_LIMITS: Record<MediaKind, number> = {
-  avatar: 1 * 1024 * 1024, // 1 MB
-  "post-image": 1.5 * 1024 * 1024, // 1.5 MB
+  avatar: 2 * 1024 * 1024, // 2 MB
+  "post-image": 5 * 1024 * 1024, // 5 MB (iPhone cameras produce 3-10MB)
   "post-video": 25 * 1024 * 1024, // 25 MB
-  "story-image": 1.5 * 1024 * 1024, // 1.5 MB
+  "story-image": 5 * 1024 * 1024, // 5 MB
   "story-video": 18 * 1024 * 1024, // 18 MB
-  "event-cover": 2 * 1024 * 1024, // 2 MB
-  "event-image": 1.5 * 1024 * 1024, // 1.5 MB
-  "message-image": 1.5 * 1024 * 1024, // 1.5 MB
+  "event-cover": 5 * 1024 * 1024, // 5 MB
+  "event-image": 5 * 1024 * 1024, // 5 MB
+  "message-image": 5 * 1024 * 1024, // 5 MB
   "message-video": 12 * 1024 * 1024, // 12 MB
 };
 

@@ -26,6 +26,7 @@ import {
   generateVideoThumbnail,
   cleanupThumbnail,
 } from "@/lib/video-thumbnail";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import {
   compressVideo,
   validateVideo,
@@ -273,9 +274,29 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
             "[useMediaUpload] ========== VIDEO PIPELINE COMPLETE ==========",
           );
         } else {
-          // ========== IMAGE PROCESSING (no compression needed) ==========
+          // ========== IMAGE PROCESSING (compress + upload) ==========
+          setStatusMessage("Optimizing image...");
+          let imageUri = file.uri;
+          try {
+            const compressed = await manipulateAsync(
+              file.uri,
+              [{ resize: { width: 1440 } }],
+              { compress: 0.85, format: SaveFormat.JPEG },
+            );
+            imageUri = compressed.uri;
+            console.log(
+              "[useMediaUpload] Image optimized:",
+              imageUri.substring(0, 50),
+            );
+          } catch (compressErr) {
+            console.warn(
+              "[useMediaUpload] Image optimization failed, using original:",
+              compressErr,
+            );
+          }
+
           setStatusMessage("Uploading image...");
-          const uploadResult = await serverUpload(file.uri, folder);
+          const uploadResult = await serverUpload(imageUri, folder);
 
           if (!uploadResult.success) {
             results.push({

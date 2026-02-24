@@ -23,7 +23,8 @@ import { useRouter, useNavigation } from "expo-router";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, Check, RotateCcw } from "lucide-react-native";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+// NOTE: Do NOT use GestureHandlerRootView here — the root _layout.tsx already provides it.
+// Nesting GestureHandlerRootView causes native crashes on iOS.
 import { useColorScheme } from "@/lib/hooks";
 import { ImageCropView } from "@/src/crop/ImageCropView";
 import {
@@ -261,9 +262,7 @@ export default function CropPreviewScreen() {
   if (media.length === 0) return null;
 
   return (
-    <GestureHandlerRootView
-      style={[styles.screen, { backgroundColor: "#000" }]}
-    >
+    <View style={[styles.screen, { backgroundColor: "#000" }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={handleBack} hitSlop={16} style={styles.headerBtn}>
@@ -379,7 +378,7 @@ export default function CropPreviewScreen() {
           </View>
         </View>
       )}
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
