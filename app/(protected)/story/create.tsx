@@ -44,6 +44,8 @@ import { StoryTagPicker } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
 import { generateVideoThumbnail } from "@/lib/video-thumbnail";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
+import { setPendingCrop } from "@/src/crop/crop-utils";
+import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
 
 // Creative tools — floating vertical toolbar on canvas
 const CREATIVE_TOOLS = [
@@ -226,7 +228,27 @@ export default function CreateStoryScreen() {
         maxFileSizeMB: MAX_FILE_SIZE_MB,
       });
       if (media && media.length > 0) {
-        handleMediaSelected(media);
+        // Route images through crop screen (9:16 story aspect ratio)
+        const images = media.filter((m) => m.type === "image");
+        const videos = media.filter((m) => m.type === "video");
+
+        // Add videos directly (no crop needed)
+        if (videos.length > 0) {
+          handleMediaSelected(videos);
+        }
+
+        // Route images through crop screen
+        if (images.length > 0) {
+          setPendingCrop(
+            images,
+            undefined,
+            ASPECT_RATIOS.story,
+            (croppedImages) => {
+              handleMediaSelected(croppedImages);
+            },
+          );
+          router.push("/(protected)/crop-preview" as any);
+        }
       }
     } catch (error) {
       showToast("error", "Error", "Failed to pick media.");

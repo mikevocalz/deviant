@@ -37,9 +37,8 @@ import {
 import { useCreatePostStore } from "@/lib/stores/create-post-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const FRAME_WIDTH = SCREEN_WIDTH;
-const FRAME_HEIGHT = Math.round(FRAME_WIDTH * CROP_ASPECT_RATIO);
 const THUMB_SIZE = 64;
 
 export default function CropPreviewScreen() {
@@ -61,7 +60,15 @@ export default function CropPreviewScreen() {
   // Store crop state per image
   const cropStates = useRef<Map<string, CropState>>(new Map());
 
+  // Dynamic aspect ratio (default: feed 4:5, stories pass 9:16)
+  const [aspectRatio, setAspectRatio] = useState(CROP_ASPECT_RATIO);
+  const onCompleteRef = useRef<((cropped: MediaAsset[]) => void) | undefined>(
+    undefined,
+  );
+
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
+
+  const frameHeight = Math.round(FRAME_WIDTH * aspectRatio);
 
   // Consume pending crop data on mount
   useEffect(() => {
@@ -77,6 +84,9 @@ export default function CropPreviewScreen() {
       router.back();
       return;
     }
+
+    if (pending.aspectRatio) setAspectRatio(pending.aspectRatio);
+    onCompleteRef.current = pending.onComplete;
 
     setMedia(images);
     if (pending.editIndex !== undefined) {
@@ -150,10 +160,7 @@ export default function CropPreviewScreen() {
 
         const sourceUri = img.originalUri || img.uri;
         const state = cropStates.current.get(img.id) || {
-          scale: Math.max(
-            FRAME_WIDTH / dims.width,
-            FRAME_HEIGHT / dims.height,
-          ),
+          scale: Math.max(FRAME_WIDTH / dims.width, frameHeight / dims.height),
           translateX: 0,
           translateY: 0,
         };
@@ -163,7 +170,7 @@ export default function CropPreviewScreen() {
           dims.width,
           dims.height,
           FRAME_WIDTH,
-          FRAME_HEIGHT,
+          frameHeight,
           state.scale,
           state.translateX,
           state.translateY,
@@ -182,19 +189,24 @@ export default function CropPreviewScreen() {
         });
       }
 
-      // Update store with cropped images
-      // If re-editing, replace matching images; otherwise append
-      const existingNonImage = selectedMedia.filter((m) => m.type !== "image");
-      const existingCropped = selectedMedia.filter(
-        (m) =>
-          m.type === "image" &&
-          !croppedResults.some((cr) => cr.id === m.id),
-      );
-      setSelectedMedia([
-        ...existingNonImage,
-        ...existingCropped,
-        ...croppedResults,
-      ]);
+      // If an onComplete callback was provided (story mode), use it
+      // Otherwise update the create post store (feed post mode)
+      if (onCompleteRef.current) {
+        onCompleteRef.current(croppedResults);
+      } else {
+        const existingNonImage = selectedMedia.filter(
+          (m) => m.type !== "image",
+        );
+        const existingCropped = selectedMedia.filter(
+          (m) =>
+            m.type === "image" && !croppedResults.some((cr) => cr.id === m.id),
+        );
+        setSelectedMedia([
+          ...existingNonImage,
+          ...existingCropped,
+          ...croppedResults,
+        ]);
+      }
 
       router.back();
     } catch (err: any) {
@@ -232,7 +244,11 @@ export default function CropPreviewScreen() {
         <View
           style={[
             styles.skeletonFrame,
-            { width: FRAME_WIDTH, height: FRAME_HEIGHT, marginTop: insets.top + 56 },
+            {
+              width: FRAME_WIDTH,
+              height: frameHeight,
+              marginTop: insets.top + 56,
+            },
           ]}
         >
           <ActivityIndicator size="large" color="#fff" />
@@ -245,7 +261,9 @@ export default function CropPreviewScreen() {
   if (media.length === 0) return null;
 
   return (
-    <GestureHandlerRootView style={[styles.screen, { backgroundColor: "#000" }]}>
+    <GestureHandlerRootView
+      style={[styles.screen, { backgroundColor: "#000" }]}
+    >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <Pressable onPress={handleBack} hitSlop={16} style={styles.headerBtn}>
@@ -288,7 +306,7 @@ export default function CropPreviewScreen() {
           imageWidth={activeDims.width}
           imageHeight={activeDims.height}
           frameWidth={FRAME_WIDTH}
-          aspectRatio={CROP_ASPECT_RATIO}
+          aspectRatio={aspectRatio}
           initialState={cropStates.current.get(activeMedia!.id)}
           onCropChange={handleCropChange}
         />
@@ -296,7 +314,7 @@ export default function CropPreviewScreen() {
         <View
           style={{
             width: FRAME_WIDTH,
-            height: FRAME_HEIGHT,
+            height: frameHeight,
             backgroundColor: "#111",
             alignItems: "center",
             justifyContent: "center",
@@ -309,9 +327,7 @@ export default function CropPreviewScreen() {
       {/* Darkened area below crop frame */}
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}>
         {/* Hint text */}
-        <Text style={styles.hintText}>
-          Pinch to zoom, drag to reposition
-        </Text>
+        <Text style={styles.hintText}>Pinch to zoom, drag to reposition</Text>
 
         {/* Multi-image thumbnails */}
         {media.length > 1 && (

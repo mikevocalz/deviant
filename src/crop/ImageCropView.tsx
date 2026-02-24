@@ -17,12 +17,7 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import {
-  calculateMinScale,
-  clampPan,
-  CROP_ASPECT_RATIO,
-  type CropState,
-} from "./crop-utils";
+import { CROP_ASPECT_RATIO, type CropState } from "./crop-utils";
 
 const SPRING_CONFIG = { damping: 20, stiffness: 200, mass: 0.8 };
 const MAX_ZOOM_FACTOR = 5;
@@ -49,7 +44,7 @@ export function ImageCropView({
   const frameHeight = Math.round(frameWidth * aspectRatio);
 
   const minScale = useMemo(
-    () => calculateMinScale(imageWidth, imageHeight, frameWidth, frameHeight),
+    () => Math.max(frameWidth / imageWidth, frameHeight / imageHeight),
     [imageWidth, imageHeight, frameWidth, frameHeight],
   );
   const maxScale = minScale * MAX_ZOOM_FACTOR;
@@ -69,22 +64,22 @@ export function ImageCropView({
   };
 
   // Clamp to valid bounds with spring animation
+  // CRITICAL: All math is inlined — worklets CANNOT call imported JS functions
   const clampAndNotify = () => {
     "worklet";
     const cs = Math.max(minScale, Math.min(maxScale, scale.value));
-    const clamped = clampPan(
-      translateX.value,
-      translateY.value,
-      imageWidth,
-      imageHeight,
-      frameWidth,
-      frameHeight,
-      cs,
-    );
+    // Inline clampPan: ensure image always covers the frame
+    const dw = imageWidth * cs;
+    const dh = imageHeight * cs;
+    const maxPanX = Math.max(0, (dw - frameWidth) / 2);
+    const maxPanY = Math.max(0, (dh - frameHeight) / 2);
+    const clampedX = Math.min(maxPanX, Math.max(-maxPanX, translateX.value));
+    const clampedY = Math.min(maxPanY, Math.max(-maxPanY, translateY.value));
+
     scale.value = withSpring(cs, SPRING_CONFIG);
-    translateX.value = withSpring(clamped.x, SPRING_CONFIG);
-    translateY.value = withSpring(clamped.y, SPRING_CONFIG);
-    runOnJS(notifyCropChange)(cs, clamped.x, clamped.y);
+    translateX.value = withSpring(clampedX, SPRING_CONFIG);
+    translateY.value = withSpring(clampedY, SPRING_CONFIG);
+    runOnJS(notifyCropChange)(cs, clampedX, clampedY);
   };
 
   // Pan gesture — delta-based for simultaneous compat
@@ -158,7 +153,9 @@ export function ImageCropView({
   });
 
   return (
-    <View style={[styles.container, { width: frameWidth, height: frameHeight }]}>
+    <View
+      style={[styles.container, { width: frameWidth, height: frameHeight }]}
+    >
       <GestureDetector gesture={composed}>
         <View
           style={[styles.frame, { width: frameWidth, height: frameHeight }]}
@@ -175,10 +172,7 @@ export function ImageCropView({
 
       {/* Rule-of-thirds grid */}
       <View
-        style={[
-          styles.gridOverlay,
-          { width: frameWidth, height: frameHeight },
-        ]}
+        style={[styles.gridOverlay, { width: frameWidth, height: frameHeight }]}
         pointerEvents="none"
       >
         <View style={[styles.gridH, { top: frameHeight / 3 }]} />
