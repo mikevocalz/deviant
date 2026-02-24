@@ -191,22 +191,48 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           });
           updateProgress("Video compressed");
 
-          // Step 3: Generate thumbnail from ORIGINAL video (non-blocking — upload continues on timeout)
+          // Step 3: Generate + upload thumbnail (fully non-blocking — 10s total timeout)
           setStatusMessage("Generating thumbnail...");
           let thumbnailUrl: string | undefined;
-          const thumbResult = await generateVideoThumbnail(file.uri, 500, 6000);
-          if (thumbResult.success && thumbResult.uri) {
-            const thumbUpload = await serverUpload(
-              thumbResult.uri,
-              `${folder}/thumbnails`,
+          try {
+            const thumbTimeout = new Promise<never>((_, reject) =>
+              setTimeout(
+                () => reject(new Error("Thumbnail step timed out")),
+                10000,
+              ),
             );
-            if (thumbUpload.success) {
-              thumbnailUrl = thumbUpload.url;
-              console.log("[useMediaUpload] Thumbnail uploaded:", thumbnailUrl);
-            }
-            await cleanupThumbnail(thumbResult.uri);
+            const thumbWork = (async () => {
+              const thumbResult = await generateVideoThumbnail(
+                file.uri,
+                500,
+                6000,
+              );
+              if (thumbResult.success && thumbResult.uri) {
+                const thumbUpload = await serverUpload(
+                  thumbResult.uri,
+                  `${folder}/thumbnails`,
+                );
+                if (thumbUpload.success) {
+                  console.log(
+                    "[useMediaUpload] Thumbnail uploaded:",
+                    thumbUpload.url,
+                  );
+                  return thumbUpload.url;
+                }
+                await cleanupThumbnail(thumbResult.uri);
+              }
+              return undefined;
+            })();
+            thumbnailUrl = await Promise.race([thumbWork, thumbTimeout]);
+          } catch (thumbErr) {
+            console.warn(
+              "[useMediaUpload] Thumbnail step failed/timed out, skipping:",
+              thumbErr,
+            );
           }
-          updateProgress("Thumbnail generated");
+          updateProgress(
+            thumbnailUrl ? "Thumbnail generated" : "Skipped thumbnail",
+          );
 
           // Step 4: Upload COMPRESSED video (never raw)
           setStatusMessage("Uploading video...");

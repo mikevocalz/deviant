@@ -104,7 +104,14 @@ export async function generateCroppedBitmap(
   maxWidth = MAX_CROP_OUTPUT_WIDTH,
 ): Promise<{ uri: string; width: number; height: number }> {
   const actions: Array<
-    | { crop: { originX: number; originY: number; width: number; height: number } }
+    | {
+        crop: {
+          originX: number;
+          originY: number;
+          width: number;
+          height: number;
+        };
+      }
     | { resize: { width: number } }
   > = [
     {
@@ -144,18 +151,36 @@ export function getImageDimensions(
 // ── Pending crop bridge (module-level, consumed once) ───────────────
 let _pendingMedia: MediaAsset[] | null = null;
 let _pendingEditIndex: number | undefined;
+let _pendingAspectRatio: number | undefined;
+let _pendingOnComplete: ((cropped: MediaAsset[]) => void) | undefined;
 
-export function setPendingCrop(media: MediaAsset[], editIndex?: number) {
+export function setPendingCrop(
+  media: MediaAsset[],
+  editIndex?: number,
+  aspectRatio?: number,
+  onComplete?: (cropped: MediaAsset[]) => void,
+) {
   _pendingMedia = media;
   _pendingEditIndex = editIndex;
+  _pendingAspectRatio = aspectRatio;
+  _pendingOnComplete = onComplete;
 }
 
 export function consumePendingCrop(): {
   media: MediaAsset[] | null;
   editIndex: number | undefined;
+  aspectRatio: number | undefined;
+  onComplete: ((cropped: MediaAsset[]) => void) | undefined;
 } {
-  const result = { media: _pendingMedia, editIndex: _pendingEditIndex };
+  const result = {
+    media: _pendingMedia,
+    editIndex: _pendingEditIndex,
+    aspectRatio: _pendingAspectRatio,
+    onComplete: _pendingOnComplete,
+  };
   _pendingMedia = null;
   _pendingEditIndex = undefined;
+  _pendingAspectRatio = undefined;
+  _pendingOnComplete = undefined;
   return result;
 }
