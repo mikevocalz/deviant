@@ -562,10 +562,13 @@ function PostDetailScreenContent() {
                 />
               </Pressable>
               <Pressable
+                onPressIn={() => {
+                  if (postIdString)
+                    screenPrefetch.comments(queryClient, postIdString);
+                }}
                 onPress={() => {
-                  if (!postIdString) return;
-                  screenPrefetch.comments(queryClient, postIdString);
-                  router.push(`/(protected)/comments/${postIdString}`);
+                  if (postIdString)
+                    router.push(`/(protected)/comments/${postIdString}`);
                 }}
               >
                 <MessageCircle size={28} color={colors.foreground} />
@@ -595,10 +598,8 @@ function PostDetailScreenContent() {
           {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
             <Pressable
-              onPress={() => {
-                prefetchLikers(postId);
-                setShowLikesSheet(true);
-              }}
+              onPressIn={() => prefetchLikers(postId)}
+              onPress={() => setShowLikesSheet(true)}
             >
               <Text
                 style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
