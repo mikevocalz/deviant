@@ -220,25 +220,40 @@ async function updateVoltraSurfaces(
   try {
     const { buildCarouselTiles, smallWidget, mediumWidget, largeWidget } =
       await import("@/src/live-surface/voltra-views");
-    const { updateWidget } = await import("voltra/client");
+    const { updateWidget, reloadLiveActivities } =
+      await import("voltra/client");
 
-    // 1. Preload all hero images into App Group storage so SwiftUI can read them.
-    //    Result is logged only — tiles are NEVER filtered by preload success.
-    //    Voltra's <Image fallback={...}> gradient handles any missing images.
+    // 1. CRITICAL: Fire native bridge FIRST to download hero images into
+    //    voltra_images/ in the App Group. Voltra's own preloadImages enforces
+    //    a 4KB limit that hero images exceed, so all preloads fail silently.
+    //    The native module bypasses this by writing directly to voltra_images/.
+    //    This is fire-and-forget — downloads run in a background Swift Task.
+    try {
+      const { updateLiveActivity: updateNativeLA } =
+        await import("@/src/live-surface/native/ios-bridge");
+      updateNativeLA(payload);
+    } catch (nativeErr) {
+      if (__DEV__) {
+        console.warn("[LiveSurface] Native bridge update failed:", nativeErr);
+      }
+    }
+
+    // 2. Also attempt Voltra's preloadImages (will fail for large images,
+    //    but succeeds for any future images under 4KB — belt and suspenders).
     await preloadAllHeroImages(payload);
 
-    // 2. Build all carousel tiles unconditionally
+    // 3. Build all carousel tiles unconditionally
     const tiles = buildCarouselTiles(payload.tile1, payload.tile3?.items);
     const weather = payload.weather;
 
-    // 3. Push first frame immediately
+    // 4. Push first frame immediately
     carouselIndex = 0;
     await pushCarouselFrame(tiles, 0, weather);
 
-    // 4. Start carousel cycling (skipped if only 1 tile)
+    // 5. Start carousel cycling (skipped if only 1 tile)
     startCarousel(tiles, weather);
 
-    // 5. Update Home Screen Widgets
+    // 6. Update Home Screen Widgets
     const upcoming = payload.tile3?.items;
     await updateWidget(
       "dvnt_events",
@@ -252,20 +267,16 @@ async function updateVoltraSurfaces(
       },
     );
 
-    // 6. CRITICAL: Also update the native DVNTLiveActivity module.
-    //    The native DVNTLiveActivityWidget (@main in DVNTWidgetBundle) reads hero
-    //    images from the App Group container. The native module downloads them there.
-    //    Without this call, the native widget shows a black fallback gradient.
-    try {
-      const { updateLiveActivity: updateNativeLA } =
-        await import("@/src/live-surface/native/ios-bridge");
-      updateNativeLA(payload);
-    } catch (nativeErr) {
-      // Non-fatal — Voltra path already ran
-      if (__DEV__) {
-        console.warn("[LiveSurface] Native bridge update failed:", nativeErr);
+    // 7. Reload Live Activities after a short delay so the widget re-renders
+    //    with images that the native bridge downloaded to voltra_images/.
+    //    The native Task typically finishes within 1-2s for a single image.
+    setTimeout(async () => {
+      try {
+        await reloadLiveActivities();
+      } catch {
+        // non-fatal
       }
-    }
+    }, 2500);
 
     if (__DEV__) {
       console.log(
