@@ -26,10 +26,26 @@ export const commentKeys = {
 
 // Fetch comments for a post
 export function useComments(postId: string, limit?: number) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
     staleTime: STALE_TIMES.comments,
     gcTime: GC_TIMES.short,
+    // Show any cached comments for this post instantly (e.g. feed's 3-comment preview)
+    // while the full fetch loads in the background — eliminates loading spinner
+    placeholderData: (): any => {
+      if (!postId) return undefined;
+      const candidates = [50, 3, "all"] as const;
+      for (const l of candidates) {
+        if (l === (limit || "all")) continue;
+        const cached = queryClient.getQueryData([
+          ...commentKeys.byPost(postId),
+          l,
+        ]);
+        if (Array.isArray(cached) && cached.length > 0) return cached;
+      }
+      return undefined;
+    },
     queryFn: async () => {
       try {
         const comments = await commentsApiClient.getComments(postId, limit);
