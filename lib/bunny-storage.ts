@@ -1,7 +1,11 @@
 /**
  * Bunny.net Edge Storage API Client
  *
- * Handles media uploads to Bunny.net CDN using expo-file-system for reliable native uploads
+ * ⚠️  DEPRECATED FOR APP USE — Use lib/server-upload.ts instead.
+ * App uploads MUST go through the media-upload Edge Function so the Bunny API
+ * key stays server-side. This module is retained only for local scripts
+ * (e.g. scripts/backfill-video-thumbnails.ts).
+ *
  * Docs: https://docs.bunny.net/reference/storage-api
  */
 

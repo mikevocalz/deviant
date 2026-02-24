@@ -163,13 +163,7 @@ Deno.serve(async (req) => {
     return errorResponse("Server configuration error");
   }
 
-  // Auth check
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return errorResponse("Missing or invalid Authorization header");
-  }
-
-  const jwt = authHeader.replace("Bearer ", "");
+  // Auth check — Better Auth session token
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: {
@@ -177,17 +171,30 @@ Deno.serve(async (req) => {
     },
   });
 
-  // Verify JWT and get user
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(jwt);
-  if (authError || !user) {
-    console.error("[media-upload] Auth error:", authError?.message);
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) {
+    return errorResponse("Missing or invalid Authorization header");
+  }
+
+  // Verify Better Auth session via direct DB lookup
+  const { data: session, error: sessionError } = await supabase
+    .from("session")
+    .select("userId, expiresAt")
+    .eq("token", token)
+    .single();
+
+  if (sessionError || !session) {
+    console.error("[media-upload] Session not found:", sessionError?.message);
     return errorResponse("Unauthorized");
   }
 
-  const userId = user.id;
+  if (new Date(session.expiresAt) < new Date()) {
+    console.error("[media-upload] Session expired");
+    return errorResponse("Unauthorized");
+  }
+
+  const userId = session.userId;
 
   // Parse request - support both multipart and raw bytes
   let fileBytes: Uint8Array;
