@@ -40,10 +40,8 @@ export function useTypingIndicator({
   const [isTyping, setIsTyping] = useState(false);
   const user = useAuthStore((s) => s.user);
 
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const remoteTimeoutsRef = useRef<
-    Record<string, ReturnType<typeof setTimeout>>
-  >({});
+  const typingDebouncerRef = useRef<Debouncer<() => void> | null>(null);
+  const remoteDebouncersRef = useRef<Record<string, Debouncer<() => void>>>({});
   const lastTextRef = useRef<string>("");
   const channelRef = useRef<RealtimeChannel | null>(null);
 
@@ -66,18 +64,21 @@ export function useTypingIndicator({
   // Set typing status with auto-clear
   const setTypingState = useCallback(
     (typing: boolean) => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+      if (typingDebouncerRef.current) {
+        typingDebouncerRef.current.cancel();
       }
 
       if (typing) {
         broadcastTyping(true);
 
-        // Auto-clear after timeout
-        typingTimeoutRef.current = setTimeout(() => {
-          broadcastTyping(false);
-        }, TYPING_TIMEOUT);
+        // Auto-clear after timeout using Debouncer (no setTimeout allowed)
+        if (!typingDebouncerRef.current) {
+          typingDebouncerRef.current = new Debouncer(
+            () => broadcastTyping(false),
+            { wait: TYPING_TIMEOUT },
+          );
+        }
+        typingDebouncerRef.current.maybeExecute();
       } else {
         broadcastTyping(false);
       }
@@ -133,19 +134,24 @@ export function useTypingIndicator({
             prev.includes(userId) ? prev : [...prev, userId],
           );
 
-          // Auto-clear remote user after timeout
-          if (remoteTimeoutsRef.current[userId]) {
-            clearTimeout(remoteTimeoutsRef.current[userId]);
+          // Auto-clear remote user after timeout — Debouncer per user (no setTimeout)
+          if (remoteDebouncersRef.current[userId]) {
+            remoteDebouncersRef.current[userId].cancel();
+          } else {
+            remoteDebouncersRef.current[userId] = new Debouncer(
+              () => {
+                setTypingUsers((prev) => prev.filter((id) => id !== userId));
+                delete remoteDebouncersRef.current[userId];
+              },
+              { wait: TYPING_TIMEOUT },
+            );
           }
-          remoteTimeoutsRef.current[userId] = setTimeout(() => {
-            setTypingUsers((prev) => prev.filter((id) => id !== userId));
-            delete remoteTimeoutsRef.current[userId];
-          }, TYPING_TIMEOUT);
+          remoteDebouncersRef.current[userId].maybeExecute();
         } else {
           setTypingUsers((prev) => prev.filter((id) => id !== userId));
-          if (remoteTimeoutsRef.current[userId]) {
-            clearTimeout(remoteTimeoutsRef.current[userId]);
-            delete remoteTimeoutsRef.current[userId];
+          if (remoteDebouncersRef.current[userId]) {
+            remoteDebouncersRef.current[userId].cancel();
+            delete remoteDebouncersRef.current[userId];
           }
         }
       })
@@ -164,18 +170,16 @@ export function useTypingIndicator({
       supabase.removeChannel(channel);
       channelRef.current = null;
 
-      // Clear all remote timeouts
-      Object.values(remoteTimeoutsRef.current).forEach(clearTimeout);
-      remoteTimeoutsRef.current = {};
+      // Cancel all remote debouncers
+      Object.values(remoteDebouncersRef.current).forEach((d) => d.cancel());
+      remoteDebouncersRef.current = {};
     };
   }, [conversationId, user?.id, enabled]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
+      typingDebouncerRef.current?.cancel();
       debouncedSetTyping.cancel();
     };
   }, [debouncedSetTyping]);

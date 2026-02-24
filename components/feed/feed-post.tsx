@@ -479,6 +479,7 @@ function FeedPostComponent({
       targetUserId: author?.id,
       targetUsername: author?.username,
       targetAvatar: author?.avatar,
+      targetName: author?.username,
       viewerId: currentUserId,
       router,
     });

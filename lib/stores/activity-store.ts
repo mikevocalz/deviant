@@ -9,6 +9,10 @@ import { supabase } from "@/lib/supabase/client";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { followsApi } from "@/lib/api/follows";
 
+// Module-level channel ref — ensures only ONE realtime subscription exists at a time.
+// Rapid tab mount/unmount cycles must never create duplicate channels ("too many clients").
+let _notificationsChannel: ReturnType<typeof supabase.channel> | null = null;
+
 // Activity types (excludes 'message' - messages are handled separately)
 export type ActivityType =
   | "like"
@@ -353,6 +357,18 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       return undefined;
     }
 
+    // CRITICAL: Remove any existing channel before creating a new one.
+    // Tab mount/unmount cycles must never accumulate channels — Supabase
+    // has a per-client connection limit and will sign the user out with
+    // "too many clients" if channels pile up.
+    if (_notificationsChannel) {
+      console.log(
+        "[ActivityStore] Removing stale notifications channel before re-subscribing",
+      );
+      supabase.removeChannel(_notificationsChannel);
+      _notificationsChannel = null;
+    }
+
     console.log(
       "[ActivityStore] Subscribing to realtime notifications for user:",
       userId,
@@ -381,9 +397,12 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
         console.log("[ActivityStore] Realtime subscription status:", status);
       });
 
+    _notificationsChannel = channel;
+
     return () => {
       console.log("[ActivityStore] Unsubscribing from realtime notifications");
       supabase.removeChannel(channel);
+      if (_notificationsChannel === channel) _notificationsChannel = null;
     };
   },
 

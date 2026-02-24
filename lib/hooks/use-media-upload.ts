@@ -383,6 +383,17 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
     setStatusMessage(null);
   }, []);
 
+  // Immediately cancels the upload UI state — use when user taps Cancel on the overlay.
+  // The underlying network request will still complete/timeout, but the UI is unblocked.
+  const cancelUpload = useCallback(() => {
+    setIsUploading(false);
+    setIsCompressing(false);
+    setProgress(0);
+    setCompressionProgress(0);
+    setError(null);
+    setStatusMessage(null);
+  }, []);
+
   return {
     isUploading,
     isCompressing,
@@ -393,5 +404,6 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
     uploadSingle,
     uploadMultiple,
     reset,
+    cancelUpload,
   };
 }

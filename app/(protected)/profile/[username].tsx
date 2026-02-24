@@ -269,10 +269,12 @@ function UserProfileScreenComponent() {
     username,
     authId,
     avatar: avatarParam,
+    name: nameParam,
   } = useLocalSearchParams<{
     username: string;
     authId?: string;
     avatar?: string;
+    name?: string;
   }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -335,7 +337,8 @@ function UserProfileScreenComponent() {
     }
   }, [isOwnProfile, router]);
 
-  // Use API data or fallback to mock data - cast to any for flexibility with API response
+  // Use API data or fallback to route params — renders INSTANTLY without waiting for query.
+  // Route params (username, avatarParam, nameParam) are available synchronously on mount.
   const rawUser: {
     id?: string;
     username: string;
@@ -349,14 +352,14 @@ function UserProfileScreenComponent() {
   } = (resolvedUserData as any) ||
     mockUsers[username || ""] || {
       id: undefined,
-      username: username || "unknown",
-      fullName: "Unknown User",
-      name: "Unknown User",
-      avatar: undefined,
+      username: username || "",
+      fullName: nameParam || "",
+      name: nameParam || "",
+      avatar: avatarParam || undefined,
       bio: "",
-      postsCount: 0,
-      followersCount: 0,
-      followingCount: 0,
+      postsCount: undefined,
+      followersCount: undefined,
+      followingCount: undefined,
     };
 
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
@@ -415,11 +418,10 @@ function UserProfileScreenComponent() {
   const handleMessagePress = useCallback(async () => {
     if (!user.id || creatingConvRef.current) return;
 
-    // Fast path: check conversations cache for existing conversation
+    // Fast path 1: check conversations cache for existing numeric conversation ID
     const allConvCaches = queryClient.getQueriesData<any[]>({
       queryKey: ["messages"],
     });
-    let existingConv: any = null;
     for (const [, data] of allConvCaches) {
       if (!Array.isArray(data)) continue;
       const match = data.find(
@@ -429,35 +431,48 @@ function UserProfileScreenComponent() {
           c?.user?.username === username,
       );
       if (match?.id) {
-        existingConv = match;
-        break;
+        console.log("[Profile] Cache hit — navigating to chat:", match.id);
+        router.push({
+          pathname: "/(protected)/chat/[id]",
+          params: {
+            id: match.id,
+            peerUsername: user.username,
+            peerName: user.name || user.fullName || user.username,
+            peerAvatar: user.avatar || "",
+          },
+        });
+        return;
       }
     }
-    if (existingConv?.id) {
-      console.log("[Profile] Cache hit — navigating to chat:", existingConv.id);
-      router.push(`/(protected)/chat/${existingConv.id}`);
+
+    // Fast path 2: navigate immediately using username — the chat screen resolves
+    // the conversation ID itself (getOrCreateConversation) so we don't block here.
+    // This makes the chat open instantly instead of waiting for an edge function call.
+    if (username) {
+      console.log("[Profile] Navigating to chat via username:", username);
+      router.push({
+        pathname: "/(protected)/chat/[id]",
+        params: {
+          id: username,
+          peerUsername: username,
+          peerName: user.name || user.fullName || username,
+          peerAvatar: user.avatar || "",
+        },
+      });
       return;
     }
 
+    // Fallback: no username — must call edge function (rare)
     creatingConvRef.current = true;
     setIsCreatingConversation(true);
     safetyResetRef.current.maybeExecute();
     try {
-      console.log(
-        "[Profile] Cache miss — creating conversation with user:",
-        user.id,
-      );
       const conversationId = await messagesApiClient.getOrCreateConversation(
         String(user.id),
       );
-
       if (conversationId) {
-        console.log("[Profile] Navigating to chat:", conversationId);
         router.push(`/(protected)/chat/${conversationId}`);
       } else {
-        console.error(
-          "[Profile] Failed to create conversation - no ID returned",
-        );
         showToast("error", "Error", "Could not start conversation");
       }
     } catch (error: any) {
@@ -472,7 +487,17 @@ function UserProfileScreenComponent() {
       creatingConvRef.current = false;
       setIsCreatingConversation(false);
     }
-  }, [user.id, username, router, showToast, queryClient]);
+  }, [
+    user.id,
+    user.username,
+    user.name,
+    user.fullName,
+    user.avatar,
+    username,
+    router,
+    showToast,
+    queryClient,
+  ]);
 
   // DEFENSIVE: Early return for missing username - show safe error state
   if (!safeUsername) {
