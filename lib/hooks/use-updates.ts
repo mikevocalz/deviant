@@ -278,7 +278,6 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           isDownloading: false,
           isUpdatePending: true,
         }));
-        // Extract update ID from the manifest if available
         const newUpdateId = safeGet(
           () => (result as any)?.manifest?.id || (result as any)?.updateId,
           null,
@@ -286,9 +285,10 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         console.log(
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
-          "— showing toast",
+          "— auto-reloading",
         );
-        showUpdateToast(newUpdateId);
+        // Auto-reload to apply the update immediately
+        reloadApp();
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
@@ -331,16 +331,11 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return Updates.isEnabled;
     }, false);
 
-    // Dev clients report isEnabled=true but checkForUpdateAsync throws ERR_NOT_AVAILABLE_IN_DEV_CLIENT
-    const isEmbeddedLaunch = safeGet(
-      () => Updates?.isEmbeddedLaunch ?? false,
-      false,
-    );
-
-    if (!isEnabled || isEmbeddedLaunch) {
-      console.log(
-        "[Updates] Skip check: expo-updates not enabled or dev client",
-      );
+    // NOTE: Do NOT check isEmbeddedLaunch here — it's true for ALL fresh installs
+    // (not just dev clients). Blocking on it creates a deadlock where OTA can never
+    // be downloaded. Dev clients are already handled by the __DEV__ check above.
+    if (!isEnabled) {
+      console.log("[Updates] Skip check: expo-updates not enabled");
       globalIsChecking = false;
       return;
     }
