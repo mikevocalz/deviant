@@ -56,8 +56,8 @@ export default function CommentsScreen() {
   const [cursorPos, setCursorPos] = useState(0);
   const inputRef = useRef<any>(null);
 
-  // Fetch real comments from API
-  const { data: comments = [], isLoading } = useComments(postId || "");
+  // Fetch real comments from API — limit must match prefetchComments (50) for cache hit
+  const { data: comments = [], isLoading } = useComments(postId || "", 50);
   const createComment = useCreateComment();
 
   const handleSend = useCallback(() => {

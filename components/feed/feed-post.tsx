@@ -49,7 +49,6 @@ import { useDeletePost } from "@/lib/hooks/use-posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
-import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
@@ -78,10 +77,11 @@ interface FeedPostProps {
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
-  comments: number;
+  comments: Comment[] | number; // Accept raw array from Post or pre-computed count
   timeAgo: string;
   location?: string;
   isNSFW?: boolean;
+  onShowLikes?: (postId: string) => void;
 }
 
 const CARD_HORIZONTAL_MARGIN = 4; // marginHorizontal on Article
@@ -98,6 +98,7 @@ function FeedPostComponent({
   timeAgo,
   location,
   isNSFW,
+  onShowLikes,
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -129,7 +130,6 @@ function FeedPostComponent({
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
-  const [showLikesSheet, setShowLikesSheet] = useState(false);
   const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
   const prefetchLikers = usePrefetchPostLikers();
@@ -341,8 +341,8 @@ function FeedPostComponent({
   // CENTRALIZED: Like count from single source of truth
   const likeCount = likesCount;
 
-  // Comment count from props
-  const commentCount = comments;
+  // Comment count — derived from array or passed as number
+  const commentCount = Array.isArray(comments) ? comments.length : comments;
 
   // Refetch comments when comment count changes to ensure we have the latest
   useEffect(() => {
@@ -758,7 +758,7 @@ function FeedPostComponent({
           <Pressable
             onPress={() => {
               prefetchLikers(id);
-              setShowLikesSheet(true);
+              onShowLikes?.(id);
             }}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
@@ -843,12 +843,6 @@ function FeedPostComponent({
         onDelete={handleDelete}
         onShareToStory={handleShareToStory}
         onShare={handleShare}
-      />
-
-      <LikesSheet
-        postId={id}
-        isOpen={showLikesSheet}
-        onClose={() => setShowLikesSheet(false)}
       />
 
       <ShareToInboxSheet

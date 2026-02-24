@@ -122,6 +122,7 @@ export default function FollowersScreen() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    isFetching,
   } = useInfiniteQuery({
     queryKey: ["users", "followers", userId],
     queryFn: async ({ pageParam = 1 }) => {
@@ -215,16 +216,22 @@ export default function FollowersScreen() {
     [colors.border],
   );
 
-  const renderEmpty = useCallback(
-    () => (
+  const renderEmpty = useCallback(() => {
+    if (isFetching) {
+      return (
+        <View className="flex-1 items-center justify-center py-20">
+          <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+      );
+    }
+    return (
       <View className="flex-1 items-center justify-center py-20">
         <Text className="text-muted-foreground text-center">
           {searchQuery ? "No results found" : "No followers yet"}
         </Text>
       </View>
-    ),
-    [searchQuery],
-  );
+    );
+  }, [searchQuery, isFetching, colors.primary]);
 
   const renderFooter = useCallback(() => {
     if (!isFetchingNextPage) return null;
