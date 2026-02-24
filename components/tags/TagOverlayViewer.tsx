@@ -21,6 +21,7 @@ import type { PostTag } from "@/lib/api/post-tags";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface TagOverlayViewerProps {
   postId: string;
@@ -33,6 +34,7 @@ interface TagOverlayViewerProps {
 export const TagOverlayViewer: React.FC<TagOverlayViewerProps> = React.memo(
   ({ postId, mediaIndex = 0, tagProgress }) => {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const currentUserId = useAuthStore((s) => s.user?.id);
     const { data: allTags = [] } = usePostTags(postId);
 
@@ -54,9 +56,10 @@ export const TagOverlayViewer: React.FC<TagOverlayViewerProps> = React.memo(
           targetUsername: tag.username,
           viewerId: currentUserId,
           router,
+          queryClient,
         });
       },
-      [currentUserId, router],
+      [currentUserId, router, queryClient],
     );
 
     return (

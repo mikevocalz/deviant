@@ -29,6 +29,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFollow } from "@/lib/hooks/use-follow";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { screenPrefetch } from "@/lib/prefetch";
 import { useBootstrapNotifications } from "@/lib/hooks/use-bootstrap-notifications";
 
 const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
@@ -314,22 +315,24 @@ export default function ActivityScreen() {
   const handleUserPress = useCallback(
     (username: string, avatar?: string) => {
       console.log("[Activity] Navigating to profile:", username);
+      screenPrefetch.profile(queryClient, username);
       router.push({
         pathname: `/(protected)/profile/${username}`,
         params: avatar ? { avatar } : {},
       } as any);
     },
-    [router],
+    [router, queryClient],
   );
 
   const handlePostPress = useCallback(
     (postId: string) => {
       console.log("[Activity] Navigating to post:", postId);
       if (postId) {
+        screenPrefetch.postDetail(queryClient, postId);
         router.push(`/(protected)/post/${postId}`);
       }
     },
-    [router],
+    [router, queryClient],
   );
 
   const handleFollowBack = useCallback(

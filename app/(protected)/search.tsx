@@ -25,6 +25,8 @@ import { BadgeCheck, UserPlus } from "lucide-react-native";
 import { LegendList } from "@/components/list";
 import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import type { Post } from "@/lib/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const columnWidth = (SCREEN_WIDTH - 8) / 3;
@@ -122,9 +124,11 @@ function DiscoverSection({
 function DiscoverGrid({
   router,
   posts,
+  queryClient,
 }: {
   router: ReturnType<typeof useRouter>;
   posts: Post[];
+  queryClient: ReturnType<typeof useQueryClient>;
 }) {
   const renderItem = useCallback(
     ({ item }: { item: Post }) => {
@@ -135,7 +139,10 @@ function DiscoverGrid({
         item.thumbnail || (!isVideo ? item.media?.[0]?.url : undefined);
       return (
         <Pressable
-          onPress={() => router.push(`/(protected)/post/${item.id}`)}
+          onPress={() => {
+            screenPrefetch.postDetail(queryClient, item.id);
+            router.push(`/(protected)/post/${item.id}`);
+          }}
           style={{
             width: GRID_CELL_SIZE,
             height: GRID_CELL_SIZE,
@@ -255,6 +262,7 @@ function DiscoverGrid({
 
 export default function SearchScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const navigation = useNavigation();
   const params = useLocalSearchParams<{ query?: string }>();
   const searchQuery = useSearchStore((s) => s.searchQuery);
@@ -366,6 +374,10 @@ export default function SearchScreen() {
                               key={post.id}
                               onPress={() => {
                                 if (post?.id) {
+                                  screenPrefetch.postDetail(
+                                    queryClient,
+                                    post.id,
+                                  );
                                   router.push(`/(protected)/post/${post.id}`);
                                 }
                               }}
@@ -472,6 +484,10 @@ export default function SearchScreen() {
                                 key={post.id}
                                 onPress={() => {
                                   if (post?.id) {
+                                    screenPrefetch.postDetail(
+                                      queryClient,
+                                      post.id,
+                                    );
                                     router.push(`/(protected)/post/${post.id}`);
                                   }
                                 }}
@@ -541,7 +557,11 @@ export default function SearchScreen() {
                 router={router}
                 users={discoverData?.users ?? []}
               />
-              <DiscoverGrid router={router} posts={discoverData?.posts ?? []} />
+              <DiscoverGrid
+                router={router}
+                posts={discoverData?.posts ?? []}
+                queryClient={queryClient}
+              />
             </>
           )}
         </ScrollView>
