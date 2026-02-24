@@ -778,6 +778,7 @@ function FeedPostComponent({
           <Pressable
             onPressIn={() => prefetchLikers(id)}
             onPress={() => onShowLikes?.(id)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
               {formatLikeCount(likesCount)}

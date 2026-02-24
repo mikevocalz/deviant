@@ -155,25 +155,31 @@ export function useFollow() {
       const newIsFollowing = action === "follow";
       const countDelta = newIsFollowing ? 1 : -1;
 
-      // Cancel relevant queries to prevent overwrites
+      // Cancel relevant queries in PARALLEL to prevent overwrites
+      // PERF: Previously 6 sequential awaits blocked the optimistic update.
       const userQueryKey = username
         ? ["users", "username", username]
         : ["users", "id", userId];
-      await queryClient.cancelQueries({ queryKey: userQueryKey });
-      if (userId) {
-        await queryClient.cancelQueries({ queryKey: ["profile", userId] });
-      }
       const viewerProfileKey = viewerId ? ["profile", viewerId] : null;
+      const cancels: Promise<void>[] = [
+        queryClient.cancelQueries({ queryKey: userQueryKey }),
+        queryClient.cancelQueries({ queryKey: ["users", "followers"] }),
+        queryClient.cancelQueries({ queryKey: ["users", "following"] }),
+      ];
+      if (userId) {
+        cancels.push(
+          queryClient.cancelQueries({ queryKey: ["profile", userId] }),
+        );
+      }
       if (viewerProfileKey) {
-        await queryClient.cancelQueries({ queryKey: viewerProfileKey });
+        cancels.push(queryClient.cancelQueries({ queryKey: viewerProfileKey }));
       }
-      await queryClient.cancelQueries({ queryKey: ["users", "followers"] });
-      await queryClient.cancelQueries({ queryKey: ["users", "following"] });
       if (viewerId) {
-        await queryClient.cancelQueries({
-          queryKey: activityKeys.list(viewerId),
-        });
+        cancels.push(
+          queryClient.cancelQueries({ queryKey: activityKeys.list(viewerId) }),
+        );
       }
+      await Promise.all(cancels);
 
       // Snapshot previous state for rollback
       const previousUserData = queryClient.getQueryData(userQueryKey);
