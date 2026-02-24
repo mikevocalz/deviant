@@ -5,7 +5,6 @@ import {
   RefreshControl,
   StyleSheet,
   Animated as RNAnimated,
-  Pressable,
 } from "react-native";
 import { LegendList } from "@/components/list";
 import type { LegendListRef } from "@/components/list";
@@ -13,9 +12,8 @@ import { FeedPost } from "./feed-post";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
-import { useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { useMemo, useEffect, useRef, useCallback, memo, useState } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
-import { useRouter } from "expo-router";
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
@@ -31,6 +29,7 @@ import {
   prefetchImages,
   extractFeedImageUrls,
 } from "@/lib/perf/image-prefetch";
+import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -43,36 +42,27 @@ const EMPTY_MEDIA: { type: string; url: string }[] = [];
 
 const AnimatedFeedPost = memo(function AnimatedFeedPost({
   item,
-  index,
+  onShowLikes,
 }: {
   item: Post;
   index: number;
+  onShowLikes?: (postId: string) => void;
 }) {
-  const router = useRouter();
-
   return (
     <View style={{ paddingVertical: 12 }}>
-      <Pressable
-        onPress={() => {
-          if (item?.id) {
-            router.push(`/(protected)/post/${item.id}`);
-          }
-        }}
-        className="rounded-2xl"
-      >
-        <FeedPost
-          id={item.id || ""}
-          author={item.author || FALLBACK_AUTHOR}
-          media={item.media || EMPTY_MEDIA}
-          caption={item.caption || ""}
-          likes={item.likes || 0}
-          viewerHasLiked={item.viewerHasLiked || false}
-          comments={0}
-          timeAgo={item.timeAgo || ""}
-          location={item.location}
-          isNSFW={item.isNSFW}
-        />
-      </Pressable>
+      <FeedPost
+        id={item.id || ""}
+        author={item.author || FALLBACK_AUTHOR}
+        media={item.media || EMPTY_MEDIA}
+        caption={item.caption || ""}
+        likes={item.likes || 0}
+        viewerHasLiked={item.viewerHasLiked || false}
+        comments={item.comments || 0}
+        timeAgo={item.timeAgo || ""}
+        location={item.location}
+        isNSFW={item.isNSFW}
+        onShowLikes={onShowLikes}
+      />
     </View>
   );
 });
@@ -196,6 +186,15 @@ function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
 }
 
 export function Feed() {
+  // Likes sheet state — ONE instance at feed level, not per-post
+  const [likesPostId, setLikesPostId] = useState<string | null>(null);
+  const handleShowLikes = useCallback((postId: string) => {
+    setLikesPostId(postId);
+  }, []);
+  const handleCloseLikes = useCallback(() => {
+    setLikesPostId(null);
+  }, []);
+
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
   // When perf_bootstrap_feed flag is ON, a single edge function call populates
   // the feed cache, so useInfiniteFeedPosts returns data instantly from cache.
@@ -299,9 +298,13 @@ export function Feed() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: Post; index: number }) => (
-      <AnimatedFeedPost item={item} index={index} />
+      <AnimatedFeedPost
+        item={item}
+        index={index}
+        onShowLikes={handleShowLikes}
+      />
     ),
-    [],
+    [handleShowLikes],
   );
 
   const keyExtractor = useCallback(
@@ -398,29 +401,36 @@ export function Feed() {
   }
 
   return (
-    <LegendList
-      ref={listRef}
-      data={filteredPosts}
-      keyExtractor={keyExtractor}
-      renderItem={renderItem}
-      contentContainerStyle={
-        filteredPosts.length === 0
-          ? { flex: 1, paddingBottom: 80 }
-          : { paddingBottom: 80 }
-      }
-      showsVerticalScrollIndicator={false}
-      recycleItems
-      estimatedItemSize={500}
-      onEndReached={handleEndReached}
-      onEndReachedThreshold={0.5}
-      ListHeaderComponent={StoriesBar}
-      ListFooterComponent={renderFooter}
-      ListEmptyComponent={ListEmpty}
-      viewabilityConfig={viewabilityConfig}
-      onViewableItemsChanged={onViewableItemsChanged}
-      refreshing={isRefetching}
-      onRefresh={handleRefresh}
-    />
+    <>
+      <LegendList
+        ref={listRef}
+        data={filteredPosts}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        contentContainerStyle={
+          filteredPosts.length === 0
+            ? { flex: 1, paddingBottom: 80 }
+            : { paddingBottom: 80 }
+        }
+        showsVerticalScrollIndicator={false}
+        recycleItems
+        estimatedItemSize={500}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={StoriesBar}
+        ListFooterComponent={renderFooter}
+        ListEmptyComponent={ListEmpty}
+        viewabilityConfig={viewabilityConfig}
+        onViewableItemsChanged={onViewableItemsChanged}
+        refreshing={isRefetching}
+        onRefresh={handleRefresh}
+      />
+      <LikesSheet
+        postId={likesPostId || ""}
+        isOpen={!!likesPostId}
+        onClose={handleCloseLikes}
+      />
+    </>
   );
 }
 

@@ -656,6 +656,20 @@ function ProfileScreenContent() {
                   testID={`profile.${user?.id}.followersCount`}
                   onPress={() => {
                     if (user?.id) {
+                      queryClient.prefetchInfiniteQuery({
+                        queryKey: ["users", "followers", user.id],
+                        queryFn: async () => {
+                          const result = await usersApi.getFollowers(
+                            user.id,
+                            1,
+                          );
+                          return {
+                            users: result.docs || [],
+                            nextPage: result.hasNextPage ? 2 : null,
+                          };
+                        },
+                        initialPageParam: 1,
+                      });
                       router.push(
                         `/(protected)/profile/followers?userId=${user.id}&username=${displayUsername}`,
                       );
@@ -674,6 +688,20 @@ function ProfileScreenContent() {
                   testID={`profile.${user?.id}.followingCount`}
                   onPress={() => {
                     if (user?.id) {
+                      queryClient.prefetchInfiniteQuery({
+                        queryKey: ["users", "following", user.id],
+                        queryFn: async () => {
+                          const result = await usersApi.getFollowing(
+                            user.id,
+                            1,
+                          );
+                          return {
+                            users: result.docs || [],
+                            nextPage: result.hasNextPage ? 2 : null,
+                          };
+                        },
+                        initialPageParam: 1,
+                      });
                       router.push(
                         `/(protected)/profile/following?userId=${user.id}&username=${displayUsername}`,
                       );

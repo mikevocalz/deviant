@@ -630,6 +630,18 @@ function UserProfileScreenComponent() {
                   className="items-center"
                   onPress={() => {
                     if (userId) {
+                      // Prefetch before navigation — data in cache when screen mounts
+                      queryClient.prefetchInfiniteQuery({
+                        queryKey: ["users", "followers", userId],
+                        queryFn: async () => {
+                          const result = await usersApi.getFollowers(userId, 1);
+                          return {
+                            users: result.docs || [],
+                            nextPage: result.hasNextPage ? 2 : null,
+                          };
+                        },
+                        initialPageParam: 1,
+                      });
                       router.push(
                         `/(protected)/profile/followers?userId=${userId}&username=${user.username}`,
                       );
@@ -649,6 +661,18 @@ function UserProfileScreenComponent() {
                   className="items-center"
                   onPress={() => {
                     if (userId) {
+                      // Prefetch before navigation — data in cache when screen mounts
+                      queryClient.prefetchInfiniteQuery({
+                        queryKey: ["users", "following", userId],
+                        queryFn: async () => {
+                          const result = await usersApi.getFollowing(userId, 1);
+                          return {
+                            users: result.docs || [],
+                            nextPage: result.hasNextPage ? 2 : null,
+                          };
+                        },
+                        initialPageParam: 1,
+                      });
                       router.push(
                         `/(protected)/profile/following?userId=${userId}&username=${user.username}`,
                       );
