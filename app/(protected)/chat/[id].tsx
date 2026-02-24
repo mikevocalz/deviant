@@ -52,6 +52,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import {
   useRef,
   useCallback,
@@ -715,16 +716,18 @@ export default function ChatScreen() {
 
   const handleMentionPress = useCallback(
     (username: string) => {
+      screenPrefetch.profile(queryClient, username);
       router.push(`/(protected)/profile/${username}`);
     },
-    [router],
+    [router, queryClient],
   );
 
   const handleProfilePress = useCallback(() => {
     if (recipient) {
+      screenPrefetch.profile(queryClient, recipient.username);
       router.push(`/(protected)/profile/${recipient.username}`);
     }
-  }, [router, recipient]);
+  }, [router, recipient, queryClient]);
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
 

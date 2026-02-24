@@ -15,7 +15,8 @@ import { useNewMessageStore } from "@/lib/stores/comments-store";
 import { useCallback, useState } from "react";
 import { useSearchUsers } from "@/lib/hooks/use-search";
 import { usersApi } from "@/lib/api/users";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -99,11 +100,13 @@ export default function NewMessageScreen() {
     [router, isCreatingConversation, showToast],
   );
 
+  const queryClient = useQueryClient();
   const handleProfilePress = useCallback(
     (username: string) => {
+      screenPrefetch.profile(queryClient, username);
       router.push(`/(protected)/profile/${username}`);
     },
-    [router],
+    [router, queryClient],
   );
 
   return (

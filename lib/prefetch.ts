@@ -56,7 +56,10 @@ export const screenPrefetch = {
       queryKey: ["users", "followers", userId],
       queryFn: async () => {
         const result = await usersApi.getFollowers(userId, 1);
-        return { users: result.docs || [], nextPage: result.hasNextPage ? 2 : null };
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
       },
       initialPageParam: 1,
     });
@@ -69,7 +72,10 @@ export const screenPrefetch = {
       queryKey: ["users", "following", userId],
       queryFn: async () => {
         const result = await usersApi.getFollowing(userId, 1);
-        return { users: result.docs || [], nextPage: result.hasNextPage ? 2 : null };
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
       },
       initialPageParam: 1,
     });
@@ -90,6 +96,16 @@ export const screenPrefetch = {
     qc.prefetchQuery({
       queryKey: [...commentKeys.byPost(postId), 50],
       queryFn: () => commentsApiClient.getComments(postId, 50),
+      staleTime: STALE_TIMES.comments,
+    });
+  },
+
+  /** Event comments screen */
+  eventComments(qc: QueryClient, eventId: string) {
+    if (!eventId) return;
+    qc.prefetchQuery({
+      queryKey: ["event-comments", "event", eventId],
+      queryFn: () => eventsApiClient.getEventComments(eventId, 100),
       staleTime: STALE_TIMES.comments,
     });
   },
