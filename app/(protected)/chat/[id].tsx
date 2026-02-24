@@ -648,6 +648,14 @@ export default function ChatScreen() {
     // which parseInt() turns into NaN, causing the edge function to reject the send.
     const convId = resolvedConvIdRef.current || chatId;
 
+    // GUARD: If conv ID hasn't resolved yet and chatId is a username, block send.
+    // Without this, sendMessage would pass a username to the edge function,
+    // parseInt() → NaN, and the message silently fails.
+    if (!resolvedConvIdRef.current && !/^\d+$/.test(chatId)) {
+      console.warn("[Chat] Send blocked — conversation ID not resolved yet");
+      return;
+    }
+
     // OPTIMISTIC: patch conversations list cache so lastMessage updates instantly
     // without waiting for a full refetch of the conversations list.
     if (messageText) {
