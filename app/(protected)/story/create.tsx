@@ -42,7 +42,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StoryTagPicker } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
-import { generateVideoThumbnail } from "@/lib/video-thumbnail";
+// generateVideoThumbnail disabled — expo-video-thumbnails hangs on iOS 26.3
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { setPendingCrop } from "@/src/crop/crop-utils";
 import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
@@ -191,16 +191,8 @@ export default function CreateStoryScreen() {
         );
         setCurrentIndex(mediaAssets.length === 0 ? 0 : mediaAssets.length);
 
-        // Generate thumbnails for any new videos
-        for (const item of validMedia) {
-          if (item.type === "video") {
-            generateVideoThumbnail(item.uri, 500).then((result) => {
-              if (result.success && result.uri) {
-                setVideoThumbnail(item.uri, result.uri!);
-              }
-            });
-          }
-        }
+        // NOTE: Video thumbnail generation disabled — expo-video-thumbnails
+        // hangs on iOS 26.3. The Video icon fallback handles the preview.
       }
     },
     [

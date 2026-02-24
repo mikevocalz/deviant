@@ -16,19 +16,12 @@ const thumbnailKeys = {
   forVideo: (videoUrl: string) => ["videoThumbnail", videoUrl] as const,
 };
 
+// DISABLED: expo-video-thumbnails hangs permanently on iOS 26.3
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function generateThumbnailFromUrl(
-  videoUrl: string,
+  _videoUrl: string,
 ): Promise<string | null> {
-  try {
-    const result = await VideoThumbnails.getThumbnailAsync(videoUrl, {
-      time: 500,
-      quality: 0.7,
-    });
-    return result.uri;
-  } catch (error) {
-    console.warn("[VideoThumbnailImage] Generation failed:", error);
-    return null;
-  }
+  return null;
 }
 
 interface VideoThumbnailImageProps {
