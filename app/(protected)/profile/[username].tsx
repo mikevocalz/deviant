@@ -329,6 +329,33 @@ function UserProfileScreenComponent() {
   // Get userId for follow queries
   const userId = (resolvedUserData as any)?.id;
 
+  // Eager prefetch followers/following when profile resolves — data in cache before user taps
+  useEffect(() => {
+    if (!userId) return;
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ["users", "followers", userId],
+      queryFn: async () => {
+        const result = await usersApi.getFollowers(userId, 1);
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
+      },
+      initialPageParam: 1,
+    });
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ["users", "following", userId],
+      queryFn: async () => {
+        const result = await usersApi.getFollowing(userId, 1);
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
+      },
+      initialPageParam: 1,
+    });
+  }, [userId, queryClient]);
+
   // CRITICAL: Redirect to tabs profile if viewing own profile
   // This ensures consistent UI/UX and correct avatar display
   useEffect(() => {

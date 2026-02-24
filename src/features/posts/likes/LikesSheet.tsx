@@ -85,6 +85,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["50%"], []);
 
+  // Always call hook (no conditional render) — enabled guards the fetch
   const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
 
   const handleProfilePress = useCallback(
@@ -117,9 +118,6 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     [],
   );
 
-  // Don't render when closed — avoids unnecessary BottomSheet instances in FlatList
-  if (!isOpen) return null;
-
   const renderItem = useCallback(
     ({ item }: { item: PostLiker }) => (
       <LikerRow
@@ -139,7 +137,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     <BottomSheet
       ref={bottomSheetRef}
       snapPoints={snapPoints}
-      index={0}
+      index={isOpen ? 0 : -1}
       enablePanDownToClose
       enableOverDrag={false}
       onChange={handleSheetChange}

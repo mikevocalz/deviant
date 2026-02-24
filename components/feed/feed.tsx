@@ -22,6 +22,7 @@ import { useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
+import { prefetchComments } from "@/lib/hooks/use-comments";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
@@ -245,7 +246,7 @@ export function Feed() {
     return data.pages.flatMap((page) => page.data);
   }, [data]);
 
-  // Perf: Mark TTUC when first posts are visible + prefetch off-screen images
+  // Perf: Mark TTUC when first posts are visible + prefetch off-screen images + comments
   useEffect(() => {
     if (allPosts.length > 0) {
       if (trace.elapsed() < 50) trace.markCacheHit();
@@ -256,6 +257,10 @@ export function Feed() {
         const urls = extractFeedImageUrls(offScreenPosts);
         prefetchImages(urls);
       }
+      // Eager prefetch comments for first 5 posts — data in cache before user taps
+      allPosts.slice(0, 5).forEach((post) => {
+        if (post?.id) prefetchComments(queryClient, post.id);
+      });
     }
   }, [allPosts.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -360,6 +365,9 @@ export function Feed() {
     }
   }, [isRefetching]);
 
+  // Track which posts we've already prefetched comments for
+  const prefetchedComments = useRef(new Set<string>()).current;
+
   const onViewableItemsChanged = useRef(
     ({
       viewableItems,
@@ -371,6 +379,13 @@ export function Feed() {
         if (firstViewable?.isViewable && firstViewable?.item?.id) {
           setActivePostId(firstViewable.item.id);
         }
+        // Eager prefetch comments for newly visible posts
+        viewableItems.forEach(({ item }) => {
+          if (item?.id && !prefetchedComments.has(item.id)) {
+            prefetchedComments.add(item.id);
+            prefetchComments(queryClient, item.id);
+          }
+        });
       } else {
         setActivePostId(null);
       }

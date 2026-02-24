@@ -99,6 +99,33 @@ function ProfileScreenContent() {
   const userId = user?.id ? String(user.id) : "";
   const hasUser = Boolean(userId);
 
+  // Eager prefetch followers/following — data in cache before user taps
+  useEffect(() => {
+    if (!userId) return;
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ["users", "followers", userId],
+      queryFn: async () => {
+        const result = await usersApi.getFollowers(userId, 1);
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
+      },
+      initialPageParam: 1,
+    });
+    queryClient.prefetchInfiniteQuery({
+      queryKey: ["users", "following", userId],
+      queryFn: async () => {
+        const result = await usersApi.getFollowing(userId, 1);
+        return {
+          users: result.docs || [],
+          nextPage: result.hasNextPage ? 2 : null,
+        };
+      },
+      initialPageParam: 1,
+    });
+  }, [userId, queryClient]);
+
   // CRITICAL: Fetch profile data with counts from backend
   // ONLY enabled when we have a valid userId
   const {
