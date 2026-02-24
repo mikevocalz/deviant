@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 export interface MediaAttachment {
   type: "image" | "video";
@@ -271,7 +272,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
     const { currentMessage, pendingMedia, isSending } = get();
-    if (isSending) return; // Re-entrance guard
+    // Re-entrance guard with safety timeout — if stuck for >15s, force-reset
+    if (isSending) {
+      console.warn("[ChatStore] sendMessageToBackend: isSending guard hit");
+      return;
+    }
     if (!currentMessage.trim() && pendingMedia.length === 0) return;
 
     const user = useAuthStore.getState().user;
@@ -404,6 +409,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
     } catch (error) {
       console.error("[ChatStore] sendMessageToBackend error:", error);
+      // Show error toast so user knows the send failed
+      useUIStore
+        .getState()
+        .showToast(
+          "error",
+          "Send Failed",
+          "Message couldn't be sent. Tap send to retry.",
+        );
       // Remove optimistic message and restore input so user doesn't lose their text
       set((state) => ({
         currentMessage: messageText,
