@@ -10,6 +10,8 @@
  */
 
 import { Router } from "expo-router";
+import type { QueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 
 interface RouteToProfileParams {
   targetUserId: string | number | undefined;
@@ -18,6 +20,7 @@ interface RouteToProfileParams {
   targetName?: string | undefined;
   viewerId: string | number | undefined;
   router: Router;
+  queryClient?: QueryClient;
 }
 
 /**
@@ -39,6 +42,7 @@ export function routeToProfile({
   targetName,
   viewerId,
   router,
+  queryClient,
 }: RouteToProfileParams): void {
   // Normalize IDs to strings for comparison
   const targetId = targetUserId ? String(targetUserId) : "";
@@ -58,6 +62,11 @@ export function routeToProfile({
   if (targetId && currentId && targetId === currentId) {
     router.push("/(protected)/(tabs)/profile");
     return;
+  }
+
+  // Prefetch profile data before navigation — data in cache when screen mounts
+  if (targetUsername && queryClient) {
+    screenPrefetch.profile(queryClient, targetUsername);
   }
 
   // Otherwise, route to user profile by username

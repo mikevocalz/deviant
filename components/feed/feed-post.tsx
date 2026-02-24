@@ -47,6 +47,8 @@ import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/posts";
 import { useDeletePost } from "@/lib/hooks/use-posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
@@ -102,6 +104,7 @@ function FeedPostComponent({
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
+  const queryClient = useQueryClient();
 
   // Responsive media sizing (Instagram-like: full width on phone, max 614px centered on tablet)
   const {
@@ -467,8 +470,17 @@ function FeedPostComponent({
       }
       return;
     }
+    screenPrefetch.postDetail(queryClient, id);
     router.push(`/(protected)/post/${id}`);
-  }, [router, id, postTags.length, tagsVisible, toggleTags, tagProgress]);
+  }, [
+    router,
+    id,
+    postTags.length,
+    tagsVisible,
+    toggleTags,
+    tagProgress,
+    queryClient,
+  ]);
 
   // Get current user for profile routing
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -482,8 +494,16 @@ function FeedPostComponent({
       targetName: author?.username,
       viewerId: currentUserId,
       router,
+      queryClient,
     });
-  }, [router, author?.username, author?.id, author?.avatar, currentUserId]);
+  }, [
+    router,
+    author?.username,
+    author?.id,
+    author?.avatar,
+    currentUserId,
+    queryClient,
+  ]);
 
   return (
     <View className={containerClass}>

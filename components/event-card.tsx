@@ -9,9 +9,12 @@ import { AVATAR_COLORS } from "@/lib/constants/events";
 import { useRouter } from "expo-router";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { useToggleEventLike } from "@/lib/hooks/use-events";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 
 export function EventCard({ event, index, scrollY, formatLikes }: any) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const toggleLike = useToggleEventLike();
 
   const handleLike = useCallback(() => {
@@ -50,7 +53,10 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
         transition={{ type: "spring", damping: 20, stiffness: 300 }}
       >
         <Pressable
-          onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
+          onPress={() => {
+            screenPrefetch.eventDetail(queryClient, event.id);
+            router.push(`/(protected)/events/${event.id}` as any);
+          }}
         >
           <View style={{ height: CARD_HEIGHT }} className="w-full">
             <Animated.View

@@ -34,6 +34,8 @@ import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { postsApi } from "@/lib/api/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
@@ -128,6 +130,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
 function PostDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   // Normalize id - use empty string as fallback for hooks
   const postId = id ? String(id) : "";
@@ -213,6 +216,7 @@ function PostDetailScreenContent() {
   const handleProfilePress = useCallback(() => {
     if (!post?.author?.username) return;
     console.log(`[PostDetail] Navigating to profile: ${post.author.username}`);
+    screenPrefetch.profile(queryClient, post.author.username);
     router.push({
       pathname: `/(protected)/profile/${post.author.username}`,
       params: {
@@ -225,6 +229,7 @@ function PostDetailScreenContent() {
     post?.author?.avatar,
     post?.author?.name,
     router,
+    queryClient,
   ]);
 
   const handleShare = useCallback(async () => {

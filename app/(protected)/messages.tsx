@@ -46,6 +46,8 @@ import { useFocusEffect } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
+import { screenPrefetch } from "@/lib/prefetch";
+import { useChatStore } from "@/lib/stores/chat-store";
 
 interface ConversationItem {
   id: string;
@@ -549,6 +551,10 @@ export default function MessagesScreen() {
 
   const handleChatPress = useCallback(
     (id: string, item?: ConversationItem) => {
+      // Prefetch chat messages before navigation
+      try {
+        useChatStore.getState().loadMessages(id);
+      } catch {}
       // Pass conversation data via params so chat header renders instantly
       // without waiting for async fetch — eliminates layout jump during transition
       if (item) {
@@ -570,9 +576,10 @@ export default function MessagesScreen() {
 
   const handleProfilePress = useCallback(
     (username: string) => {
+      screenPrefetch.profile(queryClient, username);
       router.push(`/(protected)/profile/${username}`);
     },
-    [router],
+    [router, queryClient],
   );
 
   const showToast = useUIStore((s) => s.showToast);

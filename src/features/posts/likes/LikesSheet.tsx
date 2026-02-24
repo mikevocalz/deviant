@@ -27,6 +27,8 @@ import { Avatar } from "@/components/ui/avatar";
 import { usePostLikers } from "@/lib/hooks/use-post-likers";
 import { useColorScheme } from "@/lib/hooks";
 import type { PostLiker } from "@/lib/api/likes";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 
 interface LikesSheetProps {
   postId: string;
@@ -81,6 +83,7 @@ function LikerRow({
 
 export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["50%"], []);
@@ -90,10 +93,11 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
 
   const handleProfilePress = useCallback(
     (username: string) => {
+      screenPrefetch.profile(queryClient, username);
       onClose();
       router.push(`/(protected)/profile/${username}` as any);
     },
-    [router, onClose],
+    [router, onClose, queryClient],
   );
 
   const handleSheetChange = useCallback(
