@@ -215,9 +215,17 @@ function PostDetailScreenContent() {
     console.log(`[PostDetail] Navigating to profile: ${post.author.username}`);
     router.push({
       pathname: `/(protected)/profile/${post.author.username}`,
-      params: post.author.avatar ? { avatar: post.author.avatar } : {},
+      params: {
+        ...(post.author.avatar ? { avatar: post.author.avatar } : {}),
+        ...(post.author.name ? { name: post.author.name } : {}),
+      },
     } as any);
-  }, [post?.author?.username, post?.author?.avatar, router]);
+  }, [
+    post?.author?.username,
+    post?.author?.avatar,
+    post?.author?.name,
+    router,
+  ]);
 
   const handleShare = useCallback(async () => {
     if (!postId || !post) return;

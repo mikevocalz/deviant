@@ -165,6 +165,7 @@ export default function CreateScreen() {
     progress: uploadProgress,
     compressionProgress,
     statusMessage,
+    cancelUpload,
   } = useMediaUpload({ folder: "posts" });
 
   useEffect(() => {
@@ -1100,6 +1101,21 @@ export default function CreateScreen() {
                 </Text>
               </>
             )}
+            <Pressable
+              onPress={cancelUpload}
+              hitSlop={12}
+              style={{
+                marginTop: 8,
+                paddingHorizontal: 24,
+                paddingVertical: 10,
+                borderRadius: 20,
+                backgroundColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Text style={{ color: "#999", fontSize: 14, fontWeight: "600" }}>
+                Cancel
+              </Text>
+            </Pressable>
           </Motion.View>
         </View>
       )}

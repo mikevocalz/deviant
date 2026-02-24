@@ -15,6 +15,7 @@ interface RouteToProfileParams {
   targetUserId: string | number | undefined;
   targetUsername: string | undefined;
   targetAvatar?: string | undefined;
+  targetName?: string | undefined;
   viewerId: string | number | undefined;
   router: Router;
 }
@@ -35,6 +36,7 @@ export function routeToProfile({
   targetUserId,
   targetUsername,
   targetAvatar,
+  targetName,
   viewerId,
   router,
 }: RouteToProfileParams): void {
@@ -62,9 +64,8 @@ export function routeToProfile({
   // Pass avatar as route param to eliminate initials waterfall
   if (targetUsername) {
     const params: Record<string, string> = {};
-    if (targetAvatar && targetAvatar.length > 0) {
-      params.avatar = targetAvatar;
-    }
+    if (targetAvatar && targetAvatar.length > 0) params.avatar = targetAvatar;
+    if (targetName && targetName.length > 0) params.name = targetName;
     router.push({
       pathname: `/(protected)/profile/${targetUsername}`,
       params,

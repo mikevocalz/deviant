@@ -100,6 +100,7 @@ export default function CreateStoryScreen() {
     uploadMultiple,
     progress: uploadProgress,
     statusMessage: uploadStatus,
+    cancelUpload,
   } = useMediaUpload({ folder: "stories" });
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
@@ -505,6 +506,25 @@ export default function CreateStoryScreen() {
                   ? `Uploading... ${uploadProgress}%`
                   : "Processing...")}
             </Text>
+            <Pressable
+              onPress={() => {
+                cancelUpload();
+                setIsSharing(false);
+              }}
+              hitSlop={12}
+              style={{
+                marginTop: 12,
+                alignSelf: "center",
+                paddingHorizontal: 20,
+                paddingVertical: 8,
+                borderRadius: 16,
+                backgroundColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Text style={{ color: "#999", fontSize: 13, fontWeight: "600" }}>
+                Cancel
+              </Text>
+            </Pressable>
           </Motion.View>
         )}
 

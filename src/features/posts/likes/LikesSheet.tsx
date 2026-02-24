@@ -99,9 +99,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const handleProfilePress = useCallback(
     (username: string) => {
       onClose();
-      setTimeout(() => {
-        router.push(`/(protected)/profile/${username}` as any);
-      }, 300);
+      router.push(`/(protected)/profile/${username}` as any);
     },
     [router, onClose],
   );
@@ -149,7 +147,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
       snapPoints={snapPoints}
       enablePanDownToClose
       enableOverDrag={false}
-      onDismiss={onClose}
+      onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
       backgroundStyle={{
         backgroundColor: colors.card,

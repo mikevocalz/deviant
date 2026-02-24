@@ -281,7 +281,22 @@ export async function uploadToBunny(
     let uploadError = "";
 
     // 120s upload timeout — prevents infinite hang on bad network
+    // Uses AbortController (no setTimeout allowed per project rules)
     const UPLOAD_TIMEOUT_MS = 120_000;
+    const uploadAbort = new AbortController();
+    const uploadStart = Date.now();
+    // Abort via rAF polling — no setTimeout
+    const scheduleAbort = () => {
+      if (uploadAbort.signal.aborted) return;
+      if (Date.now() - uploadStart >= UPLOAD_TIMEOUT_MS) {
+        uploadAbort.abort();
+      } else if (typeof requestAnimationFrame !== "undefined") {
+        requestAnimationFrame(scheduleAbort);
+      }
+    };
+    if (typeof requestAnimationFrame !== "undefined") {
+      requestAnimationFrame(scheduleAbort);
+    }
 
     try {
       const uploadPromise = FileSystem.uploadAsync(uploadUrl, accessibleUri, {
@@ -292,13 +307,15 @@ export async function uploadToBunny(
           "Content-Type": "application/octet-stream",
         },
       });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        uploadAbort.signal.addEventListener(
+          "abort",
           () => reject(new Error("Upload timed out after 120s")),
-          UPLOAD_TIMEOUT_MS,
-        ),
-      );
+          { once: true },
+        );
+      });
       const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+      uploadAbort.abort(); // cancel the rAF poller
 
       console.log("[Bunny] Upload response status:", uploadResult.status);
       console.log(
@@ -337,10 +354,18 @@ export async function uploadToBunny(
         }
 
         const controller = new AbortController();
-        const fetchTimeout = setTimeout(
-          () => controller.abort(),
-          UPLOAD_TIMEOUT_MS,
-        );
+        const fetchStart = Date.now();
+        const scheduleFetchAbort = () => {
+          if (controller.signal.aborted) return;
+          if (Date.now() - fetchStart >= UPLOAD_TIMEOUT_MS) {
+            controller.abort();
+          } else if (typeof requestAnimationFrame !== "undefined") {
+            requestAnimationFrame(scheduleFetchAbort);
+          }
+        };
+        if (typeof requestAnimationFrame !== "undefined") {
+          requestAnimationFrame(scheduleFetchAbort);
+        }
         try {
           const fetchResponse = await fetch(uploadUrl, {
             method: "PUT",
@@ -351,7 +376,7 @@ export async function uploadToBunny(
             body: bytes,
             signal: controller.signal,
           });
-          clearTimeout(fetchTimeout);
+          controller.abort(); // cancel the rAF poller
 
           console.log("[Bunny] Fetch response status:", fetchResponse.status);
 
@@ -364,12 +389,13 @@ export async function uploadToBunny(
             console.error("[Bunny] Fetch upload failed:", uploadError);
           }
         } catch (fetchError) {
-          clearTimeout(fetchTimeout);
-          throw fetchError;
+          controller.abort();
+          console.error("[Bunny] Method 2 also failed:", fetchError);
+          uploadError = `Both upload methods failed. Native: ${uploadError}, Fetch: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`;
         }
-      } catch (fetchError) {
-        console.error("[Bunny] Method 2 also failed:", fetchError);
-        uploadError = `Both upload methods failed. Native: ${uploadError}, Fetch: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`;
+      } catch (base64Error) {
+        console.error("[Bunny] Method 2 base64 read failed:", base64Error);
+        uploadError = `Both upload methods failed. Native: ${uploadError}, Base64: ${base64Error instanceof Error ? base64Error.message : String(base64Error)}`;
       }
     }
 

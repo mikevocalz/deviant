@@ -581,11 +581,7 @@ export default function ChatScreen() {
   const isLoading = loadingScreens.chat;
 
   useEffect(() => {
-    const loadChat = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 400));
-      setScreenLoading("chat", false);
-    };
-    loadChat();
+    setScreenLoading("chat", false);
   }, [setScreenLoading]);
 
   // Mention suggestions - show the chat recipient when typing @
@@ -635,7 +631,10 @@ export default function ChatScreen() {
     ]).start();
 
     Keyboard.dismiss();
-    sendMessageToBackend(chatId);
+    // Use the resolved numeric conversation ID — chatId may be a username string
+    // which parseInt() turns into NaN, causing the edge function to reject the send.
+    const convId = resolvedConvIdRef.current || chatId;
+    sendMessageToBackend(convId);
   }, [chatId, sendMessageToBackend, sendButtonScale]);
 
   const handleMentionSelect = useCallback(

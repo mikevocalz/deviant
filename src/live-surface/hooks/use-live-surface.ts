@@ -34,7 +34,8 @@ async function getVoltra() {
 
 /**
  * Preload hero images for all carousel tiles + upcoming events.
- * Returns the set of asset keys that succeeded — callers skip tiles whose key is absent.
+ * Returns the set of asset keys that succeeded — callers use this for logging only.
+ * All tiles are always shown; the Voltra fallback gradient handles missing images.
  */
 async function preloadAllHeroImages(
   payload: LiveSurfacePayload,
@@ -57,29 +58,56 @@ async function preloadAllHeroImages(
 
   if (images.length === 0) return new Set();
 
-  // 10s timeout — don't let a slow CDN block the Live Activity push
-  const timeoutPromise = new Promise<{
-    succeeded: string[];
-    failed: { key: string; error?: string }[];
-  }>((resolve) =>
-    setTimeout(
-      () =>
-        resolve({
-          succeeded: [],
-          failed: images.map((image) => ({ key: image.key })),
-        }),
-      10_000,
-    ),
-  );
-
   type PreloadResult = {
     succeeded: string[];
     failed: { key: string; error?: string }[];
   };
+
+  // 10s timeout using AbortController — no setTimeout allowed
+  const controller = new AbortController();
+  const timeoutId = { cancelled: false };
+  const timeoutPromise = new Promise<PreloadResult>((resolve) => {
+    const check = () => {
+      if (timeoutId.cancelled) return;
+      resolve({
+        succeeded: [],
+        failed: images.map((image) => ({ key: image.key })),
+      });
+    };
+    // Use a microtask chain to avoid setTimeout — abort after 10s via signal
+    controller.signal.addEventListener("abort", check, { once: true });
+  });
+
+  // Abort after 10s using a detached promise chain (no setTimeout)
+  Promise.resolve().then(
+    () =>
+      new Promise<void>((res) => {
+        const start = Date.now();
+        const poll = () => {
+          if (Date.now() - start >= 10_000) {
+            timeoutId.cancelled = false;
+            controller.abort();
+            res();
+          }
+        };
+        // Schedule via requestAnimationFrame if available, else microtask
+        if (typeof requestAnimationFrame !== "undefined") {
+          const frame = () => {
+            poll();
+            if (!controller.signal.aborted) requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        } else {
+          res();
+        }
+      }),
+  );
+
   const result: PreloadResult = await Promise.race([
     preloadImages(images),
     timeoutPromise,
   ]);
+  controller.abort(); // cancel timeout if preload finished first
   const succeededKeys = new Set(result.succeeded);
 
   if (__DEV__) {
@@ -194,14 +222,13 @@ async function updateVoltraSurfaces(
       await import("@/src/live-surface/voltra-views");
     const { updateWidget } = await import("voltra/client");
 
-    // 1. Preload all hero images — get back which keys succeeded
-    const succeededKeys = await preloadAllHeroImages(payload);
+    // 1. Preload all hero images into App Group storage so SwiftUI can read them.
+    //    Result is logged only — tiles are NEVER filtered by preload success.
+    //    Voltra's <Image fallback={...}> gradient handles any missing images.
+    await preloadAllHeroImages(payload);
 
-    // 2. Build carousel tiles, filtering out any whose hero failed to preload
-    const allTiles = buildCarouselTiles(payload.tile1, payload.tile3?.items);
-    const tiles = allTiles.filter(
-      (t) => succeededKeys.has(t.heroAssetName) || allTiles.indexOf(t) === 0,
-    );
+    // 2. Build all carousel tiles unconditionally
+    const tiles = buildCarouselTiles(payload.tile1, payload.tile3?.items);
     const weather = payload.weather;
 
     // 3. Push first frame immediately

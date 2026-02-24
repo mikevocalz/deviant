@@ -79,7 +79,34 @@ export const useAuthStore = create<AuthStore>()(
           const { data: session, error: sessionError } =
             await authClient.getSession();
 
-          if (sessionError || !session) {
+          // CRITICAL: Network error ≠ no session.
+          // The Better Auth edge function cold-starts on restart and can fail
+          // on the first call. If we have a persisted user, keep them authenticated
+          // rather than signing them out due to a transient network failure.
+          if (sessionError) {
+            console.warn("[AuthStore] getSession network error:", sessionError);
+            const persistedUser = get().user;
+            if (persistedUser) {
+              console.log(
+                "[AuthStore] Keeping persisted user despite getSession error:",
+                persistedUser.id,
+              );
+              set({
+                isAuthenticated: true,
+                authStatus: "authenticated" as AuthStatus,
+              });
+              return;
+            }
+            // No persisted user — genuinely unauthenticated
+            set({
+              user: null,
+              isAuthenticated: false,
+              authStatus: "unauthenticated" as AuthStatus,
+            });
+            return;
+          }
+
+          if (!session) {
             console.log("[AuthStore] No active session found");
             set({
               user: null,
@@ -121,6 +148,7 @@ export const useAuthStore = create<AuthStore>()(
             // Sync user via Edge Function - this ensures we have a valid users row
             // with the correct auth_id mapping
             // Retry once on failure — edge function cold starts can cause the first call to timeout
+            // NOTE: No setTimeout — retry immediately (first attempt already waited on network)
             try {
               const { syncAuthUser } = require("@/lib/api/privileged");
               let syncedUser;
@@ -128,10 +156,10 @@ export const useAuthStore = create<AuthStore>()(
                 syncedUser = await syncAuthUser();
               } catch (firstError) {
                 console.warn(
-                  "[AuthStore] auth-sync attempt 1 failed, retrying in 2s:",
+                  "[AuthStore] auth-sync attempt 1 failed, retrying immediately:",
                   firstError,
                 );
-                await new Promise((r) => setTimeout(r, 2000));
+                // Retry immediately — the first call already paid the cold-start cost
                 syncedUser = await syncAuthUser();
               }
               console.log(
@@ -149,6 +177,18 @@ export const useAuthStore = create<AuthStore>()(
                 "[AuthStore] auth-sync failed after retry, falling back to direct fetch:",
                 syncError,
               );
+              // If we have a persisted user, keep them authenticated while sync recovers
+              const persistedOnSyncFail = get().user;
+              if (persistedOnSyncFail) {
+                console.log(
+                  "[AuthStore] auth-sync failed but persisted user exists — staying authenticated",
+                );
+                set({
+                  isAuthenticated: true,
+                  authStatus: "authenticated" as AuthStatus,
+                });
+                return;
+              }
             }
 
             // Fallback: Try direct profile fetch if Edge Function fails
@@ -254,22 +294,15 @@ export const useAuthStore = create<AuthStore>()(
               state.user?.id || "none",
             );
           }
-          // Mark hydration complete regardless of error
-          // NOTE: Cannot use useAuthStore here synchronously — require cycle means
-          // the store variable may not be assigned yet (create() hasn't returned).
-          // Use a polling approach to wait until the store is actually available.
-          const markHydrated = () => {
-            if (typeof useAuthStore !== "undefined" && useAuthStore) {
-              try {
-                useAuthStore.setState({ _hasHydrated: true });
-              } catch (e) {
-                console.warn("[AuthStore] setState fallback failed:", e);
-              }
-            } else {
-              setTimeout(markHydrated, 10);
+          // Mark hydration complete via microtask — store is available after
+          // create() returns, which happens synchronously before this callback fires.
+          Promise.resolve().then(() => {
+            try {
+              useAuthStore.setState({ _hasHydrated: true });
+            } catch (e) {
+              console.warn("[AuthStore] setState failed:", e);
             }
-          };
-          setTimeout(markHydrated, 0);
+          });
         };
       },
     },
@@ -280,10 +313,18 @@ export const useAuthStore = create<AuthStore>()(
 // No need for manual auth state listener - the useSession hook is reactive
 
 export const waitForRehydration = async (): Promise<void> => {
-  // Simple wait - Zustand handles this automatically
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // Wait for Zustand MMKV rehydration to complete
+  if (useAuthStore.getState()._hasHydrated) return;
+  await new Promise<void>((resolve) => {
+    const unsub = useAuthStore.subscribe((s) => {
+      if (s._hasHydrated) {
+        unsub();
+        resolve();
+      }
+    });
+  });
 };
 
 export const flushAuthStorage = async (): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // No-op — MMKV writes are synchronous, nothing to flush
 };

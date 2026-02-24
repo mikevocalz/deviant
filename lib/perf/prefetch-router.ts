@@ -18,7 +18,11 @@ import { isFeatureEnabled } from "@/lib/feature-flags";
 
 // ── Prefetch Functions ─────────────────────────────────────────────
 
-type PrefetchFn = (queryClient: QueryClient, userId: string, params?: Record<string, string>) => void;
+type PrefetchFn = (
+  queryClient: QueryClient,
+  userId: string,
+  params?: Record<string, string>,
+) => void;
 
 const prefetchRegistry: Record<string, PrefetchFn> = {};
 
@@ -61,7 +65,10 @@ export function prefetchForRoute(
       fn(queryClient, userId, params);
     } catch (err) {
       if (__DEV__) {
-        console.warn(`[PrefetchRouter] Error prefetching ${routePattern}:`, err);
+        console.warn(
+          `[PrefetchRouter] Error prefetching ${routePattern}:`,
+          err,
+        );
       }
     }
   });
@@ -96,17 +103,25 @@ export function prefetchBackgroundData(
     prefetchForRoute(queryClient, userId, "badges");
   });
 
-  // P2: Adjacent tabs — delayed further
-  setTimeout(() => {
+  // P2: Adjacent tabs — after P1 settles
+  const scheduleP2 =
+    typeof requestIdleCallback !== "undefined"
+      ? requestIdleCallback
+      : (cb: () => void) => Promise.resolve().then(cb);
+  scheduleP2(() => {
     prefetchForRoute(queryClient, userId, "conversations");
     prefetchForRoute(queryClient, userId, "activities");
-  }, 500);
+  });
 
-  // P3: Secondary data — even more delayed
-  setTimeout(() => {
+  // P3: Secondary data — after P2 schedules
+  const scheduleP3 =
+    typeof requestIdleCallback !== "undefined"
+      ? requestIdleCallback
+      : (cb: () => void) => Promise.resolve().then(cb);
+  scheduleP3(() => {
     prefetchForRoute(queryClient, userId, "bookmarks");
     prefetchForRoute(queryClient, userId, "events");
-  }, 1500);
+  });
 }
 
 // ── Priority-Aware Boot Prefetch ───────────────────────────────────
@@ -138,29 +153,32 @@ export async function prioritizedBootPrefetch(
   await Promise.allSettled(prefetchers.lane0.map((fn) => fn()));
   console.log(`[PrefetchRouter] Lane 0 done in ${Date.now() - t0}ms`);
 
-  // Lane 1: Badges — needed for tab bar
-  setTimeout(async () => {
-    await Promise.allSettled(prefetchers.lane1.map((fn) => fn()));
-    console.log(`[PrefetchRouter] Lane 1 done in ${Date.now() - t0}ms`);
-  }, 100);
+  // Lanes 1-4: chain sequentially after lane 0, each in a microtask/idle slot
+  // No setTimeout — lanes run as soon as the JS thread is free
+  const runLane = (lane: (() => Promise<any>)[], label: string) =>
+    Promise.resolve().then(() =>
+      Promise.allSettled(lane.map((fn) => fn())).then(() =>
+        console.log(`[PrefetchRouter] ${label} done in ${Date.now() - t0}ms`),
+      ),
+    );
 
-  // Lane 2: Adjacent tabs
-  setTimeout(async () => {
-    await Promise.allSettled(prefetchers.lane2.map((fn) => fn()));
-    console.log(`[PrefetchRouter] Lane 2 done in ${Date.now() - t0}ms`);
-  }, 300);
+  // Lane 1: Badges — needed for tab bar
+  runLane(prefetchers.lane1, "Lane 1");
+
+  // Lane 2: Adjacent tabs (after lane 1 schedules)
+  Promise.resolve().then(() => runLane(prefetchers.lane2, "Lane 2"));
 
   // Lane 3: Secondary data
-  setTimeout(async () => {
-    await Promise.allSettled(prefetchers.lane3.map((fn) => fn()));
-    console.log(`[PrefetchRouter] Lane 3 done in ${Date.now() - t0}ms`);
-  }, 800);
+  Promise.resolve().then(() =>
+    Promise.resolve().then(() => runLane(prefetchers.lane3, "Lane 3")),
+  );
 
-  // Lane 4: Chat prefetch (optional)
+  // Lane 4: Chat prefetch (optional, lowest priority)
   if (prefetchers.lane4?.length) {
-    setTimeout(async () => {
-      await Promise.allSettled(prefetchers.lane4!.map((fn) => fn()));
-      console.log(`[PrefetchRouter] Lane 4 done in ${Date.now() - t0}ms`);
-    }, 2000);
+    Promise.resolve().then(() =>
+      Promise.resolve().then(() =>
+        Promise.resolve().then(() => runLane(prefetchers.lane4!, "Lane 4")),
+      ),
+    );
   }
 }

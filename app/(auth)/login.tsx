@@ -76,9 +76,6 @@ export default function LoginScreen() {
             );
           }
 
-          // Give the expo client a moment to persist the session token to SecureStore
-          await new Promise((resolve) => setTimeout(resolve, 500));
-
           // Sync user to app's users table (creates row if needed, updates auth_id)
           let profile;
           try {
@@ -117,14 +114,12 @@ export default function LoginScreen() {
               followingCount: profile.followingCount,
             });
             // Replay pending deep link if one was saved, otherwise go to home
-            setTimeout(() => {
-              const pending = useDeepLinkStore.getState().pendingLink;
-              if (pending) {
-                replayPendingLink();
-              } else {
-                router.replace("/(protected)/(tabs)" as any);
-              }
-            }, 100);
+            const pending = useDeepLinkStore.getState().pendingLink;
+            if (pending) {
+              replayPendingLink();
+            } else {
+              router.replace("/(protected)/(tabs)" as any);
+            }
           } else {
             console.error("[Login] Could not load profile for:", data.user.id);
             toast.error("Login Failed", {

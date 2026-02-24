@@ -115,6 +115,7 @@ export default function CreateEventScreen() {
     uploadMultiple,
     isUploading: isUploadingMedia,
     progress: mediaUploadProgress,
+    cancelUpload: cancelMediaUpload,
   } = useMediaUpload({ folder: "events" });
 
   // All form state from Zustand (MMKV-persisted draft)
@@ -1888,6 +1889,25 @@ export default function CreateEventScreen() {
             <Text className="text-sm text-muted-foreground text-center">
               Please wait while we set up your event
             </Text>
+            <Pressable
+              onPress={() => {
+                cancelMediaUpload();
+                setIsSubmitting(false);
+                setUploadProgress(0);
+              }}
+              hitSlop={12}
+              style={{
+                marginTop: 8,
+                paddingHorizontal: 24,
+                paddingVertical: 10,
+                borderRadius: 20,
+                backgroundColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <Text style={{ color: "#999", fontSize: 14, fontWeight: "600" }}>
+                Cancel
+              </Text>
+            </Pressable>
           </Motion.View>
         </View>
       )}
