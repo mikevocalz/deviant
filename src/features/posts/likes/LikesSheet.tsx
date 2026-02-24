@@ -7,7 +7,7 @@
  * - Uses usePostLikers TanStack Query hook
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -15,8 +15,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import {
-  BottomSheetModal,
+import BottomSheet, {
   BottomSheetFlatList,
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
@@ -83,18 +82,10 @@ function LikerRow({
 export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["50%"], []);
 
   const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
-
-  useEffect(() => {
-    if (isOpen) {
-      bottomSheetRef.current?.present();
-    } else {
-      bottomSheetRef.current?.dismiss();
-    }
-  }, [isOpen]);
 
   const handleProfilePress = useCallback(
     (username: string) => {
@@ -126,6 +117,9 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     [],
   );
 
+  // Don't render when closed — avoids unnecessary BottomSheet instances in FlatList
+  if (!isOpen) return null;
+
   const renderItem = useCallback(
     ({ item }: { item: PostLiker }) => (
       <LikerRow
@@ -142,9 +136,10 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   );
 
   return (
-    <BottomSheetModal
+    <BottomSheet
       ref={bottomSheetRef}
       snapPoints={snapPoints}
+      index={0}
       enablePanDownToClose
       enableOverDrag={false}
       onChange={handleSheetChange}
@@ -196,7 +191,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </BottomSheetModal>
+    </BottomSheet>
   );
 }
 

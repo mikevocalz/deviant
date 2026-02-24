@@ -74,6 +74,34 @@ export const useAuthStore = create<AuthStore>()(
         // CRITICAL: Set loading at the START — UI must not render protected routes
         // until this function completes. Do NOT set isAuthenticated during loading.
         set({ authStatus: "loading" as AuthStatus });
+
+        // CRITICAL: Wait for Zustand MMKV rehydration before reading persisted state.
+        // Without this, get().user returns the initial value (null) because the async
+        // MMKV read hasn't completed yet. Every guard that checks "is there a persisted
+        // user?" would fail, causing an immediate sign-out on every cold start.
+        if (!get()._hasHydrated) {
+          console.log(
+            "[AuthStore] Waiting for rehydration before loadAuthState...",
+          );
+          await new Promise<void>((resolve) => {
+            const unsub = useAuthStore.subscribe((s) => {
+              if (s._hasHydrated) {
+                unsub();
+                resolve();
+              }
+            });
+            // Safety: if already hydrated by now (race), resolve immediately
+            if (useAuthStore.getState()._hasHydrated) {
+              unsub();
+              resolve();
+            }
+          });
+          console.log(
+            "[AuthStore] Rehydration complete, persisted user:",
+            get().user?.id || "none",
+          );
+        }
+
         try {
           // Check for stored session using Better Auth
           const { data: session, error: sessionError } =
