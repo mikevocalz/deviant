@@ -23,9 +23,19 @@ let warnings: string[] = [];
 // ═══════════════════════════════════════════════════════════════════
 
 const PROTECTED_TABLES = [
-  "likes", "follows", "bookmarks", "event_likes", "event_rsvps",
-  "notifications", "posts", "comments", "stories", "events",
-  "tickets", "messages", "comment_likes",
+  "likes",
+  "follows",
+  "bookmarks",
+  "event_likes",
+  "event_rsvps",
+  "notifications",
+  "posts",
+  "comments",
+  "stories",
+  "events",
+  "tickets",
+  "messages",
+  "comment_likes",
 ];
 
 const CLIENT_DIRS = ["lib", "app", "components", "src"];
@@ -44,11 +54,11 @@ function checkDirectWrites() {
         // Check for .from("table").insert/update/delete
         const pattern = new RegExp(
           `\\.from\\(['"]\s*${table}\s*['"]\\)\\s*\\.(insert|update|delete|upsert)`,
-          "g"
+          "g",
         );
         if (pattern.test(content)) {
           errors.push(
-            `DIRECT_WRITE: ${path.relative(ROOT, filePath)} writes to "${table}" — must use Edge Function gateway`
+            `DIRECT_WRITE: ${path.relative(ROOT, filePath)} writes to "${table}" — must use Edge Function gateway`,
           );
         }
       }
@@ -75,7 +85,7 @@ function checkInvalidationStorms() {
     for (const pattern of broadPatterns) {
       if (pattern.test(content)) {
         warnings.push(
-          `BROAD_INVALIDATION: ${path.relative(ROOT, filePath)} uses broad key invalidation — prefer cache patching`
+          `BROAD_INVALIDATION: ${path.relative(ROOT, filePath)} uses broad key invalidation — prefer cache patching`,
         );
       }
     }
@@ -87,7 +97,10 @@ function checkInvalidationStorms() {
 // ═══════════════════════════════════════════════════════════════════
 
 const USESTATE_EXEMPT = [
-  "login.tsx", "signup", "onboarding", "debug.tsx",
+  "login.tsx",
+  "signup",
+  "onboarding",
+  "debug.tsx",
   // Form state in TanStack Form is acceptable
 ];
 
@@ -104,10 +117,79 @@ function checkUseState() {
     const matches = content.match(/useState\s*[<(]/g);
     if (matches && matches.length > 3) {
       warnings.push(
-        `USESTATE: ${path.relative(ROOT, filePath)} has ${matches.length} useState calls — consider Zustand store`
+        `USESTATE: ${path.relative(ROOT, filePath)} has ${matches.length} useState calls — consider Zustand store`,
       );
     }
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 4. No banned list imports (FlatList, SectionList, direct @legendapp/list)
+// ═══════════════════════════════════════════════════════════════════
+
+function checkBannedListImports() {
+  for (const dir of CLIENT_DIRS) {
+    const fullDir = path.join(ROOT, dir);
+    if (!fs.existsSync(fullDir)) continue;
+
+    walkFiles(fullDir, ".tsx", (filePath, content) => {
+      if (filePath.includes("node_modules")) return;
+      if (filePath.includes("components/list")) return; // blessed wrapper
+
+      // FlatList from react-native
+      if (
+        /import\s+\{[^}]*FlatList[^}]*\}\s+from\s+["']react-native["']/.test(
+          content,
+        )
+      ) {
+        errors.push(
+          `BANNED_FLATLIST: ${path.relative(ROOT, filePath)} imports FlatList — use LegendList from @/components/list`,
+        );
+      }
+
+      // Direct @legendapp/list import (must use blessed wrapper)
+      if (/from\s+["']@legendapp\/list["']/.test(content)) {
+        errors.push(
+          `DIRECT_LEGENDLIST: ${path.relative(ROOT, filePath)} imports directly from @legendapp/list — use @/components/list`,
+        );
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// 5. No client-side write-capable secrets (audit SEC-01)
+// ═══════════════════════════════════════════════════════════════════
+
+const BANNED_CLIENT_SECRETS = [
+  "EXPO_PUBLIC_BUNNY_STORAGE_API_KEY",
+  "EXPO_PUBLIC_STRIPE_SECRET",
+  "EXPO_PUBLIC_RESEND_API_KEY",
+  "EXPO_PUBLIC_SERVICE_ROLE",
+];
+
+// Files that are deprecated for app use and only used by scripts.
+// They won't be bundled because no app code imports them.
+const SECRET_CHECK_EXCLUDES = ["bunny-storage.ts"];
+
+function checkClientSecrets() {
+  for (const dir of CLIENT_DIRS) {
+    const fullDir = path.join(ROOT, dir);
+    if (!fs.existsSync(fullDir)) continue;
+
+    walkFiles(fullDir, ".ts", (filePath, content) => {
+      if (filePath.includes("node_modules")) return;
+      if (SECRET_CHECK_EXCLUDES.some((e) => filePath.endsWith(e))) return;
+
+      for (const secret of BANNED_CLIENT_SECRETS) {
+        if (content.includes(secret)) {
+          errors.push(
+            `CLIENT_SECRET: ${path.relative(ROOT, filePath)} references ${secret} — write-capable keys must not be in client code`,
+          );
+        }
+      }
+    });
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -141,6 +223,8 @@ console.log("🔒 DVNT CI Guardrails\n");
 checkDirectWrites();
 checkInvalidationStorms();
 checkUseState();
+checkBannedListImports();
+checkClientSecrets();
 
 if (warnings.length > 0) {
   console.log("⚠️  Warnings:");

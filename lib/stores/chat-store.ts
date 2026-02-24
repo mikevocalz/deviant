@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
-import { uploadToBunny } from "@/lib/bunny-storage";
+import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 export interface MediaAttachment {
@@ -320,7 +320,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (mediaToSend.length > 0) {
         for (const item of mediaToSend) {
           try {
-            const uploadResult = await uploadToBunny(item.uri, "chat");
+            const uploadResult = await uploadToServer(item.uri, "chat");
             if (uploadResult.success && uploadResult.url) {
               uploadedUrls.push(uploadResult.url);
               mediaItems.push({ uri: uploadResult.url, type: item.type });

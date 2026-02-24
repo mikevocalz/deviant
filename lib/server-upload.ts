@@ -1,15 +1,27 @@
 /**
  * Media Upload Client
  *
- * Uses Bunny CDN for media storage directly.
- * This replaces the previous server-mediated uploads.
+ * Uploads files through the media-upload Edge Function.
+ * Bunny CDN credentials are NEVER exposed to the client.
  */
 
-import {
-  uploadToBunny,
-  type UploadResult,
-  type UploadProgress,
-} from "@/lib/bunny-storage";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+import { Platform } from "react-native";
+import { getAuthToken } from "@/lib/auth-client";
+
+const FileSystem = LegacyFileSystem;
+
+const SUPABASE_URL =
+  process.env.EXPO_PUBLIC_SUPABASE_URL ||
+  "https://npfjanxturvmjyevoyfo.supabase.co";
+const MEDIA_UPLOAD_URL = `${SUPABASE_URL}/functions/v1/media-upload`;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+  percentage: number;
+}
 
 export interface ServerUploadResult {
   success: boolean;
@@ -19,28 +31,144 @@ export interface ServerUploadResult {
   error?: string;
 }
 
-export { type UploadProgress };
+/**
+ * Map folder name to media-upload edge function "kind" parameter.
+ */
+function folderToKind(folder: string): string {
+  const map: Record<string, string> = {
+    avatars: "avatar",
+    posts: "post-image",
+    stories: "story-image",
+    events: "event-image",
+    "events/covers": "event-cover",
+    chat: "message-image",
+    uploads: "post-image",
+  };
+  // Check for thumbnail subfolders
+  if (folder.includes("thumbnails")) return "post-image";
+  return map[folder] || "post-image";
+}
 
 /**
- * Upload a file to Bunny CDN
- *
- * @param uri - Local file URI (file://, ph://, content://)
- * @param folder - Destination folder (avatars, posts, stories, etc.)
- * @param onProgress - Optional progress callback
+ * Get mime type from file extension
+ */
+function getMimeFromUri(uri: string): string {
+  const ext = uri.split(".").pop()?.toLowerCase() || "";
+  const mimeMap: Record<string, string> = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    heic: "image/heic",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+  };
+  return mimeMap[ext] || "image/jpeg";
+}
+
+/**
+ * Ensure file is accessible — copy ph:// or content:// URIs to cache
+ */
+async function ensureFileAccessible(uri: string): Promise<string> {
+  if (uri.startsWith("file://")) {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (info.exists) return uri;
+  }
+
+  if (
+    uri.startsWith("ph://") ||
+    uri.startsWith("content://") ||
+    uri.startsWith("assets-library://")
+  ) {
+    const ext = uri.split(".").pop() || "jpg";
+    const cacheUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${ext}`;
+    await FileSystem.copyAsync({ from: uri, to: cacheUri });
+    return cacheUri;
+  }
+
+  return uri;
+}
+
+/**
+ * Upload a file via the media-upload Edge Function.
+ * Bunny credentials stay server-side.
  */
 export async function uploadToServer(
   uri: string,
   folder: string = "uploads",
   onProgress?: (progress: UploadProgress) => void,
 ): Promise<ServerUploadResult> {
-  console.log("[ServerUpload] Starting upload via Bunny CDN:", {
+  console.log("[ServerUpload] Starting upload via Edge Function:", {
     uri: uri.substring(0, 60),
     folder,
   });
 
   try {
-    const result = await uploadToBunny(uri, folder, onProgress);
-    return result;
+    // Get auth token
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      return {
+        success: false,
+        url: "",
+        path: "",
+        filename: "",
+        error: "Not authenticated — cannot upload",
+      };
+    }
+
+    // Ensure file is accessible
+    const accessibleUri = await ensureFileAccessible(uri);
+
+    // Determine mime type and kind
+    const mime = getMimeFromUri(accessibleUri);
+    const kind = folderToKind(folder);
+    const filename = accessibleUri.split("/").pop() || "upload";
+
+    onProgress?.({ loaded: 0, total: 100, percentage: 10 });
+
+    // Upload via FileSystem.uploadAsync (multipart form)
+    const uploadResult = await FileSystem.uploadAsync(
+      MEDIA_UPLOAD_URL,
+      accessibleUri,
+      {
+        httpMethod: "POST",
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: "file",
+        parameters: {
+          kind,
+        },
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+      },
+    );
+
+    onProgress?.({ loaded: 80, total: 100, percentage: 80 });
+
+    const body = JSON.parse(uploadResult.body);
+
+    if (uploadResult.status === 200 && body.ok) {
+      onProgress?.({ loaded: 100, total: 100, percentage: 100 });
+      console.log("[ServerUpload] Success:", body.media?.url);
+      return {
+        success: true,
+        url: body.media.url,
+        path: body.media.key || "",
+        filename: body.media.key?.split("/").pop() || "",
+      };
+    }
+
+    const errorMsg =
+      body.error || `Upload failed (status ${uploadResult.status})`;
+    console.error("[ServerUpload] Failed:", errorMsg);
+    return {
+      success: false,
+      url: "",
+      path: "",
+      filename: "",
+      error: errorMsg,
+    };
   } catch (error) {
     console.error("[ServerUpload] Error:", error);
     return {
@@ -111,12 +239,11 @@ export async function checkUploadConfig(): Promise<{
   cdnUrl: string;
   maxSizeMB: number;
 }> {
-  // Bunny CDN is always configured via env vars
   const cdnUrl =
     process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
   return {
     configured: true,
     cdnUrl,
-    maxSizeMB: 100, // Bunny supports large files
+    maxSizeMB: 25,
   };
 }
