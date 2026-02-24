@@ -20,6 +20,7 @@ import {
   Play,
   Pause,
   UserPlus,
+  Scissors,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -45,6 +46,7 @@ import { useCallback, useEffect, useState, useLayoutEffect } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { Switch } from "react-native";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
+import { setPendingCrop } from "@/src/crop/crop-utils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -261,7 +263,17 @@ export default function CreateScreen() {
     if (media && media.length > 0) {
       const validMedia = validateMedia(media);
       if (validMedia.length > 0) {
-        setSelectedMedia([...selectedMedia, ...validMedia]);
+        const images = validMedia.filter((m) => m.type === "image");
+        const videos = validMedia.filter((m) => m.type === "video");
+        // Videos go straight to selectedMedia (no crop)
+        if (videos.length > 0) {
+          setSelectedMedia([...selectedMedia, ...videos]);
+        }
+        // Images go through crop screen first
+        if (images.length > 0) {
+          setPendingCrop(images);
+          router.push("/(protected)/crop-preview" as any);
+        }
       }
     }
   };
@@ -284,11 +296,19 @@ export default function CreateScreen() {
           if (media.type === "video") {
             setSelectedMedia(validMedia);
           } else {
-            setSelectedMedia([...selectedMedia, ...validMedia]);
+            // Camera photos go through crop screen
+            setPendingCrop(validMedia);
+            router.push("/(protected)/crop-preview" as any);
           }
         }
       }
-    }, [consumeCameraResult, validateMedia, selectedMedia, setSelectedMedia]),
+    }, [
+      consumeCameraResult,
+      validateMedia,
+      selectedMedia,
+      setSelectedMedia,
+      router,
+    ]),
   );
 
   const handleOpenCamera = (mode: "photo" | "video" | "both" = "both") => {
@@ -928,7 +948,7 @@ export default function CreateScreen() {
                     <Image
                       source={{ uri: media.uri }}
                       style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
+                      contentFit={media.cropState ? "fill" : "cover"}
                     />
                   )}
 
@@ -969,6 +989,30 @@ export default function CreateScreen() {
                   >
                     <Trash2 size={14} color="#fff" />
                   </Pressable>
+
+                  {/* Re-crop button for images */}
+                  {media.type === "image" && (
+                    <Pressable
+                      onPress={() => {
+                        setPendingCrop([media], 0);
+                        router.push("/(protected)/crop-preview" as any);
+                      }}
+                      style={{
+                        position: "absolute",
+                        bottom: 8,
+                        right: 8,
+                        backgroundColor: "rgba(0,0,0,0.7)",
+                        width: 28,
+                        height: 28,
+                        borderRadius: 14,
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                      hitSlop={12}
+                    >
+                      <Scissors size={14} color="#fff" />
+                    </Pressable>
+                  )}
                 </View>
               ))}
 
