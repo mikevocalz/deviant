@@ -15,6 +15,7 @@ import {
   ImagePlus,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
+import { SHEET_SNAPS_ACTION } from "@/lib/constants/sheets";
 
 interface PostActionSheetProps {
   visible: boolean;
@@ -39,7 +40,7 @@ export function PostActionSheet({
 }: PostActionSheetProps) {
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => [isOwner ? "55%" : "48%"], [isOwner]);
+  const snapPoints = useMemo(() => [isOwner ? "60%" : "55%"], [isOwner]);
 
   useEffect(() => {
     if (visible) {

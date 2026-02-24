@@ -397,6 +397,7 @@ export default function ChatScreen() {
     pendingMedia,
     setPendingMedia,
     isSending,
+    retryMessage,
   } = useChatStore();
 
   const chatMessages = messages[activeConvId] || emptyMessages;
@@ -1200,13 +1201,46 @@ export default function ChatScreen() {
               </View>
             ) : null;
 
+            const isFailed = isMe && item.status === "failed";
+            const isMsgSending = isMe && item.status === "sending";
+
             const messageContent = isMe ? (
               <View
                 className="flex-row items-end gap-2 mb-2 self-end"
-                style={{ maxWidth: "80%" }}
+                style={{ maxWidth: "80%", opacity: isMsgSending ? 0.6 : 1 }}
               >
                 <View style={{ flexShrink: 1 }}>
-                  {bubble}
+                  {isFailed ? (
+                    <Pressable
+                      onPress={() => {
+                        const convId = resolvedConvIdRef.current || chatId;
+                        retryMessage(convId, item.id);
+                      }}
+                    >
+                      {bubble}
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "flex-end",
+                          marginTop: 2,
+                          gap: 4,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: "#ef4444",
+                            fontWeight: "600",
+                          }}
+                        >
+                          Not sent · Tap to retry
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ) : (
+                    bubble
+                  )}
                   {reactionPills}
                   {isLastReadByMe && (
                     <Text
