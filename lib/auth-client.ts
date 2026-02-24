@@ -11,6 +11,7 @@ import { usernameClient } from "better-auth/client/plugins";
 import { passkeyClient } from "@better-auth/passkey/client";
 import * as SecureStore from "expo-secure-store";
 import { QueryClient } from "@tanstack/react-query";
+import { logAuth, type SignOutReason } from "@/lib/auth/auth-logger";
 
 // Auth server URL — Better Auth hosted in Supabase Edge Function (CANONICAL)
 // IMPORTANT: Better Auth client uses baseURL as origin-only and appends basePath.
@@ -126,7 +127,12 @@ export function clearAllCachedData() {
 }
 
 // Sign out and clear all data
-export async function handleSignOut() {
+export async function handleSignOut(reason: SignOutReason = "USER_REQUESTED") {
+  logAuth("AUTH_SIGNOUT_TRIGGERED", { reason });
+
+  // Invalidate cached token immediately
+  invalidateTokenCache();
+
   // 1. Try server-side sign out FIRST (while token is still available)
   try {
     await signOut();
@@ -169,15 +175,65 @@ export async function handleSignOut() {
   }
 }
 
-// Get auth token for API requests
+// ── Single-flight getSession mutex ──────────────────────────────────
+// Prevents concurrent getSession() calls from racing (e.g. 5 API calls
+// firing simultaneously each trigger their own refresh). Only ONE network
+// call is in-flight; all callers share the same promise.
+let _sessionFlight: Promise<{ data: any; error: any }> | null = null;
+let _cachedToken: string | null = null;
+let _cachedTokenExpiry = 0;
+
+async function getSessionSingleFlight(): Promise<{ data: any; error: any }> {
+  if (_sessionFlight) return _sessionFlight;
+  _sessionFlight = authClient
+    .getSession()
+    .then((result: any) => result)
+    .catch((err: any) => ({ data: null, error: String(err) }))
+    .finally(() => {
+      _sessionFlight = null;
+    });
+  return _sessionFlight;
+}
+
+// Get auth token for API requests — cached + single-flight + retry
 export async function getAuthToken(): Promise<string | null> {
+  // Fast path: return cached token if still valid (30s buffer before expiry)
+  if (_cachedToken && Date.now() < _cachedTokenExpiry) {
+    return _cachedToken;
+  }
+
   try {
-    const { data: session } = await authClient.getSession();
-    return session?.session?.token || null;
+    const { data: session, error } = await getSessionSingleFlight();
+    if (error) {
+      logAuth("AUTH_REFRESH_FAIL", { error: String(error) });
+      // Retry once after a brief pause — edge function cold starts
+      await new Promise((r) => setTimeout(r, 500));
+      const retry = await authClient.getSession();
+      const retryToken = retry?.data?.session?.token || null;
+      if (retryToken) {
+        _cachedToken = retryToken;
+        _cachedTokenExpiry = Date.now() + 4 * 60 * 1000; // cache 4min
+        logAuth("AUTH_REFRESH_OK", { reason: "retry_succeeded" });
+        return retryToken;
+      }
+      return null;
+    }
+    const token = session?.session?.token || null;
+    if (token) {
+      _cachedToken = token;
+      _cachedTokenExpiry = Date.now() + 4 * 60 * 1000; // cache 4min
+    }
+    return token;
   } catch (error) {
-    console.error("[Auth] Error getting auth token:", error);
+    logAuth("AUTH_REFRESH_FAIL", { error: String(error) });
     return null;
   }
+}
+
+/** Invalidate cached token — call after signOut or identity change */
+export function invalidateTokenCache() {
+  _cachedToken = null;
+  _cachedTokenExpiry = 0;
 }
 
 // App user type for compatibility

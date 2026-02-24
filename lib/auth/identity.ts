@@ -19,7 +19,8 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { useAuthStore } from "../stores/auth-store";
-import { authClient, getAuthToken } from "../auth-client";
+import { authClient, getAuthToken, invalidateTokenCache } from "../auth-client";
+import { logAuth } from "./auth-logger";
 
 // In-memory cache for user row to avoid repeated DB calls
 let cachedUserRow: UserRow | null = null;
@@ -65,15 +66,28 @@ export async function getBetterAuthToken(): Promise<string | null> {
  * Get the Better Auth access token, throwing if not available.
  * Use this when authentication is required.
  *
- * @throws Error if not authenticated
+ * Retries once with cache invalidation if the first attempt fails.
+ * This handles token expiry gracefully — the first call may return a stale
+ * cached null, but the retry forces a fresh getSession() call.
+ *
+ * @throws Error if not authenticated after retry
  * @returns The Better Auth token string
  */
 export async function requireBetterAuthToken(): Promise<string> {
   const token = await getBetterAuthToken();
-  if (!token) {
-    throw new Error("Not authenticated - no Better Auth token available");
+  if (token) return token;
+
+  // First attempt failed — invalidate cache and retry once
+  logAuth("AUTH_REFRESH_START", { reason: "requireToken_retry" });
+  invalidateTokenCache();
+  const retryToken = await getBetterAuthToken();
+  if (retryToken) {
+    logAuth("AUTH_REFRESH_OK", { reason: "requireToken_retry_succeeded" });
+    return retryToken;
   }
-  return token;
+
+  logAuth("AUTH_REFRESH_FAIL", { reason: "requireToken_exhausted" });
+  throw new Error("Not authenticated - no Better Auth token available");
 }
 
 /**
