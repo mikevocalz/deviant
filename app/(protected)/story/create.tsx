@@ -556,15 +556,11 @@ export default function CreateStoryScreen() {
               <View className="flex-1 bg-black">
                 {currentMediaType === "video" ? (
                   <View className="flex-1 items-center justify-center bg-black">
-                    {videoThumbnails[currentMedia] ? (
-                      <Image
-                        source={{ uri: videoThumbnails[currentMedia] }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <Video size={48} color="#666" />
-                    )}
+                    <Image
+                      source={{ uri: currentMedia }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
                     <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
                       <Video size={16} color="#fff" />
                       <Text className="text-white text-sm">Video</Text>
@@ -740,10 +736,7 @@ export default function CreateStoryScreen() {
                 >
                   <Image
                     source={{
-                      uri:
-                        asset.type === "video" && videoThumbnails[asset.uri]
-                          ? videoThumbnails[asset.uri]
-                          : asset.uri,
+                      uri: asset.uri,
                     }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
