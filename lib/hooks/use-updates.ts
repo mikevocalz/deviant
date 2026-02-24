@@ -285,10 +285,10 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         console.log(
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
-          "— auto-reloading",
         );
-        // Auto-reload to apply the update immediately
-        reloadApp();
+        // Show toast — user controls when to restart.
+        // Auto-reload was causing sign-outs by interrupting loadAuthState mid-flight.
+        showUpdateToast(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",

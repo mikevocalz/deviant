@@ -83,29 +83,69 @@ export const useAuthStore = create<AuthStore>()(
           console.log(
             "[AuthStore] Waiting for rehydration before loadAuthState...",
           );
-          await new Promise<void>((resolve) => {
-            const unsub = useAuthStore.subscribe((s) => {
-              if (s._hasHydrated) {
+          await Promise.race([
+            new Promise<void>((resolve) => {
+              const unsub = useAuthStore.subscribe((s) => {
+                if (s._hasHydrated) {
+                  unsub();
+                  resolve();
+                }
+              });
+              // Safety: if already hydrated by now (race), resolve immediately
+              if (useAuthStore.getState()._hasHydrated) {
                 unsub();
                 resolve();
               }
-            });
-            // Safety: if already hydrated by now (race), resolve immediately
-            if (useAuthStore.getState()._hasHydrated) {
-              unsub();
-              resolve();
-            }
-          });
+            }),
+            // Timeout: never hang forever waiting for rehydration
+            new Promise<void>((resolve) => setTimeout(resolve, 3000)),
+          ]);
           console.log(
             "[AuthStore] Rehydration complete, persisted user:",
             get().user?.id || "none",
           );
         }
 
+        // SAFETY NET: If Zustand rehydration lost the user (race with persist
+        // middleware writing initial state), read MMKV directly as a fallback.
+        if (!get().user) {
+          try {
+            const { storage: mmkvStorage } = require("@/lib/utils/storage");
+            const raw = mmkvStorage.getItem("auth-storage");
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const savedState = parsed?.state;
+              if (savedState?.user?.id) {
+                console.warn(
+                  "[AuthStore] SAFETY NET: Zustand user was null but MMKV has user:",
+                  savedState.user.id,
+                  "— restoring",
+                );
+                set({
+                  user: savedState.user,
+                  isAuthenticated: true,
+                });
+              }
+            }
+          } catch (mmkvError) {
+            console.warn("[AuthStore] MMKV direct read failed:", mmkvError);
+          }
+        }
+
         try {
           // Check for stored session using Better Auth
-          const { data: session, error: sessionError } =
-            await authClient.getSession();
+          // Timeout after 10s — edge function cold starts can be slow
+          const sessionResult = await Promise.race([
+            authClient.getSession(),
+            new Promise<{ data: null; error: string }>((resolve) =>
+              setTimeout(
+                () =>
+                  resolve({ data: null, error: "getSession timeout (10s)" }),
+                10000,
+              ),
+            ),
+          ]);
+          const { data: session, error: sessionError } = sessionResult;
 
           // CRITICAL: Network error ≠ no session.
           // The Better Auth edge function cold-starts on restart and can fail
