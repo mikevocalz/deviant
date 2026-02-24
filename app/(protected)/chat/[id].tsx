@@ -66,7 +66,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import * as ImagePicker from "expo-image-picker";
 import { MediaPreviewModal } from "@/components/media-preview-modal";
-import * as VideoThumbnails from "expo-video-thumbnails";
+// expo-video-thumbnails removed — hangs on iOS 26.3
 import { LinearGradient } from "expo-linear-gradient";
 import { useTypingIndicator } from "@/lib/hooks/use-typing-indicator";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
@@ -146,29 +146,16 @@ interface MediaMessageProps {
 }
 
 function SingleVideoThumb({ media }: { media: MediaAttachment }) {
-  const [thumbUri, setThumbUri] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(media.uri, { time: 500 })
-      .then(({ uri }) => {
-        if (!cancelled) setThumbUri(uri);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [media.uri]);
-
+  // expo-video-thumbnails disabled — hangs on iOS 26.3
+  // Use expo-image with the video URI (renders first frame for local files)
+  // or just show play button for remote CDN URLs
   return (
     <View style={{ width: "100%", height: "100%", backgroundColor: "#1a1a1a" }}>
-      {thumbUri && (
-        <Image
-          source={{ uri: thumbUri }}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-      )}
+      <Image
+        source={{ uri: media.uri }}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+      />
       <View
         style={{
           ...StyleSheet.absoluteFillObject,

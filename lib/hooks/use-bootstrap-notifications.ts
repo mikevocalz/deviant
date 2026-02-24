@@ -80,46 +80,50 @@ function hydrateFromNotificationsBootstrap(
 export function useBootstrapNotifications() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id) || "";
-  const hasRun = useRef(false);
+  const hasSyncSeeded = useRef(false);
+  const hasAsyncRun = useRef(false);
   const trace = useScreenTrace("Activity");
 
   const enabled = isFeatureEnabled("perf_bootstrap_notifications");
 
-  useEffect(() => {
-    if (!enabled || !userId || hasRun.current) return;
-    hasRun.current = true;
-
-    // Check if cached data already has authoritative viewerFollows state.
-    // If ALL follow-type activities have viewerFollows === undefined, the cache
-    // is stale (pre-fix) and must be busted so the server returns correct state.
+  // ── SYNCHRONOUS: Seed follow state from query cache BEFORE first paint ──
+  // This runs during render (not in useEffect) so the Zustand store is populated
+  // BEFORE the activity screen's useActivityStore((s) => s.followedUsers) selector
+  // reads it. Eliminates the trickle effect where buttons flash "Follow" then update.
+  if (!hasSyncSeeded.current && enabled && userId) {
     const existingActivities = queryClient.getQueryData(
       activityKeys.list(userId),
     ) as any[] | undefined;
 
-    const hasAuthoritativeFollowState =
-      Array.isArray(existingActivities) &&
-      existingActivities.length > 0 &&
-      existingActivities
+    if (Array.isArray(existingActivities) && existingActivities.length > 0) {
+      const hasAuthoritativeFollowState = existingActivities
         .filter((a) => a.type === "follow")
         .some((a) => typeof a.user?.viewerFollows === "boolean");
 
-    if (existingActivities && hasAuthoritativeFollowState) {
-      // Re-seed followedUsers store from cached activities.
-      // The Zustand store is NOT persisted — it's empty on every app restart.
-      // Without this, viewerFollows falls back to the empty set → "Follow" shown.
-      const followedSet = new Set<string>();
-      for (const a of existingActivities) {
-        if (a.user?.viewerFollows === true && a.user?.username) {
-          followedSet.add(a.user.username);
+      if (hasAuthoritativeFollowState) {
+        const followedSet = new Set<string>();
+        for (const a of existingActivities) {
+          if (a.user?.viewerFollows === true && a.user?.username) {
+            followedSet.add(a.user.username);
+          }
         }
+        useActivityStore.setState({ followedUsers: followedSet });
+        hasSyncSeeded.current = true;
+        trace.markCacheHit();
+        trace.markUsable();
       }
-      useActivityStore.setState({ followedUsers: followedSet });
-      trace.markCacheHit();
-      trace.markUsable();
-      return;
     }
+  }
 
-    // Stale or missing — always fetch fresh from server
+  // ── ASYNC: Fetch from server if sync seeding didn't run (stale/missing cache) ──
+  useEffect(() => {
+    if (!enabled || !userId || hasAsyncRun.current) return;
+    hasAsyncRun.current = true;
+
+    // Skip server fetch if already seeded synchronously from cache
+    if (hasSyncSeeded.current) return;
+
+    // Stale or missing — fetch fresh from server
     bootstrapApi.notifications({ userId }).then((data) => {
       if (!data) return;
       hydrateFromNotificationsBootstrap(queryClient, userId, data);

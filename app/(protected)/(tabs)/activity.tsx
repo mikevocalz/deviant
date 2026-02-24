@@ -204,9 +204,15 @@ export default function ActivityScreen() {
   const { mutate: followMutate, isPending: isFollowPending } = useFollow();
   const pendingFollowUser = useRef<string | null>(null);
 
-  // Seed follow state from embedded viewerFollows in activity data
-  // NO separate fetchFollowingState() call — eliminates trickle-in
+  // Sync follow state on REFETCH — initial seeding is handled synchronously
+  // by useBootstrapNotifications() to eliminate the trickle effect
+  const hasInitialSeeded = useRef(false);
   useEffect(() => {
+    // Skip the first run — bootstrap already seeded synchronously
+    if (!hasInitialSeeded.current) {
+      hasInitialSeeded.current = true;
+      return;
+    }
     if (queryActivities && queryActivities.length > 0) {
       // Check if API data has explicit viewerFollows booleans (not undefined)
       const hasExplicitFollowState = queryActivities.some(
