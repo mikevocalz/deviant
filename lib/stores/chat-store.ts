@@ -129,6 +129,9 @@ function getCurrentMentionQuery(
   return match ? match[1] : null;
 }
 
+// Module-level timestamp for isSending staleness check
+let _sendStartedAt = 0;
+
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: {},
   currentMessage: "",
@@ -279,10 +282,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
     const { currentMessage, pendingMedia, isSending } = get();
-    // Re-entrance guard with safety timeout — if stuck for >15s, force-reset
+    // Re-entrance guard with staleness check — if stuck for >15s, force-reset
     if (isSending) {
-      console.warn("[ChatStore] sendMessageToBackend: isSending guard hit");
-      return;
+      const stuckMs = Date.now() - (_sendStartedAt || 0);
+      if (stuckMs < 15_000) {
+        console.warn(
+          "[ChatStore] sendMessageToBackend: isSending guard hit, stuckMs:",
+          stuckMs,
+        );
+        return;
+      }
+      console.warn(
+        "[ChatStore] sendMessageToBackend: isSending stuck for",
+        stuckMs,
+        "ms — force-resetting",
+      );
+      set({ isSending: false });
     }
     if (!currentMessage.trim() && pendingMedia.length === 0) return;
 
@@ -319,6 +334,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       clientMessageId,
     };
 
+    _sendStartedAt = Date.now();
     set((state) => ({
       currentMessage: "",
       mentionQuery: "",
