@@ -14,6 +14,8 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { Debouncer } from "@tanstack/react-pacer";
 import Animated, {
   useSharedValue,
@@ -130,6 +132,7 @@ export default function StoryViewerScreen() {
     username?: string;
   }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const {
     currentStoryId,
     currentItemIndex,
@@ -1024,6 +1027,7 @@ export default function StoryViewerScreen() {
             ) {
               router.push("/(protected)/(tabs)/profile");
             } else {
+              screenPrefetch.profile(queryClient, story.username);
               router.push(`/(protected)/profile/${story.username}`);
             }
           }}
@@ -1173,6 +1177,7 @@ export default function StoryViewerScreen() {
                     ) {
                       router.push("/(protected)/(tabs)/profile");
                     } else {
+                      screenPrefetch.profile(queryClient, tag.username);
                       router.push(`/(protected)/profile/${tag.username}`);
                     }
                   }}

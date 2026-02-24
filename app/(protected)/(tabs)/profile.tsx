@@ -50,6 +50,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { usersApi } from "@/lib/api/users";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import {
@@ -1182,7 +1183,7 @@ function ProfileScreenContent() {
                   <Pressable
                     onPress={() => {
                       if (item?.id) {
-                        console.log("[Profile] Navigating to post:", item.id);
+                        screenPrefetch.postDetail(queryClient, item.id);
                         router.push(`/(protected)/post/${item.id}`);
                       }
                     }}

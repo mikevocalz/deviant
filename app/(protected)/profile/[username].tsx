@@ -28,6 +28,7 @@ import { useCallback, memo, useState, useMemo, useEffect, useRef } from "react";
 import { useUser, useFollow } from "@/lib/hooks";
 import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { usersApi } from "@/lib/api/users";
 import { Image } from "expo-image";
 import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
@@ -409,10 +410,11 @@ function UserProfileScreenComponent() {
   const handlePostPress = useCallback(
     (postId: string) => {
       if (postId) {
+        screenPrefetch.postDetail(queryClient, postId);
         router.push(`/(protected)/post/${postId}`);
       }
     },
-    [router],
+    [router, queryClient],
   );
 
   const handleFollowPress = useCallback(() => {
@@ -846,7 +848,10 @@ function UserProfileScreenComponent() {
             {userPosts.map((post) => (
               <Pressable
                 key={post.id}
-                onPress={() => router.push(`/(protected)/post/${post.id}`)}
+                onPress={() => {
+                  screenPrefetch.postDetail(queryClient, post.id);
+                  router.push(`/(protected)/post/${post.id}`);
+                }}
                 style={{ width: columnWidth, height: columnWidth, padding: 1 }}
               >
                 {post.thumbnail ? (

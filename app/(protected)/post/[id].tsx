@@ -564,6 +564,7 @@ function PostDetailScreenContent() {
               <Pressable
                 onPress={() => {
                   if (!postIdString) return;
+                  screenPrefetch.comments(queryClient, postIdString);
                   router.push(`/(protected)/comments/${postIdString}`);
                 }}
               >

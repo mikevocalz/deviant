@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { usersApi } from "@/lib/api/users";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useFollow } from "@/lib/hooks/use-follow";
@@ -167,9 +168,10 @@ export default function FollowingScreen() {
 
   const handleUserPress = useCallback(
     (user: FollowingUser) => {
+      screenPrefetch.profile(queryClient, user.username);
       router.push(`/(protected)/profile/${user.username}`);
     },
-    [router],
+    [router, queryClient],
   );
 
   const handleFollowPress = useCallback(

@@ -12,6 +12,7 @@ import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { screenPrefetch } from "@/lib/prefetch";
 import { eventKeys } from "@/lib/hooks/use-events";
 import {
   getCurrentUserIdInt,
@@ -1224,9 +1225,10 @@ export default function EventDetailScreen() {
             )}
 
             <Pressable
-              onPress={() =>
-                router.push(`/(protected)/events/${eventId}/comments` as any)
-              }
+              onPress={() => {
+                screenPrefetch.eventComments(queryClient, eventId);
+                router.push(`/(protected)/events/${eventId}/comments` as any);
+              }}
               style={s.addCommentButton}
             >
               <MessageCircle size={16} color="#34A2DF" />
