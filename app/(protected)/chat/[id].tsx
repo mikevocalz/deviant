@@ -378,6 +378,12 @@ export default function ChatScreen() {
   const navigation = useNavigation();
   const chatId = id || "1";
 
+  // Track the active conversation ID used for reading/writing messages.
+  // Starts as chatId (could be username like "woahmikey"), then gets updated
+  // to the resolved numeric ID (e.g., "42") after username resolution.
+  // This ensures messages[activeConvId] matches where loadMessages stores data.
+  const [activeConvId, setActiveConvId] = useState(chatId);
+
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
   useLayoutEffect(() => {
@@ -405,7 +411,7 @@ export default function ChatScreen() {
     isSending,
   } = useChatStore();
 
-  const chatMessages = messages[chatId] || emptyMessages;
+  const chatMessages = messages[activeConvId] || emptyMessages;
 
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
@@ -447,8 +453,10 @@ export default function ChatScreen() {
             if (convId) actualConversationId = convId;
           }
 
-          // Store resolved ID for useFocusEffect
+          // Store resolved ID for useFocusEffect AND update activeConvId
+          // so the screen reads from the same bucket that loadMessages writes to.
           resolvedConvIdRef.current = actualConversationId;
+          setActiveConvId(actualConversationId);
 
           // Load messages FIRST — this is what the user sees
           await loadMessages(actualConversationId);
@@ -666,7 +674,13 @@ export default function ChatScreen() {
     }
 
     sendMessageToBackend(convId);
-  }, [chatId, sendMessageToBackend, sendButtonScale, queryClient]);
+  }, [
+    chatId,
+    sendMessageToBackend,
+    sendButtonScale,
+    queryClient,
+    activeConvId,
+  ]);
 
   const handleMentionSelect = useCallback(
     (username: string) => {
