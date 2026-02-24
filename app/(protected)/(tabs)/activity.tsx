@@ -201,8 +201,9 @@ export default function ActivityScreen() {
 
   // REACTIVE follow state — subscribe to followedUsers Set so component re-renders
   const followedUsers = useActivityStore((s) => s.followedUsers);
-  const { mutate: followMutate, isPending: isFollowPending } = useFollow();
-  const pendingFollowUser = useRef<string | null>(null);
+  const { mutate: followMutate } = useFollow();
+  // Per-username pending tracking — only the tapped button shows loading
+  const [pendingFollows, setPendingFollows] = useState<Set<string>>(new Set());
 
   // Sync follow state on REFETCH — initial seeding is handled synchronously
   // by useBootstrapNotifications() to eliminate the trickle effect
@@ -343,8 +344,7 @@ export default function ActivityScreen() {
 
   const handleFollowBack = useCallback(
     (username: string) => {
-      if (isFollowPending) return;
-      console.log("[Activity] Following back:", username);
+      if (pendingFollows.has(username)) return;
       // Find the user's integer ID from activities
       const activity = activities.find((a) => a.user.username === username);
       const targetUserId = activity?.user?.id;
@@ -354,17 +354,21 @@ export default function ActivityScreen() {
       }
       const isCurrentlyFollowed = followedUsers.has(username);
       const action = isCurrentlyFollowed ? "unfollow" : "follow";
-      pendingFollowUser.current = username;
+      setPendingFollows((prev) => new Set(prev).add(username));
       followMutate(
         { userId: targetUserId, action, username },
         {
           onSettled: () => {
-            pendingFollowUser.current = null;
+            setPendingFollows((prev) => {
+              const next = new Set(prev);
+              next.delete(username);
+              return next;
+            });
           },
         },
       );
     },
-    [activities, followedUsers, followMutate, isFollowPending],
+    [activities, followedUsers, followMutate, pendingFollows],
   );
 
   const handleActivityPress = useCallback(
@@ -403,10 +407,7 @@ export default function ActivityScreen() {
         <ActivityItem
           activity={activity}
           isFollowed={isFollowed}
-          isFollowPending={
-            isFollowPending &&
-            pendingFollowUser.current === activity.user.username
-          }
+          isFollowPending={pendingFollows.has(activity.user.username)}
           onActivityPress={handleActivityPress}
           onUserPress={handleUserPress}
           onPostPress={handlePostPress}
@@ -420,7 +421,7 @@ export default function ActivityScreen() {
       handlePostPress,
       handleFollowBack,
       followedUsers,
-      isFollowPending,
+      pendingFollows,
     ],
   );
 
@@ -534,7 +535,7 @@ export default function ActivityScreen() {
         estimatedItemSize={80}
         refreshing={refreshing}
         onRefresh={onRefresh}
-        extraData={{ followedUsers, isFollowPending }}
+        extraData={{ followedUsers, pendingFollows }}
       />
     </View>
   );

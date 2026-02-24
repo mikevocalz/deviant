@@ -7,7 +7,7 @@
  * - Uses usePostLikers TanStack Query hook
  */
 
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -89,6 +89,16 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => [...SHEET_SNAPS], []);
 
+  // CRITICAL: Imperative open/close — controlled `index` prop is unreliable
+  // for toggling Gorhom BottomSheet when already mounted.
+  useEffect(() => {
+    if (isOpen) {
+      bottomSheetRef.current?.snapToIndex(0);
+    } else {
+      bottomSheetRef.current?.close();
+    }
+  }, [isOpen]);
+
   // Always call hook (no conditional render) — enabled guards the fetch
   const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
 
@@ -142,7 +152,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     <BottomSheet
       ref={bottomSheetRef}
       snapPoints={snapPoints}
-      index={isOpen ? 0 : -1}
+      index={-1}
       enablePanDownToClose
       enableOverDrag={false}
       onChange={handleSheetChange}
