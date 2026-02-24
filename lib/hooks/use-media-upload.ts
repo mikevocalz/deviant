@@ -106,9 +106,11 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       const results: MediaUploadResult[] = [];
       const videoCount = files.filter((f) => f.type === "video").length;
       const imageCount = files.length - videoCount;
-      // Videos: validate + compress + thumbnail + upload = 4 steps
-      // Images: upload = 1 step
-      const totalSteps = videoCount * 4 + imageCount;
+      // Stories skip thumbnail step: validate + compress + upload = 3 steps
+      // Posts include thumbnail: validate + compress + thumbnail + upload = 4 steps
+      const isStory = folder === "stories";
+      const videoSteps = isStory ? 3 : 4;
+      const totalSteps = videoCount * videoSteps + imageCount;
       let completedSteps = 0;
 
       const updateProgress = (message?: string) => {
@@ -145,7 +147,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
               error: `Video rejected: ${validation.errors.join(", ")}`,
             });
             // Skip remaining steps for this file
-            completedSteps += 4;
+            completedSteps += videoSteps;
             setProgress(Math.round((completedSteps / totalSteps) * 100));
             continue;
           }
@@ -176,7 +178,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
                 "Video compression failed. Cannot upload raw video.",
             });
             // Skip remaining steps
-            completedSteps += 3;
+            completedSteps += videoSteps - 1;
             setProgress(Math.round((completedSteps / totalSteps) * 100));
             continue;
           }
@@ -192,48 +194,52 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           });
           updateProgress("Video compressed");
 
-          // Step 3: Generate + upload thumbnail (fully non-blocking — 10s total timeout)
-          setStatusMessage("Generating thumbnail...");
+          // Step 3: Generate + upload thumbnail (skipped for stories — they expire in 24h)
           let thumbnailUrl: string | undefined;
-          try {
-            const thumbTimeout = new Promise<never>((_, reject) =>
-              setTimeout(
-                () => reject(new Error("Thumbnail step timed out")),
-                10000,
-              ),
-            );
-            const thumbWork = (async () => {
-              const thumbResult = await generateVideoThumbnail(
-                file.uri,
-                500,
-                6000,
+          if (!isStory) {
+            setStatusMessage("Generating thumbnail...");
+            try {
+              const thumbTimeout = new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Thumbnail step timed out")),
+                  5000,
+                ),
               );
-              if (thumbResult.success && thumbResult.uri) {
-                const thumbUpload = await serverUpload(
-                  thumbResult.uri,
-                  `${folder}/thumbnails`,
+              const thumbWork = (async () => {
+                const thumbResult = await generateVideoThumbnail(
+                  file.uri,
+                  500,
+                  4000,
                 );
-                if (thumbUpload.success) {
-                  console.log(
-                    "[useMediaUpload] Thumbnail uploaded:",
-                    thumbUpload.url,
+                if (thumbResult.success && thumbResult.uri) {
+                  const thumbUpload = await serverUpload(
+                    thumbResult.uri,
+                    `${folder}/thumbnails`,
                   );
-                  return thumbUpload.url;
+                  if (thumbUpload.success) {
+                    console.log(
+                      "[useMediaUpload] Thumbnail uploaded:",
+                      thumbUpload.url,
+                    );
+                    return thumbUpload.url;
+                  }
+                  await cleanupThumbnail(thumbResult.uri);
                 }
-                await cleanupThumbnail(thumbResult.uri);
-              }
-              return undefined;
-            })();
-            thumbnailUrl = await Promise.race([thumbWork, thumbTimeout]);
-          } catch (thumbErr) {
-            console.warn(
-              "[useMediaUpload] Thumbnail step failed/timed out, skipping:",
-              thumbErr,
+                return undefined;
+              })();
+              thumbnailUrl = await Promise.race([thumbWork, thumbTimeout]);
+            } catch (thumbErr) {
+              console.warn(
+                "[useMediaUpload] Thumbnail step failed/timed out, skipping:",
+                thumbErr,
+              );
+            }
+            updateProgress(
+              thumbnailUrl ? "Thumbnail generated" : "Skipped thumbnail",
             );
+          } else {
+            console.log("[useMediaUpload] Skipping thumbnail for story");
           }
-          updateProgress(
-            thumbnailUrl ? "Thumbnail generated" : "Skipped thumbnail",
-          );
 
           // Step 4: Upload COMPRESSED video (never raw)
           setStatusMessage("Uploading video...");
