@@ -35,6 +35,8 @@ export interface MessageReaction {
   username: string;
 }
 
+export type MessageStatus = "sending" | "sent" | "failed";
+
 export interface Message {
   id: string;
   text: string;
@@ -47,6 +49,8 @@ export interface Message {
   storyReply?: StoryReplyContext;
   sharedPost?: SharedPostContext;
   reactions?: MessageReaction[];
+  status?: MessageStatus;
+  clientMessageId?: string;
 }
 
 export interface User {
@@ -95,6 +99,7 @@ interface ChatState {
     emoji: string,
   ) => Promise<void>;
   addSystemMessage: (chatId: string, text: string) => void;
+  retryMessage: (conversationId: string, messageId: string) => Promise<void>;
 }
 
 // Empty array - messages will come from backend
@@ -288,6 +293,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // Capture values before clearing
     const messageText = currentMessage;
     const mediaToSend = pendingMedia;
+    const clientMessageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const optimisticId = `optimistic-${Date.now()}`;
     const optimisticTime = new Date().toLocaleTimeString([], {
       hour: "2-digit",
@@ -301,6 +307,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       sender: "me",
       time: optimisticTime,
       media: mediaToSend.length > 0 ? mediaToSend : undefined,
+      status: "sending",
+      clientMessageId,
     };
 
     set((state) => ({
@@ -399,6 +407,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     text: result.content || result.text || messageText,
                     time: timeStr,
                     media: serverMedia,
+                    status: "sent" as MessageStatus,
                   }
                 : m,
             ),
@@ -415,17 +424,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         .showToast(
           "error",
           "Send Failed",
-          "Message couldn't be sent. Tap send to retry.",
+          "Message couldn't be sent. Tap to retry.",
         );
-      // Remove optimistic message and restore input so user doesn't lose their text
+      // FIXED: Mark bubble as 'failed' instead of restoring draft to input.
+      // The old behavior pushed text back into the input field (regression).
+      // Now the failed bubble stays visible with a retry option.
       set((state) => ({
-        currentMessage: messageText,
-        pendingMedia: mediaToSend,
         isSending: false,
         messages: {
           ...state.messages,
-          [conversationId]: (state.messages[conversationId] || []).filter(
-            (m) => m.id !== optimisticId,
+          [conversationId]: (state.messages[conversationId] || []).map((m) =>
+            m.id === optimisticId
+              ? { ...m, status: "failed" as MessageStatus }
+              : m,
           ),
         },
       }));
@@ -675,6 +686,79 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [chatId]: [...existing, systemMsg],
       },
     });
+  },
+
+  retryMessage: async (conversationId, messageId) => {
+    const failedMsg = (get().messages[conversationId] || []).find(
+      (m) => m.id === messageId && m.status === "failed",
+    );
+    if (!failedMsg) return;
+
+    // Mark as sending again
+    set((state) => ({
+      isSending: true,
+      messages: {
+        ...state.messages,
+        [conversationId]: (state.messages[conversationId] || []).map((m) =>
+          m.id === messageId ? { ...m, status: "sending" as MessageStatus } : m,
+        ),
+      },
+    }));
+
+    try {
+      const result = await messagesApiClient.sendMessage({
+        conversationId,
+        content: failedMsg.text || "",
+        media: failedMsg.media?.map((m) => ({ uri: m.uri, type: m.type })),
+      });
+
+      if (result) {
+        let timeStr: string;
+        try {
+          const d = new Date(result.createdAt || result.created_at);
+          timeStr = isNaN(d.getTime())
+            ? failedMsg.time
+            : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        } catch {
+          timeStr = failedMsg.time;
+        }
+
+        set((state) => ({
+          isSending: false,
+          messages: {
+            ...state.messages,
+            [conversationId]: (state.messages[conversationId] || []).map((m) =>
+              m.id === messageId
+                ? {
+                    ...m,
+                    id: result.id || messageId,
+                    time: timeStr,
+                    status: "sent" as MessageStatus,
+                  }
+                : m,
+            ),
+          },
+        }));
+      } else {
+        set({ isSending: false });
+      }
+    } catch (error) {
+      console.error("[ChatStore] retryMessage error:", error);
+      set((state) => ({
+        isSending: false,
+        messages: {
+          ...state.messages,
+          [conversationId]: (state.messages[conversationId] || []).map((m) =>
+            m.id === messageId
+              ? { ...m, status: "failed" as MessageStatus }
+              : m,
+          ),
+        },
+      }));
+      useUIStore
+        .getState()
+        .showToast("error", "Retry Failed", "Tap to try again.");
+    }
   },
 
   insertMention: (username) => {

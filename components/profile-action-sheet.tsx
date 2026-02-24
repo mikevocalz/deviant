@@ -6,6 +6,7 @@ import BottomSheet, {
 } from "@gorhom/bottom-sheet";
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { Share2, Users, Flag, ShieldBan, X } from "lucide-react-native";
+import { SHEET_SNAPS_ACTION } from "@/lib/constants/sheets";
 
 interface ProfileActionSheetProps {
   visible: boolean;
@@ -27,7 +28,7 @@ export function ProfileActionSheet({
   onBlock,
 }: ProfileActionSheetProps) {
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["52%"], []);
+  const snapPoints = useMemo(() => [...SHEET_SNAPS_ACTION], []);
 
   useEffect(() => {
     if (visible) {

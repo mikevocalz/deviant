@@ -29,6 +29,7 @@ import { useColorScheme } from "@/lib/hooks";
 import type { PostLiker } from "@/lib/api/likes";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
+import { SHEET_SNAPS } from "@/lib/constants/sheets";
 
 interface LikesSheetProps {
   postId: string;
@@ -86,7 +87,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const queryClient = useQueryClient();
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ["50%"], []);
+  const snapPoints = useMemo(() => [...SHEET_SNAPS], []);
 
   // Always call hook (no conditional render) — enabled guards the fetch
   const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
@@ -171,11 +172,37 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
 
       {/* Content */}
       {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="small" color="#FF5BFC" />
-          <Text style={[styles.loadingText, { color: colors.mutedForeground }]}>
-            Loading likes...
-          </Text>
+        <View style={styles.listContent}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <View key={i} style={styles.likerRow}>
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 10,
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                }}
+              />
+              <View style={[styles.likerInfo, { gap: 6 }]}>
+                <View
+                  style={{
+                    width: 100,
+                    height: 14,
+                    borderRadius: 4,
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                  }}
+                />
+                <View
+                  style={{
+                    width: 70,
+                    height: 12,
+                    borderRadius: 4,
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                  }}
+                />
+              </View>
+            </View>
+          ))}
         </View>
       ) : likers.length === 0 ? (
         <View style={styles.centered}>
