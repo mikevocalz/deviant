@@ -81,7 +81,7 @@ private func heroImage(localPath: String?) -> some View {
                 .aspectRatio(contentMode: .fill)
         } else {
             LinearGradient(
-                colors: [dvntPurple.opacity(0.5), Color(red: 0.11, green: 0.11, blue: 0.12)],
+                colors: [dvntPurple.opacity(0.7), Color(red: 0.15, green: 0.10, blue: 0.22)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
