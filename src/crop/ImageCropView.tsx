@@ -43,6 +43,28 @@ export function ImageCropView({
 }: ImageCropViewProps) {
   const frameHeight = Math.round(frameWidth * aspectRatio);
 
+  // Guard: invalid dimensions would cause Infinity/NaN in gesture math → native crash
+  if (!imageWidth || !imageHeight || !frameWidth || !frameHeight) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { width: frameWidth || 300, height: frameHeight || 375 },
+        ]}
+      >
+        <View
+          style={{ flex: 1, alignItems: "center", justifyContent: "center" }}
+        >
+          <Image
+            source={{ uri }}
+            style={{ width: "80%", height: "80%" }}
+            contentFit="contain"
+          />
+        </View>
+      </View>
+    );
+  }
+
   const minScale = useMemo(
     () => Math.max(frameWidth / imageWidth, frameHeight / imageHeight),
     [imageWidth, imageHeight, frameWidth, frameHeight],
