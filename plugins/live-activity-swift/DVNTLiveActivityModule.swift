@@ -74,17 +74,27 @@ class DVNTLiveActivityModule: NSObject {
         let thumbsDir = container.appendingPathComponent("la_thumbs", isDirectory: true)
         try? FileManager.default.createDirectory(at: thumbsDir, withIntermediateDirectories: true)
 
+        // Voltra's <Image source={{ assetName }} /> reads from voltra_images/{key}.
+        // Voltra's own preloadImages enforces a 4KB limit that hero images exceed.
+        // We bypass that by writing directly to the same directory Voltra reads from.
+        let voltraDir = container.appendingPathComponent("voltra_images", isDirectory: true)
+        try? FileManager.default.createDirectory(at: voltraDir, withIntermediateDirectories: true)
+
         var tile1HeroPath: String?
         let tile1 = payload["tile1"] as? [String: Any] ?? [:]
         let heroStr = tile1["heroThumbUrl"] as? String
         if let urlStr = heroStr, !urlStr.isEmpty, let heroUrl = URL(string: urlStr) {
             do {
                 let (data, _) = try await URLSession.shared.data(from: heroUrl)
-                if let img = UIImage(data: data), let png = img.pngData() {
+                if UIImage(data: data) != nil {
+                    // Save to la_thumbs (legacy native widget path)
                     let fileURL = thumbsDir.appendingPathComponent("hero.png")
-                    try png.write(to: fileURL)
+                    try data.write(to: fileURL, options: .atomic)
                     tile1HeroPath = "la_thumbs/hero.png"
-                    print("[DVNTLiveActivity] Tile1 hero ok")
+                    // Save to voltra_images so Voltra's <Image assetName="event-hero-0"> resolves
+                    let voltraURL = voltraDir.appendingPathComponent("event-hero-0")
+                    try data.write(to: voltraURL, options: .atomic)
+                    print("[DVNTLiveActivity] Tile1 hero ok (\(data.count)B)")
                 } else {
                     print("[DVNTLiveActivity] Tile1 hero: invalid image data")
                 }
@@ -93,6 +103,24 @@ class DVNTLiveActivityModule: NSObject {
             }
         } else {
             print("[DVNTLiveActivity] Tile1 hero: no URL (\(heroStr ?? "null"))")
+        }
+
+        // Tile3 upcoming events → voltra_images/event-hero-1, event-hero-2
+        let tile3 = payload["tile3"] as? [String: Any] ?? [:]
+        let tile3Items = tile3["items"] as? [[String: Any]] ?? []
+        for (i, item) in tile3Items.prefix(2).enumerated() {
+            if let urlStr = item["heroThumbUrl"] as? String, !urlStr.isEmpty, let url = URL(string: urlStr) {
+                do {
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    if UIImage(data: data) != nil {
+                        let voltraURL = voltraDir.appendingPathComponent("event-hero-\(i + 1)")
+                        try data.write(to: voltraURL, options: .atomic)
+                        print("[DVNTLiveActivity] Tile3[\(i)] hero ok (\(data.count)B)")
+                    }
+                } catch {
+                    print("[DVNTLiveActivity] Tile3[\(i)] hero failed: \(error.localizedDescription)")
+                }
+            }
         }
 
         let tile2 = payload["tile2"] as? [String: Any] ?? [:]
@@ -107,10 +135,10 @@ class DVNTLiveActivityModule: NSObject {
             }
             do {
                 let (data, _) = try await URLSession.shared.data(from: url)
-                if let img = UIImage(data: data), let png = img.pngData() {
+                if UIImage(data: data) != nil {
                     let filename = "t2_\(i).png"
                     let fileURL = thumbsDir.appendingPathComponent(filename)
-                    try png.write(to: fileURL)
+                    try data.write(to: fileURL, options: .atomic)
                     localPaths.append("la_thumbs/\(filename)")
                 } else {
                     localPaths.append("")
