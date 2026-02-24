@@ -32,10 +32,15 @@ export interface ServerUploadResult {
 }
 
 /**
- * Map folder name to media-upload edge function "kind" parameter.
+ * Map folder name + mime type to media-upload edge function "kind" parameter.
  */
-function folderToKind(folder: string): string {
-  const map: Record<string, string> = {
+function folderToKind(folder: string, mime?: string): string {
+  const isVideo = mime?.startsWith("video/");
+
+  // Check for thumbnail subfolders
+  if (folder.includes("thumbnails")) return "post-image";
+
+  const imageMap: Record<string, string> = {
     avatars: "avatar",
     posts: "post-image",
     stories: "story-image",
@@ -44,9 +49,18 @@ function folderToKind(folder: string): string {
     chat: "message-image",
     uploads: "post-image",
   };
-  // Check for thumbnail subfolders
-  if (folder.includes("thumbnails")) return "post-image";
-  return map[folder] || "post-image";
+
+  const videoMap: Record<string, string> = {
+    posts: "post-video",
+    stories: "story-video",
+    chat: "message-video",
+    uploads: "post-video",
+  };
+
+  if (isVideo) {
+    return videoMap[folder] || "post-video";
+  }
+  return imageMap[folder] || "post-image";
 }
 
 /**
@@ -119,9 +133,9 @@ export async function uploadToServer(
     // Ensure file is accessible
     const accessibleUri = await ensureFileAccessible(uri);
 
-    // Determine mime type and kind
+    // Determine mime type and kind (mime-aware so videos get post-video, not post-image)
     const mime = getMimeFromUri(accessibleUri);
-    const kind = folderToKind(folder);
+    const kind = folderToKind(folder, mime);
     const filename = accessibleUri.split("/").pop() || "upload";
 
     onProgress?.({ loaded: 0, total: 100, percentage: 10 });

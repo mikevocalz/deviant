@@ -289,11 +289,8 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Validate video duration
-  if (isVideoKind(kind)) {
-    if (durationSec === undefined || isNaN(durationSec)) {
-      return errorResponse("durationSec is required for video uploads");
-    }
+  // Validate video duration (if provided — client validates before upload)
+  if (isVideoKind(kind) && durationSec !== undefined && !isNaN(durationSec)) {
     if (durationSec > MAX_VIDEO_DURATION_SEC) {
       return errorResponse(
         `Video too long: ${durationSec}s exceeds ${MAX_VIDEO_DURATION_SEC}s limit`,
