@@ -101,7 +101,7 @@ async function buildTile1(
   const { data: upcoming } = await supabase
     .from("events")
     .select(
-      "id, title, start_date, location, location_name, cover_image_url, image, category, attendees_count",
+      "id, title, start_date, location, location_name, cover_image_url, flyer_image_url, images, category, attendees_count",
     )
     .gte("start_date", now)
     .order("start_date", { ascending: true })
@@ -109,6 +109,13 @@ async function buildTile1(
 
   if (upcoming && upcoming.length > 0) {
     const ev = upcoming[0];
+    // Resolve hero image: cover_image_url → flyer_image_url → first entry in images[] JSON
+    const firstImage =
+      Array.isArray(ev.images) && ev.images.length > 0
+        ? typeof ev.images[0] === "string"
+          ? ev.images[0]
+          : ev.images[0]?.url || ev.images[0]?.uri || null
+        : null;
     return {
       eventId: String(ev.id),
       title: ev.title || "Untitled Event",
@@ -116,7 +123,9 @@ async function buildTile1(
       venueName: ev.location_name || undefined,
       city: ev.location || undefined,
       category: ev.category || undefined,
-      heroThumbUrl: toAbsoluteUrl(ev.cover_image_url || ev.image) ?? null,
+      heroThumbUrl:
+        toAbsoluteUrl(ev.cover_image_url || ev.flyer_image_url || firstImage) ??
+        null,
       isUpcoming: true,
       deepLink: buildDeepLink(`/e/${ev.id}`),
       attendeeCount: ev.attendees_count || undefined,
@@ -127,13 +136,19 @@ async function buildTile1(
   const { data: recent } = await supabase
     .from("events")
     .select(
-      "id, title, start_date, location, location_name, cover_image_url, image, category, attendees_count",
+      "id, title, start_date, location, location_name, cover_image_url, flyer_image_url, images, category, attendees_count",
     )
     .order("start_date", { ascending: false })
     .limit(1);
 
   if (recent && recent.length > 0) {
     const ev = recent[0];
+    const firstImageRecent =
+      Array.isArray(ev.images) && ev.images.length > 0
+        ? typeof ev.images[0] === "string"
+          ? ev.images[0]
+          : ev.images[0]?.url || ev.images[0]?.uri || null
+        : null;
     return {
       eventId: String(ev.id),
       title: ev.title || "Untitled Event",
@@ -141,7 +156,10 @@ async function buildTile1(
       venueName: ev.location_name || undefined,
       city: ev.location || undefined,
       category: ev.category || undefined,
-      heroThumbUrl: toAbsoluteUrl(ev.cover_image_url || ev.image) ?? null,
+      heroThumbUrl:
+        toAbsoluteUrl(
+          ev.cover_image_url || ev.flyer_image_url || firstImageRecent,
+        ) ?? null,
       isUpcoming: false,
       deepLink: buildDeepLink(`/e/${ev.id}`),
       attendeeCount: ev.attendees_count || undefined,
@@ -257,21 +275,31 @@ async function buildTile3(
   const { data: events } = await supabase
     .from("events")
     .select(
-      "id, title, start_date, location, location_name, cover_image_url, image",
+      "id, title, start_date, location, location_name, cover_image_url, flyer_image_url, images",
     )
     .gte("start_date", now)
     .order("start_date", { ascending: true })
     .limit(3);
 
-  const items: Tile3Item[] = (events || []).map((ev: any) => ({
-    eventId: String(ev.id),
-    title: ev.title || "Untitled Event",
-    startAt: ev.start_date,
-    venueName: ev.location_name || undefined,
-    city: ev.location || undefined,
-    heroThumbUrl: toAbsoluteUrl(ev.cover_image_url || ev.image) ?? null,
-    deepLink: buildDeepLink(`/e/${ev.id}`),
-  }));
+  const items: Tile3Item[] = (events || []).map((ev: any) => {
+    const firstImg =
+      Array.isArray(ev.images) && ev.images.length > 0
+        ? typeof ev.images[0] === "string"
+          ? ev.images[0]
+          : ev.images[0]?.url || ev.images[0]?.uri || null
+        : null;
+    return {
+      eventId: String(ev.id),
+      title: ev.title || "Untitled Event",
+      startAt: ev.start_date,
+      venueName: ev.location_name || undefined,
+      city: ev.location || undefined,
+      heroThumbUrl:
+        toAbsoluteUrl(ev.cover_image_url || ev.flyer_image_url || firstImg) ??
+        null,
+      deepLink: buildDeepLink(`/e/${ev.id}`),
+    };
+  });
 
   return {
     items,

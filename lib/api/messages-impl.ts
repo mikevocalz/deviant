@@ -33,160 +33,166 @@ interface SendMessageResponse {
 
 export const messagesApi = {
   /**
-   * Get conversations list
+   * Get conversations list — BATCHED (O(4) round-trips regardless of N conversations)
+   *
+   * Old approach: N×4 sequential DB queries per conversation = slow pull-to-refresh.
+   * New approach: 4 parallel queries across ALL conversations at once.
    */
   async getConversations() {
     try {
       console.log("[Messages] getConversations");
 
-      // Resolve auth + visitor ID in parallel — ONCE, not per-conversation
+      // Step 1: Resolve auth + visitor ID in parallel
       const [authId, visitorIntId] = await Promise.all([
         getCurrentUserAuthId(),
         resolveVisitorIdInt(),
       ]);
       if (!authId) return [];
 
-      // Get conversations where user is a participant
-      const { data, error } = await supabase
+      // Step 2: Get all conversation IDs the user belongs to (1 query)
+      const { data: relsData, error: relsError } = await supabase
         .from(DB.conversationsRels.table)
         .select(
-          `
-          conversation:${DB.conversationsRels.parentId}(
-            ${DB.conversations.id},
-            ${DB.conversations.lastMessageAt},
-            ${DB.conversations.isGroup},
-            ${DB.conversations.groupName}
-          )
-        `,
+          `${DB.conversationsRels.parentId}, conversation:${DB.conversationsRels.parentId}(${DB.conversations.id}, ${DB.conversations.lastMessageAt}, ${DB.conversations.isGroup}, ${DB.conversations.groupName})`,
         )
-        .eq(DB.conversationsRels.usersId, authId)
-        .order(DB.conversationsRels.parentId, { ascending: false });
+        .eq(DB.conversationsRels.usersId, authId);
 
-      if (error) throw error;
+      if (relsError) throw relsError;
+      if (!relsData || relsData.length === 0) return [];
 
-      // Process each conversation — parallel queries within each, all convs in parallel
-      const conversations = await Promise.all(
-        (data || []).map(async (conv: any) => {
-          // Guard: FK join on conversations table may return null if RLS blocks
-          // or if the conversation row was deleted. Skip gracefully.
-          if (!conv.conversation) {
-            console.warn(
-              "[Messages] conversation FK join returned null for a conversations_rels row",
-            );
-            return null;
-          }
-          const convId = conv.conversation[DB.conversations.id];
+      // Collect valid conv IDs (skip null FK joins)
+      const convRows = (relsData as any[]).filter((r) => r.conversation);
+      if (convRows.length === 0) return [];
+      const convIds = convRows.map((r) => r.conversation[DB.conversations.id]);
 
-          try {
-            // Fire independent queries in parallel
-            const [lastMessageResult, participantsResult, unreadResult] =
-              await Promise.all([
-                // Last message (no join — avoids FK ambiguity)
-                // Use maybeSingle() instead of single() — single() throws when
-                // 0 rows match (e.g. RLS blocks access), which cascades to
-                // filtering out the entire conversation as a "ghost".
-                supabase
-                  .from(DB.messages.table)
-                  .select(`${DB.messages.content}, ${DB.messages.createdAt}`)
-                  .eq(DB.messages.conversationId, convId)
-                  .order(DB.messages.createdAt, { ascending: false })
-                  .limit(1)
-                  .maybeSingle(),
-                // Other participant's auth_id
-                supabase
-                  .from(DB.conversationsRels.table)
-                  .select(DB.conversationsRels.usersId)
-                  .eq(DB.conversationsRels.parentId, convId)
-                  .neq(DB.conversationsRels.usersId, authId)
-                  .limit(1),
-                // Unread count
-                visitorIntId
-                  ? supabase
-                      .from(DB.messages.table)
-                      .select(DB.messages.id, { count: "exact", head: true })
-                      .eq(DB.messages.conversationId, convId)
-                      .is(DB.messages.readAt, null)
-                      .neq(DB.messages.senderId, visitorIntId)
-                  : Promise.resolve({ count: 0 }),
-              ]);
+      // Step 3: Fire 3 batched queries in parallel across ALL conversations
+      const [lastMsgsResult, otherParticipantsResult, unreadResult] =
+        await Promise.all([
+          // Last message per conversation — get all recent messages, dedupe by conv
+          supabase
+            .from(DB.messages.table)
+            .select(
+              `${DB.messages.conversationId}, ${DB.messages.content}, ${DB.messages.createdAt}`,
+            )
+            .in(DB.messages.conversationId, convIds)
+            .order(DB.messages.createdAt, { ascending: false }),
 
-            const lastMessage = lastMessageResult.data;
+          // Other participants across all conversations
+          supabase
+            .from(DB.conversationsRels.table)
+            .select(
+              `${DB.conversationsRels.parentId}, ${DB.conversationsRels.usersId}`,
+            )
+            .in(DB.conversationsRels.parentId, convIds)
+            .neq(DB.conversationsRels.usersId, authId),
 
-            // Skip conversations with no messages — these are "ghost" conversations
-            // created by getOrCreateConversation but never actually used
-            if (!lastMessage) return null;
+          // Unread counts — all unread messages not sent by current user
+          visitorIntId
+            ? supabase
+                .from(DB.messages.table)
+                .select(`${DB.messages.conversationId}, ${DB.messages.id}`)
+                .in(DB.messages.conversationId, convIds)
+                .is(DB.messages.readAt, null)
+                .neq(DB.messages.senderId, visitorIntId)
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
 
-            const hasUnread = ((unreadResult as any).count ?? 0) > 0;
+      // Build lookup maps from batch results
+      // Last message per conversation (first occurrence = most recent due to DESC order)
+      const lastMsgMap = new Map<
+        number,
+        { content: string; createdAt: string }
+      >();
+      for (const msg of lastMsgsResult.data || []) {
+        const cid = msg[DB.messages.conversationId];
+        if (!lastMsgMap.has(cid)) {
+          lastMsgMap.set(cid, {
+            content: msg[DB.messages.content] || "",
+            createdAt: msg[DB.messages.createdAt] || "",
+          });
+        }
+      }
 
-            // Other user lookup — depends on participant result (only sequential dep)
-            const otherAuthId =
-              participantsResult.data?.[0]?.[DB.conversationsRels.usersId];
-            let otherUserData: any = null;
-            if (otherAuthId) {
-              const { data: userData } = await supabase
-                .from(DB.users.table)
-                .select(
-                  `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-                )
-                .eq(DB.users.authId, otherAuthId)
-                .single();
-              otherUserData = userData;
-            }
+      // Other participant auth_id per conversation
+      const otherAuthIdMap = new Map<number, string>();
+      for (const rel of otherParticipantsResult.data || []) {
+        const cid = rel[DB.conversationsRels.parentId];
+        if (!otherAuthIdMap.has(cid)) {
+          otherAuthIdMap.set(cid, rel[DB.conversationsRels.usersId]);
+        }
+      }
 
-            const rawTs =
-              lastMessage?.[DB.messages.createdAt] ||
-              conv.conversation[DB.conversations.lastMessageAt] ||
-              "";
+      // Unread flag per conversation
+      const unreadConvIds = new Set<number>();
+      for (const msg of (unreadResult as any).data || []) {
+        unreadConvIds.add(msg[DB.messages.conversationId]);
+      }
 
-            return {
-              id: String(convId),
-              user: {
-                id: otherUserData?.[DB.users.id]
-                  ? String(otherUserData[DB.users.id])
-                  : "",
-                authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
-                name: otherUserData?.[DB.users.username] || "Unknown",
-                username: otherUserData?.[DB.users.username] || "unknown",
-                avatar: otherUserData?.avatar?.url || "",
-              },
-              lastMessage: lastMessage?.[DB.messages.content] || "",
-              timestamp: formatTimeAgo(rawTs),
-              unread: hasUnread,
-              isGroup: !!conv.conversation[DB.conversations.isGroup],
-              _rawTs: rawTs,
-            };
-          } catch (convError) {
-            console.error(
-              "[Messages] Error processing conversation",
-              convId,
-              convError,
-            );
-            return null;
-          }
-        }),
+      // Step 4: Batch-fetch all other users in ONE query
+      const otherAuthIds = [...new Set(otherAuthIdMap.values())].filter(
+        Boolean,
       );
+      let usersByAuthId = new Map<string, any>();
+      if (otherAuthIds.length > 0) {
+        const { data: usersData } = await supabase
+          .from(DB.users.table)
+          .select(
+            `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+          )
+          .in(DB.users.authId, otherAuthIds);
+        for (const u of usersData || []) {
+          usersByAuthId.set(u[DB.users.authId], u);
+        }
+      }
 
-      // Filter out failed conversations, sort by most recent
-      const valid = conversations.filter(Boolean);
+      // Step 5: Assemble results
+      const conversations = convRows
+        .map((row: any) => {
+          const convId = row.conversation[DB.conversations.id];
+          const lastMsg = lastMsgMap.get(convId);
+          if (!lastMsg) return null; // ghost conversation — no messages yet
 
-      // DIAGNOSTIC: If we got raw rows but all were filtered out, something
-      // is systematically wrong (e.g. RLS blocking messages table reads).
-      // This should never happen in normal operation.
-      if (valid.length === 0 && (data || []).length > 0) {
+          const otherAuthId = otherAuthIdMap.get(convId);
+          const otherUser = otherAuthId ? usersByAuthId.get(otherAuthId) : null;
+          const rawTs =
+            lastMsg.createdAt ||
+            row.conversation[DB.conversations.lastMessageAt] ||
+            "";
+
+          return {
+            id: String(convId),
+            user: {
+              id: otherUser?.[DB.users.id]
+                ? String(otherUser[DB.users.id])
+                : "",
+              authId: otherUser?.[DB.users.authId] || otherAuthId || "",
+              name: otherUser?.[DB.users.username] || "Unknown",
+              username: otherUser?.[DB.users.username] || "unknown",
+              avatar: otherUser?.avatar?.url || "",
+            },
+            lastMessage: lastMsg.content,
+            timestamp: formatTimeAgo(rawTs),
+            unread: unreadConvIds.has(convId),
+            isGroup: !!row.conversation[DB.conversations.isGroup],
+            _rawTs: rawTs,
+          };
+        })
+        .filter(Boolean);
+
+      if (conversations.length === 0 && convRows.length > 0) {
         console.error(
-          `[Messages] CRITICAL: ${data!.length} conversations_rels rows returned but ALL were filtered out. ` +
-            `Likely cause: messages table RLS blocking reads, or conversations FK join returning null. ` +
-            `authId=${authId}, visitorIntId=${visitorIntId}`,
+          `[Messages] CRITICAL: ${convRows.length} conversations found but ALL filtered out. ` +
+            `Likely RLS blocking messages table. authId=${authId}`,
         );
       }
-      valid.sort((a: any, b: any) => {
+
+      conversations.sort((a: any, b: any) => {
         const tA = new Date(a._rawTs || 0).getTime();
         const tB = new Date(b._rawTs || 0).getTime();
         return tB - tA;
       });
 
-      // Strip internal field before returning
-      return valid.map(({ _rawTs, ...rest }: any) => rest);
+      return conversations.map(({ _rawTs, ...rest }: any) => rest);
     } catch (error) {
       console.error("[Messages] getConversations error:", error);
       return [];
