@@ -173,7 +173,6 @@
     }
   },
   "overrides": {
-    "react-native-worklets": "nightly",
     "hermes-compiler": "250829098.0.8"
   },
   "resolutions": {
