@@ -441,11 +441,33 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     })),
 
   // ---- Full Reset (new session) ----
-  resetEditor: () =>
+  // [REGRESSION LOCK] Synchronous, deterministic reset.
+  // After this call, store MUST match initialEditorData exactly.
+  resetEditor: () => {
     set({
       ...initialEditorData,
       exportSession: { status: "idle", artifact: null },
-    }),
+    });
+
+    if (__DEV__) {
+      const s = get();
+      const violations: string[] = [];
+      if (s.mode !== "idle") violations.push(`mode=${s.mode}`);
+      if (s.elements.length !== 0)
+        violations.push(`elements=${s.elements.length}`);
+      if (s.drawingPaths.length !== 0)
+        violations.push(`drawingPaths=${s.drawingPaths.length}`);
+      if (s.selectedElementId !== null)
+        violations.push(`selectedElementId=${s.selectedElementId}`);
+      if (s.mediaUri !== null) violations.push(`mediaUri=${s.mediaUri}`);
+      if (violations.length > 0) {
+        console.error(
+          "[STOP-THE-LINE] resetEditor failed — state not clean:",
+          violations.join(", "),
+        );
+      }
+    }
+  },
 }));
 
 // ---- Derived selectors (use outside component or with useEditorStore) ----

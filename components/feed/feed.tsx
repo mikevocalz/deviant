@@ -12,7 +12,7 @@ import { FeedPost } from "./feed-post";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
-import { useMemo, useEffect, useRef, useCallback, memo, useState } from "react";
+import { useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -30,7 +30,10 @@ import {
   prefetchImages,
   extractFeedImageUrls,
 } from "@/lib/perf/image-prefetch";
-import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
+import {
+  useLikesSheet,
+  fireLikesTap,
+} from "@/src/features/likes/LikesSheetController";
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -187,14 +190,15 @@ function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
 }
 
 export function Feed() {
-  // Likes sheet state — ONE instance at feed level, not per-post
-  const [likesPostId, setLikesPostId] = useState<string | null>(null);
-  const handleShowLikes = useCallback((postId: string) => {
-    setLikesPostId(postId);
-  }, []);
-  const handleCloseLikes = useCallback(() => {
-    setLikesPostId(null);
-  }, []);
+  // Likes sheet — centralized controller at app root, no per-screen instance
+  // FeedPost now calls useLikesSheet() directly; handleShowLikes kept as fallback for onShowLikes prop
+  const { open: openLikesSheet } = useLikesSheet();
+  const handleShowLikes = useCallback(
+    (postId: string) => {
+      fireLikesTap(postId, openLikesSheet);
+    },
+    [openLikesSheet],
+  );
 
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
   // When perf_bootstrap_feed flag is ON, a single edge function call populates
@@ -439,11 +443,6 @@ export function Feed() {
         onViewableItemsChanged={onViewableItemsChanged}
         refreshing={isRefetching}
         onRefresh={handleRefresh}
-      />
-      <LikesSheet
-        postId={likesPostId || ""}
-        isOpen={!!likesPostId}
-        onClose={handleCloseLikes}
       />
     </>
   );

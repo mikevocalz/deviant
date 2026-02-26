@@ -16,6 +16,7 @@ import { useCallback } from "react";
 import { likesApi, type PostLiker } from "@/lib/api/likes";
 import { likeStateKeys } from "@/lib/hooks/usePostLikeState";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { assertLikesConsistent } from "@/lib/invariants/likesConsistency";
 
 export const postLikersKeys = {
   all: ["postLikers"] as const,
@@ -35,6 +36,15 @@ export function usePostLikers(postId: string | undefined, enabled: boolean) {
       // This fixes count/sheet mismatch when likes_count drifted
       if (viewerId && postId && result.likesCount != null) {
         const likeKey = likeStateKeys.forPost(viewerId, postId);
+        const cachedState = queryClient.getQueryData<{ likes: number }>(
+          likeKey,
+        );
+
+        // DEV: Assert card count == sheet count (same authority)
+        if (cachedState) {
+          assertLikesConsistent(postId, cachedState.likes, result.likesCount);
+        }
+
         queryClient.setQueryData(likeKey, (old: any) => {
           if (!old) return old;
           return { ...old, likes: result.likesCount };

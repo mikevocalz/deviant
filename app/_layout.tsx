@@ -27,6 +27,7 @@ import { useNotifications } from "@/lib/hooks/use-notifications";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
+import { LikesSheetProvider } from "@/src/features/likes/LikesSheetController";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Dimensions } from "react-native";
 import { BiometricLock } from "@/components/BiometricLock";
@@ -352,112 +353,117 @@ export default function RootLayout() {
                   persistOptions={persistOptions}
                 >
                   <ThemeProvider value={NAV_THEME[colorScheme]}>
-                    <View
-                      style={{
-                        flex: 1,
-                        paddingBottom:
-                          Platform.OS === "android" ? insets.bottom : 0,
-                      }}
-                    >
-                      <StatusBar
-                        backgroundColor="#000"
-                        style="light"
-                        animated
-                      />
-                      {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
+                    <LikesSheetProvider>
+                      <View
+                        style={{
+                          flex: 1,
+                          paddingBottom:
+                            Platform.OS === "android" ? insets.bottom : 0,
+                        }}
+                      >
+                        <StatusBar
+                          backgroundColor="#000"
+                          style="light"
+                          animated
+                        />
+                        {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
                     the navigation tree. Unmounting destroys the NavigationContainer
                     and causes stale header references after OTA reload.
                     Stack.Protected gates handle auth routing internally. */}
-                      <Stack
-                        screenOptions={{
-                          headerShown: false,
-                          animation: "fade",
-                          animationDuration: 200,
-                          contentStyle: { backgroundColor: "#000" },
-                        }}
-                      >
-                        <Stack.Protected guard={!isAuthenticated}>
-                          <Stack.Screen
-                            name="(auth)"
-                            options={{ animation: "none" }}
-                          />
-                        </Stack.Protected>
-                        <Stack.Protected guard={isAuthenticated}>
-                          <Stack.Screen
-                            name="(protected)"
-                            options={{ animation: "none" }}
-                          />
-                          <Stack.Screen
-                            name="settings"
-                            options={{
-                              headerShown: true,
-                              presentation: "fullScreenModal",
-                              animation: "slide_from_bottom",
-                              animationDuration: 300,
-                              gestureEnabled: true,
-                              gestureDirection: "vertical",
-                            }}
-                          />
-                        </Stack.Protected>
-                      </Stack>
-                      {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
-                      {shareIntentReady && (
-                        <ErrorBoundary screenName="ShareIntent" fallback={null}>
-                          <ShareIntentHandler />
-                        </ErrorBoundary>
-                      )}
-                      {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
-                      {isAuthenticated && <BiometricLock />}
-                      {/* Safe Mode Banner — shown when boot guard detects crash loop */}
-                      {isSafeMode() && <SafeModeBanner />}
-                      {/* Spotify share sheet — renders when a Spotify link is received */}
-                      <SpotifyShareSheet />
-                      {/* Auth loading overlay — covers content but does NOT unmount navigation.
-                          Skip when opened from share intent so user sees content instead of black. */}
-                      {!authSettled && !openedFromShareIntent && (
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            backgroundColor: "#000",
-                            zIndex: 10000,
+                        <Stack
+                          screenOptions={{
+                            headerShown: false,
+                            animation: "fade",
+                            animationDuration: 200,
+                            contentStyle: { backgroundColor: "#000" },
                           }}
-                          pointerEvents="auto"
-                        />
-                      )}
-                    </View>
-                    <PortalHost />
-                    {/* CRITICAL: pointerEvents box-none ensures toasts never block
+                        >
+                          <Stack.Protected guard={!isAuthenticated}>
+                            <Stack.Screen
+                              name="(auth)"
+                              options={{ animation: "none" }}
+                            />
+                          </Stack.Protected>
+                          <Stack.Protected guard={isAuthenticated}>
+                            <Stack.Screen
+                              name="(protected)"
+                              options={{ animation: "none" }}
+                            />
+                            <Stack.Screen
+                              name="settings"
+                              options={{
+                                headerShown: true,
+                                presentation: "fullScreenModal",
+                                animation: "slide_from_bottom",
+                                animationDuration: 300,
+                                gestureEnabled: true,
+                                gestureDirection: "vertical",
+                              }}
+                            />
+                          </Stack.Protected>
+                        </Stack>
+                        {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
+                        {shareIntentReady && (
+                          <ErrorBoundary
+                            screenName="ShareIntent"
+                            fallback={null}
+                          >
+                            <ShareIntentHandler />
+                          </ErrorBoundary>
+                        )}
+                        {/* BiometricLock renders ONLY after auth is settled + authenticated. */}
+                        {isAuthenticated && <BiometricLock />}
+                        {/* Safe Mode Banner — shown when boot guard detects crash loop */}
+                        {isSafeMode() && <SafeModeBanner />}
+                        {/* Spotify share sheet — renders when a Spotify link is received */}
+                        <SpotifyShareSheet />
+                        {/* Auth loading overlay — covers content but does NOT unmount navigation.
+                          Skip when opened from share intent so user sees content instead of black. */}
+                        {!authSettled && !openedFromShareIntent && (
+                          <View
+                            style={{
+                              position: "absolute",
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: "#000",
+                              zIndex: 10000,
+                            }}
+                            pointerEvents="auto"
+                          />
+                        )}
+                      </View>
+                      <PortalHost />
+                      {/* CRITICAL: pointerEvents box-none ensures toasts never block
                   touches on the navigation header underneath. Position bottom
                   to avoid header area entirely. */}
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                      }}
-                      pointerEvents="box-none"
-                    >
-                      <Toaster
-                        position="bottom-center"
-                        offset={80}
-                        theme="dark"
-                        toastOptions={{
-                          style: {
-                            backgroundColor: "#1a1a1a",
-                            borderColor: "#333",
-                            borderWidth: 1,
-                          },
-                          titleStyle: { color: "#fff" },
-                          descriptionStyle: { color: "#a1a1aa" },
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
                         }}
-                      />
-                    </View>
+                        pointerEvents="box-none"
+                      >
+                        <Toaster
+                          position="bottom-center"
+                          offset={80}
+                          theme="dark"
+                          toastOptions={{
+                            style: {
+                              backgroundColor: "#1a1a1a",
+                              borderColor: "#333",
+                              borderWidth: 1,
+                            },
+                            titleStyle: { color: "#fff" },
+                            descriptionStyle: { color: "#a1a1aa" },
+                          }}
+                        />
+                      </View>
+                    </LikesSheetProvider>
                   </ThemeProvider>
                 </PersistQueryClientProvider>
               </StripeProvider>

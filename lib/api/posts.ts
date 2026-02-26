@@ -488,7 +488,7 @@ export const postsApi = {
   ): Promise<{ liked: boolean; likes: number }> {
     // Import dynamically to avoid circular dependency
     const { likesApi } = await import("./likes");
-    return likesApi.toggleLike(postId, isLiked);
+    return likesApi.toggleLike(postId);
   },
 
   /**

@@ -128,7 +128,10 @@ export default {
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
+      "expo-asset",
+      "expo-audio",
       "expo-font",
+      "expo-image",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
       [

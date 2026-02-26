@@ -16,9 +16,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { likesApi } from "@/lib/api/likes";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { postLikersKeys } from "@/lib/hooks/use-post-likers";
+import { updatePostLikeEverywhere } from "@/lib/query/patch";
 import type { Post } from "@/lib/types";
 
 interface LikeState {
@@ -95,79 +97,85 @@ export function usePostLikeState(
     },
     onMutate: async ({ action }) => {
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({
-        queryKey: likeStateQueryKey,
-      });
+      await queryClient.cancelQueries({ queryKey: likeStateQueryKey });
+      await queryClient.cancelQueries({ queryKey: postKeys.feedInfinite() });
 
-      // Snapshot previous state
-      const previousState =
+      // Snapshot previous state for rollback
+      const previousLikeState =
         queryClient.getQueryData<LikeState>(likeStateQueryKey);
+      const prevFeedData = queryClient.getQueryData(postKeys.feedInfinite());
+      const prevDetailData = queryClient.getQueryData([
+        "posts",
+        "detail",
+        normalizedPostId,
+      ]);
 
-      // Optimistic update on likeState cache
+      // Compute optimistic values
       const newHasLiked = action === "like";
       const newLikes =
         action === "like"
-          ? (previousState?.likes || 0) + 1
-          : Math.max((previousState?.likes || 0) - 1, 0);
-      const newState: LikeState = { hasLiked: newHasLiked, likes: newLikes };
+          ? (previousLikeState?.likes || 0) + 1
+          : Math.max((previousLikeState?.likes || 0) - 1, 0);
 
-      logCacheMutation("setQueryData", likeStateQueryKey);
-      queryClient.setQueryData(likeStateQueryKey, newState);
-
-      // CRITICAL: Also update infinite feed cache so feed props stay in sync
-      const prevFeedData = queryClient.getQueryData<any>(
-        postKeys.feedInfinite(),
-      );
-      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            data: page.data?.map((post: any) =>
-              String(post.id) === normalizedPostId
-                ? {
-                    ...post,
-                    likes: newLikes,
-                    viewerHasLiked: newHasLiked,
-                  }
-                : post,
-            ),
-          })),
-        };
+      // 1. Update likeState cache
+      queryClient.setQueryData(likeStateQueryKey, {
+        hasLiked: newHasLiked,
+        likes: newLikes,
       });
 
-      // Update post detail cache
-      queryClient.setQueryData(
-        ["posts", "detail", normalizedPostId],
-        (old: any) => {
-          if (!old) return old;
-          return { ...old, likes: newLikes, viewerHasLiked: newHasLiked };
-        },
+      // 2. Patch ALL post caches via centralized utility
+      updatePostLikeEverywhere(
+        queryClient,
+        normalizedPostId,
+        newHasLiked,
+        newLikes,
       );
 
-      return { previousState, prevFeedData };
+      return { previousLikeState, prevFeedData, prevDetailData };
     },
-    onError: (_err, _variables, context) => {
-      // Rollback likeState cache
-      if (context?.previousState) {
-        queryClient.setQueryData(likeStateQueryKey, context.previousState);
+    onError: (err, _variables, context) => {
+      // Rollback all caches
+      if (context?.previousLikeState) {
+        queryClient.setQueryData(likeStateQueryKey, context.previousLikeState);
       }
-      // Rollback feed cache
       if (context?.prevFeedData) {
         queryClient.setQueryData(postKeys.feedInfinite(), context.prevFeedData);
       }
+      if (context?.prevDetailData) {
+        queryClient.setQueryData(
+          ["posts", "detail", normalizedPostId],
+          context.prevDetailData,
+        );
+      }
+      // Classify error and show user-safe toast
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      const isNetwork = msg.includes("network") || msg.includes("fetch");
+      const isAuth = msg.includes("unauthorized") || msg.includes("session");
+      const toastMsg = isNetwork
+        ? "Check your connection and try again"
+        : isAuth
+          ? "Please sign in again"
+          : "Something went wrong";
+      useUIStore.getState().showToast("error", "Like failed", toastMsg);
+      if (__DEV__) {
+        console.error(
+          `[usePostLikeState] Mutation error for ${normalizedPostId}:`,
+          msg,
+        );
+      }
     },
     onSuccess: (data) => {
-      // Sync with server truth
-      logCacheMutation("setQueryData", likeStateQueryKey);
+      // Sync ALL caches with server-authoritative data
+      const serverLiked = data.liked;
+      const serverLikes = data.likes;
+
+      // 1. Update likeState cache (this viewer)
       queryClient.setQueryData<LikeState>(likeStateQueryKey, {
-        hasLiked: data.liked,
-        likes: data.likes,
+        hasLiked: serverLiked,
+        likes: serverLikes,
       });
 
-      // CRITICAL: Update ALL like state caches for this post across all viewers
-      // This ensures the feed shows correct like count when returning from detail
+      // 2. Update ALL likeState caches for this post (all viewers)
       queryClient.setQueriesData<LikeState>(
         {
           predicate: (query) => {
@@ -179,93 +187,21 @@ export function usePostLikeState(
             );
           },
         },
-        { hasLiked: data.liked, likes: data.likes },
+        { hasLiked: serverLiked, likes: serverLikes },
       );
 
-      // Also update post detail cache if exists
-      // CANONICAL: ['posts', 'detail', postId]
-      logCacheMutation("setQueryData", ["posts", "detail", normalizedPostId]);
-      queryClient.setQueryData(
-        ["posts", "detail", normalizedPostId],
-        (old: any) => {
-          if (!old) return old;
-          return { ...old, likes: data.likes };
-        },
+      // 3. Patch ALL post caches via centralized utility
+      updatePostLikeEverywhere(
+        queryClient,
+        normalizedPostId,
+        serverLiked,
+        serverLikes,
       );
 
-      // Update feed caches - CANONICAL: ['posts', 'feed']
-      logCacheMutation("setQueryData", ["posts", "feed"]);
-      queryClient.setQueryData(["posts", "feed"], (old: any) => {
-        if (!old) return old;
-        if (Array.isArray(old)) {
-          return old.map((post: any) =>
-            post.id === normalizedPostId
-              ? { ...post, likes: data.likes }
-              : post,
-          );
-        }
-        return old;
-      });
-
-      // Update infinite feed cache - CANONICAL: ['posts', 'feed', 'infinite']
-      logCacheMutation("setQueryData", ["posts", "feed", "infinite"]);
-      queryClient.setQueryData(["posts", "feed", "infinite"], (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            data: page.data?.map((post: any) =>
-              post.id === normalizedPostId
-                ? { ...post, likes: data.likes }
-                : post,
-            ),
-          })),
-        };
-      });
-
-      if (authorId) {
-        logCacheMutation("setQueryData", postKeys.profilePosts(authorId));
-        queryClient.setQueryData(
-          postKeys.profilePosts(authorId),
-          (old: any) => {
-            if (!old || !Array.isArray(old)) return old;
-            return old.map((post: any) =>
-              post.id === normalizedPostId
-                ? { ...post, likes: data.likes }
-                : post,
-            );
-          },
-        );
-      }
-
-      // Invalidate likers list so LikesSheet shows correct count after like/unlike
+      // 4. Invalidate likers list so LikesSheet shows correct data
       queryClient.invalidateQueries({
         queryKey: postLikersKeys.forPost(normalizedPostId),
       });
-
-      // Update any saved-posts cache (`usePostsByIds`) that contains this post
-      queryClient.setQueriesData<Post[]>(
-        {
-          predicate: (query) => {
-            const key = query.queryKey;
-            if (!Array.isArray(key) || key.length < 3) return false;
-            if (key[0] !== "posts" || key[1] !== "byIds") return false;
-            const idsArg = key[2];
-            if (typeof idsArg !== "string" || !normalizedPostId) return false;
-            const ids = idsArg.split(",");
-            return ids.includes(normalizedPostId);
-          },
-        },
-        (old) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((post) =>
-            post?.id === normalizedPostId
-              ? { ...post, likes: data.likes }
-              : post,
-          );
-        },
-      );
     },
   });
 

@@ -46,6 +46,7 @@ import { storyTagsApi } from "@/lib/api/stories";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { setPendingCrop } from "@/src/crop/crop-utils";
 import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
+import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 
 // Creative tools — floating vertical toolbar on canvas
 const CREATIVE_TOOLS = [
@@ -66,6 +67,8 @@ export default function CreateStoryScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { colors } = useColorScheme();
+  const transitionTo = useStoryFlowStore((s) => s.transitionTo);
+  const forceIdle = useStoryFlowStore((s) => s.forceIdle);
 
   // ── Responsive layout ─────────────────────────────────────────────
   const CANVAS_WIDTH = width - 32;
@@ -280,6 +283,7 @@ export default function CreateStoryScreen() {
   );
 
   const handleCreateTextStory = () => {
+    transitionTo("TEXT_ONLY");
     router.push({
       pathname: "/(protected)/story/editor",
       params: {
@@ -328,6 +332,7 @@ export default function CreateStoryScreen() {
       if (!asset) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      transitionTo(asset.type === "video" ? "EDIT_VIDEO" : "EDIT_IMAGE");
       router.push({
         pathname: "/(protected)/story/editor",
         params: {
@@ -441,11 +446,13 @@ export default function CreateStoryScreen() {
           style: "destructive",
           onPress: () => {
             reset();
+            forceIdle();
             router.back();
           },
         },
       ]);
     } else {
+      forceIdle();
       router.back();
     }
   };

@@ -1,5 +1,6 @@
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
+import * as Haptics from "expo-haptics";
 import { Article } from "@expo/html-elements";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import {
@@ -51,7 +52,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
-import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
+import {
+  useLikesSheet,
+  fireLikesTap,
+} from "@/src/features/likes/LikesSheetController";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
@@ -83,7 +87,7 @@ interface FeedPostProps {
   timeAgo: string;
   location?: string;
   isNSFW?: boolean;
-  onShowLikes?: (postId: string) => void;
+  onShowLikes?: (postId: string) => void; // DEPRECATED: use useLikesSheet() directly
 }
 
 const CARD_HORIZONTAL_MARGIN = 4; // marginHorizontal on Article
@@ -135,7 +139,8 @@ function FeedPostComponent({
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
-  const prefetchLikers = usePrefetchPostLikers();
+  const { open: openLikesSheet, prefetch: prefetchLikesSheet } =
+    useLikesSheet();
   const prefetchComments = usePrefetchComments();
   const deletePostMutation = useDeletePost();
 
@@ -776,9 +781,13 @@ function FeedPostComponent({
         {/* Caption Section - NO gaps, explicit white text */}
         <View className="px-3 pb-3">
           <Pressable
-            onPressIn={() => prefetchLikers(id)}
-            onPress={() => onShowLikes?.(id)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            onPressIn={() => prefetchLikesSheet(id)}
+            onPress={() => {
+              if (!id) return;
+              fireLikesTap(id, openLikesSheet);
+            }}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            style={{ minHeight: 44, justifyContent: "center" }}
           >
             <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
               {formatLikeCount(likesCount)}
