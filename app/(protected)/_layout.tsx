@@ -180,6 +180,10 @@ export default function ProtectedLayout() {
           name="story/editor"
           options={{ ...fullScreenModalConfig, animation: "fade" }}
         />
+        <Stack.Screen
+          name="crop-preview"
+          options={{ headerShown: true }}
+        />
         <Stack.Screen name="chat" />
         <Stack.Screen
           name="call/[roomId]"
