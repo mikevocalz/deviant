@@ -377,9 +377,7 @@ export default function CropPreviewScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <View
-          style={{ flexDirection: "row", alignItems: "center", marginRight: 4 }}
-        >
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
           <Pressable
             onPress={handleReset}
             hitSlop={12}
@@ -435,7 +433,7 @@ export default function CropPreviewScreen() {
             {
               width: FRAME_WIDTH,
               height: frameHeight,
-              marginTop: insets.top + 56,
+              marginTop: 16,
             },
           ]}
         >
@@ -450,9 +448,6 @@ export default function CropPreviewScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: "#000" }]}>
-      {/* Darkened area above crop frame */}
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} />
-
       {/* Crop view */}
       {activeDims && activeSourceUri ? (
         <ImageCropView
