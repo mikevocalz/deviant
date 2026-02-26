@@ -10,7 +10,14 @@
  *   - Done (right button) = generate crops, add to post, pop back
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useReducer,
+} from "react";
 import {
   View,
   Text,
@@ -18,6 +25,7 @@ import {
   ActivityIndicator,
   Dimensions,
   StyleSheet,
+  ScrollView,
 } from "react-native";
 import { useRouter, useNavigation } from "expo-router";
 import { Image } from "expo-image";
@@ -26,17 +34,23 @@ import { ArrowLeft, Check, RotateCcw } from "lucide-react-native";
 // NOTE: Do NOT use GestureHandlerRootView here — the root _layout.tsx already provides it.
 // Nesting GestureHandlerRootView causes native crashes on iOS.
 import { useColorScheme } from "@/lib/hooks";
-import { ImageCropView } from "@/src/crop/ImageCropView";
+import { ImageCropView, type ViewRefs } from "@/src/crop/ImageCropView";
 import {
   CROP_ASPECT_RATIO,
   consumePendingCrop,
-  generateCroppedBitmap,
-  getCropRect,
   getImageDimensions,
   type CropState,
 } from "@/src/crop/crop-utils";
 import { useCreatePostStore } from "@/lib/stores/create-post-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
+import {
+  createInitialEditState,
+  editReducer,
+  getAspectRatioValue,
+  type EditState,
+} from "@/src/crop/edit-state";
+import { EditToolbar } from "@/src/crop/EditToolbar";
+import { exportImage } from "@/src/crop/export-pipeline";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const FRAME_WIDTH = SCREEN_WIDTH;
@@ -58,24 +72,49 @@ export default function CropPreviewScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Store crop state per image
+  // Store crop state per image (legacy compat — still used for basic pan/zoom)
   const cropStates = useRef<Map<string, CropState>>(new Map());
 
+  // Non-destructive EditState per image (rotate, straighten, flip, aspect, output)
+  const editStatesRef = useRef<Map<string, EditState>>(new Map());
+  // Active image's EditState managed via reducer for reactive UI
+  const [editState, editDispatch] = useReducer(
+    editReducer,
+    createInitialEditState("", 1080, 1080),
+  );
+
+  // ViewRefs from ImageCropView for export-time readback of shared values
+  const viewRefsRef = useRef<ViewRefs | null>(null);
+  const handleViewRef = useCallback((refs: ViewRefs) => {
+    viewRefsRef.current = refs;
+  }, []);
+
   // Dynamic aspect ratio (default: feed 4:5, stories pass 9:16)
-  const [aspectRatio, setAspectRatio] = useState(CROP_ASPECT_RATIO);
+  const [baseAspectRatio, setBaseAspectRatio] = useState(CROP_ASPECT_RATIO);
   const onCompleteRef = useRef<((cropped: MediaAsset[]) => void) | undefined>(
     undefined,
   );
 
   const { selectedMedia, setSelectedMedia } = useCreatePostStore();
 
-  const frameHeight = Math.round(FRAME_WIDTH * aspectRatio);
+  // Compute effective aspect ratio from EditState aspect preset
+  const activeMedia = media[activeIndex];
+  const activeDims = activeMedia ? dimensions.get(activeMedia.id) : null;
+  const effectiveAspectRatio = (() => {
+    if (!activeDims) return baseAspectRatio;
+    const val = getAspectRatioValue(
+      editState.aspect,
+      activeDims.width,
+      activeDims.height,
+    );
+    return val ?? baseAspectRatio;
+  })();
+  const frameHeight = Math.round(FRAME_WIDTH * effectiveAspectRatio);
 
   // Consume pending crop data on mount
   useEffect(() => {
     const pending = consumePendingCrop();
     if (!pending.media || pending.media.length === 0) {
-      // No pending media — go back
       router.back();
       return;
     }
@@ -86,7 +125,7 @@ export default function CropPreviewScreen() {
       return;
     }
 
-    if (pending.aspectRatio) setAspectRatio(pending.aspectRatio);
+    if (pending.aspectRatio) setBaseAspectRatio(pending.aspectRatio);
     onCompleteRef.current = pending.onComplete;
 
     setMedia(images);
@@ -113,27 +152,77 @@ export default function CropPreviewScreen() {
             const dims = await getImageDimensions(sourceUri);
             dimMap.set(img.id, dims);
           } catch {
-            // Fallback: assume square
             dimMap.set(img.id, { width: 1080, height: 1080 });
           }
         }
       }
       setDimensions(dimMap);
       setIsLoading(false);
+
+      // Initialize EditState for first image
+      if (images.length > 0) {
+        const first = images[0];
+        const firstDims = dimMap.get(first.id) || { width: 1080, height: 1080 };
+        const sourceUri = first.originalUri || first.uri;
+        const initial = createInitialEditState(
+          sourceUri,
+          firstDims.width,
+          firstDims.height,
+        );
+        editStatesRef.current.set(first.id, initial);
+        editDispatch({ type: "RESET" }); // sync reducer
+      }
     };
 
     resolveDimensions();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Configure header
+  // Sync EditState when switching active image
   useEffect(() => {
-    navigation.setOptions({
-      headerShown: false, // We render our own header for full control
-    });
-  }, [navigation]);
+    if (!activeMedia || !activeDims) return;
+    // Save current edit state for previous image
+    // (editState is always the latest for the current active image)
+    // Load or create edit state for new active image
+    const existing = editStatesRef.current.get(activeMedia.id);
+    if (existing) {
+      // Restore — reset reducer to this state
+      editDispatch({ type: "RESET" });
+      // Apply stored values
+      editDispatch({ type: "SET_ASPECT", aspect: existing.aspect });
+      if (existing.rotate90 !== 0) {
+        for (let i = 0; i < existing.rotate90 / 90; i++) {
+          editDispatch({ type: "ROTATE_CW" });
+        }
+      }
+      if (existing.straighten !== 0) {
+        editDispatch({ type: "SET_STRAIGHTEN", degrees: existing.straighten });
+      }
+      if (existing.flipX) editDispatch({ type: "FLIP_X" });
+    } else {
+      const sourceUri = activeMedia.originalUri || activeMedia.uri;
+      const initial = createInitialEditState(
+        sourceUri,
+        activeDims.width,
+        activeDims.height,
+      );
+      editStatesRef.current.set(activeMedia.id, initial);
+      editDispatch({ type: "RESET" });
+    }
+  }, [activeIndex, activeMedia?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeMedia = media[activeIndex];
-  const activeDims = activeMedia ? dimensions.get(activeMedia.id) : null;
+  // Persist edit state changes back to ref map
+  useEffect(() => {
+    if (activeMedia) {
+      editStatesRef.current.set(activeMedia.id, {
+        ...editState,
+        sourceUri: activeMedia.originalUri || activeMedia.uri,
+        sourceSize: activeDims
+          ? { w: activeDims.width, h: activeDims.height }
+          : editState.sourceSize,
+      });
+    }
+  }, [editState, activeMedia, activeDims]);
+
   const activeSourceUri = activeMedia
     ? activeMedia.originalUri || activeMedia.uri
     : "";
@@ -160,38 +249,54 @@ export default function CropPreviewScreen() {
         if (!dims) continue;
 
         const sourceUri = img.originalUri || img.uri;
-        const state = cropStates.current.get(img.id) || {
-          scale: Math.max(FRAME_WIDTH / dims.width, frameHeight / dims.height),
-          translateX: 0,
-          translateY: 0,
-        };
+        const imgEditState = editStatesRef.current.get(img.id);
+        const cropState = cropStates.current.get(img.id);
 
-        // Calculate crop rectangle in original image coordinates
-        const rect = getCropRect(
+        // Build a complete EditState for this image
+        const state: EditState =
+          imgEditState ||
+          createInitialEditState(sourceUri, dims.width, dims.height);
+        // Override sourceUri to use original
+        state.sourceUri = sourceUri;
+        state.sourceSize = { w: dims.width, h: dims.height };
+
+        // Compute the effective aspect for this image's frame height
+        const imgAspectVal = getAspectRatioValue(
+          state.aspect,
           dims.width,
           dims.height,
-          FRAME_WIDTH,
-          frameHeight,
-          state.scale,
-          state.translateX,
-          state.translateY,
+        );
+        const imgFrameH = Math.round(
+          FRAME_WIDTH * (imgAspectVal ?? baseAspectRatio),
         );
 
-        // Generate deterministic cropped bitmap
-        const cropped = await generateCroppedBitmap(sourceUri, rect);
+        // Read view transform from cropState or viewRefs
+        const vs =
+          cropState?.scale ??
+          Math.max(FRAME_WIDTH / dims.width, imgFrameH / dims.height);
+        const vtx = cropState?.translateX ?? 0;
+        const vty = cropState?.translateY ?? 0;
+
+        // Export through the pipeline
+        const result = await exportImage(
+          state,
+          FRAME_WIDTH,
+          imgFrameH,
+          vs,
+          vtx,
+          vty,
+        );
 
         croppedResults.push({
           ...img,
-          uri: cropped.uri,
+          uri: result.uri,
           originalUri: sourceUri,
-          width: cropped.width,
-          height: cropped.height,
-          cropState: state,
+          width: result.width,
+          height: result.height,
+          cropState: { scale: vs, translateX: vtx, translateY: vty },
         });
       }
 
-      // If an onComplete callback was provided (story mode), use it
-      // Otherwise update the create post store (feed post mode)
       if (onCompleteRef.current) {
         onCompleteRef.current(croppedResults);
       } else {
@@ -222,6 +327,7 @@ export default function CropPreviewScreen() {
     selectedMedia,
     setSelectedMedia,
     router,
+    baseAspectRatio,
   ]);
 
   const handleBack = useCallback(() => {
@@ -231,12 +337,93 @@ export default function CropPreviewScreen() {
   const handleReset = useCallback(() => {
     if (activeMedia) {
       cropStates.current.delete(activeMedia.id);
+      editDispatch({ type: "RESET" });
       // Force re-render by toggling active index
       const idx = activeIndex;
       setActiveIndex(-1);
       requestAnimationFrame(() => setActiveIndex(idx));
     }
   }, [activeMedia, activeIndex]);
+
+  // Configure native header — matches app-wide pattern
+  const headerTitle =
+    media.length > 1 ? `Crop (${activeIndex + 1}/${media.length})` : "Crop";
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: headerTitle,
+      headerTitleAlign: "center" as const,
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+      headerLeft: () => (
+        <Pressable
+          onPress={handleBack}
+          hitSlop={12}
+          style={{
+            marginLeft: 4,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <View
+          style={{ flexDirection: "row", alignItems: "center", marginRight: 4 }}
+        >
+          <Pressable
+            onPress={handleReset}
+            hitSlop={12}
+            style={{
+              width: 40,
+              height: 44,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <RotateCcw size={20} color="#999" />
+          </Pressable>
+          <Pressable
+            onPress={handleDone}
+            disabled={isProcessing}
+            hitSlop={12}
+            style={{
+              height: 44,
+              paddingHorizontal: 8,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isProcessing ? (
+              <ActivityIndicator size="small" color="#3EA4E5" />
+            ) : (
+              <Text
+                style={{ color: "#3EA4E5", fontSize: 16, fontWeight: "700" }}
+              >
+                Done
+              </Text>
+            )}
+          </Pressable>
+        </View>
+      ),
+    });
+  }, [
+    navigation,
+    headerTitle,
+    handleBack,
+    handleReset,
+    handleDone,
+    isProcessing,
+  ]);
 
   // Skeleton while loading dimensions
   if (isLoading) {
@@ -263,51 +450,24 @@ export default function CropPreviewScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: "#000" }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={handleBack} hitSlop={16} style={styles.headerBtn}>
-          <ArrowLeft size={24} color="#fff" />
-        </Pressable>
-        <Text style={styles.headerTitle}>
-          Crop{media.length > 1 ? ` (${activeIndex + 1}/${media.length})` : ""}
-        </Text>
-        <View style={styles.headerRight}>
-          <Pressable
-            onPress={handleReset}
-            hitSlop={12}
-            style={[styles.headerBtn, { marginRight: 8 }]}
-          >
-            <RotateCcw size={20} color="#999" />
-          </Pressable>
-          <Pressable
-            onPress={handleDone}
-            disabled={isProcessing}
-            hitSlop={12}
-            style={styles.headerBtn}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#3EA4E5" />
-            ) : (
-              <Text style={styles.doneText}>Done</Text>
-            )}
-          </Pressable>
-        </View>
-      </View>
-
       {/* Darkened area above crop frame */}
       <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} />
 
       {/* Crop view */}
       {activeDims && activeSourceUri ? (
         <ImageCropView
-          key={`${activeMedia!.id}-${activeIndex}`}
+          key={`${activeMedia!.id}-${activeIndex}-${editState.rotate90}`}
           uri={activeSourceUri}
           imageWidth={activeDims.width}
           imageHeight={activeDims.height}
           frameWidth={FRAME_WIDTH}
-          aspectRatio={aspectRatio}
+          aspectRatio={effectiveAspectRatio}
           initialState={cropStates.current.get(activeMedia!.id)}
           onCropChange={handleCropChange}
+          rotate90={editState.rotate90}
+          straighten={editState.straighten}
+          flipX={editState.flipX}
+          onViewRef={handleViewRef}
         />
       ) : (
         <View
@@ -323,10 +483,14 @@ export default function CropPreviewScreen() {
         </View>
       )}
 
-      {/* Darkened area below crop frame */}
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}>
-        {/* Hint text */}
-        <Text style={styles.hintText}>Pinch to zoom, drag to reposition</Text>
+      {/* Controls below crop frame */}
+      <ScrollView
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Edit toolbar: aspect chips, rotate, flip, straighten, resize, undo/redo */}
+        <EditToolbar state={editState} dispatch={editDispatch} />
 
         {/* Multi-image thumbnails */}
         {media.length > 1 && (
@@ -367,7 +531,7 @@ export default function CropPreviewScreen() {
             </Pressable>
           </View>
         )}
-      </View>
+      </ScrollView>
 
       {/* Processing overlay */}
       {isProcessing && (
@@ -385,34 +549,6 @@ export default function CropPreviewScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: "#000",
-  },
-  headerBtn: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "600",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  doneText: {
-    color: "#3EA4E5",
-    fontSize: 16,
-    fontWeight: "700",
   },
   skeletonFrame: {
     backgroundColor: "#111",

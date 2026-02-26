@@ -1,26 +1,26 @@
 /**
- * LikesSheet — Gorhom BottomSheet showing users who liked a post.
+ * LikesSheet — BottomSheetModal showing users who liked a post.
  *
- * - Snaps to 50% only (no full-screen overdrag)
+ * Uses BottomSheetModal (NOT BottomSheet) so it portals through the
+ * BottomSheetModalProvider at the app root (_layout.tsx). This ensures
+ * the sheet renders full-screen regardless of where LikesSheet sits
+ * in the component tree (e.g. inside a Fragment in the feed).
+ *
+ * - Snaps to 65% / 92%
  * - Sticky header with "Likes" title and close button
  * - Tappable rows navigate to user profile
  * - Uses usePostLikers TanStack Query hook
  */
 
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import * as Haptics from "expo-haptics";
 import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-} from "react-native";
-import BottomSheet, {
+  BottomSheetModal,
   BottomSheetFlatList,
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
-import { Image } from "expo-image";
 import { X, Heart } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/components/ui/avatar";
@@ -86,21 +86,20 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { colors } = useColorScheme();
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const modalRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => [...SHEET_SNAPS], []);
 
-  // CRITICAL: Imperative open/close — controlled `index` prop is unreliable
-  // for toggling Gorhom BottomSheet when already mounted.
+  // Always call hook — enabled guards the fetch (rules-of-hooks safe)
+  const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
+
+  // Present/dismiss the modal based on isOpen prop
   useEffect(() => {
     if (isOpen) {
-      bottomSheetRef.current?.snapToIndex(0);
+      modalRef.current?.present();
     } else {
-      bottomSheetRef.current?.close();
+      modalRef.current?.dismiss();
     }
   }, [isOpen]);
-
-  // Always call hook (no conditional render) — enabled guards the fetch
-  const { data: likers = [], isLoading } = usePostLikers(postId, isOpen);
 
   const handleProfilePress = useCallback(
     (username: string) => {
@@ -111,14 +110,9 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
     [router, onClose, queryClient],
   );
 
-  const handleSheetChange = useCallback(
-    (index: number) => {
-      if (index === -1) {
-        onClose();
-      }
-    },
-    [onClose],
-  );
+  const handleDismiss = useCallback(() => {
+    onClose();
+  }, [onClose]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -149,13 +143,12 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
   );
 
   return (
-    <BottomSheet
-      ref={bottomSheetRef}
+    <BottomSheetModal
+      ref={modalRef}
       snapPoints={snapPoints}
-      index={-1}
       enablePanDownToClose
       enableOverDrag={false}
-      onChange={handleSheetChange}
+      onDismiss={handleDismiss}
       backdropComponent={renderBackdrop}
       backgroundStyle={{
         backgroundColor: colors.card,
@@ -165,7 +158,6 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
-      style={styles.sheetContainer}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
@@ -230,16 +222,11 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
           showsVerticalScrollIndicator={false}
         />
       )}
-    </BottomSheet>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  sheetContainer: {
-    marginHorizontal: 16,
-    overflow: "hidden",
-    borderRadius: 24,
-  },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -60,15 +60,12 @@ export const likesApi = {
   },
 
   /**
-   * Toggle like on a post via Edge Function
+   * Like/unlike via the battle-tested toggle-like endpoint.
+   * The DB trigger now maintains likes_count automatically.
    */
-  async toggleLike(
-    postId: string,
-    _isCurrentlyLiked?: boolean,
-  ): Promise<{ liked: boolean; likes: number }> {
+  async toggleLike(postId: string): Promise<{ liked: boolean; likes: number }> {
     try {
-      if (__DEV__) console.log("[Likes] toggleLike via Edge Function:", postId);
-
+      if (__DEV__) console.log("[Likes] toggleLike:", postId);
       const token = await requireBetterAuthToken();
       const postIdInt = parseInt(postId);
 
@@ -79,14 +76,13 @@ export const likesApi = {
         });
 
       if (error) {
-        console.error("[Likes] Edge Function error:", error);
+        console.error("[Likes] toggle-like error:", error);
         throw new Error(error.message || "Failed to toggle like");
       }
-
       if (!data?.ok || !data?.data) {
-        const errorMessage = data?.error?.message || "Failed to toggle like";
-        console.error("[Likes] Toggle failed:", errorMessage);
-        throw new Error(errorMessage);
+        const msg = data?.error?.message || "Failed to toggle like";
+        console.error("[Likes] toggle-like failed:", msg);
+        throw new Error(msg);
       }
 
       if (__DEV__) console.log("[Likes] toggleLike result:", data.data);

@@ -1,13 +1,16 @@
 /**
  * ImageCropView — Instagram-level pinch/drag/zoom crop component.
  *
- * Renders an image behind a fixed 4:5 crop frame.
+ * Renders an image behind a fixed crop frame.
  * User pinch-zooms and pans to position the image.
  * Grid lines for rule-of-thirds composition.
  * Focal-point-aware pinch (zoom centers on fingers).
+ *
+ * Extended: supports rotate90, straighten, flipX as visual transforms.
+ * Exposes shared value refs via onViewRef for export-time readback.
  */
 
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import Animated, {
@@ -18,9 +21,17 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { CROP_ASPECT_RATIO, type CropState } from "./crop-utils";
+import type { Rotate90 } from "./edit-state";
+import { getRotatedDimensions, getStraightenedDimensions } from "./crop-math";
 
 const SPRING_CONFIG = { damping: 20, stiffness: 200, mass: 0.8 };
 const MAX_ZOOM_FACTOR = 5;
+
+export interface ViewRefs {
+  scale: { value: number };
+  translateX: { value: number };
+  translateY: { value: number };
+}
 
 interface ImageCropViewProps {
   uri: string;
@@ -30,6 +41,10 @@ interface ImageCropViewProps {
   aspectRatio?: number;
   initialState?: CropState;
   onCropChange?: (state: CropState) => void;
+  rotate90?: Rotate90;
+  straighten?: number;
+  flipX?: boolean;
+  onViewRef?: (refs: ViewRefs) => void;
 }
 
 export function ImageCropView({
@@ -40,6 +55,10 @@ export function ImageCropView({
   aspectRatio = CROP_ASPECT_RATIO,
   initialState,
   onCropChange,
+  rotate90 = 0,
+  straighten = 0,
+  flipX = false,
+  onViewRef,
 }: ImageCropViewProps) {
   const frameHeight = Math.round(frameWidth * aspectRatio);
 
@@ -65,9 +84,24 @@ export function ImageCropView({
     );
   }
 
+  // Compute effective image dimensions after rotate + straighten
+  const rotatedDims = useMemo(
+    () => getRotatedDimensions(imageWidth, imageHeight, rotate90),
+    [imageWidth, imageHeight, rotate90],
+  );
+  const effectiveDims = useMemo(
+    () => getStraightenedDimensions(rotatedDims.w, rotatedDims.h, straighten),
+    [rotatedDims.w, rotatedDims.h, straighten],
+  );
+
+  // Use effective dimensions for scale/pan math so the crop frame
+  // sees the image as it will appear after rotation
+  const effW = effectiveDims.w;
+  const effH = effectiveDims.h;
+
   const minScale = useMemo(
-    () => Math.max(frameWidth / imageWidth, frameHeight / imageHeight),
-    [imageWidth, imageHeight, frameWidth, frameHeight],
+    () => Math.max(frameWidth / effW, frameHeight / effH),
+    [effW, effH, frameWidth, frameHeight],
   );
   const maxScale = minScale * MAX_ZOOM_FACTOR;
 
@@ -81,6 +115,11 @@ export function ImageCropView({
   const savedTranslateX = useSharedValue(initialState?.translateX ?? 0);
   const savedTranslateY = useSharedValue(initialState?.translateY ?? 0);
 
+  // Expose shared values to parent for export-time readback
+  useEffect(() => {
+    onViewRef?.({ scale, translateX, translateY });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const notifyCropChange = (s: number, tx: number, ty: number) => {
     onCropChange?.({ scale: s, translateX: tx, translateY: ty });
   };
@@ -91,8 +130,9 @@ export function ImageCropView({
     "worklet";
     const cs = Math.max(minScale, Math.min(maxScale, scale.value));
     // Inline clampPan: ensure image always covers the frame
-    const dw = imageWidth * cs;
-    const dh = imageHeight * cs;
+    // Uses effective dimensions (post-rotate) for correct clamping
+    const dw = effW * cs;
+    const dh = effH * cs;
     const maxPanX = Math.max(0, (dw - frameWidth) / 2);
     const maxPanY = Math.max(0, (dh - frameHeight) / 2);
     const clampedX = Math.min(maxPanX, Math.max(-maxPanX, translateX.value));
@@ -160,16 +200,25 @@ export function ImageCropView({
     Gesture.Simultaneous(panGesture, pinchGesture),
   );
 
+  // Total visual rotation for preview (rotate90 + straighten)
+  const totalRotationDeg = rotate90 + straighten;
+
   // Animated image style — centered in frame with pan/zoom offset
+  // Applies rotate + straighten + flip as visual transforms
   const animatedImageStyle = useAnimatedStyle(() => {
-    const dw = imageWidth * scale.value;
-    const dh = imageHeight * scale.value;
+    const dw = effW * scale.value;
+    const dh = effH * scale.value;
     return {
-      width: dw,
-      height: dh,
+      width: imageWidth * scale.value,
+      height: imageHeight * scale.value,
       transform: [
         { translateX: (frameWidth - dw) / 2 + translateX.value },
         { translateY: (frameHeight - dh) / 2 + translateY.value },
+        // Center the raw image before rotating
+        { translateX: (dw - imageWidth * scale.value) / 2 },
+        { translateY: (dh - imageHeight * scale.value) / 2 },
+        { rotate: `${totalRotationDeg}deg` },
+        { scaleX: flipX ? -1 : 1 },
       ],
     };
   });

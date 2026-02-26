@@ -54,7 +54,6 @@ import {
 } from "../types";
 import { generateId } from "../utils/helpers";
 import { useRenderSurface, screenToCanvas } from "../utils/geometry";
-import { Debouncer } from "@tanstack/react-pacer";
 
 // ---- Props ----
 
@@ -166,17 +165,15 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     setMedia(mediaUri, mediaType);
   }, [mediaUri, mediaType, setMedia]);
 
-  // Apply initialMode after mount (brief delay for layout)
+  // [REGRESSION LOCK] Apply initialMode immediately after first layout frame.
+  // rAF ensures layout is committed before mode change triggers panel mount.
   const initialModeApplied = useRef(false);
-  const initialModeDebouncer = useRef(
-    new Debouncer((m: EditorMode) => useEditorStore.getState().setMode(m), {
-      wait: 350,
-    }),
-  );
   React.useEffect(() => {
     if (initialMode && !initialModeApplied.current) {
       initialModeApplied.current = true;
-      initialModeDebouncer.current.maybeExecute(initialMode);
+      requestAnimationFrame(() => {
+        useEditorStore.getState().setMode(initialMode);
+      });
     }
   }, [initialMode]);
 

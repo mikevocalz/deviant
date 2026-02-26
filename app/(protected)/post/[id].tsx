@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
+import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -46,8 +47,10 @@ import {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import { LikesSheet } from "@/src/features/posts/likes/LikesSheet";
-import { usePrefetchPostLikers } from "@/lib/hooks/use-post-likers";
+import {
+  useLikesSheet,
+  fireLikesTap,
+} from "@/src/features/likes/LikesSheetController";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
@@ -146,9 +149,9 @@ function PostDetailScreenContent() {
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
-  const [showLikesSheet, setShowLikesSheet] = useState(false);
   const bookmarkStore = useBookmarkStore();
-  const prefetchLikers = usePrefetchPostLikers();
+  const { open: openLikesSheet, prefetch: prefetchLikesSheet } =
+    useLikesSheet();
 
   // Like state from centralized hook
   const {
@@ -598,8 +601,13 @@ function PostDetailScreenContent() {
           {/* Info - Caption Section with explicit white text, NO gaps */}
           <View className="px-4 pb-4">
             <Pressable
-              onPressIn={() => prefetchLikers(postId)}
-              onPress={() => setShowLikesSheet(true)}
+              onPressIn={() => prefetchLikesSheet(postId)}
+              onPress={() => {
+                if (!postId) return;
+                fireLikesTap(postId, openLikesSheet);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={{ minHeight: 44, justifyContent: "center" }}
             >
               <Text
                 style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
@@ -785,12 +793,6 @@ function PostDetailScreenContent() {
           )}
         </View>
       </ScrollView>
-
-      <LikesSheet
-        postId={postIdString}
-        isOpen={showLikesSheet}
-        onClose={() => setShowLikesSheet(false)}
-      />
     </SafeAreaView>
   );
 }

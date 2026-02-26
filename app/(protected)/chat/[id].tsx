@@ -686,6 +686,12 @@ export default function ChatScreen() {
     }
 
     sendMessageToBackend(convId);
+
+    // CRITICAL: Clear the native TextInput buffer immediately.
+    // Without this, the deferred Keyboard.dismiss() triggers the native input
+    // to commit its stale buffer → fires onChangeText with old text → overwrites
+    // the store's cleared currentMessage. Clearing natively prevents the race.
+    inputRef.current?.clear();
   }, [
     chatId,
     sendMessageToBackend,
