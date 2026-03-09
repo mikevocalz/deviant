@@ -11,9 +11,11 @@ import { getAuthToken } from "@/lib/auth-client";
 
 const FileSystem = LegacyFileSystem;
 
+const _rawSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ||
-  "https://npfjanxturvmjyevoyfo.supabase.co";
+  typeof _rawSupabaseUrl === "string" && _rawSupabaseUrl.startsWith("https://")
+    ? _rawSupabaseUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
 const MEDIA_UPLOAD_URL = `${SUPABASE_URL}/functions/v1/media-upload`;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
