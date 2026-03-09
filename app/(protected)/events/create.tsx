@@ -71,6 +71,36 @@ import { Debouncer } from "@tanstack/react-pacer";
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
 
+export const EVENT_TYPE_LABELS: Record<string, string> = {
+  virtual_session: "Virtual Session",
+  party: "Party",
+  picnic: "Picnic",
+  game_night: "Game Night",
+  panel: "Panel",
+  happy_hour: "Happy Hour",
+  wine_down: "Wine Down",
+  kickback: "Kickback",
+  ball: "Ball",
+  kiki: "Kiki",
+  pool_party: "Pool Party",
+  spoken_word: "Spoken Word",
+  open_mic: "Open Mic",
+  karaoke: "Karaoke",
+  bike_ride: "Bike Ride",
+  walk_run: "Walk / Run",
+  fitness_training: "Fitness Training",
+  yoga: "Yoga",
+  meditation: "Meditation",
+  bate_session: "Bate Session",
+  sex_party: "Sex Party",
+  kink_fetish_party: "Kink / Fetish Party",
+  training: "Training",
+  cooking_class: "Cooking Class",
+  mixology: "Mixology",
+  dance_class: "Dance Class",
+  other: "Other",
+};
+
 interface TicketTier {
   id: string;
   name: string;
@@ -87,6 +117,7 @@ const WIZARD_STEPS = [
   { label: "Media", icon: ImageIcon },
   { label: "Venue", icon: Calendar },
   { label: "Details", icon: Music },
+  { label: "Terms", icon: Shield },
   { label: "Review", icon: Eye },
 ] as const;
 
@@ -200,6 +231,12 @@ export default function CreateEventScreen() {
     canProceed,
     totalSteps,
     resetDraft,
+    eventType,
+    setEventType,
+    disclaimers,
+    setDisclaimers,
+    agreementAccepted,
+    setAgreementAccepted,
   } = store;
 
   // Convert ISO strings to Date objects for pickers
@@ -395,6 +432,8 @@ export default function CreateEventScreen() {
         locationType: isOnline ? "virtual" : "physical",
         isOnline,
         ticketingEnabled,
+        event_type: eventType || undefined,
+        disclaimers: disclaimers.trim() || undefined,
         // V2 fields — new
         endDate: endDateISO || undefined,
         visibility,
@@ -821,6 +860,47 @@ export default function CreateEventScreen() {
               )}
             </View>
           </>
+        )}
+
+        {/* ==================== EVENT TYPE (bottom of Step 0) ==================== */}
+        {currentStep === 0 && (
+          <View className="mb-6">
+            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+              Event Type
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {Object.entries(EVENT_TYPE_LABELS).map(([key, label]) => {
+                const isActive = eventType === key;
+                return (
+                  <Pressable
+                    key={key}
+                    onPress={() => setEventType(isActive ? null : (key as any))}
+                    className="px-3 py-2 rounded-xl"
+                    style={{
+                      backgroundColor: isActive
+                        ? `${colors.primary}20`
+                        : "rgba(255,255,255,0.04)",
+                      borderWidth: 1,
+                      borderColor: isActive
+                        ? `${colors.primary}60`
+                        : "rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <Text
+                      className="text-xs font-semibold"
+                      style={{
+                        color: isActive
+                          ? colors.primary
+                          : colors.mutedForeground,
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
         )}
 
         {/* ==================== STEP 2: VENUE ==================== */}
@@ -1446,7 +1526,7 @@ export default function CreateEventScreen() {
                     Enable Paid Ticketing
                   </Text>
                   <Text className="text-xs text-muted-foreground mt-0.5">
-                    Sell tickets via Stripe (5% + $1/ticket fee)
+                    Sell tickets via Stripe (2.5% + $1/ticket buyer fee)
                   </Text>
                 </View>
                 <Switch
@@ -1683,11 +1763,138 @@ export default function CreateEventScreen() {
                 </Text>
               </View>
             </View>
+
+            {/* Disclaimers */}
+            <View className="mt-3">
+              <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Disclaimers (Optional)
+              </Text>
+              <View className="bg-card rounded-2xl p-4">
+                <TextInput
+                  className="text-base text-foreground min-h-[80px]"
+                  placeholder="Any disclaimers, warnings, or special notices for attendees..."
+                  placeholderTextColor={colors.mutedForeground}
+                  value={disclaimers}
+                  onChangeText={setDisclaimers}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={500}
+                  textAlignVertical="top"
+                />
+                <Text className="text-xs text-muted-foreground text-right mt-1">
+                  {disclaimers.length}/500
+                </Text>
+              </View>
+            </View>
           </>
         )}
 
-        {/* ==================== STEP 4: REVIEW ==================== */}
+        {/* ==================== STEP 4: AGREEMENT ==================== */}
         {currentStep === 4 && (
+          <View className="gap-4">
+            <Text className="text-lg font-semibold text-foreground mb-1">
+              Ticketing Agreement
+            </Text>
+            <Text className="text-sm text-muted-foreground leading-5 mb-2">
+              Please review DVNT's ticketing terms before publishing your event.
+            </Text>
+
+            {/* Fee breakdown card */}
+            <View className="bg-card rounded-2xl p-4 gap-3 border border-border">
+              <Text className="text-sm font-semibold text-foreground mb-1">
+                Fee Structure
+              </Text>
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">
+                  Base ticket price
+                </Text>
+                <Text className="text-sm text-foreground">Your set price</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">
+                  Buyer service fee
+                </Text>
+                <Text className="text-sm text-foreground">
+                  2.5% + $1.00 / ticket
+                </Text>
+              </View>
+              <View className="h-px bg-border my-1" />
+              <View className="flex-row justify-between">
+                <Text className="text-sm text-muted-foreground">
+                  Organizer platform fee
+                </Text>
+                <Text className="text-sm text-foreground">
+                  2.5% + $1.00 / ticket
+                </Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-sm font-semibold text-foreground">
+                  Your payout
+                </Text>
+                <Text className="text-sm font-semibold text-primary">
+                  Price − 2.5% − $1/ticket
+                </Text>
+              </View>
+            </View>
+
+            {/* Non-refundable notice */}
+            <View
+              className="rounded-2xl p-4 flex-row gap-3"
+              style={{ backgroundColor: "rgba(234, 179, 8, 0.1)" }}
+            >
+              <Shield size={18} color="#EAB308" style={{ marginTop: 1 }} />
+              <Text className="text-sm text-foreground leading-5 flex-1">
+                <Text className="font-semibold">
+                  DVNT service fees are non-refundable.
+                </Text>{" "}
+                If you issue a refund, only the base ticket price is returned to
+                the buyer. The DVNT platform fee is retained.
+              </Text>
+            </View>
+
+            {/* Payout schedule */}
+            <View className="bg-card rounded-2xl p-4">
+              <Text className="text-sm font-semibold text-foreground mb-2">
+                Payout Schedule
+              </Text>
+              <Text className="text-sm text-muted-foreground leading-5">
+                Payouts are released 2 business days after your event ends and
+                are subject to Stripe Connect's standard disbursement schedule.
+                Disputes or chargebacks will place payouts on hold.
+              </Text>
+            </View>
+
+            {/* Accept checkbox */}
+            <Pressable
+              onPress={() => setAgreementAccepted(!agreementAccepted)}
+              className="flex-row items-start gap-3 bg-card rounded-2xl p-4"
+            >
+              <View
+                className="w-6 h-6 rounded-md items-center justify-center mt-0.5"
+                style={{
+                  backgroundColor: agreementAccepted
+                    ? colors.primary
+                    : "transparent",
+                  borderWidth: agreementAccepted ? 0 : 2,
+                  borderColor: colors.mutedForeground,
+                }}
+              >
+                {agreementAccepted && <Check size={14} color="#000" />}
+              </View>
+              <Text className="text-sm text-foreground leading-5 flex-1">
+                I have read and agree to DVNT's{" "}
+                <Text className="text-primary font-semibold">
+                  Ticketing Terms
+                </Text>
+                , understand the non-refundable fee policy, and confirm that my
+                event complies with DVNT's community guidelines.
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ==================== STEP 5: REVIEW ==================== */}
+        {currentStep === 5 && (
           <View className="gap-4">
             <Text className="text-lg font-semibold text-foreground mb-2">
               Review Your Event

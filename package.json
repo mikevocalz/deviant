@@ -107,7 +107,7 @@
     "lucide-react-native": "^0.575.0",
     "nativewind": "^4.2.1",
     "pg": "^8.18.0",
-    "react": "19.2.0",
+    "react": "19.2.3",
     "react-dom": "19.2.0",
     "react-native": "0.84.0",
     "react-native-animated-glow": "^3.0.1",

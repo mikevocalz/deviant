@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeFees } from "../_shared/fee-calculator.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") || "";
@@ -98,11 +99,17 @@ async function getOrCreateCustomer(
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { event_id, ticket_type_id, quantity = 1, user_id } = await req.json();
+    const {
+      event_id,
+      ticket_type_id,
+      quantity = 1,
+      user_id,
+    } = await req.json();
 
     if (!event_id || !ticket_type_id || !user_id) {
       return json({ error: "Missing required fields" }, 400);
@@ -120,7 +127,8 @@ Deno.serve(async (req: Request) => {
       .eq("id", ticket_type_id)
       .single();
 
-    if (ttError || !ticketType) return json({ error: "Ticket type not found" }, 404);
+    if (ttError || !ticketType)
+      return json({ error: "Ticket type not found" }, 404);
 
     // ── Check availability (including existing holds) ────────
     const remaining =
@@ -142,9 +150,12 @@ Deno.serve(async (req: Request) => {
 
     // ── Check max per user ───────────────────────────────────
     if (quantity > (ticketType.max_per_user || 4)) {
-      return json({
-        error: `Maximum ${ticketType.max_per_user || 4} tickets per person`,
-      }, 400);
+      return json(
+        {
+          error: `Maximum ${ticketType.max_per_user || 4} tickets per person`,
+        },
+        400,
+      );
     }
 
     // ── Free tickets: issue directly ─────────────────────────
@@ -195,7 +206,11 @@ Deno.serve(async (req: Request) => {
       if (freeOrder?.id) {
         await supabase.from("order_timeline").insert([
           { order_id: freeOrder.id, type: "created", label: "Order created" },
-          { order_id: freeOrder.id, type: "payment_captured", label: "Free ticket issued" },
+          {
+            order_id: freeOrder.id,
+            type: "payment_captured",
+            label: "Free ticket issued",
+          },
         ]);
       }
 
@@ -223,49 +238,55 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Organizer has not completed payment setup" }, 400);
     }
 
-    // ── Fee structure (same as ticket-checkout) ──────────────
-    const unitPrice = ticketType.price_cents;
-    const buyerSurcharge = Math.round(unitPrice * 0.025) + 100;
-    const chargePerTicket = unitPrice + buyerSurcharge;
-    const totalCents = chargePerTicket * quantity;
-    const applicationFee = Math.round(unitPrice * quantity * 0.05) + 200 * quantity;
+    // ── Fee structure (v1_250_1pt) ──────────────────────────────
+    // Each component computed SEPARATELY — never Math.round(subtotal * 0.05)
+    const subtotalCents = ticketType.price_cents * quantity;
+    const fees = computeFees(subtotalCents, quantity);
 
-    // ── Get or create Stripe Customer ────────────────────────
+    // ── Get or create Stripe Customer ────────────────────
     const customerId = await getOrCreateCustomer(supabase, user_id);
 
-    // ── Create idempotency key ───────────────────────────────
+    // ── Create idempotency key ────────────────────────
     const idempotencyKey = `pi_${user_id}_${event_id}_${ticket_type_id}_${quantity}_${Date.now()}`;
 
-    // ── Create PaymentIntent ─────────────────────────────────
+    // ── Create PaymentIntent ───────────────────────────
     const pi = await stripeRequest("/payment_intents", {
-      amount: totalCents.toString(),
+      amount: fees.customer_charge_amount.toString(),
       currency: ticketType.currency || "usd",
       customer: customerId,
       "automatic_payment_methods[enabled]": "true",
       "transfer_data[destination]": organizer.stripe_account_id,
-      application_fee_amount: applicationFee.toString(),
+      application_fee_amount: fees.application_fee_amount.toString(),
       "metadata[type]": "event_ticket",
       "metadata[event_id]": event_id.toString(),
       "metadata[ticket_type_id]": ticket_type_id,
       "metadata[user_id]": user_id,
       "metadata[quantity]": quantity.toString(),
+      "metadata[subtotal_cents]": fees.subtotal.toString(),
+      "metadata[buyer_fee_cents]": fees.buyer_fee.toString(),
+      "metadata[organizer_fee_cents]": fees.organizer_fee.toString(),
+      "metadata[dvnt_total_fee_cents]": fees.dvnt_total_fee.toString(),
+      "metadata[fee_policy_version]": fees.fee_policy_version,
       "metadata[event_title]": (event.title || "").substring(0, 500),
     });
 
     // ── Create ephemeral key for PaymentSheet ────────────────
-    const ephemeralRes = await fetch("https://api.stripe.com/v1/ephemeral_keys", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Stripe-Version": "2024-06-20",
+    const ephemeralRes = await fetch(
+      "https://api.stripe.com/v1/ephemeral_keys",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Stripe-Version": "2026-02-25.clover",
+        },
+        body: new URLSearchParams({ customer: customerId }).toString(),
       },
-      body: new URLSearchParams({ customer: customerId }).toString(),
-    });
+    );
     const ephemeralKey = await ephemeralRes.json();
 
-    // ── Create inventory hold ────────────────────────────────
-    const holdExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+    // ── Create inventory hold ───────────────────────────
+    const holdExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await supabase.from("ticket_holds").insert({
       user_id,
       ticket_type_id,
@@ -276,14 +297,23 @@ Deno.serve(async (req: Request) => {
       expires_at: holdExpiresAt,
     });
 
-    // ── Create order row in payment_pending state ────────────
+    // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
       user_id,
       type: "event_ticket",
       status: "payment_pending",
-      subtotal_cents: unitPrice * quantity,
-      platform_fee_cents: applicationFee,
-      total_cents: totalCents,
+      quantity,
+      subtotal_cents: fees.subtotal,
+      platform_fee_cents: fees.dvnt_total_fee,
+      total_cents: fees.customer_charge_amount,
+      buyer_pct_fee_cents: fees.buyer_pct_fee,
+      buyer_per_ticket_fee_cents: fees.buyer_per_ticket_fee,
+      buyer_fee_cents: fees.buyer_fee,
+      org_pct_fee_cents: fees.org_pct_fee,
+      org_per_ticket_fee_cents: fees.org_per_ticket_fee,
+      organizer_fee_cents: fees.organizer_fee,
+      dvnt_total_fee_cents: fees.dvnt_total_fee,
+      fee_policy_version: fees.fee_policy_version,
       event_id: parseInt(event_id),
       stripe_payment_intent_id: pi.id,
     });

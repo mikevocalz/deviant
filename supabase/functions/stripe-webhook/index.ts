@@ -573,6 +573,128 @@ Deno.serve(async (req: Request) => {
         }
         break;
       }
+
+      // ── Sneaky Lynk Subscription Lifecycle ────────────────
+      case "customer.subscription.created":
+      case "customer.subscription.updated": {
+        const sub = event.data.object;
+        const subMeta = sub.metadata || {};
+        const hostId = subMeta.dvnt_user_id;
+        const planId = subMeta.plan_id;
+
+        if (!hostId || !planId) {
+          console.warn(
+            "[stripe-webhook] Subscription missing metadata:",
+            sub.id,
+          );
+          break;
+        }
+
+        const stripePriceId = sub.items?.data?.[0]?.price?.id || null;
+
+        const { error: subError } = await supabase
+          .from("sneaky_subscriptions")
+          .upsert(
+            {
+              host_id: hostId,
+              plan_id: planId,
+              status: sub.status,
+              stripe_subscription_id: sub.id,
+              stripe_price_id: stripePriceId,
+              current_period_start: sub.current_period_start
+                ? new Date(sub.current_period_start * 1000).toISOString()
+                : null,
+              current_period_end: sub.current_period_end
+                ? new Date(sub.current_period_end * 1000).toISOString()
+                : null,
+              cancel_at_period_end: sub.cancel_at_period_end || false,
+              canceled_at: sub.canceled_at
+                ? new Date(sub.canceled_at * 1000).toISOString()
+                : null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "host_id" },
+          );
+
+        if (subError) {
+          console.error(
+            "[stripe-webhook] Subscription upsert error:",
+            subError,
+          );
+          throw subError;
+        }
+
+        // Mark corresponding order as paid if subscription is active/trialing
+        if (["active", "trialing"].includes(sub.status)) {
+          const { data: subOrder } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("type", "sneaky_subscription")
+            .eq("status", "payment_pending")
+            .filter("stripe_checkout_session_id", "not.is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (subOrder) {
+            await supabase
+              .from("orders")
+              .update({
+                status: "paid",
+                paid_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", subOrder.id);
+          }
+        }
+
+        console.log(
+          `[stripe-webhook] Subscription ${event.type} for host ${hostId}: ${sub.status}`,
+        );
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const canceledSub = event.data.object;
+        const cancelMeta = canceledSub.metadata || {};
+        const cancelHostId = cancelMeta.dvnt_user_id;
+
+        if (cancelHostId) {
+          await supabase
+            .from("sneaky_subscriptions")
+            .update({
+              status: "canceled",
+              canceled_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_subscription_id", canceledSub.id);
+
+          console.log(
+            `[stripe-webhook] Subscription canceled for host ${cancelHostId}`,
+          );
+        }
+        break;
+      }
+
+      case "invoice.payment_failed": {
+        const failedInvoice = event.data.object;
+        const subId = failedInvoice.subscription;
+
+        if (subId) {
+          await supabase
+            .from("sneaky_subscriptions")
+            .update({
+              status: "past_due",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_subscription_id", subId);
+
+          console.log(
+            `[stripe-webhook] Invoice payment failed for subscription ${subId}`,
+          );
+        }
+        break;
+      }
     }
   } catch (err) {
     console.error("[stripe-webhook] Processing error:", err);

@@ -1,0 +1,192 @@
+/**
+ * Sneaky Lynk Billing Checkout — Stripe Billing subscription
+ *
+ * POST /sneaky-billing-checkout
+ * Body: { plan_id, user_id }
+ * plan_id: "host_25" | "host_50"
+ *
+ * Returns: { url, session_id } — Stripe Checkout Session (subscription mode)
+ *
+ * Stripe API: 2026-02-25.clover
+ * Webhook source of truth: customer.subscription.created / updated / deleted
+ */
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const APP_SCHEME = "dvnt";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json", ...cors },
+  });
+}
+
+async function stripePost(
+  endpoint: string,
+  body: Record<string, string>,
+): Promise<any> {
+  const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Stripe-Version": "2026-02-25.clover",
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
+}
+
+async function stripeGet(endpoint: string): Promise<any> {
+  const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "Stripe-Version": "2026-02-25.clover",
+    },
+  });
+  return res.json();
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  try {
+    const { plan_id, user_id } = await req.json();
+
+    if (!plan_id || !user_id) {
+      return json({ error: "Missing plan_id or user_id" }, 400);
+    }
+
+    if (!["host_25", "host_50"].includes(plan_id)) {
+      return json({ error: "Invalid plan_id. Must be host_25 or host_50" }, 400);
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
+
+    // ── Fetch plan details ───────────────────────────────────
+    const { data: plan, error: planError } = await supabase
+      .from("sneaky_subscription_plans")
+      .select("*")
+      .eq("id", plan_id)
+      .single();
+
+    if (planError || !plan) {
+      return json({ error: "Plan not found" }, 404);
+    }
+
+    // ── Check for existing active subscription ──────────────
+    const { data: existingSub } = await supabase
+      .from("sneaky_subscriptions")
+      .select("status, plan_id, stripe_subscription_id")
+      .eq("host_id", user_id)
+      .single();
+
+    if (existingSub?.status === "active" && existingSub.plan_id === plan_id) {
+      return json({ error: "Already subscribed to this plan. Manage via billing portal." }, 409);
+    }
+
+    // ── Get or create Stripe Customer ────────────────────────
+    let stripeCustomerId: string;
+    const { data: existingCustomer } = await supabase
+      .from("stripe_customers")
+      .select("stripe_customer_id")
+      .eq("user_id", user_id)
+      .single();
+
+    if (existingCustomer?.stripe_customer_id) {
+      stripeCustomerId = existingCustomer.stripe_customer_id;
+    } else {
+      const customer = await stripePost("/customers", {
+        "metadata[dvnt_user_id]": user_id,
+      });
+      stripeCustomerId = customer.id;
+      await supabase.from("stripe_customers").upsert({
+        user_id,
+        stripe_customer_id: stripeCustomerId,
+      });
+    }
+
+    // ── Ensure Stripe product + price exist for this plan ───
+    // Use plan.stripe_price_id if already seeded; otherwise create on-demand.
+    let stripePriceId = plan.stripe_price_id;
+
+    if (!stripePriceId) {
+      // Create product if needed
+      let stripeProductId = plan.stripe_product_id;
+      if (!stripeProductId) {
+        const product = await stripePost("/products", {
+          name: `Sneaky Lynk ${plan.name}`,
+          "metadata[plan_id]": plan_id,
+        });
+        stripeProductId = product.id;
+      }
+
+      // Create price
+      const price = await stripePost("/prices", {
+        product: stripeProductId,
+        unit_amount: plan.price_cents.toString(),
+        currency: "usd",
+        "recurring[interval]": plan.interval,
+        "metadata[plan_id]": plan_id,
+      });
+      stripePriceId = price.id;
+
+      // Persist Stripe IDs back to the plan row for reuse
+      await supabase
+        .from("sneaky_subscription_plans")
+        .update({
+          stripe_product_id: stripeProductId,
+          stripe_price_id: stripePriceId,
+        })
+        .eq("id", plan_id);
+    }
+
+    // ── Create Stripe Checkout Session (subscription mode) ──
+    const session = await stripePost("/checkout/sessions", {
+      mode: "subscription",
+      "payment_method_types[0]": "card",
+      customer: stripeCustomerId,
+      "line_items[0][price]": stripePriceId,
+      "line_items[0][quantity]": "1",
+      "subscription_data[metadata][dvnt_user_id]": user_id,
+      "subscription_data[metadata][plan_id]": plan_id,
+      "metadata[type]": "sneaky_subscription",
+      "metadata[user_id]": user_id,
+      "metadata[plan_id]": plan_id,
+      success_url: `${APP_SCHEME}://sneaky/billing/success?plan=${plan_id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${APP_SCHEME}://sneaky/billing/cancel`,
+    });
+
+    // ── Create pending order row ─────────────────────────────
+    await supabase.from("orders").insert({
+      user_id,
+      type: "sneaky_subscription",
+      status: "payment_pending",
+      subtotal_cents: plan.price_cents,
+      total_cents: plan.price_cents,
+      fee_policy_version: "none",
+      stripe_checkout_session_id: session.id,
+    });
+
+    return json({ url: session.url, session_id: session.id });
+  } catch (err: any) {
+    console.error("[sneaky-billing-checkout] Error:", err);
+    return json({ error: err.message || "Internal error" }, 500);
+  }
+});

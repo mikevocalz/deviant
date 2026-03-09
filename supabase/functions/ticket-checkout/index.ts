@@ -11,6 +11,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeFees } from "../_shared/fee-calculator.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -200,49 +201,69 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Fee structure ──────────────────────────────────────────
-    // Customer: 2.5% + $1/ticket  |  Organizer: 2.5% + $1/ticket
-    // DVNT total: 5% + $2/ticket (covers Stripe processing + platform fee)
-    const unitPrice = ticketType.price_cents;
-    const buyerSurcharge = Math.round(unitPrice * 0.025) + 100; // 2.5% + $1
-    const chargePerTicket = unitPrice + buyerSurcharge;
+    // ── Fee structure (v1_250_1pt) ──────────────────────────────
+    // Each component computed SEPARATELY — never Math.round(subtotal * 0.05)
+    const subtotalCents = ticketType.price_cents * quantity;
+    const fees = computeFees(subtotalCents, quantity);
 
-    // application_fee = buyer(2.5%+$1) + organizer(2.5%+$1)
-    const applicationFee =
-      Math.round(unitPrice * quantity * 0.05) + 200 * quantity;
+    const currency = ticketType.currency || "usd";
 
-    // Create Stripe Checkout Session with destination charge
+    // Create Stripe Checkout Session: two transparent line items
     const params: Record<string, string> = {
       mode: "payment",
       "payment_method_types[0]": "card",
-      "line_items[0][price_data][currency]": ticketType.currency || "usd",
-      "line_items[0][price_data][unit_amount]": chargePerTicket.toString(),
+      // Line 0: base ticket price
+      "line_items[0][price_data][currency]": currency,
+      "line_items[0][price_data][unit_amount]":
+        ticketType.price_cents.toString(),
       "line_items[0][price_data][product_data][name]": ticketType.name,
       "line_items[0][quantity]": quantity.toString(),
-      "payment_intent_data[application_fee_amount]": applicationFee.toString(),
+      // Line 1: DVNT buyer service fee (one lump item)
+      "line_items[1][price_data][currency]": currency,
+      "line_items[1][price_data][unit_amount]": fees.buyer_fee.toString(),
+      "line_items[1][price_data][product_data][name]": "DVNT Service Fee",
+      "line_items[1][price_data][product_data][description]":
+        "2.5% + $1/ticket • Non-refundable",
+      "line_items[1][quantity]": "1",
+      // Destination charge: DVNT keeps application_fee_amount, rest goes to organizer
+      "payment_intent_data[application_fee_amount]":
+        fees.application_fee_amount.toString(),
       "payment_intent_data[transfer_data][destination]":
         organizer.stripe_account_id,
+      // Fee metadata for webhook reconciliation
       "metadata[type]": "event_ticket",
       "metadata[event_id]": event_id.toString(),
       "metadata[ticket_type_id]": ticket_type_id,
       "metadata[user_id]": user_id,
       "metadata[quantity]": quantity.toString(),
+      "metadata[subtotal_cents]": fees.subtotal.toString(),
+      "metadata[buyer_fee_cents]": fees.buyer_fee.toString(),
+      "metadata[organizer_fee_cents]": fees.organizer_fee.toString(),
+      "metadata[dvnt_total_fee_cents]": fees.dvnt_total_fee.toString(),
+      "metadata[fee_policy_version]": fees.fee_policy_version,
       success_url: `${APP_SCHEME}://tickets/success?eventId=${event_id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_SCHEME}://tickets/cancel?eventId=${event_id}`,
     };
 
     const session = await stripeRequest("/checkout/sessions", params);
 
-    // ── Create order row in payment_pending state ────────
-    const totalCents = chargePerTicket * quantity;
-    const platformFeeCents = applicationFee;
+    // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
       user_id,
       type: "event_ticket",
       status: "payment_pending",
-      subtotal_cents: unitPrice * quantity,
-      platform_fee_cents: platformFeeCents,
-      total_cents: totalCents,
+      quantity,
+      subtotal_cents: fees.subtotal,
+      platform_fee_cents: fees.dvnt_total_fee,
+      total_cents: fees.customer_charge_amount,
+      buyer_pct_fee_cents: fees.buyer_pct_fee,
+      buyer_per_ticket_fee_cents: fees.buyer_per_ticket_fee,
+      buyer_fee_cents: fees.buyer_fee,
+      org_pct_fee_cents: fees.org_pct_fee,
+      org_per_ticket_fee_cents: fees.org_per_ticket_fee,
+      organizer_fee_cents: fees.organizer_fee,
+      dvnt_total_fee_cents: fees.dvnt_total_fee,
+      fee_policy_version: fees.fee_policy_version,
       event_id: parseInt(event_id),
       stripe_checkout_session_id: session.id,
     });
