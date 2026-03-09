@@ -11,6 +11,34 @@ import { mmkvStorage } from "@/lib/mmkv-zustand";
 
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
+export type EventType =
+  | "virtual_session"
+  | "party"
+  | "picnic"
+  | "game_night"
+  | "panel"
+  | "happy_hour"
+  | "wine_down"
+  | "kickback"
+  | "ball"
+  | "kiki"
+  | "pool_party"
+  | "spoken_word"
+  | "open_mic"
+  | "karaoke"
+  | "bike_ride"
+  | "walk_run"
+  | "fitness_training"
+  | "yoga"
+  | "meditation"
+  | "bate_session"
+  | "sex_party"
+  | "kink_fetish_party"
+  | "training"
+  | "cooking_class"
+  | "mixology"
+  | "dance_class"
+  | "other";
 
 interface LocationData {
   name: string;
@@ -60,6 +88,8 @@ interface DraftFields {
   ticketTiers: TicketTier[];
   coOrganizers: CoOrganizer[];
   flyerImage: string | null;
+  eventType: EventType | null;
+  disclaimers: string;
 }
 
 // UI-only fields (not persisted, but in store to comply with no-useState rule)
@@ -83,6 +113,7 @@ interface UIFields {
   }[];
   currentStep: number;
   totalSteps: number;
+  agreementAccepted: boolean;
 }
 
 interface CreateEventActions {
@@ -110,6 +141,8 @@ interface CreateEventActions {
     v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[]),
   ) => void;
   setFlyerImage: (v: string | null) => void;
+  setEventType: (v: EventType | null) => void;
+  setDisclaimers: (v: string) => void;
 
   // UI-only setters
   setShowDatePicker: (v: boolean) => void;
@@ -122,6 +155,7 @@ interface CreateEventActions {
   setLineupInput: (v: string) => void;
   setPerksInput: (v: string) => void;
   setTicketTierName: (v: string) => void;
+  setAgreementAccepted: (v: boolean) => void;
 
   // Helpers
   toggleTag: (tag: string) => void;
@@ -169,6 +203,8 @@ const DRAFT_DEFAULTS: DraftFields = {
   ticketTiers: [],
   coOrganizers: [],
   flyerImage: null,
+  eventType: null,
+  disclaimers: "",
 };
 
 const UI_DEFAULTS: UIFields = {
@@ -185,7 +221,8 @@ const UI_DEFAULTS: UIFields = {
   coOrganizerSearch: "",
   coOrganizerResults: [],
   currentStep: 0,
-  totalSteps: 5,
+  totalSteps: 6,
+  agreementAccepted: false,
 };
 
 // Helper to resolve functional updaters
@@ -224,6 +261,8 @@ export const useCreateEventStore = create<CreateEventState>()(
       setTicketTiers: (v) =>
         set((s) => ({ ticketTiers: resolve(v, s.ticketTiers) })),
       setFlyerImage: (v) => set({ flyerImage: v }),
+      setEventType: (v) => set({ eventType: v }),
+      setDisclaimers: (v) => set({ disclaimers: v }),
 
       // UI-only setters
       setShowDatePicker: (v) => set({ showDatePicker: v }),
@@ -236,6 +275,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setLineupInput: (v) => set({ lineupInput: v }),
       setPerksInput: (v) => set({ perksInput: v }),
       setTicketTierName: (v) => set({ ticketTierName: v }),
+      setAgreementAccepted: (v) => set({ agreementAccepted: v }),
 
       // Helpers
       toggleTag: (tag) =>
@@ -306,12 +346,14 @@ export const useCreateEventStore = create<CreateEventState>()(
           case 0: // Info
             return s.title.trim().length > 0;
           case 1: // Media
-            return true; // optional
+            return true;
           case 2: // Venue
             return s.location.trim().length > 0 || s.isOnline;
-          case 3: // Tickets
-            return true; // optional
-          case 4: // Review
+          case 3: // Details
+            return true;
+          case 4: // Agreement — must accept before proceeding
+            return s.agreementAccepted;
+          case 5: // Review
             return true;
           default:
             return true;
@@ -332,7 +374,6 @@ export const useCreateEventStore = create<CreateEventState>()(
     {
       name: "create-event-draft",
       storage: mmkvStorage,
-      // Only persist draft fields, not UI-only state
       partialize: (state) => ({
         title: state.title,
         description: state.description,
@@ -356,6 +397,8 @@ export const useCreateEventStore = create<CreateEventState>()(
         ticketTiers: state.ticketTiers,
         coOrganizers: state.coOrganizers,
         flyerImage: state.flyerImage,
+        eventType: state.eventType,
+        disclaimers: state.disclaimers,
       }),
     },
   ),

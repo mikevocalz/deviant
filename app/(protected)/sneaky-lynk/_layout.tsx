@@ -24,6 +24,7 @@ export default function SneakyLynkLayout() {
         }}
       >
         <Stack.Screen name="create" />
+        <Stack.Screen name="billing" />
         <Stack.Screen
           name="room/[id]"
           options={{

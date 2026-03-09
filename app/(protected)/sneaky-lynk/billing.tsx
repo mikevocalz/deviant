@@ -1,0 +1,306 @@
+/**
+ * Sneaky Lynk Billing Screen
+ * Route: /sneaky-lynk/billing
+ *
+ * Shows current subscription, plan features, and Stripe Customer Portal link.
+ */
+
+import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  ChevronLeft,
+  Crown,
+  Check,
+  ExternalLink,
+  RefreshCw,
+  Shield,
+  Zap,
+  AlertCircle,
+} from "lucide-react-native";
+import * as WebBrowser from "expo-web-browser";
+import { supabase } from "@/lib/supabase/client";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useColorScheme } from "@/lib/hooks";
+import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
+
+interface Subscription {
+  plan_id: string;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  stripe_subscription_id: string | null;
+}
+
+const PLAN_LABELS: Record<string, { name: string; price: string; maxPax: number }> = {
+  free:    { name: "Free",    price: "$0/mo",     maxPax: 5  },
+  host_25: { name: "Host 25", price: "$14.99/mo",  maxPax: 25 },
+  host_50: { name: "Host 50", price: "$24.99/mo",  maxPax: 50 },
+};
+
+export default function BillingScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colors } = useColorScheme();
+  const authUser = useAuthStore((s) => s.user);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const [subscription, setSubscription] = useState<Subscription | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPortalLoading, setIsPortalLoading] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const loadSubscription = useCallback(async () => {
+    if (!authUser?.id) return;
+    setIsLoading(true);
+    try {
+      const { data } = await supabase
+        .from("sneaky_subscriptions")
+        .select("plan_id, status, current_period_end, cancel_at_period_end, stripe_subscription_id")
+        .eq("host_id", authUser.id)
+        .single();
+
+      setSubscription(data ?? { plan_id: "free", status: "inactive", current_period_end: null, cancel_at_period_end: false, stripe_subscription_id: null });
+    } catch {
+      setSubscription({ plan_id: "free", status: "inactive", current_period_end: null, cancel_at_period_end: false, stripe_subscription_id: null });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [authUser?.id]);
+
+  useEffect(() => {
+    loadSubscription();
+  }, [loadSubscription]);
+
+  const handleManageBilling = useCallback(async () => {
+    if (!authUser?.id) return;
+    setIsPortalLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "sneaky-billing-portal",
+        { body: { user_id: authUser.id } },
+      );
+
+      if (error || data?.error) {
+        const msg = data?.error || error?.message;
+        if (msg?.includes("No billing account")) {
+          showToast("info", "No billing account", "Subscribe to a paid plan first.");
+        } else {
+          throw error ?? new Error(msg);
+        }
+        return;
+      }
+
+      if (data?.url) {
+        await WebBrowser.openBrowserAsync(data.url, {
+          presentationStyle:
+            WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        });
+        await loadSubscription();
+      }
+    } catch (err: any) {
+      showToast("error", "Error", err.message || "Could not open billing portal");
+    } finally {
+      setIsPortalLoading(false);
+    }
+  }, [authUser?.id, loadSubscription, showToast]);
+
+  const planInfo = PLAN_LABELS[subscription?.plan_id ?? "free"];
+  const isActive = subscription?.status === "active" || subscription?.status === "trialing";
+  const isPastDue = subscription?.status === "past_due";
+  const isFree = !subscription?.stripe_subscription_id || subscription?.plan_id === "free";
+
+  const periodEndLabel = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      {/* Header */}
+      <View className="flex-row items-center px-4 py-3 gap-3">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          className="w-9 h-9 items-center justify-center rounded-full bg-muted"
+        >
+          <ChevronLeft size={20} color={colors.foreground} />
+        </Pressable>
+        <Text className="text-lg font-sans-bold text-foreground flex-1">
+          Sneaky Lynk Billing
+        </Text>
+        <Pressable onPress={loadSubscription} hitSlop={12}>
+          <RefreshCw size={18} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+
+      {isLoading ? (
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: 16, gap: 12 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Current plan card */}
+          <View
+            className="rounded-2xl p-5 border"
+            style={{
+              backgroundColor: isActive ? "#8A40CF10" : "rgba(255,255,255,0.04)",
+              borderColor: isActive ? "#8A40CF40" : "rgba(255,255,255,0.08)",
+            }}
+          >
+            <View className="flex-row items-center gap-3 mb-3">
+              <View
+                className="w-10 h-10 rounded-xl items-center justify-center"
+                style={{ backgroundColor: "#8A40CF20" }}
+              >
+                <Crown size={20} color="#8A40CF" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-sans-bold text-foreground">
+                  {planInfo.name}
+                </Text>
+                <Text className="text-sm text-muted-foreground">
+                  {planInfo.price}
+                </Text>
+              </View>
+              <View
+                className="px-3 py-1 rounded-full"
+                style={{
+                  backgroundColor: isActive
+                    ? "#22c55e20"
+                    : isPastDue
+                    ? "#ef444420"
+                    : "#88888820",
+                }}
+              >
+                <Text
+                  className="text-xs font-sans-semibold"
+                  style={{
+                    color: isActive ? "#22c55e" : isPastDue ? "#ef4444" : "#888",
+                  }}
+                >
+                  {isActive
+                    ? "ACTIVE"
+                    : isPastDue
+                    ? "PAST DUE"
+                    : subscription?.status?.toUpperCase() ?? "FREE"}
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row gap-3">
+              <View className="flex-row items-center gap-1">
+                <Check size={13} color="#22c55e" />
+                <Text className="text-xs text-muted-foreground">
+                  Up to {planInfo.maxPax} participants
+                </Text>
+              </View>
+              {planInfo.maxPax > 5 && (
+                <View className="flex-row items-center gap-1">
+                  <Check size={13} color="#22c55e" />
+                  <Text className="text-xs text-muted-foreground">Unlimited duration</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Renewal / cancel notice */}
+            {periodEndLabel && (
+              <Text className="text-xs text-muted-foreground mt-3">
+                {subscription?.cancel_at_period_end
+                  ? `Cancels on ${periodEndLabel}`
+                  : `Renews on ${periodEndLabel}`}
+              </Text>
+            )}
+          </View>
+
+          {/* Past due warning */}
+          {isPastDue && (
+            <View
+              className="flex-row gap-3 p-4 rounded-2xl"
+              style={{ backgroundColor: "#ef444415" }}
+            >
+              <AlertCircle size={18} color="#ef4444" />
+              <Text className="text-sm text-foreground flex-1">
+                Your last payment failed. Update your payment method to keep access.
+              </Text>
+            </View>
+          )}
+
+          {/* Manage billing button (only if has stripe sub) */}
+          {!isFree && (
+            <Pressable
+              onPress={handleManageBilling}
+              disabled={isPortalLoading}
+              className="flex-row items-center justify-between bg-card rounded-2xl p-4"
+              style={{ opacity: isPortalLoading ? 0.6 : 1 }}
+            >
+              <View className="flex-row items-center gap-3">
+                <ExternalLink size={18} color={colors.foreground} />
+                <View>
+                  <Text className="text-sm font-sans-semibold text-foreground">
+                    Manage Subscription
+                  </Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Update card, cancel, or change plan
+                  </Text>
+                </View>
+              </View>
+              {isPortalLoading ? (
+                <ActivityIndicator size="small" color={colors.mutedForeground} />
+              ) : (
+                <ChevronLeft
+                  size={16}
+                  color={colors.mutedForeground}
+                  style={{ transform: [{ rotate: "180deg" }] }}
+                />
+              )}
+            </Pressable>
+          )}
+
+          {/* Upgrade CTA */}
+          <Pressable
+            onPress={() => setShowUpgradeModal(true)}
+            className="flex-row items-center justify-center gap-2 rounded-2xl py-4"
+            style={{ backgroundColor: "#8A40CF" }}
+          >
+            <Zap size={16} color="#fff" />
+            <Text className="text-sm font-sans-bold text-white">
+              {isFree ? "Upgrade Plan" : "Change Plan"}
+            </Text>
+          </Pressable>
+
+          {/* iOS compliance */}
+          {!isFree && (
+            <View className="flex-row items-center justify-center gap-1 mt-2">
+              <Shield size={11} color="#666" />
+              <Text className="text-[11px] text-muted-foreground text-center">
+                Subscriptions are billed monthly via Stripe. Cancel anytime.
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      )}
+
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <SneakySubscriptionModal
+          visible={showUpgradeModal}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            loadSubscription();
+          }}
+          currentPlan={subscription?.plan_id ?? "free"}
+          reason="upgrade"
+        />
+      )}
+    </View>
+  );
+}
