@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { Platform } from "react-native";
+import { useColorScheme } from "@/lib/hooks";
+import { TabHeaderLogo, TabHeaderRight } from "@/components/tab-header";
 import { useCallKeepCoordinator } from "@/src/services/callkeep";
 import { NotificationListener } from "@/src/services/callkeep/NotificationListener";
 import { usePresenceManager } from "@/lib/hooks/use-presence";
@@ -57,6 +59,7 @@ const fullScreenModalConfig = {
 };
 
 export default function ProtectedLayout() {
+  const { colors } = useColorScheme();
   // Initialize CallKeep native call UI — registers listeners ONCE
   useCallKeepCoordinator();
   // Track current user's online/offline presence
@@ -136,7 +139,21 @@ export default function ProtectedLayout() {
           contentStyle: { backgroundColor: "#000" },
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ animation: "none" }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            animation: "none",
+            headerShown: true,
+            headerTitleAlign: "left",
+            headerLeft: () => null,
+            headerTitle: () => <TabHeaderLogo />,
+            headerRight: () => <TabHeaderRight />,
+            headerStyle: {
+              backgroundColor: colors.background,
+            },
+            headerShadowVisible: false,
+          }}
+        />
         <Stack.Screen name="search" />
         <Stack.Screen name="messages" />
         <Stack.Screen name="messages/new" options={modalTransitionConfig} />
@@ -180,10 +197,7 @@ export default function ProtectedLayout() {
           name="story/editor"
           options={{ ...fullScreenModalConfig, animation: "fade" }}
         />
-        <Stack.Screen
-          name="crop-preview"
-          options={{ headerShown: true }}
-        />
+        <Stack.Screen name="crop-preview" options={{ headerShown: true }} />
         <Stack.Screen name="chat" />
         <Stack.Screen
           name="call/[roomId]"

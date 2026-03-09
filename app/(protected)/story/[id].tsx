@@ -933,7 +933,6 @@ export default function StoryViewerScreen() {
           backgroundColor: "#000",
           justifyContent: "center",
           alignItems: "center",
-          paddingTop: insets.top,
         }}
       >
         <Text style={{ color: "#fff" }}>Loading story...</Text>
@@ -949,7 +948,6 @@ export default function StoryViewerScreen() {
           backgroundColor: "#000",
           justifyContent: "center",
           alignItems: "center",
-          paddingTop: insets.top,
         }}
       >
         <Text style={{ color: "#fff" }}>Story not found</Text>
@@ -957,126 +955,30 @@ export default function StoryViewerScreen() {
           onPress={() => router.back()}
           style={{
             marginTop: 20,
-            padding: 12,
-            backgroundColor: "#333",
-            borderRadius: 8,
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            backgroundColor: "rgba(255,255,255,0.15)",
+            borderRadius: 20,
           }}
         >
-          <Text style={{ color: "#fff" }}>Go Back</Text>
+          <Text style={{ color: "#fff", fontWeight: "600" }}>Go Back</Text>
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
-      {/* Progress bars */}
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      {/* ── FULL-BLEED MEDIA ───────────────────────────────────────────── */}
       <View
-        style={{
-          flexDirection: "row",
-          paddingHorizontal: 8,
-          paddingTop: 8,
-          gap: 4,
-        }}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
-        {story.items?.map((_: any, index: number) => (
-          <View
-            key={index}
-            style={{
-              flex: 1,
-              height: 2,
-              backgroundColor: "rgba(255,255,255,0.6)",
-              borderRadius: 1,
-              overflow: "hidden",
-            }}
-          >
-            {index < currentItemIndex ? (
-              <View style={{ flex: 1, backgroundColor: "#fff" }} />
-            ) : index === currentItemIndex ? (
-              <ProgressBar progress={progress} />
-            ) : null}
-          </View>
-        ))}
-      </View>
-
-      {/* Header */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: 6, //or 12
-        }}
-      >
-        <Pressable
-          style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-          onPress={() => {
-            // Navigate to user profile
-            if (!story?.username) return;
-            // Pause story and navigate
-            isPaused.current = true;
-            cancelAnimation(progress);
-            try {
-              player?.pause();
-            } catch {}
-
-            // Check if it's the current user's profile
-            if (
-              story.username.toLowerCase() ===
-              currentUser?.username?.toLowerCase()
-            ) {
-              router.push("/(protected)/(tabs)/profile");
-            } else {
-              screenPrefetch.profile(queryClient, story.username);
-              router.push(`/(protected)/profile/${story.username}`);
-            }
-          }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Image
-            source={{ uri: story.avatar }}
-            style={{ width: 40, height: 40, borderRadius: 8 }}
-          />
-          <View>
-            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 14 }}>
-              {story.username}
-            </Text>
-            <Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 12 }}>
-              {(currentItem as any).header?.subheading}
-            </Text>
-          </View>
-        </Pressable>
-        <Pressable
-          onPress={() => {
-            if (isExitingRef.current) return; // Prevent multiple presses
-            markExiting();
-            cancelAnimation(progress);
-            if (router.canDismiss()) {
-              router.dismiss();
-            } else {
-              router.back();
-            }
-          }}
-          style={{ padding: 12, zIndex: 1000 }}
-          hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-        >
-          <X size={24} color="#fff" />
-        </Pressable>
-      </View>
-
-      {/* Content — full screen behind header */}
-      <View style={{ flex: 1 }}>
         {isVideo && videoUrl && player ? (
-          <View style={{ flex: 1 }}>
+          <>
             {currentItem?.thumbnail ? (
               <Image
                 source={{ uri: currentItem.thumbnail }}
-                style={{
-                  position: "absolute",
-                  width: "100%",
-                  height: "100%",
-                  zIndex: 0,
-                }}
+                style={{ position: "absolute", width: "100%", height: "100%" }}
                 contentFit="cover"
               />
             ) : null}
@@ -1095,7 +997,7 @@ export default function StoryViewerScreen() {
               visible={showSeekBar}
               barWidth={width - 32}
             />
-          </View>
+          </>
         ) : isImage &&
           currentItem?.url &&
           (currentItem.url.startsWith("http://") ||
@@ -1104,7 +1006,7 @@ export default function StoryViewerScreen() {
             source={{ uri: currentItem.url }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
-            transition={200}
+            transition={150}
             cachePolicy="memory-disk"
           />
         ) : currentItem?.type === "text" ? (
@@ -1119,7 +1021,7 @@ export default function StoryViewerScreen() {
             <Text
               style={{
                 color: currentItem.textColor || "#fff",
-                fontSize: 32,
+                fontSize: 36,
                 fontWeight: "bold",
                 textAlign: "center",
               }}
@@ -1129,39 +1031,214 @@ export default function StoryViewerScreen() {
           </View>
         ) : (
           <View
-            style={{
-              flex: 1,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
           >
-            <Text style={{ color: "#fff" }}>No content available</Text>
+            <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
+              No content
+            </Text>
           </View>
         )}
+
+        {/* Subtle top vignette for readability */}
+        <View
+          pointerEvents="none"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 180,
+            opacity: 0.45,
+            backgroundColor: "rgba(0,0,0,0.3)",
+          }}
+        />
       </View>
 
-      {/* Tagged users indicator */}
+      {/* ── TOP OVERLAY: progress bars + header ───────────────────────── */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 50,
+        }}
+        pointerEvents="box-none"
+      >
+        {/* Progress bars */}
+        <View
+          style={{
+            flexDirection: "row",
+            paddingHorizontal: 10,
+            paddingTop: insets.top + 6,
+            gap: 3,
+          }}
+        >
+          {story.items?.map((_: any, index: number) => (
+            <View
+              key={index}
+              style={{
+                flex: 1,
+                height: 2.5,
+                backgroundColor: "rgba(255,255,255,0.35)",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              {index < currentItemIndex ? (
+                <View
+                  style={{ flex: 1, backgroundColor: "rgba(255,255,255,0.92)" }}
+                />
+              ) : index === currentItemIndex ? (
+                <ProgressBar progress={progress} />
+              ) : null}
+            </View>
+          ))}
+        </View>
+
+        {/* Header row: avatar + name | X */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            paddingHorizontal: 14,
+            paddingTop: 10,
+            paddingBottom: 6,
+          }}
+          pointerEvents="box-none"
+        >
+          <Pressable
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              flex: 1,
+            }}
+            onPress={() => {
+              if (!story?.username) return;
+              isPaused.current = true;
+              cancelAnimation(progress);
+              try {
+                player?.pause();
+              } catch {}
+              if (
+                story.username.toLowerCase() ===
+                currentUser?.username?.toLowerCase()
+              ) {
+                router.push("/(protected)/(tabs)/profile");
+              } else {
+                screenPrefetch.profile(queryClient, story.username);
+                router.push(`/(protected)/profile/${story.username}`);
+              }
+            }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Image
+              source={{ uri: story.avatar }}
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                borderWidth: 1.5,
+                borderColor: "rgba(255,255,255,0.4)",
+              }}
+            />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontWeight: "700",
+                  fontSize: 14,
+                  textShadowColor: "rgba(0,0,0,0.5)",
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 4,
+                }}
+                numberOfLines={1}
+              >
+                {story.username}
+              </Text>
+              {(currentItem as any).header?.subheading ? (
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.75)",
+                    fontSize: 12,
+                    textShadowColor: "rgba(0,0,0,0.4)",
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 3,
+                  }}
+                  numberOfLines={1}
+                >
+                  {(currentItem as any).header?.subheading}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              if (isExitingRef.current) return;
+              markExiting();
+              cancelAnimation(progress);
+              if (router.canDismiss()) {
+                router.dismiss();
+              } else {
+                router.back();
+              }
+            }}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              backgroundColor: "rgba(30,30,30,0.55)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          >
+            <X size={18} color="#fff" strokeWidth={2.5} />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* ── TOUCH ZONES (prev / next) ─────────────────────────────────── */}
+      <View
+        style={{
+          position: "absolute",
+          top: insets.top + 90,
+          bottom: isOwnStory ? 0 : 110,
+          left: 0,
+          right: 0,
+          flexDirection: "row",
+          zIndex: 20,
+        }}
+        pointerEvents="box-none"
+      >
+        <Pressable onPress={handlePrev} style={{ flex: 1 }} />
+        <Pressable onPress={handleNext} style={{ flex: 1 }} />
+      </View>
+
+      {/* ── TAGGED USERS PILL ─────────────────────────────────────────── */}
       {storyTags.length > 0 && (
         <Pressable
           onPress={() => setShowTags((v) => !v)}
           style={{
             position: "absolute",
-            bottom: isOwnStory ? 16 : 90,
+            bottom: isOwnStory ? insets.bottom + 20 : 130,
             alignSelf: "center",
             flexDirection: "row",
             alignItems: "center",
             gap: 6,
-            backgroundColor: showTags ? "rgba(0,0,0,0.85)" : "rgba(0,0,0,0.5)",
+            backgroundColor: "rgba(0,0,0,0.6)",
             paddingHorizontal: 14,
             paddingVertical: 8,
             borderRadius: 20,
             borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.15)",
-            zIndex: 100,
+            borderColor: "rgba(255,255,255,0.18)",
+            zIndex: 60,
           }}
         >
           {showTags ? (
-            <View style={{ gap: 4 }}>
+            <View style={{ gap: 6 }}>
               {storyTags.map((tag) => (
                 <Pressable
                   key={tag.id}
@@ -1181,18 +1258,11 @@ export default function StoryViewerScreen() {
                       router.push(`/(protected)/profile/${tag.username}`);
                     }
                   }}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingVertical: 2,
-                  }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
                 >
                   <Image
-                    source={{
-                      uri: tag.avatar || "",
-                    }}
-                    style={{ width: 22, height: 22, borderRadius: 11 }}
+                    source={{ uri: tag.avatar || "" }}
+                    style={{ width: 22, height: 22, borderRadius: 6 }}
                   />
                   <Text
                     style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}
@@ -1205,10 +1275,8 @@ export default function StoryViewerScreen() {
           ) : (
             <>
               <Image
-                source={{
-                  uri: storyTags[0].avatar || "",
-                }}
-                style={{ width: 20, height: 20, borderRadius: 10 }}
+                source={{ uri: storyTags[0].avatar || "" }}
+                style={{ width: 20, height: 20, borderRadius: 5 }}
               />
               <Text style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}>
                 {storyTags.length === 1
@@ -1220,25 +1288,7 @@ export default function StoryViewerScreen() {
         </Pressable>
       )}
 
-      {/* Touch areas for navigation - full screen overlay */}
-      <View
-        style={{
-          position: "absolute",
-          top: 100,
-          bottom: isOwnStory ? 0 : 80,
-          left: 0,
-          right: 0,
-          flexDirection: "row",
-        }}
-        pointerEvents="box-none"
-      >
-        {/* Left tap area - previous */}
-        <Pressable onPress={handlePrev} style={{ flex: 1 }} />
-        {/* Right tap area - next */}
-        <Pressable onPress={handleNext} style={{ flex: 1 }} />
-      </View>
-
-      {/* Own story controls — viewer count (left) + delete (right) */}
+      {/* ── OWN STORY: viewer count + delete ──────────────────────────── */}
       {isOwnStory && (
         <>
           <Pressable
@@ -1252,22 +1302,22 @@ export default function StoryViewerScreen() {
             }}
             style={{
               position: "absolute",
-              bottom: insets.bottom + 16,
+              bottom: insets.bottom + 20,
               left: 16,
               flexDirection: "row",
               alignItems: "center",
               gap: 6,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: "rgba(0,0,0,0.55)",
               paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
+              paddingVertical: 9,
+              borderRadius: 22,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.15)",
-              zIndex: 100,
+              borderColor: "rgba(255,255,255,0.18)",
+              zIndex: 60,
             }}
           >
-            <Eye size={18} color="#fff" />
-            <Text style={{ color: "#fff", fontSize: 14, fontWeight: "600" }}>
+            <Eye size={16} color="#fff" />
+            <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
               {viewerCount}
             </Text>
           </Pressable>
@@ -1277,29 +1327,29 @@ export default function StoryViewerScreen() {
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
             style={{
               position: "absolute",
-              bottom: insets.bottom + 16,
+              bottom: insets.bottom + 20,
               right: 16,
               flexDirection: "row",
               alignItems: "center",
               gap: 6,
-              backgroundColor: "rgba(0,0,0,0.5)",
+              backgroundColor: "rgba(0,0,0,0.55)",
               paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
+              paddingVertical: 9,
+              borderRadius: 22,
               borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.15)",
-              zIndex: 100,
+              borderColor: "rgba(255,90,90,0.3)",
+              zIndex: 60,
             }}
           >
-            <Trash2 size={18} color="#FF4444" />
-            <Text style={{ color: "#FF4444", fontSize: 14, fontWeight: "600" }}>
+            <Trash2 size={16} color="#FF5555" />
+            <Text style={{ color: "#FF5555", fontSize: 13, fontWeight: "700" }}>
               Delete
             </Text>
           </Pressable>
         </>
       )}
 
-      {/* Story Viewers Sheet */}
+      {/* ── STORY VIEWERS SHEET ───────────────────────────────────────── */}
       <StoryViewersSheet
         storyId={storyParentId}
         visible={showViewersSheet}
@@ -1309,7 +1359,7 @@ export default function StoryViewerScreen() {
         }}
       />
 
-      {/* Floating emoji reactions */}
+      {/* ── FLOATING EMOJI REACTIONS ──────────────────────────────────── */}
       {floatingEmojis.map((e) => (
         <FloatingReactionEmoji
           key={e.id}
@@ -1318,7 +1368,7 @@ export default function StoryViewerScreen() {
         />
       ))}
 
-      {/* Reply input + reactions - only show for other users' stories */}
+      {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
       {!isOwnStory && story && resolvedUserId && (
         <KeyboardStickyView
           offset={{ closed: 0, opened: 0 }}
@@ -1327,17 +1377,18 @@ export default function StoryViewerScreen() {
             bottom: 0,
             left: 0,
             right: 0,
+            zIndex: 80,
           }}
         >
-          {/* Emoji reaction row */}
+          {/* Emoji reactions row — hidden while typing */}
           {!isInputFocused && (
             <View
               style={{
                 flexDirection: "row",
                 justifyContent: "center",
-                gap: 10,
-                marginBottom: 6,
-                paddingHorizontal: 16,
+                gap: 8,
+                paddingHorizontal: 20,
+                marginBottom: 10,
               }}
             >
               {REACTION_EMOJIS.map((emoji) => (
@@ -1345,52 +1396,58 @@ export default function StoryViewerScreen() {
                   key={emoji}
                   onPress={() => handleStoryReaction(emoji)}
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "rgba(255,255,255,0.12)",
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    backgroundColor: "rgba(40,40,40,0.7)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.12)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
                 </Pressable>
               ))}
             </View>
           )}
 
+          {/* Message input row — glass pill */}
           <View
             style={{
-              paddingBottom: insets.bottom + 8,
-              paddingTop: 8,
-              paddingHorizontal: 16,
               flexDirection: "row",
               alignItems: "center",
-              gap: 8,
+              gap: 10,
+              paddingHorizontal: 16,
+              paddingTop: 10,
+              paddingBottom: insets.bottom + 12,
+              backgroundColor: "rgba(18,18,18,0.72)",
             }}
           >
+            {/* Send Message pill input */}
             <View
               style={{
                 flex: 1,
                 flexDirection: "row",
                 alignItems: "center",
-                backgroundColor: "rgba(255,255,255,0.15)",
-                borderRadius: 24,
+                backgroundColor: "rgba(255,255,255,0.1)",
+                borderRadius: 26,
                 borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.3)",
-                paddingHorizontal: 16,
-                paddingVertical: 8,
+                borderColor: "rgba(255,255,255,0.18)",
+                paddingHorizontal: 18,
+                paddingVertical: 10,
+                minHeight: 46,
               }}
             >
               <TextInput
                 style={{
                   flex: 1,
                   color: "#fff",
-                  fontSize: 14,
-                  paddingVertical: 4,
+                  fontSize: 15,
+                  paddingVertical: 0,
                 }}
-                placeholder={`Reply to ${story.username}...`}
-                placeholderTextColor="rgba(255,255,255,0.6)"
+                placeholder="Send Message"
+                placeholderTextColor="rgba(255,255,255,0.45)"
                 value={replyText}
                 onChangeText={setReplyText}
                 onFocus={() => setIsInputFocused(true)}
@@ -1401,39 +1458,51 @@ export default function StoryViewerScreen() {
               />
             </View>
 
-            {replyText.trim().length > 0 ? (
-              <Pressable
-                onPress={handleSendReply}
-                disabled={isSendingReply}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#8A40CF",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  opacity: isSendingReply ? 0.5 : 1,
-                }}
-              >
-                <Send size={18} color="#fff" />
-              </Pressable>
-            ) : (
-              <Pressable
-                onPress={() => handleStoryReaction("❤️")}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "rgba(255,255,255,0.12)",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Heart size={20} color="#fff" />
-              </Pressable>
-            )}
+            {/* Emoji quick-react */}
+            <Pressable
+              onPress={() => handleStoryReaction("😍")}
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor: "rgba(255,255,255,0.1)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.18)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Text style={{ fontSize: 22 }}>😍</Text>
+            </Pressable>
+
+            {/* Send button */}
+            <Pressable
+              onPress={
+                replyText.trim().length > 0 ? handleSendReply : undefined
+              }
+              disabled={isSendingReply}
+              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                backgroundColor:
+                  replyText.trim().length > 0
+                    ? "#8A40CF"
+                    : "rgba(255,255,255,0.1)",
+                borderWidth: 1,
+                borderColor:
+                  replyText.trim().length > 0
+                    ? "rgba(138,64,207,0.6)"
+                    : "rgba(255,255,255,0.18)",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSendingReply ? 0.5 : 1,
+              }}
+            >
+              <Send size={18} color="#fff" strokeWidth={2} />
+            </Pressable>
           </View>
         </KeyboardStickyView>
       )}

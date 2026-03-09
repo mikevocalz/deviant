@@ -1,187 +1,71 @@
-import { Tabs, Link, useRouter, usePathname } from "expo-router";
-import { Dimensions, View, Pressable, Text, Platform } from "react-native";
-import {
-  Home,
-  Search,
-  Plus,
-  Heart,
-  User,
-  MessageSquare,
-  CalendarDays,
-} from "lucide-react-native";
-import { useColorScheme } from "@/lib/hooks";
-import Logo from "@/components/logo";
+import { useRouter } from "expo-router";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
+import { Plus } from "lucide-react-native";
 import { CenterButton } from "@/components/center-button";
-import { useUnreadMessageCount } from "@/lib/hooks/use-messages";
-import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
-import { PhoneTabBar, TabletTabBar } from "@/components/tab-bar";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
 
-function HeaderLogo() {
-  const pathname = usePathname();
-  const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
-  const isHome = pathname === "/" || pathname === "/(protected)/(tabs)";
-  return (
-    <Pressable
-      onPress={() => {
-        if (isHome) triggerScrollToTop();
-      }}
-      hitSlop={12}
-    >
-      <Logo width={100} height={36} />
-    </Pressable>
-  );
-}
+function CenterButtonAccessory() {
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+  const router = useRouter();
 
-function HeaderRight() {
-  const { colors } = useColorScheme();
-  const { data: unreadCount = 0 } = useUnreadMessageCount();
   return (
-    <View className="mr-4 flex-row items-center gap-5">
-      {/* CRITICAL: Use <Link> not router.push() — Link resolves navigation
-          at press time from the current context, never captures a stale
-          router reference. This survives OTA reloads. */}
-      <Link href="/(protected)/search" asChild>
-        <Pressable
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-          className="p-1.5"
-        >
-          <Search size={24} color={colors.foreground} />
-        </Pressable>
-      </Link>
-      <Link href="/(protected)/messages" asChild>
-        <Pressable
-          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-          className="relative p-1.5"
-        >
-          <MessageSquare size={24} color={colors.foreground} />
-          {unreadCount > 0 && (
-            <View className="absolute -right-1 -top-1 h-4 w-4 items-center justify-center rounded-full bg-accent">
-              <Text className="text-[10px] font-bold text-accent-foreground">
-                {unreadCount > 99 ? "99+" : unreadCount}
-              </Text>
-            </View>
-          )}
-        </Pressable>
-      </Link>
-    </View>
+    <CenterButton
+      Icon={Plus}
+      onPress={() => router.push("/(protected)/(tabs)/create")}
+      accessoryPlacement={placement}
+    />
   );
 }
 
 export default function TabsLayout() {
   const router = useRouter();
-  const { colors } = useColorScheme();
-  const isLargeScreen = useIsLargeScreen();
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
 
   return (
-    <Tabs
-      screenOptions={{
-        sceneStyle: {
-          width: isLargeScreen ? Dimensions.get("screen").width - 72 : "100%",
-        },
-        headerShown: true,
-        headerTitleAlign: "left",
-        headerLeft: () => null,
-        headerStatusBarHeight: Platform.OS === "ios" ? 44 : 24,
-        headerStyle: {
-          backgroundColor: colors.background,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        },
-        headerTitle: () => <HeaderLogo />,
-        headerRight: () => <HeaderRight />,
-        tabBarShowLabel: false,
-        tabBarActiveTintColor: colors.foreground,
-        tabBarInactiveTintColor: colors.mutedForeground,
-      }}
-      tabBar={(props) =>
-        isLargeScreen ? <TabletTabBar {...props} /> : <PhoneTabBar {...props} />
-      }
-    >
-      <Tabs.Screen
+    <NativeTabs>
+      <NativeTabs.BottomAccessory>
+        <CenterButtonAccessory />
+      </NativeTabs.BottomAccessory>
+
+      <NativeTabs.Trigger
         name="index"
         listeners={{
-          tabPress: (e) => {
-            // If already on home tab, scroll feed to top instead of navigating
-            const pathname = router.canGoBack?.() ? "" : "/";
+          tabPress: () => {
             triggerScrollToTop();
           },
         }}
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View className="items-center justify-center">
-              <Home
-                size={24}
-                color={focused ? colors.foreground : colors.mutedForeground}
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="events"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View className="items-center justify-center">
-              <CalendarDays
-                size={24}
-                color={focused ? colors.foreground : colors.mutedForeground}
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="create"
-        listeners={{
-          tabPress: (e) => {
-            e.preventDefault();
-            router.push("/(protected)/(tabs)/create");
-          },
-        }}
-        options={{
-          title: "",
-          tabBarButton: (props) => (
-            <CenterButton
-              onPress={() => router.push("/(protected)/(tabs)/create")}
-              Icon={Plus}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="activity"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View className="items-center justify-center">
-              <Heart
-                size={24}
-                color={focused ? colors.foreground : colors.mutedForeground}
-                strokeWidth={focused ? 2.5 : 2}
-                fill={focused ? colors.foreground : "none"}
-              />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          tabBarIcon: ({ focused }) => (
-            <View className="items-center justify-center">
-              <User
-                size={24}
-                color={focused ? colors.foreground : colors.mutedForeground}
-                strokeWidth={focused ? 2.5 : 2}
-              />
-            </View>
-          ),
-        }}
-      />
-    </Tabs>
+      >
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "house", selected: "house.fill" }}
+          md="home"
+        />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="events">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "calendar", selected: "calendar.badge.clock" }}
+          md="calendar_month"
+        />
+        <NativeTabs.Trigger.Label>Events</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="activity">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "heart", selected: "heart.fill" }}
+          md="favorite"
+        />
+        <NativeTabs.Trigger.Label>Activity</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "person", selected: "person.fill" }}
+          md="person"
+        />
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }
