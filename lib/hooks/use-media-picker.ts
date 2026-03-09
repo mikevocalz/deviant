@@ -3,17 +3,22 @@ import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Platform } from "react-native";
 import { toast } from "sonner-native";
+import { detectMediaKind } from "@/lib/media/detect-media-kind";
+import type { MediaKind } from "@/lib/media/types";
 
 export interface MediaAsset {
   id: string;
   uri: string;
   type: "image" | "video";
+  kind: MediaKind;
+  mimeType?: string;
   width?: number;
   height?: number;
   duration?: number;
   fileName?: string;
   fileSize?: number;
   originalUri?: string;
+  pairedVideoUri?: string; // Live Photo video component (iOS only)
   cropState?: {
     scale: number;
     translateX: number;
@@ -78,15 +83,27 @@ export function useMediaPicker() {
       });
 
       if (!result.canceled && result.assets) {
-        const newMedia: MediaAsset[] = result.assets.map((asset) => ({
-          id: asset.assetId || asset.uri,
-          uri: asset.uri,
-          type: asset.type === "video" ? "video" : "image",
-          width: asset.width,
-          height: asset.height,
-          duration: asset.duration ? asset.duration / 1000 : undefined,
-          fileName: asset.fileName ?? undefined,
-        }));
+        const newMedia: MediaAsset[] = result.assets
+          .filter((asset) => asset.type !== "pairedVideo") // paired video handled via pairedVideoAsset
+          .map((asset) => {
+            const kind = detectMediaKind(
+              asset.type,
+              asset.mimeType,
+              asset.fileName,
+            );
+            return {
+              id: asset.assetId || asset.uri,
+              uri: asset.uri,
+              type: asset.type === "video" ? "video" : "image",
+              kind,
+              mimeType: asset.mimeType ?? undefined,
+              width: asset.width,
+              height: asset.height,
+              duration: asset.duration ? asset.duration / 1000 : undefined,
+              fileName: asset.fileName ?? undefined,
+              pairedVideoUri: asset.pairedVideoAsset?.uri ?? undefined,
+            };
+          });
 
         setSelectedMedia((prev) => [...prev, ...newMedia]);
         return newMedia;
@@ -111,10 +128,17 @@ export function useMediaPicker() {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
+        const kind = detectMediaKind(
+          asset.type,
+          asset.mimeType,
+          asset.fileName,
+        );
         const newMedia: MediaAsset = {
           id: asset.assetId || asset.uri,
           uri: asset.uri,
           type: "image",
+          kind,
+          mimeType: asset.mimeType ?? undefined,
           width: asset.width,
           height: asset.height,
           fileName: asset.fileName ?? undefined,
@@ -147,6 +171,8 @@ export function useMediaPicker() {
           id: asset.assetId || asset.uri,
           uri: asset.uri,
           type: "video",
+          kind: "video",
+          mimeType: asset.mimeType ?? undefined,
           width: asset.width,
           height: asset.height,
           duration: asset.duration ? asset.duration / 1000 : undefined,
@@ -216,11 +242,14 @@ export function useMediaPicker() {
             id: asset.assetId || asset.uri,
             uri: asset.uri,
             type: asset.type === "video" ? "video" : "image",
+            kind: detectMediaKind(asset.type, asset.mimeType, asset.fileName),
+            mimeType: asset.mimeType ?? undefined,
             width: asset.width,
             height: asset.height,
             duration: asset.duration ? asset.duration / 1000 : undefined,
             fileName: asset.fileName ?? undefined,
             fileSize: asset.fileSize ?? undefined,
+            pairedVideoUri: asset.pairedVideoAsset?.uri ?? undefined,
           });
         }
 
@@ -278,6 +307,8 @@ export function useMediaPicker() {
           id: asset.assetId || asset.uri,
           uri: asset.uri,
           type: "video",
+          kind: "video",
+          mimeType: asset.mimeType ?? undefined,
           width: asset.width,
           height: asset.height,
           duration: asset.duration ? asset.duration / 1000 : undefined,

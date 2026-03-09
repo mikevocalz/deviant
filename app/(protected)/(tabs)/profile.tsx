@@ -62,6 +62,7 @@ import {
   type SafeGridTile,
 } from "@/lib/utils/safe-profile-mappers";
 import { appendCacheBuster, getAvatarUrl } from "@/lib/media/resolveAvatarUrl";
+import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
 const GRID_GAP = 2; // gap between grid items
@@ -1224,6 +1225,9 @@ function ProfileScreenContent() {
                       <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
                         <Grid3x3 size={16} color="#fff" />
                       </View>
+                    )}
+                    {(item.kind === "gif" || item.kind === "livePhoto") && (
+                      <DVNTMediaBadge kind={item.kind} />
                     )}
                   </Pressable>
                 </Motion.View>

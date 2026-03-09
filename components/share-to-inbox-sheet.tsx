@@ -36,7 +36,7 @@ interface ShareToInboxSheetProps {
     authorAvatar: string;
     caption?: string;
     mediaUrl?: string;
-    mediaType?: "image" | "video";
+    mediaType?: import("@/lib/media/types").MediaKind;
   } | null;
 }
 

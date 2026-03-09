@@ -32,7 +32,7 @@ export interface SafeProfileData {
  */
 export interface SafeGridTile {
   id: string;
-  kind: "image" | "carousel" | "video";
+  kind: "image" | "gif" | "livePhoto" | "carousel" | "video";
   coverUrl: string | null;
   videoUrl: string | null;
   mediaCount: number;
@@ -135,11 +135,16 @@ export function safeGridTile(post: any): SafeGridTile {
     const mediaCount = media.length;
 
     // Determine kind
-    let kind: "image" | "carousel" | "video" = "image";
+    let kind: "image" | "gif" | "livePhoto" | "carousel" | "video" = "image";
+    const firstType = media[0]?.type;
     if (mediaCount > 1) {
       kind = "carousel";
-    } else if (media[0]?.type === "video") {
+    } else if (firstType === "video") {
       kind = "video";
+    } else if (firstType === "gif") {
+      kind = "gif";
+    } else if (firstType === "livePhoto") {
+      kind = "livePhoto";
     }
 
     // Extract cover URL with fallbacks

@@ -39,6 +39,7 @@ import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
 
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
@@ -76,10 +77,7 @@ interface FeedPostProps {
     verified?: boolean;
     id?: string;
   };
-  media: {
-    type: "image" | "video";
-    url: string;
-  }[];
+  media: import("@/lib/types").PostMediaItem[];
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
@@ -648,16 +646,12 @@ function FeedPostComponent({
                         onPressOut={handlePressOut}
                       >
                         {isValidUrl ? (
-                          <Image
-                            source={{ uri: medium.url }}
-                            style={{
-                              width: cardInnerWidth,
-                              height: PORTRAIT_HEIGHT,
-                            }}
+                          <DVNTMediaRenderer
+                            item={medium}
+                            width={cardInnerWidth}
+                            height={PORTRAIT_HEIGHT}
                             contentFit="cover"
-                            contentPosition="top"
-                            transition={200}
-                            cachePolicy="memory-disk"
+                            showBadge={index === 0}
                           />
                         ) : (
                           <View
@@ -706,16 +700,12 @@ function FeedPostComponent({
                 {media[0]?.url &&
                 (media[0].url.startsWith("http://") ||
                   media[0].url.startsWith("https://")) ? (
-                  <Image
-                    source={{ uri: media[0].url }}
-                    style={{
-                      width: "100%",
-                      height: PORTRAIT_HEIGHT,
-                    }}
+                  <DVNTMediaRenderer
+                    item={media[0]}
+                    width="100%"
+                    height={PORTRAIT_HEIGHT}
                     contentFit="cover"
-                    contentPosition="top"
-                    transition={200}
-                    cachePolicy="memory-disk"
+                    showBadge
                   />
                 ) : (
                   <View

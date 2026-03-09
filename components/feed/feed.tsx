@@ -42,7 +42,7 @@ const FALLBACK_AUTHOR = {
   username: "unknown",
   avatar: "",
 } as const;
-const EMPTY_MEDIA: { type: string; url: string }[] = [];
+const EMPTY_MEDIA: import("@/lib/types").PostMediaItem[] = [];
 
 const AnimatedFeedPost = memo(function AnimatedFeedPost({
   item,

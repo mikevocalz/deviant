@@ -46,6 +46,8 @@ export const DB = {
     url: "url",
     imageId: "image_id",
     order: "_order",
+    mimeType: "mime_type",
+    livePhotoVideoUrl: "live_photo_video_url",
   },
   stories: {
     table: "stories",
@@ -60,6 +62,7 @@ export const DB = {
     viewCount: "view_count",
     viewersCount: "viewers_count",
     createdAt: "created_at",
+    livePhotoVideoUrl: "live_photo_video_url",
   },
   likes: {
     table: "likes",

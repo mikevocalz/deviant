@@ -135,6 +135,7 @@ export async function processImage(
   return {
     uri: processed.uri,
     type: "image",
+    kind: "image" as const,
     mimeType: "image/webp",
     width: processed.width,
     height: processed.height,

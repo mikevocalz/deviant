@@ -312,7 +312,7 @@ export function useCreatePost() {
             },
             media: (newPostData.media || []).map((m) => ({
               ...m,
-              type: m.type as "image" | "video",
+              type: (m.type as any) ?? "image",
             })),
             caption: newPostData.content || "",
             likes: 0,
@@ -347,7 +347,8 @@ export function useCreatePost() {
           },
           media: (newPostData.media || []).map((m) => ({
             ...m,
-            type: m.type as "image" | "video",
+            type: ((m.type as any) ??
+              "image") as import("@/lib/types").MediaKind,
           })),
           caption: newPostData.content || "",
           likes: 0,

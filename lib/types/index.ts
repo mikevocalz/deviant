@@ -11,6 +11,16 @@ export type Comment = {
   replies?: Comment[];
 };
 
+export type MediaKind = "image" | "gif" | "video" | "livePhoto";
+
+export type PostMediaItem = {
+  type: MediaKind;
+  url: string;
+  thumbnail?: string;
+  mimeType?: string;
+  livePhotoVideoUrl?: string;
+};
+
 export type Post = {
   id: string;
   author: {
@@ -20,7 +30,7 @@ export type Post = {
     verified?: boolean;
     name?: string;
   };
-  media: { type: "image" | "video"; url: string; thumbnail?: string }[];
+  media: PostMediaItem[];
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
@@ -30,14 +40,18 @@ export type Post = {
   location?: string;
   isNSFW?: boolean;
   thumbnail?: string; // First media thumbnail for grid display
-  type?: "image" | "video"; // Primary media type
+  type?: MediaKind; // Primary media type
   hasMultipleImages?: boolean; // Has carousel/multiple media
 };
+
+export type StoryItemType = "image" | "gif" | "video" | "livePhoto" | "text";
 
 export type StoryItem = {
   url?: string;
   thumbnail?: string;
-  type: "image" | "video" | "text";
+  type: StoryItemType;
+  mimeType?: string;
+  livePhotoVideoUrl?: string;
   duration: number;
   visibility?: "public" | "close_friends";
   text?: string;
@@ -62,9 +76,11 @@ export type Story = {
   stories?: StoryItem[];
   items?: Array<{
     id?: string;
-    type: "image" | "video" | "text";
+    type: StoryItemType;
     url?: string;
     thumbnail?: string;
+    mimeType?: string;
+    livePhotoVideoUrl?: string;
     text?: string;
     textColor?: string;
     backgroundColor?: string;
