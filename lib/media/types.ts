@@ -3,24 +3,32 @@
  * Production-grade TypeScript definitions
  */
 
-export type MediaType = 'image' | 'video';
+export type MediaType = "image" | "video";
+export type MediaKind = "image" | "gif" | "video" | "livePhoto";
 
-export type BucketName = 'avatars' | 'images' | 'videos' | 'stories' | 'temp';
+export type BucketName =
+  | "avatars"
+  | "images"
+  | "videos"
+  | "stories"
+  | "gifs"
+  | "temp";
 
-export type MediaUseCase = 'avatar' | 'feed' | 'story' | 'message';
+export type MediaUseCase = "avatar" | "feed" | "story" | "message" | "event";
 
 export interface MediaConstraints {
   maxSizeBytes: number;
   maxWidth: number;
   maxHeight: number;
   maxDurationSeconds?: number; // For videos only
-  targetFormat: 'webp' | 'mp4';
+  targetFormat: "webp" | "mp4";
   compressionQuality: number; // 0.0 - 1.0
 }
 
 export interface ProcessedMedia {
   uri: string;
   type: MediaType;
+  kind: MediaKind;
   mimeType: string;
   width: number;
   height: number;
@@ -28,6 +36,7 @@ export interface ProcessedMedia {
   durationSeconds?: number;
   hash: string;
   posterUri?: string; // For videos
+  pairedVideoUri?: string; // For Live Photos (iOS)
 }
 
 export interface UploadedMedia {
@@ -39,6 +48,8 @@ export interface UploadedMedia {
   height: number;
   sizeBytes: number;
   durationSeconds?: number;
+  kind?: MediaKind;
+  livePhotoVideoUrl?: string;
 }
 
 // Hard limits by use case (cost-optimized)
@@ -47,14 +58,14 @@ export const MEDIA_CONSTRAINTS: Record<MediaUseCase, MediaConstraints> = {
     maxSizeBytes: 2 * 1024 * 1024, // 2MB
     maxWidth: 512,
     maxHeight: 512,
-    targetFormat: 'webp',
+    targetFormat: "webp",
     compressionQuality: 0.75,
   },
   feed: {
     maxSizeBytes: 5 * 1024 * 1024, // 5MB
     maxWidth: 1280,
     maxHeight: 1280,
-    targetFormat: 'webp',
+    targetFormat: "webp",
     compressionQuality: 0.7,
   },
   story: {
@@ -62,7 +73,7 @@ export const MEDIA_CONSTRAINTS: Record<MediaUseCase, MediaConstraints> = {
     maxWidth: 1080,
     maxHeight: 1920,
     maxDurationSeconds: 60,
-    targetFormat: 'mp4',
+    targetFormat: "mp4",
     compressionQuality: 0.7,
   },
   message: {
@@ -70,8 +81,15 @@ export const MEDIA_CONSTRAINTS: Record<MediaUseCase, MediaConstraints> = {
     maxWidth: 1280,
     maxHeight: 1280,
     maxDurationSeconds: 30,
-    targetFormat: 'webp',
+    targetFormat: "webp",
     compressionQuality: 0.65,
+  },
+  event: {
+    maxSizeBytes: 8 * 1024 * 1024, // 8MB
+    maxWidth: 1440,
+    maxHeight: 1440,
+    targetFormat: "webp",
+    compressionQuality: 0.75,
   },
 };
 

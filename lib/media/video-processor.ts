@@ -206,6 +206,7 @@ export async function processVideo(
   return {
     uri: sourceUri,
     type: "video",
+    kind: "video" as const,
     mimeType: "video/mp4",
     width: info.width,
     height: info.height,

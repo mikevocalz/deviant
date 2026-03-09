@@ -1,15 +1,6 @@
 import { create } from "zustand";
 import type { TaggedUser } from "@/components/stories/story-tag-picker";
-
-interface MediaAsset {
-  id: string;
-  uri: string;
-  type: "image" | "video";
-  width?: number;
-  height?: number;
-  duration?: number;
-  fileSize?: number;
-}
+import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 
 interface CreateStoryState {
   selectedMedia: string[];

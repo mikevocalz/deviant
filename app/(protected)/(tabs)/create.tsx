@@ -287,6 +287,7 @@ export default function CreateScreen() {
           id: result.uri,
           uri: result.uri,
           type: result.type,
+          kind: result.type === "video" ? "video" : "image",
           width: result.width,
           height: result.height,
           duration: result.duration,
@@ -391,6 +392,9 @@ export default function CreateScreen() {
       const mediaFiles = selectedMedia.map((m) => ({
         uri: m.uri,
         type: m.type as "image" | "video",
+        kind: m.kind,
+        mimeType: m.mimeType,
+        pairedVideoUri: m.pairedVideoUri,
       }));
 
       console.log("[Create] Uploading media to CDN...");
@@ -420,11 +424,13 @@ export default function CreateScreen() {
         return;
       }
 
-      // Create post with CDN URLs (include thumbnail for videos)
+      // Create post with CDN URLs (include thumbnail, kind, livePhotoVideoUrl)
       const postMedia = uploadResults.map((r) => ({
-        type: r.type,
+        type: r.kind ?? r.type,
         url: r.url,
         ...(r.thumbnail && { thumbnail: r.thumbnail }),
+        ...(r.mimeType && { mimeType: r.mimeType }),
+        ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
       }));
 
       console.log("[Create] Creating post with CDN URLs:", postMedia);

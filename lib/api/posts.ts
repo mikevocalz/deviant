@@ -32,10 +32,25 @@ async function fetchViewerLikedPostIds(
  */
 function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
-  const allMedia = (dbPost.media || []).map((m: any) => ({
-    type: m[DB.postsMedia.type] || "image",
-    url: m[DB.postsMedia.url] || "",
-  }));
+  const allMedia = (dbPost.media || []).map((m: any) => {
+    const rawType: string = m[DB.postsMedia.type] || "image";
+    const mimeType: string | undefined = m[DB.postsMedia.mimeType] ?? undefined;
+    const livePhotoVideoUrl: string | undefined =
+      m[DB.postsMedia.livePhotoVideoUrl] ?? undefined;
+
+    // Derive kind: existing rows have no mime_type — fall back to type field
+    let kind: import("@/lib/types").MediaKind = "image";
+    if (rawType === "video") kind = "video";
+    else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
+    else if (rawType === "livePhoto" || livePhotoVideoUrl) kind = "livePhoto";
+
+    return {
+      type: kind,
+      url: m[DB.postsMedia.url] || "",
+      mimeType,
+      livePhotoVideoUrl,
+    };
+  });
 
   // Separate thumbnail entries from visible media
   const thumbnailEntry = allMedia.find((m: any) => m.type === "thumbnail");
@@ -128,7 +143,9 @@ export const postsApi = {
           media:posts_media(
             ${DB.postsMedia.type},
             ${DB.postsMedia.url},
-            ${DB.postsMedia.order}
+            ${DB.postsMedia.order},
+            ${DB.postsMedia.mimeType},
+            ${DB.postsMedia.livePhotoVideoUrl}
           )
         `,
           { count: "exact" },
@@ -190,7 +207,9 @@ export const postsApi = {
           media:posts_media(
             ${DB.postsMedia.type},
             ${DB.postsMedia.url},
-            ${DB.postsMedia.order}
+            ${DB.postsMedia.order},
+            ${DB.postsMedia.mimeType},
+            ${DB.postsMedia.livePhotoVideoUrl}
           )
         `,
         )
@@ -242,7 +261,9 @@ export const postsApi = {
             media:posts_media(
               ${DB.postsMedia.type},
               ${DB.postsMedia.url},
-              ${DB.postsMedia.order}
+              ${DB.postsMedia.order},
+              ${DB.postsMedia.mimeType},
+              ${DB.postsMedia.livePhotoVideoUrl}
             )
           `,
           )
@@ -273,7 +294,9 @@ export const postsApi = {
             media:posts_media(
               ${DB.postsMedia.type},
               ${DB.postsMedia.url},
-              ${DB.postsMedia.order}
+              ${DB.postsMedia.order},
+              ${DB.postsMedia.mimeType},
+              ${DB.postsMedia.livePhotoVideoUrl}
             )
           `,
           )
@@ -298,7 +321,9 @@ export const postsApi = {
             media:posts_media(
               ${DB.postsMedia.type},
               ${DB.postsMedia.url},
-              ${DB.postsMedia.order}
+              ${DB.postsMedia.order},
+              ${DB.postsMedia.mimeType},
+              ${DB.postsMedia.livePhotoVideoUrl}
             )
           `,
           )
@@ -355,7 +380,9 @@ export const postsApi = {
           media:posts_media(
             ${DB.postsMedia.type},
             ${DB.postsMedia.url},
-            ${DB.postsMedia.order}
+            ${DB.postsMedia.order},
+            ${DB.postsMedia.mimeType},
+            ${DB.postsMedia.livePhotoVideoUrl}
           )
         `,
         )
@@ -411,7 +438,13 @@ export const postsApi = {
    */
   async createPost(data: {
     content?: string;
-    media?: Array<{ type: "image" | "video"; url: string }>;
+    media?: Array<{
+      type: string;
+      url: string;
+      thumbnail?: string;
+      mimeType?: string;
+      livePhotoVideoUrl?: string;
+    }>;
     location?: string;
     isNSFW?: boolean;
   }) {
@@ -458,7 +491,10 @@ export const postsApi = {
           verified: false,
           name: "You",
         },
-        media: data.media || [],
+        media: (data.media || []).map((m) => ({
+          ...m,
+          type: (m.type as any) ?? "image",
+        })) as import("@/lib/types").PostMediaItem[],
         caption: data.content || "",
         likes: 0,
         comments: [],
@@ -469,7 +505,7 @@ export const postsApi = {
           data.media?.[0]?.type === "video"
             ? (data.media[0] as any).thumbnail || data.media[0].url
             : data.media?.[0]?.url || "",
-        type: data.media?.[0]?.type || "image",
+        type: (data.media?.[0]?.type as any) || "image",
         hasMultipleImages: (data.media?.length || 0) > 1,
       };
     } catch (error) {

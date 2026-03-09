@@ -42,12 +42,18 @@ export interface UseMediaUploadOptions {
 export interface MediaFile {
   uri: string;
   type: "image" | "video";
+  kind?: import("@/lib/media/types").MediaKind;
+  mimeType?: string;
+  pairedVideoUri?: string; // Live Photo paired video (iOS)
 }
 
 export interface MediaUploadResult {
   type: "image" | "video";
+  kind?: import("@/lib/media/types").MediaKind;
   url: string;
   thumbnail?: string;
+  mimeType?: string;
+  livePhotoVideoUrl?: string;
   success: boolean;
   error?: string;
   compressionStats?: {
@@ -233,6 +239,76 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           console.log(
             "[useMediaUpload] ========== VIDEO PIPELINE COMPLETE ==========",
           );
+        } else if (file.kind === "gif") {
+          // ========== GIF PROCESSING (NO compression — would destroy frames) ==========
+          console.log("[useMediaUpload] GIF detected — skipping compression");
+          setStatusMessage("Uploading GIF...");
+          const uploadResult = await serverUpload(file.uri, folder);
+          if (!uploadResult.success) {
+            results.push({
+              type: "image",
+              kind: "gif",
+              url: "",
+              success: false,
+              error: uploadResult.error,
+              mimeType: "image/gif",
+            });
+          } else {
+            results.push({
+              type: "image",
+              kind: "gif",
+              url: uploadResult.url,
+              success: true,
+              mimeType: "image/gif",
+            });
+          }
+          updateProgress("GIF uploaded");
+        } else if (file.kind === "livePhoto" && file.pairedVideoUri) {
+          // ========== LIVE PHOTO PROCESSING (upload still + paired video) ==========
+          console.log(
+            "[useMediaUpload] Live Photo detected — uploading still + paired video",
+          );
+          setStatusMessage("Uploading Live Photo...");
+
+          // Upload the still image
+          let stillUri = file.uri;
+          try {
+            const compressed = await manipulateAsync(
+              file.uri,
+              [{ resize: { width: 1440 } }],
+              { compress: 0.85, format: SaveFormat.JPEG },
+            );
+            stillUri = compressed.uri;
+          } catch {
+            // fall back to original if compression fails
+          }
+          const stillResult = await serverUpload(stillUri, folder);
+
+          // Upload the paired video (no compression — short clip, Live Photo quality must be preserved)
+          setStatusMessage("Uploading Live Photo video...");
+          const videoResult = await serverUpload(file.pairedVideoUri, folder);
+
+          if (!stillResult.success) {
+            results.push({
+              type: "image",
+              kind: "livePhoto",
+              url: "",
+              success: false,
+              error: stillResult.error,
+            });
+          } else {
+            results.push({
+              type: "image",
+              kind: "livePhoto",
+              url: stillResult.url,
+              livePhotoVideoUrl: videoResult.success
+                ? videoResult.url
+                : undefined,
+              mimeType: file.mimeType,
+              success: true,
+            });
+          }
+          updateProgress("Live Photo uploaded");
         } else {
           // ========== IMAGE PROCESSING (compress + upload) ==========
           setStatusMessage("Optimizing image...");
@@ -261,6 +337,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           if (!uploadResult.success) {
             results.push({
               type: "image",
+              kind: "image",
               url: "",
               success: false,
               error: uploadResult.error,
@@ -268,6 +345,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           } else {
             results.push({
               type: "image",
+              kind: "image",
               url: uploadResult.url,
               success: true,
             });

@@ -28,7 +28,7 @@ export interface SharedPostContext {
   authorAvatar: string;
   caption?: string;
   mediaUrl?: string;
-  mediaType?: "image" | "video";
+  mediaType?: import("@/lib/media/types").MediaKind;
 }
 
 export interface MessageReaction {
