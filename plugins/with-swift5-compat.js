@@ -53,6 +53,21 @@ const POST_INSTALL_SNIPPET = `
         config.build_settings['SWIFT_VERSION'] = '5.9'
         config.build_settings['SWIFT_STRICT_CONCURRENCY'] = 'minimal'
       end
+    end
+
+    # ── Nitro/Rive ODR fix ──────────────────────────────────────────
+    # RiveRuntime.xcframework is pre-built with Swift 5.x C++ interop
+    # headers. On Xcode 26 (Swift 6), NitroModules compiles with Swift 6
+    # headers causing ODR violations (swift::Optional, swift::String
+    # definitions differ). Force Swift 5.9 for nitro-related pods so
+    # their Swift C++ headers match the pre-built RiveRuntime.xcframework.
+    nitro_pods = ['ReactNativeNitroModules', 'react-native-nitro-modules',
+                  'NitroModules', 'RNMMKV', 'react-native-mmkv']
+    installer.pods_project.targets.each do |target|
+      next unless nitro_pods.any? { |n| target.name.start_with?(n) }
+      target.build_configurations.each do |config|
+        config.build_settings['SWIFT_VERSION'] = '5.9'
+      end
     end`;
 
 function findExpoModulesCoreDir(projectRoot) {
@@ -140,7 +155,7 @@ function patchSourceFiles(emcDir) {
 function injectPodfileHook(podfilePath) {
   let podfile = fs.readFileSync(podfilePath, "utf8");
 
-  const marker = "# ── Swift 5.9 compat: disable strict concurrency";
+  const marker = "# ── Nitro/Rive ODR fix";
 
   if (podfile.includes(marker)) return;
 

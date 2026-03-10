@@ -58,7 +58,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "stable"
+        "image": "latest"
       },
       "env": {
         "APP_ENV": "production",
