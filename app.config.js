@@ -166,6 +166,7 @@ export default {
           supportsPictureInPicture: false,
         },
       ],
+      "react-native-video",
       [
         "expo-image-picker",
         {
