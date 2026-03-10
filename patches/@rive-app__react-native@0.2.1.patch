@@ -1,0 +1,39 @@
+diff --git a/ios/DataSource.swift b/ios/DataSource.swift
+index 9aa1b74a45e974073791fe3ce4ce1328f037c5b2..20b6532b6ab268e7239d717ed7052aa8f4cf67a0 100644
+--- a/ios/DataSource.swift
++++ b/ios/DataSource.swift
+@@ -24,7 +24,7 @@ enum DataSource {
+     return .bundle(resource: name, extension: ext.isEmpty ? nil : ext)
+   }
+ 
+-  static func bytes(from buffer: ArrayBufferHolder) -> DataSource {
++  static func bytes(from buffer: ArrayBuffer) -> DataSource {
+     return .bytes(data: buffer.toData(copyIfNeeded: false))
+   }
+ 
+diff --git a/ios/HybridRiveFileFactory.swift b/ios/HybridRiveFileFactory.swift
+index 305871a1cc70f7a13a58d7c24bbbde8122a52769..3b7cb7365b8014193f99f733774ceb38807e3c66 100644
+--- a/ios/HybridRiveFileFactory.swift
++++ b/ios/HybridRiveFileFactory.swift
+@@ -145,7 +145,7 @@ final class HybridRiveFileFactory: HybridRiveFileFactorySpec, @unchecked Sendabl
+     return try fromResource(resource: resource, loadCdn: loadCdn, referencedAssets: nil)
+   }
+ 
+-  func fromBytes(bytes: ArrayBufferHolder, loadCdn: Bool, referencedAssets: ReferencedAssetsType?)
++  func fromBytes(bytes: ArrayBuffer, loadCdn: Bool, referencedAssets: ReferencedAssetsType?)
+     throws -> Promise<
+       (any HybridRiveFileSpec)
+     > {
+diff --git a/ios/HybridRiveImageFactory.swift b/ios/HybridRiveImageFactory.swift
+index 4d2ab96c16b5fe0a45ad0c3d7d2371a794e73518..db19042ae5624552568557aee9c71272f3bc6726 100644
+--- a/ios/HybridRiveImageFactory.swift
++++ b/ios/HybridRiveImageFactory.swift
+@@ -20,7 +20,7 @@ final class HybridRiveImageFactory: HybridRiveImageFactorySpec {
+     return loadFromDataSource(.bundle(nameWithExtension: resource))
+   }
+ 
+-  func loadFromBytesAsync(bytes: ArrayBufferHolder) throws -> Promise<(any HybridRiveImageSpec)> {
++  func loadFromBytesAsync(bytes: ArrayBuffer) throws -> Promise<(any HybridRiveImageSpec)> {
+     return loadFromDataSource(.bytes(from: bytes))
+   }
+ }
