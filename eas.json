@@ -58,7 +58,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "latest"
+        "image": "macos-sonoma-14.6-xcode-16.1"
       },
       "env": {
         "APP_ENV": "production",
