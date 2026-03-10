@@ -473,7 +473,7 @@ export default function CreateScreen() {
             showToast("success", "Posted!", "Your post is now live");
             reset();
             setSelectedTagUsers([]);
-            router.back();
+            router.navigate("/");
           },
           onError: (error: any) => {
             console.error("[Create] Failed to create post:", error);
@@ -507,13 +507,13 @@ export default function CreateScreen() {
             style: "destructive",
             onPress: () => {
               reset();
-              router.back();
+              router.navigate("/");
             },
           },
         ],
       );
     } else {
-      router.back();
+      router.navigate("/");
     }
   };
 
