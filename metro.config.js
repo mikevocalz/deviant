@@ -89,6 +89,24 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     }
   }
 
+  // Fix: @better-auth/core uses internal subpath imports like @better-auth/core/utils/json
+  // and @better-auth/core/utils/error-codes that are NOT in its exports map.
+  // Metro with unstable_enablePackageExports=true rejects them. Resolve directly to dist files.
+  if (moduleName.startsWith("@better-auth/core/")) {
+    const subpath = moduleName.slice("@better-auth/core/".length); // e.g. "utils/json"
+    const distFile = path.resolve(
+      __dirname,
+      "node_modules/@better-auth/core/dist",
+      subpath + ".mjs",
+    );
+    try {
+      require.resolve(distFile);
+      return { type: "sourceFile", filePath: distFile };
+    } catch (_) {
+      // fall through to default resolution
+    }
+  }
+
   // Fix: event-target-shim@6 exports only "." but Fishjam WebRTC imports
   // "event-target-shim/index" which isn't in the exports map.
   // Rewrite to the root specifier so the exports field resolves correctly.
