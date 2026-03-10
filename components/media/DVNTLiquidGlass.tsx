@@ -2,39 +2,66 @@
  * DVNTLiquidGlass
  *
  * Reusable liquid glass container primitive.
- * Translucent BlurView + subtle white border — readable over any media.
+ *
+ * iOS 26+: native UIKit glass via @callstack/liquid-glass (LiquidGlassView).
+ * iOS <26: BlurView fallback — same visual contract, no crash.
  */
 import { View, type ViewStyle, type StyleProp } from "react-native";
 import { BlurView } from "expo-blur";
 import { memo } from "react";
+import {
+  LiquidGlassView,
+  isLiquidGlassSupported,
+} from "@callstack/liquid-glass";
 
 interface DVNTLiquidGlassProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
-  /** 0-100, default 18 */
-  intensity?: number;
-  /** "dark" | "light" | "default", default "dark" */
-  tint?: "dark" | "light" | "default";
   /** Border radius, default 24 (pill) */
   radius?: number;
-  /** Inner padding, default { horizontal: 12, vertical: 8 } */
+  /** Inner padding horizontal, default 12 */
   paddingH?: number;
+  /** Inner padding vertical, default 8 */
   paddingV?: number;
 }
 
 function DVNTLiquidGlassComponent({
   children,
   style,
-  intensity = 18,
-  tint = "dark",
   radius = 24,
   paddingH = 12,
   paddingV = 8,
 }: DVNTLiquidGlassProps) {
+  const inner = (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: paddingH,
+        paddingVertical: paddingV,
+        gap: 12,
+      }}
+    >
+      {children}
+    </View>
+  );
+
+  if (isLiquidGlassSupported) {
+    return (
+      <LiquidGlassView
+        effect="regular"
+        interactive
+        style={[{ borderRadius: radius, overflow: "hidden" }, style]}
+      >
+        {inner}
+      </LiquidGlassView>
+    );
+  }
+
   return (
     <BlurView
-      intensity={intensity}
-      tint={tint}
+      intensity={18}
+      tint="dark"
       style={[
         {
           borderRadius: radius,
@@ -45,25 +72,15 @@ function DVNTLiquidGlassComponent({
         style,
       ]}
     >
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingHorizontal: paddingH,
-          paddingVertical: paddingV,
-          backgroundColor: "rgba(0,0,0,0.28)",
-          gap: 12,
-        }}
-      >
-        {children}
-      </View>
+      <View style={{ backgroundColor: "rgba(0,0,0,0.28)" }}>{inner}</View>
     </BlurView>
   );
 }
 
 export const DVNTLiquidGlass = memo(DVNTLiquidGlassComponent);
 
-/** Single icon button wrapped in liquid glass */
+// ─── Icon button variant ─────────────────────────────────────────────────────
+
 interface DVNTLiquidGlassIconButtonProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -75,6 +92,36 @@ function DVNTLiquidGlassIconButtonComponent({
   style,
   size = 36,
 }: DVNTLiquidGlassIconButtonProps) {
+  const radius = size / 2;
+
+  if (isLiquidGlassSupported) {
+    return (
+      <LiquidGlassView
+        effect="regular"
+        interactive
+        style={[
+          {
+            width: size,
+            height: size,
+            borderRadius: radius,
+            overflow: "hidden",
+          },
+          style,
+        ]}
+      >
+        <View
+          style={{
+            flex: 1,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {children}
+        </View>
+      </LiquidGlassView>
+    );
+  }
+
   return (
     <BlurView
       intensity={18}
@@ -83,7 +130,7 @@ function DVNTLiquidGlassIconButtonComponent({
         {
           width: size,
           height: size,
-          borderRadius: size / 2,
+          borderRadius: radius,
           overflow: "hidden",
           borderWidth: 0.5,
           borderColor: "rgba(255,255,255,0.22)",
@@ -105,4 +152,6 @@ function DVNTLiquidGlassIconButtonComponent({
   );
 }
 
-export const DVNTLiquidGlassIconButton = memo(DVNTLiquidGlassIconButtonComponent);
+export const DVNTLiquidGlassIconButton = memo(
+  DVNTLiquidGlassIconButtonComponent,
+);

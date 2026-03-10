@@ -24,6 +24,7 @@
     "@better-auth/expo": "^1.4.19",
     "@better-auth/passkey": "^1.4.19",
     "@blazejkustra/react-native-onboarding": "^1.0.0",
+    "@callstack/liquid-glass": "^0.7.0",
     "@config-plugins/react-native-webrtc": "13.0.0",
     "@expo/html-elements": "^0.13.8",
     "@expo/metro-runtime": "^55.0.6",
