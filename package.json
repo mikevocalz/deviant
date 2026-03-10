@@ -26,7 +26,7 @@
     "@blazejkustra/react-native-onboarding": "^1.0.0",
     "@callstack/liquid-glass": "^0.7.0",
     "@config-plugins/react-native-webrtc": "13.0.0",
-    "@expo/html-elements":"^55.0.3",
+    "@expo/html-elements": "^55.0.3",
     "@expo/metro-runtime": "^55.0.6",
     "@fishjam-cloud/react-native-client": "0.25.1",
     "@fishjam-cloud/react-native-webrtc": "^0.25.3",
@@ -175,12 +175,12 @@
     }
   },
   "overrides": {
-    "hermes-compiler": "250829098.0.10"
+    "hermes-compiler": "250829098.0.4"
   },
   "resolutions": {
     "@fishjam-cloud/react-native-webrtc": "0.25.0",
     "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
-    "hermes-compiler": "250829098.0.10"
+    "hermes-compiler": "250829098.0.4"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -190,7 +190,7 @@
     ],
     "overrides": {
       "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
-      "hermes-compiler": "250829098.0.10"
+      "hermes-compiler": "250829098.0.4"
     },
     "patchedDependencies": {}
   }
