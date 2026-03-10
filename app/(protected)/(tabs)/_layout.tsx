@@ -1,33 +1,12 @@
-import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import { Plus } from "lucide-react-native";
-import { CenterButton } from "@/components/center-button";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
 
-function CenterButtonAccessory() {
-  const placement = NativeTabs.BottomAccessory.usePlacement();
-  const router = useRouter();
-
-  return (
-    <CenterButton
-      Icon={Plus}
-      onPress={() => router.push("/(protected)/(tabs)/create")}
-      accessoryPlacement={placement}
-    />
-  );
-}
-
 export default function TabsLayout() {
-  const router = useRouter();
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
 
   return (
     <NativeTabs>
-      <NativeTabs.BottomAccessory>
-        <CenterButtonAccessory />
-      </NativeTabs.BottomAccessory>
-
       <NativeTabs.Trigger
         name="index"
         listeners={{
@@ -49,6 +28,14 @@ export default function TabsLayout() {
           md="calendar_month"
         />
         <NativeTabs.Trigger.Label>Events</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="create">
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "plus.circle", selected: "plus.circle.fill" }}
+          md="add_circle"
+        />
+        <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="activity">
