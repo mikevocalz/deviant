@@ -1,27 +1,40 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
-import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
+/**
+ * FeedPost — DVNT feed post item (immersive overlay redesign)
+ *
+ * Layout:
+ *   Article (borderRadius: 12, overflow hidden)
+ *     ├─ Media block (video | carousel | single image)
+ *     │    ├─ OVERLAY top-left:    [Avatar + username] liquid glass
+ *     │    ├─ OVERLAY top-center:  carousel dots (multi-image only)
+ *     │    ├─ OVERLAY top-right:   [⋮] liquid glass icon button
+ *     │    ├─ OVERLAY bottom-left: [❤ n] [💬 n] [→] [🔖] liquid glass pill
+ *     │    ├─ OVERLAY bottom-right:[⤢] liquid glass icon button (video only)
+ *     │    └─ OVERLAY bottom:      gradient seek bar (video only, always visible)
+ *     └─ Caption block (below media, inside card)
+ *
+ * State: all in useFeedPostUIStore (Zustand) — no local useState.
+ */
+import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { Article } from "@expo/html-elements";
-import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { Avatar } from "@/components/ui/avatar";
 import {
   Heart,
   MessageCircle,
   Send,
   Bookmark,
   MoreHorizontal,
-  Volume2,
-  VolumeX,
+  Maximize2,
+  Minimize2,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useFeedSlideStore } from "@/lib/stores/post-store";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
-// Note: usePostStore import removed - like state is managed by usePostLikeState via React Query
 import { useComments, usePrefetchComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useCallback, useEffect, memo, useMemo, useState } from "react";
+import { useCallback, useEffect, memo, useMemo, useRef } from "react";
 import { useIsFocused } from "@react-navigation/native";
 import {
   useVideoLifecycle,
@@ -34,29 +47,27 @@ import {
   cleanupPlayer,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
-import { VideoSeekBar } from "@/components/video-seek-bar";
+import { DVNTSeekBar } from "@/components/media/DVNTSeekBar";
+import {
+  DVNTLiquidGlass,
+  DVNTLiquidGlassIconButton,
+} from "@/components/media/DVNTLiquidGlass";
+import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
+import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
-import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
-
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
-import { postsApi } from "@/lib/api/posts";
 import { useDeletePost } from "@/lib/hooks/use-posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
-import { Alert } from "react-native";
-import {
-  useLikesSheet,
-  fireLikesTap,
-} from "@/src/features/likes/LikesSheetController";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
@@ -66,8 +77,10 @@ import {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { Volume2, VolumeX } from "lucide-react-native";
 
-const LONG_PRESS_DELAY = 300;
+const CARD_HORIZONTAL_MARGIN = 4;
+const CARD_BORDER_WIDTH = 1;
 
 interface FeedPostProps {
   id: string;
@@ -80,16 +93,41 @@ interface FeedPostProps {
   media: import("@/lib/types").PostMediaItem[];
   caption?: string;
   likes: number;
-  viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
-  comments: Comment[] | number; // Accept raw array from Post or pre-computed count
+  viewerHasLiked?: boolean;
+  comments: Comment[] | number;
   timeAgo: string;
   location?: string;
   isNSFW?: boolean;
-  onShowLikes?: (postId: string) => void; // DEPRECATED: use useLikesSheet() directly
+  onShowLikes?: (postId: string) => void;
 }
 
-const CARD_HORIZONTAL_MARGIN = 4; // marginHorizontal on Article
-const CARD_BORDER_WIDTH = 1; // borderWidth on Article
+// ─────────────────────────────── helpers ────────────────────────────────────
+
+/** Carousel dot pill at top-center in brand gradient colors */
+function CarouselDots({ count, current }: { count: number; current: number }) {
+  const COLORS = ["#3FDCFF", "#8A40CF", "#FF5BFC"];
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            width: i === current ? 18 : 7,
+            height: 7,
+            borderRadius: 4,
+            backgroundColor:
+              i === current
+                ? COLORS[i % COLORS.length]
+                : "rgba(255,255,255,0.38)",
+            opacity: i === current ? 1 : 0.7,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+// ─────────────────────────────── component ──────────────────────────────────
 
 function FeedPostComponent({
   id,
@@ -102,13 +140,12 @@ function FeedPostComponent({
   timeAgo,
   location,
   isNSFW,
-  onShowLikes,
+  onShowLikes: _onShowLikes,
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
 
-  // Responsive media sizing (Instagram-like: full width on phone, max 614px centered on tablet)
   const {
     width: mediaSize,
     height: PORTRAIT_HEIGHT,
@@ -118,9 +155,6 @@ function FeedPostComponent({
     cardBorder: CARD_BORDER_WIDTH,
   });
 
-  // CENTRALIZED: Like state from single source of truth (React Query cache)
-  // CRITICAL: Use viewerHasLiked from API response, NOT hardcoded false
-  // The usePostLikeState hook manages cache internally and will sync with server
   const {
     hasLiked,
     likes: likesCount,
@@ -128,54 +162,25 @@ function FeedPostComponent({
     isPending: isLikePending,
   } = usePostLikeState(id, likes, viewerHasLiked, author?.id);
 
-  // DEV: Like state logging removed — was firing on every re-render causing log spam
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
-  const [showActionSheet, setShowActionSheet] = useState(false);
-  const [showShareSheet, setShowShareSheet] = useState(false);
-  const [cardInnerWidth, setCardInnerWidth] = useState(mediaSize);
   const bookmarkStore = useBookmarkStore();
-  const { open: openLikesSheet, prefetch: prefetchLikesSheet } =
-    useLikesSheet();
   const prefetchComments = usePrefetchComments();
   const deletePostMutation = useDeletePost();
 
   const isOwner = currentUser?.username === author.username;
+  const currentUserId = useAuthStore((state) => state.user?.id);
 
-  // Debug ownership check
-  if (__DEV__ && showActionSheet) {
-    console.log(`[FeedPost:${id}] Owner check:`, {
-      currentUsername: currentUser?.username,
-      authorUsername: author.username,
-      isOwner,
-    });
-  }
-
-  // Post tags (Instagram-style tap-to-reveal)
+  // Post tags
   const { data: postTags = [] } = usePostTags(id);
   const tagsVisible = usePostTagsUIStore((s) => s.visibleTags[id] ?? false);
   const toggleTags = usePostTagsUIStore((s) => s.toggleTags);
   const tagProgress = useSharedValue(0);
 
-  const isBookmarked = bookmarkStore.isBookmarked(id);
-  // Fetch last 3 comments for feed display
-  const { data: recentCommentsData = [], refetch: refetchComments } =
-    useComments(id, 3);
-  const currentSlide = currentSlides[id] || 0;
-
-  // Comments are already limited to 3 from API, sorted newest first
-  const recentComments = recentCommentsData || [];
-
-  const hasMedia = media && media.length > 0;
-  const isVideo = hasMedia && media[0]?.type === "video";
-  const hasMultipleMedia = hasMedia && media.length > 1 && !isVideo;
-
-  const isFocused = useIsFocused();
+  // Feed post UI store (replaces all useState)
   const {
-    pressedPosts,
-    likeAnimatingPosts,
     setPressedPost,
     setLikeAnimating,
     setVideoState,
@@ -183,31 +188,55 @@ function FeedPostComponent({
     activePostId,
     isMuted,
     toggleMute,
+    actionSheetPostId,
+    shareSheetPostId,
+    setActionSheetPostId,
+    setShareSheetPostId,
   } = useFeedPostUIStore();
 
   const isActivePost = activePostId === id;
-
   const videoState = getVideoState(id);
-  const showSeekBar = videoState.showSeekBar;
+  const isFullscreen = videoState.isFullscreen;
   const videoCurrentTime = videoState.currentTime;
   const videoDuration = videoState.duration;
-  const isPressed = pressedPosts[id] || false;
-  const likeAnimating = likeAnimatingPosts[id] || false;
+  const showActionSheet = actionSheetPostId === id;
+  const showShareSheet = shareSheetPostId === id;
 
-  // CRITICAL: Video lifecycle management to prevent crashes
-  const {
-    isMountedRef,
-    safeTimeout,
-    safeInterval,
-    clearSafeInterval,
-    isSafeToOperate,
-  } = useVideoLifecycle("FeedPost", id);
+  // Card inner width (for seek bar)
+  const cardInnerWidthRef = useRef(mediaSize);
 
-  // Validate video URL - must be valid HTTP/HTTPS URL
+  const hasMedia = media && media.length > 0;
+  const isVideo = hasMedia && media[0]?.type === "video";
+  const hasMultipleMedia = hasMedia && media.length > 1 && !isVideo;
+  const currentSlide = currentSlides[id] || 0;
+
+  const isFocused = useIsFocused();
+
+  const { isMountedRef, safeInterval, clearSafeInterval, isSafeToOperate } =
+    useVideoLifecycle("FeedPost", id);
+
+  // Gorhom sheet ref for fullscreen video
+  const fullscreenSheetRef = useRef<BottomSheet>(null);
+  useEffect(() => {
+    if (isFullscreen) {
+      fullscreenSheetRef.current?.snapToIndex(0);
+    } else {
+      fullscreenSheetRef.current?.close();
+    }
+  }, [isFullscreen]);
+
+  const handleFullscreenSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1 && isFullscreen) {
+        setVideoState(id, { isFullscreen: false });
+      }
+    },
+    [isFullscreen, id, setVideoState],
+  );
+
   const videoUrl = useMemo(() => {
     if (isVideo && media[0]?.url) {
       const url = media[0].url;
-      // Only use valid HTTP/HTTPS URLs
       if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
         return url;
       }
@@ -215,167 +244,95 @@ function FeedPostComponent({
     return "";
   }, [isVideo, media]);
 
-  const player = useVideoPlayer(videoUrl, (player) => {
-    // CRITICAL: Check mount state before configuring
-    if (player && videoUrl && isMountedRef.current) {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    if (p && videoUrl && isMountedRef.current) {
       try {
-        player.loop = false;
-        player.muted = isMuted;
-        logVideoHealth("FeedPost", "player configured", {
-          id,
-          videoUrl: videoUrl.slice(0, 50),
-        });
+        p.loop = false;
+        p.muted = isMuted;
+        logVideoHealth("FeedPost", "player configured", { id });
       } catch (error) {
         logVideoHealth("FeedPost", "config error", { error: String(error) });
       }
     }
   });
 
-  // Sync mute state with player
+  // Mute sync
   useEffect(() => {
     if (isVideo && player && videoUrl) {
       safeMute(player, isMountedRef, isMuted, "FeedPost");
     }
   }, [isVideo, player, isMuted, videoUrl, isMountedRef]);
 
-  // Play/pause based on focus and active state
+  // Play/pause based on focus + active + not fullscreen
   useEffect(() => {
     if (!isVideo || !player) return;
-
     if (isSafeToOperate()) {
-      if (isFocused && isActivePost && !showSeekBar) {
+      if (isFocused && isActivePost) {
         safePlay(player, isMountedRef, "FeedPost");
       } else {
         safePause(player, isMountedRef, "FeedPost");
       }
     }
-
-    // Cleanup: pause video when component unmounts or dependencies change
     return () => {
-      if (isVideo && player) {
-        cleanupPlayer(player, "FeedPost");
-      }
+      if (isVideo && player) cleanupPlayer(player, "FeedPost");
     };
   }, [
     isFocused,
     isVideo,
     player,
-    showSeekBar,
     isActivePost,
     id,
     isMountedRef,
     isSafeToOperate,
   ]);
 
-  // Track video time for seek bar
+  // Poll seek bar progress
   useEffect(() => {
     if (!isVideo || !player) return;
-
     const interval = safeInterval(() => {
-      // Only update if seek bar is visible to reduce re-renders
-      if (showSeekBar && isSafeToOperate()) {
-        const currentTime = safeGetCurrentTime(
-          player,
-          isMountedRef,
-          "FeedPost",
-        );
-        const duration = safeGetDuration(player, isMountedRef, "FeedPost");
-        setVideoState(id, { currentTime, duration });
-      }
+      if (!isSafeToOperate()) return;
+      const ct = safeGetCurrentTime(player, isMountedRef, "FeedPost");
+      const dur = safeGetDuration(player, isMountedRef, "FeedPost");
+      setVideoState(id, { currentTime: ct, duration: dur });
     }, 250);
-
     return () => clearSafeInterval(interval);
   }, [
     isVideo,
     player,
     id,
     setVideoState,
-    showSeekBar,
     safeInterval,
     clearSafeInterval,
     isMountedRef,
     isSafeToOperate,
   ]);
 
-  const handleLongPress = useCallback(() => {
-    if (!isVideo || !isSafeToOperate()) return;
-    setVideoState(id, { showSeekBar: true });
-    safePause(player, isMountedRef, "FeedPost");
-  }, [isVideo, player, id, setVideoState, isSafeToOperate, isMountedRef]);
-
-  const handleVideoPress = useCallback(() => {
-    if (!isSafeToOperate()) return;
-    if (showSeekBar) {
-      // Tap to hide seek bar and resume
-      setVideoState(id, { showSeekBar: false });
-      safePlay(player, isMountedRef, "FeedPost");
-    } else {
-      // Normal tap - navigate to post
-      console.log("[FeedPost] handleVideoPress, id:", id);
-      if (id) {
-        router.push(`/(protected)/post/${id}`);
-      } else {
-        console.error("[FeedPost] No ID for video press!");
-      }
-    }
-  }, [
-    showSeekBar,
-    player,
-    id,
-    setVideoState,
-    router,
-    isSafeToOperate,
-    isMountedRef,
-  ]);
+  // ── handlers ──
 
   const handleVideoSeek = useCallback(
-    (time: number) => {
-      safeSeek(player, isMountedRef, time, "FeedPost");
-    },
+    (time: number) => safeSeek(player, isMountedRef, time, "FeedPost"),
     [player, isMountedRef],
   );
 
-  const handleSeekEnd = useCallback(() => {
-    if (!isSafeToOperate()) return;
-    setVideoState(id, { showSeekBar: false });
-    safePlay(player, isMountedRef, "FeedPost");
-  }, [player, id, setVideoState, isSafeToOperate, isMountedRef]);
-
-  const isLiked = hasLiked;
-  const isSaved = isBookmarked; // isBookmarked is already a boolean from line 99
-
-  // CENTRALIZED: Like count from single source of truth
-  const likeCount = likesCount;
-
-  // Comment count — derived from array or passed as number
-  const commentCount = Array.isArray(comments) ? comments.length : comments;
-
-  // Refetch comments when comment count changes to ensure we have the latest
-  useEffect(() => {
-    if (commentCount > 0 && recentComments.length === 0) {
-      // If comment count says there are comments but we don't have any, refetch
-      refetchComments();
+  const handleVideoPress = useCallback(() => {
+    if (!isSafeToOperate() || !id) return;
+    if (id) {
+      screenPrefetch.postDetail(queryClient, id);
+      router.push(`/(protected)/post/${id}`);
     }
-  }, [commentCount, recentComments.length, refetchComments, id]);
+  }, [id, router, queryClient, isSafeToOperate]);
 
   const handleLike = useCallback(() => {
-    // CRITICAL: Block if mutation already pending
-    if (isLikePending) {
-      console.log(`[FeedPost] Like blocked - mutation pending for ${id}`);
-      return;
-    }
-
+    if (isLikePending) return;
     setLikeAnimating(id, true);
-    // CENTRALIZED: Use toggle from hook - handles optimistic updates internally
     toggleLike();
     setTimeout(() => setLikeAnimating(id, false), 300);
   }, [id, isLikePending, setLikeAnimating, toggleLike]);
 
   const handleSave = useCallback(() => {
-    // STABILIZED: No dual state - only call mutation
-    // Server response will update React Query cache via useBookmarks
+    const isSaved = bookmarkStore.isBookmarked(id);
     toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
-  }, [id, isSaved, toggleBookmarkMutation]);
+  }, [id, bookmarkStore, toggleBookmarkMutation]);
 
   const createStoryMutation = useCreateStory();
 
@@ -394,83 +351,60 @@ function FeedPostComponent({
     }
     try {
       await createStoryMutation.mutateAsync({
-        items: [
-          {
-            type: media[0].type || "image",
-            url: media[0].url,
-          },
-        ],
+        items: [{ type: media[0].type || "image", url: media[0].url }],
       });
       showToast("success", "Shared", "Post shared to your story!");
     } catch (error) {
-      console.error("[FeedPost] Share to story error:", error);
       showToast("error", "Error", "Failed to share to story");
     }
   }, [media, createStoryMutation, showToast]);
 
-  const handleEdit = useCallback(() => {
-    router.push(`/(protected)/edit-post/${id}`);
-  }, [id, router]);
+  const handleEdit = useCallback(
+    () => router.push(`/(protected)/edit-post/${id}`),
+    [id, router],
+  );
 
   const handleDelete = useCallback(() => {
-    Alert.alert(
-      "Delete Post",
-      "Are you sure you want to delete this post? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            deletePostMutation.mutate(id, {
-              onSuccess: () => {
-                showToast("success", "Deleted", "Post deleted successfully");
-              },
-              onError: (error) => {
-                console.error("[FeedPost] Delete error:", error);
-                showToast("error", "Error", "Failed to delete post");
-              },
-            });
-          },
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          deletePostMutation.mutate(id, {
+            onSuccess: () => showToast("success", "Deleted", "Post deleted"),
+            onError: () => showToast("error", "Error", "Failed to delete post"),
+          });
         },
-      ],
-    );
+      },
+    ]);
   }, [id, showToast, deletePostMutation]);
 
-  const handleScroll = (event: any) => {
-    const slideIndex = Math.round(
-      event.nativeEvent.contentOffset.x / cardInnerWidth,
-    );
-    setCurrentSlide(id, slideIndex);
-  };
+  const handleScroll = useCallback(
+    (event: any) => {
+      const w = cardInnerWidthRef.current || mediaSize;
+      const slideIndex = Math.round(event.nativeEvent.contentOffset.x / w);
+      setCurrentSlide(id, slideIndex);
+    },
+    [id, setCurrentSlide, mediaSize],
+  );
 
-  const handlePressIn = useCallback(() => {
-    setPressedPost(id, true);
-  }, [id, setPressedPost]);
-
-  const handlePressOut = useCallback(() => {
-    setPressedPost(id, false);
-  }, [id, setPressedPost]);
+  const handlePressIn = useCallback(
+    () => setPressedPost(id, true),
+    [id, setPressedPost],
+  );
+  const handlePressOut = useCallback(
+    () => setPressedPost(id, false),
+    [id, setPressedPost],
+  );
 
   const handlePostPress = useCallback(() => {
-    console.log("[FeedPost] handlePostPress called, id:", id);
-    if (!id) {
-      console.error("[FeedPost] Cannot navigate - no post ID!");
-      return;
-    }
-    // Instagram behavior: if post has tags, single tap toggles tag visibility
+    if (!id) return;
     if (postTags.length > 0) {
-      const nextVisible = !tagsVisible;
       toggleTags(id);
-      if (nextVisible) {
-        tagProgress.value = withSpring(1, {
-          damping: 18,
-          stiffness: 180,
-          mass: 0.8,
-        });
-      } else {
-        tagProgress.value = withTiming(0, { duration: 180 });
-      }
+      tagProgress.value = tagsVisible
+        ? withTiming(0, { duration: 180 })
+        : withSpring(1, { damping: 18, stiffness: 180, mass: 0.8 });
       return;
     }
     screenPrefetch.postDetail(queryClient, id);
@@ -484,9 +418,6 @@ function FeedPostComponent({
     tagProgress,
     queryClient,
   ]);
-
-  // Get current user for profile routing
-  const currentUserId = useAuthStore((state) => state.user?.id);
 
   const handleProfilePress = useCallback(() => {
     if (!author?.username) return;
@@ -508,122 +439,73 @@ function FeedPostComponent({
     queryClient,
   ]);
 
+  const handleFullscreenToggle = useCallback(() => {
+    setVideoState(id, { isFullscreen: !isFullscreen });
+  }, [isFullscreen, id, setVideoState]);
+
+  const isBookmarked = bookmarkStore.isBookmarked(id);
+  const commentCount = Array.isArray(comments) ? comments.length : comments;
+  const { data: recentCommentsData = [], refetch: refetchComments } =
+    useComments(id, 3);
+  const recentComments = recentCommentsData || [];
+
+  useEffect(() => {
+    if (commentCount > 0 && recentComments.length === 0) refetchComments();
+  }, [commentCount, recentComments.length, refetchComments, id]);
+
+  // ── bottom overlay bottom offset: shift up if video (seek bar takes 24px at very bottom) ──
+  const socialBottom = isVideo ? 34 : 14;
+
+  // ── render ──
+
   return (
     <View className={containerClass}>
       <Article
         style={{
-          marginHorizontal: 4,
+          marginHorizontal: CARD_HORIZONTAL_MARGIN,
           marginVertical: 16,
           borderRadius: 12,
-          borderWidth: 1,
+          borderWidth: CARD_BORDER_WIDTH,
           borderColor: colors.border,
           backgroundColor: colors.card,
-          position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* Avatar — absolute top-left, overlaps onto the image */}
-        <Pressable
-          onPress={handleProfilePress}
-          style={{
-            position: "absolute",
-            top: 4,
-            left: 0,
-            zIndex: 50,
-            elevation: 50,
-          }}
-        >
-          <Avatar
-            uri={author?.avatar}
-            username={author?.username || "User"}
-            size={48}
-            variant="roundedSquare"
-          />
-        </Pressable>
-
-        <View
-          className="flex-row items-center justify-between p-3"
-          style={{ paddingLeft: 56 }}
-        >
-          <View>
-            <View className="flex-row items-center gap-1">
-              {author?.username && (
-                <Pressable onPress={handleProfilePress}>
-                  <Text className="text-sm font-semibold text-foreground">
-                    {author.username}
-                  </Text>
-                </Pressable>
-              )}
-              {isNSFW && <Text style={{ fontSize: 12 }}>😈</Text>}
-            </View>
-            {location && (
-              <Text className="text-xs text-muted-foreground">{location}</Text>
-            )}
-          </View>
-          <Pressable
-            className="p-2"
-            onPress={() => setShowActionSheet(true)}
-            hitSlop={12}
-          >
-            <MoreHorizontal size={20} color={colors.foreground} />
-          </Pressable>
-        </View>
-
+        {/* ── Media block ───────────────────────────────────────────── */}
         {hasMedia && (
           <View
             onLayout={(e) => {
               const w = e.nativeEvent.layout.width;
-              if (w > 0 && w !== cardInnerWidth) setCardInnerWidth(w);
+              if (w > 0) cardInnerWidthRef.current = w;
             }}
             style={{
               width: "100%",
               height: PORTRAIT_HEIGHT,
-              borderRadius: 12,
+              position: "relative",
               overflow: "hidden",
             }}
             className="bg-muted"
           >
+            {/* ── Media content ── */}
             {isVideo ? (
-              <View style={{ width: "100%", height: "100%" }}>
-                <Pressable
-                  onPress={handleVideoPress}
-                  onLongPress={handleLongPress}
-                  delayLongPress={LONG_PRESS_DELAY}
-                  onPressIn={handlePressIn}
-                  onPressOut={handlePressOut}
+              <Pressable
+                onPress={handleVideoPress}
+                onPressIn={handlePressIn}
+                onPressOut={handlePressOut}
+                style={{ width: "100%", height: "100%" }}
+              >
+                <View
+                  pointerEvents="none"
                   style={{ width: "100%", height: "100%" }}
                 >
-                  <View
-                    pointerEvents="none"
+                  <VideoView
+                    player={player}
                     style={{ width: "100%", height: "100%" }}
-                  >
-                    <VideoView
-                      player={player}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      nativeControls={false}
-                    />
-                  </View>
-                </Pressable>
-                <Pressable
-                  onPress={toggleMute}
-                  className="absolute top-4 right-4 bg-black/60 rounded-full p-2"
-                >
-                  {isMuted ? (
-                    <VolumeX size={20} color="#fff" />
-                  ) : (
-                    <Volume2 size={20} color="#fff" />
-                  )}
-                </Pressable>
-                <VideoSeekBar
-                  currentTime={videoCurrentTime}
-                  duration={videoDuration}
-                  onSeek={handleVideoSeek}
-                  onSeekEnd={handleSeekEnd}
-                  visible={showSeekBar}
-                  barWidth={cardInnerWidth - 32}
-                />
-              </View>
+                    contentFit="cover"
+                    nativeControls={false}
+                  />
+                </View>
+              </Pressable>
             ) : hasMultipleMedia ? (
               <>
                 <ScrollView
@@ -648,7 +530,7 @@ function FeedPostComponent({
                         {isValidUrl ? (
                           <DVNTMediaRenderer
                             item={medium}
-                            width={cardInnerWidth}
+                            width={cardInnerWidthRef.current}
                             height={PORTRAIT_HEIGHT}
                             contentFit="cover"
                             showBadge={index === 0}
@@ -656,7 +538,7 @@ function FeedPostComponent({
                         ) : (
                           <View
                             style={{
-                              width: cardInnerWidth,
+                              width: cardInnerWidthRef.current,
                               height: PORTRAIT_HEIGHT,
                             }}
                             className="bg-muted items-center justify-center"
@@ -670,25 +552,6 @@ function FeedPostComponent({
                     );
                   })}
                 </ScrollView>
-                <View
-                  className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
-                  pointerEvents="none"
-                >
-                  {media.map((_, index) => (
-                    <View
-                      key={index}
-                      style={{
-                        width: index === currentSlide ? 12 : 6,
-                        opacity: index === currentSlide ? 1 : 0.5,
-                      }}
-                      className={`h-1.5 rounded-full ${
-                        index === currentSlide
-                          ? "bg-primary"
-                          : "bg-foreground/50"
-                      }`}
-                    />
-                  ))}
-                </View>
               </>
             ) : (
               <Pressable
@@ -720,7 +583,7 @@ function FeedPostComponent({
               </Pressable>
             )}
 
-            {/* Tag overlay — sits on top of all media types */}
+            {/* ── Tag overlay ── */}
             {!isVideo && postTags.length > 0 && (
               <TagOverlayViewer
                 postId={id}
@@ -728,106 +591,261 @@ function FeedPostComponent({
                 tagProgress={tagProgress}
               />
             )}
+
+            {/* ═══════════ OVERLAYS ══════════════════════════════════ */}
+
+            {/* TOP-LEFT: Avatar + username */}
+            <Pressable
+              onPress={handleProfilePress}
+              style={{
+                position: "absolute",
+                top: 12,
+                left: 10,
+                zIndex: 50,
+              }}
+              hitSlop={8}
+            >
+              <DVNTLiquidGlass paddingH={6} paddingV={5} radius={22}>
+                <Avatar
+                  uri={author?.avatar}
+                  username={author?.username || "User"}
+                  size={34}
+                  variant="roundedSquare"
+                />
+                <View style={{ flexDirection: "column", maxWidth: 120 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: "#fff",
+                      fontSize: 13,
+                      fontWeight: "700",
+                      textShadowColor: "rgba(0,0,0,0.5)",
+                      textShadowRadius: 3,
+                    }}
+                  >
+                    {author?.username}
+                  </Text>
+                  {location ? (
+                    <Text
+                      numberOfLines={1}
+                      style={{ color: "rgba(255,255,255,0.7)", fontSize: 10 }}
+                    >
+                      {location}
+                    </Text>
+                  ) : null}
+                  {isNSFW ? <Text style={{ fontSize: 10 }}>😈</Text> : null}
+                </View>
+              </DVNTLiquidGlass>
+            </Pressable>
+
+            {/* TOP-CENTER: Carousel dots (multi-image) */}
+            {hasMultipleMedia && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 18,
+                  left: 0,
+                  right: 0,
+                  alignItems: "center",
+                  zIndex: 50,
+                }}
+                pointerEvents="none"
+              >
+                <CarouselDots count={media.length} current={currentSlide} />
+              </View>
+            )}
+
+            {/* TOP-RIGHT: More menu */}
+            <Pressable
+              onPress={() => setActionSheetPostId(id)}
+              style={{ position: "absolute", top: 12, right: 12, zIndex: 50 }}
+              hitSlop={12}
+            >
+              <DVNTLiquidGlassIconButton size={36}>
+                <MoreHorizontal size={18} color="#fff" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+
+            {/* Video: mute button top-right (above more menu area, or swap position) */}
+            {isVideo && (
+              <Pressable
+                onPress={toggleMute}
+                style={{ position: "absolute", top: 56, right: 12, zIndex: 50 }}
+                hitSlop={12}
+              >
+                <DVNTLiquidGlassIconButton size={34}>
+                  {isMuted ? (
+                    <VolumeX size={15} color="#fff" />
+                  ) : (
+                    <Volume2 size={15} color="#fff" />
+                  )}
+                </DVNTLiquidGlassIconButton>
+              </Pressable>
+            )}
+
+            {/* BOTTOM-LEFT: Social actions pill */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: socialBottom,
+                left: 12,
+                zIndex: 50,
+              }}
+            >
+              <DVNTLiquidGlass paddingH={10} paddingV={7} radius={24}>
+                {/* Like */}
+                <Pressable
+                  onPress={handleLike}
+                  disabled={isLikePending}
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                >
+                  <Heart
+                    size={18}
+                    color={hasLiked ? "#FF5BFC" : "#fff"}
+                    fill={hasLiked ? "#FF5BFC" : "none"}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+                  >
+                    {formatLikeCount(likesCount)}
+                  </Text>
+                </Pressable>
+
+                {/* Divider */}
+                <View
+                  style={{
+                    width: 1,
+                    height: 14,
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                  }}
+                />
+
+                {/* Comment */}
+                <Pressable
+                  hitSlop={8}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  onPressIn={() => id && prefetchComments(id)}
+                  onPress={() =>
+                    id && router.push(`/(protected)/comments/${id}`)
+                  }
+                >
+                  <MessageCircle size={18} color="#fff" />
+                  {commentCount > 0 && (
+                    <Text
+                      style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+                    >
+                      {commentCount}
+                    </Text>
+                  )}
+                </Pressable>
+
+                {/* Divider */}
+                <View
+                  style={{
+                    width: 1,
+                    height: 14,
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                  }}
+                />
+
+                {/* Share */}
+                <Pressable hitSlop={8} onPress={() => setShareSheetPostId(id)}>
+                  <Send size={18} color="#fff" />
+                </Pressable>
+
+                {/* Divider */}
+                <View
+                  style={{
+                    width: 1,
+                    height: 14,
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                  }}
+                />
+
+                {/* Bookmark */}
+                <Pressable onPress={handleSave} hitSlop={8}>
+                  <Bookmark
+                    size={18}
+                    color={isBookmarked ? "#3FDCFF" : "#fff"}
+                    fill={isBookmarked ? "#3FDCFF" : "none"}
+                  />
+                </Pressable>
+              </DVNTLiquidGlass>
+            </View>
+
+            {/* BOTTOM-RIGHT: Expand (video only) */}
+            {isVideo && (
+              <Pressable
+                onPress={handleFullscreenToggle}
+                style={{
+                  position: "absolute",
+                  bottom: socialBottom,
+                  right: 12,
+                  zIndex: 50,
+                }}
+                hitSlop={12}
+              >
+                <DVNTLiquidGlassIconButton size={36}>
+                  <Maximize2 size={17} color="#fff" />
+                </DVNTLiquidGlassIconButton>
+              </Pressable>
+            )}
+
+            {/* SEEK BAR — always visible for video, 4px from bottom */}
+            {isVideo && (
+              <DVNTSeekBar
+                currentTime={videoCurrentTime}
+                duration={videoDuration}
+                onSeek={handleVideoSeek}
+                onSeekEnd={() => {
+                  if (isFocused && isActivePost && !isFullscreen) {
+                    safePlay(player, isMountedRef, "FeedPost");
+                  }
+                }}
+                barWidth={cardInnerWidthRef.current - 32}
+              />
+            )}
           </View>
         )}
 
-        <View className="flex-row items-center justify-between p-3">
-          <View className="flex-row items-center gap-4">
-            <Pressable
-              onPress={handleLike}
-              disabled={isLikePending}
-              hitSlop={12}
-            >
-              <Heart
-                size={24}
-                color={isLiked ? "#FF5BFC" : colors.foreground}
-                fill={isLiked ? "#FF5BFC" : "none"}
-              />
-            </Pressable>
-            <Pressable
-              hitSlop={12}
-              onPressIn={() => {
-                if (id) prefetchComments(id);
-              }}
-              onPress={() => {
-                if (id) router.push(`/(protected)/comments/${id}`);
-              }}
-            >
-              <MessageCircle size={24} color={colors.foreground} />
-            </Pressable>
-            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
-              <Send size={24} color={colors.foreground} />
-            </Pressable>
-          </View>
-          <Pressable onPress={handleSave} hitSlop={12}>
-            <Bookmark
-              size={24}
-              color={colors.foreground}
-              fill={isSaved ? colors.foreground : "none"}
-            />
-          </Pressable>
-        </View>
-
-        {/* Caption Section - NO gaps, explicit white text */}
-        <View className="px-3 pb-3">
-          <Pressable
-            onPressIn={() => prefetchLikesSheet(id)}
-            onPress={() => {
-              if (!id) return;
-              fireLikesTap(id, openLikesSheet);
-            }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            style={{ minHeight: 44, justifyContent: "center" }}
-          >
-            <Text style={{ color: "#FFFFFF", fontSize: 14, fontWeight: "600" }}>
-              {formatLikeCount(likesCount)}
-            </Text>
-          </Pressable>
+        {/* ── Caption block ─────────────────────────────────────────── */}
+        <View
+          style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 8 }}
+        >
           {caption && (
-            <View className="mt-1">
-              <Text style={{ fontSize: 14, color: colors.foreground }}>
-                <Text
-                  style={{ fontWeight: "700" }}
+            <Text style={{ fontSize: 13, color: colors.foreground }}>
+              <Text
+                style={{ fontWeight: "700" }}
+                onPress={() =>
+                  router.push(`/(protected)/profile/${author?.username}` as any)
+                }
+              >
+                {author?.username || "Unknown"}{" "}
+              </Text>
+              <HashtagText
+                text={caption}
+                textStyle={{ fontSize: 13, color: colors.foreground }}
+              />
+            </Text>
+          )}
+          {recentComments.length > 0 && (
+            <View style={{ marginTop: 4, gap: 2 }}>
+              {recentComments.map((comment) => (
+                <Pressable
+                  key={comment.id}
                   onPress={() =>
-                    router.push(
-                      `/(protected)/profile/${author?.username}` as any,
-                    )
+                    id && router.push(`/(protected)/comments/${id}`)
                   }
                 >
-                  {author?.username || "Unknown User"}{" "}
-                </Text>
-                <HashtagText
-                  text={caption}
-                  textStyle={{ fontSize: 14, color: colors.foreground }}
-                />
-              </Text>
-            </View>
-          )}
-          {recentComments.length > 0 || commentCount > 0 ? (
-            <>
-              {/* Show last 3 comments */}
-              {recentComments.length > 0 && (
-                <View className="mt-1 gap-1">
-                  {recentComments.map((comment) => (
-                    <Pressable
-                      key={comment.id}
-                      onPress={() => {
-                        if (id) {
-                          prefetchComments(id);
-                          router.push(`/(protected)/comments/${id}`);
-                        }
-                      }}
-                    >
-                      <Text className="text-sm text-foreground">
-                        <Text className="font-semibold text-foreground">
-                          {comment.username}
-                        </Text>
-                        <Text className="text-foreground"> {comment.text}</Text>
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
+                  <Text style={{ fontSize: 12, color: colors.foreground }}>
+                    <Text style={{ fontWeight: "700" }}>
+                      {comment.username}{" "}
+                    </Text>
+                    <Text>{comment.text}</Text>
+                  </Text>
+                </Pressable>
+              ))}
               {commentCount > 3 && (
                 <Pressable
                   onPress={() => {
@@ -836,28 +854,84 @@ function FeedPostComponent({
                       router.push(`/(protected)/comments/${id}`);
                     }
                   }}
-                  className="mt-1"
                 >
-                  <Text className="text-sm text-muted-foreground">
+                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
                     View all {commentCount} comments
                   </Text>
                 </Pressable>
               )}
-            </>
-          ) : (
-            <Text className="mt-1 text-sm text-muted-foreground">
-              No comments yet. Be the first to comment!
-            </Text>
+            </View>
           )}
-          <Text className="mt-1 text-xs uppercase text-muted-foreground">
+          <Text
+            style={{
+              fontSize: 11,
+              color: colors.mutedForeground,
+              marginTop: 4,
+              textTransform: "uppercase",
+            }}
+          >
             {timeAgo}
           </Text>
         </View>
       </Article>
 
+      {/* ── Fullscreen video sheet (Gorhom, video only) ────────── */}
+      {isVideo && (
+        <BottomSheet
+          ref={fullscreenSheetRef}
+          index={-1}
+          snapPoints={["100%"]}
+          enablePanDownToClose
+          enableOverDrag={false}
+          onChange={handleFullscreenSheetChange}
+          backgroundStyle={{ backgroundColor: "#000" }}
+          handleComponent={null}
+        >
+          <BottomSheetView style={{ flex: 1, backgroundColor: "#000" }}>
+            <VideoView
+              player={player}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={false}
+            />
+            <DVNTSeekBar
+              currentTime={videoCurrentTime}
+              duration={videoDuration}
+              onSeek={handleVideoSeek}
+              onSeekEnd={() => safePlay(player, isMountedRef, "FeedPost")}
+            />
+            {/* Minimize */}
+            <Pressable
+              onPress={handleFullscreenToggle}
+              style={{ position: "absolute", top: 52, right: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                <Minimize2 size={20} color="#fff" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+            {/* Mute */}
+            <Pressable
+              onPress={toggleMute}
+              style={{ position: "absolute", top: 52, left: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                {isMuted ? (
+                  <VolumeX size={20} color="#fff" />
+                ) : (
+                  <Volume2 size={20} color="#fff" />
+                )}
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+          </BottomSheetView>
+        </BottomSheet>
+      )}
+
+      {/* ── Sheets ────────────────────────────────────────────────── */}
       <PostActionSheet
         visible={showActionSheet}
-        onClose={() => setShowActionSheet(false)}
+        onClose={() => setActionSheetPostId(null)}
         isOwner={isOwner}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -867,7 +941,7 @@ function FeedPostComponent({
 
       <ShareToInboxSheet
         visible={showShareSheet}
-        onClose={() => setShowShareSheet(false)}
+        onClose={() => setShareSheetPostId(null)}
         post={
           showShareSheet
             ? {
