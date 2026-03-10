@@ -57,7 +57,7 @@ export default function HomeScreen() {
           opacity: 0.5,
         }}
       >
-        v4
+        v5
       </Text>
     </View>
   );
