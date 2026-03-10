@@ -190,7 +190,8 @@
     ],
     "overrides": {
       "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
-      "hermes-compiler": "250829098.0.4"
+      "hermes-compiler": "250829098.0.4",
+      "react-native-nitro-modules": "0.34.1"
     },
     "patchedDependencies": {
       "@rive-app/react-native@0.2.7": "patches/@rive-app__react-native@0.2.7.patch"
