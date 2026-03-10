@@ -21,12 +21,12 @@
     "postinstall": "(patch-package || true) && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh && bash scripts/patch-expo-dev-launcher.sh && bash scripts/patch-expo-dev-menu.sh && bash scripts/patch-expo-paste-input.sh"
   },
   "dependencies": {
-    "@better-auth/expo": "^1.4.19",
-    "@better-auth/passkey": "^1.4.19",
+    "@better-auth/expo": "^1.5.4",
+    "@better-auth/passkey": "^1.5.4",
     "@blazejkustra/react-native-onboarding": "^1.0.0",
     "@callstack/liquid-glass": "^0.7.0",
     "@config-plugins/react-native-webrtc": "13.0.0",
-    "@expo/html-elements": "^0.13.8",
+    "@expo/html-elements":"^55.0.3",
     "@expo/metro-runtime": "^55.0.6",
     "@fishjam-cloud/react-native-client": "0.25.1",
     "@fishjam-cloud/react-native-webrtc": "^0.25.3",
@@ -133,7 +133,7 @@
     "react-native-screens-swiper": "^1.2.6",
     "react-native-star-rating-widget": "^1.10.0",
     "react-native-svg": "^15.15.3",
-    "react-native-video": "^6.19.0",
+    "react-native-video": "7.0.0-beta.6",
     "react-native-vision-camera": "^4.7.3",
     "react-native-voip-push-notification": "^3.3.3",
     "react-native-web": "~0.21.2",
@@ -175,12 +175,12 @@
     }
   },
   "overrides": {
-    "hermes-compiler": "250829098.0.8"
+    "hermes-compiler": "250829098.0.10"
   },
   "resolutions": {
     "@fishjam-cloud/react-native-webrtc": "0.25.0",
     "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
-    "hermes-compiler": "250829098.0.8"
+    "hermes-compiler": "250829098.0.10"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -190,7 +190,7 @@
     ],
     "overrides": {
       "react-native-worklets": "0.8.0-nightly-20260122-45349f895",
-      "hermes-compiler": "250829098.0.4"
+      "hermes-compiler": "250829098.0.10"
     },
     "patchedDependencies": {}
   }

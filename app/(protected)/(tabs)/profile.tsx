@@ -15,9 +15,7 @@ import {
   Film,
   Bookmark,
   Tag,
-  Play,
   Camera,
-  Grid3x3,
   CalendarDays,
   Heart,
 } from "lucide-react-native";
@@ -50,9 +48,8 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { usersApi } from "@/lib/api/users";
 import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
-import { screenPrefetch } from "@/lib/prefetch";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
+import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
 import {
   safeProfile,
   safeGridTiles,
@@ -62,10 +59,7 @@ import {
   type SafeGridTile,
 } from "@/lib/utils/safe-profile-mappers";
 import { appendCacheBuster, getAvatarUrl } from "@/lib/media/resolveAvatarUrl";
-import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
-
-const GRID_GAP = 2; // gap between grid items
 
 // Edit Profile is now handled by /(protected)/profile/edit.tsx modal
 
@@ -84,7 +78,7 @@ function ProfileScreenContent() {
   const { width: screenWidth } = useWindowDimensions();
   const isTablet = screenWidth >= 768;
   const numColumns = isTablet ? 4 : 3;
-  const columnWidth = (screenWidth - GRID_GAP * (numColumns + 1)) / numColumns;
+  const columnWidth = (screenWidth - 2 * (numColumns + 1)) / numColumns;
 
   // DEFENSIVE: Get stores safely
   const { activeTab, setActiveTab } = useProfileStore();
@@ -1162,90 +1156,26 @@ function ProfileScreenContent() {
                 </View>
               )}
             </View>
-          ) : displayPosts.length > 0 ? (
-            <View className="flex-row flex-wrap">
-              {displayPosts.map((item: SafeGridTile, index: number) => (
-                <Motion.View
-                  key={`${activeTab}-${item.id}-${index}`}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{
-                    type: "spring",
-                    damping: 20,
-                    stiffness: 100,
-                    delay: index * 0.03,
-                  }}
-                  style={{
-                    width: columnWidth,
-                    height: columnWidth,
-                    padding: 1,
-                  }}
-                >
-                  <Pressable
-                    onPress={() => {
-                      if (item?.id) {
-                        screenPrefetch.postDetail(queryClient, item.id);
-                        router.push(`/(protected)/post/${item.id}`);
-                      }
-                    }}
-                    testID={`profile.${user?.id}.gridTile.${item.id}`}
-                    className="flex-1 overflow-hidden"
-                    style={{ borderRadius: 8 }}
-                  >
-                    {item.coverUrl ? (
-                      <Image
-                        source={{ uri: item.coverUrl }}
-                        style={{ width: "100%", height: "100%" }}
-                        contentFit="cover"
-                        transition={200}
-                        cachePolicy="memory-disk"
-                      />
-                    ) : item.kind === "video" && item.videoUrl ? (
-                      <VideoThumbnailImage videoUrl={item.videoUrl} />
-                    ) : (
-                      <View
-                        className="flex-1 items-center justify-center"
-                        style={{
-                          width: "100%",
-                          height: "100%",
-                          backgroundColor: "#1a1a1a",
-                        }}
-                      >
-                        <Text className="text-xs text-muted-foreground text-center">
-                          No preview
-                        </Text>
-                      </View>
-                    )}
-                    {item.kind === "video" && (
-                      <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
-                        <Play size={16} color="#fff" fill="#fff" />
-                      </View>
-                    )}
-                    {item.kind === "carousel" && (
-                      <View className="absolute top-2 right-2 bg-black/60 rounded-full p-1.5">
-                        <Grid3x3 size={16} color="#fff" />
-                      </View>
-                    )}
-                    {(item.kind === "gif" || item.kind === "livePhoto") && (
-                      <DVNTMediaBadge kind={item.kind} />
-                    )}
-                  </Pressable>
-                </Motion.View>
-              ))}
-            </View>
           ) : (
-            <View className="items-center justify-center py-16">
-              <Bookmark size={48} color={colors.mutedForeground} />
-              <Text className="mt-4 text-base text-muted-foreground">
-                {activeTab === "saved"
-                  ? "No saved posts yet"
-                  : activeTab === "tagged"
-                    ? "No tagged posts yet"
-                    : activeTab === "video"
-                      ? "No videos yet"
-                      : "No posts yet"}
-              </Text>
-            </View>
+            <ProfileMasonryGrid
+              data={displayPosts}
+              userId={user?.id}
+              scrollEnabled={false}
+              ListEmptyComponent={
+                <View className="items-center justify-center py-16">
+                  <Bookmark size={48} color={colors.mutedForeground} />
+                  <Text className="mt-4 text-base text-muted-foreground">
+                    {activeTab === "saved"
+                      ? "No saved posts yet"
+                      : activeTab === "tagged"
+                        ? "No tagged posts yet"
+                        : activeTab === "video"
+                          ? "No videos yet"
+                          : "No posts yet"}
+                  </Text>
+                </View>
+              }
+            />
           )}
         </View>
       </ScrollView>

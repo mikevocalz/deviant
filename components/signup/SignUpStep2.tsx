@@ -42,6 +42,27 @@ import {
   AGE_VERIFICATION_FAILED_MESSAGE,
 } from "@/lib/utils/age-verification";
 
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `${label} timed out after ${ms / 1000}s. Check your connection and try again.`,
+            ),
+          ),
+        ms,
+      ),
+    ),
+  ]);
+}
+
 export function SignUpStep2() {
   const {
     idVerification,
@@ -114,15 +135,18 @@ export function SignUpStep2() {
 
     try {
       // Sign up with Better Auth
-      const { data, error } = await signUp.email({
-        email: formData.email,
-        password: formData.password,
-        name: `${formData.firstName} ${formData.lastName}`,
-        // Additional fields passed to Better Auth
-        username: formData.username,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-      } as any);
+      const { data, error } = await withTimeout(
+        signUp.email({
+          email: formData.email,
+          password: formData.password,
+          name: `${formData.firstName} ${formData.lastName}`,
+          username: formData.username,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+        } as any),
+        25000,
+        "Account creation",
+      );
 
       if (error) {
         console.error("[SignUp] Better Auth error:", error);
@@ -146,7 +170,7 @@ export function SignUpStep2() {
       // Retry once on failure — edge function cold starts can cause the first call to timeout
       let profile;
       try {
-        profile = await syncAuthUser();
+        profile = await withTimeout(syncAuthUser(), 15000, "Profile sync");
         console.log("[SignUp] User synced, ID:", profile.id);
       } catch (syncError) {
         console.warn(
@@ -154,7 +178,11 @@ export function SignUpStep2() {
           syncError,
         );
         try {
-          profile = await syncAuthUser();
+          profile = await withTimeout(
+            syncAuthUser(),
+            15000,
+            "Profile sync retry",
+          );
           console.log("[SignUp] User synced on retry, ID:", profile.id);
         } catch (retryError) {
           console.warn(
