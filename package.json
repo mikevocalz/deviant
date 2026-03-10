@@ -21,8 +21,8 @@
     "postinstall": "(patch-package || true) && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh && bash scripts/patch-expo-dev-launcher.sh && bash scripts/patch-expo-dev-menu.sh && bash scripts/patch-expo-paste-input.sh"
   },
   "dependencies": {
-    "@better-auth/expo": "^1.5.4",
-    "@better-auth/passkey": "^1.5.4",
+    "@better-auth/expo": "^1.4.19",
+    "@better-auth/passkey": "^1.4.19",
     "@blazejkustra/react-native-onboarding": "^1.0.0",
     "@callstack/liquid-glass": "^0.7.0",
     "@config-plugins/react-native-webrtc": "13.0.0",
@@ -31,7 +31,7 @@
     "@fishjam-cloud/react-native-client": "0.25.1",
     "@fishjam-cloud/react-native-webrtc": "^0.25.3",
     "@gorhom/bottom-sheet": "^5.2.8",
-    "@legendapp/list": "beta",
+    "@legendapp/list": "3.0.0-beta.41",
     "@legendapp/motion": "^2.5.3",
     "@lodev09/react-native-true-sheet": "^3.9.9",
     "@maplibre/maplibre-react-native": "^10.4.2",
