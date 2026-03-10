@@ -1,28 +1,20 @@
 /**
  * VideoThumbnailImage
  *
- * Generates a real thumbnail from a remote video URL using expo-video-thumbnails.
+ * Generates a real thumbnail from a remote video URL via getVideoThumbnail service.
  * Caches the result with React Query so thumbnails are only generated once per video.
- * Falls back to a Play icon if generation fails.
+ * Falls back to a dark placeholder + Play icon if generation fails or times out.
  */
 
-import { View, Text } from "react-native";
+import { View } from "react-native";
 import { Image } from "expo-image";
 import { Play } from "lucide-react-native";
 import { useQuery } from "@tanstack/react-query";
-import * as VideoThumbnails from "expo-video-thumbnails";
+import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 
 const thumbnailKeys = {
   forVideo: (videoUrl: string) => ["videoThumbnail", videoUrl] as const,
 };
-
-// DISABLED: expo-video-thumbnails hangs permanently on iOS 26.3
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function generateThumbnailFromUrl(
-  _videoUrl: string,
-): Promise<string | null> {
-  return null;
-}
 
 interface VideoThumbnailImageProps {
   videoUrl: string;
@@ -35,7 +27,7 @@ export function VideoThumbnailImage({
 }: VideoThumbnailImageProps) {
   const { data: thumbnailUri } = useQuery({
     queryKey: thumbnailKeys.forVideo(videoUrl),
-    queryFn: () => generateThumbnailFromUrl(videoUrl),
+    queryFn: () => getVideoThumbnail(videoUrl),
     enabled: !!videoUrl,
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
