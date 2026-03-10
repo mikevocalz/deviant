@@ -1,4 +1,5 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
+import * as Haptics from "expo-haptics";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
 
@@ -6,7 +7,13 @@ export default function TabsLayout() {
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
 
   return (
-    <NativeTabs>
+    <NativeTabs
+      screenListeners={{
+        tabPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        },
+      }}
+    >
       <NativeTabs.Trigger
         name="index"
         listeners={{
