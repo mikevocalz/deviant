@@ -449,8 +449,9 @@ function ProfileScreenContent() {
       });
       return () => {
         navigation.getParent()?.setOptions({
-          headerLeft: () => <TabHeaderLogo />,
-          headerTitle: () => null,
+          headerLeft: () => null,
+          headerTitle: () => <TabHeaderLogo />,
+          headerTitleAlign: "left",
           headerRight: () => <TabHeaderRight />,
           headerStyle: { backgroundColor: colors.background },
         });
