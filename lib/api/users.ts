@@ -124,8 +124,9 @@ export const usersApi = {
 
       if (!userId) return null;
 
-      // Determine if userId is a UUID (auth_id) or integer (id)
-      const isUuid = userId.includes("-") && userId.length > 30;
+      // Determine if userId is a numeric integer ID or a string auth_id
+      // Better Auth IDs are non-numeric strings (no dashes); integer IDs are all digits
+      const isNumericId = /^\d+$/.test(userId);
 
       const { data, error } = await supabase
         .from(DB.users.table)
@@ -149,8 +150,8 @@ export const usersApi = {
         `,
         )
         .eq(
-          isUuid ? DB.users.authId : DB.users.id,
-          isUuid ? userId : parseInt(userId),
+          isNumericId ? DB.users.id : DB.users.authId,
+          isNumericId ? parseInt(userId) : userId,
         )
         .single();
 
