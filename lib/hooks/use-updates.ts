@@ -286,14 +286,9 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
         );
-        // Auto-reload after 3s — splash is already done by this point so auth is settled
-        toast.success("Update downloading…", {
-          description: "Restarting in 3 seconds to apply.",
-          duration: 3000,
-        });
-        setTimeout(() => {
-          reloadApp();
-        }, 3000);
+        // Show toast — user controls when to restart.
+        // Auto-reload was causing sign-outs by interrupting loadAuthState mid-flight.
+        showUpdateToast(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
