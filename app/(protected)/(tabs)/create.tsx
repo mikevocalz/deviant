@@ -23,7 +23,6 @@ import {
   Scissors,
 } from "lucide-react-native";
 import { useRouter, useNavigation, useFocusEffect } from "expo-router";
-import { TabHeaderLogo, TabHeaderRight } from "@/components/tab-header";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -43,7 +42,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useLayoutEffect } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { Switch } from "react-native";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
@@ -474,7 +473,7 @@ export default function CreateScreen() {
             showToast("success", "Posted!", "Your post is now live");
             reset();
             setSelectedTagUsers([]);
-            router.navigate("/");
+            router.back();
           },
           onError: (error: any) => {
             console.error("[Create] Failed to create post:", error);
@@ -508,123 +507,108 @@ export default function CreateScreen() {
             style: "destructive",
             onPress: () => {
               reset();
-              router.navigate("/");
+              router.back();
             },
           },
         ],
       );
     } else {
-      router.navigate("/");
+      router.back();
     }
   };
 
-  // Set up header when this tab is focused (NativeTabs compat: getParent)
-  useFocusEffect(
-    useCallback(() => {
-      navigation.getParent()?.setOptions({
-        headerShown: true,
-        headerTitle: "New Post",
-        headerTitleAlign: "left" as const,
-        headerStyle: {
-          backgroundColor: colors.background,
-        },
-        headerTitleStyle: {
-          color: colors.foreground,
-          fontWeight: "600" as const,
-          fontSize: 18,
-        },
-        headerLeft: () => (
-          <Pressable
-            onPress={handleClose}
-            hitSlop={12}
-            style={{
-              marginLeft: 8,
-              width: 44,
-              height: 44,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <X size={24} color={colors.foreground} strokeWidth={2.5} />
-          </Pressable>
-        ),
-        headerRight: () => (
-          <Pressable
-            onPress={() => {
-              console.log("[Create] Share button pressed!");
-              console.log(
-                "[Create] isValid:",
-                isValid,
-                "isUploading:",
-                isUploading,
+  // Set up header with useLayoutEffect
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerTitle: "New Post",
+      headerTitleAlign: "left" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerLeft: () => (
+        <Pressable
+          onPress={handleClose}
+          hitSlop={12}
+          style={{
+            marginLeft: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={24} color={colors.foreground} strokeWidth={2.5} />
+        </Pressable>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => {
+            console.log("[Create] Share button pressed!");
+            console.log(
+              "[Create] isValid:",
+              isValid,
+              "isUploading:",
+              isUploading,
+            );
+            if (isUploading) {
+              showToast("info", "Please wait", "Upload in progress...");
+              return;
+            }
+            if (selectedMedia.length === 0) {
+              showToast(
+                "error",
+                "No Media",
+                "Please select at least one photo or video",
               );
-              if (isUploading) {
-                showToast("info", "Please wait", "Upload in progress...");
-                return;
-              }
-              if (selectedMedia.length === 0) {
-                showToast(
-                  "error",
-                  "No Media",
-                  "Please select at least one photo or video",
-                );
-                return;
-              }
-              if (caption.trim().length < MIN_CAPTION_LENGTH) {
-                showToast(
-                  "error",
-                  "Caption Too Short",
-                  `Please write at least ${MIN_CAPTION_LENGTH} characters`,
-                );
-                return;
-              }
-              handlePost();
+              return;
+            }
+            if (caption.trim().length < MIN_CAPTION_LENGTH) {
+              showToast(
+                "error",
+                "Caption Too Short",
+                `Please write at least ${MIN_CAPTION_LENGTH} characters`,
+              );
+              return;
+            }
+            handlePost();
+          }}
+          disabled={isUploading || isCreating}
+          hitSlop={12}
+          style={{ marginRight: 8 }}
+        >
+          <Text
+            style={{
+              fontSize: 14,
+              fontWeight: "600",
+              color:
+                isValid && !isUploading && !isCreating
+                  ? colors.primary
+                  : colors.mutedForeground,
             }}
-            disabled={isUploading || isCreating}
-            hitSlop={12}
-            style={{ marginRight: 8 }}
           >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: "600",
-                color:
-                  isValid && !isUploading && !isCreating
-                    ? colors.primary
-                    : colors.mutedForeground,
-              }}
-            >
-              {isUploading
-                ? "Uploading..."
-                : isCreating
-                  ? "Posting..."
-                  : "Share"}
-            </Text>
-          </Pressable>
-        ),
-      });
-      return () => {
-        navigation.getParent()?.setOptions({
-          headerLeft: () => null,
-          headerTitle: () => <TabHeaderLogo />,
-          headerTitleAlign: "left",
-          headerRight: () => <TabHeaderRight />,
-          headerStyle: { backgroundColor: colors.background },
-        });
-      };
-    }, [
-      navigation,
-      colors,
-      isValid,
-      isUploading,
-      isCreating,
-      selectedMedia.length,
-      caption,
-      handlePost,
-      showToast,
-      handleClose,
-    ]),
-  );
+            {isUploading ? "Uploading..." : isCreating ? "Posting..." : "Share"}
+          </Text>
+        </Pressable>
+      ),
+    });
+  }, [
+    navigation,
+    colors,
+    isValid,
+    isUploading,
+    isCreating,
+    selectedMedia.length,
+    caption,
+    handlePost,
+    showToast,
+    handleClose,
+  ]);
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
