@@ -1,18 +1,37 @@
+import { useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
-import * as Haptics from "expo-haptics";
+import { Plus } from "lucide-react-native";
+import { CenterButton } from "@/components/center-button";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
 
+function CenterButtonAccessory() {
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+  const router = useRouter();
+
+  return (
+    <CenterButton
+      Icon={Plus}
+      onPress={() => router.push("/(protected)/(tabs)/create")}
+      accessoryPlacement={placement}
+    />
+  );
+}
+
 export default function TabsLayout() {
+  const router = useRouter();
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
 
   return (
     <NativeTabs>
+      <NativeTabs.BottomAccessory>
+        <CenterButtonAccessory />
+      </NativeTabs.BottomAccessory>
+
       <NativeTabs.Trigger
         name="index"
         listeners={{
           tabPress: () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             triggerScrollToTop();
           },
         }}
@@ -24,13 +43,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger
-        name="events"
-        listeners={{
-          tabPress: () =>
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-        }}
-      >
+      <NativeTabs.Trigger name="events">
         <NativeTabs.Trigger.Icon
           sf={{ default: "calendar", selected: "calendar.badge.clock" }}
           md="calendar_month"
@@ -38,27 +51,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Events</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger
-        name="create"
-        listeners={{
-          tabPress: () =>
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-        }}
-      >
-        <NativeTabs.Trigger.Icon
-          sf={{ default: "plus.circle", selected: "plus.circle.fill" }}
-          md="add_circle"
-        />
-        <NativeTabs.Trigger.Label>Create</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger
-        name="activity"
-        listeners={{
-          tabPress: () =>
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-        }}
-      >
+      <NativeTabs.Trigger name="activity">
         <NativeTabs.Trigger.Icon
           sf={{ default: "heart", selected: "heart.fill" }}
           md="favorite"
@@ -66,13 +59,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Activity</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger
-        name="profile"
-        listeners={{
-          tabPress: () =>
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-        }}
-      >
+      <NativeTabs.Trigger name="profile">
         <NativeTabs.Trigger.Icon
           sf={{ default: "person", selected: "person.fill" }}
           md="person"

@@ -19,9 +19,16 @@ import {
   CalendarDays,
   Heart,
 } from "lucide-react-native";
-import { useRouter, useNavigation, useFocusEffect, Link } from "expo-router";
+import { useRouter, useNavigation, Link } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useMemo, useEffect, useState, useCallback, useRef } from "react";
+import {
+  useMemo,
+  useEffect,
+  useState,
+  useLayoutEffect,
+  useCallback,
+  useRef,
+} from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -43,7 +50,6 @@ import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
-import { TabHeaderLogo, TabHeaderRight } from "@/components/tab-header";
 import {
   safeProfile,
   safeGridTiles,
@@ -412,52 +418,50 @@ function ProfileScreenContent() {
   // Track previous user ID to detect user switches
   const prevUserIdRef = useRef<string | null>(null);
 
-  // Update the parent Stack header when this tab is focused
-  useFocusEffect(
-    useCallback(() => {
-      navigation.getParent()?.setOptions({
-        headerLeft: () => null,
-        headerTitle: () => (
-          <View style={{ marginLeft: 3 }}>
-            <Text
-              style={{
-                color: colors.foreground,
-                fontWeight: "700",
-                fontSize: 12,
-              }}
-            >
-              @{user?.username || ""}
-            </Text>
-          </View>
-        ),
-        headerRight: () => (
-          <Pressable
-            onPress={() => router.push("/settings")}
-            hitSlop={12}
+  // Set up header with useLayoutEffect - MUST be called unconditionally
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      headerLeft: () => null, // No left header button
+      headerTitleAlign: "center" as const,
+      headerStyle: {
+        backgroundColor: colors.background,
+      },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 18,
+      },
+      headerTitle: () => (
+        <View style={{ marginLeft: 3 }}>
+          <Text
             style={{
-              marginRight: 8,
-              width: 44,
-              height: 44,
-              alignItems: "center",
-              justifyContent: "center",
+              color: colors.foreground,
+              fontWeight: "700",
+              fontSize: 12,
             }}
           >
-            <Settings size={24} color={colors.foreground} />
-          </Pressable>
-        ),
-        headerStyle: { backgroundColor: colors.background },
-      });
-      return () => {
-        navigation.getParent()?.setOptions({
-          headerLeft: () => null,
-          headerTitle: () => <TabHeaderLogo />,
-          headerTitleAlign: "left",
-          headerRight: () => <TabHeaderRight />,
-          headerStyle: { backgroundColor: colors.background },
-        });
-      };
-    }, [navigation, user?.username, colors, router]),
-  );
+            @{user?.username || ""}
+          </Text>
+        </View>
+      ),
+      headerRight: () => (
+        <Pressable
+          onPress={() => router.push("/settings")}
+          hitSlop={12}
+          style={{
+            marginRight: 8,
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Settings size={24} color={colors.foreground} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, user?.username, colors, router]);
 
   // Fetch real user posts - ONLY for logged-in user
   // Must be called unconditionally (React hooks rule) - BEFORE any early returns
