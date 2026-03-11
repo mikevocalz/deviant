@@ -47,18 +47,6 @@ export default function HomeScreen() {
         </ErrorBoundary>
       </Main>
       <SpicyToggleFAB />
-      <Text
-        style={{
-          position: "absolute",
-          bottom: 2,
-          right: 4,
-          fontSize: 8,
-          color: "#333",
-          opacity: 0.5,
-        }}
-      >
-        v5
-      </Text>
     </View>
   );
 }
