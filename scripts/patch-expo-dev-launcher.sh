@@ -56,13 +56,39 @@ sys.exit(0)
 PYEOF
   fi
   # Patch 1b: wrap packager connection code for RN 84+ (skip when Unsafe not linked)
-  if ! grep -q "RN 84+ skips Unsafe" "$TARGET" 2>/dev/null; then
+  # Handles both old performSelector pattern AND new direct-call pattern (expo-dev-client >= 55.0.16)
+  if ! grep -q "REACT_NATIVE_TARGET_VERSION < 84" "$TARGET" 2>/dev/null || grep -q '\[RCTPackagerConnection sharedPackagerConnection\]' "$TARGET" 2>/dev/null; then
     python3 - "$TARGET" <<'PYEOF2'
-import sys
+import sys, re
 path = sys.argv[1]
 with open(path, 'r') as f:
     content = f.read()
-old = """#if RCT_DEV
+
+patched = False
+
+# Pattern A: direct call (expo-dev-client >= 55.0.16)
+old_direct = """#if RCT_DEV
+    // Connect to the websocket, ignore downloaded update bundles
+    if (![bundleUrl.scheme isEqualToString:@"file"]) {
+      [[RCTPackagerConnection sharedPackagerConnection] setSocketConnectionURL:bundleUrl];
+    }
+    self.networkInterceptor"""
+new_direct = """#if RCT_DEV
+#if REACT_NATIVE_TARGET_VERSION < 84
+    // Connect to the websocket, ignore downloaded update bundles (RN 84+ skips Unsafe)
+    if (![bundleUrl.scheme isEqualToString:@"file"]) {
+      [[RCTPackagerConnection sharedPackagerConnection] setSocketConnectionURL:bundleUrl];
+    }
+#endif
+    self.networkInterceptor"""
+
+if old_direct in content and new_direct not in content:
+    content = content.replace(old_direct, new_direct)
+    patched = True
+    print("[patch-expo-dev-launcher] Packager block (direct call) wrapped for RN 84+")
+
+# Pattern B: old performSelector pattern (earlier patches)
+old_perf = """#if RCT_DEV
     // Connect to the websocket, ignore downloaded update bundles
     // RN 0.84+: sharedPackagerConnection removed; use performSelector to avoid compile error
     if (![bundleUrl.scheme isEqualToString:@"file"]) {
@@ -75,9 +101,9 @@ old = """#if RCT_DEV
       }
     }
     self.networkInterceptor"""
-new = """#if RCT_DEV
+new_perf = """#if RCT_DEV
 #if REACT_NATIVE_TARGET_VERSION < 84
-    // Connect to the websocket, ignore downloaded update bundles (RN 84+ skips Unsafe subspec)
+    // Connect to the websocket, ignore downloaded update bundles (RN 84+ skips Unsafe)
     if (![bundleUrl.scheme isEqualToString:@"file"]) {
       SEL sharedSel = NSSelectorFromString(@"sharedPackagerConnection");
       if ([RCTPackagerConnection respondsToSelector:sharedSel]) {
@@ -89,12 +115,17 @@ new = """#if RCT_DEV
     }
 #endif
     self.networkInterceptor"""
-if old in content and new not in content:
-    content = content.replace(old, new)
+
+if not patched and old_perf in content and new_perf not in content:
+    content = content.replace(old_perf, new_perf)
+    patched = True
+    print("[patch-expo-dev-launcher] Packager block (performSelector) wrapped for RN 84+")
+
+if patched:
     with open(path, 'w') as f:
         f.write(content)
-    print("[patch-expo-dev-launcher] EXDevLauncherController.m packager block wrapped for RN 84+")
     sys.exit(0)
+
 print("[patch-expo-dev-launcher] Packager block: pattern not found or already patched")
 sys.exit(0)
 PYEOF2
