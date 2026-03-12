@@ -72,7 +72,7 @@ function DVNTLiquidGlassComponent({
         style,
       ]}
     >
-      <View style={{ backgroundColor: "rgba(0,0,0,0.28)" }}>{inner}</View>
+      <View style={{ backgroundColor: "rgba(0,0,0,0.45)" }}>{inner}</View>
     </BlurView>
   );
 }
@@ -143,7 +143,7 @@ function DVNTLiquidGlassIconButtonComponent({
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "rgba(0,0,0,0.28)",
+          backgroundColor: "rgba(0,0,0,0.45)",
         }}
       >
         {children}

@@ -14,7 +14,7 @@
  *
  * State: all in useFeedPostUIStore (Zustand) — no local useState.
  */
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert, Modal } from "react-native";
 import { Article } from "@expo/html-elements";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -30,7 +30,7 @@ import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useFeedSlideStore } from "@/lib/stores/post-store";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
-import { useComments, usePrefetchComments } from "@/lib/hooks/use-comments";
+import { usePrefetchComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
@@ -53,7 +53,6 @@ import {
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
 import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
@@ -214,25 +213,6 @@ function FeedPostComponent({
 
   const { isMountedRef, safeInterval, clearSafeInterval, isSafeToOperate } =
     useVideoLifecycle("FeedPost", id);
-
-  // Gorhom sheet ref for fullscreen video
-  const fullscreenSheetRef = useRef<BottomSheet>(null);
-  useEffect(() => {
-    if (isFullscreen) {
-      fullscreenSheetRef.current?.snapToIndex(0);
-    } else {
-      fullscreenSheetRef.current?.close();
-    }
-  }, [isFullscreen]);
-
-  const handleFullscreenSheetChange = useCallback(
-    (index: number) => {
-      if (index === -1 && isFullscreen) {
-        setVideoState(id, { isFullscreen: false });
-      }
-    },
-    [isFullscreen, id, setVideoState],
-  );
 
   const videoUrl = useMemo(() => {
     if (isVideo && media[0]?.url) {
@@ -445,13 +425,6 @@ function FeedPostComponent({
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
   const commentCount = Array.isArray(comments) ? comments.length : comments;
-  const { data: recentCommentsData = [], refetch: refetchComments } =
-    useComments(id, 3);
-  const recentComments = recentCommentsData || [];
-
-  useEffect(() => {
-    if (commentCount > 0 && recentComments.length === 0) refetchComments();
-  }, [commentCount, recentComments.length, refetchComments, id]);
 
   // ── bottom overlay bottom offset: shift up if video (seek bar takes 24px at very bottom) ──
   const socialBottom = isVideo ? 34 : 14;
@@ -605,7 +578,7 @@ function FeedPostComponent({
               }}
               hitSlop={8}
             >
-              <DVNTLiquidGlass paddingH={6} paddingV={5} radius={22}>
+              <DVNTLiquidGlass paddingH={6} paddingV={5} radius={12}>
                 <Avatar
                   uri={author?.avatar}
                   username={author?.username || "User"}
@@ -619,8 +592,9 @@ function FeedPostComponent({
                       color: "#fff",
                       fontSize: 13,
                       fontWeight: "700",
-                      textShadowColor: "rgba(0,0,0,0.5)",
-                      textShadowRadius: 3,
+                      textShadowColor: "rgba(0,0,0,0.8)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 4,
                     }}
                   >
                     {author?.username}
@@ -628,7 +602,13 @@ function FeedPostComponent({
                   {location ? (
                     <Text
                       numberOfLines={1}
-                      style={{ color: "rgba(255,255,255,0.7)", fontSize: 10 }}
+                      style={{
+                        color: "rgba(255,255,255,0.85)",
+                        fontSize: 10,
+                        textShadowColor: "rgba(0,0,0,0.8)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                      }}
                     >
                       {location}
                     </Text>
@@ -692,7 +672,7 @@ function FeedPostComponent({
                 zIndex: 50,
               }}
             >
-              <DVNTLiquidGlass paddingH={10} paddingV={7} radius={24}>
+              <DVNTLiquidGlass paddingH={10} paddingV={7} radius={12}>
                 {/* Like */}
                 <Pressable
                   onPress={handleLike}
@@ -829,39 +809,6 @@ function FeedPostComponent({
               />
             </Text>
           )}
-          {recentComments.length > 0 && (
-            <View style={{ marginTop: 4, gap: 2 }}>
-              {recentComments.map((comment) => (
-                <Pressable
-                  key={comment.id}
-                  onPress={() =>
-                    id && router.push(`/(protected)/comments/${id}`)
-                  }
-                >
-                  <Text style={{ fontSize: 12, color: colors.foreground }}>
-                    <Text style={{ fontWeight: "700" }}>
-                      {comment.username}{" "}
-                    </Text>
-                    <Text>{comment.text}</Text>
-                  </Text>
-                </Pressable>
-              ))}
-              {commentCount > 3 && (
-                <Pressable
-                  onPress={() => {
-                    if (id) {
-                      prefetchComments(id);
-                      router.push(`/(protected)/comments/${id}`);
-                    }
-                  }}
-                >
-                  <Text style={{ fontSize: 12, color: colors.mutedForeground }}>
-                    View all {commentCount} comments
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          )}
           <Text
             style={{
               fontSize: 11,
@@ -875,19 +822,16 @@ function FeedPostComponent({
         </View>
       </Article>
 
-      {/* ── Fullscreen video sheet (Gorhom, video only) ────────── */}
+      {/* ── Fullscreen video modal (video only) ────────── */}
       {isVideo && (
-        <BottomSheet
-          ref={fullscreenSheetRef}
-          index={-1}
-          snapPoints={["100%"]}
-          enablePanDownToClose
-          enableOverDrag={false}
-          onChange={handleFullscreenSheetChange}
-          backgroundStyle={{ backgroundColor: "#000" }}
-          handleComponent={null}
+        <Modal
+          visible={isFullscreen}
+          animationType="fade"
+          supportedOrientations={["portrait", "landscape"]}
+          statusBarTranslucent
+          onRequestClose={handleFullscreenToggle}
         >
-          <BottomSheetView style={{ flex: 1, backgroundColor: "#000" }}>
+          <View style={{ flex: 1, backgroundColor: "#000" }}>
             <VideoView
               player={player}
               style={{ flex: 1 }}
@@ -924,8 +868,8 @@ function FeedPostComponent({
                 )}
               </DVNTLiquidGlassIconButton>
             </Pressable>
-          </BottomSheetView>
-        </BottomSheet>
+          </View>
+        </Modal>
       )}
 
       {/* ── Sheets ────────────────────────────────────────────────── */}

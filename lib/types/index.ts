@@ -34,7 +34,7 @@ export type Post = {
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
-  comments: Comment[];
+  comments: Comment[] | number;
   timeAgo: string;
   createdAt?: string;
   location?: string;
