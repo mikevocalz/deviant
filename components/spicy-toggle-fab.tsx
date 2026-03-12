@@ -1,5 +1,6 @@
 import { View, Text } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
 import Animated, {
   useSharedValue,
@@ -22,6 +23,7 @@ const SPRING_CONFIG = { damping: 20, stiffness: 300 };
 export function SpicyToggleFAB() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
+  const insets = useSafeAreaInsets();
 
   // Reanimated shared value — survives OTA reloads correctly
   const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
@@ -56,7 +58,7 @@ export function SpicyToggleFAB() {
       <Animated.View
         style={{
           position: "absolute",
-          bottom: 20,
+          bottom: insets.bottom + 64,
           right: 8,
           zIndex: 50,
           elevation: 50,
