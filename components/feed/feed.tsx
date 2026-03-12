@@ -426,6 +426,7 @@ export function Feed() {
         data={filteredPosts}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={
           filteredPosts.length === 0
             ? { flex: 1, paddingBottom: 80 }

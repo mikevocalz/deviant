@@ -528,6 +528,7 @@ export default function ActivityScreen() {
         data={filteredActivities}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
+        contentInsetAdjustmentBehavior="automatic"
         ListHeaderComponent={ListHeader}
         ListEmptyComponent={ListEmpty}
         showsVerticalScrollIndicator={false}
