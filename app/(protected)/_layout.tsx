@@ -144,13 +144,12 @@ export default function ProtectedLayout() {
           options={{
             animation: "none",
             headerShown: true,
+            headerTransparent: true,
+            headerBlurEffect: "none",
             headerLeft: () => null,
             headerTitle: () => <TabHeaderLogo />,
             headerTitleAlign: "left",
             headerRight: () => <TabHeaderRight />,
-            headerStyle: {
-              backgroundColor: colors.background,
-            },
             headerShadowVisible: false,
           }}
         />

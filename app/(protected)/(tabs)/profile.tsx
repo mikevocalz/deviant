@@ -599,6 +599,7 @@ function ProfileScreenContent() {
     >
       <ScrollView
         showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerClassName="pb-5"
       >
         <View className="px-5 pt-5 pb-4">

@@ -23,7 +23,7 @@ export default function TabsLayout() {
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
 
   return (
-    <NativeTabs>
+    <NativeTabs minimizeBehavior="onScrollDown">
       <NativeTabs.BottomAccessory>
         <CenterButtonAccessory />
       </NativeTabs.BottomAccessory>
