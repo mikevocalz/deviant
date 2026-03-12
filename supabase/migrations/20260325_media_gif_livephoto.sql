@@ -15,7 +15,7 @@ ALTER TABLE public.stories
   ADD COLUMN IF NOT EXISTS live_photo_video_url text;
 
 -- Index for fast "show me all GIF posts" queries (feed, profile grid)
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_posts_media_mime_type
+CREATE INDEX IF NOT EXISTS idx_posts_media_mime_type
   ON public.posts_media (mime_type)
   WHERE mime_type IS NOT NULL;
 

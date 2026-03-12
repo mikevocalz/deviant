@@ -133,7 +133,7 @@ export const postsApi = {
         .select(
           `
           *,
-          author:users(
+          author:users!posts_author_id_users_id_fk(
             ${DB.users.id},
             ${DB.users.username},
             ${DB.users.firstName},
@@ -197,7 +197,7 @@ export const postsApi = {
         .select(
           `
           *,
-          author:users(
+          author:users!posts_author_id_users_id_fk(
             ${DB.users.id},
             ${DB.users.username},
             ${DB.users.firstName},
@@ -250,7 +250,7 @@ export const postsApi = {
           .select(
             `
             *,
-            author:users(
+            author:users!posts_author_id_users_id_fk(
               ${DB.users.id},
               ${DB.users.authId},
               ${DB.users.username},
@@ -283,7 +283,7 @@ export const postsApi = {
           .select(
             `
             *,
-            author:users(
+            author:users!posts_author_id_users_id_fk(
               ${DB.users.id},
               ${DB.users.authId},
               ${DB.users.username},
@@ -370,7 +370,7 @@ export const postsApi = {
           ${DB.posts.likesCount},
           ${DB.posts.isNsfw},
           ${DB.posts.createdAt},
-          author:users(
+          author:users!posts_author_id_users_id_fk(
             ${DB.users.id},
             ${DB.users.username},
             ${DB.users.firstName},
