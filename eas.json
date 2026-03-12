@@ -9,7 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.1"
       },
       "env": {
         "APP_ENV": "development",
@@ -32,7 +32,7 @@
       "distribution": "internal",
       "channel": "production",
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.1"
       },
       "android": {
         "buildType": "apk"
@@ -58,7 +58,7 @@
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "latest"
+        "image": "macos-sequoia-15.6-xcode-26.1"
       },
       "env": {
         "APP_ENV": "production",
