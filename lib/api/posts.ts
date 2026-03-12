@@ -81,7 +81,7 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
     caption: dbPost[DB.posts.content] || "",
     likes: Number(dbPost[DB.posts.likesCount]) || 0,
     viewerHasLiked,
-    comments: [],
+    comments: Number(dbPost[DB.posts.commentsCount]) || 0,
     timeAgo: formatTimeAgo(dbPost[DB.posts.createdAt]),
     location: dbPost[DB.posts.location],
     isNSFW: dbPost[DB.posts.isNsfw] || false,

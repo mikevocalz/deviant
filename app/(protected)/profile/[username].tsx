@@ -7,14 +7,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  ArrowLeft,
-  Grid,
-  MoreHorizontal,
-  Share2,
-  Play,
-  Grid3x3,
-} from "lucide-react-native";
+import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -31,12 +24,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { usersApi } from "@/lib/api/users";
 import { Image } from "expo-image";
-import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import { Galeria } from "@nandorojo/galeria";
 import { Debouncer } from "@tanstack/react-pacer";
+import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
+import {
+  safeGridTiles,
+  type SafeGridTile,
+} from "@/lib/utils/safe-profile-mappers";
 
 const GRID_GAP = 2;
 
@@ -315,8 +312,13 @@ function UserProfileScreenComponent() {
     isLoadingUser || (!userData && !!authId && isLoadingAuthUser);
 
   // Fetch user posts — fires in parallel with user query (no waterfall)
-  const { data: userPosts = [], isLoading: isLoadingPosts } = useProfilePosts(
-    safeUsername || "",
+  const { data: userPostsRaw = [], isLoading: isLoadingPosts } =
+    useProfilePosts(safeUsername || "");
+
+  // Transform to masonry grid tiles
+  const userPosts: SafeGridTile[] = useMemo(
+    () => safeGridTiles(userPostsRaw),
+    [userPostsRaw],
   );
 
   // Follow state — read directly from query cache (optimistically updated by useFollow)
@@ -406,16 +408,6 @@ function UserProfileScreenComponent() {
     isPending: isFollowPending,
     mutate: followMutate,
   };
-
-  const handlePostPress = useCallback(
-    (postId: string) => {
-      if (postId) {
-        screenPrefetch.postDetail(queryClient, postId);
-        router.push(`/(protected)/post/${postId}`);
-      }
-    },
-    [router, queryClient],
-  );
 
   const handleFollowPress = useCallback(() => {
     if (!user.id || !username) return;
@@ -825,7 +817,7 @@ function UserProfileScreenComponent() {
           </Pressable>
         </View>
 
-        {/* Posts Grid */}
+        {/* Posts Grid — Masonry */}
         {isLoading || isLoadingPosts ? (
           <View className="flex-row flex-wrap">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -839,113 +831,17 @@ function UserProfileScreenComponent() {
               </View>
             ))}
           </View>
-        ) : userPosts.length === 0 ? (
-          <View className="p-4 items-center flex-1">
-            <Text className="text-muted-foreground">No posts yet</Text>
-          </View>
         ) : (
-          <View className="flex-row flex-wrap">
-            {userPosts.map((post) => (
-              <Pressable
-                key={post.id}
-                onPress={() => {
-                  screenPrefetch.postDetail(queryClient, post.id);
-                  router.push(`/(protected)/post/${post.id}`);
-                }}
-                style={{ width: columnWidth, height: columnWidth, padding: 1 }}
-              >
-                {post.thumbnail ? (
-                  <View
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      position: "relative",
-                    }}
-                  >
-                    <Image
-                      source={{ uri: post.thumbnail }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        backgroundColor: "#1a1a1a",
-                        borderRadius: 8,
-                      }}
-                      contentFit="cover"
-                      transition={200}
-                      cachePolicy="memory-disk"
-                    />
-                    {/* Video indicator */}
-                    {post.type === "video" && (
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          backgroundColor: "rgba(0,0,0,0.6)",
-                          borderRadius: 12,
-                          padding: 6,
-                        }}
-                      >
-                        <Play size={16} color="#fff" fill="#fff" />
-                      </View>
-                    )}
-                    {/* Carousel indicator */}
-                    {post.hasMultipleImages && (
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 8,
-                          right: 8,
-                          backgroundColor: "rgba(0,0,0,0.6)",
-                          borderRadius: 12,
-                          padding: 6,
-                        }}
-                      >
-                        <Grid3x3 size={16} color="#fff" />
-                      </View>
-                    )}
-                  </View>
-                ) : post.type === "video" && post.media?.[0]?.url ? (
-                  <View
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      position: "relative",
-                    }}
-                  >
-                    <VideoThumbnailImage videoUrl={post.media[0].url} />
-                    <View
-                      style={{
-                        position: "absolute",
-                        top: 8,
-                        right: 8,
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                        borderRadius: 12,
-                        padding: 6,
-                      }}
-                    >
-                      <Play size={16} color="#fff" fill="#fff" />
-                    </View>
-                  </View>
-                ) : (
-                  <View
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      backgroundColor: "#1a1a1a",
-                      borderRadius: 8,
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text className="text-muted-foreground text-xs">
-                      No preview
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            ))}
-          </View>
+          <ProfileMasonryGrid
+            data={userPosts}
+            userId={userId}
+            scrollEnabled={false}
+            ListEmptyComponent={
+              <View className="p-4 items-center flex-1">
+                <Text className="text-muted-foreground">No posts yet</Text>
+              </View>
+            }
+          />
         )}
       </ScrollView>
     </SafeAreaView>
