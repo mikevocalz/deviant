@@ -13,6 +13,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computeFees } from "../_shared/fee-calculator.ts";
+import { verifySession } from "../_shared/verify-session.ts";
+import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
+import {
+  validateAndApplyPromo,
+  incrementPromoUsage,
+} from "../_shared/apply-promo-code.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") || "";
@@ -104,31 +110,42 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const {
-      event_id,
-      ticket_type_id,
-      quantity = 1,
-      user_id,
-    } = await req.json();
-
-    if (!event_id || !ticket_type_id || !user_id) {
-      return json({ error: "Missing required fields" }, 400);
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    // ── Fetch ticket type ────────────────────────────────────
+    // ── Session auth (mandatory) ──────────────────────────
+    const user_id = await verifySession(supabase, req);
+    if (!user_id) {
+      return json({ error: "Unauthorized — invalid or expired session" }, 401);
+    }
+
+    const {
+      event_id,
+      ticket_type_id,
+      quantity = 1,
+      promo_code,
+    } = await req.json();
+
+    if (!event_id || !ticket_type_id) {
+      return json({ error: "Missing required fields" }, 400);
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return json({ error: "Invalid quantity" }, 400);
+    }
+
+    // ── Fetch ticket type (scoped to event to prevent cross-event manipulation) ──
     const { data: ticketType, error: ttError } = await supabase
       .from("ticket_types")
       .select("*")
       .eq("id", ticket_type_id)
+      .eq("event_id", parseInt(event_id))
       .single();
 
     if (ttError || !ticketType)
-      return json({ error: "Ticket type not found" }, 404);
+      return json({ error: "Ticket type not found for this event" }, 404);
 
     // ── Check availability (including existing holds) ────────
     const remaining =
@@ -148,31 +165,65 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Not enough tickets available" }, 400);
     }
 
-    // ── Check max per user ───────────────────────────────────
-    if (quantity > (ticketType.max_per_user || 4)) {
+    // ── Check max per user (including already-owned tickets) ──
+    const maxPerUser = ticketType.max_per_user || 4;
+    const { count: ownedCount } = await supabase
+      .from("tickets")
+      .select("*", { count: "exact", head: true })
+      .eq("ticket_type_id", ticket_type_id)
+      .eq("user_id", user_id)
+      .in("status", ["active", "scanned", "transfer_pending"]);
+
+    if ((ownedCount || 0) + quantity > maxPerUser) {
+      const remaining = maxPerUser - (ownedCount || 0);
       return json(
         {
-          error: `Maximum ${ticketType.max_per_user || 4} tickets per person`,
+          error:
+            remaining <= 0
+              ? `You already have the maximum ${maxPerUser} tickets`
+              : `You can only buy ${remaining} more (max ${maxPerUser} per person)`,
         },
         400,
       );
     }
 
-    // ── Free tickets: issue directly ─────────────────────────
-    if (ticketType.price_cents === 0) {
+    // ── Promo code validation (before free/paid branching) ────
+    let promoResult: any = null;
+    let discountCents = 0;
+    if (promo_code) {
+      const { result, error: promoErr } = await validateAndApplyPromo(
+        supabase,
+        parseInt(event_id),
+        promo_code,
+        ticket_type_id,
+        ticketType.price_cents * quantity,
+      );
+      if (promoErr) return json({ error: promoErr }, 400);
+      promoResult = result;
+      discountCents = promoResult?.discount_cents || 0;
+    }
+
+    const rawSubtotal = ticketType.price_cents * quantity;
+    const effectiveSubtotal = Math.max(0, rawSubtotal - discountCents);
+
+    // ── Free tickets (or fully discounted): issue directly ────
+    if (effectiveSubtotal === 0) {
       const tickets = [];
+      const eventIdInt = parseInt(event_id);
       for (let i = 0; i < quantity; i++) {
-        const bytes = new Uint8Array(32);
-        crypto.getRandomValues(bytes);
-        const qrToken = Array.from(bytes)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+        const ticketUuid = crypto.randomUUID();
+        const { qrToken, qrPayload } = await createSignedQrPayload(
+          ticketUuid,
+          eventIdInt,
+        );
         tickets.push({
-          event_id: parseInt(event_id),
+          id: ticketUuid,
+          event_id: eventIdInt,
           ticket_type_id,
           user_id,
           status: "active",
           qr_token: qrToken,
+          qr_payload: qrPayload,
           purchase_amount_cents: 0,
         });
       }
@@ -189,6 +240,11 @@ Deno.serve(async (req: Request) => {
         .update({ quantity_sold: (ticketType.quantity_sold || 0) + quantity })
         .eq("id", ticket_type_id);
 
+      // Increment promo usage if a promo was used
+      if (promoResult) {
+        await incrementPromoUsage(supabase, promoResult.promo_code_id);
+      }
+
       const { data: freeOrder } = await supabase
         .from("orders")
         .insert({
@@ -199,6 +255,12 @@ Deno.serve(async (req: Request) => {
           total_cents: 0,
           event_id: parseInt(event_id),
           paid_at: new Date().toISOString(),
+          ...(promoResult
+            ? {
+                promo_code_id: promoResult.promo_code_id,
+                discount_cents: discountCents,
+              }
+            : {}),
         })
         .select("id")
         .single();
@@ -209,7 +271,9 @@ Deno.serve(async (req: Request) => {
           {
             order_id: freeOrder.id,
             type: "payment_captured",
-            label: "Free ticket issued",
+            label: promoResult
+              ? "Free ticket issued (100% promo discount)"
+              : "Free ticket issued",
           },
         ]);
       }
@@ -239,8 +303,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Fee structure (v1_250_1pt) ──────────────────────────────
-    // Each component computed SEPARATELY — never Math.round(subtotal * 0.05)
-    const subtotalCents = ticketType.price_cents * quantity;
+    const subtotalCents = effectiveSubtotal;
     const fees = computeFees(subtotalCents, quantity);
 
     // ── Get or create Stripe Customer ────────────────────
@@ -268,6 +331,13 @@ Deno.serve(async (req: Request) => {
       "metadata[dvnt_total_fee_cents]": fees.dvnt_total_fee.toString(),
       "metadata[fee_policy_version]": fees.fee_policy_version,
       "metadata[event_title]": (event.title || "").substring(0, 500),
+      ...(promoResult
+        ? {
+            "metadata[promo_code_id]": promoResult.promo_code_id,
+            "metadata[discount_cents]": discountCents.toString(),
+            "metadata[promo_code]": promoResult.code,
+          }
+        : {}),
     });
 
     // ── Create ephemeral key for PaymentSheet ────────────────
@@ -297,6 +367,11 @@ Deno.serve(async (req: Request) => {
       expires_at: holdExpiresAt,
     });
 
+    // ── Increment promo usage (before order, to prevent race) ──
+    if (promoResult) {
+      await incrementPromoUsage(supabase, promoResult.promo_code_id);
+    }
+
     // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
       user_id,
@@ -316,6 +391,12 @@ Deno.serve(async (req: Request) => {
       fee_policy_version: fees.fee_policy_version,
       event_id: parseInt(event_id),
       stripe_payment_intent_id: pi.id,
+      ...(promoResult
+        ? {
+            promo_code_id: promoResult.promo_code_id,
+            discount_cents: discountCents,
+          }
+        : {}),
     });
 
     return json({

@@ -4,7 +4,14 @@
  * Loading, success, error states for each action.
  */
 
-import React, { memo, useCallback, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   View,
   Text,
@@ -14,12 +21,19 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Wallet, CalendarPlus, Share2, Check } from "lucide-react-native";
+import { Wallet, CalendarPlus, Share2, Check, Send } from "lucide-react-native";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetTextInput,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import * as Haptics from "expo-haptics";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { addToWallet } from "@/src/ticket/helpers/add-to-wallet";
 import { addTicketToCalendar } from "@/src/ticket/helpers/add-to-calendar";
 import { shareTicket } from "@/src/ticket/helpers/share-ticket";
+import { ticketsApi } from "@/lib/api/tickets";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketActionsBarProps {
@@ -48,6 +62,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const [walletState, setWalletState] = useState<ActionState>("idle");
   const [calendarState, setCalendarState] = useState<ActionState>("idle");
   const [shareState, setShareState] = useState<ActionState>("idle");
+  const [transferState, setTransferState] = useState<ActionState>("idle");
 
   // ── Wallet ──
   const handleWallet = useCallback(async () => {
@@ -117,6 +132,67 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       setTimeout(() => setShareState("idle"), 3000);
     }
   }, [ticket, shareState, showToast]);
+
+  // ── Transfer ──
+  const transferSheetRef = useRef<BottomSheet>(null);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferUsername, setTransferUsername] = useState("");
+
+  useEffect(() => {
+    if (showTransferModal) {
+      transferSheetRef.current?.expand();
+    } else {
+      transferSheetRef.current?.close();
+    }
+  }, [showTransferModal]);
+
+  const handleTransferSheetChange = useCallback((index: number) => {
+    if (index === -1) setShowTransferModal(false);
+  }, []);
+
+  const renderTransferBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.7}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  const handleTransfer = useCallback(() => {
+    if (transferState === "loading") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTransferUsername("");
+    setShowTransferModal(true);
+  }, [transferState]);
+
+  const handleTransferSubmit = useCallback(async () => {
+    const username = transferUsername.trim();
+    if (!username) {
+      showToast("error", "Error", "Please enter a username");
+      return;
+    }
+    setShowTransferModal(false);
+    setTransferState("loading");
+    const result = await ticketsApi.initiateTransfer(ticket.id, username);
+    if (result.error) {
+      setTransferState("error");
+      showToast("error", "Transfer Failed", result.error);
+      setTimeout(() => setTransferState("idle"), 3000);
+    } else {
+      setTransferState("success");
+      showToast(
+        "success",
+        "Transfer Initiated",
+        `Waiting for @${username} to accept (expires in 24h)`,
+      );
+      setTimeout(() => setTransferState("idle"), 3000);
+    }
+  }, [ticket, transferUsername, showToast]);
 
   if (!isActive) return null;
 
@@ -193,6 +269,82 @@ export const TicketActionsBar = memo(function TicketActionsBar({
           Share
         </Text>
       </Pressable>
+
+      {/* Transfer */}
+      <Pressable
+        onPress={handleTransfer}
+        style={[
+          styles.actionButton,
+          transferState === "success" && styles.successButton,
+        ]}
+        disabled={transferState === "loading"}
+      >
+        {transferState === "loading" ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : transferState === "success" ? (
+          <Check size={16} color="#3FDCFF" />
+        ) : (
+          <Send size={16} color="#fff" />
+        )}
+        <Text
+          style={[
+            styles.actionLabel,
+            transferState === "success" && styles.successLabel,
+          ]}
+          numberOfLines={1}
+        >
+          {transferState === "success" ? "Sent" : "Transfer"}
+        </Text>
+      </Pressable>
+
+      {/* Transfer username bottom sheet */}
+      <BottomSheet
+        ref={transferSheetRef}
+        index={-1}
+        enableDynamicSizing
+        enablePanDownToClose
+        backdropComponent={renderTransferBackdrop}
+        onChange={handleTransferSheetChange}
+        backgroundStyle={styles.sheetBackground}
+        handleIndicatorStyle={styles.sheetHandle}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+      >
+        <BottomSheetView style={styles.sheetContent}>
+          <Text style={styles.modalTitle}>Transfer Ticket</Text>
+          <Text style={styles.modalSubtitle}>
+            Enter the username of the person you want to transfer this ticket
+            to.
+          </Text>
+          <BottomSheetTextInput
+            style={styles.modalInput}
+            placeholder="Username"
+            placeholderTextColor="rgba(255,255,255,0.3)"
+            value={transferUsername}
+            onChangeText={setTransferUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoFocus
+            returnKeyType="done"
+            onSubmitEditing={handleTransferSubmit}
+          />
+          <View style={styles.modalButtons}>
+            <Pressable
+              style={styles.modalCancelBtn}
+              onPress={() => setShowTransferModal(false)}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.modalSubmitBtn, { backgroundColor: `${accent}` }]}
+              onPress={handleTransferSubmit}
+            >
+              <Text style={styles.modalSubmitText}>Transfer</Text>
+            </Pressable>
+          </View>
+        </BottomSheetView>
+      </BottomSheet>
     </View>
   );
 });
@@ -227,5 +379,68 @@ const styles = StyleSheet.create({
   },
   successLabel: {
     color: "#3FDCFF",
+  },
+  sheetBackground: {
+    backgroundColor: "#1a1a1a",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 36,
+  },
+  sheetContent: {
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalTitle: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  modalInput: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    color: "#fff",
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  modalCancelText: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  modalSubmitBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  modalSubmitText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

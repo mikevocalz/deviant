@@ -76,19 +76,37 @@ export async function updateProfilePrivileged(
 
 /**
  * Delete the current user's account via Edge Function.
- * This is a placeholder for future implementation.
+ * Permanently deletes all user data, cancels subscriptions,
+ * anonymizes financial records.
  *
  * @returns Success status
  */
 export async function deleteAccountPrivileged(): Promise<boolean> {
   console.log("[Privileged] deleteAccountPrivileged called");
 
-  // Get Better Auth token
   const token = await getAuthToken();
   if (!token) {
     throw new Error("Not authenticated");
   }
 
-  // TODO: Implement delete-account Edge Function
-  throw new Error("Not implemented yet");
+  const { data, error } = await supabase.functions.invoke<
+    PrivilegedResponse<null>
+  >("delete-account", {
+    body: { confirm: true },
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (error) {
+    console.error("[Privileged] Delete account error:", error);
+    throw new Error(error.message || "Failed to delete account");
+  }
+
+  if (!data?.ok && (data as any)?.error) {
+    throw new Error((data as any).error);
+  }
+
+  console.log("[Privileged] Account deleted successfully");
+  return true;
 }

@@ -204,7 +204,10 @@ export const bootstrapApi = {
       if (error) throw error;
       return data as BootstrapProfileResponse;
     } catch (err) {
-      console.error("[Bootstrap] Profile error:", err);
+      console.warn(
+        "[Bootstrap] Profile error (non-fatal, falls back to individual queries):",
+        err,
+      );
       return null;
     }
   },

@@ -112,16 +112,19 @@ export function DVNTSeekBar({
         }}
         style={{
           width: resolvedWidth,
-          height: 3,
+          height: 9,
           backgroundColor: "rgba(255,255,255,0.20)",
-          borderRadius: 2,
+          borderRadius: 3,
           overflow: "visible",
         }}
         {...panResponder.panHandlers}
       >
         {/* Gradient fill */}
         <Animated.View
-          style={[{ height: "100%", borderRadius: 2, overflow: "hidden" }, fillStyle]}
+          style={[
+            { height: "100%", borderRadius: 3, overflow: "hidden" },
+            fillStyle,
+          ]}
         >
           <LinearGradient
             colors={["#3FDCFF", "#8A40CF", "#FF5BFC"]}
@@ -132,15 +135,15 @@ export function DVNTSeekBar({
         </Animated.View>
       </View>
 
-      {/* Thumb dot */}
+      {/* Thumb */}
       <Animated.View
         style={[
           {
             position: "absolute",
-            top: 5,
-            width: 10,
-            height: 10,
-            borderRadius: 5,
+            top: 4,
+            width: 12,
+            height: 12,
+            borderRadius: 3,
             backgroundColor: "#FF5BFC",
             shadowColor: "#FF5BFC",
             shadowOffset: { width: 0, height: 0 },

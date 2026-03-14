@@ -12,6 +12,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -60,24 +61,34 @@ async function stripeGet(endpoint: string): Promise<any> {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { plan_id, user_id } = await req.json();
-
-    if (!plan_id || !user_id) {
-      return json({ error: "Missing plan_id or user_id" }, 400);
-    }
-
-    if (!["host_25", "host_50"].includes(plan_id)) {
-      return json({ error: "Invalid plan_id. Must be host_25 or host_50" }, 400);
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── Session auth (mandatory) ──────────────────────────
+    const user_id = await verifySession(supabase, req);
+    if (!user_id) {
+      return json({ error: "Unauthorized — invalid or expired session" }, 401);
+    }
+
+    const { plan_id } = await req.json();
+
+    if (!plan_id) {
+      return json({ error: "Missing plan_id" }, 400);
+    }
+
+    if (!["host_25", "host_50"].includes(plan_id)) {
+      return json(
+        { error: "Invalid plan_id. Must be host_25 or host_50" },
+        400,
+      );
+    }
 
     // ── Fetch plan details ───────────────────────────────────
     const { data: plan, error: planError } = await supabase
@@ -98,7 +109,28 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (existingSub?.status === "active" && existingSub.plan_id === plan_id) {
-      return json({ error: "Already subscribed to this plan. Manage via billing portal." }, 409);
+      return json(
+        {
+          error: "Already subscribed to this plan. Manage via billing portal.",
+        },
+        409,
+      );
+    }
+
+    // If user has an active subscription on a DIFFERENT plan, direct to portal
+    if (
+      existingSub?.stripe_subscription_id &&
+      existingSub.status === "active" &&
+      existingSub.plan_id !== plan_id
+    ) {
+      return json(
+        {
+          error:
+            "You have an active subscription. Use the billing portal to change plans.",
+          redirect: "billing_portal",
+        },
+        409,
+      );
     }
 
     // ── Get or create Stripe Customer ────────────────────────
@@ -127,34 +159,47 @@ Deno.serve(async (req: Request) => {
     let stripePriceId = plan.stripe_price_id;
 
     if (!stripePriceId) {
-      // Create product if needed
-      let stripeProductId = plan.stripe_product_id;
-      if (!stripeProductId) {
-        const product = await stripePost("/products", {
-          name: `Sneaky Lynk ${plan.name}`,
+      // Re-read plan to avoid race with concurrent request that may have just created IDs
+      const { data: freshPlan } = await supabase
+        .from("sneaky_subscription_plans")
+        .select("stripe_product_id, stripe_price_id")
+        .eq("id", plan_id)
+        .single();
+
+      if (freshPlan?.stripe_price_id) {
+        stripePriceId = freshPlan.stripe_price_id;
+      } else {
+        // Create product if needed
+        let stripeProductId =
+          freshPlan?.stripe_product_id || plan.stripe_product_id;
+        if (!stripeProductId) {
+          const product = await stripePost("/products", {
+            name: `Sneaky Lynk ${plan.name}`,
+            "metadata[plan_id]": plan_id,
+          });
+          stripeProductId = product.id;
+        }
+
+        // Create price
+        const price = await stripePost("/prices", {
+          product: stripeProductId,
+          unit_amount: plan.price_cents.toString(),
+          currency: "usd",
+          "recurring[interval]": plan.interval,
           "metadata[plan_id]": plan_id,
         });
-        stripeProductId = product.id;
+        stripePriceId = price.id;
+
+        // Persist Stripe IDs back to the plan row for reuse
+        await supabase
+          .from("sneaky_subscription_plans")
+          .update({
+            stripe_product_id: stripeProductId,
+            stripe_price_id: stripePriceId,
+          })
+          .eq("id", plan_id)
+          .is("stripe_price_id", null); // Only write if still null (CAS)
       }
-
-      // Create price
-      const price = await stripePost("/prices", {
-        product: stripeProductId,
-        unit_amount: plan.price_cents.toString(),
-        currency: "usd",
-        "recurring[interval]": plan.interval,
-        "metadata[plan_id]": plan_id,
-      });
-      stripePriceId = price.id;
-
-      // Persist Stripe IDs back to the plan row for reuse
-      await supabase
-        .from("sneaky_subscription_plans")
-        .update({
-          stripe_product_id: stripeProductId,
-          stripe_price_id: stripePriceId,
-        })
-        .eq("id", plan_id);
     }
 
     // ── Create Stripe Checkout Session (subscription mode) ──
@@ -169,6 +214,8 @@ Deno.serve(async (req: Request) => {
       "metadata[type]": "sneaky_subscription",
       "metadata[user_id]": user_id,
       "metadata[plan_id]": plan_id,
+      // Stripe Tax: automatic collection
+      "automatic_tax[enabled]": "true",
       success_url: `${APP_SCHEME}://sneaky/billing/success?plan=${plan_id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_SCHEME}://sneaky/billing/cancel`,
     });

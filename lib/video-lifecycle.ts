@@ -35,12 +35,16 @@ export interface VideoLifecycleState {
 export function logVideoHealth(
   component: string,
   event: string,
-  details?: Record<string, unknown>
+  details?: Record<string, unknown>,
 ) {
   if (!VIDEO_DEBUG) return;
 
+  if (!__DEV__) return;
   const timestamp = Date.now();
   const detailsStr = details ? ` ${JSON.stringify(details)}` : "";
+  // Only log non-routine events (skip OK getCurrentTime/getDuration spam)
+  if (event.startsWith("OK getCurrent") || event.startsWith("OK getDuration"))
+    return;
   console.log(`[VideoHealth:${component}] ${event}${detailsStr} @${timestamp}`);
 }
 
@@ -53,7 +57,7 @@ export function safePlayerOp<T>(
   operation: (p: VideoPlayer) => T,
   fallback: T,
   opName: string,
-  componentName: string
+  componentName: string,
 ): T {
   if (!isMountedRef.current) {
     logVideoHealth(componentName, `BLOCKED ${opName} - unmounted`);
@@ -96,13 +100,13 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
   const isMountedRef = useRef(true);
   const isExitingRef = useRef(false);
   const instanceIdRef = useRef(
-    `${componentName}-${videoId || "unknown"}-${Date.now()}`
+    `${componentName}-${videoId || "unknown"}-${Date.now()}`,
   );
   const pendingTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(
-    new Set()
+    new Set(),
   );
   const pendingIntervalsRef = useRef<Set<ReturnType<typeof setInterval>>>(
-    new Set()
+    new Set(),
   );
 
   // Track mount/unmount
@@ -138,7 +142,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
 
       // Clear all pending intervals
       pendingIntervalsRef.current.forEach((interval) =>
-        clearInterval(interval)
+        clearInterval(interval),
       );
       pendingIntervalsRef.current.clear();
 
@@ -169,7 +173,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
       pendingTimersRef.current.add(timer);
       return timer;
     },
-    []
+    [],
   );
 
   // Safe setInterval that auto-cancels on unmount
@@ -183,7 +187,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
       pendingIntervalsRef.current.add(interval);
       return interval;
     },
-    []
+    [],
   );
 
   // Clear a specific timer
@@ -192,7 +196,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
       clearTimeout(timer);
       pendingTimersRef.current.delete(timer);
     },
-    []
+    [],
   );
 
   // Clear a specific interval
@@ -201,7 +205,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
       clearInterval(interval);
       pendingIntervalsRef.current.delete(interval);
     },
-    []
+    [],
   );
 
   // Mark as exiting (for navigation away)
@@ -234,7 +238,7 @@ export function useVideoLifecycle(componentName: string, videoId?: string) {
 export function safePlay(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
-  componentName: string
+  componentName: string,
 ): boolean {
   return safePlayerOp(
     isMountedRef,
@@ -245,7 +249,7 @@ export function safePlay(
     },
     false,
     "play",
-    componentName
+    componentName,
   );
 }
 
@@ -255,7 +259,7 @@ export function safePlay(
 export function safePause(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
-  componentName: string
+  componentName: string,
 ): boolean {
   return safePlayerOp(
     isMountedRef,
@@ -266,7 +270,7 @@ export function safePause(
     },
     false,
     "pause",
-    componentName
+    componentName,
   );
 }
 
@@ -277,7 +281,7 @@ export function safeSeek(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
   time: number,
-  componentName: string
+  componentName: string,
 ): boolean {
   return safePlayerOp(
     isMountedRef,
@@ -288,7 +292,7 @@ export function safeSeek(
     },
     false,
     `seek(${time})`,
-    componentName
+    componentName,
   );
 }
 
@@ -299,7 +303,7 @@ export function safeMute(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
   muted: boolean,
-  componentName: string
+  componentName: string,
 ): boolean {
   return safePlayerOp(
     isMountedRef,
@@ -310,7 +314,7 @@ export function safeMute(
     },
     false,
     `mute(${muted})`,
-    componentName
+    componentName,
   );
 }
 
@@ -320,7 +324,7 @@ export function safeMute(
 export function safeGetCurrentTime(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
-  componentName: string
+  componentName: string,
 ): number {
   return safePlayerOp(
     isMountedRef,
@@ -328,7 +332,7 @@ export function safeGetCurrentTime(
     (p) => p.currentTime || 0,
     0,
     "getCurrentTime",
-    componentName
+    componentName,
   );
 }
 
@@ -338,7 +342,7 @@ export function safeGetCurrentTime(
 export function safeGetDuration(
   player: VideoPlayer | null,
   isMountedRef: React.MutableRefObject<boolean>,
-  componentName: string
+  componentName: string,
 ): number {
   return safePlayerOp(
     isMountedRef,
@@ -346,7 +350,7 @@ export function safeGetDuration(
     (p) => p.duration || 0,
     0,
     "getDuration",
-    componentName
+    componentName,
   );
 }
 
@@ -355,7 +359,7 @@ export function safeGetDuration(
  */
 export function cleanupPlayer(
   player: VideoPlayer | null,
-  componentName: string
+  componentName: string,
 ): void {
   if (!player) return;
 

@@ -1,6 +1,14 @@
-import { View, Text, ScrollView, Pressable, Dimensions } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  Pressable,
+  Dimensions,
+  Modal,
+  StatusBar,
+} from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -10,6 +18,11 @@ import {
   Share2,
   Bookmark,
   MoreHorizontal,
+  Volume2,
+  VolumeX,
+  Play,
+  Maximize2,
+  Minimize2,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
@@ -24,9 +37,15 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { Image } from "expo-image";
 import {
   useVideoLifecycle,
+  safePlay,
   safePause,
+  safeSeek,
+  safeGetCurrentTime,
+  safeGetDuration,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
+import { DVNTSeekBar } from "@/components/media/DVNTSeekBar";
+import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -66,6 +85,12 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     "PostDetail",
     postId,
   );
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const videoUrl = useMemo(() => {
     if (
@@ -82,6 +107,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     if (p && videoUrl && isMountedRef.current) {
       try {
         p.loop = false;
+        p.muted = false;
         logVideoHealth("PostDetail", "player configured", {
           postId,
           videoUrl: videoUrl.slice(0, 50),
@@ -92,16 +118,64 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     }
   });
 
+  // Poll video time
+  useEffect(() => {
+    if (!player || !videoUrl) return;
+    pollRef.current = setInterval(() => {
+      if (!isMountedRef.current) return;
+      const t = safeGetCurrentTime(player, isMountedRef, "PostDetail");
+      const d = safeGetDuration(player, isMountedRef, "PostDetail");
+      if (t !== null) setCurrentTime(t);
+      if (d !== null && d > 0) setDuration(d);
+    }, 250);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [player, videoUrl, isMountedRef]);
+
   useFocusEffect(
     useCallback(() => {
+      if (player && videoUrl && isSafeToOperate()) {
+        safePlay(player, isMountedRef, "PostDetail");
+        setIsPlaying(true);
+      }
       return () => {
         if (!player || !videoUrl) return;
         if (isSafeToOperate()) {
           safePause(player, isMountedRef, "PostDetail");
+          setIsPlaying(false);
         }
       };
     }, [player, videoUrl, isSafeToOperate, isMountedRef]),
   );
+
+  const handleSeek = useCallback(
+    (time: number) => safeSeek(player, isMountedRef, time, "PostDetail"),
+    [player, isMountedRef],
+  );
+
+  const togglePlayPause = useCallback(() => {
+    if (!player || !isMountedRef.current) return;
+    if (isPlaying) {
+      safePause(player, isMountedRef, "PostDetail");
+      setIsPlaying(false);
+    } else {
+      safePlay(player, isMountedRef, "PostDetail");
+      setIsPlaying(true);
+    }
+  }, [player, isMountedRef, isPlaying]);
+
+  const toggleMute = useCallback(() => {
+    if (!player || !isMountedRef.current) return;
+    try {
+      player.muted = !isMuted;
+      setIsMuted(!isMuted);
+    } catch {}
+  }, [player, isMountedRef, isMuted]);
+
+  const handleFullscreenToggle = useCallback(() => {
+    setIsFullscreen((prev) => !prev);
+  }, []);
 
   if (!videoUrl) {
     return (
@@ -120,12 +194,168 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
 
   return (
     <View style={{ width: "100%", height: "100%" }}>
-      <VideoView
-        player={player}
-        style={{ width: "100%", height: "100%" }}
-        contentFit="cover"
-        nativeControls
+      <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
+        <VideoView
+          player={player}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+          nativeControls={false}
+        />
+        {/* Play overlay when paused */}
+        {!isPlaying && (
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: "rgba(0,0,0,0.5)",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Play size={28} color="#fff" fill="#fff" />
+            </View>
+          </View>
+        )}
+      </Pressable>
+
+      {/* Mute toggle */}
+      <Pressable
+        onPress={toggleMute}
+        style={{ position: "absolute", top: 12, right: 12, zIndex: 50 }}
+        hitSlop={12}
+      >
+        <View
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 17,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {isMuted ? (
+            <VolumeX size={16} color="#fff" />
+          ) : (
+            <Volume2 size={16} color="#fff" />
+          )}
+        </View>
+      </Pressable>
+
+      {/* Expand button */}
+      <Pressable
+        onPress={handleFullscreenToggle}
+        style={{ position: "absolute", bottom: 12, right: 12, zIndex: 50 }}
+        hitSlop={12}
+      >
+        <DVNTLiquidGlassIconButton size={36}>
+          <Maximize2 size={17} color="#fff" />
+        </DVNTLiquidGlassIconButton>
+      </Pressable>
+
+      {/* Seek bar */}
+      <DVNTSeekBar
+        currentTime={currentTime}
+        duration={duration}
+        onSeek={handleSeek}
+        onSeekEnd={() => {
+          if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
+        }}
+        barWidth={SCREEN_WIDTH - 32}
       />
+
+      {/* Fullscreen modal */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        supportedOrientations={["portrait", "landscape"]}
+        statusBarTranslucent
+        onRequestClose={handleFullscreenToggle}
+      >
+        <StatusBar hidden />
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
+            <VideoView
+              player={player}
+              style={{ flex: 1 }}
+              contentFit="contain"
+              nativeControls={false}
+            />
+            {!isPlaying && (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: "rgba(0,0,0,0.5)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Play size={28} color="#fff" fill="#fff" />
+                </View>
+              </View>
+            )}
+          </Pressable>
+          <View style={{ paddingHorizontal: 16, paddingBottom: 60 }}>
+            <DVNTSeekBar
+              currentTime={currentTime}
+              duration={duration}
+              onSeek={handleSeek}
+              onSeekEnd={() => {
+                if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
+              }}
+            />
+          </View>
+          {/* Minimize */}
+          <Pressable
+            onPress={handleFullscreenToggle}
+            style={{ position: "absolute", top: 52, right: 20 }}
+            hitSlop={16}
+          >
+            <DVNTLiquidGlassIconButton size={42}>
+              <Minimize2 size={20} color="#fff" />
+            </DVNTLiquidGlassIconButton>
+          </Pressable>
+          {/* Mute */}
+          <Pressable
+            onPress={toggleMute}
+            style={{ position: "absolute", top: 52, left: 20 }}
+            hitSlop={16}
+          >
+            <DVNTLiquidGlassIconButton size={42}>
+              {isMuted ? (
+                <VolumeX size={20} color="#fff" />
+              ) : (
+                <Volume2 size={20} color="#fff" />
+              )}
+            </DVNTLiquidGlassIconButton>
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -249,7 +479,11 @@ function PostDetailScreenContent() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="text-lg font-semibold text-foreground">Post</Text>
@@ -275,7 +509,11 @@ function PostDetailScreenContent() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="text-lg font-semibold text-foreground">Post</Text>
@@ -294,7 +532,11 @@ function PostDetailScreenContent() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="text-lg font-semibold text-foreground">Post</Text>
@@ -323,7 +565,11 @@ function PostDetailScreenContent() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="text-lg font-semibold text-foreground">Post</Text>
@@ -360,7 +606,11 @@ function PostDetailScreenContent() {
       className="flex-1 bg-background max-w-3xl w-full self-center"
     >
       <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-        <Pressable onPress={() => router.back()} className="mr-4">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={16}
+          style={{ padding: 8, margin: -8, marginRight: 8 }}
+        >
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">Post</Text>
@@ -557,6 +807,7 @@ function PostDetailScreenContent() {
                   toggleLike();
                 }}
                 disabled={isLikePending}
+                hitSlop={8}
               >
                 <Heart
                   size={28}
@@ -573,10 +824,11 @@ function PostDetailScreenContent() {
                   if (postIdString)
                     router.push(`/(protected)/comments/${postIdString}`);
                 }}
+                hitSlop={8}
               >
                 <MessageCircle size={28} color={colors.foreground} />
               </Pressable>
-              <Pressable onPress={handleShare}>
+              <Pressable onPress={handleShare} hitSlop={8}>
                 <Share2 size={28} color={colors.foreground} />
               </Pressable>
             </View>
@@ -589,6 +841,7 @@ function PostDetailScreenContent() {
                   isBookmarked: isSaved,
                 });
               }}
+              hitSlop={8}
             >
               <Bookmark
                 size={28}

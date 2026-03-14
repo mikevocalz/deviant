@@ -139,7 +139,11 @@ Deno.serve(async (req: Request) => {
             ? "already_scanned"
             : existing.status === "refunded"
               ? "refunded"
-              : "invalid_status";
+              : existing.status === "transfer_pending"
+                ? "transfer_pending"
+                : existing.status === "void"
+                  ? "voided"
+                  : "invalid_status";
 
         await recordCheckin(
           supabase,

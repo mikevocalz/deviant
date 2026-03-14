@@ -1,24 +1,17 @@
 /**
  * ProfileMasonryGrid
  *
- * Legend List v3 multi-column masonry grid for profile posts.
+ * TRUE masonry grid — shortest-column packing, no row locking.
  *
- * - 2 columns on phone, 3 on tablet (≥768px)
- * - Variable cell heights by media kind (portrait image, square carousel, etc.)
+ * - 2 columns on phone, 3 on tablet (≥768), 4 on large (≥1024)
+ * - Variable cell heights by media kind + deterministic per-post variation
  * - Video cells always show thumbnail via getVideoThumbnail() — never black
- * - recycleItems=true for smooth virtualized scrolling
+ * - Renders N columns side-by-side inside a LegendList scroll container
  * - Tapping a cell routes to /(protected)/post/[id]
  */
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  useWindowDimensions,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { LegendList, type LegendListRenderItemProps } from "@legendapp/list";
-import { useCallback, memo } from "react";
+import { useCallback, useMemo, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { Play, Grid3x3 } from "lucide-react-native";
@@ -26,27 +19,15 @@ import { type SafeGridTile } from "@/lib/utils/safe-profile-mappers";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { screenPrefetch } from "@/lib/prefetch";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
+import { LegendList } from "@/components/list";
+import {
+  useMasonryLayout,
+  type MasonryTile,
+} from "@/lib/masonry/use-masonry-layout";
 
-// ─── Layout constants ────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 
-const COLUMN_GAP = 3;
-const CELL_PADDING = 1.5;
-
-/** Height multiplier relative to column width, by media kind. */
-function heightRatioForKind(kind: SafeGridTile["kind"]): number {
-  switch (kind) {
-    case "video":
-      return 1.25; // 4:5 portrait feel
-    case "carousel":
-      return 1.0; // square
-    case "gif":
-      return 0.75; // landscape
-    case "livePhoto":
-      return 1.1;
-    default:
-      return 1.2; // slightly portrait for images
-  }
-}
+const CELL_GAP = 3;
 
 // ─── Video thumbnail cell (async, never black) ───────────────────────────────
 
@@ -95,49 +76,52 @@ const VideoThumbnailCell = memo(function VideoThumbnailCell({
 // ─── Individual masonry cell ──────────────────────────────────────────────────
 
 interface MasonryCellProps {
-  item: SafeGridTile;
+  item: MasonryTile;
   columnWidth: number;
+  borderRadius: number;
   userId?: string | number;
 }
 
 const MasonryCell = memo(function MasonryCell({
   item,
   columnWidth,
+  borderRadius,
   userId,
 }: MasonryCellProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const cellHeight = Math.round(columnWidth * heightRatioForKind(item.kind));
+  const tile = item.tile;
+  const cellHeight = item.estimatedHeight;
 
   const handlePress = useCallback(() => {
-    if (item?.id) {
-      screenPrefetch.postDetail(queryClient, item.id);
-      router.push(`/(protected)/post/${item.id}` as any);
+    if (tile?.id) {
+      screenPrefetch.postDetail(queryClient, tile.id);
+      router.push(`/(protected)/post/${tile.id}` as any);
     }
-  }, [item.id, router, queryClient]);
+  }, [tile.id, router, queryClient]);
 
   return (
     <Pressable
       onPress={handlePress}
-      testID={`profile.${userId}.gridTile.${item.id}`}
-      style={[styles.cell, { padding: CELL_PADDING }]}
+      testID={`profile.${userId}.gridTile.${tile.id}`}
+      style={{ marginBottom: CELL_GAP }}
     >
       <View
         style={[
           styles.cellInner,
-          { width: columnWidth - CELL_PADDING * 2, height: cellHeight },
+          { width: columnWidth, height: cellHeight, borderRadius },
         ]}
       >
-        {item.kind === "video" ? (
+        {tile.kind === "video" ? (
           <VideoThumbnailCell
-            videoUrl={item.videoUrl ?? ""}
-            coverUrl={item.coverUrl}
-            width={columnWidth - CELL_PADDING * 2}
+            videoUrl={tile.videoUrl ?? ""}
+            coverUrl={tile.coverUrl}
+            width={columnWidth}
             height={cellHeight}
           />
-        ) : item.coverUrl ? (
+        ) : tile.coverUrl ? (
           <Image
-            source={{ uri: item.coverUrl }}
+            source={{ uri: tile.coverUrl }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             transition={200}
@@ -150,18 +134,18 @@ const MasonryCell = memo(function MasonryCell({
         )}
 
         {/* Kind badge overlays */}
-        {item.kind === "video" && (
+        {tile.kind === "video" && (
           <View style={styles.badgeTopRight}>
             <Play size={14} color="#fff" fill="#fff" />
           </View>
         )}
-        {item.kind === "carousel" && (
+        {tile.kind === "carousel" && (
           <View style={styles.badgeTopRight}>
             <Grid3x3 size={14} color="#fff" />
           </View>
         )}
-        {(item.kind === "gif" || item.kind === "livePhoto") && (
-          <DVNTMediaBadge kind={item.kind} />
+        {(tile.kind === "gif" || tile.kind === "livePhoto") && (
+          <DVNTMediaBadge kind={tile.kind} />
         )}
       </View>
     </Pressable>
@@ -181,6 +165,11 @@ interface ProfileMasonryGridProps {
   ListEmptyComponent?: React.ComponentType<any> | React.ReactElement | null;
 }
 
+// Stable singleton so LegendList doesn't see a new array reference every render
+type GridRow = { key: string };
+const GRID_ITEM: GridRow[] = [{ key: "masonry-grid" }];
+const EMPTY: GridRow[] = [];
+
 export function ProfileMasonryGrid({
   data,
   userId,
@@ -188,46 +177,51 @@ export function ProfileMasonryGrid({
   ListHeaderComponent,
   ListEmptyComponent,
 }: ProfileMasonryGridProps) {
-  const { width: screenWidth } = useWindowDimensions();
-  const isTablet = screenWidth >= 768;
-  const numColumns = isTablet ? 3 : 2;
+  const { packed, columnWidth, columnCount, columnGap, cellBorderRadius } =
+    useMasonryLayout(data);
 
-  const totalGap = COLUMN_GAP * (numColumns + 1);
-  const columnWidth = Math.floor((screenWidth - totalGap) / numColumns);
+  // Single-item data: one entry = entire masonry grid; empty = show ListEmptyComponent
+  const gridData = data.length > 0 ? GRID_ITEM : EMPTY;
 
   const renderItem = useCallback(
-    ({ item }: LegendListRenderItemProps<SafeGridTile>) => (
-      <MasonryCell item={item} columnWidth={columnWidth} userId={userId} />
+    () => (
+      <View
+        style={{
+          flexDirection: "row",
+          paddingHorizontal: columnGap,
+          gap: columnGap,
+        }}
+      >
+        {packed.columns.map((column, colIdx) => (
+          <View key={`col-${colIdx}`} style={{ width: columnWidth }}>
+            {column.items.map((item) => (
+              <MasonryCell
+                key={item.id}
+                item={item}
+                columnWidth={columnWidth}
+                borderRadius={cellBorderRadius}
+                userId={userId}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
     ),
-    [columnWidth, userId],
+    [packed, columnWidth, columnGap, cellBorderRadius, userId],
   );
 
-  const keyExtractor = useCallback(
-    (item: SafeGridTile, index: number) => `${item.id}-${index}`,
-    [],
-  );
-
-  const getEstimatedItemSize = useCallback(
-    (item: SafeGridTile) =>
-      Math.round(columnWidth * heightRatioForKind(item.kind)) +
-      CELL_PADDING * 2,
-    [columnWidth],
-  );
+  const keyExtractor = useCallback((item: GridRow) => item.key, []);
 
   return (
     <LegendList
-      data={data}
+      data={gridData}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      numColumns={numColumns}
-      estimatedItemSize={columnWidth + CELL_PADDING * 2}
-      getEstimatedItemSize={getEstimatedItemSize}
-      recycleItems
+      estimatedItemSize={packed.maxHeight || 300}
+      recycleItems={false}
       scrollEnabled={scrollEnabled}
-      contentContainerStyle={{ paddingHorizontal: COLUMN_GAP }}
       ListHeaderComponent={ListHeaderComponent}
       ListEmptyComponent={ListEmptyComponent}
-      drawDistance={columnWidth * 8}
     />
   );
 }
@@ -235,11 +229,7 @@ export function ProfileMasonryGrid({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  cell: {
-    flex: 1,
-  },
   cellInner: {
-    borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#1a1a1a",
   },

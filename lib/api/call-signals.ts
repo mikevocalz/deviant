@@ -203,7 +203,7 @@ export const callSignalsApi = {
       .subscribe((status) => {
         console.log("[CallSignals] Subscription status:", status);
         if (status === "CHANNEL_ERROR") {
-          console.error(
+          console.warn(
             "[CallSignals] Channel error — incoming calls may not ring!",
           );
         }

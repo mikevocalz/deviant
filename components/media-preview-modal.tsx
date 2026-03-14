@@ -1,16 +1,9 @@
-import {
-  View,
-  Pressable,
-  Modal,
-  Dimensions,
-  StyleSheet,
-  StatusBar,
-} from "react-native";
+import { View, Pressable, Dimensions, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
 import {
   useVideoLifecycle,
   safePlay,
@@ -18,6 +11,11 @@ import {
   cleanupPlayer,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 
 interface MediaPreviewModalProps {
   visible: boolean;
@@ -35,7 +33,34 @@ export function MediaPreviewModal({
   onClose,
   media,
 }: MediaPreviewModalProps) {
+  const sheetRef = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
+  const snapPoints = useMemo(() => ["95%"], []);
+
+  useEffect(() => {
+    if (visible) sheetRef.current?.snapToIndex(0);
+    else sheetRef.current?.close();
+  }, [visible]);
+
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1) onClose();
+    },
+    [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.9}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
 
   // CRITICAL: Video lifecycle management to prevent crashes
   const { isMountedRef, isSafeToOperate } = useVideoLifecycle(
@@ -74,17 +99,19 @@ export function MediaPreviewModal({
   if (!media) return null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={handleClose}
+    <BottomSheet
+      ref={sheetRef}
+      index={-1}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      onChange={handleSheetChange}
+      backgroundStyle={styles.sheetBg}
+      handleIndicatorStyle={styles.sheetHandle}
     >
-      <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
-      <View style={styles.container}>
+      <BottomSheetView style={styles.container}>
         <Pressable
-          style={[styles.closeButton, { top: insets.top + 16 }]}
+          style={[styles.closeButton, { top: 8 }]}
           onPress={handleClose}
           hitSlop={16}
         >
@@ -109,15 +136,23 @@ export function MediaPreviewModal({
             />
           )}
         </View>
-      </View>
-    </Modal>
+      </BottomSheetView>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetBg: {
+    backgroundColor: "#000",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 36,
+  },
   container: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -136,7 +171,7 @@ const styles = StyleSheet.create({
   },
   mediaContainer: {
     width,
-    height: height * 0.8,
+    height: height * 0.75,
     justifyContent: "center",
     alignItems: "center",
   },

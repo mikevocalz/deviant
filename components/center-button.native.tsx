@@ -10,9 +10,15 @@ import AnimatedGlow, {
 type CenterButtonProps = {
   Icon: LucideIcon;
   onPress?: () => void;
+  /** When used inside NativeTabs.BottomAccessory, pass the placement value from usePlacement() */
+  accessoryPlacement?: "regular" | "inline";
 };
 
-export function CenterButton({ Icon, onPress }: CenterButtonProps) {
+export function CenterButton({
+  Icon,
+  onPress,
+  accessoryPlacement,
+}: CenterButtonProps) {
   const [glowState, setGlowState] = useState<GlowEvent>("default");
   const isHovered = useRef(false);
 
@@ -98,15 +104,21 @@ export function CenterButton({ Icon, onPress }: CenterButtonProps) {
     };
   }, [radiusByState]);
 
-  const containerStyle: ViewStyle = {
-    position: "absolute",
-    bottom: Platform.OS === "android" ? -10 : 6, // NEGATIVE = above tabbar when used as tabBarButton
-    left: "50%",
-    transform: [{ translateX: -30 }], // Center horizontally (half of 60px width)
-    width: 60,
-    height: 60,
-    zIndex: 1000,
-  };
+  // When inside NativeTabs.BottomAccessory with "inline" placement, size to fit within the tab bar.
+  // Only use absolute positioning for legacy (non-NativeTabs) usage.
+  const isInline = accessoryPlacement === "inline";
+  const btnSize = isInline ? 64 : 60;
+  const containerStyle: ViewStyle = accessoryPlacement
+    ? { width: btnSize, height: btnSize, alignSelf: "center" }
+    : {
+        position: "absolute",
+        bottom: Platform.OS === "android" ? -10 : -6,
+        left: "50%",
+        transform: [{ translateX: -30 }],
+        width: 60,
+        height: 60,
+        zIndex: 1000,
+      };
 
   return (
     <View style={containerStyle}>
@@ -114,8 +126,8 @@ export function CenterButton({ Icon, onPress }: CenterButtonProps) {
         preset={glowPreset}
         activeState={glowState}
         style={{
-          width: 60,
-          height: 60,
+          width: btnSize,
+          height: btnSize,
           borderRadius: radiusByState[glowState],
           shadowColor: "#000",
           shadowOpacity: 0.5,

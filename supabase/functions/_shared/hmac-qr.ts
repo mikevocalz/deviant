@@ -11,7 +11,13 @@
  * - sig: HMAC-SHA256(tid|eid|nonce, secret) truncated to 16 hex chars
  */
 
-const TICKET_HMAC_SECRET = Deno.env.get("TICKET_HMAC_SECRET") || "dvnt-ticket-hmac-default-key";
+const TICKET_HMAC_SECRET =
+  Deno.env.get("TICKET_HMAC_SECRET") || "dvnt-ticket-hmac-default-key";
+if (!Deno.env.get("TICKET_HMAC_SECRET")) {
+  console.error(
+    "[hmac-qr] ⚠️ TICKET_HMAC_SECRET not set — using insecure default key!",
+  );
+}
 
 function base64url(bytes: Uint8Array): string {
   const b64 = btoa(String.fromCharCode(...bytes));
@@ -92,9 +98,7 @@ export async function createSignedQrPayload(
  * Verify a signed QR payload.
  * Returns { valid, ticketId, eventId } or { valid: false, reason }.
  */
-export async function verifySignedQrPayload(
-  qrPayload: string,
-): Promise<{
+export async function verifySignedQrPayload(qrPayload: string): Promise<{
   valid: boolean;
   ticketId?: string;
   eventId?: number;

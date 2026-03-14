@@ -5,7 +5,13 @@
  * Shows current subscription, plan features, and Stripe Customer Portal link.
  */
 
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+} from "react-native";
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -24,6 +30,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useColorScheme } from "@/lib/hooks";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
 
 interface Subscription {
@@ -32,12 +39,16 @@ interface Subscription {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   stripe_subscription_id: string | null;
+  grace_period_ends_at: string | null;
 }
 
-const PLAN_LABELS: Record<string, { name: string; price: string; maxPax: number }> = {
-  free:    { name: "Free",    price: "$0/mo",     maxPax: 5  },
-  host_25: { name: "Host 25", price: "$14.99/mo",  maxPax: 25 },
-  host_50: { name: "Host 50", price: "$24.99/mo",  maxPax: 50 },
+const PLAN_LABELS: Record<
+  string,
+  { name: string; price: string; maxPax: number }
+> = {
+  free: { name: "Free", price: "$0/mo", maxPax: 5 },
+  host_25: { name: "Host 25", price: "$14.99/mo", maxPax: 25 },
+  host_50: { name: "Host 50", price: "$24.99/mo", maxPax: 50 },
 };
 
 export default function BillingScreen() {
@@ -58,13 +69,31 @@ export default function BillingScreen() {
     try {
       const { data } = await supabase
         .from("sneaky_subscriptions")
-        .select("plan_id, status, current_period_end, cancel_at_period_end, stripe_subscription_id")
+        .select(
+          "plan_id, status, current_period_end, cancel_at_period_end, stripe_subscription_id, grace_period_ends_at",
+        )
         .eq("host_id", authUser.id)
         .single();
 
-      setSubscription(data ?? { plan_id: "free", status: "inactive", current_period_end: null, cancel_at_period_end: false, stripe_subscription_id: null });
+      setSubscription(
+        data ?? {
+          plan_id: "free",
+          status: "inactive",
+          current_period_end: null,
+          cancel_at_period_end: false,
+          stripe_subscription_id: null,
+          grace_period_ends_at: null,
+        },
+      );
     } catch {
-      setSubscription({ plan_id: "free", status: "inactive", current_period_end: null, cancel_at_period_end: false, stripe_subscription_id: null });
+      setSubscription({
+        plan_id: "free",
+        status: "inactive",
+        current_period_end: null,
+        cancel_at_period_end: false,
+        stripe_subscription_id: null,
+        grace_period_ends_at: null,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -74,19 +103,52 @@ export default function BillingScreen() {
     loadSubscription();
   }, [loadSubscription]);
 
+  // Realtime: auto-refresh when webhook updates subscription
+  useEffect(() => {
+    if (!authUser?.id) return;
+
+    const channel = supabase
+      .channel("sneaky-sub-changes")
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "*",
+          schema: "public",
+          table: "sneaky_subscriptions",
+          filter: `host_id=eq.${authUser.id}`,
+        },
+        () => {
+          loadSubscription();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.id, loadSubscription]);
+
   const handleManageBilling = useCallback(async () => {
     if (!authUser?.id) return;
     setIsPortalLoading(true);
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "sneaky-billing-portal",
-        { body: { user_id: authUser.id } },
+        {
+          body: {},
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
 
       if (error || data?.error) {
         const msg = data?.error || error?.message;
         if (msg?.includes("No billing account")) {
-          showToast("info", "No billing account", "Subscribe to a paid plan first.");
+          showToast(
+            "info",
+            "No billing account",
+            "Subscribe to a paid plan first.",
+          );
         } else {
           throw error ?? new Error(msg);
         }
@@ -95,22 +157,27 @@ export default function BillingScreen() {
 
       if (data?.url) {
         await WebBrowser.openBrowserAsync(data.url, {
-          presentationStyle:
-            WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+          presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
         });
         await loadSubscription();
       }
     } catch (err: any) {
-      showToast("error", "Error", err.message || "Could not open billing portal");
+      showToast(
+        "error",
+        "Error",
+        err.message || "Could not open billing portal",
+      );
     } finally {
       setIsPortalLoading(false);
     }
   }, [authUser?.id, loadSubscription, showToast]);
 
   const planInfo = PLAN_LABELS[subscription?.plan_id ?? "free"];
-  const isActive = subscription?.status === "active" || subscription?.status === "trialing";
+  const isActive =
+    subscription?.status === "active" || subscription?.status === "trialing";
   const isPastDue = subscription?.status === "past_due";
-  const isFree = !subscription?.stripe_subscription_id || subscription?.plan_id === "free";
+  const isFree =
+    !subscription?.stripe_subscription_id || subscription?.plan_id === "free";
 
   const periodEndLabel = subscription?.current_period_end
     ? new Date(subscription.current_period_end).toLocaleDateString("en-US", {
@@ -152,7 +219,9 @@ export default function BillingScreen() {
           <View
             className="rounded-2xl p-5 border"
             style={{
-              backgroundColor: isActive ? "#8A40CF10" : "rgba(255,255,255,0.04)",
+              backgroundColor: isActive
+                ? "#8A40CF10"
+                : "rgba(255,255,255,0.04)",
               borderColor: isActive ? "#8A40CF40" : "rgba(255,255,255,0.08)",
             }}
           >
@@ -177,21 +246,25 @@ export default function BillingScreen() {
                   backgroundColor: isActive
                     ? "#22c55e20"
                     : isPastDue
-                    ? "#ef444420"
-                    : "#88888820",
+                      ? "#ef444420"
+                      : "#88888820",
                 }}
               >
                 <Text
                   className="text-xs font-sans-semibold"
                   style={{
-                    color: isActive ? "#22c55e" : isPastDue ? "#ef4444" : "#888",
+                    color: isActive
+                      ? "#22c55e"
+                      : isPastDue
+                        ? "#ef4444"
+                        : "#888",
                   }}
                 >
                   {isActive
                     ? "ACTIVE"
                     : isPastDue
-                    ? "PAST DUE"
-                    : subscription?.status?.toUpperCase() ?? "FREE"}
+                      ? "PAST DUE"
+                      : (subscription?.status?.toUpperCase() ?? "FREE")}
                 </Text>
               </View>
             </View>
@@ -206,7 +279,9 @@ export default function BillingScreen() {
               {planInfo.maxPax > 5 && (
                 <View className="flex-row items-center gap-1">
                   <Check size={13} color="#22c55e" />
-                  <Text className="text-xs text-muted-foreground">Unlimited duration</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Unlimited duration
+                  </Text>
                 </View>
               )}
             </View>
@@ -228,9 +303,23 @@ export default function BillingScreen() {
               style={{ backgroundColor: "#ef444415" }}
             >
               <AlertCircle size={18} color="#ef4444" />
-              <Text className="text-sm text-foreground flex-1">
-                Your last payment failed. Update your payment method to keep access.
-              </Text>
+              <View className="flex-1">
+                <Text className="text-sm text-foreground">
+                  Your last payment failed. Update your payment method to keep
+                  access.
+                </Text>
+                {subscription?.grace_period_ends_at && (
+                  <Text className="text-xs mt-1" style={{ color: "#ef4444" }}>
+                    Access will be downgraded on{" "}
+                    {new Date(
+                      subscription.grace_period_ends_at,
+                    ).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                )}
+              </View>
             </View>
           )}
 
@@ -254,7 +343,10 @@ export default function BillingScreen() {
                 </View>
               </View>
               {isPortalLoading ? (
-                <ActivityIndicator size="small" color={colors.mutedForeground} />
+                <ActivityIndicator
+                  size="small"
+                  color={colors.mutedForeground}
+                />
               ) : (
                 <ChevronLeft
                   size={16}

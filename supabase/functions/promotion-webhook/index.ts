@@ -114,6 +114,25 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // ── Idempotency: dedup via stripe_events table ────────
+    const supabaseEarly = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
+
+    const { error: dedupError } = await supabaseEarly
+      .from("stripe_events")
+      .insert({ event_id: event.id, event_type: event.type });
+
+    if (dedupError) {
+      // Unique constraint violation — already processed
+      console.log(`[promotion-webhook] Duplicate event ${event.id}, skipping`);
+      return new Response(JSON.stringify({ received: true, duplicate: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const session = event.data.object;
     const metadata = session.metadata || {};
 

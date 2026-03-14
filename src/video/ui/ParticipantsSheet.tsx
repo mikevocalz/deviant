@@ -46,7 +46,12 @@ export function ParticipantsSheet({
 
   const sortedParticipants = useMemo(() => {
     return [...participants].sort((a, b) => {
-      const roleOrder = { host: 0, moderator: 1, participant: 2 };
+      const roleOrder: Record<string, number> = {
+        host: 0,
+        "co-host": 1,
+        moderator: 1,
+        participant: 2,
+      };
       const aOrder = roleOrder[a.role] ?? 2;
       const bOrder = roleOrder[b.role] ?? 2;
       if (aOrder !== bOrder) return aOrder - bOrder;
@@ -81,6 +86,7 @@ export function ParticipantsSheet({
         backgroundColor: "rgb(var(--muted-foreground))",
         opacity: 0.3,
       }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <BottomSheetView className="flex-1 px-4">
         {/* Header */}

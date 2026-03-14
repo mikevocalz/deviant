@@ -11,10 +11,12 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -30,19 +32,37 @@ function json(data: unknown, status = 200) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  // ── Auth: require cron secret header ────────────────────
+  if (CRON_SECRET) {
+    const provided = req.headers.get("x-cron-secret") || "";
+    if (provided !== CRON_SECRET) {
+      return json({ error: "Unauthorized" }, 401);
+    }
+  } else {
+    console.error("[reconcile] CRON_SECRET not set — rejecting request");
+    return json({ error: "Misconfigured" }, 500);
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
-    const hoursBack = body.hours_back || 2;
+    const rawHours = Number(body.hours_back);
+    const hoursBack =
+      Number.isFinite(rawHours) && rawHours > 0 && rawHours <= 48
+        ? rawHours
+        : 2;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+    const cutoff = new Date(
+      Date.now() - hoursBack * 60 * 60 * 1000,
+    ).toISOString();
     const stats = { reconciled: 0, expired_holds: 0, failed: 0 };
 
     // ── 1. Expire stale ticket holds ─────────────────────────
@@ -60,7 +80,9 @@ Deno.serve(async (req: Request) => {
     // ── 2. Find stuck payment_pending orders ─────────────────
     const { data: pendingOrders, error: ordersError } = await supabase
       .from("orders")
-      .select("id, stripe_payment_intent_id, stripe_checkout_session_id, created_at")
+      .select(
+        "id, stripe_payment_intent_id, stripe_checkout_session_id, created_at",
+      )
       .eq("status", "payment_pending")
       .lt("created_at", cutoff)
       .limit(50);
@@ -96,20 +118,89 @@ Deno.serve(async (req: Request) => {
         // Reconcile based on status
         if (piStatus === "succeeded" || piStatus === "paid") {
           // Payment actually succeeded — webhook was missed
-          await supabase
+          // Atomic CAS: only update if still payment_pending
+          const { data: claimedOrder, error: claimErr } = await supabase
             .from("orders")
             .update({
               status: "paid",
               paid_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
-            .eq("id", order.id);
+            .eq("id", order.id)
+            .eq("status", "payment_pending")
+            .select("id, user_id, event_id, quantity, stripe_payment_intent_id")
+            .single();
+
+          if (claimErr || !claimedOrder) {
+            // Already reconciled by another run or webhook
+            continue;
+          }
+
+          // Issue tickets if webhook missed them
+          if (claimedOrder.event_id && claimedOrder.stripe_payment_intent_id) {
+            const { count: existingCount } = await supabase
+              .from("tickets")
+              .select("*", { count: "exact", head: true })
+              .eq(
+                "stripe_payment_intent_id",
+                claimedOrder.stripe_payment_intent_id,
+              );
+
+            if ((existingCount || 0) === 0) {
+              // Fetch ticket_type_id from holds or order metadata
+              const { data: hold } = await supabase
+                .from("ticket_holds")
+                .select("ticket_type_id")
+                .eq("payment_intent_id", claimedOrder.stripe_payment_intent_id)
+                .limit(1)
+                .single();
+
+              if (hold?.ticket_type_id) {
+                const qty = claimedOrder.quantity || 1;
+                const ticketRows = [];
+                for (let i = 0; i < qty; i++) {
+                  const ticketUuid = crypto.randomUUID();
+                  const { qrToken, qrPayload } = await createSignedQrPayload(
+                    ticketUuid,
+                    claimedOrder.event_id,
+                  );
+                  ticketRows.push({
+                    id: ticketUuid,
+                    event_id: claimedOrder.event_id,
+                    ticket_type_id: hold.ticket_type_id,
+                    user_id: claimedOrder.user_id,
+                    status: "active",
+                    qr_token: qrToken,
+                    qr_payload: qrPayload,
+                    stripe_payment_intent_id:
+                      claimedOrder.stripe_payment_intent_id,
+                  });
+                }
+                await supabase.from("tickets").insert(ticketRows);
+
+                // Convert hold
+                await supabase
+                  .from("ticket_holds")
+                  .update({ status: "converted" })
+                  .eq(
+                    "payment_intent_id",
+                    claimedOrder.stripe_payment_intent_id,
+                  )
+                  .eq("status", "active");
+
+                console.log(
+                  `[reconcile] Issued ${qty} tickets for order ${order.id}`,
+                );
+              }
+            }
+          }
 
           await supabase.from("order_timeline").insert({
             order_id: order.id,
             type: "reconciled",
             label: "Payment reconciled",
-            detail: "Caught by reconciliation job — webhook may have been missed",
+            detail:
+              "Caught by reconciliation job — webhook may have been missed",
           });
 
           stats.reconciled++;
@@ -129,7 +220,9 @@ Deno.serve(async (req: Request) => {
             .eq("id", order.id);
 
           stats.failed++;
-          console.log(`[reconcile] Order ${order.id} → payment_failed (${piStatus})`);
+          console.log(
+            `[reconcile] Order ${order.id} → payment_failed (${piStatus})`,
+          );
         }
         // else: still processing, leave as-is
       } catch (err) {

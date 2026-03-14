@@ -53,7 +53,7 @@ function DVNTLiquidGlassComponent({
         interactive
         style={[{ borderRadius: radius, overflow: "hidden" }, style]}
       >
-        {inner}
+        <View style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>{inner}</View>
       </LiquidGlassView>
     );
   }
@@ -92,7 +92,7 @@ function DVNTLiquidGlassIconButtonComponent({
   style,
   size = 36,
 }: DVNTLiquidGlassIconButtonProps) {
-  const radius = size / 2;
+  const radius = size / 4;
 
   if (isLiquidGlassSupported) {
     return (
@@ -114,6 +114,7 @@ function DVNTLiquidGlassIconButtonComponent({
             flex: 1,
             alignItems: "center",
             justifyContent: "center",
+            backgroundColor: "rgba(0,0,0,0.25)",
           }}
         >
           {children}

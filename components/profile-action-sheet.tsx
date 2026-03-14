@@ -89,6 +89,7 @@ export function ProfileActionSheet({
       backdropComponent={renderBackdrop}
       backgroundStyle={styles.sheetBackground}
       handleIndicatorStyle={styles.handleIndicator}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <BottomSheetView style={styles.content}>
         {/* Header */}

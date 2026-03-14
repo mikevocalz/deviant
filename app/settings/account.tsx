@@ -16,7 +16,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { usersApi } from "@/lib/api/users";
 import { useState, useCallback } from "react";
 import { toast } from "sonner-native";
-import { authClient } from "@/lib/auth-client";
+import { deleteAccountPrivileged } from "@/lib/supabase/privileged";
 
 export default function AccountScreen() {
   const router = useRouter();
@@ -71,18 +71,12 @@ export default function AccountScreen() {
                   onPress: async () => {
                     setIsDeleting(true);
                     try {
-                      const { error } = await authClient.deleteUser();
-                      if (error) {
-                        toast.error("Failed to delete account", {
-                          description: error.message || "Please try again",
-                        });
-                      } else {
-                        toast.success("Account deleted");
-                        logout();
-                        router.replace("/login");
-                      }
+                      await deleteAccountPrivileged();
+                      toast.success("Account deleted");
+                      logout();
+                      router.replace("/login");
                     } catch (err: any) {
-                      toast.error("Error", {
+                      toast.error("Failed to delete account", {
                         description: err?.message || "Something went wrong",
                       });
                     } finally {
@@ -102,7 +96,11 @@ export default function AccountScreen() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Main className="flex-1">
         <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ChevronLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="flex-1 text-lg font-semibold text-foreground">

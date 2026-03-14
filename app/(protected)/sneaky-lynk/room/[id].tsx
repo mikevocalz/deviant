@@ -15,11 +15,20 @@ import {
   Pressable,
   ScrollView,
   ActivityIndicator,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, MoreHorizontal, Users } from "lucide-react-native";
-import React, { useEffect, useCallback, useRef } from "react";
+import {
+  ArrowLeft,
+  MoreHorizontal,
+  Users,
+  EyeOff,
+  Radio,
+  Mic,
+  MicOff,
+} from "lucide-react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   useCameraPermission,
   useMicrophonePermission,
@@ -29,6 +38,8 @@ import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   VideoStage,
+  VideoGrid,
+  ParticipantActions,
   SpeakerGrid,
   ListenerGrid,
   ControlsBar,
@@ -37,7 +48,9 @@ import {
   ChatSheet,
   RoomTimer,
 } from "@/src/sneaky-lynk/ui";
+import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyUser } from "@/src/sneaky-lynk/types";
+import { videoApi } from "@/src/video/api";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
@@ -51,11 +64,103 @@ function buildLocalUser(authUser: any): SneakyUser {
     id: authUser?.id || "local",
     username: authUser?.username || "You",
     displayName: authUser?.name || authUser?.username || "You",
-    avatar:
-      authUser?.avatar ||
-      "",
+    avatar: authUser?.avatar || "",
     isVerified: authUser?.isVerified || false,
   };
+}
+
+// ── Pre-Join Screen ──────────────────────────────────────────────────
+
+function PreJoinScreen({
+  roomTitle,
+  onJoin,
+  onBack,
+}: {
+  roomTitle: string;
+  onJoin: (anonymous: boolean) => void;
+  onBack: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  const [anonymous, setAnonymous] = React.useState(false);
+
+  return (
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      {/* Header */}
+      <View className="flex-row items-center px-4 py-3 border-b border-border">
+        <Pressable onPress={onBack} hitSlop={12}>
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+        <View className="flex-1 mx-4">
+          <Text
+            className="text-foreground font-semibold text-center"
+            numberOfLines={1}
+          >
+            {roomTitle || "Join Lynk"}
+          </Text>
+        </View>
+        <View className="w-6" />
+      </View>
+
+      {/* Content */}
+      <View className="flex-1 items-center justify-center px-6">
+        <View className="w-20 h-20 rounded-full bg-primary/20 items-center justify-center mb-6">
+          <Radio size={40} color="#FC253A" />
+        </View>
+
+        <Text className="text-2xl font-bold text-foreground text-center mb-2">
+          {roomTitle || "Sneaky Lynk"}
+        </Text>
+        <Text className="text-muted-foreground text-center mb-10">
+          Choose how you want to appear in this room
+        </Text>
+
+        {/* Anonymous Toggle */}
+        <View className="w-full bg-secondary rounded-2xl px-5 py-4 mb-8">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3 flex-1">
+              <View className="w-10 h-10 rounded-full bg-primary/20 items-center justify-center">
+                <EyeOff size={20} color="#FC253A" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-foreground font-semibold">
+                  Join Anonymously
+                </Text>
+                <Text className="text-xs text-muted-foreground mt-0.5">
+                  You&apos;ll appear as &quot;ANON LYNK&quot; with no profile
+                  info
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={anonymous}
+              onValueChange={setAnonymous}
+              trackColor={{ false: "#374151", true: "#FC253A" }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          {anonymous && (
+            <View className="mt-3 pt-3 border-t border-border/50">
+              <Text className="text-xs text-muted-foreground">
+                Your identity will be hidden from other participants. The host
+                and moderators cannot see who you are.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Join Button */}
+        <Pressable
+          onPress={() => onJoin(anonymous)}
+          className="w-full py-4 rounded-full bg-primary items-center active:bg-primary/80"
+        >
+          <Text className="text-white font-bold text-base">
+            {anonymous ? "Join Anonymously" : "Join Lynk"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 // ── Router entry point ──────────────────────────────────────────────
@@ -70,13 +175,39 @@ export default function SneakyLynkRoomScreen() {
     title?: string;
     hasVideo?: string;
   }>();
+  const router = useRouter();
 
   const roomHasVideo = hasVideoParam === "1";
   const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
 
+  // Pre-join state for server rooms (joiners, not creators)
+  const [hasJoined, setHasJoined] = useState(!isServerRoom);
+  const [joinAnonymous, setJoinAnonymous] = useState(false);
+
+  const handleJoin = useCallback((anonymous: boolean) => {
+    setJoinAnonymous(anonymous);
+    setHasJoined(true);
+  }, []);
+
+  // Show pre-join screen for server rooms
+  if (isServerRoom && !hasJoined) {
+    return (
+      <PreJoinScreen
+        roomTitle={paramTitle || "Sneaky Lynk"}
+        onJoin={handleJoin}
+        onBack={() => router.back()}
+      />
+    );
+  }
+
   if (isServerRoom) {
     return (
-      <ServerRoom id={id} paramTitle={paramTitle} roomHasVideo={roomHasVideo} />
+      <ServerRoom
+        id={id}
+        paramTitle={paramTitle}
+        roomHasVideo={roomHasVideo}
+        anonymous={joinAnonymous}
+      />
     );
   }
   return (
@@ -213,48 +344,46 @@ function LocalRoom({
 
   const roomTitle = paramTitle || "Sneaky Lynk";
 
-  // Build speakers list — host + co-host
-  const speakers: {
-    id: string;
-    user: SneakyUser;
-    role: "host" | "co-host" | "speaker";
-    isSpeaking: boolean;
-  }[] = [
-    {
-      id: localUser.id,
-      user: localUser,
-      role: "host",
-      isSpeaking: localUser.id === activeSpeakerId,
-    },
-  ];
+  // Build flat VideoParticipant[] for VideoGrid
+  const allParticipants: VideoParticipant[] = [];
+
+  // Local user (host)
+  allParticipants.push({
+    id: localUser.id,
+    user: localUser,
+    role: "host",
+    isLocal: true,
+    isCameraOn: effectiveVideoOn,
+    isMicOn: !effectiveMuted,
+    videoTrack: undefined, // local room uses native camera preview
+  });
+
+  // Co-host
   if (storeCoHost) {
-    speakers.push({
+    allParticipants.push({
       id: storeCoHost.user.id,
       user: storeCoHost.user,
       role: "co-host",
-      isSpeaking: storeCoHost.user.id === activeSpeakerId,
+      isLocal: false,
+      isCameraOn: storeCoHost.hasVideo || false,
+      isMicOn: true,
     });
   }
 
-  const featuredSpeaker = {
-    id: localUser.id,
-    user: localUser,
-    isSpeaking: localUser.id === activeSpeakerId,
-    hasVideo: effectiveVideoOn,
-  };
-
-  // Co-host featured speaker for dual view
-  const coHostFeatured = storeCoHost
-    ? {
-        id: storeCoHost.user.id,
-        user: storeCoHost.user,
-        isSpeaking: storeCoHost.user.id === activeSpeakerId,
-        hasVideo: storeCoHost.hasVideo || false,
-      }
-    : null;
+  // Listeners
+  storeListeners.forEach((l) => {
+    allParticipants.push({
+      id: l.user.id,
+      user: l.user,
+      role: "participant",
+      isLocal: false,
+      isCameraOn: false,
+      isMicOn: false,
+    });
+  });
 
   const activeSpeakers = new Set(activeSpeakerId ? [activeSpeakerId] : []);
-  const participantCount = 1 + (storeCoHost ? 1 : 0) + storeListeners.length;
+  const participantCount = allParticipants.length;
 
   return (
     <RoomLayout
@@ -263,16 +392,10 @@ function LocalRoom({
       isHost={true}
       roomTitle={roomTitle}
       participantCount={participantCount}
-      featuredSpeaker={featuredSpeaker}
-      coHost={coHostFeatured}
-      isLocalUser={true}
-      effectiveVideoOn={effectiveVideoOn}
-      cameraStream={null}
-      useNativeCamera={true}
-      speakers={speakers}
+      allParticipants={allParticipants}
       activeSpeakers={activeSpeakers}
-      storeListeners={storeListeners}
       effectiveMuted={effectiveMuted}
+      effectiveVideoOn={effectiveVideoOn}
       isHandRaised={isHandRaised}
       hasVideo={roomHasVideo}
       isChatOpen={isChatOpen}
@@ -287,7 +410,6 @@ function LocalRoom({
       onChat={handleChat}
       onCloseChat={handleCloseChat}
       onEjectDismiss={handleEjectDismiss}
-      onPromoteListener={promoteListener}
       localRole="host"
     />
   );
@@ -299,10 +421,12 @@ function ServerRoom({
   id,
   paramTitle,
   roomHasVideo = true,
+  anonymous = false,
 }: {
   id: string;
   paramTitle?: string;
   roomHasVideo?: boolean;
+  anonymous?: boolean;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -334,6 +458,7 @@ function ServerRoom({
 
   const videoRoom = useVideoRoom({
     roomId: id || "",
+    anonymous,
     onEjected: (reason) => showEject(reason),
     onRoomEnded: () => {
       showToast("info", "Room Ended", "The host has ended this room");
@@ -342,7 +467,19 @@ function ServerRoom({
     onError: (error) => showToast("error", "Error", error),
   });
 
-  const localUser = buildLocalUser(authUser);
+  // When anonymous, use the anon label from the server response instead of real profile
+  const localUser: SneakyUser =
+    anonymous && videoRoom.localUser?.username?.startsWith("ANON LYNK")
+      ? {
+          id: videoRoom.localUser.id || authUser?.id || "local",
+          username: videoRoom.localUser.username,
+          displayName: videoRoom.localUser.username,
+          avatar: "",
+          isVerified: false,
+          isAnonymous: true,
+          anonLabel: videoRoom.localUser.username,
+        }
+      : buildLocalUser(authUser);
   const isHost = videoRoom.localUser?.role === "host";
   const effectiveMuted = !videoRoom.isMicOn;
   const effectiveVideoOn = videoRoom.isCameraOn;
@@ -394,17 +531,16 @@ function ServerRoom({
           isHost,
         );
         audioSession.startForLynk(roomHasVideo);
-        if (isHost) {
-          if (roomHasVideo) {
-            console.log("[SneakyLynk:Server] Starting camera...");
-            await videoRoom.toggleCamera();
-          }
-          console.log("[SneakyLynk:Server] Starting mic...");
-          await videoRoom.toggleMic();
-          console.log("[SneakyLynk:Server] Host media started successfully");
-        } else {
-          console.log("[SneakyLynk:Server] Listener joined — mic stays muted");
+        if (roomHasVideo) {
+          console.log("[SneakyLynk:Server] Starting camera...");
+          await videoRoom.toggleCamera();
         }
+        console.log("[SneakyLynk:Server] Starting mic...");
+        await videoRoom.toggleMic();
+        console.log(
+          "[SneakyLynk:Server] Media started for",
+          isHost ? "host" : "participant",
+        );
       } catch (e) {
         console.warn("[SneakyLynk:Server] Failed to start media:", e);
       }
@@ -434,13 +570,11 @@ function ServerRoom({
     router.back();
   }, [router, id, endRoomHistory, storeListeners.length, isHost]);
   const handleToggleMic = useCallback(async () => {
-    if (!isHost) return; // listeners can't toggle mic
     await videoRoom.toggleMic();
-  }, [videoRoom, isHost]);
+  }, [videoRoom]);
   const handleToggleVideo = useCallback(async () => {
-    if (!isHost) return;
     await videoRoom.toggleCamera();
-  }, [videoRoom, isHost]);
+  }, [videoRoom]);
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
@@ -459,157 +593,227 @@ function ServerRoom({
   }
 
   const roomTitle = videoRoom.room?.title || paramTitle || "Room";
+  const roomUuid = videoRoom.room?.id || id;
 
-  // Build participant lists from Fishjam peers
+  // ── Host action state ────────────────────────────────────────────
+  const [actionTarget, setActionTarget] = useState<VideoParticipant | null>(
+    null,
+  );
+
+  // Build SneakyUser from a Fishjam participant
+  const peerToUser = (p: any): SneakyUser => {
+    const isAnon = p.isAnonymous || p.username?.startsWith("ANON LYNK");
+    return {
+      id: p.userId || p.oderId || p.odId,
+      username: isAnon
+        ? p.anonLabel || p.username || "ANON LYNK"
+        : p.username || "User",
+      displayName: isAnon
+        ? p.anonLabel || p.username || "ANON LYNK"
+        : p.username || "User",
+      avatar: isAnon ? "" : p.avatar || "",
+      isVerified: false,
+      isAnonymous: isAnon,
+      anonLabel: isAnon ? p.anonLabel || p.username : null,
+    };
+  };
+
+  // ── Build flat VideoParticipant[] for VideoGrid ──────────────────
   const remotePeers = videoRoom.participants || [];
   const localCameraStream = videoRoom.camera?.cameraStream || null;
 
-  // Find the host among remote peers (if we're a listener, the host is remote)
-  const remoteHost = remotePeers.find((p: any) => p.role === "host");
-  const remoteCoHostPeer = remotePeers.find((p: any) => p.role === "co-host");
+  const allParticipants: VideoParticipant[] = [];
 
-  // Build SneakyUser from a Fishjam participant
-  const peerToUser = (p: any): SneakyUser => ({
-    id: p.userId || p.oderId || p.odId,
-    username: p.username || "User",
-    displayName: p.username || "User",
-    avatar:
-      p.avatar ||
-      "",
-    isVerified: false,
+  // Local user first (always shown at top-left)
+  allParticipants.push({
+    id: localUser.id,
+    user: localUser,
+    role: isHost ? "host" : videoRoom.localUser?.role || "participant",
+    isLocal: true,
+    isCameraOn: effectiveVideoOn,
+    isMicOn: !effectiveMuted,
+    videoTrack: localCameraStream ? { stream: localCameraStream } : undefined,
   });
 
-  // Featured speaker: if we're host, show our own camera. If listener, show the host's remote video.
-  let featuredUser: SneakyUser;
-  let featuredVideoTrack: any = undefined;
-  let featuredIsLocal = false;
-  let featuredHasVideo = false;
-
-  if (isHost) {
-    // We are the host — show our own camera
-    featuredUser = localUser;
-    featuredVideoTrack = localCameraStream
-      ? { stream: localCameraStream }
-      : undefined;
-    featuredIsLocal = true;
-    featuredHasVideo = effectiveVideoOn;
-  } else if (remoteHost) {
-    // We are a listener — show the host's remote video track
-    featuredUser = peerToUser(remoteHost);
-    featuredVideoTrack = remoteHost.videoTrack;
-    featuredIsLocal = false;
-    featuredHasVideo = remoteHost.isCameraOn || false;
-  } else {
-    // No host found yet (still connecting) — show local user as placeholder
-    featuredUser = localUser;
-    featuredIsLocal = true;
-    featuredHasVideo = false;
-  }
-
-  const featuredSpeaker = {
-    id: featuredUser.id,
-    user: featuredUser,
-    isSpeaking: !effectiveMuted || (remoteHost?.isMicOn ?? false),
-    hasVideo: featuredHasVideo,
-  };
-
-  // Co-host
-  const effectiveCoHost = remoteCoHostPeer
-    ? peerToUser(remoteCoHostPeer)
-    : storeCoHost?.user || null;
-  const coHostFeatured = effectiveCoHost
-    ? {
-        id: effectiveCoHost.id,
-        user: effectiveCoHost,
-        isSpeaking: remoteCoHostPeer?.isMicOn || false,
-        hasVideo: remoteCoHostPeer?.isCameraOn || false,
-      }
-    : null;
-  const coHostTrack = remoteCoHostPeer?.videoTrack || undefined;
-
-  // Speakers list (host + co-host)
-  const speakers: any[] = [
-    {
-      id: featuredUser.id,
-      user: featuredUser,
-      role: "host" as const,
-      isSpeaking: featuredSpeaker.isSpeaking,
-    },
-  ];
-  if (effectiveCoHost) {
-    speakers.push({
-      id: effectiveCoHost.id,
-      user: effectiveCoHost,
-      role: "co-host" as const,
-      isSpeaking: coHostFeatured?.isSpeaking || false,
+  // Remote peers
+  remotePeers.forEach((p: any) => {
+    allParticipants.push({
+      id: p.userId || p.oderId || p.odId,
+      user: peerToUser(p),
+      role: p.role || "participant",
+      isLocal: false,
+      isCameraOn: p.isCameraOn || false,
+      isMicOn: p.isMicOn || false,
+      videoTrack: p.videoTrack,
+      audioTrack: p.audioTrack,
     });
-  }
+  });
 
-  // Listeners: all remote peers that are NOT host or co-host
-  const listenersFromPeers = remotePeers
-    .filter((p: any) => p.role !== "host" && p.role !== "co-host")
-    .map((p: any) => ({ user: peerToUser(p), role: "listener" }));
-  // If we're NOT the host, add ourselves to listeners
-  if (!isHost) {
-    listenersFromPeers.unshift({ user: localUser, role: "listener" });
-  }
-  // Merge with store listeners (dedup by id)
-  const seenIds = new Set(listenersFromPeers.map((l: any) => l.user.id));
-  const mergedListeners = [
-    ...listenersFromPeers,
-    ...storeListeners.filter((l) => !seenIds.has(l.user.id)),
-  ];
-
+  // Active speakers
   const activeSpeakerIds = new Set<string>();
-  if (!effectiveMuted && isHost) activeSpeakerIds.add(localUser.id);
+  if (!effectiveMuted) activeSpeakerIds.add(localUser.id);
   remotePeers.forEach((p: any) => {
     if (p.isMicOn) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
   });
 
-  const totalParticipants = remotePeers.length + 1;
+  const totalParticipants = allParticipants.length;
 
-  // Use native camera preview for local host when Fishjam stream isn't ready yet
-  const useNativeForLocal = isHost && roomHasVideo && !localCameraStream;
+  // ── Host action handlers ─────────────────────────────────────────
+  const handleMutePeer = useCallback(
+    async (targetUserId: string) => {
+      const res = await videoApi.mutePeer({ roomId: roomUuid, targetUserId });
+      if (res.ok) {
+        showToast("info", "Muted", "Participant has been muted");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to mute");
+      }
+    },
+    [roomUuid, showToast],
+  );
+
+  const [allMuted, setAllMuted] = useState(false);
+
+  const handleToggleMuteAll = useCallback(async () => {
+    if (allMuted) {
+      const res = await videoApi.unmuteAll(roomUuid);
+      if (res.ok) {
+        setAllMuted(false);
+        showToast("info", "Unmuted All", "All participants have been unmuted");
+      } else {
+        showToast(
+          "error",
+          "Error",
+          res.error?.message || "Failed to unmute all",
+        );
+      }
+    } else {
+      const res = await videoApi.muteAll(roomUuid);
+      if (res.ok) {
+        setAllMuted(true);
+        showToast("info", "Muted All", "All participants have been muted");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to mute all");
+      }
+    }
+  }, [roomUuid, allMuted, showToast]);
+
+  const handleUnmutePeer = useCallback(
+    async (targetUserId: string) => {
+      const res = await videoApi.unmutePeer({ roomId: roomUuid, targetUserId });
+      if (res.ok) {
+        showToast("info", "Unmuted", "Participant has been unmuted");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to unmute");
+      }
+    },
+    [roomUuid, showToast],
+  );
+
+  const handleMakeCoHost = useCallback(
+    async (targetUserId: string) => {
+      const res = await videoApi.changeRole({
+        roomId: roomUuid,
+        targetUserId,
+        newRole: "co-host",
+      });
+      if (res.ok) {
+        showToast("info", "Promoted", "User is now a co-host");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to promote");
+      }
+    },
+    [roomUuid, showToast],
+  );
+
+  const handleDemote = useCallback(
+    async (targetUserId: string) => {
+      const res = await videoApi.changeRole({
+        roomId: roomUuid,
+        targetUserId,
+        newRole: "participant",
+      });
+      if (res.ok) {
+        showToast("info", "Demoted", "User is now a participant");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to demote");
+      }
+    },
+    [roomUuid, showToast],
+  );
+
+  const handleRemoveUser = useCallback(
+    async (targetUserId: string) => {
+      const res = await videoApi.kickUser({
+        roomId: roomUuid,
+        targetUserId,
+        reason: "Removed by host",
+      });
+      if (res.ok) {
+        showToast("info", "Removed", "User has been removed from the room");
+      } else {
+        showToast("error", "Error", res.error?.message || "Failed to remove");
+      }
+    },
+    [roomUuid, showToast],
+  );
+
+  const handleParticipantPress = useCallback((p: VideoParticipant) => {
+    setActionTarget(p);
+  }, []);
 
   return (
-    <RoomLayout
-      insets={insets}
-      connectionState={connectionState}
-      isHost={!!isHost}
-      roomTitle={roomTitle}
-      participantCount={totalParticipants}
-      featuredSpeaker={featuredSpeaker}
-      coHost={coHostFeatured}
-      isLocalUser={featuredIsLocal}
-      effectiveVideoOn={
-        featuredHasVideo || (isHost && roomHasVideo && useNativeForLocal)
-      }
-      cameraStream={featuredIsLocal ? localCameraStream : null}
-      featuredVideoTrack={!featuredIsLocal ? featuredVideoTrack : undefined}
-      coHostVideoTrack={coHostTrack}
-      isCoHostLocal={false}
-      useNativeCamera={useNativeForLocal}
-      speakers={speakers}
-      activeSpeakers={activeSpeakerIds}
-      storeListeners={mergedListeners}
-      effectiveMuted={effectiveMuted}
-      isHandRaised={isHandRaised}
-      hasVideo={roomHasVideo}
-      isChatOpen={isChatOpen}
-      showEjectModal={showEjectModal}
-      ejectPayload={ejectPayload}
-      roomId={id}
-      localUser={localUser}
-      onLeave={handleLeave}
-      onToggleMic={handleToggleMic}
-      onToggleVideo={handleToggleVideo}
-      onToggleHand={handleToggleHand}
-      onChat={handleChat}
-      onCloseChat={handleCloseChat}
-      onEjectDismiss={handleEjectDismiss}
-      onPromoteListener={promoteListener}
-      localRole={isHost ? "host" : "listener"}
-    />
+    <>
+      <RoomLayout
+        insets={insets}
+        connectionState={connectionState}
+        isHost={!!isHost}
+        roomTitle={roomTitle}
+        participantCount={totalParticipants}
+        allParticipants={allParticipants}
+        activeSpeakers={activeSpeakerIds}
+        effectiveMuted={effectiveMuted}
+        effectiveVideoOn={effectiveVideoOn}
+        isHandRaised={isHandRaised}
+        hasVideo={roomHasVideo}
+        isChatOpen={isChatOpen}
+        showEjectModal={showEjectModal}
+        ejectPayload={ejectPayload}
+        roomId={id}
+        localUser={localUser}
+        onLeave={handleLeave}
+        onToggleMic={handleToggleMic}
+        onToggleVideo={handleToggleVideo}
+        onToggleHand={handleToggleHand}
+        onChat={handleChat}
+        onCloseChat={handleCloseChat}
+        onEjectDismiss={handleEjectDismiss}
+        onParticipantPress={isHost ? handleParticipantPress : undefined}
+        onMuteAll={isHost ? handleToggleMuteAll : undefined}
+        allMuted={allMuted}
+        localRole={isHost ? "host" : "participant"}
+      />
+
+      {/* Host action sheet — mute / co-host / remove */}
+      <ParticipantActions
+        visible={!!actionTarget}
+        participant={
+          actionTarget
+            ? {
+                userId: actionTarget.id,
+                user: actionTarget.user,
+                role: actionTarget.role,
+                isMicOn: actionTarget.isMicOn,
+              }
+            : null
+        }
+        onMute={handleMutePeer}
+        onUnmute={handleUnmutePeer}
+        onMakeCoHost={handleMakeCoHost}
+        onDemote={handleDemote}
+        onRemove={handleRemoveUser}
+        onClose={() => setActionTarget(null)}
+      />
+    </>
   );
 }
 
@@ -621,19 +825,10 @@ function RoomLayout({
   isHost,
   roomTitle,
   participantCount,
-  featuredSpeaker,
-  coHost,
-  isLocalUser,
-  effectiveVideoOn,
-  cameraStream,
-  featuredVideoTrack,
-  coHostVideoTrack,
-  isCoHostLocal,
-  useNativeCamera,
-  speakers,
+  allParticipants,
   activeSpeakers,
-  storeListeners,
   effectiveMuted,
+  effectiveVideoOn,
   isHandRaised,
   hasVideo,
   isChatOpen,
@@ -648,29 +843,21 @@ function RoomLayout({
   onChat,
   onCloseChat,
   onEjectDismiss,
-  onPromoteListener,
-  onMuteCoHost,
+  onParticipantPress,
+  onMuteAll,
+  allMuted,
   localRole,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
   isHost: boolean;
-  localRole: "host" | "co-host" | "listener";
+  localRole: "host" | "co-host" | "participant";
   roomTitle: string;
   participantCount: number;
-  featuredSpeaker: any;
-  coHost?: any;
-  isLocalUser: boolean;
-  effectiveVideoOn: boolean;
-  cameraStream: any;
-  featuredVideoTrack?: any;
-  coHostVideoTrack?: any;
-  isCoHostLocal?: boolean;
-  useNativeCamera?: boolean;
-  speakers: any[];
+  allParticipants: VideoParticipant[];
   activeSpeakers: Set<string>;
-  storeListeners?: { user: SneakyUser; role: string }[];
   effectiveMuted: boolean;
+  effectiveVideoOn: boolean;
   isHandRaised: boolean;
   hasVideo?: boolean;
   isChatOpen: boolean;
@@ -685,14 +872,10 @@ function RoomLayout({
   onChat: () => void;
   onCloseChat: () => void;
   onEjectDismiss: () => void;
-  onPromoteListener?: (userId: string) => void;
-  onMuteCoHost?: () => void;
+  onParticipantPress?: (p: VideoParticipant) => void;
+  onMuteAll?: () => void;
+  allMuted?: boolean;
 }) {
-  const listeners = (storeListeners || []).map((l) => ({
-    id: l.user.id,
-    user: l.user,
-  }));
-
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Connection Banner */}
@@ -730,48 +913,44 @@ function RoomLayout({
           </Text>
         </View>
 
-        <Pressable hitSlop={12}>
-          <MoreHorizontal size={24} color="#fff" />
-        </Pressable>
+        {/* Mute / Unmute All toggle for host */}
+        {isHost && onMuteAll ? (
+          <Pressable
+            onPress={onMuteAll}
+            hitSlop={8}
+            className={`flex-row items-center px-3 py-1.5 rounded-full gap-1.5 ${
+              allMuted ? "bg-emerald-500/20" : "bg-red-500/20"
+            }`}
+          >
+            {allMuted ? (
+              <Mic size={14} color="#10B981" />
+            ) : (
+              <MicOff size={14} color="#EF4444" />
+            )}
+            <Text
+              className={`text-xs font-bold ${
+                allMuted ? "text-emerald-400" : "text-red-400"
+              }`}
+            >
+              {allMuted ? "UNMUTE ALL" : "MUTE ALL"}
+            </Text>
+          </Pressable>
+        ) : (
+          <Pressable hitSlop={12}>
+            <MoreHorizontal size={24} color="#fff" />
+          </Pressable>
+        )}
       </View>
 
-      {/* Content */}
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        {/* Video Stage */}
-        <VideoStage
-          featuredSpeaker={featuredSpeaker}
-          coHost={coHost}
-          isSpeaking={featuredSpeaker.isSpeaking}
-          isLocalUser={isLocalUser}
-          isVideoEnabled={effectiveVideoOn}
-          videoTrack={
-            featuredVideoTrack ||
-            (cameraStream ? { stream: cameraStream } : undefined)
-          }
-          coHostVideoTrack={coHostVideoTrack}
-          isCoHostLocal={isCoHostLocal}
-          useNativeCamera={useNativeCamera}
-        />
-
-        {/* Speakers Grid */}
-        <SpeakerGrid
-          speakers={speakers}
+      {/* Video Grid — Zoom-like layout for all participants */}
+      <View className="flex-1">
+        <VideoGrid
+          participants={allParticipants}
           activeSpeakers={activeSpeakers}
-          isLocalHost={isHost}
-          onMuteCoHost={onMuteCoHost}
+          isHost={isHost}
+          onParticipantPress={onParticipantPress}
         />
-
-        {/* Listeners Grid */}
-        {listeners.length > 0 && (
-          <View className="mb-24">
-            <ListenerGrid
-              listeners={listeners}
-              isHost={isHost}
-              onPromote={onPromoteListener}
-            />
-          </View>
-        )}
-      </ScrollView>
+      </View>
 
       {/* Room Timer — 16 min max, countdown in last 60s */}
       <RoomTimer onTimeUp={onLeave} />
@@ -797,17 +976,13 @@ function RoomLayout({
         onDismiss={onEjectDismiss}
       />
 
-      {/* Chat Sheet — threaded comments with @mentions */}
+      {/* Chat Sheet */}
       <ChatSheet
         isOpen={isChatOpen}
         onClose={onCloseChat}
         roomId={roomId}
         currentUser={localUser}
-        participants={[
-          localUser,
-          ...speakers.map((s: any) => s.user),
-          ...listeners.map((l: any) => l.user),
-        ]}
+        participants={allParticipants.map((p) => p.user)}
       />
     </View>
   );

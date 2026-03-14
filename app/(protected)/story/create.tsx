@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   X,
   Image as ImageIcon,
@@ -34,7 +35,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import { useCallback, useLayoutEffect, useEffect } from "react";
+import { useCallback, useLayoutEffect, useEffect, useState } from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -47,6 +48,61 @@ import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { setPendingCrop } from "@/src/crop/crop-utils";
 import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
+
+function StoryVideoPreview({ uri }: { uri: string }) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = false;
+  });
+
+  const togglePlay = useCallback(() => {
+    if (isPlaying) {
+      player.pause();
+      setIsPlaying(false);
+    } else {
+      player.play();
+      setIsPlaying(true);
+    }
+  }, [isPlaying, player]);
+
+  return (
+    <Pressable onPress={togglePlay} style={{ flex: 1 }}>
+      <VideoView
+        player={player}
+        style={{ width: "100%", height: "100%" }}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      {!isPlaying && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <View
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Video size={24} color="#fff" />
+          </View>
+        </View>
+      )}
+    </Pressable>
+  );
+}
 
 // Creative tools — floating vertical toolbar on canvas
 const CREATIVE_TOOLS = [
@@ -569,16 +625,8 @@ export default function CreateStoryScreen() {
             {currentMedia ? (
               <View className="flex-1 bg-black">
                 {currentMediaType === "video" ? (
-                  <View className="flex-1 items-center justify-center bg-black">
-                    <Image
-                      source={{ uri: currentMedia }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                    />
-                    <View className="absolute bg-black/60 px-3 py-1.5 rounded-full flex-row items-center gap-1.5">
-                      <Video size={16} color="#fff" />
-                      <Text className="text-white text-sm">Video</Text>
-                    </View>
+                  <View className="flex-1 bg-black">
+                    <StoryVideoPreview uri={currentMedia} />
                   </View>
                 ) : (
                   <View className="flex-1">

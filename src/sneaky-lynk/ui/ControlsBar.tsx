@@ -8,7 +8,6 @@ import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Hand,
-  Lock,
   MessageCircle,
   Mic,
   MicOff,
@@ -26,7 +25,7 @@ interface ControlsBarProps {
   isVideoEnabled: boolean;
   handRaised: boolean;
   hasVideo: boolean;
-  localRole: "host" | "co-host" | "listener";
+  localRole: "host" | "co-host" | "participant" | "listener";
   onLeave: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
@@ -171,7 +170,6 @@ export function ControlsBar({
   onOpenChat,
   onShare,
 }: ControlsBarProps) {
-  const canSpeak = localRole === "host" || localRole === "co-host";
   const insets = useSafeAreaInsets();
   const [floatingEmojis, setFloatingEmojis] = useState<
     { id: number; emoji: string }[]
@@ -246,32 +244,21 @@ export function ControlsBar({
         className="mx-4 flex-row items-center justify-between px-4 py-3 rounded-2xl"
         style={{ backgroundColor: "rgba(20, 20, 20, 0.85)" }}
       >
-        {/* Mic — only host/co-host can toggle */}
-        {canSpeak ? (
-          <ControlButton
-            onPress={onToggleMute}
-            isActive={!isMuted}
-            icon={
-              isMuted ? (
-                <MicOff size={20} color="#EF4444" />
-              ) : (
-                <Mic size={20} color="#fff" />
-              )
-            }
-          />
-        ) : (
-          <View className="items-center gap-1">
-            <View
-              className="items-center justify-center rounded-full bg-white/5"
-              style={{ width: 48, height: 48 }}
-            >
-              <Lock size={18} color="#6B7280" />
-            </View>
-          </View>
-        )}
+        {/* Mic — all participants can toggle */}
+        <ControlButton
+          onPress={onToggleMute}
+          isActive={!isMuted}
+          icon={
+            isMuted ? (
+              <MicOff size={20} color="#EF4444" />
+            ) : (
+              <Mic size={20} color="#fff" />
+            )
+          }
+        />
 
-        {/* Video — only host/co-host */}
-        {hasVideo && canSpeak && (
+        {/* Video — all participants can toggle */}
+        {hasVideo && (
           <ControlButton
             onPress={onToggleVideo}
             isActive={isVideoEnabled}

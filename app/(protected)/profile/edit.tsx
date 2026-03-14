@@ -157,7 +157,11 @@ export default function EditProfileScreen() {
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <View className="flex-row items-center justify-between border-b border-border bg-background px-4 py-3">
-        <Pressable onPress={() => router.back()} className="mr-4">
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={16}
+          style={{ padding: 8, margin: -8, marginRight: 8 }}
+        >
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="flex-1 text-lg font-semibold text-foreground">

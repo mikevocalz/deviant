@@ -7,6 +7,7 @@
 
 import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
 import type {
   PaymentMethod,
   Order,
@@ -29,9 +30,13 @@ import type {
 export const paymentMethodsApi = {
   async list(): Promise<PaymentMethod[]> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "payment-methods",
-        { body: { action: "list" } },
+        {
+          body: { action: "list" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return data?.methods || [];
@@ -41,11 +46,18 @@ export const paymentMethodsApi = {
     }
   },
 
-  async createSetupIntent(): Promise<{ clientSecret?: string; error?: string }> {
+  async createSetupIntent(): Promise<{
+    clientSecret?: string;
+    error?: string;
+  }> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "payment-methods",
-        { body: { action: "setup" } },
+        {
+          body: { action: "setup" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return data;
@@ -55,11 +67,17 @@ export const paymentMethodsApi = {
     }
   },
 
-  async setDefault(methodId: string): Promise<{ success: boolean; error?: string }> {
+  async setDefault(
+    methodId: string,
+  ): Promise<{ success: boolean; error?: string }> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "payment-methods",
-        { body: { action: "set_default", method_id: methodId } },
+        {
+          body: { action: "set_default", method_id: methodId },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return { success: true };
@@ -69,11 +87,17 @@ export const paymentMethodsApi = {
     }
   },
 
-  async remove(methodId: string): Promise<{ success: boolean; error?: string }> {
+  async remove(
+    methodId: string,
+  ): Promise<{ success: boolean; error?: string }> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "payment-methods",
-        { body: { action: "remove", method_id: methodId } },
+        {
+          body: { action: "remove", method_id: methodId },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return { success: true };
@@ -89,11 +113,10 @@ export const paymentMethodsApi = {
 export const purchasesApi = {
   async list(cursor?: string): Promise<PaginatedResponse<Order>> {
     try {
-      const authId = await getCurrentUserAuthId();
-      if (!authId) return { data: [], hasMore: false };
-
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "list", cursor },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || { data: [], hasMore: false };
@@ -105,8 +128,10 @@ export const purchasesApi = {
 
   async getOrder(orderId: string): Promise<Order | null> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "detail", order_id: orderId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data?.order || null;
@@ -118,8 +143,10 @@ export const purchasesApi = {
 
   async getReceipt(orderId: string): Promise<ReceiptDocument | null> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "receipt", order_id: orderId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || null;
@@ -131,8 +158,10 @@ export const purchasesApi = {
 
   async getInvoice(orderId: string): Promise<ReceiptDocument | null> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "invoice", order_id: orderId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || null;
@@ -146,8 +175,10 @@ export const purchasesApi = {
     request: RefundRequest,
   ): Promise<{ success: boolean; refundId?: string; error?: string }> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "refund_request", ...request },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || { success: false };
@@ -163,8 +194,10 @@ export const purchasesApi = {
 export const refundsApi = {
   async list(cursor?: string): Promise<PaginatedResponse<Refund>> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "refunds", cursor },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || { data: [], hasMore: false };
@@ -180,8 +213,10 @@ export const refundsApi = {
 export const disputesApi = {
   async list(cursor?: string): Promise<PaginatedResponse<Dispute>> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "disputes", cursor },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || { data: [], hasMore: false };
@@ -197,11 +232,10 @@ export const disputesApi = {
 export const hostPayoutsApi = {
   async getSummary(): Promise<PayoutSummary | null> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return null;
-
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("host-payouts", {
-        body: { action: "summary", host_id: hostId },
+        body: { action: "summary" },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || null;
@@ -213,11 +247,10 @@ export const hostPayoutsApi = {
 
   async listPayouts(cursor?: string): Promise<PaginatedResponse<PayoutRecord>> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { data: [], hasMore: false };
-
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("host-payouts", {
-        body: { action: "list", host_id: hostId, cursor },
+        body: { action: "list", cursor },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || { data: [], hasMore: false };
@@ -229,8 +262,10 @@ export const hostPayoutsApi = {
 
   async getPayoutDetail(payoutId: string): Promise<PayoutRecord | null> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("host-payouts", {
         body: { action: "detail", payout_id: payoutId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data?.payout || null;
@@ -249,12 +284,13 @@ export const hostTransactionsApi = {
     type?: string,
   ): Promise<PaginatedResponse<BalanceTransaction>> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { data: [], hasMore: false };
-
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "host-transactions",
-        { body: { action: "list", host_id: hostId, cursor, type } },
+        {
+          body: { action: "list", cursor, type },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return data || { data: [], hasMore: false };
@@ -270,13 +306,11 @@ export const hostTransactionsApi = {
 export const hostDisputesApi = {
   async list(cursor?: string): Promise<PaginatedResponse<Dispute>> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { data: [], hasMore: false };
-
-      const { data, error } = await supabase.functions.invoke(
-        "host-disputes",
-        { body: { action: "list", host_id: hostId, cursor } },
-      );
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke("host-disputes", {
+        body: { action: "list", cursor },
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (error) throw error;
       return data || { data: [], hasMore: false };
     } catch (err: any) {
@@ -291,20 +325,14 @@ export const hostDisputesApi = {
 export const connectApi = {
   async getStatus(): Promise<ConnectAccount> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) {
-        return {
-          status: "not_started",
-          chargesEnabled: false,
-          payoutsEnabled: false,
-          detailsSubmitted: false,
-          requiresAction: false,
-        };
-      }
+      const token = await requireBetterAuthToken();
 
       const { data, error } = await supabase.functions.invoke(
         "organizer-connect",
-        { body: { action: "status", host_id: hostId } },
+        {
+          body: { action: "status" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
 
@@ -339,12 +367,14 @@ export const connectApi = {
 
   async getOnboardingLink(): Promise<{ url?: string; error?: string }> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { error: "Not authenticated" };
+      const token = await requireBetterAuthToken();
 
       const { data, error } = await supabase.functions.invoke(
         "organizer-connect",
-        { body: { action: "start", host_id: hostId } },
+        {
+          body: { action: "start" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
       );
       if (error) throw error;
       return { url: data?.url };
@@ -386,7 +416,9 @@ export const brandingApi = {
     }
   },
 
-  async update(branding: Partial<OrganizerBranding>): Promise<{ success: boolean; error?: string }> {
+  async update(
+    branding: Partial<OrganizerBranding>,
+  ): Promise<{ success: boolean; error?: string }> {
     try {
       const hostId = await getCurrentUserAuthId();
       if (!hostId) return { success: false, error: "Not authenticated" };
@@ -419,8 +451,10 @@ export const printApi = {
     expiresAt?: string;
   } | null> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("purchases", {
         body: { action: "ticket_print", order_id: orderId },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (error) throw error;
       return data || null;

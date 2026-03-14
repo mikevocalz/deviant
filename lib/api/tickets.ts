@@ -1,12 +1,13 @@
 import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId, getCurrentUserId } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
 
 export interface TicketRecord {
   id: string;
   event_id: number;
   ticket_type_id: string;
   user_id: string;
-  status: "active" | "scanned" | "refunded" | "void";
+  status: "active" | "scanned" | "refunded" | "void" | "transfer_pending";
   qr_token: string;
   checked_in_at: string | null;
   checked_in_by: string | null;
@@ -92,7 +93,7 @@ export const ticketsApi = {
     eventId: string;
     ticketTypeId: string;
     quantity: number;
-    userId: string;
+    userId?: string; // deprecated — server derives from session
   }): Promise<{
     url?: string;
     tickets?: any[];
@@ -100,6 +101,7 @@ export const ticketsApi = {
     error?: string;
   }> {
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "ticket-checkout",
         {
@@ -107,8 +109,8 @@ export const ticketsApi = {
             event_id: params.eventId,
             ticket_type_id: params.ticketTypeId,
             quantity: params.quantity,
-            user_id: params.userId,
           },
+          headers: { Authorization: `Bearer ${token}` },
         },
       );
 
@@ -293,6 +295,141 @@ export const ticketsApi = {
     } catch (error) {
       console.error("[Tickets] getMyTicketForEvent error:", error);
       return null;
+    }
+  },
+
+  // ── Ticket Transfers ──────────────────────────────────────────
+
+  async initiateTransfer(
+    ticketId: string,
+    toUsername: string,
+  ): Promise<{ transfer_id?: string; expires_at?: string; error?: string }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "transfer-ticket",
+        {
+          body: {
+            action: "initiate",
+            ticket_id: ticketId,
+            to_username: toUsername,
+          },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (result.error) return { error: result.error };
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] initiateTransfer error:", error);
+      return { error: error.message || "Transfer failed" };
+    }
+  },
+
+  async acceptTransfer(transferId: string): Promise<{
+    success?: boolean;
+    ticket_id?: string;
+    qr_token?: string;
+    error?: string;
+  }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "transfer-ticket",
+        {
+          body: { action: "accept", transfer_id: transferId },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (result.error) return { error: result.error };
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] acceptTransfer error:", error);
+      return { error: error.message || "Accept failed" };
+    }
+  },
+
+  async declineTransfer(
+    transferId: string,
+  ): Promise<{ success?: boolean; error?: string }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "transfer-ticket",
+        {
+          body: { action: "decline", transfer_id: transferId },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (result.error) return { error: result.error };
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] declineTransfer error:", error);
+      return { error: error.message || "Decline failed" };
+    }
+  },
+
+  async cancelTransfer(
+    transferId: string,
+  ): Promise<{ success?: boolean; error?: string }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "transfer-ticket",
+        {
+          body: { action: "cancel", transfer_id: transferId },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (result.error) return { error: result.error };
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] cancelTransfer error:", error);
+      return { error: error.message || "Cancel failed" };
+    }
+  },
+
+  async getPendingTransfers(): Promise<{
+    incoming: any[];
+    outgoing: any[];
+  }> {
+    try {
+      const authId = await getCurrentUserAuthId();
+      if (!authId) return { incoming: [], outgoing: [] };
+
+      const { data: incoming } = await supabase
+        .from("ticket_transfers")
+        .select(
+          "*, tickets(id, event_id, ticket_types(name), events(title, start_date))",
+        )
+        .eq("to_user_id", authId)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .order("initiated_at", { ascending: false });
+
+      const { data: outgoing } = await supabase
+        .from("ticket_transfers")
+        .select(
+          "*, tickets(id, event_id, ticket_types(name), events(title, start_date))",
+        )
+        .eq("from_user_id", authId)
+        .eq("status", "pending")
+        .order("initiated_at", { ascending: false });
+
+      return {
+        incoming: incoming || [],
+        outgoing: outgoing || [],
+      };
+    } catch (error) {
+      console.error("[Tickets] getPendingTransfers error:", error);
+      return { incoming: [], outgoing: [] };
     }
   },
 

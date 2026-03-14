@@ -15,6 +15,7 @@ const corsHeaders = {
 
 const JoinRoomSchema = z.object({
   roomId: z.string().uuid(),
+  anonymous: z.boolean().optional().default(false),
 });
 
 type ErrorCode =
@@ -109,7 +110,7 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", parsed.error.errors[0].message);
     }
 
-    const { roomId } = parsed.data;
+    const { roomId, anonymous } = parsed.data;
 
     // Rate limit check
     const { data: canJoin } = await supabase.rpc("check_rate_limit", {
@@ -182,10 +183,22 @@ Deno.serve(async (req) => {
 
     let memberRole = "participant";
 
+    // Compute anon label if joining anonymously
+    let anonLabel: string | null = null;
+    if (anonymous) {
+      const { count } = await supabase
+        .from("video_room_members")
+        .select("id", { count: "exact", head: true })
+        .eq("room_id", internalRoomId)
+        .eq("is_anonymous", true);
+      anonLabel = `ANON LYNK ${(count ?? 0) + 1}`;
+    }
+
     if (existingMember) {
       if (existingMember.status === "active") {
         // Already in room, just refresh token
         memberRole = existingMember.role;
+        anonLabel = existingMember.anon_label || anonLabel;
       } else if (existingMember.status === "banned") {
         return errorResponse("forbidden", "You are banned from this room");
       } else {
@@ -196,6 +209,8 @@ Deno.serve(async (req) => {
             status: "active",
             joined_at: new Date().toISOString(),
             left_at: null,
+            is_anonymous: anonymous,
+            anon_label: anonLabel,
           })
           .eq("room_id", internalRoomId)
           .eq("user_id", userId);
@@ -215,6 +230,8 @@ Deno.serve(async (req) => {
           user_id: userId,
           role: "participant",
           status: "active",
+          is_anonymous: anonymous,
+          anon_label: anonLabel,
         });
 
       if (insertError) {
@@ -375,14 +392,35 @@ Deno.serve(async (req) => {
       payload: { role: memberRole, peerId: peer.id },
     });
 
-    // Get user profile for display
-    const { data: profile } = await supabase
-      .from("users")
-      .select("username, avatar:avatar_id(url)")
-      .eq("auth_id", userId)
-      .single();
+    // Get user profile for display (skip if anonymous)
+    let userPayload: Record<string, any>;
+    if (anonymous && anonLabel) {
+      userPayload = {
+        id: userId,
+        username: anonLabel,
+        displayName: anonLabel,
+        avatar: null,
+        isAnonymous: true,
+        anonLabel,
+      };
+    } else {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("username, avatar:avatar_id(url)")
+        .eq("auth_id", userId)
+        .single();
+      userPayload = {
+        id: userId,
+        username: profile?.username,
+        avatar: profile?.avatar?.url,
+        isAnonymous: false,
+        anonLabel: null,
+      };
+    }
 
-    console.log(`[video_join_room] User ${userId} joined room ${roomId}`);
+    console.log(
+      `[video_join_room] User ${userId} joined room ${roomId} (anon=${anonymous})`,
+    );
 
     return jsonResponse({
       ok: true,
@@ -398,11 +436,7 @@ Deno.serve(async (req) => {
           id: peer.id,
           role: memberRole,
         },
-        user: {
-          id: userId,
-          username: profile?.username,
-          avatar: profile?.avatar?.url,
-        },
+        user: userPayload,
         expiresAt: expiresAt.toISOString(),
       },
     });

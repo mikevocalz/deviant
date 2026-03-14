@@ -1,21 +1,29 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   StyleSheet,
-  Modal,
-  Platform,
   ActivityIndicator,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { X, Search, UserPlus, Check } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { storyTagsApi } from "@/lib/api/stories";
 import * as Haptics from "expo-haptics";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetTextInput,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 
 export interface TaggedUser {
   id: number;
@@ -36,11 +44,42 @@ export function StoryTagPicker({
   selectedUsers,
   onUsersChanged,
 }: StoryTagPickerProps) {
+  const sheetRef = useRef<BottomSheet>(null);
   const insets = useSafeAreaInsets();
+  const snapPoints = useMemo(() => ["92%"], []);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TaggedUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (visible) sheetRef.current?.snapToIndex(0);
+    else sheetRef.current?.close();
+  }, [visible]);
+
+  const handleSheetChange = useCallback(
+    (index: number) => {
+      if (index === -1) {
+        setQuery("");
+        setResults([]);
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.7}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
 
   const handleSearch = useCallback((text: string) => {
     setQuery(text);
@@ -98,9 +137,7 @@ export function StoryTagPicker({
         >
           <Image
             source={{
-              uri:
-                item.avatar ||
-                "",
+              uri: item.avatar || "",
             }}
             style={s.avatar}
           />
@@ -119,16 +156,20 @@ export function StoryTagPicker({
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={handleDone}
+    <BottomSheet
+      ref={sheetRef}
+      index={-1}
+      snapPoints={snapPoints}
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      onChange={handleSheetChange}
+      backgroundStyle={s.sheetBg}
+      handleIndicatorStyle={s.sheetHandle}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      android_keyboardInputMode="adjustResize"
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={[s.container, { paddingTop: insets.top || 16 }]}
-      >
+      <BottomSheetView style={s.container}>
         {/* Header */}
         <View style={s.header}>
           <Text style={s.title}>Tag People</Text>
@@ -140,7 +181,7 @@ export function StoryTagPicker({
         {/* Search */}
         <View style={s.searchContainer}>
           <Search size={18} color="rgba(255,255,255,0.4)" />
-          <TextInput
+          <BottomSheetTextInput
             style={s.searchInput}
             placeholder="Search users..."
             placeholderTextColor="rgba(255,255,255,0.3)"
@@ -206,15 +247,23 @@ export function StoryTagPicker({
             <Text style={s.emptyText}>Search for people to tag</Text>
           </View>
         )}
-      </KeyboardAvoidingView>
-    </Modal>
+      </BottomSheetView>
+    </BottomSheet>
   );
 }
 
 const s = StyleSheet.create({
+  sheetBg: {
+    backgroundColor: "#0a0a0a",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+  },
+  sheetHandle: {
+    backgroundColor: "rgba(255,255,255,0.3)",
+    width: 36,
+  },
   container: {
     flex: 1,
-    backgroundColor: "#0a0a0a",
   },
   header: {
     flexDirection: "row",

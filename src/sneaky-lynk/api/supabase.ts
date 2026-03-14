@@ -83,8 +83,11 @@ export const sneakyLynkApi = {
    * Join a room and get Fishjam token
    * Uses existing video_join_room Edge Function
    */
-  async joinRoom(roomId: string): Promise<ApiResponse<JoinRoomResponse>> {
-    return callEdgeFunction("video_join_room", { roomId });
+  async joinRoom(
+    roomId: string,
+    anonymous = false,
+  ): Promise<ApiResponse<JoinRoomResponse>> {
+    return callEdgeFunction("video_join_room", { roomId, anonymous });
   },
 
   /**

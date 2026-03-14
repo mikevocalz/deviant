@@ -7,6 +7,7 @@ import {
   StatusBar,
   Platform,
   Alert,
+  TextInput,
 } from "react-native";
 import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
@@ -399,6 +400,7 @@ export default function EventDetailScreen() {
   }, []);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
 
   const handleGetTickets = useCallback(async () => {
     if (!eventData || isCheckingOut) return;
@@ -422,12 +424,11 @@ export default function EventDetailScreen() {
       setIsCheckingOut(true);
       try {
         // Use native PaymentSheet for in-app checkout
-        const authId = user?.authId || user?.id || "";
         const result = await nativeCheckout({
           eventId,
           ticketTypeId: selectedTier?.id || "",
           quantity: 1,
-          userId: authId,
+          ...(promoCode.trim() ? { promoCode: promoCode.trim() } : {}),
         });
 
         if (result.error) {
@@ -1034,6 +1035,63 @@ export default function EventDetailScreen() {
                 />
               )}
             />
+
+            {/* Promo code input */}
+            {selectedTier && selectedTier.price > 0 && !hasTicket && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginTop: 12,
+                  gap: 8,
+                }}
+              >
+                <TextInput
+                  value={promoCode}
+                  onChangeText={setPromoCode}
+                  placeholder="Promo code"
+                  placeholderTextColor="#71717a"
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  style={{
+                    flex: 1,
+                    height: 40,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(255,255,255,0.06)",
+                    borderWidth: 1,
+                    borderColor: promoCode.trim()
+                      ? "#8A40CF60"
+                      : "rgba(255,255,255,0.08)",
+                    paddingHorizontal: 12,
+                    color: "#fff",
+                    fontSize: 14,
+                    fontFamily: "InterSemiBold",
+                    letterSpacing: 1,
+                  }}
+                />
+                {promoCode.trim() ? (
+                  <Pressable
+                    onPress={() => setPromoCode("")}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      backgroundColor: "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#a1a1aa",
+                        fontSize: 13,
+                        fontFamily: "InterSemiBold",
+                      }}
+                    >
+                      Clear
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            )}
           </View>
 
           {/* ── Ratings & Reviews ─────────────────────────────────── */}

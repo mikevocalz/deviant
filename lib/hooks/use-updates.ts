@@ -397,7 +397,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         }));
       }
     } catch (error) {
-      console.error("[Updates] Check failed (non-fatal):", error);
+      console.warn("[Updates] Check failed (non-fatal):", error);
       setStatus((prev) => ({
         ...prev,
         isChecking: false,

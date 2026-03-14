@@ -103,8 +103,49 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", parsed.error.errors[0].message);
     }
 
-    const { title, topic, description, hasVideo, isPublic, maxParticipants } =
-      parsed.data;
+    const { title, topic, description, hasVideo, isPublic } = parsed.data;
+    let { maxParticipants } = parsed.data;
+
+    // ── Subscription-aware participant cap ────────────────────
+    const { data: userSub } = await supabase
+      .from("sneaky_subscriptions")
+      .select("plan_id, status, grace_period_ends_at")
+      .eq("host_id", userId)
+      .single();
+
+    // Determine effective plan limits
+    let planMaxParticipants = 5; // free tier default
+    if (userSub) {
+      const isGraceExpired =
+        userSub.status === "past_due" &&
+        userSub.grace_period_ends_at &&
+        new Date(userSub.grace_period_ends_at) < new Date();
+
+      if (isGraceExpired) {
+        // Grace period expired — enforce free-tier limits
+        planMaxParticipants = 5;
+        console.log(
+          `[video_create_room] Grace period expired for ${userId}, enforcing free limits`,
+        );
+      } else if (
+        userSub.status === "active" ||
+        userSub.status === "trialing" ||
+        userSub.status === "past_due"
+      ) {
+        // Active, trialing, or within grace period — use plan limits
+        const { data: plan } = await supabase
+          .from("sneaky_subscription_plans")
+          .select("max_participants")
+          .eq("id", userSub.plan_id)
+          .single();
+        if (plan) planMaxParticipants = plan.max_participants;
+      }
+    }
+
+    // Cap requested participants to plan limit
+    if (maxParticipants > planMaxParticipants) {
+      maxParticipants = planMaxParticipants;
+    }
 
     // Rate limit check
     const { data: canCreate } = await supabase.rpc("check_rate_limit", {

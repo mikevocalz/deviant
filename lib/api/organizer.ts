@@ -3,6 +3,7 @@
  */
 
 import { supabase } from "../supabase/client";
+import { requireBetterAuthToken } from "../auth/identity";
 import { getCurrentUserAuthId } from "./auth-helper";
 
 export const organizerApi = {
@@ -11,12 +12,15 @@ export const organizerApi = {
    */
   async startOnboarding(): Promise<{ url?: string; error?: string }> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { error: "Not authenticated" };
+      const token = await requireBetterAuthToken();
 
-      const { data, error } = await supabase.functions.invoke("organizer-connect", {
-        body: { action: "start", host_id: hostId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "organizer-connect",
+        {
+          body: { action: "start" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (error) throw error;
       return data;
@@ -36,12 +40,15 @@ export const organizerApi = {
     details_submitted?: boolean;
   }> {
     try {
-      const hostId = await getCurrentUserAuthId();
-      if (!hostId) return { connected: false };
+      const token = await requireBetterAuthToken();
 
-      const { data, error } = await supabase.functions.invoke("organizer-connect", {
-        body: { action: "status", host_id: hostId },
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "organizer-connect",
+        {
+          body: { action: "status" },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (error) throw error;
       return data || { connected: false };

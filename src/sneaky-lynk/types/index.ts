@@ -24,6 +24,8 @@ export interface SneakyUser {
   displayName: string;
   avatar: string;
   isVerified: boolean;
+  isAnonymous?: boolean;
+  anonLabel?: string | null;
 }
 
 export interface SneakyRoom {
@@ -90,7 +92,7 @@ export interface JoinRoomResponse {
     id: string;
     role: MemberRole;
   };
-  user: SneakyUser;
+  user: SneakyUser & { isAnonymous: boolean; anonLabel: string | null };
   expiresAt: string;
 }
 

@@ -222,25 +222,7 @@ export default {
       "./plugins/with-voip-push",
       "./plugins/with-custom-ringtone",
       "./plugins/with-live-activity",
-      [
-        "voltra",
-        {
-          groupIdentifier: "group.com.dvnt.app",
-          targetName: "DVNTHomeWidgetExtension",
-          enablePushNotifications: true,
-          deploymentTarget: "16.4",
-          widgets: [
-            {
-              id: "dvnt_events",
-              displayName: "DVNT Events",
-              description: "Your next event at a glance",
-              supportedFamilies: ["systemSmall", "systemMedium", "systemLarge"],
-            },
-          ],
-        },
-      ],
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
-      "./plugins/fix-voltra-pnpm-podfile",
       "./plugins/fix-widget-maplibre",
       "expo-secure-store",
       "expo-sharing",

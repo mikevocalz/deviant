@@ -48,7 +48,9 @@ function dbToTicket(rec: TicketRecord): Ticket {
           ? "checked_in"
           : rec.status === "refunded"
             ? "revoked"
-            : "expired",
+            : rec.status === "transfer_pending"
+              ? "transfer_pending"
+              : "expired",
     checkedInAt: rec.checked_in_at ?? undefined,
     qrToken: rec.qr_token,
     tier: (rec.ticket_type_name?.toLowerCase().includes("vip")
@@ -84,7 +86,11 @@ export default function ViewTicketScreen() {
   if (isLoading && !ticket) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={16}
+          style={styles.backButton}
+        >
           <ArrowLeft size={22} color="#fff" />
         </Pressable>
         <View style={styles.emptyContainer}>
@@ -98,7 +104,11 @@ export default function ViewTicketScreen() {
   if (!ticket) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={16}
+          style={styles.backButton}
+        >
           <ArrowLeft size={22} color="#fff" />
         </Pressable>
 
@@ -108,7 +118,11 @@ export default function ViewTicketScreen() {
           <Text style={styles.emptySubtitle}>
             This ticket may have been removed or is no longer available.
           </Text>
-          <Pressable onPress={() => router.back()} style={styles.retryButton}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.retryButton}
+          >
             <RefreshCw size={16} color="#fff" />
             <Text style={styles.retryText}>Go Back</Text>
           </Pressable>
@@ -121,6 +135,7 @@ export default function ViewTicketScreen() {
   const accent = TIER_ACCENT[tier];
   const isExpired = ticket.status === "expired";
   const isRevoked = ticket.status === "revoked";
+  const isTransferPending = ticket.status === "transfer_pending";
 
   return (
     <View style={styles.screen}>
@@ -143,6 +158,27 @@ export default function ViewTicketScreen() {
         <View style={styles.heroWrap}>
           <TicketHeroCard ticket={ticket} />
         </View>
+
+        {/* ── Transfer Pending banner ── */}
+        {isTransferPending && (
+          <Motion.View
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            style={[
+              styles.statusBanner,
+              {
+                backgroundColor: "rgba(138,64,207,0.12)",
+                borderColor: "rgba(138,64,207,0.2)",
+              },
+            ]}
+          >
+            <Shield size={16} color="#8A40CF" />
+            <Text style={[styles.statusBannerText, { color: "#8A40CF" }]}>
+              Transfer pending — waiting for recipient to accept
+            </Text>
+          </Motion.View>
+        )}
 
         {/* ── Expired / Revoked banner ── */}
         {(isExpired || isRevoked) && (

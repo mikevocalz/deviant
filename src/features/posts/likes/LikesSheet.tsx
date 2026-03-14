@@ -158,6 +158,7 @@ export function LikesSheet({ postId, isOpen, onClose }: LikesSheetProps) {
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>

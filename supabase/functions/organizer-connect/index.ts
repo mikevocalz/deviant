@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -26,14 +27,18 @@ async function stripeRequest(
     },
     body: new URLSearchParams(body).toString(),
   });
-  return res.json();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
 }
 
 async function stripeGet(endpoint: string): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
   });
-  return res.json();
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data;
 }
 
 Deno.serve(async (req: Request) => {
@@ -53,11 +58,21 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { action, host_id } = await req.json();
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── Session auth (mandatory) ──────────────────────────
+    const host_id = await verifySession(supabase, req);
+    if (!host_id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const { action } = await req.json();
 
     if (action === "start") {
       // Check if account already exists
@@ -79,13 +94,26 @@ Deno.serve(async (req: Request) => {
         });
         stripeAccountId = account.id;
 
-        // Save to DB
-        await supabase.from("organizer_accounts").upsert({
-          host_id,
-          stripe_account_id: stripeAccountId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        // Save to DB (upsert with onConflict guards against race condition)
+        await supabase.from("organizer_accounts").upsert(
+          {
+            host_id,
+            stripe_account_id: stripeAccountId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "host_id", ignoreDuplicates: true },
+        );
+
+        // Re-read in case another request won the race
+        const { data: recheck } = await supabase
+          .from("organizer_accounts")
+          .select("stripe_account_id")
+          .eq("host_id", host_id)
+          .single();
+        if (recheck?.stripe_account_id) {
+          stripeAccountId = recheck.stripe_account_id;
+        }
       }
 
       // Create onboarding link

@@ -58,7 +58,7 @@ export function SpicyToggleFAB() {
       <Animated.View
         style={{
           position: "absolute",
-          bottom: insets.bottom + 64,
+          bottom: insets.bottom + 14,
           right: 8,
           zIndex: 50,
           elevation: 50,

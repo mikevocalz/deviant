@@ -116,6 +116,7 @@ export const SpotifyShareSheet: React.FC = () => {
         width: 36,
         height: 4,
       }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <View className="flex-1 px-5 pt-2">
         {/* Header */}
@@ -163,7 +164,10 @@ export const SpotifyShareSheet: React.FC = () => {
               />
             )}
             <View className="p-4">
-              <Text className="text-base font-bold text-white" numberOfLines={2}>
+              <Text
+                className="text-base font-bold text-white"
+                numberOfLines={2}
+              >
                 {oEmbed?.title || `Spotify ${typeLabel}`}
               </Text>
               <View className="flex-row items-center gap-1.5 mt-1.5">
