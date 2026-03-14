@@ -194,7 +194,7 @@ export function ShareToInboxSheet({
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
-      style={styles.sheetContainer}
+      style={[styles.sheetContainer, { zIndex: 9999, elevation: 9999 }]}
     >
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>

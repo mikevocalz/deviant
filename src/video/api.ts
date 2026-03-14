@@ -86,8 +86,14 @@ export const videoApi = {
   /**
    * Join a video room and get Fishjam token
    */
-  async joinRoom(roomId: string): Promise<ApiResponse<JoinRoomResponse>> {
-    return callEdgeFunction<JoinRoomResponse>("video_join_room", { roomId });
+  async joinRoom(
+    roomId: string,
+    anonymous = false,
+  ): Promise<ApiResponse<JoinRoomResponse>> {
+    return callEdgeFunction<JoinRoomResponse>("video_join_room", {
+      roomId,
+      anonymous,
+    });
   },
 
   /**
@@ -124,6 +130,53 @@ export const videoApi = {
     durationMinutes?: number;
   }): Promise<ApiResponse<{ banned: boolean; expiresAt?: string }>> {
     return callEdgeFunction("video_ban_user", params);
+  },
+
+  /**
+   * Change a user's role (host only)
+   */
+  async changeRole(params: {
+    roomId: string;
+    targetUserId: string;
+    newRole: "co-host" | "participant";
+  }): Promise<ApiResponse<{ changed: boolean; role: string }>> {
+    return callEdgeFunction("video_change_role", params);
+  },
+
+  /**
+   * Mute a participant (host/co-host)
+   */
+  async mutePeer(params: {
+    roomId: string;
+    targetUserId: string;
+  }): Promise<ApiResponse<{ muted: boolean }>> {
+    return callEdgeFunction("video_mute_peer", params);
+  },
+
+  /**
+   * Mute ALL participants (host only)
+   */
+  async muteAll(roomId: string): Promise<ApiResponse<{ mutedAll: boolean }>> {
+    return callEdgeFunction("video_mute_all", { roomId, action: "mute" });
+  },
+
+  /**
+   * Unmute ALL participants (host only)
+   */
+  async unmuteAll(
+    roomId: string,
+  ): Promise<ApiResponse<{ unmutedAll: boolean }>> {
+    return callEdgeFunction("video_mute_all", { roomId, action: "unmute" });
+  },
+
+  /**
+   * Request a participant to unmute (host/co-host sends unmute_peer event)
+   */
+  async unmutePeer(params: {
+    roomId: string;
+    targetUserId: string;
+  }): Promise<ApiResponse<{ unmuted: boolean }>> {
+    return callEdgeFunction("video_mute_peer", { ...params, action: "unmute" });
   },
 
   /**

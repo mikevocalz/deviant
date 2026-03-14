@@ -702,6 +702,7 @@ export function ChatSheet({
       backgroundStyle={{ backgroundColor: "#1a1a1a" }}
       handleIndicatorStyle={{ backgroundColor: "#6B7280" }}
       detached={false}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}

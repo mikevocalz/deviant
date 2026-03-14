@@ -11,6 +11,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySession as sharedVerifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -61,25 +62,6 @@ async function stripeRequest(
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
   return data;
-}
-
-async function verifySession(
-  supabase: any,
-  authHeader: string,
-): Promise<string | null> {
-  // Extract token
-  const token = authHeader.replace("Bearer ", "").trim();
-  if (!token) return null;
-
-  // Direct DB lookup of session table (Better Auth uses camelCase)
-  const { data: session } = await supabase
-    .from("session")
-    .select("userId")
-    .eq("token", token)
-    .gt("expiresAt", new Date().toISOString())
-    .single();
-
-  return session?.userId || null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -134,8 +116,7 @@ Deno.serve(async (req: Request) => {
     });
 
     // Verify session — MANDATORY, no fallback (Option A)
-    const authHeader = req.headers.get("Authorization") || "";
-    const userId = await verifySession(supabase, authHeader);
+    const userId = await sharedVerifySession(supabase, req);
     if (!userId) {
       return new Response(
         JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
@@ -152,6 +133,27 @@ Deno.serve(async (req: Request) => {
         }),
         {
           status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Check for existing active/pending campaign for this event
+    const { data: existingCampaign } = await supabase
+      .from("event_spotlight_campaigns")
+      .select("id, status")
+      .eq("event_id", parseInt(event_id))
+      .in("status", ["active", "pending"])
+      .limit(1)
+      .single();
+
+    if (existingCampaign) {
+      return new Response(
+        JSON.stringify({
+          error: `This event already has an ${existingCampaign.status} promotion campaign`,
+        }),
+        {
+          status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
@@ -235,6 +237,8 @@ Deno.serve(async (req: Request) => {
       "metadata[event_id]": String(event_id),
       "metadata[organizer_id]": organizer_id,
       "metadata[type]": "promotion",
+      // Stripe Tax: automatic collection
+      "automatic_tax[enabled]": "true",
       success_url: `${APP_SCHEME}://events/${event_id}?promoted=true`,
       cancel_url: `${APP_SCHEME}://events/${event_id}?promoted=cancelled`,
     });

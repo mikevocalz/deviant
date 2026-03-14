@@ -3,7 +3,7 @@
  */
 
 export type RoomStatus = "open" | "ended";
-export type MemberRole = "host" | "moderator" | "participant";
+export type MemberRole = "host" | "co-host" | "moderator" | "participant";
 export type MemberStatus = "active" | "left" | "kicked" | "banned";
 export type EventType =
   | "room_created"
@@ -15,7 +15,11 @@ export type EventType =
   | "role_changed"
   | "token_issued"
   | "token_revoked"
-  | "eject";
+  | "eject"
+  | "mute_peer"
+  | "mute_all"
+  | "unmute_all"
+  | "unmute_peer";
 
 export interface VideoRoom {
   id: string;
@@ -72,6 +76,8 @@ export interface JoinRoomResponse {
     id: string;
     username?: string;
     avatar?: string;
+    isAnonymous?: boolean;
+    anonLabel?: string | null;
   };
   expiresAt: string;
 }
@@ -102,10 +108,17 @@ export interface Participant {
   isScreenSharing: boolean;
   videoTrack?: any;
   audioTrack?: any;
+  isAnonymous?: boolean;
+  anonLabel?: string | null;
 }
 
 export interface ConnectionState {
-  status: "disconnected" | "connecting" | "connected" | "reconnecting" | "error";
+  status:
+    | "disconnected"
+    | "connecting"
+    | "connected"
+    | "reconnecting"
+    | "error";
   error?: string;
 }
 

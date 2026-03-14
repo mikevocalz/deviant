@@ -6,7 +6,7 @@
  * Always enabled — viewing tickets should never be gated.
  */
 
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
@@ -16,11 +16,15 @@ import {
   QrCode,
   Calendar,
   MapPin,
+  Send,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LegendList } from "@/components/list";
 import { useMyTickets } from "@/lib/hooks/use-tickets";
 import type { TicketRecord } from "@/lib/api/tickets";
+import { ticketsApi } from "@/lib/api/tickets";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useState, useEffect, useCallback } from "react";
 
 const STATUS_COLORS: Record<
   string,
@@ -34,6 +38,11 @@ const STATUS_COLORS: Record<
     label: "Refunded",
   },
   void: { bg: "rgba(107, 114, 128, 0.15)", text: "#6B7280", label: "Void" },
+  transfer_pending: {
+    bg: "rgba(138, 64, 207, 0.15)",
+    text: "#8A40CF",
+    label: "Transfer Pending",
+  },
 };
 
 function TicketCard({
@@ -137,10 +146,127 @@ function TicketCard({
   );
 }
 
+function PendingTransferCard({
+  transfer,
+  onAction,
+}: {
+  transfer: any;
+  onAction: () => void;
+}) {
+  const showToast = useUIStore((s) => s.showToast);
+  const [isActing, setIsActing] = useState(false);
+
+  const eventTitle = transfer.tickets?.events?.title || "Event";
+  const tierName = transfer.tickets?.ticket_types?.name || "Ticket";
+
+  const handleAccept = async () => {
+    setIsActing(true);
+    const result = await ticketsApi.acceptTransfer(transfer.id);
+    if (result.error) {
+      showToast("error", "Error", result.error);
+    } else {
+      showToast(
+        "success",
+        "Accepted",
+        `Ticket for ${eventTitle} is now yours!`,
+      );
+      onAction();
+    }
+    setIsActing(false);
+  };
+
+  const handleDecline = () => {
+    Alert.alert("Decline Transfer", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Decline",
+        style: "destructive",
+        onPress: async () => {
+          setIsActing(true);
+          const result = await ticketsApi.declineTransfer(transfer.id);
+          if (result.error) {
+            showToast("error", "Error", result.error);
+          } else {
+            showToast("info", "Declined", "Transfer declined");
+            onAction();
+          }
+          setIsActing(false);
+        },
+      },
+    ]);
+  };
+
+  return (
+    <View className="mx-4 mb-3 bg-card rounded-2xl border border-border overflow-hidden p-3">
+      <View className="flex-row items-center gap-2 mb-2">
+        <Send size={14} color="#8A40CF" />
+        <Text className="text-xs font-sans-semibold text-purple-400">
+          Incoming Transfer
+        </Text>
+      </View>
+      <Text
+        className="text-sm font-sans-bold text-foreground"
+        numberOfLines={1}
+      >
+        {eventTitle}
+      </Text>
+      <Text className="text-xs text-muted-foreground mt-0.5">{tierName}</Text>
+      <Text className="text-[10px] text-muted-foreground mt-1">
+        Expires{" "}
+        {new Date(transfer.expires_at).toLocaleString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        })}
+      </Text>
+      <View className="flex-row gap-2 mt-3">
+        <Pressable
+          onPress={handleAccept}
+          disabled={isActing}
+          className="flex-1 bg-primary rounded-lg py-2 items-center"
+        >
+          {isActing ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text className="text-primary-foreground font-sans-semibold text-xs">
+              Accept
+            </Text>
+          )}
+        </Pressable>
+        <Pressable
+          onPress={handleDecline}
+          disabled={isActing}
+          className="flex-1 rounded-lg py-2 items-center border border-border"
+        >
+          <Text className="text-muted-foreground font-sans-semibold text-xs">
+            Decline
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function MyTicketsContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { data: tickets, isLoading, isError, refetch } = useMyTickets();
+  const [pendingTransfers, setPendingTransfers] = useState<any[]>([]);
+
+  const loadTransfers = useCallback(async () => {
+    const { incoming } = await ticketsApi.getPendingTransfers();
+    setPendingTransfers(incoming);
+  }, []);
+
+  useEffect(() => {
+    loadTransfers();
+  }, [loadTransfers]);
+
+  const handleTransferAction = useCallback(() => {
+    loadTransfers();
+    refetch();
+  }, [loadTransfers, refetch]);
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -192,26 +318,37 @@ function MyTicketsContent() {
         </Animated.View>
       )}
 
-      {tickets && tickets.length > 0 && (
+      {tickets?.length || pendingTransfers.length > 0 ? (
         <LegendList
-          data={tickets}
-          keyExtractor={(item: TicketRecord) => item.id}
-          renderItem={({
-            item,
-            index,
-          }: {
-            item: TicketRecord;
-            index: number;
-          }) => <TicketCard ticket={item} index={index} />}
+          data={[
+            ...pendingTransfers.map((t: any) => ({ ...t, _isTransfer: true })),
+            ...(tickets || []),
+          ]}
+          keyExtractor={(item: any) =>
+            item._isTransfer ? `transfer-${item.id}` : item.id
+          }
+          renderItem={({ item, index }: { item: any; index: number }) =>
+            item._isTransfer ? (
+              <PendingTransferCard
+                transfer={item}
+                onAction={handleTransferAction}
+              />
+            ) : (
+              <TicketCard ticket={item} index={index} />
+            )
+          }
           estimatedItemSize={110}
           contentContainerStyle={{
             paddingTop: 8,
             paddingBottom: insets.bottom + 20,
           }}
-          onRefresh={refetch}
+          onRefresh={() => {
+            refetch();
+            loadTransfers();
+          }}
           refreshing={false}
         />
-      )}
+      ) : null}
     </View>
   );
 }

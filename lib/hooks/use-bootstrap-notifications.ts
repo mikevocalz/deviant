@@ -7,7 +7,7 @@
  * Eliminates: useActivitiesQuery + fetchFollowingState + getBadges waterfall.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -87,10 +87,12 @@ export function useBootstrapNotifications() {
   const enabled = isFeatureEnabled("perf_bootstrap_notifications");
 
   // ── SYNCHRONOUS: Seed follow state from query cache BEFORE first paint ──
-  // This runs during render (not in useEffect) so the Zustand store is populated
-  // BEFORE the activity screen's useActivityStore((s) => s.followedUsers) selector
-  // reads it. Eliminates the trickle effect where buttons flash "Follow" then update.
-  if (!hasSyncSeeded.current && enabled && userId) {
+  // useLayoutEffect runs after render but before paint, so the Zustand store is
+  // populated before the user sees stale data. Avoids the React warning:
+  // "Cannot update a component while rendering a different component".
+  useLayoutEffect(() => {
+    if (hasSyncSeeded.current || !enabled || !userId) return;
+
     const existingActivities = queryClient.getQueryData(
       activityKeys.list(userId),
     ) as any[] | undefined;
@@ -113,7 +115,7 @@ export function useBootstrapNotifications() {
         trace.markUsable();
       }
     }
-  }
+  }, [enabled, userId, queryClient, trace]);
 
   // ── ASYNC: Fetch from server if sync seeding didn't run (stale/missing cache) ──
   useEffect(() => {

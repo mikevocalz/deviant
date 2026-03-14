@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -46,19 +47,28 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { session_id, user_id } = await req.json();
-
-    if (!session_id || !user_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing session_id or user_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── Session auth (mandatory) ──────────────────────────
+    const user_id = await verifySession(supabase, req);
+    if (!user_id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const { session_id } = await req.json();
+
+    if (!session_id) {
+      return new Response(JSON.stringify({ error: "Missing session_id" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
 
     // Check if user already has access
     const { data: existing } = await supabase
@@ -100,6 +110,8 @@ Deno.serve(async (req: Request) => {
       "metadata[type]": "sneaky_access",
       "metadata[session_id]": session_id,
       "metadata[user_id]": user_id,
+      // Stripe Tax: automatic collection
+      "automatic_tax[enabled]": "true",
       success_url: `${APP_SCHEME}://sneaky/success?sessionId=${session_id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_SCHEME}://sneaky/cancel?sessionId=${session_id}`,
     };

@@ -279,10 +279,9 @@ function UserProfileScreenComponent() {
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
-  // Responsive grid: 3 columns on phone, 4 on tablet (768px+)
+  // Responsive grid: 2 columns on phone, 3 on tablet (768px+), 4 on large (1024px+)
   const { width: screenWidth } = useWindowDimensions();
-  const isTablet = screenWidth >= 768;
-  const numColumns = isTablet ? 4 : 3;
+  const numColumns = screenWidth >= 1024 ? 4 : screenWidth >= 768 ? 3 : 2;
   const columnWidth = (screenWidth - GRID_GAP * (numColumns + 1)) / numColumns;
 
   // DEFENSIVE: Ensure username is a valid string
@@ -525,7 +524,11 @@ function UserProfileScreenComponent() {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ArrowLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="text-lg font-semibold text-foreground">Profile</Text>
@@ -533,7 +536,11 @@ function UserProfileScreenComponent() {
         </View>
         <View className="flex-1 items-center justify-center p-4">
           <Text className="text-muted-foreground">User not found</Text>
-          <Pressable onPress={() => router.back()} className="mt-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            className="mt-4"
+          >
             <Text className="text-primary">Go Back</Text>
           </Pressable>
         </View>

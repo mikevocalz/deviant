@@ -34,7 +34,11 @@ export default function CloseFriendsScreen() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       <Main className="flex-1">
         <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
             <ChevronLeft size={24} color={colors.foreground} />
           </Pressable>
           <Text className="flex-1 text-lg font-semibold text-foreground">
@@ -113,9 +117,7 @@ export default function CloseFriendsScreen() {
                 >
                   <Image
                     source={{
-                      uri:
-                        friend.avatar ||
-                        "",
+                      uri: friend.avatar || "",
                     }}
                     style={{ width: 48, height: 48, borderRadius: 24 }}
                     contentFit="cover"

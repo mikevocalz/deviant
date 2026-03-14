@@ -30,6 +30,7 @@ import * as WebBrowser from "expo-web-browser";
 import { supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 
 interface Plan {
   id: string;
@@ -51,7 +52,11 @@ const PLANS: Plan[] = [
     maxParticipants: 5,
     durationLabel: "5 min / session",
     highlight: false,
-    features: ["Up to 5 participants", "5 min session limit", "Basic audio/video"],
+    features: [
+      "Up to 5 participants",
+      "5 min session limit",
+      "Basic audio/video",
+    ],
   },
   {
     id: "host_25",
@@ -61,7 +66,11 @@ const PLANS: Plan[] = [
     maxParticipants: 25,
     durationLabel: "Unlimited duration",
     highlight: true,
-    features: ["Up to 25 participants", "Unlimited duration", "Priority support"],
+    features: [
+      "Up to 25 participants",
+      "Unlimited duration",
+      "Priority support",
+    ],
   },
   {
     id: "host_50",
@@ -71,7 +80,12 @@ const PLANS: Plan[] = [
     maxParticipants: 50,
     durationLabel: "Unlimited duration",
     highlight: false,
-    features: ["Up to 50 participants", "Unlimited duration", "Priority support", "Analytics dashboard (soon)"],
+    features: [
+      "Up to 50 participants",
+      "Unlimited duration",
+      "Priority support",
+      "Analytics dashboard (soon)",
+    ],
   },
 ];
 
@@ -99,14 +113,31 @@ export function SneakySubscriptionModal({
       setLoadingPlanId(planId);
 
       try {
+        const token = await requireBetterAuthToken();
         const { data, error } = await supabase.functions.invoke(
           "sneaky-billing-checkout",
           {
-            body: { plan_id: planId, user_id: authUser.id },
+            body: { plan_id: planId },
+            headers: { Authorization: `Bearer ${token}` },
           },
         );
 
         if (error) throw error;
+
+        // Server says user should change plans via billing portal
+        if (data?.redirect === "billing_portal") {
+          showToast(
+            "info",
+            "Change Plan",
+            "Use the billing portal to change your plan.",
+          );
+          onClose();
+          return;
+        }
+
+        if (data?.error) {
+          throw new Error(data.error);
+        }
 
         if (data?.url) {
           const result = await WebBrowser.openBrowserAsync(data.url, {
@@ -124,15 +155,26 @@ export function SneakySubscriptionModal({
               .single();
 
             if (sub?.status === "active" || sub?.status === "trialing") {
-              showToast("success", "Subscribed!", `You are now on the ${PLANS.find((p) => p.id === sub.plan_id)?.name} plan.`);
+              showToast(
+                "success",
+                "Subscribed!",
+                `You are now on the ${PLANS.find((p) => p.id === sub.plan_id)?.name} plan.`,
+              );
               onClose();
             }
           }
         }
       } catch (err: any) {
         console.error("[SneakySubscriptionModal] Error:", err);
-        if (err?.message?.includes("Already subscribed")) {
-          showToast("info", "Already Subscribed", "Manage your plan in billing settings.");
+        if (
+          err?.message?.includes("Already subscribed") ||
+          err?.message?.includes("billing portal")
+        ) {
+          showToast(
+            "info",
+            "Already Subscribed",
+            "Manage your plan in billing settings.",
+          );
         } else {
           showToast("error", "Error", err.message || "Subscription failed");
         }
@@ -147,7 +189,8 @@ export function SneakySubscriptionModal({
 
   const reasonText = {
     participant_limit: "Your current plan has reached its participant limit.",
-    duration_limit: "Your session has reached its time limit for the free plan.",
+    duration_limit:
+      "Your session has reached its time limit for the free plan.",
     upgrade: "Upgrade to host bigger, longer sessions.",
   }[reason];
 
@@ -176,7 +219,10 @@ export function SneakySubscriptionModal({
 
         {/* Icon */}
         <View className="items-center mb-3">
-          <View className="w-14 h-14 rounded-full items-center justify-center" style={{ backgroundColor: "#8A40CF20" }}>
+          <View
+            className="w-14 h-14 rounded-full items-center justify-center"
+            style={{ backgroundColor: "#8A40CF20" }}
+          >
             <Crown size={26} color="#8A40CF" />
           </View>
         </View>
@@ -206,37 +252,53 @@ export function SneakySubscriptionModal({
                 onPress={() => !isCurrentPlan && setSelectedPlan(plan.id)}
                 className="rounded-2xl p-4"
                 style={{
-                  backgroundColor: isSelected && !isFree
-                    ? "#8A40CF18"
-                    : "rgba(255,255,255,0.04)",
+                  backgroundColor:
+                    isSelected && !isFree
+                      ? "#8A40CF18"
+                      : "rgba(255,255,255,0.04)",
                   borderWidth: 1.5,
-                  borderColor: isSelected && !isFree
-                    ? "#8A40CF"
-                    : isCurrentPlan
-                    ? "#22c55e40"
-                    : "rgba(255,255,255,0.08)",
+                  borderColor:
+                    isSelected && !isFree
+                      ? "#8A40CF"
+                      : isCurrentPlan
+                        ? "#22c55e40"
+                        : "rgba(255,255,255,0.08)",
                 }}
               >
                 <View className="flex-row items-start justify-between mb-2">
                   <View className="flex-row items-center gap-2">
-                    <Users size={16} color={plan.highlight ? "#8A40CF" : "#888"} />
+                    <Users
+                      size={16}
+                      color={plan.highlight ? "#8A40CF" : "#888"}
+                    />
                     <Text className="text-base font-sans-bold text-foreground">
                       {plan.name}
                     </Text>
                     {plan.highlight && (
-                      <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: "#8A40CF" }}>
-                        <Text className="text-[10px] font-sans-bold text-white">POPULAR</Text>
+                      <View
+                        className="px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: "#8A40CF" }}
+                      >
+                        <Text className="text-[10px] font-sans-bold text-white">
+                          POPULAR
+                        </Text>
                       </View>
                     )}
                     {isCurrentPlan && (
                       <View className="px-2 py-0.5 rounded-full bg-green-500/20">
-                        <Text className="text-[10px] font-sans-bold text-green-500">CURRENT</Text>
+                        <Text className="text-[10px] font-sans-bold text-green-500">
+                          CURRENT
+                        </Text>
                       </View>
                     )}
                   </View>
                   <View className="items-end">
-                    <Text className="text-lg font-sans-bold text-foreground">{plan.price}</Text>
-                    <Text className="text-xs text-muted-foreground">{plan.priceNote}</Text>
+                    <Text className="text-lg font-sans-bold text-foreground">
+                      {plan.price}
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      {plan.priceNote}
+                    </Text>
                   </View>
                 </View>
 
@@ -265,7 +327,9 @@ export function SneakySubscriptionModal({
                       <>
                         <Zap size={15} color="#fff" />
                         <Text className="text-sm font-sans-bold text-white">
-                          {Platform.OS === "ios" ? "Continue to Payment" : `Subscribe · ${plan.price}/mo`}
+                          {Platform.OS === "ios"
+                            ? "Continue to Payment"
+                            : `Subscribe · ${plan.price}/mo`}
                         </Text>
                         <ChevronRight size={14} color="#fff" />
                       </>

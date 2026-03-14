@@ -1,8 +1,11 @@
 import { useEffect } from "react";
-import { Stack } from "expo-router";
-import { Platform } from "react-native";
+import { Stack, usePathname, useRouter } from "expo-router";
+import { View, Text, Pressable, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Settings } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { TabHeaderLogo, TabHeaderRight } from "@/components/tab-header";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useCallKeepCoordinator } from "@/src/services/callkeep";
 import { NotificationListener } from "@/src/services/callkeep/NotificationListener";
 import { usePresenceManager } from "@/lib/hooks/use-presence";
@@ -14,7 +17,6 @@ import {
   registerVoipPushToken,
   saveVoipTokenToBackend,
 } from "@/src/services/callkeep/voipPushService";
-import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
@@ -25,7 +27,6 @@ import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
 import { WeatherReanimatedOverlay } from "@/src/features/weatherfx/WeatherReanimatedOverlay";
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
 import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
-import { useLiveSurface } from "@/src/live-surface/hooks/use-live-surface";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -58,6 +59,56 @@ const fullScreenModalConfig = {
   animationDuration: 250,
 };
 
+function TabsHeader() {
+  const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const { colors } = useColorScheme();
+  const isProfile =
+    pathname === "/profile" || pathname === "/(protected)/(tabs)/profile";
+  const user = useAuthStore.getState().user;
+  const router = useRouter();
+
+  return (
+    <View
+      style={{
+        backgroundColor: "#000",
+        paddingTop: insets.top,
+        paddingHorizontal: 16,
+        paddingBottom: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      {isProfile ? (
+        <Text
+          style={{ color: colors.foreground, fontWeight: "700", fontSize: 14 }}
+        >
+          @{user?.username || ""}
+        </Text>
+      ) : (
+        <TabHeaderLogo />
+      )}
+      {isProfile ? (
+        <Pressable
+          onPress={() => router.push("/settings" as any)}
+          hitSlop={12}
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Settings size={24} color={colors.foreground} />
+        </Pressable>
+      ) : (
+        <TabHeaderRight />
+      )}
+    </View>
+  );
+}
+
 export default function ProtectedLayout() {
   const { colors } = useColorScheme();
   // Initialize CallKeep native call UI — registers listeners ONCE
@@ -72,8 +123,6 @@ export default function ProtectedLayout() {
   useBootLocation();
   // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
   useEventsTabVisibility();
-  // Live Surface: fetches payload on app open, updates iOS Live Activity / Android notification
-  useLiveSurface();
 
   const user = useAuthStore((s) => s.user);
 
@@ -144,13 +193,7 @@ export default function ProtectedLayout() {
           options={{
             animation: "none",
             headerShown: true,
-            headerTransparent: true,
-            headerBlurEffect: "none",
-            headerLeft: () => null,
-            headerTitle: () => <TabHeaderLogo />,
-            headerTitleAlign: "left",
-            headerRight: () => <TabHeaderRight />,
-            headerShadowVisible: false,
+            header: () => <TabsHeader />,
           }}
         />
         <Stack.Screen name="search" />

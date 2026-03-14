@@ -174,7 +174,7 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
       enablePanDownToClose
       detached={true}
       bottomInset={46}
-      style={{ marginHorizontal: 16 }}
+      style={{ marginHorizontal: 16, zIndex: 9999, elevation: 9999 }}
       backgroundStyle={{
         backgroundColor: "#111",
         borderRadius: 24,

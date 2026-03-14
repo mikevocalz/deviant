@@ -80,10 +80,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if (event_id) {
-      if (!hostEventIds.includes(parseInt(event_id))) {
+      const parsedEventId = parseInt(event_id);
+      if (isNaN(parsedEventId)) return errorResponse("Invalid event_id", 400);
+      if (!hostEventIds.includes(parsedEventId)) {
         return errorResponse("Event not found or not yours", 404);
       }
-      ordersQuery = ordersQuery.eq("event_id", parseInt(event_id));
+      ordersQuery = ordersQuery.eq("event_id", parsedEventId);
     } else {
       ordersQuery = ordersQuery.in("event_id", hostEventIds);
     }

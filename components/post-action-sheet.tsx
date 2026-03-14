@@ -86,6 +86,7 @@ export function PostActionSheet({
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <BottomSheetView style={styles.content}>
         {/* Header */}

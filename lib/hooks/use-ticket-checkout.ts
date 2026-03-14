@@ -12,12 +12,14 @@ import { useState, useCallback } from "react";
 import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { supabase } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 
 interface CheckoutParams {
   eventId: string;
   ticketTypeId: string;
   quantity: number;
-  userId: string;
+  promoCode?: string;
+  userId?: string; // deprecated — server derives from session
 }
 
 interface CheckoutResult {
@@ -35,10 +37,13 @@ export function useTicketCheckout() {
 
   const checkout = useCallback(
     async (params: CheckoutParams): Promise<CheckoutResult> => {
-      const { eventId, ticketTypeId, quantity, userId } = params;
+      const { eventId, ticketTypeId, quantity, promoCode } = params;
       setIsLoading(true);
 
       try {
+        // Get Better Auth token for session verification
+        const token = await requireBetterAuthToken();
+
         // Step 1: Create PaymentIntent via edge function
         const { data, error } = await supabase.functions.invoke(
           "create-payment-intent",
@@ -47,8 +52,9 @@ export function useTicketCheckout() {
               event_id: eventId,
               ticket_type_id: ticketTypeId,
               quantity,
-              user_id: userId,
+              ...(promoCode ? { promo_code: promoCode } : {}),
             },
+            headers: { Authorization: `Bearer ${token}` },
           },
         );
 

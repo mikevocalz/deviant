@@ -30,8 +30,34 @@ async function stripeRequest(
   return res.json();
 }
 
+const CRON_SECRET = Deno.env.get("CRON_SECRET") || "";
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 Deno.serve(async (req: Request) => {
-  // Allow both POST (cron) and GET (manual trigger)
+  // ── Auth: require cron secret header ────────────────────
+  if (CRON_SECRET) {
+    const provided = req.headers.get("x-cron-secret") || "";
+    if (provided !== CRON_SECRET) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  } else {
+    console.error("[payouts-release] CRON_SECRET not set — rejecting request");
+    return new Response(JSON.stringify({ error: "Misconfigured" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
@@ -59,15 +85,33 @@ Deno.serve(async (req: Request) => {
 
     for (const event of events) {
       try {
-        // Check for disputes/holds
-        const { data: disputes } = await supabase
-          .from("tickets")
+        // ── Atomic CAS: claim this event for payout ──────────
+        const { data: claimed, error: claimError } = await supabase
+          .from("events")
+          .update({ payout_status: "processing" })
+          .eq("id", event.id)
+          .eq("payout_status", "pending")
+          .select("id")
+          .single();
+
+        if (claimError || !claimed) {
+          results.push({
+            event_id: event.id,
+            status: "skipped",
+            reason: "already_claimed",
+          });
+          continue;
+        }
+
+        // Check for active disputes on orders for this event
+        const { data: disputedOrders } = await supabase
+          .from("orders")
           .select("id")
           .eq("event_id", event.id)
-          .eq("status", "void")
+          .eq("status", "disputed")
           .limit(1);
 
-        if (disputes?.length) {
+        if (disputedOrders?.length) {
           await supabase
             .from("events")
             .update({ payout_status: "on_hold" })
@@ -223,7 +267,7 @@ Deno.serve(async (req: Request) => {
                   subject: `Payout Statement — ${event.title}`,
                   html: `
                     <h2>Payout Statement</h2>
-                    <p><strong>Event:</strong> ${event.title}</p>
+                    <p><strong>Event:</strong> ${escapeHtml(event.title)}</p>
                     <p><strong>Tickets Sold:</strong> ${ticketCount}</p>
                     <p><strong>Tickets Refunded:</strong> ${refundedTickets.length}</p>
                     <hr/>

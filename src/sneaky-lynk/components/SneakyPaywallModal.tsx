@@ -8,7 +8,13 @@
  * Does NOT modify the Sneaky Link chat screen or cards.
  */
 
-import { View, Text, Pressable, Platform, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  Platform,
+  ActivityIndicator,
+} from "react-native";
 import { useState, useCallback } from "react";
 import Animated, { FadeIn, FadeInUp, FadeOut } from "react-native-reanimated";
 import { Lock, ExternalLink, X, Shield } from "lucide-react-native";
@@ -45,7 +51,6 @@ export function SneakyPaywallModal({
         {
           body: {
             session_id: sessionId,
-            user_id: authUser.id,
           },
         },
       );
@@ -152,9 +157,7 @@ export function SneakyPaywallModal({
             <>
               <ExternalLink size={18} color="#000" />
               <Text className="text-base font-sans-bold text-primary-foreground">
-                {Platform.OS === "ios"
-                  ? "Continue to Payment"
-                  : "Pay $2.99"}
+                {Platform.OS === "ios" ? "Continue to Payment" : "Pay $2.99"}
               </Text>
             </>
           )}

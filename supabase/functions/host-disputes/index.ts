@@ -20,10 +20,19 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 
-async function stripeGet(endpoint: string): Promise<any> {
+async function stripeGet(
+  endpoint: string,
+  stripeAccount?: string,
+): Promise<any> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+  };
+  if (stripeAccount) {
+    headers["Stripe-Account"] = stripeAccount;
+  }
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "GET",
-    headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
+    headers,
   });
   return res.json();
 }
@@ -143,7 +152,8 @@ Deno.serve(async (req: Request) => {
     if (STRIPE_SECRET_KEY) {
       try {
         const stripeDisputes = await stripeGet(
-          `/disputes?limit=20&stripe_account=${orgAccount.stripe_account_id}`,
+          `/disputes?limit=20`,
+          orgAccount.stripe_account_id,
         );
 
         if (stripeDisputes.data) {

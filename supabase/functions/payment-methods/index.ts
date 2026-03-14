@@ -154,6 +154,12 @@ Deno.serve(async (req: Request) => {
         if (!method_id) return errorResponse("method_id required");
         const customerId = await getOrCreateCustomer(supabase, userId);
 
+        // Verify PM belongs to this customer (prevent IDOR)
+        const pmDetail = await stripeGet(`/payment_methods/${method_id}`);
+        if (pmDetail.error || pmDetail.customer !== customerId) {
+          return errorResponse("Payment method not found or not yours", 403);
+        }
+
         await stripePost(`/customers/${customerId}`, {
           "invoice_settings[default_payment_method]": method_id,
         });
@@ -163,6 +169,14 @@ Deno.serve(async (req: Request) => {
 
       case "remove": {
         if (!method_id) return errorResponse("method_id required");
+        const rmCustomerId = await getOrCreateCustomer(supabase, userId);
+
+        // Verify PM belongs to this customer (prevent IDOR)
+        const rmPm = await stripeGet(`/payment_methods/${method_id}`);
+        if (rmPm.error || rmPm.customer !== rmCustomerId) {
+          return errorResponse("Payment method not found or not yours", 403);
+        }
+
         await stripePost(`/payment_methods/${method_id}/detach`, {});
         return jsonResponse({ success: true });
       }

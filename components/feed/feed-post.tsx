@@ -14,7 +14,7 @@
  *
  * State: all in useFeedPostUIStore (Zustand) — no local useState.
  */
-import { View, Text, Pressable, ScrollView, Alert, Modal } from "react-native";
+import { View, Text, Pressable, ScrollView, Alert } from "react-native";
 import { Article } from "@expo/html-elements";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -35,6 +35,11 @@ import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { useCallback, useEffect, memo, useMemo, useRef } from "react";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { useIsFocused } from "@react-navigation/native";
 import {
   useVideoLifecycle,
@@ -59,6 +64,7 @@ import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
+import { CommentsSheet } from "@/components/comments-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
@@ -119,10 +125,128 @@ function CarouselDots({ count, current }: { count: number; current: number }) {
                 ? COLORS[i % COLORS.length]
                 : "rgba(255,255,255,0.38)",
             opacity: i === current ? 1 : 0.7,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.6)",
           }}
         />
       ))}
     </View>
+  );
+}
+
+// ─────────────────── fullscreen video sheet ─────────────────────────────────
+
+interface FullscreenVideoSheetProps {
+  visible: boolean;
+  onClose: () => void;
+  player: any;
+  videoCurrentTime: number;
+  videoDuration: number;
+  onSeek: (time: number) => void;
+  onSeekEnd: () => void;
+  isMuted: boolean;
+  toggleMute: () => void;
+  isMountedRef: React.MutableRefObject<boolean>;
+}
+
+function FullscreenVideoSheet({
+  visible,
+  onClose,
+  player,
+  videoCurrentTime,
+  videoDuration,
+  onSeek,
+  onSeekEnd,
+  isMuted,
+  toggleMute,
+  isMountedRef,
+}: FullscreenVideoSheetProps) {
+  const fsSheetRef = useRef<BottomSheet>(null);
+  const fsSnapPoints = useMemo(() => ["95%"], []);
+
+  useEffect(() => {
+    if (visible) fsSheetRef.current?.snapToIndex(0);
+    else fsSheetRef.current?.close();
+  }, [visible]);
+
+  const handleChange = useCallback(
+    (index: number) => {
+      if (index === -1) onClose();
+    },
+    [onClose],
+  );
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.95}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  return (
+    <BottomSheet
+      ref={fsSheetRef}
+      index={-1}
+      snapPoints={fsSnapPoints}
+      enablePanDownToClose
+      backdropComponent={renderBackdrop}
+      onChange={handleChange}
+      backgroundStyle={{
+        backgroundColor: "#000",
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+      }}
+      handleIndicatorStyle={{
+        backgroundColor: "rgba(255,255,255,0.3)",
+        width: 36,
+      }}
+    >
+      <BottomSheetView style={{ flex: 1, backgroundColor: "#000" }}>
+        <VideoView
+          player={player}
+          style={{ flex: 1 }}
+          contentFit="contain"
+          nativeControls={false}
+        />
+        <View style={{ paddingHorizontal: 16, paddingBottom: 60 }}>
+          <DVNTSeekBar
+            currentTime={videoCurrentTime}
+            duration={videoDuration}
+            onSeek={onSeek}
+            onSeekEnd={onSeekEnd}
+          />
+        </View>
+        {/* Minimize */}
+        <Pressable
+          onPress={onClose}
+          style={{ position: "absolute", top: 12, right: 20 }}
+          hitSlop={16}
+        >
+          <DVNTLiquidGlassIconButton size={42}>
+            <Minimize2 size={20} color="#fff" />
+          </DVNTLiquidGlassIconButton>
+        </Pressable>
+        {/* Mute */}
+        <Pressable
+          onPress={toggleMute}
+          style={{ position: "absolute", top: 12, left: 20 }}
+          hitSlop={16}
+        >
+          <DVNTLiquidGlassIconButton size={42}>
+            {isMuted ? (
+              <VolumeX size={20} color="#fff" />
+            ) : (
+              <Volume2 size={20} color="#fff" />
+            )}
+          </DVNTLiquidGlassIconButton>
+        </Pressable>
+      </BottomSheetView>
+    </BottomSheet>
   );
 }
 
@@ -189,8 +313,10 @@ function FeedPostComponent({
     toggleMute,
     actionSheetPostId,
     shareSheetPostId,
+    commentsSheetPostId,
     setActionSheetPostId,
     setShareSheetPostId,
+    setCommentsSheetPostId,
   } = useFeedPostUIStore();
 
   const isActivePost = activePostId === id;
@@ -200,6 +326,7 @@ function FeedPostComponent({
   const videoDuration = videoState.duration;
   const showActionSheet = actionSheetPostId === id;
   const showShareSheet = shareSheetPostId === id;
+  const showCommentsSheet = commentsSheetPostId === id;
 
   // Card inner width (for seek bar)
   const cardInnerWidthRef = useRef(mediaSize);
@@ -572,8 +699,8 @@ function FeedPostComponent({
               onPress={handleProfilePress}
               style={{
                 position: "absolute",
-                top: 12,
-                left: 10,
+                top: 0,
+                left: 0,
                 zIndex: 50,
               }}
               hitSlop={8}
@@ -585,7 +712,7 @@ function FeedPostComponent({
                   size={34}
                   variant="roundedSquare"
                 />
-                <View style={{ flexDirection: "column", maxWidth: 120 }}>
+                <View style={{ flexDirection: "column", maxWidth: 140 }}>
                   <Text
                     numberOfLines={1}
                     style={{
@@ -618,15 +745,13 @@ function FeedPostComponent({
               </DVNTLiquidGlass>
             </Pressable>
 
-            {/* TOP-CENTER: Carousel dots (multi-image) */}
+            {/* TOP-RIGHT: Carousel dots (multi-image) */}
             {hasMultipleMedia && (
               <View
                 style={{
                   position: "absolute",
                   top: 18,
-                  left: 0,
-                  right: 0,
-                  alignItems: "center",
+                  right: 82,
                   zIndex: 50,
                 }}
                 pointerEvents="none"
@@ -638,11 +763,11 @@ function FeedPostComponent({
             {/* TOP-RIGHT: More menu */}
             <Pressable
               onPress={() => setActionSheetPostId(id)}
-              style={{ position: "absolute", top: 12, right: 12, zIndex: 50 }}
+              style={{ position: "absolute", top: 0, right: 0, zIndex: 50 }}
               hitSlop={12}
             >
-              <DVNTLiquidGlassIconButton size={36}>
-                <MoreHorizontal size={18} color="#fff" />
+              <DVNTLiquidGlassIconButton size={44} style={{ borderRadius: 12 }}>
+                <MoreHorizontal size={26} color="#fff" />
               </DVNTLiquidGlassIconButton>
             </Pressable>
 
@@ -672,7 +797,7 @@ function FeedPostComponent({
                 zIndex: 50,
               }}
             >
-              <DVNTLiquidGlass paddingH={10} paddingV={7} radius={12}>
+              <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
                 {/* Like */}
                 <Pressable
                   onPress={handleLike}
@@ -681,12 +806,19 @@ function FeedPostComponent({
                   style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                 >
                   <Heart
-                    size={18}
+                    size={22}
                     color={hasLiked ? "#FF5BFC" : "#fff"}
                     fill={hasLiked ? "#FF5BFC" : "none"}
                   />
                   <Text
-                    style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+                    style={{
+                      color: "#fff",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      textShadowColor: "rgba(0,0,0,0.8)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 3,
+                    }}
                   >
                     {formatLikeCount(likesCount)}
                   </Text>
@@ -696,7 +828,7 @@ function FeedPostComponent({
                 <View
                   style={{
                     width: 1,
-                    height: 14,
+                    height: 18,
                     backgroundColor: "rgba(255,255,255,0.2)",
                   }}
                 />
@@ -706,14 +838,19 @@ function FeedPostComponent({
                   hitSlop={8}
                   style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                   onPressIn={() => id && prefetchComments(id)}
-                  onPress={() =>
-                    id && router.push(`/(protected)/comments/${id}`)
-                  }
+                  onPress={() => id && setCommentsSheetPostId(id)}
                 >
-                  <MessageCircle size={18} color="#fff" />
+                  <MessageCircle size={22} color="#fff" />
                   {commentCount > 0 && (
                     <Text
-                      style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        textShadowColor: "rgba(0,0,0,0.8)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                      }}
                     >
                       {commentCount}
                     </Text>
@@ -724,21 +861,21 @@ function FeedPostComponent({
                 <View
                   style={{
                     width: 1,
-                    height: 14,
+                    height: 18,
                     backgroundColor: "rgba(255,255,255,0.2)",
                   }}
                 />
 
                 {/* Share */}
                 <Pressable hitSlop={8} onPress={() => setShareSheetPostId(id)}>
-                  <Send size={18} color="#fff" />
+                  <Send size={22} color="#fff" />
                 </Pressable>
 
                 {/* Divider */}
                 <View
                   style={{
                     width: 1,
-                    height: 14,
+                    height: 18,
                     backgroundColor: "rgba(255,255,255,0.2)",
                   }}
                 />
@@ -746,11 +883,32 @@ function FeedPostComponent({
                 {/* Bookmark */}
                 <Pressable onPress={handleSave} hitSlop={8}>
                   <Bookmark
-                    size={18}
+                    size={22}
                     color={isBookmarked ? "#3FDCFF" : "#fff"}
                     fill={isBookmarked ? "#3FDCFF" : "none"}
                   />
                 </Pressable>
+
+                {/* Timestamp */}
+                <View
+                  style={{
+                    width: 1,
+                    height: 18,
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                  }}
+                />
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.6)",
+                    textTransform: "uppercase",
+                    textShadowColor: "rgba(0,0,0,0.8)",
+                    textShadowOffset: { width: 0, height: 1 },
+                    textShadowRadius: 3,
+                  }}
+                >
+                  {timeAgo}
+                </Text>
               </DVNTLiquidGlass>
             </View>
 
@@ -788,88 +946,22 @@ function FeedPostComponent({
             )}
           </View>
         )}
-
-        {/* ── Caption block ─────────────────────────────────────────── */}
-        <View
-          style={{ paddingHorizontal: 12, paddingBottom: 12, paddingTop: 8 }}
-        >
-          {caption && (
-            <Text style={{ fontSize: 13, color: colors.foreground }}>
-              <Text
-                style={{ fontWeight: "700" }}
-                onPress={() =>
-                  router.push(`/(protected)/profile/${author?.username}` as any)
-                }
-              >
-                {author?.username || "Unknown"}{" "}
-              </Text>
-              <HashtagText
-                text={caption}
-                textStyle={{ fontSize: 13, color: colors.foreground }}
-              />
-            </Text>
-          )}
-          <Text
-            style={{
-              fontSize: 11,
-              color: colors.mutedForeground,
-              marginTop: 4,
-              textTransform: "uppercase",
-            }}
-          >
-            {timeAgo}
-          </Text>
-        </View>
       </Article>
 
-      {/* ── Fullscreen video modal (video only) ────────── */}
+      {/* ── Fullscreen video sheet (video only) ────────── */}
       {isVideo && (
-        <Modal
+        <FullscreenVideoSheet
           visible={isFullscreen}
-          animationType="fade"
-          supportedOrientations={["portrait", "landscape"]}
-          statusBarTranslucent
-          onRequestClose={handleFullscreenToggle}
-        >
-          <View style={{ flex: 1, backgroundColor: "#000" }}>
-            <VideoView
-              player={player}
-              style={{ flex: 1 }}
-              contentFit="contain"
-              nativeControls={false}
-            />
-            <DVNTSeekBar
-              currentTime={videoCurrentTime}
-              duration={videoDuration}
-              onSeek={handleVideoSeek}
-              onSeekEnd={() => safePlay(player, isMountedRef, "FeedPost")}
-            />
-            {/* Minimize */}
-            <Pressable
-              onPress={handleFullscreenToggle}
-              style={{ position: "absolute", top: 52, right: 20 }}
-              hitSlop={16}
-            >
-              <DVNTLiquidGlassIconButton size={42}>
-                <Minimize2 size={20} color="#fff" />
-              </DVNTLiquidGlassIconButton>
-            </Pressable>
-            {/* Mute */}
-            <Pressable
-              onPress={toggleMute}
-              style={{ position: "absolute", top: 52, left: 20 }}
-              hitSlop={16}
-            >
-              <DVNTLiquidGlassIconButton size={42}>
-                {isMuted ? (
-                  <VolumeX size={20} color="#fff" />
-                ) : (
-                  <Volume2 size={20} color="#fff" />
-                )}
-              </DVNTLiquidGlassIconButton>
-            </Pressable>
-          </View>
-        </Modal>
+          onClose={handleFullscreenToggle}
+          player={player}
+          videoCurrentTime={videoCurrentTime}
+          videoDuration={videoDuration}
+          onSeek={handleVideoSeek}
+          onSeekEnd={() => safePlay(player, isMountedRef, "FeedPost")}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+          isMountedRef={isMountedRef}
+        />
       )}
 
       {/* ── Sheets ────────────────────────────────────────────────── */}
@@ -898,6 +990,12 @@ function FeedPostComponent({
               }
             : null
         }
+      />
+
+      <CommentsSheet
+        visible={showCommentsSheet}
+        onClose={() => setCommentsSheetPostId(null)}
+        postId={showCommentsSheet ? id : null}
       />
     </View>
   );

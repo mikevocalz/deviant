@@ -21,14 +21,7 @@ import {
 } from "lucide-react-native";
 import { useRouter, useNavigation, Link } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import {
-  useMemo,
-  useEffect,
-  useState,
-  useLayoutEffect,
-  useCallback,
-  useRef,
-} from "react";
+import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -74,10 +67,9 @@ function ProfileScreenContent() {
   const trace = useScreenTrace("Profile");
   useBootstrapProfile();
 
-  // Responsive grid: 3 columns on phone, 4 on tablet (768px+)
+  // Responsive grid: 2 columns on phone, 3 on tablet (768px+), 4 on large (1024px+)
   const { width: screenWidth } = useWindowDimensions();
-  const isTablet = screenWidth >= 768;
-  const numColumns = isTablet ? 4 : 3;
+  const numColumns = screenWidth >= 1024 ? 4 : screenWidth >= 768 ? 3 : 2;
   const columnWidth = (screenWidth - 2 * (numColumns + 1)) / numColumns;
 
   // DEFENSIVE: Get stores safely
@@ -418,50 +410,8 @@ function ProfileScreenContent() {
   // Track previous user ID to detect user switches
   const prevUserIdRef = useRef<string | null>(null);
 
-  // Set up header with useLayoutEffect - MUST be called unconditionally
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerLeft: () => null, // No left header button
-      headerTitleAlign: "center" as const,
-      headerStyle: {
-        backgroundColor: colors.background,
-      },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600" as const,
-        fontSize: 18,
-      },
-      headerTitle: () => (
-        <View style={{ marginLeft: 3 }}>
-          <Text
-            style={{
-              color: colors.foreground,
-              fontWeight: "700",
-              fontSize: 12,
-            }}
-          >
-            @{user?.username || ""}
-          </Text>
-        </View>
-      ),
-      headerRight: () => (
-        <Pressable
-          onPress={() => router.push("/settings")}
-          hitSlop={12}
-          style={{
-            marginRight: 8,
-            width: 44,
-            height: 44,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Settings size={24} color={colors.foreground} />
-        </Pressable>
-      ),
-    });
-  }, [navigation, user?.username, colors, router]);
+  // Header is now managed by the custom TabsHeader component in _layout.tsx
+  // which reads the current pathname to determine what to render.
 
   // Fetch real user posts - ONLY for logged-in user
   // Must be called unconditionally (React hooks rule) - BEFORE any early returns

@@ -392,6 +392,7 @@ export function LikesSheetProvider({
         }}
         keyboardBehavior="interactive"
         android_keyboardInputMode="adjustResize"
+        style={{ zIndex: 9999, elevation: 9999 }}
       >
         <LikesSheetContent postId={activePostId || ""} onClose={close} />
       </BottomSheetModal>

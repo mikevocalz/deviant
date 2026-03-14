@@ -52,6 +52,7 @@ const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000; // Refresh 5 min before expiry
 
 interface UseVideoRoomOptions {
   roomId: string;
+  anonymous?: boolean;
   onEjected?: (reason: EjectPayload) => void;
   onRoomEnded?: () => void;
   onError?: (error: string) => void;
@@ -59,6 +60,7 @@ interface UseVideoRoomOptions {
 
 export function useVideoRoom({
   roomId,
+  anonymous = false,
   onEjected,
   onRoomEnded,
   onError,
@@ -171,6 +173,65 @@ export function useVideoRoom({
         case "room_ended":
           handleRoomEnded();
           break;
+        case "mute_peer":
+          // Host requested we mute — turn off mic if it's on
+          if (event.targetId === getStore().localUser?.id) {
+            console.log("[useVideoRoom] Muted by host");
+            const mic = microphoneRef.current;
+            if (mic.isMicrophoneOn) {
+              mic.toggleMicrophone();
+            }
+            getStore().setMicOn(false);
+          }
+          break;
+        case "mute_all": {
+          // Host muted everyone — mute unless we ARE the host
+          const localRole = getStore().localUser?.role;
+          if (localRole !== "host") {
+            console.log("[useVideoRoom] Muted by host (mute all)");
+            const mic2 = microphoneRef.current;
+            if (mic2.isMicrophoneOn) {
+              mic2.toggleMicrophone();
+            }
+            getStore().setMicOn(false);
+          }
+          break;
+        }
+        case "unmute_all": {
+          // Host unmuted everyone — re-enable mic unless we ARE the host
+          const localRole2 = getStore().localUser?.role;
+          if (localRole2 !== "host") {
+            console.log("[useVideoRoom] Unmuted by host (unmute all)");
+            const mic4 = microphoneRef.current;
+            if (!mic4.isMicrophoneOn) {
+              mic4.toggleMicrophone();
+            }
+            getStore().setMicOn(true);
+          }
+          break;
+        }
+        case "unmute_peer":
+          // Host is allowing us to unmute — turn mic back on
+          if (event.targetId === getStore().localUser?.id) {
+            console.log("[useVideoRoom] Unmuted by host");
+            const mic3 = microphoneRef.current;
+            if (!mic3.isMicrophoneOn) {
+              mic3.toggleMicrophone();
+            }
+            getStore().setMicOn(true);
+          }
+          break;
+        case "role_changed":
+          // Our role was changed by the host
+          if (event.targetId === getStore().localUser?.id) {
+            const newRole = (event.payload as any)?.newRole;
+            console.log("[useVideoRoom] Role changed to:", newRole);
+            const current = getStore().localUser;
+            if (current && newRole) {
+              getStore().setLocalUser({ ...current, role: newRole });
+            }
+          }
+          break;
       }
     },
     [handleEject, handleRoomEnded, getStore],
@@ -235,7 +296,7 @@ export function useVideoRoom({
     getStore().setConnectionStatus("connecting");
 
     try {
-      const result = await videoApi.joinRoom(roomId);
+      const result = await videoApi.joinRoom(roomId, anonymous);
 
       if (!result.ok) {
         getStore().setConnectionStatus("error", result.error?.message);
@@ -276,6 +337,8 @@ export function useVideoRoom({
           username: user.username,
           avatar: user.avatar,
           role: peer.role,
+          isAnonymous: (user as any).isAnonymous || false,
+          anonLabel: (user as any).anonLabel || null,
         },
       });
 
@@ -421,6 +484,8 @@ export function useVideoRoom({
         isScreenSharing: !!peer.screenShareVideoTrack,
         videoTrack,
         audioTrack,
+        isAnonymous: (metadata.isAnonymous as boolean) || false,
+        anonLabel: (metadata.anonLabel as string) || null,
       };
     });
 

@@ -12,6 +12,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computeFees } from "../_shared/fee-calculator.ts";
+import { verifySession } from "../_shared/verify-session.ts";
+import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
+import {
+  validateAndApplyPromo,
+  incrementPromoUsage,
+} from "../_shared/apply-promo-code.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -52,74 +58,143 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
+
+    // ── Session auth (mandatory) ──────────────────────────
+    const user_id = await verifySession(supabase, req);
+    if (!user_id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const {
       event_id,
       ticket_type_id,
       quantity = 1,
-      user_id,
+      promo_code,
     } = await req.json();
 
-    if (!event_id || !ticket_type_id || !user_id) {
+    if (!event_id || !ticket_type_id) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
-    });
-
-    // Fetch ticket type
-    const { data: ticketType, error: ttError } = await supabase
-      .from("ticket_types")
-      .select("*")
-      .eq("id", ticket_type_id)
-      .single();
-
-    if (ttError || !ticketType) {
-      return new Response(JSON.stringify({ error: "Ticket type not found" }), {
-        status: 404,
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return new Response(JSON.stringify({ error: "Invalid quantity" }), {
+        status: 400,
         headers: { "Content-Type": "application/json" },
       });
     }
 
-    // Check availability
+    // Fetch ticket type (scoped to event to prevent cross-event manipulation)
+    const { data: ticketType, error: ttError } = await supabase
+      .from("ticket_types")
+      .select("*")
+      .eq("id", ticket_type_id)
+      .eq("event_id", parseInt(event_id))
+      .single();
+
+    if (ttError || !ticketType) {
+      return new Response(
+        JSON.stringify({ error: "Ticket type not found for this event" }),
+        {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Check availability (including active holds from other checkouts)
     const remaining =
       (ticketType.quantity_total || Infinity) - (ticketType.quantity_sold || 0);
-    if (quantity > remaining) {
+
+    const { count: activeHolds } = await supabase
+      .from("ticket_holds")
+      .select("*", { count: "exact", head: true })
+      .eq("ticket_type_id", ticket_type_id)
+      .eq("status", "active")
+      .gt("expires_at", new Date().toISOString());
+
+    const effectiveRemaining = remaining - (activeHolds || 0);
+
+    if (quantity > effectiveRemaining) {
       return new Response(
         JSON.stringify({ error: "Not enough tickets available" }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // Check max per user
-    if (quantity > (ticketType.max_per_user || 4)) {
+    // Check max per user (including already-owned tickets)
+    const maxPerUser = ticketType.max_per_user || 4;
+    const { count: ownedCount } = await supabase
+      .from("tickets")
+      .select("*", { count: "exact", head: true })
+      .eq("ticket_type_id", ticket_type_id)
+      .eq("user_id", user_id)
+      .in("status", ["active", "scanned", "transfer_pending"]);
+
+    if ((ownedCount || 0) + quantity > maxPerUser) {
+      const ticketsRemaining = maxPerUser - (ownedCount || 0);
       return new Response(
         JSON.stringify({
-          error: `Maximum ${ticketType.max_per_user || 4} tickets per person`,
+          error:
+            ticketsRemaining <= 0
+              ? `You already have the maximum ${maxPerUser} tickets`
+              : `You can only buy ${ticketsRemaining} more (max ${maxPerUser} per person)`,
         }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
     }
 
-    // Free tickets: issue directly without Stripe
-    if (ticketType.price_cents === 0) {
+    // ── Promo code validation (before free/paid branching) ────
+    let promoResult: any = null;
+    let discountCents = 0;
+    if (promo_code) {
+      const { result, error: promoErr } = await validateAndApplyPromo(
+        supabase,
+        parseInt(event_id),
+        promo_code,
+        ticket_type_id,
+        ticketType.price_cents * quantity,
+      );
+      if (promoErr) {
+        return new Response(JSON.stringify({ error: promoErr }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      promoResult = result;
+      discountCents = promoResult?.discount_cents || 0;
+    }
+
+    const rawSubtotal = ticketType.price_cents * quantity;
+    const effectiveSubtotal = Math.max(0, rawSubtotal - discountCents);
+
+    // Free tickets (or fully discounted): issue directly without Stripe
+    if (effectiveSubtotal === 0) {
       const tickets = [];
+      const eventIdInt = parseInt(event_id);
       for (let i = 0; i < quantity; i++) {
-        const bytes = new Uint8Array(32);
-        crypto.getRandomValues(bytes);
-        const qrToken = Array.from(bytes)
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
+        const ticketUuid = crypto.randomUUID();
+        const { qrToken, qrPayload } = await createSignedQrPayload(
+          ticketUuid,
+          eventIdInt,
+        );
         tickets.push({
-          event_id: parseInt(event_id),
+          id: ticketUuid,
+          event_id: eventIdInt,
           ticket_type_id,
           user_id,
           status: "active",
           qr_token: qrToken,
+          qr_payload: qrPayload,
           purchase_amount_cents: 0,
         });
       }
@@ -139,6 +214,11 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", ticket_type_id);
 
+      // Increment promo usage if a promo was used
+      if (promoResult) {
+        await incrementPromoUsage(supabase, promoResult.promo_code_id);
+      }
+
       // ── Create order row for free ticket ─────────────────
       const { data: freeOrder } = await supabase
         .from("orders")
@@ -150,6 +230,12 @@ Deno.serve(async (req: Request) => {
           total_cents: 0,
           event_id: parseInt(event_id),
           paid_at: new Date().toISOString(),
+          ...(promoResult
+            ? {
+                promo_code_id: promoResult.promo_code_id,
+                discount_cents: discountCents,
+              }
+            : {}),
         })
         .select("id")
         .single();
@@ -160,7 +246,9 @@ Deno.serve(async (req: Request) => {
           {
             order_id: freeOrder.id,
             type: "payment_captured",
-            label: "Free ticket issued",
+            label: promoResult
+              ? "Free ticket issued (100% promo discount)"
+              : "Free ticket issued",
           },
         ]);
       }
@@ -202,8 +290,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Fee structure (v1_250_1pt) ──────────────────────────────
-    // Each component computed SEPARATELY — never Math.round(subtotal * 0.05)
-    const subtotalCents = ticketType.price_cents * quantity;
+    const subtotalCents = effectiveSubtotal;
     const fees = computeFees(subtotalCents, quantity);
 
     const currency = ticketType.currency || "usd";
@@ -241,11 +328,37 @@ Deno.serve(async (req: Request) => {
       "metadata[organizer_fee_cents]": fees.organizer_fee.toString(),
       "metadata[dvnt_total_fee_cents]": fees.dvnt_total_fee.toString(),
       "metadata[fee_policy_version]": fees.fee_policy_version,
+      ...(promoResult
+        ? {
+            "metadata[promo_code_id]": promoResult.promo_code_id,
+            "metadata[discount_cents]": discountCents.toString(),
+            "metadata[promo_code]": promoResult.code,
+          }
+        : {}),
+      // Stripe Tax: automatic collection
+      "automatic_tax[enabled]": "true",
       success_url: `${APP_SCHEME}://tickets/success?eventId=${event_id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_SCHEME}://tickets/cancel?eventId=${event_id}`,
     };
 
     const session = await stripeRequest("/checkout/sessions", params);
+
+    // ── Create inventory hold (10 min TTL, prevents overselling) ──
+    const holdExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await supabase.from("ticket_holds").insert({
+      user_id,
+      ticket_type_id,
+      event_id: parseInt(event_id),
+      quantity,
+      status: "active",
+      expires_at: holdExpiresAt,
+      payment_intent_id: session.id,
+    });
+
+    // ── Increment promo usage ──
+    if (promoResult) {
+      await incrementPromoUsage(supabase, promoResult.promo_code_id);
+    }
 
     // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
@@ -266,6 +379,12 @@ Deno.serve(async (req: Request) => {
       fee_policy_version: fees.fee_policy_version,
       event_id: parseInt(event_id),
       stripe_checkout_session_id: session.id,
+      ...(promoResult
+        ? {
+            promo_code_id: promoResult.promo_code_id,
+            discount_cents: discountCents,
+          }
+        : {}),
     });
 
     return new Response(

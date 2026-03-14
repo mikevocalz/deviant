@@ -3,9 +3,18 @@
  *
  * Handles:
  *   - checkout.session.completed → issue tickets OR grant sneaky access
+ *   - payment_intent.succeeded → native PaymentSheet ticket issuance
+ *   - payment_intent.payment_failed → release holds, mark order failed
  *   - charge.refunded → mark ticket refunded
  *   - charge.dispute.created → flag payout on_hold
+ *   - charge.dispute.closed → resolve dispute, update order/payout
  *   - account.updated → sync organizer account status
+ *   - transfer.reversed → handle reversed transfers
+ *   - payout.failed → handle failed payouts to connected accounts
+ *   - radar.early_fraud_warning.created → flag suspicious orders
+ *   - customer.subscription.created/updated/deleted → sneaky subscription lifecycle
+ *   - invoice.payment_failed → mark subscription past_due
+ *   - invoice.paid → confirm subscription renewal
  *
  * IDEMPOTENT: Uses stripe_events table to deduplicate.
  */
@@ -13,6 +22,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computePayoutReleaseAt } from "../_shared/business-days.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
+import { notifyEventOrganizers } from "../_shared/notify-event-organizers.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -131,12 +141,19 @@ Deno.serve(async (req: Request) => {
 
           const ticketRows = [];
           for (let i = 0; i < quantity; i++) {
+            const ticketUuid = crypto.randomUUID();
+            const { qrToken, qrPayload } = await createSignedQrPayload(
+              ticketUuid,
+              eventId,
+            );
             ticketRows.push({
+              id: ticketUuid,
               event_id: eventId,
               ticket_type_id: ticketTypeId,
               user_id: userId,
               status: "active",
-              qr_token: generateQrToken(),
+              qr_token: qrToken,
+              qr_payload: qrPayload,
               stripe_checkout_session_id: session.id,
               stripe_payment_intent_id: session.payment_intent,
               purchase_amount_cents: Math.round(amountCents / quantity),
@@ -146,6 +163,13 @@ Deno.serve(async (req: Request) => {
           const { error: ticketError } = await supabase
             .from("tickets")
             .insert(ticketRows);
+
+          // Convert inventory hold to prevent double-counting
+          await supabase
+            .from("ticket_holds")
+            .update({ status: "converted" })
+            .eq("payment_intent_id", session.id)
+            .eq("status", "active");
 
           if (ticketError) {
             console.error("[stripe-webhook] Ticket insert error:", ticketError);
@@ -417,6 +441,32 @@ Deno.serve(async (req: Request) => {
         break;
       }
 
+      case "checkout.session.expired": {
+        // Checkout Session expired without payment — release hold, fail order
+        const expiredSession = event.data.object;
+
+        await supabase
+          .from("ticket_holds")
+          .update({ status: "expired" })
+          .eq("payment_intent_id", expiredSession.id)
+          .eq("status", "active");
+
+        await supabase
+          .from("orders")
+          .update({
+            status: "payment_failed",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("stripe_checkout_session_id", expiredSession.id)
+          .eq("status", "payment_pending");
+
+        console.log(
+          "[stripe-webhook] Checkout session expired, hold released:",
+          expiredSession.id,
+        );
+        break;
+      }
+
       case "payment_intent.payment_failed": {
         // Release hold on failed payment
         const failedPi = event.data.object;
@@ -547,6 +597,19 @@ Deno.serve(async (req: Request) => {
               });
             }
 
+            // Notify host + co-hosts
+            await notifyEventOrganizers(supabase, ticket.event_id, {
+              type: "event_update",
+              title: "Dispute opened",
+              body: "A buyer has disputed a charge for your event. Payouts are on hold until resolved.",
+              data: {
+                entityType: "event",
+                entityId: ticket.event_id,
+                disputeId: dispute.id,
+                disputeReason: dispute.reason,
+              },
+            });
+
             console.log(
               "[stripe-webhook] Event payout on_hold due to dispute:",
               ticket.event_id,
@@ -629,6 +692,7 @@ Deno.serve(async (req: Request) => {
           const { data: subOrder } = await supabase
             .from("orders")
             .select("id")
+            .eq("user_id", hostId)
             .eq("type", "sneaky_subscription")
             .eq("status", "payment_pending")
             .filter("stripe_checkout_session_id", "not.is", null)
@@ -681,16 +745,344 @@ Deno.serve(async (req: Request) => {
         const subId = failedInvoice.subscription;
 
         if (subId) {
+          // Set 7-day grace period on first failure
+          const gracePeriodEndsAt = new Date(
+            Date.now() + 7 * 24 * 60 * 60 * 1000,
+          ).toISOString();
+
+          await supabase
+            .from("sneaky_subscriptions")
+            .update({
+              status: "past_due",
+              grace_period_ends_at: gracePeriodEndsAt,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_subscription_id", subId)
+            .is("grace_period_ends_at", null); // Only set on first failure
+
+          // If grace_period_ends_at was already set, just update status
           await supabase
             .from("sneaky_subscriptions")
             .update({
               status: "past_due",
               updated_at: new Date().toISOString(),
             })
-            .eq("stripe_subscription_id", subId);
+            .eq("stripe_subscription_id", subId)
+            .not("grace_period_ends_at", "is", null);
 
           console.log(
-            `[stripe-webhook] Invoice payment failed for subscription ${subId}`,
+            `[stripe-webhook] Invoice payment failed for subscription ${subId} (grace until ${gracePeriodEndsAt})`,
+          );
+        }
+        break;
+      }
+
+      // ── Phase 2: New webhook events ─────────────────────────
+
+      case "charge.dispute.closed": {
+        const closedDispute = event.data.object;
+        const closedPi = closedDispute.payment_intent;
+        const disputeStatus = closedDispute.status; // won, lost, warning_closed
+
+        if (closedPi) {
+          // Find the order
+          const { data: disputeOrder } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("stripe_payment_intent_id", closedPi)
+            .single();
+
+          if (disputeOrder) {
+            if (disputeStatus === "won") {
+              // Merchant won — restore order to paid, add timeline
+              await supabase
+                .from("orders")
+                .update({
+                  status: "paid",
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", disputeOrder.id);
+
+              await supabase.from("order_timeline").insert({
+                order_id: disputeOrder.id,
+                type: "dispute_won",
+                label: "Dispute resolved in your favor",
+                detail: `Dispute ${closedDispute.id} closed as won`,
+              });
+            } else if (disputeStatus === "lost") {
+              // Merchant lost — mark refunded, add timeline
+              await supabase
+                .from("orders")
+                .update({
+                  status: "refunded",
+                  refunded_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", disputeOrder.id);
+
+              // Revoke tickets for lost disputes
+              await supabase
+                .from("tickets")
+                .update({ status: "refunded" })
+                .eq("stripe_payment_intent_id", closedPi)
+                .eq("status", "active");
+
+              await supabase.from("order_timeline").insert({
+                order_id: disputeOrder.id,
+                type: "dispute_lost",
+                label: "Dispute lost — funds returned to buyer",
+                detail: `Dispute ${closedDispute.id} closed as lost`,
+              });
+            } else {
+              // warning_closed or other
+              await supabase.from("order_timeline").insert({
+                order_id: disputeOrder.id,
+                type: "dispute_closed",
+                label: "Dispute closed",
+                detail: `Status: ${disputeStatus}`,
+              });
+            }
+          }
+
+          // Check if payout hold can be released (no more active disputes for this event)
+          const { data: disputeTicket } = await supabase
+            .from("tickets")
+            .select("event_id")
+            .eq("stripe_payment_intent_id", closedPi)
+            .limit(1)
+            .single();
+
+          if (disputeTicket?.event_id) {
+            // Check for any remaining disputed orders for this event
+            // Step 1: Get all payment_intent IDs for this event's tickets
+            const { data: eventTicketPIs } = await supabase
+              .from("tickets")
+              .select("stripe_payment_intent_id")
+              .eq("event_id", disputeTicket.event_id)
+              .not("stripe_payment_intent_id", "is", null);
+
+            const piIds = (eventTicketPIs || [])
+              .map((t: any) => t.stripe_payment_intent_id)
+              .filter(Boolean);
+
+            // Step 2: Count disputed orders matching those PIs
+            let activeDisputeCount = 0;
+            if (piIds.length > 0) {
+              const { count } = await supabase
+                .from("orders")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "disputed")
+                .in("stripe_payment_intent_id", piIds);
+              activeDisputeCount = count || 0;
+            }
+
+            if (activeDisputeCount === 0) {
+              // No more active disputes — release hold
+              const { data: heldEvent } = await supabase
+                .from("events")
+                .select("payout_status")
+                .eq("id", disputeTicket.event_id)
+                .single();
+
+              if (heldEvent?.payout_status === "on_hold") {
+                await supabase
+                  .from("events")
+                  .update({ payout_status: "pending" })
+                  .eq("id", disputeTicket.event_id);
+
+                console.log(
+                  `[stripe-webhook] Payout hold released for event ${disputeTicket.event_id}`,
+                );
+              }
+            }
+
+            // Notify host + co-hosts
+            await notifyEventOrganizers(supabase, disputeTicket.event_id, {
+              type: "event_update",
+              title:
+                disputeStatus === "won"
+                  ? "Dispute resolved in your favor"
+                  : disputeStatus === "lost"
+                    ? "Dispute lost — funds returned to buyer"
+                    : "Dispute closed",
+              body: `A dispute for your event has been resolved (${disputeStatus}).`,
+              data: {
+                entityType: "event",
+                entityId: disputeTicket.event_id,
+                disputeId: closedDispute.id,
+                disputeStatus,
+              },
+            });
+          }
+        }
+
+        console.log(
+          `[stripe-webhook] Dispute closed: ${closedDispute.id} (${disputeStatus})`,
+        );
+        break;
+      }
+
+      case "invoice.paid": {
+        const paidInvoice = event.data.object;
+        const paidSubId = paidInvoice.subscription;
+
+        if (paidSubId) {
+          // Confirm subscription is active on renewal + clear grace period
+          await supabase
+            .from("sneaky_subscriptions")
+            .update({
+              status: "active",
+              grace_period_ends_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_subscription_id", paidSubId)
+            .in("status", ["past_due", "active", "trialing"]);
+
+          console.log(
+            `[stripe-webhook] Invoice paid for subscription ${paidSubId} — grace period cleared`,
+          );
+        }
+        break;
+      }
+
+      case "transfer.reversed": {
+        const transfer = event.data.object;
+        const transferMeta = transfer.metadata || {};
+        const transferEventId = transferMeta.event_id
+          ? parseInt(transferMeta.event_id)
+          : null;
+
+        if (transferEventId) {
+          // Put payout back on hold
+          await supabase
+            .from("events")
+            .update({
+              payout_status: "on_hold",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", transferEventId);
+
+          // Update payout record
+          await supabase
+            .from("payouts")
+            .update({
+              status: "reversed",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("stripe_payout_id", transfer.id);
+
+          // Notify host + co-hosts
+          await notifyEventOrganizers(supabase, transferEventId, {
+            type: "event_update",
+            title: "Payout reversed",
+            body: "A payout transfer for your event has been reversed. Please check your dashboard.",
+            data: {
+              entityType: "event",
+              entityId: transferEventId,
+              transferId: transfer.id,
+            },
+          });
+
+          console.log(
+            `[stripe-webhook] Transfer reversed for event ${transferEventId}: ${transfer.id}`,
+          );
+        } else {
+          console.warn(
+            `[stripe-webhook] Transfer reversed without event_id metadata: ${transfer.id}`,
+          );
+        }
+        break;
+      }
+
+      case "payout.failed": {
+        const failedPayout = event.data.object;
+        const failedPayoutAccount = failedPayout.destination || event.account;
+
+        if (failedPayoutAccount) {
+          // Find organizer by Stripe account ID
+          const { data: orgAccount } = await supabase
+            .from("organizer_accounts")
+            .select("host_id")
+            .eq("stripe_account_id", failedPayoutAccount)
+            .single();
+
+          if (orgAccount?.host_id) {
+            // Find events with pending/released payouts for this host
+            const { data: affectedEvents } = await supabase
+              .from("events")
+              .select("id, title")
+              .eq("host_id", orgAccount.host_id)
+              .eq("payout_status", "released")
+              .limit(10);
+
+            for (const evt of affectedEvents || []) {
+              await notifyEventOrganizers(supabase, evt.id, {
+                type: "event_update",
+                title: "Payout failed",
+                body: `The bank payout for "${evt.title}" failed. Please update your bank account details.`,
+                data: {
+                  entityType: "event",
+                  entityId: evt.id,
+                  payoutId: failedPayout.id,
+                  failureCode: failedPayout.failure_code,
+                },
+              });
+            }
+
+            console.log(
+              `[stripe-webhook] Payout failed for account ${failedPayoutAccount}: ${failedPayout.failure_code || "unknown"}`,
+            );
+          }
+        }
+        break;
+      }
+
+      case "radar.early_fraud_warning.created": {
+        const warning = event.data.object;
+        const warningPi = warning.payment_intent;
+
+        if (warningPi) {
+          // Find order by payment intent
+          const { data: flaggedOrder } = await supabase
+            .from("orders")
+            .select("id")
+            .eq("stripe_payment_intent_id", warningPi)
+            .single();
+
+          if (flaggedOrder) {
+            // Add timeline entry
+            await supabase.from("order_timeline").insert({
+              order_id: flaggedOrder.id,
+              type: "fraud_warning",
+              label: "Early fraud warning",
+              detail: `Stripe Radar flagged this payment (${warning.fraud_type || "unknown"})`,
+            });
+          }
+
+          // Find event via ticket and notify organizers
+          const { data: warningTicket } = await supabase
+            .from("tickets")
+            .select("event_id")
+            .eq("stripe_payment_intent_id", warningPi)
+            .limit(1)
+            .single();
+
+          if (warningTicket?.event_id) {
+            await notifyEventOrganizers(supabase, warningTicket.event_id, {
+              type: "event_update",
+              title: "Fraud warning",
+              body: "Stripe Radar flagged a suspicious payment for your event. Review your dashboard.",
+              data: {
+                entityType: "event",
+                entityId: warningTicket.event_id,
+                warningId: warning.id,
+                fraudType: warning.fraud_type,
+              },
+            });
+          }
+
+          console.log(
+            `[stripe-webhook] Radar fraud warning for PI ${warningPi}: ${warning.fraud_type}`,
           );
         }
         break;

@@ -3,6 +3,9 @@
  */
 
 export { VideoStage } from "./VideoStage";
+export { VideoGrid } from "./VideoGrid";
+export type { VideoParticipant } from "./VideoGrid";
+export { ParticipantActions } from "./ParticipantActions";
 export { SpeakerGrid } from "./SpeakerGrid";
 export { ListenerGrid } from "./ListenerGrid";
 export { ControlsBar } from "./ControlsBar";

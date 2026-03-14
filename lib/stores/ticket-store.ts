@@ -1,6 +1,11 @@
 import { create } from "zustand";
 
-export type TicketStatus = "valid" | "checked_in" | "revoked" | "expired";
+export type TicketStatus =
+  | "valid"
+  | "checked_in"
+  | "revoked"
+  | "expired"
+  | "transfer_pending";
 export type TicketTierLevel = "free" | "ga" | "vip" | "table";
 
 export interface Ticket {

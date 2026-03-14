@@ -11,6 +11,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -31,18 +32,21 @@ function json(data: unknown, status = 200) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method === "OPTIONS")
+    return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { user_id } = await req.json();
-
-    if (!user_id) return json({ error: "Missing user_id" }, 400);
-
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── Session auth (mandatory) ──────────────────────────
+    const user_id = await verifySession(supabase, req);
+    if (!user_id) {
+      return json({ error: "Unauthorized — invalid or expired session" }, 401);
+    }
 
     // Look up Stripe customer ID
     const { data: customer } = await supabase
@@ -56,18 +60,21 @@ Deno.serve(async (req: Request) => {
     }
 
     // Create Stripe Billing Portal session
-    const res = await fetch("https://api.stripe.com/v1/billing_portal/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Stripe-Version": "2026-02-25.clover",
+    const res = await fetch(
+      "https://api.stripe.com/v1/billing_portal/sessions",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Stripe-Version": "2026-02-25.clover",
+        },
+        body: new URLSearchParams({
+          customer: customer.stripe_customer_id,
+          return_url: `${APP_SCHEME}://sneaky/billing`,
+        }).toString(),
       },
-      body: new URLSearchParams({
-        customer: customer.stripe_customer_id,
-        return_url: `${APP_SCHEME}://sneaky/billing`,
-      }).toString(),
-    });
+    );
 
     const session = await res.json();
     if (session.error) throw new Error(session.error.message);

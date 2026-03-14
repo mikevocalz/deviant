@@ -17,6 +17,7 @@ interface FeedPostUIState {
   isMuted: boolean;
   actionSheetPostId: string | null;
   shareSheetPostId: string | null;
+  commentsSheetPostId: string | null;
 
   setPressedPost: (postId: string, pressed: boolean) => void;
   setLikeAnimating: (postId: string, animating: boolean) => void;
@@ -31,6 +32,7 @@ interface FeedPostUIState {
   toggleMute: () => void;
   setActionSheetPostId: (postId: string | null) => void;
   setShareSheetPostId: (postId: string | null) => void;
+  setCommentsSheetPostId: (postId: string | null) => void;
 }
 
 const defaultVideoState: VideoState = {
@@ -50,6 +52,7 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
   isMuted: true,
   actionSheetPostId: null,
   shareSheetPostId: null,
+  commentsSheetPostId: null,
 
   setPressedPost: (postId, pressed) =>
     set((state) => ({
@@ -86,4 +89,5 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
 
   setActionSheetPostId: (postId) => set({ actionSheetPostId: postId }),
   setShareSheetPostId: (postId) => set({ shareSheetPostId: postId }),
+  setCommentsSheetPostId: (postId) => set({ commentsSheetPostId: postId }),
 }));

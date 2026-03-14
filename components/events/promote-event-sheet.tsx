@@ -6,7 +6,13 @@
  */
 
 import React, { useCallback, useEffect, useRef } from "react";
-import { View, Text, Pressable, ActivityIndicator, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -179,6 +185,7 @@ export function PromoteEventSheet() {
       backdropComponent={renderBackdrop}
       backgroundStyle={{ backgroundColor: "#111" }}
       handleIndicatorStyle={{ backgroundColor: "#444" }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <BottomSheetScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
@@ -245,10 +252,7 @@ export function PromoteEventSheet() {
                     isSelected ? "bg-amber-500/20" : "bg-white/10"
                   }`}
                 >
-                  <Icon
-                    size={18}
-                    color={isSelected ? "#f59e0b" : "#888"}
-                  />
+                  <Icon size={18} color={isSelected ? "#f59e0b" : "#888"} />
                 </View>
                 <View className="flex-1">
                   <Text
@@ -293,10 +297,7 @@ export function PromoteEventSheet() {
                 }`}
               >
                 <View className="flex-row items-center gap-3">
-                  <Clock
-                    size={16}
-                    color={isSelected ? "#f59e0b" : "#888"}
-                  />
+                  <Clock size={16} color={isSelected ? "#f59e0b" : "#888"} />
                   <View>
                     <Text
                       className={`font-semibold text-sm ${
@@ -369,8 +370,8 @@ export function PromoteEventSheet() {
         </Pressable>
 
         <Text className="text-white/30 text-[11px] text-center mt-3">
-          Payment is processed securely via Stripe. Promotion starts
-          immediately after payment.
+          Payment is processed securely via Stripe. Promotion starts immediately
+          after payment.
         </Text>
       </BottomSheetScrollView>
     </BottomSheetModal>

@@ -46,7 +46,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { SettingsSection } from "@/components/settings/SettingsSection";
 import { SettingsListItem } from "@/components/settings/SettingsListItem";
 import { Switch } from "@/components/ui/switch";
-import { authClient } from "@/lib/auth-client";
+import { deleteAccountPrivileged } from "@/lib/supabase/privileged";
 import { toast } from "sonner-native";
 import { useBiometrics } from "@/lib/hooks/use-biometrics";
 
@@ -217,19 +217,13 @@ export default function SettingsScreenAndroid() {
                   onPress: async () => {
                     setIsDeleting(true);
                     try {
-                      const { error } = await authClient.deleteUser();
-                      if (error) {
-                        toast.error("Failed to delete account", {
-                          description: error.message || "Please try again",
-                        });
-                      } else {
-                        toast.success("Account deleted", {
-                          description:
-                            "Your account has been permanently deleted",
-                        });
-                        logout();
-                        router.replace("/login");
-                      }
+                      await deleteAccountPrivileged();
+                      toast.success("Account deleted", {
+                        description:
+                          "Your account has been permanently deleted",
+                      });
+                      logout();
+                      router.replace("/login");
                     } catch (err: any) {
                       toast.error("Error", {
                         description: err?.message || "Something went wrong",

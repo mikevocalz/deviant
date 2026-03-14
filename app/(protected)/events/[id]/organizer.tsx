@@ -28,6 +28,7 @@ import {
   Settings,
   WifiOff,
   CloudUpload,
+  Tag,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
@@ -391,6 +392,35 @@ export default function EventOrganizerScreen() {
             })}
           </Text>
         )}
+
+        {/* Promo Codes */}
+        <Pressable
+          onPress={() =>
+            router.push(`/(protected)/events/${eventId}/promo-codes` as any)
+          }
+          style={{
+            backgroundColor: "rgba(255,255,255,0.06)",
+            borderWidth: 1,
+            borderColor: colors.border,
+            paddingVertical: 12,
+            borderRadius: 12,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+          }}
+        >
+          <Tag size={16} color="#8A40CF" />
+          <Text
+            style={{
+              color: colors.foreground,
+              fontSize: 13,
+              fontWeight: "600",
+            }}
+          >
+            Promo Codes
+          </Text>
+        </Pressable>
       </View>
 
       {/* Tickets List */}
