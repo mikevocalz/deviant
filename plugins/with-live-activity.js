@@ -16,11 +16,12 @@ const {
 } = require("./with-live-activity-android");
 
 function withLiveActivity(config) {
-  // iOS
-  config = withLiveActivityInfoPlist(config);
-  config = withAppGroupsEntitlement(config);
-  config = withLiveActivitySwiftFiles(config);
-  config = withWidgetExtensionTarget(config);
+  // iOS — disabled: widget extension + native module cause launch crash.
+  // TODO: investigate native module registration crash before re-enabling.
+  // config = withLiveActivityInfoPlist(config);
+  // config = withAppGroupsEntitlement(config);
+  // config = withLiveActivitySwiftFiles(config);
+  // config = withWidgetExtensionTarget(config);
 
   // Android
   config = withAndroidLiveNotification(config);
