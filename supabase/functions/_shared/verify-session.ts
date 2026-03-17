@@ -41,12 +41,48 @@ export async function verifySession(
 }
 
 /**
- * Standard CORS headers for edge functions.
+ * Allowed CORS origins.
+ * Native mobile clients don't send Origin headers — they bypass CORS entirely.
+ * This only restricts browser-based requests.
+ */
+const ALLOWED_ORIGINS = [
+  "http://localhost:8081", // Expo dev server
+  "http://localhost:19006", // Expo web
+  "https://dvnt.app", // Future web domain
+];
+
+/**
+ * Build CORS headers, reflecting the request Origin only if it's allowed.
+ * If no Origin header (native mobile), returns wildcard for compatibility.
+ */
+export function corsHeaders(req?: Request): Record<string, string> {
+  const origin = req?.headers.get("Origin");
+
+  // No Origin = native client or server-to-server — allow
+  const allowOrigin = !origin
+    ? "*"
+    : ALLOWED_ORIGINS.includes(origin)
+      ? origin
+      : ALLOWED_ORIGINS[0]; // Fallback for rejected origins (browser will block)
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, apikey, x-client-info",
+    ...(origin ? { Vary: "Origin" } : {}),
+  };
+}
+
+/**
+ * Legacy constant for backwards compatibility with edge functions
+ * that don't pass the request object. Prefer corsHeaders(req) instead.
  */
 export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, apikey, x-client-info",
 };
 
 /**

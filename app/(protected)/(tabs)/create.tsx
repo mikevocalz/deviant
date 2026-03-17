@@ -349,23 +349,6 @@ export default function CreateScreen() {
       return;
     }
 
-    // Check Bunny CDN configuration
-    const bunnyZone = process.env.EXPO_PUBLIC_BUNNY_STORAGE_ZONE;
-    const bunnyKey = process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY;
-    console.log("[Create] Bunny config:", {
-      zone: bunnyZone ? "set" : "MISSING",
-      key: bunnyKey ? "set" : "MISSING",
-    });
-
-    if (!bunnyZone || !bunnyKey) {
-      showToast(
-        "error",
-        "Config Error",
-        "Media storage not configured. Please update the app.",
-      );
-      return;
-    }
-
     if (selectedMedia.length === 0) {
       showToast(
         "error",

@@ -3,7 +3,7 @@ import { getCurrentUserRow, getCachedUserIdInt } from "../auth/identity";
 
 /**
  * Get current user ID from Better Auth store
- * Returns the Payload CMS user ID (integer as string), not the Better Auth ID
+ * Returns the users table integer ID (as string), not the Better Auth UUID
  *
  * After switching from Supabase Auth to Better Auth, we no longer use
  * supabase.auth.getUser(). Instead, we get the user from the auth store
@@ -13,11 +13,11 @@ export function getCurrentUserId(): string | null {
   const user = useAuthStore.getState().user;
   const id = user?.id;
 
-  // Validate that we have a valid ID (should be numeric string from Payload CMS)
+  // Validate that we have a valid ID (should be numeric string from users table)
   if (!id) return null;
 
   // If it's a UUID (Better Auth ID), we can't use it directly
-  // The auth store should have the Payload CMS integer ID
+  // The auth store should have the users table integer ID
   if (
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
   ) {

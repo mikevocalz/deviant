@@ -4,29 +4,26 @@ import Foundation
 @available(iOS 16.1, *)
 struct DVNTLiveAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
-        var generatedAt: String
-        var currentTile: Int
-        var tile1EventId: String?
-        var tile1Title: String
-        var tile1StartAt: String?
-        var tile1VenueName: String?
-        var tile1City: String?
-        var tile1HeroThumbUrl: String?
-        var tile1HeroLocalPath: String?
-        var tile1IsUpcoming: Bool
-        var tile1DeepLink: String
-        var tile2WeekStartISO: String
-        var tile2Ids: [String]
-        var tile2ThumbUrls: [String]
-        var tile2LocalPaths: [String]
-        var tile2DeepLinks: [String]
-        var tile2RecapDeepLink: String
-        var tile3EventIds: [String]
-        var tile3Titles: [String]
-        var tile3StartAts: [String]
-        var tile3VenueNames: [String]
-        var tile3DeepLinks: [String]
-        var tile3SeeAllDeepLink: String
+        // Featured event
+        var eventId: String?
+        var title: String
+        var startAt: String?
+        var venueName: String?
+        var city: String?
+        var category: String?
+        var heroLocalPath: String?
+        var isUpcoming: Bool
+        var isLive: Bool
+        var deepLink: String
+        var attendeeCount: Int?
+
+        // Upcoming events (up to 3, for large widget / expanded views)
+        var upcomingTitles: [String]
+        var upcomingStartAts: [String]
+        var upcomingVenueNames: [String]
+        var upcomingDeepLinks: [String]
+
+        // Weather
         var weatherIcon: String?
         var weatherTempF: Int?
         var weatherLabel: String?

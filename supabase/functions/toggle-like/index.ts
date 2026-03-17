@@ -5,6 +5,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
+import { withRetry } from "../_shared/with-retry.ts";
+import { checkRateLimit, WRITE_LIMIT } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,6 +81,15 @@ Deno.serve(async (req) => {
     const authUserId = sessionData.userId;
     console.log("[Edge:toggle-like] Authenticated user auth_id:", authUserId);
 
+    // Rate limit check
+    const rl = checkRateLimit(authUserId, "toggle-like", WRITE_LIMIT);
+    if (!rl.allowed) {
+      return errorResponse(
+        "rate_limited",
+        "Too many requests. Try again shortly.",
+      );
+    }
+
     // Parse body
     let body: { postId: number };
     try {
@@ -110,22 +121,30 @@ Deno.serve(async (req) => {
     console.log("[Edge:toggle-like] User ID:", userId, "Post ID:", postId);
 
     // Check if already liked
-    const { data: existingLike } = await supabaseAdmin
-      .from("likes")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("post_id", postId)
-      .single();
+    const { data: existingLike } = await withRetry(
+      () =>
+        supabaseAdmin
+          .from("likes")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("post_id", postId)
+          .single(),
+      { label: "toggle-like:check" },
+    );
 
     let liked: boolean;
 
     if (existingLike) {
       // Unlike - delete the like
-      const { error: deleteError } = await supabaseAdmin
-        .from("likes")
-        .delete()
-        .eq("user_id", userId)
-        .eq("post_id", postId);
+      const { error: deleteError } = await withRetry(
+        () =>
+          supabaseAdmin
+            .from("likes")
+            .delete()
+            .eq("user_id", userId)
+            .eq("post_id", postId),
+        { label: "toggle-like:delete" },
+      );
 
       if (deleteError) {
         console.error("[Edge:toggle-like] Delete error:", deleteError);
@@ -136,9 +155,13 @@ Deno.serve(async (req) => {
       liked = false;
     } else {
       // Like - insert new like
-      const { error: insertError } = await supabaseAdmin
-        .from("likes")
-        .insert({ user_id: userId, post_id: postId });
+      const { error: insertError } = await withRetry(
+        () =>
+          supabaseAdmin
+            .from("likes")
+            .insert({ user_id: userId, post_id: postId }),
+        { label: "toggle-like:insert" },
+      );
 
       if (insertError) {
         console.error("[Edge:toggle-like] Insert error:", insertError);

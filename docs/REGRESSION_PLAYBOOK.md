@@ -188,10 +188,9 @@ curl "$API_URL/api/events/3/participants" -H "Authorization: JWT $TOKEN"
 
 ### Via Feature Flags (No Redeploy)
 
-1. Go to Payload CMS admin
-2. Navigate to Feature Flags collection
-3. Set flag `enabled: false`
-4. App will pick up change within 5 minutes
+1. Update feature flag in Supabase `feature_flags` table
+2. Set flag `enabled: false`
+3. App will pick up change within 5 minutes
 
 ### Via Code (Requires Redeploy)
 

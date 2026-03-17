@@ -9,7 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.0"
+        "image": "latest"
       },
       "env": {
         "APP_ENV": "development",
@@ -25,14 +25,15 @@
         "EXPO_PUBLIC_KLIPY_API_KEY": "${EXPO_PUBLIC_KLIPY_API_KEY}",
         "RESEND_API_KEY": "${RESEND_API_KEY}",
         "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}",
-        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}"
+        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}"
       }
     },
     "preview": {
       "distribution": "internal",
       "channel": "production",
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1"
+        "image": "latest"
       },
       "android": {
         "buildType": "apk"
@@ -51,14 +52,15 @@
         "EXPO_PUBLIC_KLIPY_API_KEY": "${EXPO_PUBLIC_KLIPY_API_KEY}",
         "RESEND_API_KEY": "${RESEND_API_KEY}",
         "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}",
-        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}"
+        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}"
       }
     },
     "production": {
       "channel": "production",
       "autoIncrement": true,
       "ios": {
-        "image": "macos-sequoia-15.6-xcode-26.1"
+        "image": "latest"
       },
       "env": {
         "APP_ENV": "production",
@@ -74,7 +76,8 @@
         "EXPO_PUBLIC_KLIPY_API_KEY": "${EXPO_PUBLIC_KLIPY_API_KEY}",
         "RESEND_API_KEY": "${RESEND_API_KEY}",
         "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}",
-        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}"
+        "EXPO_PUBLIC_MAPTILER_KEY": "${MAPTILER_KEY}",
+        "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}"
       }
     }
   },

@@ -717,28 +717,27 @@ export const eventsApi = {
 
       console.log("[Events] deleteEvent success, deleted count:", count);
 
-      // 4. Clean up images from Bunny CDN (best-effort, don't block)
+      // 4. Clean up images from Bunny CDN via server (best-effort, don't block)
       if (imageUrls.length > 0) {
-        const { deleteFromBunny } = await import("../bunny-storage");
+        const { deleteFromServer } = await import("../server-upload");
         const CDN_URL =
           process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
-        Promise.allSettled(
-          imageUrls.map((url) => {
-            const path = url.startsWith(CDN_URL)
-              ? url.slice(CDN_URL.length + 1)
-              : null;
-            if (path) {
-              console.log("[Events] Deleting CDN image:", path);
-              return deleteFromBunny(path);
-            }
-            return Promise.resolve(false);
-          }),
-        ).then((cdnResults) => {
-          console.log(
-            "[Events] CDN cleanup results:",
-            cdnResults.map((r) => r.status),
-          );
-        });
+        const keys = imageUrls
+          .map((url) =>
+            url.startsWith(CDN_URL) ? url.slice(CDN_URL.length + 1) : null,
+          )
+          .filter((k): k is string => !!k);
+
+        if (keys.length > 0) {
+          deleteFromServer(keys).then((result) => {
+            console.log(
+              "[Events] CDN cleanup:",
+              result.ok,
+              result.results?.length,
+              "keys",
+            );
+          });
+        }
       }
 
       return { success: true };

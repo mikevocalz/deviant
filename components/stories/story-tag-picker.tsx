@@ -5,6 +5,7 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
+import { Debouncer } from "@tanstack/react-pacer";
 import {
   View,
   Text,
@@ -50,7 +51,24 @@ export function StoryTagPicker({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TaggedUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchDebouncer = useMemo(
+    () =>
+      new Debouncer(
+        async (text: string) => {
+          setIsSearching(true);
+          try {
+            const users = await storyTagsApi.searchUsers(text, 15);
+            setResults(users);
+          } catch {
+            setResults([]);
+          } finally {
+            setIsSearching(false);
+          }
+        },
+        { wait: 300 },
+      ),
+    [],
+  );
 
   useEffect(() => {
     if (visible) sheetRef.current?.snapToIndex(0);
@@ -81,28 +99,18 @@ export function StoryTagPicker({
     [],
   );
 
-  const handleSearch = useCallback((text: string) => {
-    setQuery(text);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (text.length < 1) {
-      setResults([]);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const users = await storyTagsApi.searchUsers(text, 15);
-        setResults(users);
-      } catch {
+  const handleSearch = useCallback(
+    (text: string) => {
+      setQuery(text);
+      if (text.length < 1) {
+        searchDebouncer.cancel();
         setResults([]);
-      } finally {
-        setIsSearching(false);
+        return;
       }
-    }, 300);
-  }, []);
+      searchDebouncer.maybeExecute(text);
+    },
+    [searchDebouncer],
+  );
 
   const isSelected = useCallback(
     (userId: number) => selectedUsers.some((u) => u.id === userId),

@@ -2,13 +2,13 @@
 /**
  * Backend Migration Script: Backfill Video Thumbnails
  *
- * This script finds all video posts without thumbnails in Payload CMS,
+ * This script finds all video posts without thumbnails in the database,
  * generates thumbnails from the video files, uploads them to Bunny CDN,
  * and updates the post records.
  *
  * Prerequisites:
  * - ffmpeg installed on the system (brew install ffmpeg)
- * - Node.js environment with access to Payload CMS API
+ * - Node.js environment with access to the Supabase API
  * - Bunny CDN credentials configured
  *
  * Usage:
@@ -60,7 +60,7 @@ interface Post {
 }
 
 /**
- * Fetch all posts from Payload CMS
+ * Fetch all posts from the API
  */
 async function fetchAllPosts(): Promise<Post[]> {
   const allPosts: Post[] = [];
@@ -68,7 +68,7 @@ async function fetchAllPosts(): Promise<Post[]> {
   const limit = 100;
   let hasMore = true;
 
-  console.log("\nFetching posts from Payload CMS...");
+  console.log("\nFetching posts from API...");
 
   while (hasMore) {
     const url = `${API_URL}/api/posts?limit=${limit}&page=${page}&depth=0`;
@@ -227,7 +227,7 @@ async function uploadToBunny(
 }
 
 /**
- * Update post in Payload CMS with thumbnail
+ * Update post with thumbnail
  */
 async function updatePost(postId: string, media: MediaItem[]): Promise<void> {
   const url = `${API_URL}/api/posts/${postId}`;

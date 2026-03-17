@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
+import { Debouncer } from "@tanstack/pacer";
 import {
   View,
   Text,
@@ -281,9 +282,12 @@ export function SignUpStep1() {
     "idle" | "checking" | "available" | "taken"
   >("idle");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
-  const [checkTimeoutId, setCheckTimeoutId] = useState<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const checkRef = useRef<(name: string) => void>(() => {});
+  const usernameDebouncer = useMemo(
+    () =>
+      new Debouncer((name: string) => checkRef.current(name), { wait: 500 }),
+    [],
+  );
 
   const strength = useMemo(() => getPasswordStrength(password), [password]);
 
@@ -332,9 +336,11 @@ export function SignUpStep1() {
     }
   }, []);
 
+  checkRef.current = checkUsernameAvailability;
+
   const handleUsernameChange = useCallback(
     (value: string, onChange: (v: string) => void) => {
-      if (checkTimeoutId) clearTimeout(checkTimeoutId);
+      usernameDebouncer.cancel();
 
       // Normalize: lowercase, strip all invalid chars (not just spaces)
       const normalized = value.toLowerCase().replace(/[^a-z0-9_]/g, "");
@@ -343,16 +349,13 @@ export function SignUpStep1() {
       }
 
       if (normalized.length >= 3 && /^[a-z0-9_]+$/.test(normalized)) {
-        const timeoutId = setTimeout(() => {
-          checkUsernameAvailability(normalized);
-        }, 500);
-        setCheckTimeoutId(timeoutId);
+        usernameDebouncer.maybeExecute(normalized);
       } else {
         setUsernameStatus("idle");
         setUsernameSuggestions([]);
       }
     },
-    [checkTimeoutId, checkUsernameAvailability],
+    [usernameDebouncer],
   );
 
   // Track if user is underage based on DOB in form

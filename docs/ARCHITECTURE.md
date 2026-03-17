@@ -2,7 +2,7 @@
 
 ## Overview
 
-DVNT is a React Native + Expo app with Payload CMS backend. This document describes the data flow, cache strategy, and critical invariants.
+DVNT is a React Native + Expo app with Supabase Edge Functions backend. This document describes the data flow, cache strategy, and critical invariants.
 
 ## Tech Stack
 
@@ -10,10 +10,10 @@ DVNT is a React Native + Expo app with Payload CMS backend. This document descri
 | ---------------- | ----------------------------------------------------- |
 | Mobile App       | React Native + Expo                                   |
 | State Management | TanStack Query (server state), Zustand (client state) |
-| Backend          | Payload CMS v3                                        |
+| Backend          | Supabase Edge Functions (Deno)                        |
 | Database         | PostgreSQL (Supabase)                                 |
 | CDN              | Bunny CDN                                             |
-| Auth             | JWT tokens                                            |
+| Auth             | Better Auth (Edge Function)                           |
 
 ## Canonical URLs
 
@@ -41,7 +41,7 @@ CDN:   https://dvnt.b-cdn.net
 │  DTO Validation (contracts/dto.ts)                              │
 │       │                                                          │
 │       ▼                                                          │
-│  fetch() → Payload CMS API                                      │
+│  fetch() → Supabase / Edge Functions                             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -144,7 +144,7 @@ Runtime toggles in `lib/feature-flags.ts`:
 | `event_comments`     | true    | Comments on events         |
 | `push_notifications` | true    | Push notification delivery |
 
-Flags can be disabled in Payload CMS admin without redeploy.
+Flags can be disabled in the Supabase `feature_flags` table without redeploy.
 
 ## Error Handling
 

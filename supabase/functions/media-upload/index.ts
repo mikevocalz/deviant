@@ -6,6 +6,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, UPLOAD_LIMIT } from "../_shared/rate-limit.ts";
 
 // Types
 type MediaKind =
@@ -133,14 +134,14 @@ Deno.serve(async (req) => {
       status: 204,
       headers: {
         "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
         "Access-Control-Allow-Headers":
-          "Authorization, Content-Type, x-file-name, x-mime, x-kind, x-duration-sec, x-width, x-height",
+          "Authorization, Content-Type, x-file-name, x-mime, x-kind, x-duration-sec, x-width, x-height, x-keys",
       },
     });
   }
 
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "DELETE") {
     return errorResponse("Method not allowed");
   }
 
@@ -196,6 +197,58 @@ Deno.serve(async (req) => {
 
   const userId = session.userId;
 
+  // Rate limit check
+  const rl = checkRateLimit(userId, "media-upload", UPLOAD_LIMIT);
+  if (!rl.allowed) {
+    return errorResponse("Too many uploads. Try again shortly.");
+  }
+
+  // ── DELETE handler ─────────────────────────────────────────────────
+  if (req.method === "DELETE") {
+    // Accept a JSON body with { keys: string[] } — each key is a Bunny storage path
+    let keys: string[] = [];
+    try {
+      const body = await req.json();
+      keys = Array.isArray(body.keys) ? body.keys : [];
+    } catch {
+      return errorResponse("Invalid JSON body — expected { keys: string[] }");
+    }
+
+    if (keys.length === 0) {
+      return errorResponse("No keys provided");
+    }
+    if (keys.length > 50) {
+      return errorResponse("Max 50 keys per request");
+    }
+
+    const results: { key: string; deleted: boolean }[] = [];
+
+    for (const key of keys) {
+      // Safety: keys must look like "kind/userId/..." — reject path traversal
+      if (!key || key.includes("..") || key.startsWith("/")) {
+        results.push({ key, deleted: false });
+        continue;
+      }
+
+      try {
+        const deleteUrl = `https://${BUNNY_STORAGE_HOST}/${BUNNY_STORAGE_ZONE}/${key}`;
+        const resp = await fetch(deleteUrl, {
+          method: "DELETE",
+          headers: { AccessKey: BUNNY_ACCESS_KEY },
+        });
+        const ok = resp.status === 200 || resp.status === 404; // 404 = already gone
+        results.push({ key, deleted: ok });
+        console.log(`[media-upload] DELETE ${key} → ${resp.status}`);
+      } catch (err) {
+        console.error(`[media-upload] DELETE ${key} error:`, err);
+        results.push({ key, deleted: false });
+      }
+    }
+
+    return jsonResponse({ ok: true, results });
+  }
+
+  // ── POST handler (upload) ──────────────────────────────────────────
   // Parse request - support both multipart and raw bytes
   let fileBytes: Uint8Array;
   let kind: MediaKind;

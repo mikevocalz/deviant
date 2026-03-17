@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
+import { checkRateLimit, WRITE_LIMIT } from "../_shared/rate-limit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +78,12 @@ Deno.serve(async (req) => {
     }
 
     const authUserId = sessionData.userId;
+
+    // Rate limit check
+    const rl = checkRateLimit(authUserId, "add-comment", WRITE_LIMIT);
+    if (!rl.allowed) {
+      return errorResponse("rate_limited", "Too many comments. Slow down.");
+    }
 
     let body: { postId: number; content: string };
     try {

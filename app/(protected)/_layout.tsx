@@ -27,6 +27,7 @@ import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
 import { WeatherReanimatedOverlay } from "@/src/features/weatherfx/WeatherReanimatedOverlay";
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
 import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
+import { useLiveSurface } from "@/src/live-surface";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -133,6 +134,9 @@ export default function ProtectedLayout() {
   const deviceLng = useEventsLocationStore(
     (s) => s.activeCity?.lng ?? s.deviceLng,
   );
+
+  // DVNT Live Surface — keeps iOS Live Activity + Home/Lock Screen widgets updated
+  useLiveSurface({ lat: deviceLat ?? undefined, lng: deviceLng ?? undefined });
   const weatherCode = useWeatherFXStore((s) => s.weatherCode);
 
   useEffect(() => {
