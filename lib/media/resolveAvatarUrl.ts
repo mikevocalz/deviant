@@ -43,7 +43,7 @@ export function resolveAvatarUrl(
     return null;
   }
 
-  // Media object with url property (Supabase join / Payload CMS)
+  // Media object with url property (Supabase join)
   if (typeof avatar === "object" && avatar !== null) {
     const obj = avatar as Record<string, unknown>;
     if (typeof obj.url === "string") {

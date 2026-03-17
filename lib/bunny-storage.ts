@@ -24,25 +24,16 @@ const BUNNY_STORAGE_REGION =
 const BUNNY_CDN_URL =
   process.env.EXPO_PUBLIC_BUNNY_CDN_URL || "https://dvnt.b-cdn.net";
 
-// API key - required for uploads (MUST come from env, NEVER hardcode)
-const BUNNY_STORAGE_API_KEY =
-  process.env.EXPO_PUBLIC_BUNNY_STORAGE_API_KEY || "";
+// API key — use server-only env var (no EXPO_PUBLIC_ prefix) so it is
+// NEVER bundled into the client app.  Only local scripts can use this.
+const BUNNY_STORAGE_API_KEY = process.env.BUNNY_STORAGE_API_KEY || "";
 
-if (!BUNNY_STORAGE_API_KEY) {
-  console.error(
-    "[Bunny] EXPO_PUBLIC_BUNNY_STORAGE_API_KEY is missing! Set it in .env",
+if (!BUNNY_STORAGE_API_KEY && typeof __DEV__ !== "undefined") {
+  console.warn(
+    "[Bunny] BUNNY_STORAGE_API_KEY is missing — this module is for scripts only. " +
+      "App uploads MUST use lib/server-upload.ts instead.",
   );
 }
-
-// Log config at module load for debugging
-console.log(
-  "[Bunny] Config loaded - zone:",
-  BUNNY_STORAGE_ZONE,
-  "region:",
-  BUNNY_STORAGE_REGION,
-  "cdn:",
-  BUNNY_CDN_URL ? "set" : "MISSING",
-);
 
 // Storage endpoint based on region
 const getStorageEndpoint = () => {
@@ -287,20 +278,7 @@ export async function uploadToBunny(
     // 120s upload timeout — prevents infinite hang on bad network
     // Uses AbortController (no setTimeout allowed per project rules)
     const UPLOAD_TIMEOUT_MS = 120_000;
-    const uploadAbort = new AbortController();
-    const uploadStart = Date.now();
-    // Abort via rAF polling — no setTimeout
-    const scheduleAbort = () => {
-      if (uploadAbort.signal.aborted) return;
-      if (Date.now() - uploadStart >= UPLOAD_TIMEOUT_MS) {
-        uploadAbort.abort();
-      } else if (typeof requestAnimationFrame !== "undefined") {
-        requestAnimationFrame(scheduleAbort);
-      }
-    };
-    if (typeof requestAnimationFrame !== "undefined") {
-      requestAnimationFrame(scheduleAbort);
-    }
+    const timeoutSignal = AbortSignal.timeout(UPLOAD_TIMEOUT_MS);
 
     try {
       const uploadPromise = FileSystem.uploadAsync(uploadUrl, accessibleUri, {
@@ -312,14 +290,13 @@ export async function uploadToBunny(
         },
       });
       const timeoutPromise = new Promise<never>((_, reject) => {
-        uploadAbort.signal.addEventListener(
+        timeoutSignal.addEventListener(
           "abort",
           () => reject(new Error("Upload timed out after 120s")),
           { once: true },
         );
       });
       const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
-      uploadAbort.abort(); // cancel the rAF poller
 
       console.log("[Bunny] Upload response status:", uploadResult.status);
       console.log(

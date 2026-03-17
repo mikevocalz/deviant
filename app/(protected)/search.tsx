@@ -14,7 +14,8 @@ import { ArrowLeft, Search, X, Play, Hash, Compass } from "lucide-react-native";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useSearchStore } from "@/lib/stores/search-store";
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useCallback, useRef, useMemo } from "react";
+import { Debouncer } from "@tanstack/pacer";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import {
   useDiscoverData,
@@ -272,8 +273,12 @@ export default function SearchScreen() {
   const clearSearch = useSearchStore((s) => s.clearSearch);
   const insets = useSafeAreaInsets();
 
-  // Simple setTimeout debounce — 300ms delay prevents query-per-keystroke
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // TanStack Debouncer — 300ms delay prevents query-per-keystroke
+  const searchDebouncer = useMemo(
+    () =>
+      new Debouncer((text: string) => setDebouncedSearch(text), { wait: 300 }),
+    [setDebouncedSearch],
+  );
 
   // Use query from params if provided (e.g., when navigating from hashtag)
   useEffect(() => {
@@ -296,18 +301,15 @@ export default function SearchScreen() {
   const handleQueryChange = useCallback(
     (text: string) => {
       setSearchQuery(text);
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      debounceTimerRef.current = setTimeout(() => {
-        setDebouncedSearch(text);
-      }, 300);
+      searchDebouncer.maybeExecute(text);
     },
-    [setSearchQuery, setDebouncedSearch],
+    [setSearchQuery, searchDebouncer],
   );
 
   const handleClear = useCallback(() => {
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    searchDebouncer.cancel();
     clearSearch();
-  }, [clearSearch]);
+  }, [clearSearch, searchDebouncer]);
 
   return (
     <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>

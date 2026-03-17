@@ -584,9 +584,9 @@ bottom: -4; // WRONG - pushes button into tabbar
    - Never rely on dev server features
 
 4. **API Routes don't work in production native apps** - Expo Router API routes (`+api.ts`) only work with the dev server. In production builds, use:
-   - Direct API calls to deployed services (Payload CMS, Hono server)
+   - Supabase Edge Functions for all server logic
    - Static content fallbacks where appropriate
-   - The `EXPO_PUBLIC_API_URL` environment variable for API endpoints
+   - The `EXPO_PUBLIC_SUPABASE_URL` environment variable for API endpoints
 
 5. **Static content fallbacks** - For legal pages, FAQs, etc., always include static fallback content that works without network requests
 
@@ -839,7 +839,8 @@ npx tsc --noEmit 2>&1 | grep -E "error TS" | head -20
 - `app/` - Expo Router screens and layouts
 - `components/` - Reusable UI components
 - `lib/` - Utilities, hooks, stores, and services
-- `backend/` - Backend/API related code
+- `src/` - Feature modules (video, sneaky-lynk, etc.)
+- `supabase/functions/` - Supabase Edge Functions (all server logic)
 - `assets/` - Static assets (images, fonts, etc.)
 - `theme/` - Theme configuration
 
@@ -1009,27 +1010,9 @@ Expo Client (iOS/Android/Web)
          ↓
 Better Auth Client (lib/auth-client.ts)
          ↓
-Expo Router API Route (app/api/auth/[...all]+api.ts)
-         ↓
-Better Auth Server (lib/auth.ts)
+Better Auth Edge Function (supabase/functions/auth)
          ↓
 PostgreSQL Database
-```
-
-### Server Configuration
-
-`lib/auth.ts` - Import ONLY in `+api.ts` files:
-
-```typescript
-import { betterAuth } from "better-auth";
-import { expo } from "@better-auth/expo";
-
-export const auth = betterAuth({
-  database: { provider: "pg", url: DATABASE_URI },
-  plugins: [expo()],
-  emailAndPassword: { enabled: true },
-  trustedOrigins: ["dvnt://", "dvnt://*"],
-});
 ```
 
 ### Client Usage
@@ -1169,14 +1152,6 @@ DATABASE_URI=postgresql://...
 EXPO_PUBLIC_AUTH_URL=http://localhost:8081
 ```
 
-### API Routes Structure
-
-```
-app/
-  api/
-    auth/[...all]+api.ts  # All auth endpoints (sign in, sign up, etc.)
-```
-
 ---
 
 ## 📤 Post/Upload Progress Pattern
@@ -1290,7 +1265,7 @@ supabase secrets set KEY=value
 
 ```bash
 # Start Expo dev server
-npx expo start --tunnel --clear
+npx expo start
 ```
 
 ### Why Not Expo Web Export?

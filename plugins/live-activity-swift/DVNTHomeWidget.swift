@@ -4,19 +4,19 @@ import WidgetKit
 private let APP_GROUP = "group.com.dvnt.app"
 
 // ── Brand Colors ──
-private let dvntPurple = Color(red: 0.541, green: 0.251, blue: 0.812)
-private let dvntCyan = Color(red: 0.247, green: 0.863, blue: 1.0)
-private let dvntRed = Color(red: 0.988, green: 0.145, blue: 0.227)
-private let cardBg = Color(red: 0.11, green: 0.11, blue: 0.12)
+private let dvntPurple = Color(red: 138/255, green: 64/255, blue: 207/255)
+private let dvntCyan   = Color(red: 63/255, green: 220/255, blue: 255/255)
+private let dvntRed    = Color(red: 252/255, green: 37/255, blue: 58/255)
+private let dvntDark   = Color(red: 14/255, green: 14/255, blue: 16/255)
 
-// ── Helpers ──
+// ── Compatibility ──
 private extension View {
     @ViewBuilder
     func dvntContainerBackground() -> some View {
-        if #available(iOS 17.0, *) {
-            self.containerBackground(.fill.tertiary, for: .widget)
+        if #available(iOSApplicationExtension 17.0, *) {
+            self.containerBackground(for: .widget) { dvntDark }
         } else {
-            self.background(Color.black)
+            self.background(dvntDark)
         }
     }
 }
@@ -31,14 +31,17 @@ private extension WidgetConfiguration {
     }
 }
 
+// ── Helpers ──
 private func weatherSFSymbol(_ icon: String?) -> String {
     switch icon {
-    case "sun": return "sun.max.fill"
+    case "sun":   return "sun.max.fill"
     case "cloud": return "cloud.fill"
-    case "rain": return "cloud.rain.fill"
-    case "snow": return "snowflake"
+    case "rain":  return "cloud.rain.fill"
+    case "snow":  return "snowflake"
     case "storm": return "cloud.bolt.fill"
-    default: return "cloud.fill"
+    case "fog":   return "cloud.fog.fill"
+    case "wind":  return "wind"
+    default:      return "cloud.fill"
     }
 }
 
@@ -49,19 +52,16 @@ private func logoImage(size: CGFloat) -> some View {
     return AnyView(Image(systemName: "sparkles.circle.fill").resizable().aspectRatio(contentMode: .fit).frame(width: size, height: size).foregroundColor(dvntPurple))
 }
 
-private func heroImage(localPath: String?, fallbackColor: Color = cardBg) -> some View {
+private func heroImage(localPath: String?) -> some View {
     Group {
         if let p = localPath, !p.isEmpty,
            let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP),
            let img = UIImage(contentsOfFile: container.appendingPathComponent(p).path) {
-            Image(uiImage: img)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
+            Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
         } else {
             LinearGradient(
-                colors: [dvntPurple.opacity(0.4), cardBg],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [dvntPurple.opacity(0.4), dvntDark],
+                startPoint: .topLeading, endPoint: .bottomTrailing
             )
         }
     }
@@ -71,17 +71,10 @@ private func countdownString(from isoDate: String?) -> String? {
     guard let dateStr = isoDate, let date = ISO8601DateFormatter().date(from: dateStr) else { return nil }
     let diff = date.timeIntervalSinceNow
     guard diff > 0 else { return nil }
-    let h = Int(diff) / 3600
-    let m = (Int(diff) % 3600) / 60
-    if h > 0 { return "\(h)h \(m)m" }
-    return "\(m)m"
-}
-
-private func formatTime(_ iso: String) -> String {
-    guard let d = ISO8601DateFormatter().date(from: iso) else { return iso }
-    let f = DateFormatter()
-    f.dateFormat = "EEE, MMM d · h:mm a"
-    return f.string(from: d)
+    let h = Int(diff) / 3600; let m = (Int(diff) % 3600) / 60
+    if h > 24 { return "in \(h / 24)d" }
+    if h > 0  { return "in \(h)h \(m)m" }
+    return "in \(m)m"
 }
 
 private func dateParts(from iso: String?) -> (day: String, month: String)? {
@@ -91,39 +84,21 @@ private func dateParts(from iso: String?) -> (day: String, month: String)? {
     return (dayF.string(from: date), monthF.string(from: date).uppercased())
 }
 
+private func timeString(from iso: String?) -> String? {
+    guard let dateStr = iso, let date = ISO8601DateFormatter().date(from: dateStr) else { return nil }
+    let f = DateFormatter(); f.dateFormat = "h:mm a"
+    return f.string(from: date)
+}
+
 // ── Data Model ──
 struct SurfacePayload {
-    let tile1: Tile1Data?
-    let tile2: Tile2Data?
+    let featured: FeaturedEvent?
+    let upcoming: [UpcomingEvent]
     let weather: WeatherData?
-    let tile1HeroLocalPath: String?
-    let tile2LocalPaths: [String]
-    let tile3Items: [Tile3Item]
+    let heroLocalPath: String?
 
-    static func preview() -> SurfacePayload {
-        let tile1 = Tile1Data(
-            title: "Summer Block Party",
-            startAt: "2026-03-15T20:00:00Z",
-            venueName: "The Venue",
-            city: "Brooklyn",
-            category: "Music",
-            isUpcoming: true,
-            deepLink: "https://dvntlive.app/events",
-            attendeeCount: 142
-        )
-        let tile2 = Tile2Data(
-            items: (0..<6).map { i in Tile2Item(id: "p\(i)", deepLink: "https://dvntlive.app") },
-            recapDeepLink: "https://dvntlive.app"
-        )
-        let weather = WeatherData(icon: "sun", tempF: 72, label: "Sunny", hiF: 78, loF: 65, precipPct: 10, feelsLikeF: 74)
-        let upcoming = [
-            Tile3Item(eventId: "2", title: "Rooftop Vibes", startAt: "2026-03-16T21:00:00Z", venueName: "Sky Lounge", deepLink: "https://dvntlive.app/events/2"),
-            Tile3Item(eventId: "3", title: "Art After Dark", startAt: "2026-03-18T19:00:00Z", venueName: "Gallery One", deepLink: "https://dvntlive.app/events/3"),
-        ]
-        return SurfacePayload(tile1: tile1, tile2: tile2, weather: weather, tile1HeroLocalPath: nil, tile2LocalPaths: [], tile3Items: upcoming)
-    }
-
-    struct Tile1Data {
+    struct FeaturedEvent {
+        let eventId: String?
         let title: String
         let startAt: String?
         let venueName: String?
@@ -133,20 +108,47 @@ struct SurfacePayload {
         let deepLink: String
         let attendeeCount: Int?
     }
-    struct Tile2Data { let items: [Tile2Item]; let recapDeepLink: String }
-    struct Tile2Item { let id: String; let deepLink: String }
-    struct Tile3Item { let eventId: String; let title: String; let startAt: String; let venueName: String?; let deepLink: String }
-    struct WeatherData { let icon: String?; let tempF: Int?; let label: String?; let hiF: Int?; let loF: Int?; let precipPct: Int?; let feelsLikeF: Int? }
 
-    init(tile1: Tile1Data?, tile2: Tile2Data?, weather: WeatherData?, tile1HeroLocalPath: String?, tile2LocalPaths: [String], tile3Items: [Tile3Item] = []) {
-        self.tile1 = tile1; self.tile2 = tile2; self.weather = weather
-        self.tile1HeroLocalPath = tile1HeroLocalPath; self.tile2LocalPaths = tile2LocalPaths; self.tile3Items = tile3Items
+    struct UpcomingEvent {
+        let eventId: String
+        let title: String
+        let startAt: String
+        let venueName: String?
+        let deepLink: String
+    }
+
+    struct WeatherData {
+        let icon: String?
+        let tempF: Int?
+        let label: String?
+    }
+
+    static func preview() -> SurfacePayload {
+        SurfacePayload(
+            featured: FeaturedEvent(
+                eventId: "1", title: "Summer Block Party",
+                startAt: "2026-03-17T20:00:00Z", venueName: "The Venue",
+                city: "Brooklyn", category: "Music", isUpcoming: true,
+                deepLink: "https://dvntlive.app/e/1", attendeeCount: 142
+            ),
+            upcoming: [
+                UpcomingEvent(eventId: "2", title: "Rooftop Vibes", startAt: "2026-03-18T21:00:00Z", venueName: "Sky Lounge", deepLink: "https://dvntlive.app/e/2"),
+                UpcomingEvent(eventId: "3", title: "Art After Dark", startAt: "2026-03-20T19:00:00Z", venueName: "Gallery One", deepLink: "https://dvntlive.app/e/3"),
+            ],
+            weather: WeatherData(icon: "sun", tempF: 72, label: "Sunny"),
+            heroLocalPath: nil
+        )
+    }
+
+    init(featured: FeaturedEvent?, upcoming: [UpcomingEvent], weather: WeatherData?, heroLocalPath: String?) {
+        self.featured = featured; self.upcoming = upcoming; self.weather = weather; self.heroLocalPath = heroLocalPath
     }
 
     init?(from obj: [String: Any]) {
-        let tile1Obj = obj["tile1"] as? [String: Any]
-        tile1 = tile1Obj.map { t in
-            Tile1Data(
+        let tile1 = obj["tile1"] as? [String: Any]
+        featured = tile1.map { t in
+            FeaturedEvent(
+                eventId: t["eventId"] as? String,
                 title: t["title"] as? String ?? "DVNT",
                 startAt: t["startAt"] as? String,
                 venueName: t["venueName"] as? String,
@@ -157,21 +159,20 @@ struct SurfacePayload {
                 attendeeCount: t["attendeeCount"] as? Int
             )
         }
-        tile1HeroLocalPath = tile1Obj?["heroLocalPath"] as? String
-        let tile2Obj = obj["tile2"] as? [String: Any]
-        tile2LocalPaths = tile2Obj?["localPaths"] as? [String] ?? []
-        let itemsArr = (tile2Obj?["items"] as? [[String: Any]]) ?? []
-        tile2 = Tile2Data(
-            items: itemsArr.prefix(6).map { i in Tile2Item(id: i["id"] as? String ?? "", deepLink: i["deepLink"] as? String ?? "https://dvntlive.app") },
-            recapDeepLink: tile2Obj?["recapDeepLink"] as? String ?? "https://dvntlive.app"
-        )
-        let tile3Obj = obj["tile3"] as? [String: Any]
-        let tile3Arr = (tile3Obj?["items"] as? [[String: Any]]) ?? []
-        tile3Items = tile3Arr.prefix(3).map { i in
-            Tile3Item(eventId: i["eventId"] as? String ?? "", title: i["title"] as? String ?? "Event", startAt: i["startAt"] as? String ?? "", venueName: i["venueName"] as? String, deepLink: i["deepLink"] as? String ?? "https://dvntlive.app/events")
+        heroLocalPath = tile1?["heroLocalPath"] as? String
+        let tile3 = obj["tile3"] as? [String: Any]
+        let tile3Arr = (tile3?["items"] as? [[String: Any]]) ?? []
+        upcoming = tile3Arr.prefix(3).map { i in
+            UpcomingEvent(
+                eventId: i["eventId"] as? String ?? "",
+                title: i["title"] as? String ?? "Event",
+                startAt: i["startAt"] as? String ?? "",
+                venueName: i["venueName"] as? String,
+                deepLink: i["deepLink"] as? String ?? "https://dvntlive.app/events"
+            )
         }
         let w = obj["weather"] as? [String: Any]
-        weather = w.map { WeatherData(icon: $0["icon"] as? String, tempF: $0["tempF"] as? Int, label: $0["label"] as? String, hiF: $0["hiF"] as? Int, loF: $0["loF"] as? Int, precipPct: $0["precipPct"] as? Int, feelsLikeF: $0["feelsLikeF"] as? Int) }
+        weather = w.map { WeatherData(icon: $0["icon"] as? String, tempF: $0["tempF"] as? Int, label: $0["label"] as? String) }
     }
 }
 
@@ -184,8 +185,16 @@ struct DVNTHomeWidget: Widget {
         }
         .configurationDisplayName("DVNT Events")
         .description("Your next event at a glance")
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
+        .supportedFamilies(supportedFamilies)
         .dvntContentMarginsDisabled()
+    }
+
+    private var supportedFamilies: [WidgetFamily] {
+        var families: [WidgetFamily] = [.systemSmall, .systemMedium, .systemLarge]
+        if #available(iOSApplicationExtension 16.0, *) {
+            families.append(contentsOf: [.accessoryInline, .accessoryRectangular, .accessoryCircular])
+        }
+        return families
     }
 }
 
@@ -220,42 +229,38 @@ struct DVNTHomeWidgetView: View {
     let entry: DVNTHomeEntry
     var body: some View {
         switch family {
-        case .systemSmall:  SmallEventWidget(payload: entry.payload)
-        case .systemMedium: MediumEventWidget(payload: entry.payload)
-        case .systemLarge:  LargeEventWidget(payload: entry.payload)
-        default:            SmallEventWidget(payload: entry.payload)
+        case .systemSmall:        SmallEventWidget(payload: entry.payload)
+        case .systemMedium:       MediumEventWidget(payload: entry.payload)
+        case .systemLarge:        LargeEventWidget(payload: entry.payload)
+        case .accessoryInline:    InlineAccessoryWidget(payload: entry.payload)
+        case .accessoryRectangular: RectangularAccessoryWidget(payload: entry.payload)
+        case .accessoryCircular:  CircularAccessoryWidget(payload: entry.payload)
+        default:                  SmallEventWidget(payload: entry.payload)
         }
     }
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SMALL — Event card: hero image fills background, date badge top-right, details bottom
+// systemSmall — Hero image background, date badge top-right, title + countdown bottom
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 struct SmallEventWidget: View {
     let payload: SurfacePayload?
     var body: some View {
-        let t1 = payload?.tile1
-        let linkURL = URL(string: t1?.deepLink ?? "https://dvntlive.app/events")!
+        let ev = payload?.featured
+        let linkURL = URL(string: ev?.deepLink ?? "https://dvntlive.app/events")!
         Link(destination: linkURL) {
             ZStack {
-                // Background hero image
-                heroImage(localPath: payload?.tile1HeroLocalPath)
+                heroImage(localPath: payload?.heroLocalPath)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
-
-                // Gradient overlay
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.3), .black.opacity(0.85)],
-                    startPoint: .top,
-                    endPoint: .bottom
+                    startPoint: .top, endPoint: .bottom
                 )
-
-                // Content
                 VStack(alignment: .leading, spacing: 0) {
                     HStack {
                         Spacer()
-                        // Date badge (squircle)
-                        if let parts = dateParts(from: t1?.startAt) {
+                        if let parts = dateParts(from: ev?.startAt) {
                             VStack(spacing: 0) {
                                 Text(parts.day)
                                     .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -270,23 +275,20 @@ struct SmallEventWidget: View {
                         }
                     }
                     .padding(.top, 10).padding(.trailing, 10)
-
                     Spacer()
-
-                    // Event details
                     VStack(alignment: .leading, spacing: 3) {
-                        if let t = t1 {
-                            Text(t.title)
+                        if let e = ev {
+                            Text(e.title)
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.white)
                                 .lineLimit(2)
                             HStack(spacing: 4) {
-                                if t.isUpcoming, let cd = countdownString(from: t.startAt) {
+                                if e.isUpcoming, let cd = countdownString(from: e.startAt) {
                                     Text(cd)
                                         .font(.system(size: 10, weight: .semibold))
                                         .foregroundColor(dvntPurple)
                                 }
-                                if let v = t.venueName {
+                                if let v = e.venueName {
                                     Text(v)
                                         .font(.system(size: 10))
                                         .foregroundColor(.white.opacity(0.7))
@@ -308,109 +310,113 @@ struct SmallEventWidget: View {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// MEDIUM — Event card: hero left, details right, weather badge
+// systemMedium — Hero image full bleed, overlaid details, category + weather + attendees
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 struct MediumEventWidget: View {
     let payload: SurfacePayload?
     var body: some View {
-        let t1 = payload?.tile1
-        let linkURL = URL(string: t1?.deepLink ?? "https://dvntlive.app/events")!
+        let ev = payload?.featured
+        let linkURL = URL(string: ev?.deepLink ?? "https://dvntlive.app/events")!
         Link(destination: linkURL) {
             ZStack {
-                Color.black
+                heroImage(localPath: payload?.heroLocalPath)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.2), .black.opacity(0.8)],
+                    startPoint: .top, endPoint: .bottom
+                )
                 HStack(spacing: 0) {
-                    // Left: hero image
-                    ZStack(alignment: .topLeading) {
-                        heroImage(localPath: payload?.tile1HeroLocalPath)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .clipped()
-                        // Category pill
-                        if let cat = t1?.category, !cat.isEmpty {
-                            Text(cat)
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6).padding(.vertical, 3)
-                                .background(Color.white.opacity(0.25))
-                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                                .padding(8)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Spacer()
+                        if let cat = ev?.category {
+                            Text(cat.uppercased())
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(dvntCyan)
+                                .tracking(1.2)
                         }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .padding(.leading, 6).padding(.vertical, 6)
-
-                    // Right: event details
-                    VStack(alignment: .leading, spacing: 6) {
-                        // Logo + weather
+                        Text(ev?.title ?? "DVNT")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(2)
                         HStack(spacing: 6) {
-                            logoImage(size: 18)
-                            Spacer()
-                            if let w = payload?.weather, let temp = w.tempF {
-                                HStack(spacing: 2) {
-                                    Image(systemName: weatherSFSymbol(w.icon))
-                                        .font(.system(size: 9))
-                                        .foregroundColor(dvntCyan)
-                                    Text("\(temp)°")
-                                        .font(.system(size: 10, weight: .medium))
+                            if let v = ev?.venueName {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "mappin")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Text(v)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .lineLimit(1)
+                                }
+                            }
+                            if let time = timeString(from: ev?.startAt) {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "clock")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Text(time)
+                                        .font(.system(size: 11))
                                         .foregroundColor(.white.opacity(0.7))
                                 }
                             }
                         }
-
-                        if let t = t1 {
-                            // Date badge inline
-                            if let parts = dateParts(from: t.startAt) {
-                                HStack(spacing: 6) {
-                                    VStack(spacing: 0) {
-                                        Text(parts.day).font(.system(size: 18, weight: .bold, design: .rounded)).foregroundColor(.white)
-                                        Text(parts.month).font(.system(size: 8, weight: .bold)).foregroundColor(.white.opacity(0.6))
-                                    }
-                                    .frame(width: 36, height: 36)
-                                    .background(Color.white.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(t.title)
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .lineLimit(2)
-                                    }
+                        HStack(spacing: 8) {
+                            if ev?.isUpcoming == true, let cd = countdownString(from: ev?.startAt) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(dvntPurple)
+                                    Text(cd)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(dvntPurple)
                                 }
-                            } else {
-                                Text(t.title).font(.system(size: 14, weight: .bold)).foregroundColor(.white).lineLimit(2)
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(dvntPurple.opacity(0.2))
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
-
-                            Spacer(minLength: 0)
-
-                            // Countdown + venue
-                            VStack(alignment: .leading, spacing: 2) {
-                                if t.isUpcoming, let cd = countdownString(from: t.startAt) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "clock.fill").font(.system(size: 8)).foregroundColor(dvntPurple)
-                                        Text(cd).font(.system(size: 11, weight: .semibold)).foregroundColor(dvntPurple)
-                                    }
-                                }
-                                if let v = t.venueName {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "mappin").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                                        Text(v).font(.system(size: 10)).foregroundColor(.white.opacity(0.6)).lineLimit(1)
-                                    }
-                                }
-                                if let count = t.attendeeCount, count > 0 {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "person.2.fill").font(.system(size: 8)).foregroundColor(.white.opacity(0.5))
-                                        Text("\(count) going").font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
-                                    }
+                            if let count = ev?.attendeeCount, count > 0 {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "person.2.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Text("\(count)")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.7))
                                 }
                             }
-                        } else {
-                            Text("No upcoming events").font(.system(size: 13, weight: .semibold)).foregroundColor(.white)
-                            Spacer()
-                            Text("Tap to browse").font(.system(size: 11, weight: .medium)).foregroundColor(dvntPurple)
                         }
                     }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 14).padding(.bottom, 12)
+                    Spacer()
+                    VStack {
+                        if let parts = dateParts(from: ev?.startAt) {
+                            VStack(spacing: 1) {
+                                Text(parts.day)
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                Text(parts.month)
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(dvntPurple)
+                            }
+                            .frame(width: 48, height: 48)
+                            .background(Color.black.opacity(0.6))
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        Spacer()
+                        if let icon = payload?.weather?.icon, let temp = payload?.weather?.tempF {
+                            HStack(spacing: 3) {
+                                Image(systemName: weatherSFSymbol(icon))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(dvntCyan)
+                                Text("\(temp)°")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
+                    }
+                    .padding(.trailing, 14).padding(.top, 10).padding(.bottom, 12)
                 }
             }
         }
@@ -418,144 +424,235 @@ struct MediumEventWidget: View {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LARGE — Featured event card top + upcoming events list below
+// systemLarge — Hero event top + "Coming Up" list below
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 struct LargeEventWidget: View {
     let payload: SurfacePayload?
     var body: some View {
-        let t1 = payload?.tile1
+        let ev = payload?.featured
+        let linkURL = URL(string: ev?.deepLink ?? "https://dvntlive.app/events")!
         VStack(spacing: 0) {
-            // Top: featured event card (hero image with overlay)
-            Link(destination: URL(string: t1?.deepLink ?? "https://dvntlive.app/events")!) {
-                ZStack(alignment: .bottom) {
-                    heroImage(localPath: payload?.tile1HeroLocalPath)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Hero section
+            Link(destination: linkURL) {
+                ZStack(alignment: .bottomLeading) {
+                    heroImage(localPath: payload?.heroLocalPath)
+                        .frame(height: 180)
+                        .frame(maxWidth: .infinity)
                         .clipped()
-
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.85)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-
-                    // Date badge top-right
-                    VStack {
-                        HStack {
-                            Spacer()
-                            if let parts = dateParts(from: t1?.startAt) {
-                                VStack(spacing: 0) {
-                                    Text(parts.day).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundColor(.white)
-                                    Text(parts.month).font(.system(size: 9, weight: .bold)).foregroundColor(.white.opacity(0.7))
+                    LinearGradient(colors: [.clear, .black.opacity(0.8)],
+                                   startPoint: .center, endPoint: .bottom)
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let cat = ev?.category {
+                            Text(cat.uppercased())
+                                .font(.system(size: 9, weight: .heavy))
+                                .foregroundColor(dvntCyan)
+                                .tracking(1.2)
+                        }
+                        Text(ev?.title ?? "DVNT")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                        HStack(spacing: 8) {
+                            if let v = ev?.venueName {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "mappin")
+                                        .font(.system(size: 8))
+                                        .foregroundColor(.white.opacity(0.5))
+                                    Text(v)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.7))
                                 }
-                                .frame(width: 48, height: 48)
-                                .background(Color.black.opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .padding(12)
+                            }
+                            if ev?.isUpcoming == true, let cd = countdownString(from: ev?.startAt) {
+                                Text(cd)
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(dvntPurple)
                             }
                         }
-                        Spacer()
                     }
-
-                    // Bottom details
-                    if let t = t1 {
-                        VStack(alignment: .leading, spacing: 4) {
-                            if let cat = t.category, !cat.isEmpty {
-                                Text(cat)
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8).padding(.vertical, 3)
-                                    .background(Color.white.opacity(0.2))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            }
-                            Text(t.title)
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                                .lineLimit(2)
-                            HStack(spacing: 8) {
-                                if t.isUpcoming, let cd = countdownString(from: t.startAt) {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: "clock.fill").font(.system(size: 9)).foregroundColor(dvntPurple)
-                                        Text(cd).font(.system(size: 12, weight: .semibold)).foregroundColor(dvntPurple)
-                                    }
-                                }
-                                if let v = t.venueName {
-                                    Text(v).font(.system(size: 12)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
-                                }
-                                if let c = t.city {
-                                    Text("· \(c)").font(.system(size: 12)).foregroundColor(.white.opacity(0.5))
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 14).padding(.bottom, 12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
+                    .padding(.horizontal, 14).padding(.bottom, 12)
                 }
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal, 8).padding(.top, 8)
             }
 
-            // Divider
-            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, 16).padding(.vertical, 6)
-
-            // Bottom: upcoming events list
+            // "Coming Up" section
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
                     Text("COMING UP")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 10, weight: .heavy))
                         .foregroundColor(.white.opacity(0.4))
+                        .tracking(1.5)
                     Spacer()
-                    // Weather
-                    if let w = payload?.weather, let temp = w.tempF {
+                    if let icon = payload?.weather?.icon, let temp = payload?.weather?.tempF {
                         HStack(spacing: 3) {
-                            Image(systemName: weatherSFSymbol(w.icon)).font(.system(size: 10)).foregroundColor(dvntCyan)
-                            Text("\(temp)°").font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7))
+                            Image(systemName: weatherSFSymbol(icon))
+                                .font(.system(size: 9))
+                                .foregroundColor(dvntCyan)
+                            Text("\(temp)°")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.5))
                         }
                     }
                 }
-                .padding(.horizontal, 14).padding(.bottom, 6)
+                .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
 
-                if let items = payload?.tile3Items, !items.isEmpty {
-                    ForEach(0..<min(items.count, 3), id: \.self) { idx in
-                        let item = items[idx]
-                        Link(destination: URL(string: item.deepLink)!) {
+                let events = payload?.upcoming ?? []
+                if events.isEmpty {
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 16))
+                                .foregroundColor(.white.opacity(0.3))
+                            Text("No upcoming events")
+                                .font(.system(size: 12))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                        .padding(.vertical, 12)
+                        Spacer()
+                    }
+                } else {
+                    ForEach(Array(events.prefix(3).enumerated()), id: \.offset) { _, event in
+                        Link(destination: URL(string: event.deepLink) ?? URL(string: "https://dvntlive.app/events")!) {
                             HStack(spacing: 10) {
-                                // Date mini badge
-                                if let parts = dateParts(from: item.startAt) {
+                                if let parts = dateParts(from: event.startAt) {
                                     VStack(spacing: 0) {
-                                        Text(parts.day).font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.white)
-                                        Text(parts.month).font(.system(size: 7, weight: .bold)).foregroundColor(.white.opacity(0.5))
+                                        Text(parts.day)
+                                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                                            .foregroundColor(.white)
+                                        Text(parts.month)
+                                            .font(.system(size: 8, weight: .bold))
+                                            .foregroundColor(dvntPurple)
                                     }
-                                    .frame(width: 32, height: 32)
+                                    .frame(width: 36, height: 36)
                                     .background(Color.white.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 }
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.title)
+                                    Text(event.title)
                                         .font(.system(size: 13, weight: .semibold))
                                         .foregroundColor(.white)
                                         .lineLimit(1)
-                                    if let v = item.venueName {
-                                        Text(v).font(.system(size: 10)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
+                                    HStack(spacing: 4) {
+                                        if let v = event.venueName {
+                                            Text(v)
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.white.opacity(0.5))
+                                                .lineLimit(1)
+                                        }
+                                        if let time = timeString(from: event.startAt) {
+                                            Text("·").foregroundColor(.white.opacity(0.3))
+                                            Text(time)
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.white.opacity(0.5))
+                                        }
                                     }
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.25))
+                                    .foregroundColor(.white.opacity(0.2))
                             }
-                            .padding(.horizontal, 14).padding(.vertical, 5)
+                            .padding(.horizontal, 14).padding(.vertical, 6)
                         }
                     }
-                } else {
-                    Text("No more events this week")
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.4))
-                        .padding(.horizontal, 14)
                 }
             }
             Spacer(minLength: 0)
         }
-        .background(Color.black)
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Lock Screen: accessoryInline
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@available(iOSApplicationExtension 16.0, *)
+struct InlineAccessoryWidget: View {
+    let payload: SurfacePayload?
+    var body: some View {
+        if let ev = payload?.featured {
+            if let cd = countdownString(from: ev.startAt) {
+                Text("\(ev.title) · \(cd)")
+                    .lineLimit(1)
+            } else {
+                Text(ev.title)
+                    .lineLimit(1)
+            }
+        } else {
+            Text("DVNT")
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Lock Screen: accessoryRectangular
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@available(iOSApplicationExtension 16.0, *)
+struct RectangularAccessoryWidget: View {
+    let payload: SurfacePayload?
+    var body: some View {
+        if let ev = payload?.featured {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(ev.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .lineLimit(1)
+                    .widgetAccentable()
+                if let v = ev.venueName {
+                    HStack(spacing: 3) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 8))
+                        Text(v)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                    }
+                }
+                if ev.isUpcoming, let cd = countdownString(from: ev.startAt) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 8))
+                        Text(cd)
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                } else if let time = timeString(from: ev.startAt) {
+                    Text(time)
+                        .font(.system(size: 11))
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("DVNT")
+                    .font(.system(size: 14, weight: .bold))
+                    .widgetAccentable()
+                Text("No upcoming events")
+                    .font(.system(size: 11))
+            }
+        }
+    }
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Lock Screen: accessoryCircular
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+@available(iOSApplicationExtension 16.0, *)
+struct CircularAccessoryWidget: View {
+    let payload: SurfacePayload?
+    var body: some View {
+        if let ev = payload?.featured, let parts = dateParts(from: ev.startAt) {
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 0) {
+                    Text(parts.day)
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                    Text(parts.month)
+                        .font(.system(size: 8, weight: .bold))
+                        .widgetAccentable()
+                }
+            }
+        } else {
+            ZStack {
+                AccessoryWidgetBackground()
+                Image(systemName: "calendar")
+                    .font(.system(size: 18, weight: .medium))
+            }
+        }
     }
 }

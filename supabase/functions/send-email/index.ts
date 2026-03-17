@@ -1,11 +1,12 @@
 /**
  * Edge Function: send-email
  *
+ * ⚠️  DEAD CODE — No client or edge function calls this.
+ * Better Auth handles transactional email (confirm, reset) directly.
+ * Safe to delete once confirmed no future use.
+ *
  * Centralized transactional email delivery via Resend.
  * Supports templates: welcome, confirm-email, reset-password.
- *
- * ALL transactional email in the app MUST go through this function.
- * Do NOT send email inline from client code or other edge functions.
  *
  * Required Deno env vars:
  *   RESEND_API_KEY        — Resend API token (re_...)
@@ -14,7 +15,6 @@
  *   SUPABASE_URL          — Supabase project URL
  *   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
  */
-
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

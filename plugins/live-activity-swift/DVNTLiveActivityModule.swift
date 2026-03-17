@@ -29,8 +29,8 @@ class DVNTLiveActivityModule: NSObject {
         }
         let existingActivities = Activity<DVNTLiveAttributes>.activities
         Task {
-            let (tile1HeroPath, tile2LocalPaths) = await downloadAllImagesToAppGroup(payload: payload)
-            let state = buildContentState(from: payload, tile1HeroLocalPath: tile1HeroPath, tile2LocalPaths: tile2LocalPaths)
+            let heroPath = await downloadHeroImage(payload: payload)
+            let state = buildContentState(from: payload, heroLocalPath: heroPath)
             if let existing = existingActivities.first {
                 await existing.update(ActivityContent(state: state, staleDate: Date().addingTimeInterval(3600)))
                 print("[DVNTLiveActivity] Updated existing activity")
@@ -44,115 +44,8 @@ class DVNTLiveActivityModule: NSObject {
                     print("[DVNTLiveActivity] Failed to start activity: \(error)")
                 }
             }
-            persistToUserDefaults(payload: payload, tile1HeroLocalPath: tile1HeroPath, tile2LocalPaths: tile2LocalPaths)
+            persistToUserDefaults(payload: payload, heroLocalPath: heroPath)
         }
-    }
-
-    private func persistToUserDefaults(payload: [String: Any], tile1HeroLocalPath: String?, tile2LocalPaths: [String]) {
-        guard let defaults = UserDefaults(suiteName: APP_GROUP) else { return }
-        var augmented = payload
-        if var tile1 = augmented["tile1"] as? [String: Any] {
-            tile1["heroLocalPath"] = tile1HeroLocalPath
-            augmented["tile1"] = tile1
-        }
-        if var tile2 = augmented["tile2"] as? [String: Any] {
-            tile2["localPaths"] = tile2LocalPaths
-            augmented["tile2"] = tile2
-        }
-        if let jsonData = try? JSONSerialization.data(withJSONObject: augmented),
-           let json = String(data: jsonData, encoding: .utf8) {
-            defaults.set(json, forKey: "surfacePayload")
-            defaults.synchronize()
-        }
-    }
-
-    private func downloadAllImagesToAppGroup(payload: [String: Any]) async -> (String?, [String]) {
-        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP) else {
-            print("[DVNTLiveActivity] App Group container nil — check entitlements")
-            return (nil, Array(repeating: "", count: 6))
-        }
-        let thumbsDir = container.appendingPathComponent("la_thumbs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: thumbsDir, withIntermediateDirectories: true)
-
-        // Voltra's <Image source={{ assetName }} /> reads from voltra_images/{key}.
-        // Voltra's own preloadImages enforces a 4KB limit that hero images exceed.
-        // We bypass that by writing directly to the same directory Voltra reads from.
-        let voltraDir = container.appendingPathComponent("voltra_images", isDirectory: true)
-        try? FileManager.default.createDirectory(at: voltraDir, withIntermediateDirectories: true)
-
-        var tile1HeroPath: String?
-        let tile1 = payload["tile1"] as? [String: Any] ?? [:]
-        let heroStr = tile1["heroThumbUrl"] as? String
-        if let urlStr = heroStr, !urlStr.isEmpty, let heroUrl = URL(string: urlStr) {
-            do {
-                let (data, _) = try await URLSession.shared.data(from: heroUrl)
-                if UIImage(data: data) != nil {
-                    // Save to la_thumbs (legacy native widget path)
-                    let fileURL = thumbsDir.appendingPathComponent("hero.png")
-                    try data.write(to: fileURL, options: .atomic)
-                    tile1HeroPath = "la_thumbs/hero.png"
-                    // Save to voltra_images so Voltra's <Image assetName="event-hero-0"> resolves
-                    let voltraURL = voltraDir.appendingPathComponent("event-hero-0")
-                    try data.write(to: voltraURL, options: .atomic)
-                    print("[DVNTLiveActivity] Tile1 hero ok (\(data.count)B)")
-                } else {
-                    print("[DVNTLiveActivity] Tile1 hero: invalid image data")
-                }
-            } catch {
-                print("[DVNTLiveActivity] Tile1 hero failed: \(error.localizedDescription)")
-            }
-        } else {
-            print("[DVNTLiveActivity] Tile1 hero: no URL (\(heroStr ?? "null"))")
-        }
-
-        // Tile3 upcoming events → voltra_images/event-hero-1, event-hero-2
-        let tile3 = payload["tile3"] as? [String: Any] ?? [:]
-        let tile3Items = tile3["items"] as? [[String: Any]] ?? []
-        for (i, item) in tile3Items.prefix(2).enumerated() {
-            if let urlStr = item["heroThumbUrl"] as? String, !urlStr.isEmpty, let url = URL(string: urlStr) {
-                do {
-                    let (data, _) = try await URLSession.shared.data(from: url)
-                    if UIImage(data: data) != nil {
-                        let voltraURL = voltraDir.appendingPathComponent("event-hero-\(i + 1)")
-                        try data.write(to: voltraURL, options: .atomic)
-                        print("[DVNTLiveActivity] Tile3[\(i)] hero ok (\(data.count)B)")
-                    }
-                } catch {
-                    print("[DVNTLiveActivity] Tile3[\(i)] hero failed: \(error.localizedDescription)")
-                }
-            }
-        }
-
-        let tile2 = payload["tile2"] as? [String: Any] ?? [:]
-        let items = tile2["items"] as? [[String: Any]] ?? []
-        var localPaths: [String] = []
-        for (i, item) in items.prefix(6).enumerated() {
-            guard let urlStr = item["thumbUrl"] as? String, !urlStr.isEmpty,
-                  let url = URL(string: urlStr) else {
-                localPaths.append("")
-                if i == 0 { print("[DVNTLiveActivity] Tile2[\(i)]: no thumbUrl") }
-                continue
-            }
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                if UIImage(data: data) != nil {
-                    let filename = "t2_\(i).png"
-                    let fileURL = thumbsDir.appendingPathComponent(filename)
-                    try data.write(to: fileURL, options: .atomic)
-                    localPaths.append("la_thumbs/\(filename)")
-                } else {
-                    localPaths.append("")
-                    print("[DVNTLiveActivity] Tile2[\(i)]: invalid image data")
-                }
-            } catch {
-                localPaths.append("")
-                print("[DVNTLiveActivity] Tile2[\(i)]: \(error.localizedDescription)")
-            }
-        }
-        while localPaths.count < 6 { localPaths.append("") }
-        let okCount = localPaths.filter { !$0.isEmpty }.count
-        print("[DVNTLiveActivity] Tile2: \(okCount)/6 downloaded")
-        return (tile1HeroPath, Array(localPaths.prefix(6)))
     }
 
     @objc func endLiveActivity() {
@@ -165,39 +58,83 @@ class DVNTLiveActivityModule: NSObject {
         }
     }
 
-    private func buildContentState(from payload: [String: Any], tile1HeroLocalPath: String? = nil, tile2LocalPaths: [String] = []) -> DVNTLiveAttributes.ContentState {
+    // ── Private Helpers ──
+
+    private func persistToUserDefaults(payload: [String: Any], heroLocalPath: String?) {
+        guard let defaults = UserDefaults(suiteName: APP_GROUP) else { return }
+        var augmented = payload
+        if var tile1 = augmented["tile1"] as? [String: Any] {
+            tile1["heroLocalPath"] = heroLocalPath
+            augmented["tile1"] = tile1
+        }
+        if let jsonData = try? JSONSerialization.data(withJSONObject: augmented),
+           let json = String(data: jsonData, encoding: .utf8) {
+            defaults.set(json, forKey: "surfacePayload")
+            defaults.synchronize()
+        }
+    }
+
+    private func downloadHeroImage(payload: [String: Any]) async -> String? {
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: APP_GROUP) else {
+            print("[DVNTLiveActivity] App Group container nil")
+            return nil
+        }
+        let thumbsDir = container.appendingPathComponent("la_thumbs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: thumbsDir, withIntermediateDirectories: true)
+
         let tile1 = payload["tile1"] as? [String: Any] ?? [:]
-        let tile2 = payload["tile2"] as? [String: Any] ?? [:]
+        guard let urlStr = tile1["heroThumbUrl"] as? String, !urlStr.isEmpty,
+              let heroUrl = URL(string: urlStr) else {
+            print("[DVNTLiveActivity] No hero URL")
+            return nil
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: heroUrl)
+            guard UIImage(data: data) != nil else {
+                print("[DVNTLiveActivity] Invalid hero image data")
+                return nil
+            }
+            let fileURL = thumbsDir.appendingPathComponent("hero.png")
+            try data.write(to: fileURL, options: .atomic)
+            print("[DVNTLiveActivity] Hero downloaded (\(data.count)B)")
+            return "la_thumbs/hero.png"
+        } catch {
+            print("[DVNTLiveActivity] Hero download failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func buildContentState(from payload: [String: Any], heroLocalPath: String?) -> DVNTLiveAttributes.ContentState {
+        let tile1 = payload["tile1"] as? [String: Any] ?? [:]
         let tile3 = payload["tile3"] as? [String: Any] ?? [:]
         let weather = payload["weather"] as? [String: Any]
-        let tile2Items = tile2["items"] as? [[String: Any]] ?? []
         let tile3Items = tile3["items"] as? [[String: Any]] ?? []
 
-        let tileIndex = (payload["currentTile"] as? Int) ?? 0
+        // Derive isLive: event started but within 8h window
+        let isUpcoming = tile1["isUpcoming"] as? Bool ?? false
+        var isLive = false
+        if !isUpcoming, let startAt = tile1["startAt"] as? String,
+           let startDate = ISO8601DateFormatter().date(from: startAt) {
+            let elapsed = Date().timeIntervalSince(startDate)
+            isLive = elapsed >= 0 && elapsed < 8 * 3600
+        }
+
         return DVNTLiveAttributes.ContentState(
-            generatedAt: payload["generatedAt"] as? String ?? "",
-            currentTile: max(0, min(tileIndex, 2)),
-            tile1EventId: tile1["eventId"] as? String,
-            tile1Title: tile1["title"] as? String ?? "DVNT",
-            tile1StartAt: tile1["startAt"] as? String,
-            tile1VenueName: tile1["venueName"] as? String,
-            tile1City: tile1["city"] as? String,
-            tile1HeroThumbUrl: tile1["heroThumbUrl"] as? String,
-            tile1HeroLocalPath: tile1HeroLocalPath,
-            tile1IsUpcoming: tile1["isUpcoming"] as? Bool ?? false,
-            tile1DeepLink: tile1["deepLink"] as? String ?? "https://dvntlive.app/events",
-            tile2WeekStartISO: tile2["weekStartISO"] as? String ?? "",
-            tile2Ids: tile2Items.map { $0["id"] as? String ?? "" },
-            tile2ThumbUrls: tile2Items.map { $0["thumbUrl"] as? String ?? "" },
-            tile2LocalPaths: tile2LocalPaths,
-            tile2DeepLinks: tile2Items.map { $0["deepLink"] as? String ?? "" },
-            tile2RecapDeepLink: tile2["recapDeepLink"] as? String ?? "",
-            tile3EventIds: tile3Items.map { $0["eventId"] as? String ?? "" },
-            tile3Titles: tile3Items.map { $0["title"] as? String ?? "" },
-            tile3StartAts: tile3Items.map { $0["startAt"] as? String ?? "" },
-            tile3VenueNames: tile3Items.map { $0["venueName"] as? String ?? "" },
-            tile3DeepLinks: tile3Items.map { $0["deepLink"] as? String ?? "" },
-            tile3SeeAllDeepLink: tile3["seeAllDeepLink"] as? String ?? "",
+            eventId: tile1["eventId"] as? String,
+            title: tile1["title"] as? String ?? "DVNT",
+            startAt: tile1["startAt"] as? String,
+            venueName: tile1["venueName"] as? String,
+            city: tile1["city"] as? String,
+            category: tile1["category"] as? String,
+            heroLocalPath: heroLocalPath,
+            isUpcoming: isUpcoming,
+            isLive: isLive,
+            deepLink: tile1["deepLink"] as? String ?? "https://dvntlive.app/events",
+            attendeeCount: tile1["attendeeCount"] as? Int,
+            upcomingTitles: tile3Items.map { $0["title"] as? String ?? "" },
+            upcomingStartAts: tile3Items.map { $0["startAt"] as? String ?? "" },
+            upcomingVenueNames: tile3Items.map { $0["venueName"] as? String ?? "" },
+            upcomingDeepLinks: tile3Items.map { $0["deepLink"] as? String ?? "" },
             weatherIcon: weather?["icon"] as? String,
             weatherTempF: weather?["tempF"] as? Int,
             weatherLabel: weather?["label"] as? String

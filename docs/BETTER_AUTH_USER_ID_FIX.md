@@ -3,18 +3,21 @@
 ## Problem
 
 After switching from Supabase Auth to Better Auth, API calls were failing with errors like:
+
 - `[Users] getLikedPosts error`
 - Various "not authenticated" errors
 
 ## Root Cause
 
-**Better Auth returns a UUID** for `user.id` (e.g., `pKa8v6movw4tdx0uhVN9v2IPuAEwD7ug`), but the **Payload CMS database uses integer IDs** (e.g., `11`).
+**Better Auth returns a UUID** for `user.id` (e.g., `pKa8v6movw4tdx0uhVN9v2IPuAEwD7ug`), but the **`users` table uses integer IDs** (e.g., `11`).
 
 The users table has two ID columns:
-- `id` - Integer (Payload CMS internal ID)
+
+- `id` - Integer (app profile ID)
 - `auth_id` - UUID (Better Auth ID)
 
 When logging in, the app was storing the Better Auth UUID as `user.id` in the auth store. Then API calls like `getLikedPosts` would do:
+
 ```typescript
 .eq(DB.likes.userId, parseInt(userId))
 ```
@@ -23,7 +26,7 @@ Since `parseInt("pKa8v6movw4tdx0uhVN9v2IPuAEwD7ug")` returns `NaN`, all queries 
 
 ## Solution
 
-After Better Auth login/signup/session restore, fetch the Payload CMS profile using the Better Auth UUID to get the correct integer ID.
+After Better Auth login/signup/session restore, fetch the `users` profile using the Better Auth UUID to get the correct integer ID.
 
 ### Files Modified
 
@@ -59,7 +62,7 @@ Better Auth Login → UUID (e.g., "abc-123-def")
 
 ```sql
 -- users table
-id          INTEGER PRIMARY KEY  -- Payload CMS internal ID
+id          INTEGER PRIMARY KEY  -- app profile integer ID
 auth_id     UUID                 -- Better Auth ID
 email       TEXT
 username    TEXT
@@ -75,9 +78,9 @@ The `auth.getProfile()` function in `lib/api/auth.ts` handles both UUID and inte
 const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-...$/i.test(userId);
 
 if (isUUID) {
-  query = query.eq(DB.users.authId, userId);  // Query by auth_id
+  query = query.eq(DB.users.authId, userId); // Query by auth_id
 } else if (/^\d+$/.test(userId)) {
-  query = query.eq(DB.users.id, parseInt(userId));  // Query by id
+  query = query.eq(DB.users.id, parseInt(userId)); // Query by id
 }
 ```
 

@@ -61,6 +61,11 @@ export const useAuthStore = create<AuthStore>()(
         } catch (error) {
           console.error("[AuthStore] logout error:", error);
         }
+        // End iOS Live Activity so it doesn't linger after sign-out
+        const {
+          endLiveActivity,
+        } = require("@/src/live-surface/native/ios-bridge");
+        endLiveActivity();
         // CRITICAL: Clear persisted state immediately to prevent identity leak
         // If another user logs in on this device, they must NOT see stale data
         set({ user: null, isAuthenticated: false });

@@ -1,54 +1,55 @@
 /**
- * useDebounce hook - delays updating a value until after a specified delay
+ * useDebounce hook - delays updating a value until after a specified delay.
+ * Uses TanStack Debouncer internally (no setTimeout).
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Debouncer } from "@tanstack/pacer";
 
 export function useDebounce<T>(value: T, delay: number = 300): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
+  const debouncerRef = useRef(
+    new Debouncer(setDebouncedValue, { wait: delay }),
+  );
 
+  useEffect(() => {
+    debouncerRef.current.maybeExecute(value);
+  }, [value]);
+
+  useEffect(() => {
     return () => {
-      clearTimeout(timer);
+      debouncerRef.current.cancel();
     };
-  }, [value, delay]);
+  }, []);
 
   return debouncedValue;
 }
 
 /**
- * useDebouncedCallback - returns a debounced version of a callback function
+ * useDebouncedCallback - returns a debounced version of a callback function.
+ * Uses TanStack Debouncer internally (no setTimeout).
  */
 export function useDebouncedCallback<T extends (...args: any[]) => void>(
   callback: T,
-  delay: number = 300
-): T {
-  const [timeoutId, setTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
+  delay: number = 300,
+): (...args: Parameters<T>) => void {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
-  const debouncedCallback = ((...args: Parameters<T>) => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    
-    const id = setTimeout(() => {
-      callback(...args);
-    }, delay);
-    
-    setTimeoutId(id);
-  }) as T;
+  const debouncerRef = useRef(
+    new Debouncer((...args: Parameters<T>) => callbackRef.current(...args), {
+      wait: delay,
+    }),
+  );
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      debouncerRef.current.cancel();
     };
-  }, [timeoutId]);
+  }, []);
 
-  return debouncedCallback;
+  return useCallback((...args: Parameters<T>) => {
+    debouncerRef.current.maybeExecute(...args);
+  }, []);
 }

@@ -162,7 +162,7 @@ export const auth = {
           avatar:${DB.users.avatarId}(url)
         `;
 
-      // Check if userId is numeric (Payload CMS internal ID)
+      // Check if userId is numeric (users table integer ID)
       const isNumeric = /^\d+$/.test(userId);
 
       let data: any = null;

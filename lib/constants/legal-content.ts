@@ -2,7 +2,7 @@
  * DVNT Legal Content
  *
  * Static fallback content for legal pages.
- * Primary source should be Payload CMS collection: legal-pages
+ * Static content — no external CMS dependency
  */
 
 export const LEGAL_CONTENT = {

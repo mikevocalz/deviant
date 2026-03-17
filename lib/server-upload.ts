@@ -248,6 +248,53 @@ export async function uploadMultipleToServer(
 }
 
 /**
+ * Delete files from Bunny CDN via the media-upload Edge Function.
+ * Bunny credentials stay server-side.
+ *
+ * @param keys - Array of Bunny storage paths (e.g. "post-image/userId/2026/03/uuid.jpg")
+ */
+export async function deleteFromServer(
+  keys: string[],
+): Promise<{ ok: boolean; results: { key: string; deleted: boolean }[] }> {
+  try {
+    const authToken = await getAuthToken();
+    if (!authToken) {
+      console.error("[ServerDelete] Not authenticated");
+      return {
+        ok: false,
+        results: keys.map((key) => ({ key, deleted: false })),
+      };
+    }
+
+    const resp = await fetch(MEDIA_UPLOAD_URL, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        apikey: SUPABASE_ANON_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ keys }),
+    });
+
+    const body = await resp.json();
+    if (body.ok) {
+      console.log(
+        "[ServerDelete] Success:",
+        body.results?.length,
+        "keys processed",
+      );
+      return { ok: true, results: body.results || [] };
+    }
+
+    console.error("[ServerDelete] Failed:", body.error);
+    return { ok: false, results: keys.map((key) => ({ key, deleted: false })) };
+  } catch (error) {
+    console.error("[ServerDelete] Error:", error);
+    return { ok: false, results: keys.map((key) => ({ key, deleted: false })) };
+  }
+}
+
+/**
  * Check if upload is available
  */
 export async function checkUploadConfig(): Promise<{

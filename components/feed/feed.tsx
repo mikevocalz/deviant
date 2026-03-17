@@ -9,7 +9,10 @@ import {
 import { LegendList } from "@/components/list";
 import type { LegendListRef } from "@/components/list";
 import { FeedPost } from "./feed-post";
+import { FeedEventCard } from "./feed-event-card";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
+import { useForYouEvents } from "@/lib/hooks/use-events";
+import type { Event } from "@/lib/hooks/use-events";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useMemo, useEffect, useRef, useCallback, memo } from "react";
@@ -34,6 +37,12 @@ import {
   useLikesSheet,
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
+
+type FeedPostItem = { _type: "post"; data: Post };
+type FeedEventItem = { _type: "event"; data: Event };
+type FeedItem = FeedPostItem | FeedEventItem;
+
+const EVENT_INTERVAL = 7;
 
 const REFRESH_COLORS = ["#34A2DF", "#8A40CF", "#FF5BFC"];
 
@@ -305,21 +314,44 @@ export function Feed() {
     return allPosts.filter((post) => !post.isNSFW);
   }, [allPosts, nsfwEnabled]);
 
+  // Fetch events for inline feed cards
+  const { data: forYouEvents } = useForYouEvents();
+
+  // Interleave event cards every EVENT_INTERVAL posts
+  const feedItems: FeedItem[] = useMemo(() => {
+    const events = forYouEvents ?? [];
+    const items: FeedItem[] = [];
+    let eventIdx = 0;
+    for (let i = 0; i < filteredPosts.length; i++) {
+      items.push({ _type: "post", data: filteredPosts[i] });
+      if ((i + 1) % EVENT_INTERVAL === 0 && eventIdx < events.length) {
+        items.push({ _type: "event", data: events[eventIdx] });
+        eventIdx++;
+      }
+    }
+    return items;
+  }, [filteredPosts, forYouEvents]);
+
   const renderItem = useCallback(
-    ({ item, index }: { item: Post; index: number }) => (
-      <AnimatedFeedPost
-        item={item}
-        index={index}
-        onShowLikes={handleShowLikes}
-      />
-    ),
+    ({ item, index }: { item: FeedItem; index: number }) => {
+      if (item._type === "event") {
+        return <FeedEventCard event={item.data} />;
+      }
+      return (
+        <AnimatedFeedPost
+          item={item.data}
+          index={index}
+          onShowLikes={handleShowLikes}
+        />
+      );
+    },
     [handleShowLikes],
   );
 
-  const keyExtractor = useCallback(
-    (item: Post, index: number) => item?.id || `post-${index}`,
-    [],
-  );
+  const keyExtractor = useCallback((item: FeedItem, index: number) => {
+    if (item._type === "event") return `feed-event-${item.data.id}`;
+    return item.data?.id || `post-${index}`;
+  }, []);
 
   const handleEndReached = useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -376,18 +408,25 @@ export function Feed() {
     ({
       viewableItems,
     }: {
-      viewableItems: { item: Post; isViewable: boolean }[];
+      viewableItems: { item: FeedItem; isViewable: boolean }[];
     }) => {
       if (viewableItems.length > 0) {
-        const firstViewable = viewableItems[0];
-        if (firstViewable?.isViewable && firstViewable?.item?.id) {
-          setActivePostId(firstViewable.item.id);
+        // Find first viewable post (skip event cards for active post tracking)
+        const firstPost = viewableItems.find(
+          (v) => v.isViewable && v.item._type === "post",
+        );
+        if (firstPost && firstPost.item._type === "post") {
+          setActivePostId(firstPost.item.data.id);
         }
         // Eager prefetch comments for newly visible posts
         viewableItems.forEach(({ item }) => {
-          if (item?.id && !prefetchedComments.has(item.id)) {
-            prefetchedComments.add(item.id);
-            prefetchComments(queryClient, item.id);
+          if (
+            item._type === "post" &&
+            item.data?.id &&
+            !prefetchedComments.has(item.data.id)
+          ) {
+            prefetchedComments.add(item.data.id);
+            prefetchComments(queryClient, item.data.id);
           }
         });
       } else {
@@ -423,12 +462,12 @@ export function Feed() {
     <>
       <LegendList
         ref={listRef}
-        data={filteredPosts}
+        data={feedItems}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={
-          filteredPosts.length === 0
+          feedItems.length === 0
             ? { flex: 1, paddingBottom: 80 }
             : { paddingBottom: 80 }
         }

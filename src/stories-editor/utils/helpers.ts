@@ -380,17 +380,8 @@ export const rgbaToHex = (r: number, g: number, b: number): string => {
 };
 
 // ---- Debounce ----
-
-export const debounce = <T extends (...args: any[]) => any>(
-  func: T,
-  wait: number,
-): ((...args: Parameters<T>) => void) => {
-  let timeout: NodeJS.Timeout;
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-};
+// Re-export from @tanstack/pacer — do NOT use setTimeout as a debounce mechanism.
+export { debounce } from "@tanstack/pacer";
 
 // ---- Format Duration ----
 

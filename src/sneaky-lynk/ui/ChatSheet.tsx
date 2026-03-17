@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import { View, Text, Pressable, Platform, FlatList } from "react-native";
+import { View, Text, Pressable, Platform } from "react-native";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LegendList } from "@/components/list";
 import { PasteInput } from "@/components/ui/paste-input";
@@ -136,12 +136,14 @@ function MentionTypeahead({
         maxHeight: 200,
       }}
     >
-      <FlatList
+      <LegendList
         data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
+        keyExtractor={(item: SneakyUser) => item.id}
+        renderItem={({ item }: { item: SneakyUser }) => (
           <MentionSuggestion user={item} onSelect={onSelect} />
         )}
+        estimatedItemSize={44}
+        recycleItems
         keyboardShouldPersistTaps="handled"
       />
     </View>
