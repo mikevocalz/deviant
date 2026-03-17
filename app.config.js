@@ -288,21 +288,22 @@ export default {
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
         build: {
-          experimental: {
-            ios: {
-              appExtensions: [
-                {
-                  targetName: "DVNTHomeWidgetExtension",
-                  bundleIdentifier: "com.dvnt.app.DVNTHomeWidgetExtension",
-                  entitlements: {
-                    "com.apple.security.application-groups": [
-                      "group.com.dvnt.app",
-                    ],
-                  },
-                },
-              ],
-            },
-          },
+          // Widget extension disabled — re-enable when live activity crash is fixed
+          // experimental: {
+          //   ios: {
+          //     appExtensions: [
+          //       {
+          //         targetName: "DVNTHomeWidgetExtension",
+          //         bundleIdentifier: "com.dvnt.app.DVNTHomeWidgetExtension",
+          //         entitlements: {
+          //           "com.apple.security.application-groups": [
+          //             "group.com.dvnt.app",
+          //           ],
+          //         },
+          //       },
+          //     ],
+          //   },
+          // },
         },
       },
     },
