@@ -7,6 +7,7 @@ import BottomSheet, {
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { Share2, Users, Flag, ShieldBan, X } from "lucide-react-native";
 import { SHEET_SNAPS_ACTION } from "@/lib/constants/sheets";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 
 interface ProfileActionSheetProps {
   visible: boolean;
@@ -87,7 +88,7 @@ export function ProfileActionSheet({
       enableOverDrag={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
-      backgroundStyle={styles.sheetBackground}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={styles.handleIndicator}
       style={{ zIndex: 9999, elevation: 9999 }}
     >

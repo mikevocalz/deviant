@@ -25,6 +25,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useChatStore, type SharedPostContext } from "@/lib/stores/chat-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useColorScheme } from "@/lib/hooks";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import type { Conversation } from "@/lib/api/messages";
 
 interface ShareToInboxSheetProps {
@@ -186,10 +187,7 @@ export function ShareToInboxSheet({
       backdropComponent={renderBackdrop}
       detached={true}
       bottomInset={46}
-      backgroundStyle={{
-        backgroundColor: colors.card,
-        borderRadius: 24,
-      }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{
         backgroundColor: colors.mutedForeground,
         width: 40,

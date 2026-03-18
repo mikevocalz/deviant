@@ -26,6 +26,7 @@ import {
   Clock,
   CreditCard,
 } from "lucide-react-native";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import { usePromotionStore } from "@/lib/stores/promotion-store";
@@ -183,7 +184,7 @@ export function PromoteEventSheet() {
       onDismiss={handleDismiss}
       enablePanDownToClose
       backdropComponent={renderBackdrop}
-      backgroundStyle={{ backgroundColor: "#111" }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{ backgroundColor: "#444" }}
       style={{ zIndex: 9999, elevation: 9999 }}
     >

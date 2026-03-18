@@ -6,17 +6,11 @@
  */
 
 import { useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   BarChart3,
   ArrowUpRight,
   ArrowDownLeft,
@@ -95,16 +89,7 @@ export default function HostTransactionsScreen() {
   }, [loadTransactions]);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Transactions
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {/* Filter chips */}
       <View className="flex-row px-4 pb-3 gap-2">
         {FILTER_OPTIONS.map((opt) => {
@@ -189,7 +174,10 @@ function TransactionRow({
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 30).duration(250).springify().damping(20)}
+      entering={FadeInDown.delay(index * 30)
+        .duration(250)
+        .springify()
+        .damping(20)}
     >
       <View className="flex-row items-center px-4 py-3 border-b border-border/50">
         <View

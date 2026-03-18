@@ -6,21 +6,11 @@
  */
 
 import { useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import {
-  ArrowLeft,
-  RotateCcw,
-  Clock,
-  ChevronRight,
-} from "lucide-react-native";
+import { RotateCcw, Clock, ChevronRight } from "lucide-react-native";
 import { LegendList } from "@/components/list";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { refundsApi } from "@/lib/api/payments";
@@ -65,12 +55,8 @@ export default function RefundsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const {
-    refunds,
-    refundsLoading,
-    setRefunds,
-    setRefundsLoading,
-  } = usePaymentsStore();
+  const { refunds, refundsLoading, setRefunds, setRefundsLoading } =
+    usePaymentsStore();
 
   const loadRefunds = useCallback(async () => {
     setRefundsLoading(true);
@@ -89,16 +75,7 @@ export default function RefundsScreen() {
   }, [loadRefunds]);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Refunds
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {refundsLoading && refunds.length === 0 && (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />
@@ -147,12 +124,13 @@ function RefundCard({ refund, index }: { refund: Refund; index: number }) {
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).duration(300).springify().damping(18)}
+      entering={FadeInDown.delay(index * 50)
+        .duration(300)
+        .springify()
+        .damping(18)}
     >
       <Pressable
-        onPress={() =>
-          router.push(`/settings/order/${refund.orderId}` as any)
-        }
+        onPress={() => router.push(`/settings/order/${refund.orderId}` as any)}
         className="mx-4 mb-3 bg-card rounded-2xl border border-border p-4 active:bg-secondary/50"
       >
         <View className="flex-row items-start justify-between mb-2">
@@ -160,10 +138,7 @@ function RefundCard({ refund, index }: { refund: Refund; index: number }) {
             <Text className="text-[15px] font-sans-semibold text-foreground">
               {formatCents(refund.amountCents)} refund
               {refund.isPartial && (
-                <Text className="text-muted-foreground">
-                  {" "}
-                  (partial)
-                </Text>
+                <Text className="text-muted-foreground"> (partial)</Text>
               )}
             </Text>
             <Text className="text-xs text-muted-foreground mt-0.5 capitalize">

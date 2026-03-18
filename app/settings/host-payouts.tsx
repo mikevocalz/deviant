@@ -6,17 +6,11 @@
  */
 
 import { useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   Banknote,
   AlertCircle,
   Calendar,
@@ -25,10 +19,7 @@ import {
 import { LegendList } from "@/components/list";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { hostPayoutsApi } from "@/lib/api/payments";
-import {
-  PAYOUT_STATUS_CONFIG,
-  type PayoutRecord,
-} from "@/lib/types/payments";
+import { PAYOUT_STATUS_CONFIG, type PayoutRecord } from "@/lib/types/payments";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -46,12 +37,8 @@ export default function HostPayoutsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const {
-    payouts,
-    payoutsLoading,
-    setPayouts,
-    setPayoutsLoading,
-  } = usePaymentsStore();
+  const { payouts, payoutsLoading, setPayouts, setPayoutsLoading } =
+    usePaymentsStore();
 
   const loadPayouts = useCallback(async () => {
     setPayoutsLoading(true);
@@ -70,16 +57,7 @@ export default function HostPayoutsScreen() {
   }, [loadPayouts]);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Payout History
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {payoutsLoading && payouts.length === 0 && (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />
@@ -105,9 +83,13 @@ export default function HostPayoutsScreen() {
         <LegendList
           data={payouts}
           keyExtractor={(item: PayoutRecord) => item.id}
-          renderItem={({ item, index }: { item: PayoutRecord; index: number }) => (
-            <PayoutCard payout={item} index={index} />
-          )}
+          renderItem={({
+            item,
+            index,
+          }: {
+            item: PayoutRecord;
+            index: number;
+          }) => <PayoutCard payout={item} index={index} />}
           estimatedItemSize={100}
           contentContainerStyle={{
             paddingTop: 8,
@@ -121,13 +103,22 @@ export default function HostPayoutsScreen() {
   );
 }
 
-function PayoutCard({ payout, index }: { payout: PayoutRecord; index: number }) {
+function PayoutCard({
+  payout,
+  index,
+}: {
+  payout: PayoutRecord;
+  index: number;
+}) {
   const statusConfig =
     PAYOUT_STATUS_CONFIG[payout.status] || PAYOUT_STATUS_CONFIG.pending;
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).duration(300).springify().damping(18)}
+      entering={FadeInDown.delay(index * 50)
+        .duration(300)
+        .springify()
+        .damping(18)}
     >
       <View className="mx-4 mb-3 bg-card rounded-2xl border border-border p-4">
         <View className="flex-row items-start justify-between mb-2">

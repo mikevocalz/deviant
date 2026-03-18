@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   CreditCard,
   Receipt,
   RotateCcw,
@@ -27,17 +26,7 @@ export default function PaymentsSettingsScreen() {
   const insets = useSafeAreaInsets();
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Payments
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
@@ -133,9 +122,7 @@ function SettingsRow({
         <Text className="text-[15px] font-sans-semibold text-foreground">
           {label}
         </Text>
-        <Text className="text-xs text-muted-foreground mt-0.5">
-          {subtitle}
-        </Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">{subtitle}</Text>
       </View>
       <ChevronRight size={18} color="#666" />
     </Pressable>

@@ -6,17 +6,11 @@
  */
 
 import { useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   AlertTriangle,
   Clock,
   ShieldAlert,
@@ -98,7 +92,9 @@ export default function HostDisputesScreen() {
   } = usePaymentsStore();
 
   // Re-use refunds slice for disputes (same shape)
-  const disputesList = usePaymentsStore((s) => s.refunds) as unknown as Dispute[];
+  const disputesList = usePaymentsStore(
+    (s) => s.refunds,
+  ) as unknown as Dispute[];
 
   const loadDisputes = useCallback(async () => {
     setDisputesLoading(true);
@@ -117,16 +113,7 @@ export default function HostDisputesScreen() {
   }, [loadDisputes]);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Disputes & Chargebacks
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {disputesLoading && disputesList.length === 0 && (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />
@@ -168,19 +155,16 @@ export default function HostDisputesScreen() {
   );
 }
 
-function DisputeCard({
-  dispute,
-  index,
-}: {
-  dispute: Dispute;
-  index: number;
-}) {
+function DisputeCard({ dispute, index }: { dispute: Dispute; index: number }) {
   const statusConfig =
     DISPUTE_STATUS_CONFIG[dispute.status] || DISPUTE_STATUS_CONFIG.under_review;
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).duration(300).springify().damping(18)}
+      entering={FadeInDown.delay(index * 50)
+        .duration(300)
+        .springify()
+        .damping(18)}
     >
       <View className="mx-4 mb-3 bg-card rounded-2xl border border-border p-4">
         <View className="flex-row items-start justify-between mb-2">

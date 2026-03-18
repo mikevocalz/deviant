@@ -12,7 +12,7 @@
  * Params: ?orderId=xxx&type=receipt|invoice|ticket
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -22,10 +22,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { WebView } from "react-native-webview";
 import Animated, { FadeIn } from "react-native-reanimated";
 import {
-  ArrowLeft,
   Printer,
   Share2,
   ExternalLink,
@@ -51,6 +51,7 @@ export default function ReceiptViewerScreen() {
     type?: string;
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
 
@@ -165,38 +166,32 @@ export default function ReceiptViewerScreen() {
       ? receiptPdfHtml({ order: activeOrder! })
       : undefined;
 
-  return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          {docTitle}
-        </Text>
-
-        {/* Action buttons */}
-        {(hasPdfUrl || hasOrderForHtml) && (
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={handlePrint}
-              className="w-10 h-10 rounded-xl bg-muted/50 items-center justify-center"
-              hitSlop={8}
-            >
-              <Printer size={18} color="#fff" />
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: docTitle,
+      headerRight: () =>
+        hasPdfUrl || hasOrderForHtml ? (
+          <View style={{ flexDirection: "row", gap: 8 }}>
+            <Pressable onPress={handlePrint} hitSlop={8}>
+              <Printer size={20} color="#fff" />
             </Pressable>
-            <Pressable
-              onPress={handleShare}
-              className="w-10 h-10 rounded-xl bg-muted/50 items-center justify-center"
-              hitSlop={8}
-            >
-              <Share2 size={18} color="#fff" />
+            <Pressable onPress={handleShare} hitSlop={8}>
+              <Share2 size={20} color="#fff" />
             </Pressable>
           </View>
-        )}
-      </View>
+        ) : null,
+    });
+  }, [
+    navigation,
+    docTitle,
+    hasPdfUrl,
+    hasOrderForHtml,
+    handlePrint,
+    handleShare,
+  ]);
 
+  return (
+    <View className="flex-1 bg-background">
       {/* Loading */}
       {documentLoading && (
         <View className="flex-1 items-center justify-center">
@@ -227,23 +222,20 @@ export default function ReceiptViewerScreen() {
       )}
 
       {/* Empty (no document and no order to generate from) */}
-      {!documentLoading &&
-        !documentError &&
-        !hasPdfUrl &&
-        !hasOrderForHtml && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            className="flex-1 items-center justify-center px-8"
-          >
-            <FileText size={56} color="rgba(255,255,255,0.1)" />
-            <Text className="text-lg font-sans-semibold text-foreground mt-4">
-              No {docTitle.toLowerCase()} available
-            </Text>
-            <Text className="text-sm text-muted-foreground text-center mt-1">
-              This document may not have been generated yet
-            </Text>
-          </Animated.View>
-        )}
+      {!documentLoading && !documentError && !hasPdfUrl && !hasOrderForHtml && (
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          className="flex-1 items-center justify-center px-8"
+        >
+          <FileText size={56} color="rgba(255,255,255,0.1)" />
+          <Text className="text-lg font-sans-semibold text-foreground mt-4">
+            No {docTitle.toLowerCase()} available
+          </Text>
+          <Text className="text-sm text-muted-foreground text-center mt-1">
+            This document may not have been generated yet
+          </Text>
+        </Animated.View>
+      )}
 
       {/* PDF WebView */}
       {!documentLoading && pdfViewerUrl && (

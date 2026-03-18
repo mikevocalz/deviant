@@ -8,7 +8,7 @@
  * - Monochrome-safe warning for thermal printers
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -19,9 +19,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   Palette,
   Upload,
   Eye,
@@ -40,6 +40,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 
 export default function HostBrandingScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
 
@@ -151,34 +152,41 @@ export default function HostBrandingScreen() {
     [branding, setBranding],
   );
 
-  return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Receipt Branding
-        </Text>
-        {branding && (
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () =>
+        branding ? (
           <Pressable
             onPress={handleSave}
             disabled={brandingSaving}
-            className="bg-primary rounded-xl px-4 py-2"
-            style={{ opacity: brandingSaving ? 0.6 : 1 }}
+            style={{
+              backgroundColor: "#8A40CF",
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              paddingVertical: 7,
+              opacity: brandingSaving ? 0.6 : 1,
+            }}
           >
             {brandingSaving ? (
               <ActivityIndicator size="small" color="#000" />
             ) : (
-              <Text className="text-sm font-sans-bold text-primary-foreground">
+              <Text
+                style={{
+                  color: "#000",
+                  fontFamily: "Inter-Bold",
+                  fontSize: 13,
+                }}
+              >
                 Save
               </Text>
             )}
           </Pressable>
-        )}
-      </View>
+        ) : null,
+    });
+  }, [navigation, branding, brandingSaving, handleSave]);
 
+  return (
+    <View className="flex-1 bg-background">
       {brandingLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />
@@ -191,7 +199,10 @@ export default function HostBrandingScreen() {
         >
           {/* Color Logo */}
           <Animated.View
-            entering={FadeInDown.delay(50).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(50)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-card rounded-2xl border border-border p-4 mt-2"
           >
             <View className="flex-row items-center gap-2 mb-3">
@@ -234,7 +245,10 @@ export default function HostBrandingScreen() {
 
           {/* Monochrome Logo */}
           <Animated.View
-            entering={FadeInDown.delay(100).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(100)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-card rounded-2xl border border-border p-4 mt-3"
           >
             <View className="flex-row items-center gap-2 mb-3">
@@ -282,7 +296,10 @@ export default function HostBrandingScreen() {
 
           {/* Display Name */}
           <Animated.View
-            entering={FadeInDown.delay(150).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(150)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-card rounded-2xl border border-border p-4 mt-3"
           >
             <View className="flex-row items-center gap-2 mb-3">
@@ -306,7 +323,10 @@ export default function HostBrandingScreen() {
 
           {/* Fallback Text */}
           <Animated.View
-            entering={FadeInDown.delay(200).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(200)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-card rounded-2xl border border-border p-4 mt-3"
           >
             <View className="flex-row items-center gap-2 mb-3">
@@ -326,7 +346,10 @@ export default function HostBrandingScreen() {
 
           {/* Thermal Printer Info */}
           <Animated.View
-            entering={FadeInDown.delay(250).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(250)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-orange-500/5 rounded-2xl border border-orange-500/15 p-4 mt-3"
           >
             <View className="flex-row items-center gap-2 mb-2">
@@ -336,11 +359,10 @@ export default function HostBrandingScreen() {
               </Text>
             </View>
             <Text className="text-xs text-muted-foreground leading-5">
-              • Monochrome logos must be black on white{"\n"}
-              • No gradients, transparency, or fine details{"\n"}
-              • QR codes sized ≥ 1.5cm with quiet zone{"\n"}
-              • 58mm width = 384px, 80mm width = 576px{"\n"}
-              • Safe margins: 12px all sides
+              • Monochrome logos must be black on white{"\n"}• No gradients,
+              transparency, or fine details{"\n"}• QR codes sized ≥ 1.5cm with
+              quiet zone{"\n"}• 58mm width = 384px, 80mm width = 576px{"\n"}•
+              Safe margins: 12px all sides
             </Text>
           </Animated.View>
         </ScrollView>

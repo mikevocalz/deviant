@@ -24,7 +24,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   Receipt,
   Printer,
   Share2,
@@ -47,10 +46,7 @@ import {
   type Order,
   type OrderTimelineEvent,
 } from "@/lib/types/payments";
-import {
-  printHtml,
-  shareHtmlAsPdf,
-} from "@/lib/print/print-utils";
+import { printHtml, shareHtmlAsPdf } from "@/lib/print/print-utils";
 import { receiptPdfHtml } from "@/lib/print/thermal-templates";
 
 function formatDate(iso: string): string {
@@ -124,10 +120,7 @@ export default function OrderDetailScreen() {
   // Loading
   if (orderLoading && !activeOrder) {
     return (
-      <View
-        className="flex-1 bg-background items-center justify-center"
-        style={{ paddingTop: insets.top }}
-      >
+      <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator color="#8A40CF" size="large" />
       </View>
     );
@@ -136,16 +129,7 @@ export default function OrderDetailScreen() {
   // Error
   if (orderError && !activeOrder) {
     return (
-      <View
-        className="flex-1 bg-background"
-        style={{ paddingTop: insets.top }}
-      >
-        <View className="flex-row items-center px-4 py-3 gap-3">
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={22} color="#fff" />
-          </Pressable>
-          <Text className="text-lg font-sans-bold text-foreground">Order</Text>
-        </View>
+      <View className="flex-1 bg-background">
         <Animated.View
           entering={FadeIn.duration(300)}
           className="flex-1 items-center justify-center px-8"
@@ -171,17 +155,7 @@ export default function OrderDetailScreen() {
     PAYMENT_STATUS_CONFIG[activeOrder.status] || PAYMENT_STATUS_CONFIG.pending;
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Order Details
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
@@ -292,7 +266,10 @@ export default function OrderDetailScreen() {
         {/* Timeline */}
         {activeOrder.timeline && activeOrder.timeline.length > 0 && (
           <Animated.View
-            entering={FadeInDown.delay(150).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(150)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="mx-4 mt-3 bg-card rounded-2xl border border-border p-4"
           >
             <Text className="text-xs font-sans-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -311,7 +288,10 @@ export default function OrderDetailScreen() {
         {/* Tickets */}
         {activeOrder.tickets && activeOrder.tickets.length > 0 && (
           <Animated.View
-            entering={FadeInDown.delay(200).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(200)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="mx-4 mt-3 bg-card rounded-2xl border border-border p-4"
           >
             <Text className="text-xs font-sans-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -430,7 +410,10 @@ function TimelineItem({
           )}
         </View>
         {!isLast && (
-          <View className="w-px flex-1 bg-border my-1" style={{ minHeight: 16 }} />
+          <View
+            className="w-px flex-1 bg-border my-1"
+            style={{ minHeight: 16 }}
+          />
         )}
       </View>
 
@@ -469,9 +452,7 @@ function ActionButton({
     <Pressable
       onPress={onPress}
       className={`flex-row items-center justify-center gap-2 py-3.5 rounded-2xl ${
-        variant === "outline"
-          ? "bg-card border border-border"
-          : "bg-muted/50"
+        variant === "outline" ? "bg-card border border-border" : "bg-muted/50"
       } active:opacity-70 ${extraClass}`}
     >
       {icon}
