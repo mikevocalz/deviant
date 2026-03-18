@@ -141,13 +141,33 @@ Deno.serve(async (req: Request) => {
 
       case "setup": {
         const customerId = await getOrCreateCustomer(supabase, userId);
+
+        // Create SetupIntent
         const setupIntent = await stripePost("/setup_intents", {
           customer: customerId,
           "payment_method_types[0]": "card",
           "metadata[dvnt_user_id]": userId,
         });
 
-        return jsonResponse({ clientSecret: setupIntent.client_secret });
+        // Create ephemeral key for the PaymentSheet
+        const ephemeralKey = await fetch(
+          "https://api.stripe.com/v1/ephemeral_keys",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+              "Content-Type": "application/x-www-form-urlencoded",
+              "Stripe-Version": "2024-06-20",
+            },
+            body: new URLSearchParams({ customer: customerId }).toString(),
+          },
+        ).then((r) => r.json());
+
+        return jsonResponse({
+          clientSecret: setupIntent.client_secret,
+          ephemeralKey: ephemeralKey.secret,
+          customerId,
+        });
       }
 
       case "set_default": {
