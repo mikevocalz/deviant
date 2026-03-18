@@ -11,7 +11,6 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
-import { BottomSheetScrollView } from "@gorhom/bottom-sheet";
 import {
   Canvas,
   ColorMatrix,
@@ -372,7 +371,7 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
         </Pressable>
       </View>
 
-      <BottomSheetScrollView
+      <ScrollView
         style={adjustStyles.scrollView}
         contentContainerStyle={adjustStyles.sliderList}
         showsVerticalScrollIndicator={false}
@@ -424,7 +423,7 @@ export const AdjustmentPanel: React.FC<AdjustmentPanelProps> = ({
             </View>
           );
         })}
-      </BottomSheetScrollView>
+      </ScrollView>
     </View>
   );
 };

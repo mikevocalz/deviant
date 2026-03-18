@@ -8,10 +8,10 @@ import {
   Pressable,
   Text,
   TextInput,
+  FlatList,
   ScrollView,
   useWindowDimensions,
 } from "react-native";
-import { BottomSheetFlatList } from "@gorhom/bottom-sheet";
 import { Image } from "expo-image";
 import { Search } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -146,7 +146,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       {/* Content */}
       <View className="flex-1 px-3">
         {activeImagePack && (
-          <BottomSheetFlatList
+          <FlatList
             data={activeImagePack.stickers}
             numColumns={3}
             keyExtractor={(item: {
@@ -194,7 +194,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         )}
 
         {isTwemojiTab && (
-          <BottomSheetFlatList
+          <FlatList
             data={twemojiStickers}
             numColumns={5}
             keyExtractor={(item: string, index: number) => `${item}-${index}`}

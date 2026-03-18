@@ -94,7 +94,10 @@ export function PostActionSheet({
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>
             Post Options
           </Text>
-          <Pressable onPress={onClose} hitSlop={12}>
+          <Pressable
+            onPress={() => bottomSheetRef.current?.close()}
+            hitSlop={12}
+          >
             <X size={20} color={colors.mutedForeground} />
           </Pressable>
         </View>
