@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import { Archive } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useLayoutEffect } from "react";
@@ -15,6 +16,7 @@ export default function ArchivedScreen() {
       headerShown: true,
       title: "Archived",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {

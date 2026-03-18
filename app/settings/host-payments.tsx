@@ -21,6 +21,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   DollarSign,
@@ -52,6 +53,7 @@ export default function HostPaymentsScreen() {
       headerShown: true,
       title: "Organizer Payments",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: "#fff",
       headerStyle: { backgroundColor: "#000" },
       headerTitleStyle: {
