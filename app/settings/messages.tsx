@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
 import { Switch } from "@/components/ui/switch";
@@ -28,6 +29,7 @@ export default function MessagesScreen() {
       headerShown: true,
       title: "Messages",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {

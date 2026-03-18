@@ -1,6 +1,7 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import { Sun, Moon, Smartphone, Check } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { mmkv } from "@/lib/mmkv-zustand";
@@ -59,6 +60,7 @@ export default function ThemeScreen() {
       headerShown: true,
       title: "Theme",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import { Mail, Phone, Trash2, Pencil } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -97,6 +98,7 @@ export default function AccountScreen() {
       headerShown: true,
       title: "Account Information",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {

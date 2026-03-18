@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Palette,
@@ -154,6 +155,8 @@ export default function HostBrandingScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
+      headerShown: true,
+      headerLeft: () => <SettingsBackButton />,
       headerRight: () =>
         branding ? (
           <Pressable

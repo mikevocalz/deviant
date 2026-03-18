@@ -7,6 +7,7 @@ import {
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
+import { SettingsBackButton } from "@/components/settings-back-button";
 import { Star, Users, UserPlus } from "lucide-react-native";
 import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
@@ -36,6 +37,7 @@ export default function CloseFriendsScreen() {
       headerShown: true,
       title: "Close Friends",
       headerBackButtonDisplayMode: "minimal",
+      headerLeft: () => <SettingsBackButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
