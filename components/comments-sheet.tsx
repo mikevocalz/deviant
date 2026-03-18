@@ -296,6 +296,8 @@ export function CommentsSheet({
         backgroundColor: colors.mutedForeground,
         width: 40,
       }}
+      bottomInset={60}
+      detached={false}
       style={styles.sheetContainer}
     >
       {/* Header */}
@@ -387,15 +389,15 @@ export function CommentsSheet({
       </BottomSheetScrollView>
 
       {/* Input */}
-      <View style={{ backgroundColor: colors.card }}>
+      <View style={{ backgroundColor: "transparent" }}>
         <View
           style={{
             borderTopWidth: 1,
-            borderTopColor: colors.border,
+            borderTopColor: "rgba(255,255,255,0.08)",
             paddingHorizontal: 16,
             paddingVertical: 12,
-            paddingBottom: Math.max(insets.bottom, 12),
-            backgroundColor: colors.card,
+            paddingBottom: 12,
+            backgroundColor: "transparent",
           }}
         >
           {replyingTo && (
