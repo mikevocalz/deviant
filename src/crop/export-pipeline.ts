@@ -89,12 +89,41 @@ export async function exportImage(
     flipX: state.flipX,
   });
 
+  // Safety clamp: expo-image-manipulator rejects crop rects outside image bounds.
+  // After rotate+straighten the canvas may differ by ±1px from our math due to rounding.
+  const postW =
+    totalRotation !== 0
+      ? Math.ceil(
+          state.sourceSize.w *
+            Math.abs(Math.cos((totalRotation * Math.PI) / 180)) +
+            state.sourceSize.h *
+              Math.abs(Math.sin((totalRotation * Math.PI) / 180)),
+        )
+      : state.sourceSize.w;
+  const postH =
+    totalRotation !== 0
+      ? Math.ceil(
+          state.sourceSize.h *
+            Math.abs(Math.cos((totalRotation * Math.PI) / 180)) +
+            state.sourceSize.w *
+              Math.abs(Math.sin((totalRotation * Math.PI) / 180)),
+        )
+      : state.sourceSize.h;
+
+  const safeOriginX = Math.max(0, Math.min(cropRect.originX, postW - 1));
+  const safeOriginY = Math.max(0, Math.min(cropRect.originY, postH - 1));
+  const safeWidth = Math.max(1, Math.min(cropRect.width, postW - safeOriginX));
+  const safeHeight = Math.max(
+    1,
+    Math.min(cropRect.height, postH - safeOriginY),
+  );
+
   actions.push({
     crop: {
-      originX: cropRect.originX,
-      originY: cropRect.originY,
-      width: cropRect.width,
-      height: cropRect.height,
+      originX: safeOriginX,
+      originY: safeOriginY,
+      width: safeWidth,
+      height: safeHeight,
     },
   });
 
