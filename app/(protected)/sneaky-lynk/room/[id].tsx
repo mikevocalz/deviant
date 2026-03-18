@@ -170,18 +170,22 @@ export default function SneakyLynkRoomScreen() {
     id,
     title: paramTitle,
     hasVideo: hasVideoParam,
+    isHost: isHostParam,
   } = useLocalSearchParams<{
     id: string;
     title?: string;
     hasVideo?: string;
+    isHost?: string;
   }>();
   const router = useRouter();
 
   const roomHasVideo = hasVideoParam === "1";
   const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
 
+  // Host (creator) skips the pre-join screen entirely
+  const isCreator = isHostParam === "1";
   // Pre-join state for server rooms (joiners, not creators)
-  const [hasJoined, setHasJoined] = useState(!isServerRoom);
+  const [hasJoined, setHasJoined] = useState(!isServerRoom || isCreator);
   const [joinAnonymous, setJoinAnonymous] = useState(false);
 
   const handleJoin = useCallback((anonymous: boolean) => {
