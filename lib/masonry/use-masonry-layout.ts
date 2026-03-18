@@ -21,19 +21,20 @@ const CELL_BORDER_RADIUS = 8;
 
 // ─── Height estimation ───────────────────────────────────────────────────────
 
-/** Base height ratio (relative to column width) by media kind. */
+/** Base height ratio (relative to column width) by media kind.
+ *  Wide spread between kinds + per-post variation → true Pinterest stagger. */
 function baseRatioForKind(kind: SafeGridTile["kind"]): number {
   switch (kind) {
     case "video":
-      return 1.25; // 4:5 portrait feel
+      return 1.5; // tall portrait
     case "carousel":
       return 1.0; // square
     case "gif":
-      return 0.8; // slightly landscape
+      return 0.75; // landscape
     case "livePhoto":
-      return 1.15;
+      return 1.3; // slightly tall
     default:
-      return 1.2; // image — slightly portrait
+      return 1.2; // image — moderate portrait
   }
 }
 
@@ -50,13 +51,10 @@ function hashId(id: string): number {
   return Math.abs(h % 1000) / 1000;
 }
 
-/** Variation range: ±12% of base ratio. */
-const VARIATION = 0.12;
+/** Variation range: ±30% of base ratio → dramatic Pinterest-style stagger. */
+const VARIATION = 0.3;
 
-function estimateItemHeight(
-  item: SafeGridTile,
-  columnWidth: number,
-): number {
+function estimateItemHeight(item: SafeGridTile, columnWidth: number): number {
   const base = baseRatioForKind(item.kind);
   // Map hash to [-VARIATION, +VARIATION]
   const offset = (hashId(item.id) * 2 - 1) * VARIATION;

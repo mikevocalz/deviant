@@ -37,6 +37,15 @@ import {
   useLikesSheet,
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
+import { CommentsSheet } from "@/components/comments-sheet";
+import { PostActionSheet } from "@/components/post-action-sheet";
+import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
+import { useRouter } from "expo-router";
+import { Alert } from "react-native";
+import { useDeletePost } from "@/lib/hooks/use-posts";
+import { sharePost } from "@/lib/utils/sharing";
+import { useCreateStory } from "@/lib/hooks/use-stories";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 type FeedPostItem = { _type: "post"; data: Post };
 type FeedEventItem = { _type: "event"; data: Event };
@@ -199,6 +208,11 @@ function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
 }
 
 export function Feed() {
+  const router = useRouter();
+  const showToast = useUIStore((s) => s.showToast);
+  const deletePostMutation = useDeletePost();
+  const createStoryMutation = useCreateStory();
+
   // Likes sheet — centralized controller at app root, no per-screen instance
   // FeedPost now calls useLikesSheet() directly; handleShowLikes kept as fallback for onShowLikes prop
   const { open: openLikesSheet } = useLikesSheet();
@@ -207,6 +221,18 @@ export function Feed() {
       fireLikesTap(postId, openLikesSheet);
     },
     [openLikesSheet],
+  );
+
+  // ── Lifted sheets (rendered outside FlatList to avoid cell clipping) ──
+  const actionSheetPostId = useFeedPostUIStore((s) => s.actionSheetPostId);
+  const shareSheetPostId = useFeedPostUIStore((s) => s.shareSheetPostId);
+  const commentsSheetPostId = useFeedPostUIStore((s) => s.commentsSheetPostId);
+  const setActionSheetPostId = useFeedPostUIStore(
+    (s) => s.setActionSheetPostId,
+  );
+  const setShareSheetPostId = useFeedPostUIStore((s) => s.setShareSheetPostId);
+  const setCommentsSheetPostId = useFeedPostUIStore(
+    (s) => s.setCommentsSheetPostId,
   );
 
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
@@ -458,6 +484,74 @@ export function Feed() {
     );
   }
 
+  // ── Derive data for lifted sheets from allPosts ──
+  const actionPost = useMemo(
+    () =>
+      actionSheetPostId
+        ? allPosts.find((p) => p.id === actionSheetPostId)
+        : undefined,
+    [actionSheetPostId, allPosts],
+  );
+  const sharePost_ = useMemo(
+    () =>
+      shareSheetPostId
+        ? allPosts.find((p) => p.id === shareSheetPostId)
+        : undefined,
+    [shareSheetPostId, allPosts],
+  );
+  const currentUsername = useAuthStore((s) => s.user?.username);
+  const actionIsOwner = actionPost?.author?.username === currentUsername;
+
+  const handleActionEdit = useCallback(() => {
+    if (actionSheetPostId)
+      router.push(`/(protected)/edit-post/${actionSheetPostId}`);
+    setActionSheetPostId(null);
+  }, [actionSheetPostId, router, setActionSheetPostId]);
+
+  const handleActionDelete = useCallback(() => {
+    if (!actionSheetPostId) return;
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          deletePostMutation.mutate(actionSheetPostId, {
+            onSuccess: () => showToast("success", "Deleted", "Post deleted"),
+            onError: () => showToast("error", "Error", "Failed to delete post"),
+          });
+          setActionSheetPostId(null);
+        },
+      },
+    ]);
+  }, [actionSheetPostId, deletePostMutation, showToast, setActionSheetPostId]);
+
+  const handleActionShare = useCallback(async () => {
+    if (actionPost) {
+      try {
+        await sharePost(actionPost.id, actionPost.caption);
+      } catch {}
+    }
+    setActionSheetPostId(null);
+  }, [actionPost, setActionSheetPostId]);
+
+  const handleActionShareToStory = useCallback(async () => {
+    const media = actionPost?.media?.[0];
+    if (!media?.url) {
+      showToast("error", "Error", "This post has no media to share");
+      return;
+    }
+    try {
+      await createStoryMutation.mutateAsync({
+        items: [{ type: media.type || "image", url: media.url }],
+      });
+      showToast("success", "Shared", "Post shared to your story!");
+    } catch {
+      showToast("error", "Error", "Failed to share to story");
+    }
+    setActionSheetPostId(null);
+  }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
+
   return (
     <>
       <LegendList
@@ -483,6 +577,40 @@ export function Feed() {
         onViewableItemsChanged={onViewableItemsChanged}
         refreshing={isRefetching}
         onRefresh={handleRefresh}
+      />
+
+      {/* Sheets lifted from FeedPost — rendered outside FlatList so they aren't clipped by cell boundaries */}
+      <CommentsSheet
+        visible={!!commentsSheetPostId}
+        onClose={() => setCommentsSheetPostId(null)}
+        postId={commentsSheetPostId}
+      />
+
+      <PostActionSheet
+        visible={!!actionSheetPostId}
+        onClose={() => setActionSheetPostId(null)}
+        isOwner={actionIsOwner}
+        onEdit={handleActionEdit}
+        onDelete={handleActionDelete}
+        onShareToStory={handleActionShareToStory}
+        onShare={handleActionShare}
+      />
+
+      <ShareToInboxSheet
+        visible={!!shareSheetPostId}
+        onClose={() => setShareSheetPostId(null)}
+        post={
+          sharePost_
+            ? {
+                id: sharePost_.id,
+                authorUsername: sharePost_.author?.username || "",
+                authorAvatar: sharePost_.author?.avatar || "",
+                caption: sharePost_.caption,
+                mediaUrl: sharePost_.media?.[0]?.url,
+                mediaType: sharePost_.media?.[0]?.type,
+              }
+            : null
+        }
       />
     </>
   );

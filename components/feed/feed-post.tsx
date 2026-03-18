@@ -14,7 +14,7 @@
  *
  * State: all in useFeedPostUIStore (Zustand) — no local useState.
  */
-import { View, Text, Pressable, ScrollView, Alert } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { Article } from "@expo/html-elements";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -24,7 +24,6 @@ import {
   Bookmark,
   MoreHorizontal,
   Maximize2,
-  Minimize2,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -34,12 +33,14 @@ import { usePrefetchComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
 import { VideoView, useVideoPlayer } from "expo-video";
-import { useCallback, useEffect, memo, useMemo, useRef } from "react";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import {
+  useCallback,
+  useEffect,
+  memo,
+  useMemo,
+  useRef,
+  type ElementRef,
+} from "react";
 import { useIsFocused } from "@react-navigation/native";
 import {
   useVideoLifecycle,
@@ -58,17 +59,10 @@ import {
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
-import { sharePost } from "@/lib/utils/sharing";
-import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
-import { PostActionSheet } from "@/components/post-action-sheet";
-import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
-import { CommentsSheet } from "@/components/comments-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
-import { useDeletePost } from "@/lib/hooks/use-posts";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
@@ -133,123 +127,6 @@ function CarouselDots({ count, current }: { count: number; current: number }) {
   );
 }
 
-// ─────────────────── fullscreen video sheet ─────────────────────────────────
-
-interface FullscreenVideoSheetProps {
-  visible: boolean;
-  onClose: () => void;
-  player: any;
-  videoCurrentTime: number;
-  videoDuration: number;
-  onSeek: (time: number) => void;
-  onSeekEnd: () => void;
-  isMuted: boolean;
-  toggleMute: () => void;
-  isMountedRef: React.MutableRefObject<boolean>;
-}
-
-function FullscreenVideoSheet({
-  visible,
-  onClose,
-  player,
-  videoCurrentTime,
-  videoDuration,
-  onSeek,
-  onSeekEnd,
-  isMuted,
-  toggleMute,
-  isMountedRef,
-}: FullscreenVideoSheetProps) {
-  const fsSheetRef = useRef<BottomSheet>(null);
-  const fsSnapPoints = useMemo(() => ["95%"], []);
-
-  useEffect(() => {
-    if (visible) fsSheetRef.current?.snapToIndex(0);
-    else fsSheetRef.current?.close();
-  }, [visible]);
-
-  const handleChange = useCallback(
-    (index: number) => {
-      if (index === -1) onClose();
-    },
-    [onClose],
-  );
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.95}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
-
-  return (
-    <BottomSheet
-      ref={fsSheetRef}
-      index={-1}
-      snapPoints={fsSnapPoints}
-      enablePanDownToClose
-      backdropComponent={renderBackdrop}
-      onChange={handleChange}
-      backgroundStyle={{
-        backgroundColor: "#000",
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-      }}
-      handleIndicatorStyle={{
-        backgroundColor: "rgba(255,255,255,0.3)",
-        width: 36,
-      }}
-    >
-      <BottomSheetView style={{ flex: 1, backgroundColor: "#000" }}>
-        <VideoView
-          player={player}
-          style={{ flex: 1 }}
-          contentFit="contain"
-          nativeControls={false}
-        />
-        <View style={{ paddingHorizontal: 16, paddingBottom: 60 }}>
-          <DVNTSeekBar
-            currentTime={videoCurrentTime}
-            duration={videoDuration}
-            onSeek={onSeek}
-            onSeekEnd={onSeekEnd}
-          />
-        </View>
-        {/* Minimize */}
-        <Pressable
-          onPress={onClose}
-          style={{ position: "absolute", top: 12, right: 20 }}
-          hitSlop={16}
-        >
-          <DVNTLiquidGlassIconButton size={42}>
-            <Minimize2 size={20} color="#fff" />
-          </DVNTLiquidGlassIconButton>
-        </Pressable>
-        {/* Mute */}
-        <Pressable
-          onPress={toggleMute}
-          style={{ position: "absolute", top: 12, left: 20 }}
-          hitSlop={16}
-        >
-          <DVNTLiquidGlassIconButton size={42}>
-            {isMuted ? (
-              <VolumeX size={20} color="#fff" />
-            ) : (
-              <Volume2 size={20} color="#fff" />
-            )}
-          </DVNTLiquidGlassIconButton>
-        </Pressable>
-      </BottomSheetView>
-    </BottomSheet>
-  );
-}
-
 // ─────────────────────────────── component ──────────────────────────────────
 
 function FeedPostComponent({
@@ -287,13 +164,8 @@ function FeedPostComponent({
 
   const toggleBookmarkMutation = useToggleBookmark();
   const { currentSlides, setCurrentSlide } = useFeedSlideStore();
-  const currentUser = useAuthStore((state) => state.user);
-  const showToast = useUIStore((state) => state.showToast);
   const bookmarkStore = useBookmarkStore();
   const prefetchComments = usePrefetchComments();
-  const deletePostMutation = useDeletePost();
-
-  const isOwner = currentUser?.username === author.username;
   const currentUserId = useAuthStore((state) => state.user?.id);
 
   // Post tags
@@ -311,9 +183,6 @@ function FeedPostComponent({
     activePostId,
     isMuted,
     toggleMute,
-    actionSheetPostId,
-    shareSheetPostId,
-    commentsSheetPostId,
     setActionSheetPostId,
     setShareSheetPostId,
     setCommentsSheetPostId,
@@ -321,15 +190,12 @@ function FeedPostComponent({
 
   const isActivePost = activePostId === id;
   const videoState = getVideoState(id);
-  const isFullscreen = videoState.isFullscreen;
   const videoCurrentTime = videoState.currentTime;
   const videoDuration = videoState.duration;
-  const showActionSheet = actionSheetPostId === id;
-  const showShareSheet = shareSheetPostId === id;
-  const showCommentsSheet = commentsSheetPostId === id;
 
   // Card inner width (for seek bar)
   const cardInnerWidthRef = useRef(mediaSize);
+  const videoViewRef = useRef<ElementRef<typeof VideoView>>(null);
 
   const hasMedia = media && media.length > 0;
   const isVideo = hasMedia && media[0]?.type === "video";
@@ -441,52 +307,6 @@ function FeedPostComponent({
     toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
   }, [id, bookmarkStore, toggleBookmarkMutation]);
 
-  const createStoryMutation = useCreateStory();
-
-  const handleShare = useCallback(async () => {
-    try {
-      await sharePost(id, caption);
-    } catch (error) {
-      console.error("[FeedPost] Share error:", error);
-    }
-  }, [id, caption]);
-
-  const handleShareToStory = useCallback(async () => {
-    if (!media?.[0]?.url) {
-      showToast("error", "Error", "This post has no media to share");
-      return;
-    }
-    try {
-      await createStoryMutation.mutateAsync({
-        items: [{ type: media[0].type || "image", url: media[0].url }],
-      });
-      showToast("success", "Shared", "Post shared to your story!");
-    } catch (error) {
-      showToast("error", "Error", "Failed to share to story");
-    }
-  }, [media, createStoryMutation, showToast]);
-
-  const handleEdit = useCallback(
-    () => router.push(`/(protected)/edit-post/${id}`),
-    [id, router],
-  );
-
-  const handleDelete = useCallback(() => {
-    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => {
-          deletePostMutation.mutate(id, {
-            onSuccess: () => showToast("success", "Deleted", "Post deleted"),
-            onError: () => showToast("error", "Error", "Failed to delete post"),
-          });
-        },
-      },
-    ]);
-  }, [id, showToast, deletePostMutation]);
-
   const handleScroll = useCallback(
     (event: any) => {
       const w = cardInnerWidthRef.current || mediaSize;
@@ -547,8 +367,8 @@ function FeedPostComponent({
   ]);
 
   const handleFullscreenToggle = useCallback(() => {
-    setVideoState(id, { isFullscreen: !isFullscreen });
-  }, [isFullscreen, id, setVideoState]);
+    videoViewRef.current?.enterFullscreen();
+  }, []);
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
   const commentCount = Array.isArray(comments) ? comments.length : comments;
@@ -599,6 +419,7 @@ function FeedPostComponent({
                   style={{ width: "100%", height: "100%" }}
                 >
                   <VideoView
+                    ref={videoViewRef}
                     player={player}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
@@ -937,7 +758,7 @@ function FeedPostComponent({
                 duration={videoDuration}
                 onSeek={handleVideoSeek}
                 onSeekEnd={() => {
-                  if (isFocused && isActivePost && !isFullscreen) {
+                  if (isFocused && isActivePost) {
                     safePlay(player, isMountedRef, "FeedPost");
                   }
                 }}
@@ -948,55 +769,7 @@ function FeedPostComponent({
         )}
       </Article>
 
-      {/* ── Fullscreen video sheet (video only) ────────── */}
-      {isVideo && (
-        <FullscreenVideoSheet
-          visible={isFullscreen}
-          onClose={handleFullscreenToggle}
-          player={player}
-          videoCurrentTime={videoCurrentTime}
-          videoDuration={videoDuration}
-          onSeek={handleVideoSeek}
-          onSeekEnd={() => safePlay(player, isMountedRef, "FeedPost")}
-          isMuted={isMuted}
-          toggleMute={toggleMute}
-          isMountedRef={isMountedRef}
-        />
-      )}
-
-      {/* ── Sheets ────────────────────────────────────────────────── */}
-      <PostActionSheet
-        visible={showActionSheet}
-        onClose={() => setActionSheetPostId(null)}
-        isOwner={isOwner}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        onShareToStory={handleShareToStory}
-        onShare={handleShare}
-      />
-
-      <ShareToInboxSheet
-        visible={showShareSheet}
-        onClose={() => setShareSheetPostId(null)}
-        post={
-          showShareSheet
-            ? {
-                id,
-                authorUsername: author.username,
-                authorAvatar: author.avatar,
-                caption,
-                mediaUrl: media?.[0]?.url,
-                mediaType: media?.[0]?.type,
-              }
-            : null
-        }
-      />
-
-      <CommentsSheet
-        visible={showCommentsSheet}
-        onClose={() => setCommentsSheetPostId(null)}
-        postId={showCommentsSheet ? id : null}
-      />
+      {/* Sheets (CommentsSheet, PostActionSheet, ShareToInboxSheet) rendered at Feed level */}
     </View>
   );
 }
