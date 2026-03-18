@@ -101,17 +101,10 @@ export function getBaseDisplaySize(
   // Effective source after rotate
   const rotated = getRotatedDimensions(sourceW, sourceH, rotate90);
   // Effective source after straighten
-  const effective = getStraightenedDimensions(
-    rotated.w,
-    rotated.h,
-    straighten,
-  );
+  const effective = getStraightenedDimensions(rotated.w, rotated.h, straighten);
 
   // Cover fit: image must fill the frame
-  const minScale = Math.max(
-    cropFrameW / effective.w,
-    cropFrameH / effective.h,
-  );
+  const minScale = Math.max(cropFrameW / effective.w, cropFrameH / effective.h);
 
   return {
     baseW: effective.w,
@@ -143,11 +136,7 @@ export function computeCropRectPixels(input: CropMathInput): CropRectPixels {
 
   // Effective dimensions after rotate + straighten
   const rotated = getRotatedDimensions(sourceW, sourceH, rotate90);
-  const effective = getStraightenedDimensions(
-    rotated.w,
-    rotated.h,
-    straighten,
-  );
+  const effective = getStraightenedDimensions(rotated.w, rotated.h, straighten);
 
   // The crop frame sees a portion of the effective image.
   // At scale=S, the effective image is drawn as (effective.w * S, effective.h * S).
@@ -164,12 +153,20 @@ export function computeCropRectPixels(input: CropMathInput): CropRectPixels {
   let ox = Math.round(cx - cropW / 2);
   let oy = Math.round(cy - cropH / 2);
 
-  // Clamp to image bounds
-  ox = Math.max(0, Math.min(ox, effective.w - Math.round(cropW)));
-  oy = Math.max(0, Math.min(oy, effective.h - Math.round(cropH)));
+  let roundedCropW = Math.round(cropW);
+  let roundedCropH = Math.round(cropH);
 
-  const finalW = Math.min(Math.round(cropW), effective.w - ox);
-  const finalH = Math.min(Math.round(cropH), effective.h - oy);
+  // Clamp crop dimensions to never exceed source
+  roundedCropW = Math.min(roundedCropW, effective.w);
+  roundedCropH = Math.min(roundedCropH, effective.h);
+
+  // Clamp origin so rect stays inside image bounds
+  ox = Math.max(0, Math.min(ox, effective.w - roundedCropW));
+  oy = Math.max(0, Math.min(oy, effective.h - roundedCropH));
+
+  // Final safety: ensure originX + width <= effective.w (and same for Y)
+  const finalW = Math.min(roundedCropW, effective.w - ox);
+  const finalH = Math.min(roundedCropH, effective.h - oy);
 
   return {
     originX: ox,
