@@ -195,7 +195,8 @@ export interface EditorState {
   textEditLetterSpacing: number;
   textEditLineHeight: number;
   textEditElementId: string | null;
-  // ---- Canvas background (text-only stories) ----
+  // ---- Text-only stories ----
+  textOnlyMode: boolean; // true ONLY when user explicitly creates a text-only story
   canvasBackground: string; // StoryBackground id
   // ---- Drawing color picker ----
   showDrawingColorPicker: boolean;

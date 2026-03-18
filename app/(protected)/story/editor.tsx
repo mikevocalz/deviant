@@ -31,26 +31,31 @@ export default function StoryEditorRoute() {
   }, [navigation]);
 
   const handleClose = () => {
-    // [REGRESSION LOCK] Synchronous reset BEFORE navigation.
-    // Guarantees INV-NAV-3/4/5: mode=idle, elements=[], drawingPaths=[]
-    useEditorStore.getState().resetEditor();
+    // Navigate FIRST, then defer reset so the text-only BackgroundPicker
+    // doesn't flash during the back animation. The useLayoutEffect reset
+    // on next mount guarantees clean state for the next editor session.
     useStoryFlowStore.getState().transitionTo("HUB");
     router.back();
-
-    if (__DEV__) {
-      const s = useEditorStore.getState();
-      if (
-        s.mode !== "idle" ||
-        s.elements.length > 0 ||
-        s.drawingPaths.length > 0
-      ) {
-        console.error("[STOP-THE-LINE] Editor state NOT clean after cancel:", {
-          mode: s.mode,
-          elements: s.elements.length,
-          paths: s.drawingPaths.length,
-        });
+    setTimeout(() => {
+      useEditorStore.getState().resetEditor();
+      if (__DEV__) {
+        const s = useEditorStore.getState();
+        if (
+          s.mode !== "idle" ||
+          s.elements.length > 0 ||
+          s.drawingPaths.length > 0
+        ) {
+          console.error(
+            "[STOP-THE-LINE] Editor state NOT clean after cancel:",
+            {
+              mode: s.mode,
+              elements: s.elements.length,
+              paths: s.drawingPaths.length,
+            },
+          );
+        }
       }
-    }
+    }, 350);
   };
 
   const handleSave = (editedUri: string) => {

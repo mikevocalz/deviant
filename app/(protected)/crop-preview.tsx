@@ -377,7 +377,7 @@ export default function CropPreviewScreen() {
         </Pressable>
       ),
       headerRight: () => (
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
           <Pressable
             onPress={handleReset}
             hitSlop={12}
@@ -396,7 +396,7 @@ export default function CropPreviewScreen() {
             hitSlop={12}
             style={{
               height: 44,
-              paddingHorizontal: 8,
+              paddingHorizontal: 12,
               alignItems: "center",
               justifyContent: "center",
             }}
