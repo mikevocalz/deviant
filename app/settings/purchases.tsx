@@ -7,17 +7,11 @@
  */
 
 import { useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   ShoppingBag,
   ChevronRight,
   Receipt,
@@ -28,10 +22,7 @@ import {
 import { LegendList } from "@/components/list";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { purchasesApi } from "@/lib/api/payments";
-import {
-  PAYMENT_STATUS_CONFIG,
-  type Order,
-} from "@/lib/types/payments";
+import { PAYMENT_STATUS_CONFIG, type Order } from "@/lib/types/payments";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -76,17 +67,7 @@ export default function PurchasesScreen() {
   }, [loadPurchases]);
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Purchases
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {/* Loading */}
       {purchasesLoading && purchases.length === 0 && (
         <View className="flex-1 items-center justify-center">
@@ -160,16 +141,18 @@ export default function PurchasesScreen() {
 
 function PurchaseCard({ order, index }: { order: Order; index: number }) {
   const router = useRouter();
-  const statusConfig = PAYMENT_STATUS_CONFIG[order.status] || PAYMENT_STATUS_CONFIG.pending;
+  const statusConfig =
+    PAYMENT_STATUS_CONFIG[order.status] || PAYMENT_STATUS_CONFIG.pending;
 
   return (
     <Animated.View
-      entering={FadeInDown.delay(index * 50).duration(300).springify().damping(18)}
+      entering={FadeInDown.delay(index * 50)
+        .duration(300)
+        .springify()
+        .damping(18)}
     >
       <Pressable
-        onPress={() =>
-          router.push(`/settings/order/${order.id}` as any)
-        }
+        onPress={() => router.push(`/settings/order/${order.id}` as any)}
         className="mx-4 mb-3 bg-card rounded-2xl border border-border overflow-hidden active:bg-secondary/50"
       >
         <View className="p-4">
@@ -221,9 +204,7 @@ function PurchaseCard({ order, index }: { order: Order; index: number }) {
             </View>
 
             <View className="flex-row items-center gap-1">
-              {order.receiptAvailable && (
-                <Receipt size={14} color="#22C55E" />
-              )}
+              {order.receiptAvailable && <Receipt size={14} color="#22C55E" />}
               <ChevronRight size={16} color="#666" />
             </View>
           </View>

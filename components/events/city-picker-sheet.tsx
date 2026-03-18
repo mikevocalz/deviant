@@ -18,6 +18,7 @@ import {
   BottomSheetFlatList,
 } from "@gorhom/bottom-sheet";
 import { MapPin, Search, Navigation, Clock, Check } from "lucide-react-native";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import * as Location from "expo-location";
 import * as Haptics from "expo-haptics";
 import { useCities, useCitySearch } from "@/lib/hooks/use-cities";
@@ -182,10 +183,7 @@ export const CityPickerSheet: React.FC<CityPickerSheetProps> = ({
       detached={true}
       bottomInset={46}
       style={{ marginHorizontal: 16, zIndex: 9999, elevation: 9999 }}
-      backgroundStyle={{
-        backgroundColor: "#111",
-        borderRadius: 24,
-      }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{
         backgroundColor: "#555",
         width: 36,

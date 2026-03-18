@@ -5,6 +5,7 @@ import {
   BottomSheetBackdrop,
   BottomSheetScrollView,
 } from "@gorhom/bottom-sheet";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import {
   MapPin,
   Globe,
@@ -175,10 +176,7 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
       detached={true}
       bottomInset={46}
       style={{ marginHorizontal: 16, zIndex: 9999, elevation: 9999 }}
-      backgroundStyle={{
-        backgroundColor: "#111",
-        borderRadius: 24,
-      }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{
         backgroundColor: "#555",
         width: 36,

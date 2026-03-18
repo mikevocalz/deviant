@@ -6,6 +6,7 @@ import BottomSheet, {
   BottomSheetBackdrop,
 } from "@gorhom/bottom-sheet";
 import { Music, Send, X, ExternalLink, ImageIcon } from "lucide-react-native";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
@@ -106,11 +107,7 @@ export const SpotifyShareSheet: React.FC = () => {
       onDismiss={handleDismiss}
       backdropComponent={renderBackdrop}
       enablePanDownToClose
-      backgroundStyle={{
-        backgroundColor: "#111",
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-      }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{
         backgroundColor: "#555",
         width: 36,

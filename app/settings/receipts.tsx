@@ -11,7 +11,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   Receipt,
   FileText,
   Calendar,
@@ -71,16 +70,7 @@ export default function ReceiptsScreen() {
   );
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Receipts & Invoices
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {purchasesLoading && paidOrders.length === 0 && (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />

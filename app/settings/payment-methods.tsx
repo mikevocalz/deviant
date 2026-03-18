@@ -5,7 +5,7 @@
  * States: loading, empty, error, offline.
  */
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -16,9 +16,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   CreditCard,
   Plus,
   Star,
@@ -51,6 +51,7 @@ export default function PaymentMethodsScreen() {
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const navigation = useNavigation();
   const [isAdding, setIsAdding] = useState(false);
 
   const {
@@ -186,30 +187,27 @@ export default function PaymentMethodsScreen() {
     [removeMethod, showToast, loadMethods],
   );
 
-  return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Payment Methods
-        </Text>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
         <Pressable
           onPress={handleAddPaymentMethod}
           disabled={isAdding}
-          className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
           hitSlop={8}
+          style={{ marginRight: 4 }}
         >
           {isAdding ? (
             <ActivityIndicator size="small" color="#8A40CF" />
           ) : (
-            <Plus size={20} color="#8A40CF" />
+            <Plus size={22} color="#8A40CF" />
           )}
         </Pressable>
-      </View>
+      ),
+    });
+  }, [navigation, isAdding, handleAddPaymentMethod]);
 
+  return (
+    <View className="flex-1 bg-background">
       {/* Loading */}
       {isLoading && methods.length === 0 && (
         <View className="flex-1 items-center justify-center">

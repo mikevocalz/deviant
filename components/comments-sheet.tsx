@@ -35,6 +35,7 @@ import {
 import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 import { SHEET_SNAPS_TALL } from "@/lib/constants/sheets";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 
 function generateMutationId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -46,7 +47,11 @@ interface CommentsSheetProps {
   postId: string | null;
 }
 
-export function CommentsSheet({ visible, onClose, postId }: CommentsSheetProps) {
+export function CommentsSheet({
+  visible,
+  onClose,
+  postId,
+}: CommentsSheetProps) {
   const { colors } = useColorScheme();
   const router = useRouter();
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -286,9 +291,7 @@ export function CommentsSheet({ visible, onClose, postId }: CommentsSheetProps) 
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
-      backgroundStyle={{
-        backgroundColor: colors.card,
-      }}
+      backgroundComponent={GlassSheetBackground}
       handleIndicatorStyle={{
         backgroundColor: colors.mutedForeground,
         width: 40,
@@ -467,9 +470,7 @@ export function CommentsSheet({ visible, onClose, postId }: CommentsSheetProps) 
             </View>
           )}
 
-          <View
-            style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-          >
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
             <BottomSheetTextInput
               ref={inputRef}
               value={comment}
@@ -521,14 +522,15 @@ export function CommentsSheet({ visible, onClose, postId }: CommentsSheetProps) 
               }}
             >
               {createComment.isPending || isSubmitLocked ? (
-                <ActivityIndicator size="small" color={colors.mutedForeground} />
+                <ActivityIndicator
+                  size="small"
+                  color={colors.mutedForeground}
+                />
               ) : (
                 <Send
                   size={20}
                   color={
-                    comment.trim() && user
-                      ? "#fff"
-                      : colors.mutedForeground
+                    comment.trim() && user ? "#fff" : colors.mutedForeground
                   }
                 />
               )}

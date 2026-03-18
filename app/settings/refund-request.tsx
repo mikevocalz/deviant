@@ -17,11 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import {
-  ArrowLeft,
-  RotateCcw,
-  AlertCircle,
-} from "lucide-react-native";
+import { RotateCcw, AlertCircle } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { create } from "zustand";
 import { purchasesApi } from "@/lib/api/payments";
@@ -55,7 +51,11 @@ const useRefundFormStore = create<RefundFormState>((set) => ({
     set({ reason: null, notes: "", isSubmitting: false, submitted: false }),
 }));
 
-const REASONS: { value: RefundRequest["reason"]; label: string; desc: string }[] = [
+const REASONS: {
+  value: RefundRequest["reason"];
+  label: string;
+  desc: string;
+}[] = [
   {
     value: "requested_by_customer",
     label: "Changed my mind",
@@ -122,10 +122,7 @@ export default function RefundRequestScreen() {
   // Success state
   if (submitted) {
     return (
-      <View
-        className="flex-1 bg-background items-center justify-center px-8"
-        style={{ paddingTop: insets.top }}
-      >
+      <View className="flex-1 bg-background items-center justify-center px-8">
         <Animated.View
           entering={FadeInDown.duration(400).springify().damping(18)}
           className="items-center"
@@ -157,23 +154,7 @@ export default function RefundRequestScreen() {
   }
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable
-          onPress={() => {
-            reset();
-            router.back();
-          }}
-          hitSlop={12}
-        >
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Request Refund
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       <ScrollView
         className="flex-1 px-4"
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}

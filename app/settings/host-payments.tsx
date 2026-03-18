@@ -22,7 +22,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
-  ArrowLeft,
   DollarSign,
   Banknote,
   BarChart3,
@@ -88,17 +87,7 @@ export default function HostPaymentsScreen() {
   const isConnected = connectAccount?.status === "active";
 
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Header */}
-      <View className="flex-row items-center px-4 py-3 gap-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Organizer Payments
-        </Text>
-      </View>
-
+    <View className="flex-1 bg-background">
       {isLoading && !payoutSummary ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#8A40CF" size="large" />
@@ -112,7 +101,10 @@ export default function HostPaymentsScreen() {
           {/* Balance Card */}
           {payoutSummary && (
             <Animated.View
-              entering={FadeInDown.delay(50).duration(300).springify().damping(18)}
+              entering={FadeInDown.delay(50)
+                .duration(300)
+                .springify()
+                .damping(18)}
               className="mx-4 mt-2 bg-card rounded-2xl border border-border p-5"
             >
               <Text className="text-xs font-sans-semibold text-muted-foreground uppercase tracking-wider mb-3">
@@ -150,7 +142,10 @@ export default function HostPaymentsScreen() {
 
           {/* Connect Status */}
           <Animated.View
-            entering={FadeInDown.delay(100).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(100)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="mx-4 mt-3"
           >
             <Pressable
@@ -172,9 +167,7 @@ export default function HostPaymentsScreen() {
               </View>
               <View className="flex-1">
                 <Text className="text-[15px] font-sans-semibold text-foreground">
-                  {isConnected
-                    ? "Stripe Connected"
-                    : "Complete Stripe Setup"}
+                  {isConnected ? "Stripe Connected" : "Complete Stripe Setup"}
                 </Text>
                 <Text className="text-xs text-muted-foreground mt-0.5">
                   {isConnected
@@ -188,7 +181,10 @@ export default function HostPaymentsScreen() {
 
           {/* Navigation Items */}
           <Animated.View
-            entering={FadeInDown.delay(150).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(150)
+              .duration(300)
+              .springify()
+              .damping(18)}
           >
             <SectionHeader title="Financial" />
             <NavRow
@@ -214,7 +210,10 @@ export default function HostPaymentsScreen() {
           </Animated.View>
 
           <Animated.View
-            entering={FadeInDown.delay(200).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(200)
+              .duration(300)
+              .springify()
+              .damping(18)}
           >
             <SectionHeader title="Settings" />
             <NavRow
@@ -251,10 +250,7 @@ function BalanceItem({
   return (
     <View className="flex-1">
       <Text className="text-xs text-muted-foreground">{label}</Text>
-      <Text
-        className="text-lg font-sans-bold mt-0.5"
-        style={{ color }}
-      >
+      <Text className="text-lg font-sans-bold mt-0.5" style={{ color }}>
         {formatCents(amount)}
       </Text>
     </View>
@@ -294,9 +290,7 @@ function NavRow({
         <Text className="text-[15px] font-sans-semibold text-foreground">
           {label}
         </Text>
-        <Text className="text-xs text-muted-foreground mt-0.5">
-          {subtitle}
-        </Text>
+        <Text className="text-xs text-muted-foreground mt-0.5">{subtitle}</Text>
       </View>
       <ChevronRight size={18} color="#666" />
     </Pressable>
