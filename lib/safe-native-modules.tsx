@@ -6,6 +6,7 @@
  * that don't include these modules.
  */
 import React from "react";
+import { View } from "react-native";
 
 // ── Stripe ──────────────────────────────────────────────────────────
 let _StripeProvider: React.ComponentType<any> | null = null;
@@ -94,3 +95,26 @@ try {
 }
 
 export const SafePrint = _ExpoPrint;
+
+// ── @callstack/liquid-glass ────────────────────────────────────────
+
+let _LiquidGlassView: React.ComponentType<any> | null = null;
+let _LiquidGlassContainerView: React.ComponentType<any> | null = null;
+let _isLiquidGlassSupported = false;
+
+try {
+  const lg = require("@callstack/liquid-glass");
+  _LiquidGlassView = lg.LiquidGlassView;
+  _LiquidGlassContainerView = lg.LiquidGlassContainerView;
+  _isLiquidGlassSupported = lg.isLiquidGlassSupported;
+} catch {
+  console.warn(
+    "[SafeModules] @callstack/liquid-glass not available in this binary",
+  );
+}
+
+export const SafeLiquidGlassView: React.ComponentType<any> =
+  _LiquidGlassView ?? View;
+export const SafeLiquidGlassContainerView: React.ComponentType<any> =
+  _LiquidGlassContainerView ?? View;
+export const safeIsLiquidGlassSupported = _isLiquidGlassSupported;

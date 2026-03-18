@@ -11,9 +11,9 @@ import { BlurView } from "expo-blur";
 import { memo } from "react";
 import type { BottomSheetBackgroundProps } from "@gorhom/bottom-sheet";
 import {
-  LiquidGlassView,
-  isLiquidGlassSupported,
-} from "@callstack/liquid-glass";
+  SafeLiquidGlassView as LiquidGlassView,
+  safeIsLiquidGlassSupported as isLiquidGlassSupported,
+} from "@/lib/safe-native-modules";
 import Animated from "react-native-reanimated";
 
 const BORDER_RADIUS = 24;
