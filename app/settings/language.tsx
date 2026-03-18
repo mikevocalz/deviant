@@ -1,11 +1,10 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, Check } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { Check } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { mmkv } from "@/lib/mmkv-zustand";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useLayoutEffect } from "react";
 import { toast } from "sonner-native";
 
 const LANGUAGE_STORAGE_KEY = "app_language_preference";
@@ -25,6 +24,7 @@ const languages = [
 
 export default function LanguageScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const [selectedLanguage, setSelectedLanguage] = useState("en");
 
@@ -46,22 +46,25 @@ export default function LanguageScreen() {
     }
   };
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Language
-          </Text>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Language",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, colors]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         <ScrollView
           className="flex-1 px-4 py-6"
           showsVerticalScrollIndicator={false}
@@ -100,6 +103,6 @@ export default function LanguageScreen() {
           </Text>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

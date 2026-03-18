@@ -1,30 +1,34 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, Archive } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { Archive } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
+import { useLayoutEffect } from "react";
 
 export default function ArchivedScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Archived
-          </Text>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Archived",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, colors]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="flex-1 items-center justify-center px-8 py-20">
             <View className="mb-4 rounded-full bg-secondary/50 p-4">
@@ -49,6 +53,6 @@ export default function ArchivedScreen() {
           </View>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

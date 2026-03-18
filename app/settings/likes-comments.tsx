@@ -5,10 +5,9 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -19,9 +18,26 @@ import {
 
 export default function LikesCommentsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { data: prefs, isLoading } = useLikesCommentsPrefs();
   const updateMutation = useUpdateLikesCommentsPrefs();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Likes and Comments",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, colors]);
 
   const handleToggle = (key: keyof LikesCommentsPrefs, value: boolean) => {
     updateMutation.mutate({ [key]: value });
@@ -29,44 +45,19 @@ export default function LikesCommentsScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <View className="flex-1 bg-background">
         <Main className="flex-1">
-          <View className="flex-row items-center border-b border-border px-4 py-3">
-            <Pressable
-              onPress={() => router.back()}
-              hitSlop={16}
-              style={{ padding: 8, margin: -8, marginRight: 8 }}
-            >
-              <ChevronLeft size={24} color={colors.foreground} />
-            </Pressable>
-            <Text className="flex-1 text-lg font-semibold text-foreground">
-              Likes and Comments
-            </Text>
-          </View>
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
         </Main>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <View className="flex-1 bg-background">
       <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Likes and Comments
-          </Text>
-        </View>
-
         <ScrollView
           className="flex-1 px-4 py-6"
           showsVerticalScrollIndicator={false}
@@ -148,6 +139,6 @@ export default function LikesCommentsScreen() {
           </View>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

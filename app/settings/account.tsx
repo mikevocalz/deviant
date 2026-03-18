@@ -7,19 +7,19 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, Mail, Phone, Trash2, Pencil } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { Mail, Phone, Trash2, Pencil } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { usersApi } from "@/lib/api/users";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useLayoutEffect } from "react";
 import { toast } from "sonner-native";
 import { deleteAccountPrivileged } from "@/lib/supabase/privileged";
 
 export default function AccountScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { user, setUser, logout } = useAuthStore();
 
@@ -92,35 +92,47 @@ export default function AccountScreen() {
     );
   };
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Account Information",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+      headerRight: () =>
+        isEditing ? (
+          <Pressable onPress={handleSave} disabled={isSaving} hitSlop={12}>
+            {isSaving ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontWeight: "600",
+                  fontSize: 16,
+                }}
+              >
+                Save
+              </Text>
+            )}
           </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Account Information
-          </Text>
-          {isEditing ? (
-            <Pressable onPress={handleSave} disabled={isSaving}>
-              {isSaving ? (
-                <ActivityIndicator size="small" color={colors.primary} />
-              ) : (
-                <Text className="font-semibold text-primary">Save</Text>
-              )}
-            </Pressable>
-          ) : (
-            <Pressable onPress={() => setIsEditing(true)}>
-              <Pencil size={20} color={colors.foreground} />
-            </Pressable>
-          )}
-        </View>
+        ) : (
+          <Pressable onPress={() => setIsEditing(true)} hitSlop={12}>
+            <Pencil size={20} color={colors.foreground} />
+          </Pressable>
+        ),
+    });
+  }, [navigation, colors, isEditing, isSaving, handleSave]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         <ScrollView
           className="flex-1 px-4 py-6"
           showsVerticalScrollIndicator={false}
@@ -199,6 +211,6 @@ export default function AccountScreen() {
           </Text>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }
