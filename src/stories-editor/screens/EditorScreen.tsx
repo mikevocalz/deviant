@@ -43,7 +43,7 @@ import {
   AdjustmentPanel,
   BackgroundPicker,
 } from "../components";
-import { ToolPanelContainer } from "../components/panels/ToolPanelContainer";
+import { AnimatedToolPanel } from "../components/panels/AnimatedToolPanel";
 import { PerfHUD } from "../components/canvas/PerfHUD";
 import {
   DrawingPath,
@@ -186,10 +186,18 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   }, []);
 
   const handlePathUpdate = useCallback((point: Position) => {
-    currentPathPoints.current.push(point);
-    liveStrokePointsRef.current = currentPathPoints.current;
-    // Trigger canvas update every few points
-    if (currentPathPoints.current.length % 3 === 0) {
+    const pts = currentPathPoints.current;
+    // Point decimation: skip points within 3px (canvas coords) of last committed point
+    if (pts.length > 0) {
+      const last = pts[pts.length - 1];
+      const dx = point.x - last.x;
+      const dy = point.y - last.y;
+      if (dx * dx + dy * dy < 9) return; // 3px² threshold
+    }
+    pts.push(point);
+    liveStrokePointsRef.current = pts;
+    // Trigger canvas update every 5 points (reduced from 3 for fewer re-renders)
+    if (pts.length % 5 === 0) {
       forceRender();
     }
   }, []);
@@ -685,8 +693,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         />
       )}
 
-      {/* ---- Sticker Panel (overlay, not modal sheet) ---- */}
-      <ToolPanelContainer
+      {/* ---- Sticker Panel (animated overlay — no touch interception above) ---- */}
+      <AnimatedToolPanel
         visible={mode === "sticker"}
         onDismiss={() => setMode("idle")}
         heightRatio={0.45}
@@ -696,10 +704,10 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           onSelectImageSticker={handleSelectImageSticker}
           onClose={() => setMode("idle")}
         />
-      </ToolPanelContainer>
+      </AnimatedToolPanel>
 
-      {/* ---- Filter Panel (overlay) ---- */}
-      <ToolPanelContainer
+      {/* ---- Filter Panel (animated overlay) ---- */}
+      <AnimatedToolPanel
         visible={mode === "filter"}
         onDismiss={() => setMode("idle")}
         heightRatio={0.42}
@@ -715,10 +723,10 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           mediaUri={storeMediaUri}
           onDone={() => setMode("idle")}
         />
-      </ToolPanelContainer>
+      </AnimatedToolPanel>
 
-      {/* ---- Adjustment Panel (overlay) ---- */}
-      <ToolPanelContainer
+      {/* ---- Adjustment Panel (animated overlay) ---- */}
+      <AnimatedToolPanel
         visible={mode === "adjust"}
         onDismiss={() => setMode("idle")}
         heightRatio={0.55}
@@ -729,7 +737,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           onReset={resetAdjustments}
           onDone={() => setMode("idle")}
         />
-      </ToolPanelContainer>
+      </AnimatedToolPanel>
 
       {/* ---- Background Picker (shown in idle when no media — text-only stories) ---- */}
       {mode === "idle" && !storeMediaUri && (
