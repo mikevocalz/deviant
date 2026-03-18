@@ -96,6 +96,7 @@ export async function exportImage(
   // Safety clamp: expo-image-manipulator rejects crop rects outside image bounds.
   // Use the EXACT same dimension helpers as computeCropRectPixels to avoid
   // any rounding disagreement between trig and the helper functions.
+  // All values MUST be positive integers — floating point causes silent failures.
   const rotated = getRotatedDimensions(
     state.sourceSize.w,
     state.sourceSize.h,
@@ -106,16 +107,42 @@ export async function exportImage(
     rotated.h,
     state.straighten,
   );
-  const postW = effective.w;
-  const postH = effective.h;
+  const postW = Math.floor(effective.w);
+  const postH = Math.floor(effective.h);
 
-  const safeOriginX = Math.max(0, Math.min(cropRect.originX, postW - 1));
-  const safeOriginY = Math.max(0, Math.min(cropRect.originY, postH - 1));
-  const safeWidth = Math.max(1, Math.min(cropRect.width, postW - safeOriginX));
-  const safeHeight = Math.max(
-    1,
-    Math.min(cropRect.height, postH - safeOriginY),
-  );
+  // Round to integers and aggressively clamp
+  let safeOriginX = Math.max(0, Math.floor(cropRect.originX));
+  let safeOriginY = Math.max(0, Math.floor(cropRect.originY));
+  let safeWidth = Math.max(1, Math.round(cropRect.width));
+  let safeHeight = Math.max(1, Math.round(cropRect.height));
+
+  // Guarantee origin + size <= postDimension (integer arithmetic)
+  if (safeOriginX + safeWidth > postW) {
+    safeWidth = Math.max(1, postW - safeOriginX);
+  }
+  if (safeOriginY + safeHeight > postH) {
+    safeHeight = Math.max(1, postH - safeOriginY);
+  }
+  // If origin itself exceeds bounds, reset to full image
+  if (safeOriginX >= postW || safeOriginY >= postH) {
+    safeOriginX = 0;
+    safeOriginY = 0;
+    safeWidth = postW;
+    safeHeight = postH;
+  }
+
+  // Final NaN/Infinity guard
+  if (
+    !Number.isFinite(safeOriginX) ||
+    !Number.isFinite(safeOriginY) ||
+    !Number.isFinite(safeWidth) ||
+    !Number.isFinite(safeHeight)
+  ) {
+    safeOriginX = 0;
+    safeOriginY = 0;
+    safeWidth = postW;
+    safeHeight = postH;
+  }
 
   actions.push({
     crop: {

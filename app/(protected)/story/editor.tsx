@@ -15,9 +15,11 @@ export default function StoryEditorRoute() {
   const navigation = useNavigation();
 
   // [REGRESSION LOCK] Reset editor on mount — guarantees no stale state
-  // from a previous session. Synchronous, not deferred.
+  // from a previous session. Must be useLayoutEffect (not useEffect) so it
+  // fires BEFORE EditorScreen's useEffect(setMedia), preventing the race
+  // condition where child setMedia runs first, then parent resetEditor wipes it.
   const didMount = useRef(false);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!didMount.current) {
       didMount.current = true;
       useEditorStore.getState().resetEditor();
