@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Receipt,
@@ -76,7 +76,7 @@ export default function OrderDetailScreen() {
       headerShown: true,
       title: "Order Details",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: "#fff",
       headerStyle: { backgroundColor: "#000" },
       headerTitleStyle: {
@@ -85,6 +85,7 @@ export default function OrderDetailScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation]);
   const showToast = useUIStore((s) => s.showToast);

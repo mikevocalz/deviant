@@ -23,7 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import { WebView } from "react-native-webview";
 import Animated, { FadeIn } from "react-native-reanimated";
 import {
@@ -170,19 +170,23 @@ export default function ReceiptViewerScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       title: docTitle,
-      headerRight: () =>
-        hasPdfUrl || hasOrderForHtml ? (
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <Pressable onPress={handlePrint} hitSlop={8}>
-              <Printer size={20} color="#fff" />
-            </Pressable>
-            <Pressable onPress={handleShare} hitSlop={8}>
-              <Share2 size={20} color="#fff" />
-            </Pressable>
-          </View>
-        ) : null,
+      headerRight: () => (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {(hasPdfUrl || hasOrderForHtml) && (
+            <>
+              <Pressable onPress={handlePrint} hitSlop={8}>
+                <Printer size={20} color="#fff" />
+              </Pressable>
+              <Pressable onPress={handleShare} hitSlop={8}>
+                <Share2 size={20} color="#fff" />
+              </Pressable>
+            </>
+          )}
+          <SettingsCloseButton />
+        </View>
+      ),
     });
   }, [
     navigation,

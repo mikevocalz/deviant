@@ -10,7 +10,7 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   BarChart3,
@@ -68,7 +68,7 @@ export default function HostTransactionsScreen() {
       headerShown: true,
       title: "Transactions",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: "#fff",
       headerStyle: { backgroundColor: "#000" },
       headerTitleStyle: {
@@ -77,6 +77,7 @@ export default function HostTransactionsScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation]);
 

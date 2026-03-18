@@ -1,15 +1,22 @@
 /**
  * ProfileMasonryGrid
  *
- * TRUE masonry grid — shortest-column packing, no row locking.
+ * Featured masonry grid — large left + 2 stacked right, alternating.
  *
- * - 2 columns on phone, 3 on tablet (≥768), 4 on large (≥1024)
- * - Variable cell heights by media kind + deterministic per-post variation
+ * - Groups posts in chunks of 3
+ * - Odd groups: large cell LEFT, 2 stacked RIGHT
+ * - Even groups: 2 stacked LEFT, large cell RIGHT
+ * - Remaining 1–2 posts render as equal-width cells
  * - Video cells always show thumbnail via getVideoThumbnail() — never black
- * - Renders N columns side-by-side inside a LegendList scroll container
  * - Tapping a cell routes to /(protected)/post/[id]
  */
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import { Image } from "expo-image";
 import { useCallback, useMemo, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,14 +27,11 @@ import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { screenPrefetch } from "@/lib/prefetch";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { LegendList } from "@/components/list";
-import {
-  useMasonryLayout,
-  type MasonryTile,
-} from "@/lib/masonry/use-masonry-layout";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const CELL_GAP = 3;
+const CELL_BORDER_RADIUS = 8;
 
 // ─── Video thumbnail cell (async, never black) ───────────────────────────────
 
@@ -73,51 +77,39 @@ const VideoThumbnailCell = memo(function VideoThumbnailCell({
   );
 });
 
-// ─── Individual masonry cell ──────────────────────────────────────────────────
+// ─── Individual cell (no margin — parent controls spacing) ─────────────────
 
-interface MasonryCellProps {
-  item: MasonryTile;
-  columnWidth: number;
+interface GridCellProps {
+  tile: SafeGridTile;
+  width: number;
+  height: number;
   borderRadius: number;
   userId?: string | number;
+  onPress: (id: string) => void;
 }
 
-const MasonryCell = memo(function MasonryCell({
-  item,
-  columnWidth,
+const GridCell = memo(function GridCell({
+  tile,
+  width,
+  height,
   borderRadius,
   userId,
-}: MasonryCellProps) {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const tile = item.tile;
-  const cellHeight = item.estimatedHeight;
-
-  const handlePress = useCallback(() => {
-    if (tile?.id) {
-      screenPrefetch.postDetail(queryClient, tile.id);
-      router.push(`/(protected)/post/${tile.id}` as any);
-    }
-  }, [tile.id, router, queryClient]);
+  onPress,
+}: GridCellProps) {
+  const handlePress = useCallback(() => onPress(tile.id), [tile.id, onPress]);
 
   return (
     <Pressable
       onPress={handlePress}
       testID={`profile.${userId}.gridTile.${tile.id}`}
-      style={{ marginBottom: CELL_GAP }}
     >
-      <View
-        style={[
-          styles.cellInner,
-          { width: columnWidth, height: cellHeight, borderRadius },
-        ]}
-      >
+      <View style={[styles.cellInner, { width, height, borderRadius }]}>
         {tile.kind === "video" ? (
           <VideoThumbnailCell
             videoUrl={tile.videoUrl ?? ""}
             coverUrl={tile.coverUrl}
-            width={columnWidth}
-            height={cellHeight}
+            width={width}
+            height={height}
           />
         ) : tile.coverUrl ? (
           <Image
@@ -177,37 +169,170 @@ export function ProfileMasonryGrid({
   ListHeaderComponent,
   ListEmptyComponent,
 }: ProfileMasonryGridProps) {
-  const { packed, columnWidth, columnCount, columnGap, cellBorderRadius } =
-    useMasonryLayout(data);
+  const { width: screenWidth } = useWindowDimensions();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
-  // Single-item data: one entry = entire masonry grid; empty = show ListEmptyComponent
+  // Featured masonry dimensions
+  const pad = CELL_GAP;
+  const available = screenWidth - pad * 2 - CELL_GAP;
+  const largeW = Math.floor(available * 0.58);
+  const smallW = available - largeW;
+  const smallH = Math.floor(smallW * 1.15);
+  const largeH = smallH * 2 + CELL_GAP;
+  const radius = CELL_BORDER_RADIUS;
+
+  // Group into chunks of 3
+  const groups = useMemo(() => {
+    const g: SafeGridTile[][] = [];
+    for (let i = 0; i < data.length; i += 3) {
+      g.push(data.slice(i, i + 3));
+    }
+    return g;
+  }, [data]);
+
+  const handlePress = useCallback(
+    (id: string) => {
+      screenPrefetch.postDetail(queryClient, id);
+      router.push(`/(protected)/post/${id}` as any);
+    },
+    [router, queryClient],
+  );
+
   const gridData = data.length > 0 ? GRID_ITEM : EMPTY;
+
+  const totalHeight = groups.reduce(
+    (h, g) => h + (g.length >= 3 ? largeH : smallH) + CELL_GAP,
+    0,
+  );
 
   const renderItem = useCallback(
     () => (
-      <View
-        style={{
-          flexDirection: "row",
-          paddingHorizontal: columnGap,
-          gap: columnGap,
-        }}
-      >
-        {packed.columns.map((column, colIdx) => (
-          <View key={`col-${colIdx}`} style={{ width: columnWidth }}>
-            {column.items.map((item) => (
-              <MasonryCell
-                key={item.id}
-                item={item}
-                columnWidth={columnWidth}
-                borderRadius={cellBorderRadius}
+      <View>
+        {groups.map((group, gIdx) => {
+          const flipped = gIdx % 2 === 1;
+
+          if (group.length >= 3) {
+            const largeCell = (
+              <GridCell
+                key={group[0].id}
+                tile={group[0]}
+                width={largeW}
+                height={largeH}
+                borderRadius={radius}
                 userId={userId}
+                onPress={handlePress}
               />
-            ))}
-          </View>
-        ))}
+            );
+            const stackedCells = (
+              <View key={`stack-${gIdx}`}>
+                <GridCell
+                  tile={group[1]}
+                  width={smallW}
+                  height={smallH}
+                  borderRadius={radius}
+                  userId={userId}
+                  onPress={handlePress}
+                />
+                <View style={{ height: CELL_GAP }} />
+                <GridCell
+                  tile={group[2]}
+                  width={smallW}
+                  height={smallH}
+                  borderRadius={radius}
+                  userId={userId}
+                  onPress={handlePress}
+                />
+              </View>
+            );
+
+            return (
+              <View
+                key={`g-${gIdx}`}
+                style={{
+                  flexDirection: "row",
+                  paddingHorizontal: pad,
+                  gap: CELL_GAP,
+                  marginBottom: CELL_GAP,
+                }}
+              >
+                {flipped ? (
+                  <>
+                    {stackedCells}
+                    {largeCell}
+                  </>
+                ) : (
+                  <>
+                    {largeCell}
+                    {stackedCells}
+                  </>
+                )}
+              </View>
+            );
+          }
+
+          if (group.length === 2) {
+            const halfW = Math.floor(available / 2);
+            return (
+              <View
+                key={`g-${gIdx}`}
+                style={{
+                  flexDirection: "row",
+                  paddingHorizontal: pad,
+                  gap: CELL_GAP,
+                  marginBottom: CELL_GAP,
+                }}
+              >
+                <GridCell
+                  tile={group[0]}
+                  width={halfW}
+                  height={smallH}
+                  borderRadius={radius}
+                  userId={userId}
+                  onPress={handlePress}
+                />
+                <GridCell
+                  tile={group[1]}
+                  width={halfW}
+                  height={smallH}
+                  borderRadius={radius}
+                  userId={userId}
+                  onPress={handlePress}
+                />
+              </View>
+            );
+          }
+
+          return (
+            <View
+              key={`g-${gIdx}`}
+              style={{ paddingHorizontal: pad, marginBottom: CELL_GAP }}
+            >
+              <GridCell
+                tile={group[0]}
+                width={available + CELL_GAP}
+                height={smallH}
+                borderRadius={radius}
+                userId={userId}
+                onPress={handlePress}
+              />
+            </View>
+          );
+        })}
       </View>
     ),
-    [packed, columnWidth, columnGap, cellBorderRadius, userId],
+    [
+      groups,
+      largeW,
+      smallW,
+      largeH,
+      smallH,
+      radius,
+      userId,
+      handlePress,
+      pad,
+      available,
+    ],
   );
 
   const keyExtractor = useCallback((item: GridRow) => item.key, []);
@@ -217,7 +342,7 @@ export function ProfileMasonryGrid({
       data={gridData}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      estimatedItemSize={packed.maxHeight || 300}
+      estimatedItemSize={totalHeight || 300}
       recycleItems={false}
       scrollEnabled={scrollEnabled}
       ListHeaderComponent={ListHeaderComponent}

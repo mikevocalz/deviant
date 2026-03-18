@@ -17,7 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   CreditCard,
@@ -191,20 +191,22 @@ export default function PaymentMethodsScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerRight: () => (
-        <Pressable
-          onPress={handleAddPaymentMethod}
-          disabled={isAdding}
-          hitSlop={8}
-          style={{ marginRight: 4 }}
-        >
-          {isAdding ? (
-            <ActivityIndicator size="small" color="#8A40CF" />
-          ) : (
-            <Plus size={22} color="#8A40CF" />
-          )}
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Pressable
+            onPress={handleAddPaymentMethod}
+            disabled={isAdding}
+            hitSlop={8}
+          >
+            {isAdding ? (
+              <ActivityIndicator size="small" color="#8A40CF" />
+            ) : (
+              <Plus size={22} color="#8A40CF" />
+            )}
+          </Pressable>
+          <SettingsCloseButton />
+        </View>
       ),
     });
   }, [navigation, isAdding, handleAddPaymentMethod]);

@@ -20,7 +20,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Palette,
@@ -156,35 +156,39 @@ export default function HostBrandingScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerLeft: () => <SettingsBackButton />,
-      headerRight: () =>
-        branding ? (
-          <Pressable
-            onPress={handleSave}
-            disabled={brandingSaving}
-            style={{
-              backgroundColor: "#8A40CF",
-              borderRadius: 12,
-              paddingHorizontal: 14,
-              paddingVertical: 7,
-              opacity: brandingSaving ? 0.6 : 1,
-            }}
-          >
-            {brandingSaving ? (
-              <ActivityIndicator size="small" color="#000" />
-            ) : (
-              <Text
-                style={{
-                  color: "#000",
-                  fontFamily: "Inter-Bold",
-                  fontSize: 13,
-                }}
-              >
-                Save
-              </Text>
-            )}
-          </Pressable>
-        ) : null,
+      headerLeft: () => null,
+      headerRight: () => (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {branding && (
+            <Pressable
+              onPress={handleSave}
+              disabled={brandingSaving}
+              style={{
+                backgroundColor: "#8A40CF",
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                paddingVertical: 7,
+                opacity: brandingSaving ? 0.6 : 1,
+              }}
+            >
+              {brandingSaving ? (
+                <ActivityIndicator size="small" color="#000" />
+              ) : (
+                <Text
+                  style={{
+                    color: "#000",
+                    fontFamily: "Inter-Bold",
+                    fontSize: 13,
+                  }}
+                >
+                  Save
+                </Text>
+              )}
+            </Pressable>
+          )}
+          <SettingsCloseButton />
+        </View>
+      ),
     });
   }, [navigation, branding, brandingSaving, handleSave]);
 

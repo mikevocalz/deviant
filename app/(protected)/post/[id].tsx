@@ -290,7 +290,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
             <VideoView
               player={player}
               style={{ flex: 1 }}
-              contentFit="contain"
+              contentFit="cover"
               nativeControls={false}
             />
             {!isPlaying && (
@@ -320,7 +320,16 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
               </View>
             )}
           </Pressable>
-          <View style={{ paddingHorizontal: 16, paddingBottom: 60 }}>
+          {/* Seek bar — 20px from bottom */}
+          <View
+            style={{
+              position: "absolute",
+              bottom: 16,
+              left: 0,
+              right: 0,
+              height: 28,
+            }}
+          >
             <DVNTSeekBar
               currentTime={currentTime}
               duration={duration}
@@ -330,10 +339,10 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
               }}
             />
           </View>
-          {/* Minimize */}
+          {/* Minimize — bottom right, above seek bar */}
           <Pressable
             onPress={handleFullscreenToggle}
-            style={{ position: "absolute", top: 52, right: 20 }}
+            style={{ position: "absolute", bottom: 56, right: 20 }}
             hitSlop={16}
           >
             <DVNTLiquidGlassIconButton size={42}>

@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import { Mail, Phone, Trash2, Pencil } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -98,7 +98,7 @@ export default function AccountScreen() {
       headerShown: true,
       title: "Account Information",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
@@ -107,28 +107,32 @@ export default function AccountScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
-      headerRight: () =>
-        isEditing ? (
-          <Pressable onPress={handleSave} disabled={isSaving} hitSlop={12}>
-            {isSaving ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Text
-                style={{
-                  color: colors.primary,
-                  fontWeight: "600",
-                  fontSize: 16,
-                }}
-              >
-                Save
-              </Text>
-            )}
-          </Pressable>
-        ) : (
-          <Pressable onPress={() => setIsEditing(true)} hitSlop={12}>
-            <Pencil size={20} color={colors.foreground} />
-          </Pressable>
-        ),
+      headerRight: () => (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          {isEditing ? (
+            <Pressable onPress={handleSave} disabled={isSaving} hitSlop={12}>
+              {isSaving ? (
+                <ActivityIndicator size="small" color={colors.primary} />
+              ) : (
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontWeight: "600",
+                    fontSize: 16,
+                  }}
+                >
+                  Save
+                </Text>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setIsEditing(true)} hitSlop={12}>
+              <Pencil size={20} color={colors.foreground} />
+            </Pressable>
+          )}
+          <SettingsCloseButton />
+        </View>
+      ),
     });
   }, [navigation, colors, isEditing, isSaving, handleSave]);
 

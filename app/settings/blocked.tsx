@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import { UserX } from "lucide-react-native";
 import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
@@ -83,7 +83,7 @@ export default function BlockedScreen() {
       headerShown: true,
       title: "Blocked Accounts",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
@@ -92,6 +92,7 @@ export default function BlockedScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation, colors]);
 

@@ -13,7 +13,7 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   CreditCard,
@@ -34,7 +34,7 @@ export default function PaymentsSettingsScreen() {
       headerShown: true,
       title: "Payments",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: "#fff",
       headerStyle: { backgroundColor: "#000" },
       headerTitleStyle: {
@@ -43,6 +43,7 @@ export default function PaymentsSettingsScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation]);
 
