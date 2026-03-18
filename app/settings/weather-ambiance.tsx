@@ -1,13 +1,14 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, CloudRain, Snowflake, Sun } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { CloudRain, Snowflake, Sun } from "lucide-react-native";
+import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
 import { Switch } from "@/components/ui/switch";
 import { useWeatherFXStore } from "@/src/features/weatherfx/WeatherFXStore";
 export default function WeatherAmbianceScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
 
   const weatherAmbianceEnabled = useWeatherFXStore(
@@ -35,22 +36,25 @@ export default function WeatherAmbianceScreen() {
       : prev,
   );
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Weather Ambiance
-          </Text>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Weather Ambiance",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, colors]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         <ScrollView
           className="flex-1 px-4 py-6"
           showsVerticalScrollIndicator={false}
@@ -174,6 +178,6 @@ export default function WeatherAmbianceScreen() {
           </View>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

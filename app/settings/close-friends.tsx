@@ -5,10 +5,10 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, Star, Users, UserPlus } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { Star, Users, UserPlus } from "lucide-react-native";
+import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
 import { Image } from "expo-image";
 import {
@@ -21,6 +21,7 @@ const CF_ACCENT = "#FC253A";
 
 export default function CloseFriendsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
   const { data: closeFriends = [], isLoading } = useCloseFriendsList();
   const toggleMutation = useToggleCloseFriend();
@@ -30,28 +31,33 @@ export default function CloseFriendsScreen() {
     toggleMutation.mutate({ friendId, isCloseFriend: true });
   };
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            Close Friends
-          </Text>
-          <Pressable
-            onPress={() => router.push("/(protected)/close-friends" as any)}
-            hitSlop={12}
-          >
-            <UserPlus size={22} color={CF_ACCENT} />
-          </Pressable>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Close Friends",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+      headerRight: () => (
+        <Pressable
+          onPress={() => router.push("/(protected)/close-friends" as any)}
+          hitSlop={12}
+        >
+          <UserPlus size={22} color={CF_ACCENT} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, colors, router]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           <View className="px-4 py-4">
             <View
@@ -153,6 +159,6 @@ export default function CloseFriendsScreen() {
           </View>
         </ScrollView>
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

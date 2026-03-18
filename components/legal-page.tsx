@@ -1,9 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useLayoutEffect } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
-import { useRouter } from "expo-router";
-import { ChevronLeft, ChevronDown } from "lucide-react-native";
+import { useRouter, useNavigation } from "expo-router";
+import { ChevronDown } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { type LegalPageSlug, type FAQItem } from "@/lib/stores/legal-store";
 import { useFAQStore } from "@/lib/stores/faq-store";
@@ -134,6 +133,7 @@ function FAQSection({ faqs }: { faqs: FAQItem[] }) {
 
 export function LegalPage({ slug, title }: LegalPageProps) {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useColorScheme();
 
   // Load content directly from bundled static content - always available, no async needed
@@ -146,18 +146,25 @@ export function LegalPage({ slug, title }: LegalPageProps) {
     return page?.content ? parseMarkdownContent(page.content) : [];
   }, [page?.content]);
 
-  return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      <Main className="flex-1">
-        <View className="flex-row items-center border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} className="mr-4">
-            <ChevronLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="flex-1 text-lg font-semibold text-foreground">
-            {page?.title || title}
-          </Text>
-        </View>
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: page?.title || title,
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: colors.foreground,
+      headerStyle: { backgroundColor: colors.background },
+      headerTitleStyle: {
+        color: colors.foreground,
+        fontWeight: "600" as const,
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation, colors, page?.title, title]);
 
+  return (
+    <View className="flex-1 bg-background">
+      <Main className="flex-1">
         {!page ? (
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-center text-muted-foreground">
@@ -263,6 +270,6 @@ export function LegalPage({ slug, title }: LegalPageProps) {
           </ScrollView>
         )}
       </Main>
-    </SafeAreaView>
+    </View>
   );
 }

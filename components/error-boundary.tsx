@@ -120,8 +120,8 @@ export class ErrorBoundary extends Component<Props, State> {
                 : "An unexpected error occurred."}
             </Text>
 
-            {/* Error details — temporarily shown in prod for crash diagnosis */}
-            {this.state.error && (
+            {/* Error details — only shown in development */}
+            {__DEV__ && this.state.error && (
               <View style={styles.errorBox}>
                 <Text style={styles.errorText}>{this.state.error.message}</Text>
                 <Text
