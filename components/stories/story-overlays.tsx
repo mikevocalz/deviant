@@ -108,7 +108,7 @@ export const StoryCloseButton: RenderCustomButton = ({ onPress }) => {
         height: 36,
         alignItems: "center",
         justifyContent: "center",
-        borderRadius: 18,
+        borderRadius: 9,
         backgroundColor: "rgba(0,0,0,0.3)",
       }}
     >

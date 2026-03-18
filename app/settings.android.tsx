@@ -71,8 +71,7 @@ export default function SettingsScreenAndroid() {
         fontWeight: "600" as const,
         fontSize: 18,
       },
-      headerLeft: () => null,
-      headerRight: () => (
+      headerLeft: () => (
         <Pressable
           onPress={() => {
             if (router.canDismiss()) {
@@ -83,16 +82,19 @@ export default function SettingsScreenAndroid() {
           }}
           hitSlop={12}
           style={{
-            marginRight: 8,
-            width: 44,
-            height: 44,
+            marginLeft: 8,
+            width: 36,
+            height: 36,
+            borderRadius: 9,
+            backgroundColor: "rgba(255,255,255,0.1)",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <X size={24} color={colors.foreground} />
+          <X size={20} color={colors.foreground} />
         </Pressable>
       ),
+      headerRight: () => null,
     });
   }, [navigation, colors, router]);
 

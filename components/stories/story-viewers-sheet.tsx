@@ -50,9 +50,7 @@ function ViewerRow({
       />
       <View style={styles.viewerInfo}>
         <Text style={styles.viewerUsername}>{viewer.username}</Text>
-        <Text style={styles.viewerTime}>
-          {formatViewedAt(viewer.viewedAt)}
-        </Text>
+        <Text style={styles.viewerTime}>{formatViewedAt(viewer.viewedAt)}</Text>
       </View>
     </Pressable>
   );
@@ -92,11 +90,7 @@ export function StoryViewersSheet({
               {viewers.length} {viewers.length === 1 ? "viewer" : "viewers"}
             </Text>
           </View>
-          <Pressable
-            onPress={onClose}
-            hitSlop={12}
-            style={styles.closeButton}
-          >
+          <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
             <X size={20} color="#fff" />
           </Pressable>
         </View>
@@ -171,7 +165,7 @@ const styles = StyleSheet.create({
   closeButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 8,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",

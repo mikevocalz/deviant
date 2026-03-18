@@ -14,7 +14,7 @@ export const SHEET_SNAPS = ["65%", "92%"] as const;
 export const SHEET_DEFAULT_INDEX = 0;
 
 /** Tall content sheets (comments with input, full lists) */
-export const SHEET_SNAPS_TALL = ["75%", "95%"] as const;
+export const SHEET_SNAPS_TALL = ["85%", "95%"] as const;
 
 /** Action sheets (profile actions, post actions — shorter content) */
 export const SHEET_SNAPS_ACTION = ["55%"] as const;

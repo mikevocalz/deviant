@@ -603,7 +603,7 @@ export function CameraScreen({
               style={{
                 width: 44,
                 height: 44,
-                borderRadius: 16,
+                borderRadius: 11,
                 backgroundColor: "rgba(0,0,0,0.5)",
                 alignItems: "center",
                 justifyContent: "center",

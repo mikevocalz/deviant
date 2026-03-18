@@ -1188,7 +1188,7 @@ export default function StoryViewerScreen() {
             style={{
               width: 34,
               height: 34,
-              borderRadius: 17,
+              borderRadius: 8,
               backgroundColor: "rgba(30,30,30,0.55)",
               alignItems: "center",
               justifyContent: "center",

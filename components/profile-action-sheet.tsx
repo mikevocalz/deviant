@@ -96,7 +96,10 @@ export function ProfileActionSheet({
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>@{username}</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
+          <Pressable
+            onPress={() => bottomSheetRef.current?.close()}
+            hitSlop={12}
+          >
             <X size={20} color="#999" />
           </Pressable>
         </View>

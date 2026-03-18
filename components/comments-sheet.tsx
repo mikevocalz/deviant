@@ -303,7 +303,11 @@ export function CommentsSheet({
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>
           Comments
         </Text>
-        <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
+        <Pressable
+          onPress={() => bottomSheetRef.current?.close()}
+          hitSlop={12}
+          style={styles.closeButton}
+        >
           <X size={20} color={colors.mutedForeground} />
         </Pressable>
       </View>
