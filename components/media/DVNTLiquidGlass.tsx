@@ -10,9 +10,9 @@ import { View, type ViewStyle, type StyleProp } from "react-native";
 import { BlurView } from "expo-blur";
 import { memo } from "react";
 import {
-  LiquidGlassView,
-  isLiquidGlassSupported,
-} from "@callstack/liquid-glass";
+  SafeLiquidGlassView as LiquidGlassView,
+  safeIsLiquidGlassSupported as isLiquidGlassSupported,
+} from "@/lib/safe-native-modules";
 
 interface DVNTLiquidGlassProps {
   children: React.ReactNode;
