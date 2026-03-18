@@ -472,19 +472,6 @@ export function Feed() {
     [],
   );
 
-  if (isLoading || !nsfwLoaded) {
-    return <FeedSkeleton />;
-  }
-
-  if (error) {
-    return (
-      <View className="flex-1 items-center justify-center pb-20">
-        <Text className="text-destructive">Failed to load posts</Text>
-      </View>
-    );
-  }
-
-  // ── Derive data for lifted sheets from allPosts ──
   const actionPost = useMemo(
     () =>
       actionSheetPostId
@@ -492,6 +479,7 @@ export function Feed() {
         : undefined,
     [actionSheetPostId, allPosts],
   );
+
   const sharePost_ = useMemo(
     () =>
       shareSheetPostId
@@ -499,6 +487,7 @@ export function Feed() {
         : undefined,
     [shareSheetPostId, allPosts],
   );
+
   const currentUsername = useAuthStore((s) => s.user?.username);
   const actionIsOwner = actionPost?.author?.username === currentUsername;
 
@@ -551,6 +540,18 @@ export function Feed() {
     }
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
+
+  if (isLoading || !nsfwLoaded) {
+    return <FeedSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <View className="flex-1 items-center justify-center pb-20">
+        <Text className="text-destructive">Failed to load posts</Text>
+      </View>
+    );
+  }
 
   return (
     <>
