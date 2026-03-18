@@ -14,7 +14,14 @@
  *
  * State: all in useFeedPostUIStore (Zustand) — no local useState.
  */
-import { View, Text, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Modal,
+  StatusBar,
+} from "react-native";
 import { Article } from "@expo/html-elements";
 import { Avatar } from "@/components/ui/avatar";
 import {
@@ -24,6 +31,8 @@ import {
   Bookmark,
   MoreHorizontal,
   Maximize2,
+  Minimize2,
+  Play,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -39,6 +48,7 @@ import {
   memo,
   useMemo,
   useRef,
+  useState,
   type ElementRef,
 } from "react";
 import { useIsFocused } from "@react-navigation/native";
@@ -366,8 +376,9 @@ function FeedPostComponent({
     queryClient,
   ]);
 
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const handleFullscreenToggle = useCallback(() => {
-    videoViewRef.current?.enterFullscreen();
+    setIsFullscreen((prev) => !prev);
   }, []);
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
@@ -770,6 +781,74 @@ function FeedPostComponent({
       </Article>
 
       {/* Sheets (CommentsSheet, PostActionSheet, ShareToInboxSheet) rendered at Feed level */}
+
+      {/* Custom fullscreen modal for video */}
+      {isVideo && isFullscreen && (
+        <Modal
+          visible
+          animationType="fade"
+          supportedOrientations={["portrait", "landscape"]}
+          statusBarTranslucent
+          onRequestClose={handleFullscreenToggle}
+        >
+          <StatusBar hidden />
+          <View style={{ flex: 1, backgroundColor: "#000" }}>
+            <Pressable onPress={handleVideoPress} style={{ flex: 1 }}>
+              <VideoView
+                player={player}
+                style={{ flex: 1 }}
+                contentFit="cover"
+                nativeControls={false}
+              />
+            </Pressable>
+            {/* Seek bar — 20px from bottom */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: 16,
+                left: 0,
+                right: 0,
+                height: 28,
+              }}
+            >
+              <DVNTSeekBar
+                currentTime={videoCurrentTime}
+                duration={videoDuration}
+                onSeek={handleVideoSeek}
+                onSeekEnd={() => {
+                  if (isFocused && isActivePost) {
+                    safePlay(player, isMountedRef, "FeedPost");
+                  }
+                }}
+              />
+            </View>
+            {/* Minimize — bottom right, above seek bar */}
+            <Pressable
+              onPress={handleFullscreenToggle}
+              style={{ position: "absolute", bottom: 56, right: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                <Minimize2 size={20} color="#fff" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+            {/* Mute */}
+            <Pressable
+              onPress={toggleMute}
+              style={{ position: "absolute", top: 52, left: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                {isMuted ? (
+                  <VolumeX size={16} color="#fff" />
+                ) : (
+                  <Volume2 size={16} color="#fff" />
+                )}
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }

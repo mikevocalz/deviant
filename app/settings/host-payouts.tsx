@@ -10,7 +10,7 @@ import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Banknote,
@@ -45,7 +45,7 @@ export default function HostPayoutsScreen() {
       headerShown: true,
       title: "Payout History",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: "#fff",
       headerStyle: { backgroundColor: "#000" },
       headerTitleStyle: {
@@ -54,6 +54,7 @@ export default function HostPayoutsScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation]);
 

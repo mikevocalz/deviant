@@ -1,7 +1,7 @@
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import { CloudRain, Snowflake, Sun } from "lucide-react-native";
 import { useLayoutEffect } from "react";
 import { useColorScheme } from "@/lib/hooks";
@@ -42,7 +42,7 @@ export default function WeatherAmbianceScreen() {
       headerShown: true,
       title: "Weather Ambiance",
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
@@ -51,6 +51,7 @@ export default function WeatherAmbianceScreen() {
         fontSize: 17,
       },
       headerShadowVisible: false,
+      headerRight: () => <SettingsCloseButton />,
     });
   }, [navigation, colors]);
 

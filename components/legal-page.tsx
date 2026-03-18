@@ -2,7 +2,7 @@ import { useMemo, useLayoutEffect } from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
-import { SettingsBackButton } from "@/components/settings-back-button";
+import { SettingsCloseButton } from "@/components/settings-back-button";
 import { ChevronDown } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { type LegalPageSlug, type FAQItem } from "@/lib/stores/legal-store";
@@ -152,7 +152,8 @@ export function LegalPage({ slug, title }: LegalPageProps) {
       headerShown: true,
       title: page?.title || title,
       headerBackButtonDisplayMode: "minimal",
-      headerLeft: () => <SettingsBackButton />,
+      headerLeft: () => null,
+      headerRight: () => <SettingsCloseButton />,
       headerTintColor: colors.foreground,
       headerStyle: { backgroundColor: colors.background },
       headerTitleStyle: {
