@@ -83,12 +83,7 @@ export default function SettingsScreenIOS() {
           hitSlop={12}
           style={{
             marginLeft: 8,
-            width: 32,
-            height: 32,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.1)",
-            borderRadius: 8,
+            padding: 4,
           }}
         >
           <X size={18} color={colors.foreground} strokeWidth={2.5} />
