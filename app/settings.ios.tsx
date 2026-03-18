@@ -85,13 +85,11 @@ export default function SettingsScreenIOS() {
             marginLeft: 8,
             width: 36,
             height: 36,
-            borderRadius: 9,
-            backgroundColor: "rgba(255,255,255,0.1)",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <X size={20} color={colors.foreground} />
+          <X size={22} color={colors.foreground} strokeWidth={2.5} />
         </Pressable>
       ),
       headerRight: () => null,

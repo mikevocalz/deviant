@@ -91,6 +91,8 @@ interface EditorStore extends EditorState {
       id?: string;
     } | null,
   ) => void;
+  // Text-only mode
+  setTextOnlyMode: (enabled: boolean) => void;
   // Canvas background
   setCanvasBackground: (id: string) => void;
   // Drawing color picker
@@ -157,6 +159,8 @@ const initialEditorData: EditorState = {
   textEditLetterSpacing: 0,
   textEditLineHeight: 1.25,
   textEditElementId: null,
+  // Text-only stories
+  textOnlyMode: false,
   // Canvas background
   canvasBackground: "black",
   // Drawing color picker
@@ -376,6 +380,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       textEditElementId: element?.id || null,
       textEditorTab: "style",
     }),
+
+  // ---- Text-only mode ----
+  setTextOnlyMode: (enabled) => set({ textOnlyMode: enabled }),
 
   // ---- Canvas background ----
   setCanvasBackground: (id) => set({ canvasBackground: id }),

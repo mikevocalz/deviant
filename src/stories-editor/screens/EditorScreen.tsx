@@ -101,6 +101,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const isPlaying = useEditorStore((s) => s.isPlaying);
   const storeMediaUri = useEditorStore((s) => s.mediaUri);
   const storeMediaType = useEditorStore((s) => s.mediaType);
+  const textOnlyMode = useEditorStore((s) => s.textOnlyMode);
+  const setTextOnlyMode = useEditorStore((s) => s.setTextOnlyMode);
 
   const selectedElement = useSelectedElement();
   const canUndo = useCanUndo();
@@ -160,10 +162,12 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const liveStrokeVersion = useRef(0);
   const [, forceRender] = React.useReducer((x: number) => x + 1, 0);
 
-  // Set initial media
+  // Set initial media and text-only flag
   React.useEffect(() => {
     setMedia(mediaUri, mediaType);
-  }, [mediaUri, mediaType, setMedia]);
+    // Only enable text-only mode when explicitly opened with no media
+    setTextOnlyMode(!mediaUri);
+  }, [mediaUri, mediaType, setMedia, setTextOnlyMode]);
 
   // [REGRESSION LOCK] Apply initialMode immediately after first layout frame.
   // rAF ensures layout is committed before mode change triggers panel mount.
@@ -739,8 +743,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         />
       </AnimatedToolPanel>
 
-      {/* ---- Background Picker (shown in idle when no media — text-only stories) ---- */}
-      {mode === "idle" && !storeMediaUri && (
+      {/* ---- Background Picker (ONLY for explicit text-only stories) ---- */}
+      {mode === "idle" && textOnlyMode && (
         <BackgroundPicker
           selectedId={canvasBackground.id}
           onSelect={(bg: any) => setCanvasBackgroundId(bg.id)}
