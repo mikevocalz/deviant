@@ -853,23 +853,33 @@ const VignetteOverlay: React.FC<{ intensity: number }> = React.memo(
 );
 
 // ---- Grain Overlay ----
-// Uses a simple noise pattern. For production, you'd use a shader.
+// Uses a seeded PRNG for deterministic output across re-renders.
+// The seed is fixed so the grain pattern is stable — no flicker.
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
 
 const GrainOverlay: React.FC<{ intensity: number }> = React.memo(
   ({ intensity }) => {
     const normalizedIntensity = (intensity / 100) * 0.15;
 
-    // Simple grain using random circles
+    // Deterministic grain using seeded PRNG — stable across re-renders
     const grainElements = useMemo(() => {
+      const rand = seededRandom(42);
       const elements: React.JSX.Element[] = [];
       const count = Math.floor(intensity * 5);
 
       for (let i = 0; i < count; i++) {
-        const x = Math.random() * CANVAS_WIDTH;
-        const y = Math.random() * CANVAS_HEIGHT;
-        const r = Math.random() * 2 + 0.5;
-        const opacity = Math.random() * normalizedIntensity;
-        const color = Math.random() > 0.5 ? "white" : "black";
+        const x = rand() * CANVAS_WIDTH;
+        const y = rand() * CANVAS_HEIGHT;
+        const r = rand() * 2 + 0.5;
+        const opacity = rand() * normalizedIntensity;
+        const color = rand() > 0.5 ? "white" : "black";
 
         elements.push(
           <Circle

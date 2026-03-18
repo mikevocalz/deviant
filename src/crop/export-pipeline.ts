@@ -18,7 +18,11 @@ import {
   type Action,
 } from "expo-image-manipulator";
 import type { EditState } from "./edit-state";
-import { computeCropRectPixels } from "./crop-math";
+import {
+  computeCropRectPixels,
+  getRotatedDimensions,
+  getStraightenedDimensions,
+} from "./crop-math";
 
 export interface ExportResult {
   uri: string;
@@ -90,25 +94,20 @@ export async function exportImage(
   });
 
   // Safety clamp: expo-image-manipulator rejects crop rects outside image bounds.
-  // After rotate+straighten the canvas may differ by ±1px from our math due to rounding.
-  const postW =
-    totalRotation !== 0
-      ? Math.ceil(
-          state.sourceSize.w *
-            Math.abs(Math.cos((totalRotation * Math.PI) / 180)) +
-            state.sourceSize.h *
-              Math.abs(Math.sin((totalRotation * Math.PI) / 180)),
-        )
-      : state.sourceSize.w;
-  const postH =
-    totalRotation !== 0
-      ? Math.ceil(
-          state.sourceSize.h *
-            Math.abs(Math.cos((totalRotation * Math.PI) / 180)) +
-            state.sourceSize.w *
-              Math.abs(Math.sin((totalRotation * Math.PI) / 180)),
-        )
-      : state.sourceSize.h;
+  // Use the EXACT same dimension helpers as computeCropRectPixels to avoid
+  // any rounding disagreement between trig and the helper functions.
+  const rotated = getRotatedDimensions(
+    state.sourceSize.w,
+    state.sourceSize.h,
+    state.rotate90,
+  );
+  const effective = getStraightenedDimensions(
+    rotated.w,
+    rotated.h,
+    state.straighten,
+  );
+  const postW = effective.w;
+  const postH = effective.h;
 
   const safeOriginX = Math.max(0, Math.min(cropRect.originX, postW - 1));
   const safeOriginY = Math.max(0, Math.min(cropRect.originY, postH - 1));
