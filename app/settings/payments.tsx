@@ -8,9 +8,11 @@
  * - Refunds & Disputes
  */
 
+import { useLayoutEffect } from "react";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   CreditCard,
@@ -23,7 +25,24 @@ import {
 
 export default function PaymentsSettingsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Payments",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: "#fff",
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontFamily: "Inter-SemiBold",
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation]);
 
   return (
     <View className="flex-1 bg-background">
