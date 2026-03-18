@@ -204,11 +204,7 @@ export const sneakyLynkApi = {
           title: r.title || "Untitled Lynk",
           topic: r.topic || "",
           description: r.description || "",
-          isLive:
-            r.status === "open" &&
-            (r.participant_count || 0) > 0 &&
-            // Room timer is 16 min — anything older than 20 min is stale
-            Date.now() - new Date(r.created_at).getTime() < 20 * 60 * 1000,
+          isLive: r.status === "open" && (r.participant_count || 0) > 0,
           hasVideo: r.has_video ?? false,
           isPublic: r.is_public ?? true,
           status: r.status as "open" | "ended",

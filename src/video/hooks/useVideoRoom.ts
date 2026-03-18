@@ -101,6 +101,10 @@ export function useVideoRoom({
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
 
+  // Prevents: join depending on anonymous prop identity
+  const anonymousRef = useRef(anonymous);
+  anonymousRef.current = anonymous;
+
   // Prevents: callbacks depending on Fishjam SDK refs whose identity
   // may change across reconnects
   const joinRoomRef = useRef(joinRoom);
@@ -296,7 +300,7 @@ export function useVideoRoom({
     getStore().setConnectionStatus("connecting");
 
     try {
-      const result = await videoApi.joinRoom(roomId, anonymous);
+      const result = await videoApi.joinRoom(roomId, anonymousRef.current);
 
       if (!result.ok) {
         getStore().setConnectionStatus("error", result.error?.message);

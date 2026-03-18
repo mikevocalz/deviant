@@ -79,9 +79,7 @@ export default function CreateLynkScreen() {
           id: authUser?.id || "local",
           username: authUser?.username || "You",
           displayName: authUser?.name || authUser?.username || "You",
-          avatar:
-            authUser?.avatar ||
-            "",
+          avatar: authUser?.avatar || "",
           isVerified: authUser?.isVerified || false,
         },
         speakers: [],
@@ -98,6 +96,7 @@ export default function CreateLynkScreen() {
           id: roomId,
           title: title.trim(),
           hasVideo: hasVideo ? "1" : "0",
+          isHost: "1",
         },
       } as any);
     } catch (error) {
