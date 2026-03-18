@@ -5,10 +5,11 @@
  * Filterable by transaction type.
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   BarChart3,
@@ -58,7 +59,24 @@ const FILTER_OPTIONS: { label: string; value: string | undefined }[] = [
 
 export default function HostTransactionsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Transactions",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: "#fff",
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontFamily: "Inter-SemiBold",
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation]);
 
   const {
     transactions,

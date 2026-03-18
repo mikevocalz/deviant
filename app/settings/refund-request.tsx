@@ -5,7 +5,7 @@
  * Params: ?orderId=xxx
  */
 
-import { useCallback } from "react";
+import { useCallback, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { RotateCcw, AlertCircle } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -81,8 +82,25 @@ const REASONS: {
 export default function RefundRequestScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Request Refund",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: "#fff",
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontFamily: "Inter-SemiBold",
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation]);
 
   const {
     reason,

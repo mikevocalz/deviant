@@ -12,7 +12,7 @@
  * States: loading, error, offline.
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import {
   View,
   Text,
@@ -22,6 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Receipt,
@@ -66,7 +67,24 @@ function formatCents(cents: number): string {
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Order Details",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: "#fff",
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontFamily: "Inter-SemiBold",
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation]);
   const showToast = useUIStore((s) => s.showToast);
 
   const {

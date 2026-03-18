@@ -5,10 +5,11 @@
  * amounts, event names, and arrival dates.
  */
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useLayoutEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   Banknote,
@@ -35,7 +36,24 @@ function formatCents(cents: number): string {
 
 export default function HostPayoutsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: true,
+      title: "Payout History",
+      headerBackButtonDisplayMode: "minimal",
+      headerTintColor: "#fff",
+      headerStyle: { backgroundColor: "#000" },
+      headerTitleStyle: {
+        color: "#fff",
+        fontFamily: "Inter-SemiBold",
+        fontSize: 17,
+      },
+      headerShadowVisible: false,
+    });
+  }, [navigation]);
 
   const { payouts, payoutsLoading, setPayouts, setPayoutsLoading } =
     usePaymentsStore();
