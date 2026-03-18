@@ -5,8 +5,15 @@
  * States: loading, empty, error, offline.
  */
 
-import { useEffect, useCallback } from "react";
-import { View, Text, Pressable, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { useEffect, useCallback, useState } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
@@ -22,6 +29,7 @@ import * as Haptics from "expo-haptics";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { paymentMethodsApi } from "@/lib/api/payments";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import type { PaymentMethod } from "@/lib/types/payments";
 
 const BRAND_COLORS: Record<string, string> = {
@@ -42,6 +50,8 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
+  const [isAdding, setIsAdding] = useState(false);
 
   const {
     methods,
@@ -70,6 +80,70 @@ export default function PaymentMethodsScreen() {
   useEffect(() => {
     loadMethods();
   }, [loadMethods]);
+
+  const handleAddPaymentMethod = useCallback(async () => {
+    setIsAdding(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      // 1. Create SetupIntent + get ephemeral key from server
+      const setup = await paymentMethodsApi.createSetupIntent();
+      if (setup.error || !setup.clientSecret) {
+        showToast("error", "Error", setup.error || "Failed to start setup");
+        return;
+      }
+
+      // 2. Initialize PaymentSheet in setup mode
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: "DVNT",
+        customerId: setup.customerId,
+        customerEphemeralKeySecret: setup.ephemeralKey,
+        setupIntentClientSecret: setup.clientSecret,
+        allowsDelayedPaymentMethods: false,
+        appearance: {
+          colors: {
+            primary: "#8A40CF",
+            background: "#1a1a1a",
+            componentBackground: "#262626",
+            componentText: "#ffffff",
+            secondaryText: "#a1a1aa",
+            placeholderText: "#71717a",
+            icon: "#8A40CF",
+          },
+          shapes: { borderRadius: 12, borderWidth: 1 },
+        },
+        returnURL: "dvnt://settings/payment-methods",
+      });
+
+      if (initError) {
+        console.error("[PaymentMethods] initPaymentSheet error:", initError);
+        showToast(
+          "error",
+          "Error",
+          initError.message || "Failed to initialize",
+        );
+        return;
+      }
+
+      // 3. Present the sheet
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === "Canceled") return; // user cancelled
+        showToast("error", "Error", presentError.message || "Setup failed");
+        return;
+      }
+
+      // 4. Success — refresh the list
+      showToast("success", "Added", "Payment method saved");
+      loadMethods();
+    } catch (err: any) {
+      console.error("[PaymentMethods] Add error:", err);
+      showToast("error", "Error", err.message || "Something went wrong");
+    } finally {
+      setIsAdding(false);
+    }
+  }, [initPaymentSheet, presentPaymentSheet, showToast, loadMethods]);
 
   const handleSetDefault = useCallback(
     async (method: PaymentMethod) => {
@@ -123,13 +197,16 @@ export default function PaymentMethodsScreen() {
           Payment Methods
         </Text>
         <Pressable
-          onPress={() => {
-            showToast("info", "Coming Soon", "Add payment method via Stripe Checkout");
-          }}
+          onPress={handleAddPaymentMethod}
+          disabled={isAdding}
           className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
           hitSlop={8}
         >
-          <Plus size={20} color="#8A40CF" />
+          {isAdding ? (
+            <ActivityIndicator size="small" color="#8A40CF" />
+          ) : (
+            <Plus size={20} color="#8A40CF" />
+          )}
         </Pressable>
       </View>
 
@@ -182,13 +259,19 @@ export default function PaymentMethodsScreen() {
       {methods.length > 0 && (
         <ScrollView
           className="flex-1 px-4"
-          contentContainerStyle={{ paddingBottom: insets.bottom + 40, paddingTop: 8 }}
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + 40,
+            paddingTop: 8,
+          }}
           showsVerticalScrollIndicator={false}
         >
           {methods.map((method, index) => (
             <Animated.View
               key={method.id}
-              entering={FadeInDown.delay(index * 60).duration(300).springify().damping(18)}
+              entering={FadeInDown.delay(index * 60)
+                .duration(300)
+                .springify()
+                .damping(18)}
             >
               <PaymentMethodCard
                 method={method}

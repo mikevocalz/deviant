@@ -48,6 +48,8 @@ export const paymentMethodsApi = {
 
   async createSetupIntent(): Promise<{
     clientSecret?: string;
+    ephemeralKey?: string;
+    customerId?: string;
     error?: string;
   }> {
     try {
