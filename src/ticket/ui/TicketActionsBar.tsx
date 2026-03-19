@@ -325,9 +325,10 @@ export const TicketActionsBar = memo(function TicketActionsBar({
             onChangeText={setTransferUsername}
             autoCapitalize="none"
             autoCorrect={false}
-            autoFocus
             returnKeyType="done"
-            onSubmitEditing={handleTransferSubmit}
+            onSubmitEditing={() => {
+              if (showTransferModal) handleTransferSubmit();
+            }}
           />
           <View style={styles.modalButtons}>
             <Pressable
