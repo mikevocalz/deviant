@@ -23,14 +23,16 @@ export const organizerApi = {
       );
 
       if (error) {
-        // Extract actual error body from FunctionsHttpError
-        let detail = error.message;
-        try {
-          const ctx = await error.context?.json?.();
-          if (ctx?.error) detail = ctx.error;
-        } catch {}
-        console.error("[Organizer] startOnboarding edge error:", detail);
-        return { error: detail };
+        console.error(
+          "[Organizer] startOnboarding invoke error:",
+          error.message,
+        );
+        return { error: error.message };
+      }
+      // Edge function always returns 200 — errors are in data.error
+      if (data?.error) {
+        console.error("[Organizer] startOnboarding edge error:", data.error);
+        return { error: data.error };
       }
       return data;
     } catch (err: any) {

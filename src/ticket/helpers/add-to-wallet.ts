@@ -1,8 +1,9 @@
 /**
  * addToWallet — Client-side wallet integration
  *
- * Apple Wallet: Calls Supabase Edge Function to get a short-lived .pkpass URL,
- *               then opens it via Linking (iOS handles .pkpass natively).
+ * Apple Wallet: Calls Supabase Edge Function which returns a signed .pkpass
+ *               binary. We write it to a temp file and open it — iOS handles
+ *               .pkpass natively and shows the "Add to Wallet" sheet.
  * Google Wallet: Calls Supabase Edge Function to get a Save URL,
  *                then opens it via Linking.
  *
@@ -11,12 +12,27 @@
 
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { supabase } from "@/lib/supabase/client";
+import { authClient } from "@/lib/auth-client";
 import type { Ticket } from "@/lib/stores/ticket-store";
 
 export interface WalletResult {
   success: boolean;
   error?: string;
+}
+
+/**
+ * Get the current Better Auth session token for edge function calls.
+ */
+async function getAuthToken(): Promise<string | null> {
+  try {
+    const session = await authClient.getSession();
+    return session?.data?.session?.token || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -32,7 +48,7 @@ class EdgeFunctionError extends Error {
   }
 }
 
-async function callEdgeFunction<T = any>(
+async function callEdgeFunctionJson<T = any>(
   functionName: string,
   body: Record<string, unknown>,
 ): Promise<T> {
@@ -60,8 +76,8 @@ async function callEdgeFunction<T = any>(
 /**
  * Add ticket to Apple Wallet (iOS only).
  * 1. Calls `ticket_wallet_apple` Edge Function with ticketId.
- * 2. Edge Function validates ownership, generates/retrieves .pkpass, returns URL.
- * 3. Client opens the URL — iOS handles .pkpass natively.
+ * 2. Edge Function validates ownership, generates signed .pkpass, returns binary.
+ * 3. Client writes .pkpass to temp file and opens it via sharing (iOS native add-to-wallet sheet).
  */
 export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
   if (Platform.OS !== "ios") {
@@ -69,21 +85,79 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
   }
 
   try {
-    const { pkpassUrl } = await callEdgeFunction<{ pkpassUrl: string }>(
-      "ticket_wallet_apple",
-      { ticketId: ticket.id, eventId: ticket.eventId },
+    const token = await getAuthToken();
+    if (!token) {
+      return { success: false, error: "not_authenticated" };
+    }
+
+    // Call edge function — returns binary .pkpass
+    const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const supabaseUrl =
+      typeof rawUrl === "string" && rawUrl.startsWith("https://")
+        ? rawUrl
+        : "https://npfjanxturvmjyevoyfo.supabase.co";
+    const response = await fetch(
+      `${supabaseUrl}/functions/v1/ticket_wallet_apple`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          ticketId: ticket.id,
+          eventId: ticket.eventId,
+        }),
+      },
     );
 
-    if (!pkpassUrl) {
-      return { success: false, error: "no_pkpass_url" };
+    // Check for JSON error responses
+    const contentType = response.headers.get("Content-Type") || "";
+    if (contentType.includes("application/json")) {
+      const json = await response.json();
+      const code = json?.error?.code || "server_error";
+      const message = json?.error?.message || "Failed to generate pass";
+      return { success: false, error: code };
     }
 
-    const canOpen = await Linking.canOpenURL(pkpassUrl);
-    if (!canOpen) {
-      return { success: false, error: "cannot_open_pkpass" };
+    if (!response.ok) {
+      return { success: false, error: `http_${response.status}` };
     }
 
-    await Linking.openURL(pkpassUrl);
+    // Write .pkpass binary to temp file
+    const blob = await response.blob();
+    const reader = new FileReader();
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Strip data URL prefix: "data:application/...;base64,"
+        const base64 = result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+
+    const tmpPath = `${LegacyFileSystem.cacheDirectory}ticket_${ticket.id}.pkpass`;
+    await LegacyFileSystem.writeAsStringAsync(tmpPath, base64Data, {
+      encoding: LegacyFileSystem.EncodingType.Base64,
+    });
+
+    // Open .pkpass — iOS shows the native "Add to Apple Wallet" sheet
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(tmpPath, {
+        mimeType: "application/vnd.apple.pkpass",
+        UTI: "com.apple.pkpass",
+      });
+    } else {
+      // Fallback: try opening the file URL directly
+      const fileUri = tmpPath.startsWith("file://")
+        ? tmpPath
+        : `file://${tmpPath}`;
+      await Linking.openURL(fileUri);
+    }
+
     return { success: true };
   } catch (err: any) {
     console.error("[addToAppleWallet] Error:", err);
@@ -104,7 +178,7 @@ export async function addToGoogleWallet(ticket: Ticket): Promise<WalletResult> {
   }
 
   try {
-    const { saveUrl } = await callEdgeFunction<{ saveUrl: string }>(
+    const { saveUrl } = await callEdgeFunctionJson<{ saveUrl: string }>(
       "ticket_wallet_google",
       { ticketId: ticket.id, eventId: ticket.eventId },
     );

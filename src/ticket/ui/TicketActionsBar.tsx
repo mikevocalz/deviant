@@ -58,6 +58,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const accent = TIER_ACCENT[tier];
 
   const isActive = ticket.status === "valid";
+  const walletLabel = Platform.OS === "ios" ? "Apple Wallet" : "Google Wallet";
 
   const [walletState, setWalletState] = useState<ActionState>("idle");
   const [calendarState, setCalendarState] = useState<ActionState>("idle");
@@ -74,18 +75,27 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
     if (result.success) {
       setWalletState("success");
-      showToast("success", "Added", "Ticket added to wallet");
+      showToast("success", "Added", `Ticket saved to ${walletLabel}`);
       setTimeout(() => setWalletState("idle"), 3000);
     } else {
       setWalletState("error");
-      const msg =
-        result.error === "not_configured" || result.error === "not_implemented"
-          ? "Wallet passes coming soon"
-          : "Could not add to wallet";
+      let msg = "Could not add to wallet";
+      if (
+        result.error === "not_configured" ||
+        result.error === "not_implemented"
+      ) {
+        msg = "Wallet passes coming soon";
+      } else if (result.error === "not_authenticated") {
+        msg = "Please sign in to add to wallet";
+      } else if (result.error === "invalid_ticket") {
+        msg = "This ticket cannot be added to wallet";
+      } else if (result.error === "forbidden") {
+        msg = "You don't own this ticket";
+      }
       showToast("error", "Wallet", msg);
       setTimeout(() => setWalletState("idle"), 3000);
     }
-  }, [ticket, walletState, showToast]);
+  }, [ticket, walletState, walletLabel, showToast]);
 
   // ── Calendar ──
   const handleCalendar = useCallback(async () => {
@@ -196,8 +206,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   if (!isActive) return null;
 
-  const walletLabel = Platform.OS === "ios" ? "Apple Wallet" : "Google Wallet";
-
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
       {/* Wallet */}
@@ -205,6 +213,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
         onPress={handleWallet}
         style={[
           styles.actionButton,
+          Platform.OS === "ios" && styles.walletButton,
           walletState === "success" && styles.successButton,
         ]}
         disabled={walletState === "loading"}
@@ -223,7 +232,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
           ]}
           numberOfLines={1}
         >
-          {walletState === "success" ? "Added" : "Wallet"}
+          {walletState === "success" ? "Added" : walletLabel}
         </Text>
       </Pressable>
 
@@ -372,6 +381,9 @@ const styles = StyleSheet.create({
   },
   successButton: {
     backgroundColor: "rgba(63,220,255,0.1)",
+  },
+  walletButton: {
+    backgroundColor: "rgba(138,64,207,0.15)",
   },
   actionLabel: {
     color: "#fff",

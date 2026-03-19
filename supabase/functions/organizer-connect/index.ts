@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
     if (!host_id) {
       return new Response(
         JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
-        { status: 401, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
 
@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
       if (!link.url) {
         return new Response(
           JSON.stringify({ error: "Stripe did not return an onboarding URL" }),
-          { status: 502, headers: { "Content-Type": "application/json" } },
+          { status: 200, headers: { "Content-Type": "application/json" } },
         );
       }
       return new Response(
@@ -206,14 +206,14 @@ Deno.serve(async (req: Request) => {
     }
 
     return new Response(JSON.stringify({ error: "Invalid action" }), {
-      status: 400,
+      status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err: any) {
     console.error("[organizer-connect] Error:", err);
     return new Response(
       JSON.stringify({ error: err.message || "Internal error" }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      { status: 200, headers: { "Content-Type": "application/json" } },
     );
   }
 });

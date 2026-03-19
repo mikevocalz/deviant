@@ -17,6 +17,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySession } from "../_shared/verify-session.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
+import { voidWalletPass } from "../_shared/wallet-push.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -129,6 +130,9 @@ Deno.serve(async (req: Request) => {
         .update({ status: "transfer_pending" })
         .eq("id", ticket_id);
 
+      // Void sender's wallet pass (if any)
+      await voidWalletPass(supabase, ticket_id);
+
       // Create transfer record
       const { data: transfer, error: createErr } = await supabase
         .from("ticket_transfers")
@@ -209,6 +213,7 @@ Deno.serve(async (req: Request) => {
       );
 
       // Reassign ticket to recipient and reactivate
+      // Clear wallet fields so new owner gets a fresh pass
       const { error: updateErr } = await supabase
         .from("tickets")
         .update({
@@ -217,6 +222,11 @@ Deno.serve(async (req: Request) => {
           qr_token: qrToken,
           qr_payload: qrPayload,
           transferred_from: transfer.from_user_id,
+          wallet_serial_number: null,
+          wallet_auth_token: null,
+          wallet_pass_type_id: null,
+          wallet_voided_at: null,
+          wallet_last_pushed_at: null,
         })
         .eq("id", ticket.id);
 
