@@ -57,7 +57,6 @@ import { ticketsApi } from "@/lib/api/tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
 import * as Calendar from "expo-calendar";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
 import { EventRatingModal } from "@/components/event-rating-modal";
@@ -425,7 +424,7 @@ export default function EventDetailScreen() {
     }
 
     // ── Stripe checkout path (when ticketing feature is ON) ──
-    if (isFeatureEnabled("ticketing_enabled") && eventData.ticketingEnabled) {
+    if (eventData.ticketingEnabled) {
       setIsCheckingOut(true);
       try {
         // Use native PaymentSheet for in-app checkout
@@ -872,7 +871,7 @@ export default function EventDetailScreen() {
           </View>
 
           {/* ── 3.25 HOST ORGANIZER TOOLS ──────────────────────────── */}
-          {isHost && isFeatureEnabled("organizer_tools_enabled") ? (
+          {isHost ? (
             <View style={s.section}>
               <Pressable
                 onPress={() =>

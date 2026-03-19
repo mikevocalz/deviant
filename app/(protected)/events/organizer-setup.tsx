@@ -6,7 +6,13 @@
  * Polls for account status after return.
  */
 
-import { View, Text, Pressable, ActivityIndicator, Platform } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  ActivityIndicator,
+  Platform,
+} from "react-native";
 import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -24,7 +30,6 @@ import {
 import * as WebBrowser from "expo-web-browser";
 import { organizerApi } from "@/lib/api/organizer";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { FeatureGate } from "@/lib/feature-flags";
 
 type AccountStatus = {
   connected: boolean;
@@ -105,7 +110,10 @@ function OrganizerSetupContent() {
         >
           {/* Status Card */}
           <Animated.View
-            entering={FadeInDown.delay(100).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(100)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="bg-card rounded-2xl border border-border p-5 mt-4"
           >
             <View className="flex-row items-center gap-3 mb-4">
@@ -138,10 +146,7 @@ function OrganizerSetupContent() {
 
             {/* Status checklist */}
             <View className="gap-2.5 mb-5">
-              <StatusRow
-                label="Account created"
-                done={status.connected}
-              />
+              <StatusRow label="Account created" done={status.connected} />
               <StatusRow
                 label="Details submitted"
                 done={!!status.details_submitted}
@@ -181,7 +186,10 @@ function OrganizerSetupContent() {
 
           {/* Info cards */}
           <Animated.View
-            entering={FadeInDown.delay(200).duration(300).springify().damping(18)}
+            entering={FadeInDown.delay(200)
+              .duration(300)
+              .springify()
+              .damping(18)}
             className="mt-5 gap-3"
           >
             <InfoCard
@@ -248,18 +256,5 @@ function InfoCard({
 }
 
 export default function OrganizerSetupScreen() {
-  return (
-    <FeatureGate
-      flag="organizer_tools_enabled"
-      fallback={
-        <View className="flex-1 bg-background items-center justify-center">
-          <Text className="text-muted-foreground">
-            Organizer tools coming soon
-          </Text>
-        </View>
-      }
-    >
-      <OrganizerSetupContent />
-    </FeatureGate>
-  );
+  return <OrganizerSetupContent />;
 }
