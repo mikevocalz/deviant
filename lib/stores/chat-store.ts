@@ -268,12 +268,26 @@ export const useChatStore = create<ChatState>((set, get) => ({
         };
       });
 
-      set((state) => ({
-        messages: {
-          ...state.messages,
-          [conversationId]: localMessages,
-        },
-      }));
+      // Preserve any optimistic messages (sending/failed) that haven't been
+      // confirmed by the server yet — loadMessages must NOT wipe them out.
+      set((state) => {
+        const existing = state.messages[conversationId] || [];
+        const optimistic = existing.filter(
+          (m) => m.status === "sending" || m.status === "failed",
+        );
+        // Deduplicate: if the server returned a message matching an optimistic
+        // clientMessageId, drop the optimistic copy (server version wins).
+        const serverIds = new Set(localMessages.map((m) => m.id));
+        const pendingOptimistic = optimistic.filter(
+          (m) => !serverIds.has(m.id),
+        );
+        return {
+          messages: {
+            ...state.messages,
+            [conversationId]: [...localMessages, ...pendingOptimistic],
+          },
+        };
+      });
     } catch (error) {
       console.error("[ChatStore] loadMessages error:", error);
     }
