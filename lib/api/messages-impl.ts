@@ -212,7 +212,7 @@ export const messagesApi = {
       const convIdInt = parseInt(conversationId);
       if (isNaN(convIdInt)) return null;
 
-      // Get conversation + other participant in parallel
+      // Get conversation + other participants in parallel
       const [convResult, participantsResult] = await Promise.all([
         supabase
           .from(DB.conversations.table)
@@ -225,41 +225,57 @@ export const messagesApi = {
           .from(DB.conversationsRels.table)
           .select(DB.conversationsRels.usersId)
           .eq(DB.conversationsRels.parentId, convIdInt)
-          .neq(DB.conversationsRels.usersId, authId)
-          .limit(1),
+          .neq(DB.conversationsRels.usersId, authId),
       ]);
 
       if (convResult.error || !convResult.data) return null;
 
-      const otherAuthId =
-        participantsResult.data?.[0]?.[DB.conversationsRels.usersId];
-      let otherUserData: any = null;
-      if (otherAuthId) {
-        const { data: userData } = await supabase
+      const isGroup = !!convResult.data[DB.conversations.isGroup];
+      const otherAuthIds = (participantsResult.data || [])
+        .map((p: any) => p[DB.conversationsRels.usersId])
+        .filter(Boolean);
+
+      // Fetch all other participants' user data
+      let members: Array<{
+        id: string;
+        authId: string;
+        username: string;
+        name: string;
+        avatar: string;
+      }> = [];
+
+      if (otherAuthIds.length > 0) {
+        const { data: usersData } = await supabase
           .from(DB.users.table)
           .select(
             `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, ${DB.users.firstName}, avatar:${DB.users.avatarId}(url)`,
           )
-          .eq(DB.users.authId, otherAuthId)
-          .single();
-        otherUserData = userData;
+          .in(DB.users.authId, otherAuthIds);
+
+        members = (usersData || []).map((u: any) => ({
+          id: u[DB.users.id] ? String(u[DB.users.id]) : "",
+          authId: u[DB.users.authId] || "",
+          username: u[DB.users.username] || "unknown",
+          name: u[DB.users.firstName] || u[DB.users.username] || "Unknown",
+          avatar: u.avatar?.url || "",
+        }));
       }
+
+      // For 1:1 chats, return the single other user as `user` (backwards compat)
+      const firstMember = members[0] || {
+        id: "",
+        authId: otherAuthIds[0] || "",
+        username: "unknown",
+        name: "Unknown",
+        avatar: "",
+      };
 
       return {
         id: String(convIdInt),
-        user: {
-          id: otherUserData?.[DB.users.id]
-            ? String(otherUserData[DB.users.id])
-            : "",
-          authId: otherUserData?.[DB.users.authId] || otherAuthId || "",
-          name:
-            otherUserData?.[DB.users.firstName] ||
-            otherUserData?.[DB.users.username] ||
-            "Unknown",
-          username: otherUserData?.[DB.users.username] || "unknown",
-          avatar: otherUserData?.avatar?.url || "",
-        },
-        isGroup: !!convResult.data[DB.conversations.isGroup],
+        user: firstMember,
+        members,
+        isGroup,
+        groupName: convResult.data[DB.conversations.groupName] || "",
       };
     } catch (error) {
       console.error("[Messages] getConversationById error:", error);

@@ -886,7 +886,7 @@ export default function EditEventScreen() {
               placeholder="https://youtube.com/watch?v=..."
               placeholderTextColor={colors.mutedForeground}
               autoCapitalize="none"
-              keyboardType="url"
+              autoCorrect={false}
               style={{
                 flex: 1,
                 padding: 16,

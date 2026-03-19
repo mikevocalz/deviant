@@ -52,7 +52,10 @@ export const ticketsApi = {
   async getMyTickets(): Promise<TicketRecord[]> {
     try {
       const authId = await getCurrentUserAuthId();
-      if (!authId) return [];
+      if (!authId) {
+        console.warn("[Tickets] getMyTickets: no authId, returning empty");
+        return [];
+      }
 
       // Query by auth_id, and also by integer user ID string as fallback
       // (tickets created before the auth_id fix may have stored user.id instead)
@@ -62,6 +65,15 @@ export const ticketsApi = {
           ? `user_id.eq.${authId},user_id.eq.${intId}`
           : `user_id.eq.${authId}`;
 
+      console.log(
+        "[Tickets] getMyTickets filter:",
+        userIdFilter,
+        "authId:",
+        authId,
+        "intId:",
+        intId,
+      );
+
       const { data, error } = await supabase
         .from("tickets")
         .select(
@@ -70,7 +82,41 @@ export const ticketsApi = {
         .or(userIdFilter)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error(
+          "[Tickets] getMyTickets query error:",
+          error.message,
+          error.code,
+          error.details,
+        );
+        // Fallback: try without joins in case FK relationship is broken
+        const { data: fallbackData, error: fbError } = await supabase
+          .from("tickets")
+          .select("*")
+          .or(userIdFilter)
+          .order("created_at", { ascending: false });
+        console.log(
+          "[Tickets] fallback query:",
+          fallbackData?.length ?? 0,
+          "rows, error:",
+          fbError?.message,
+        );
+        if (fbError) throw fbError;
+        return (fallbackData || []).map((t: any) => ({
+          ...t,
+          ticket_type_name: "General",
+          event_title: "",
+          event_image: "",
+          event_date: "",
+          event_location: "",
+        }));
+      }
+
+      console.log(
+        "[Tickets] getMyTickets result:",
+        data?.length ?? 0,
+        "tickets",
+      );
 
       return (data || []).map((t: any) => ({
         ...t,
@@ -80,8 +126,8 @@ export const ticketsApi = {
         event_date: t.events?.start_date || "",
         event_location: t.events?.location || "",
       }));
-    } catch (error) {
-      console.error("[Tickets] getMyTickets error:", error);
+    } catch (error: any) {
+      console.error("[Tickets] getMyTickets error:", error?.message || error);
       return [];
     }
   },
