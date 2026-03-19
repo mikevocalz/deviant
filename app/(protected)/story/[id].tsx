@@ -658,6 +658,7 @@ export default function StoryViewerScreen() {
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
     if (!isSafeToOperate()) return; // Prevent multiple calls
+    if (showViewersSheet) return; // Don't advance while viewers sheet is open
 
     // Prevent double calls - set flag immediately
     if (hasAdvanced.current) {
@@ -707,6 +708,7 @@ export default function StoryViewerScreen() {
     progress,
     isSafeToOperate,
     markExiting,
+    showViewersSheet,
   ]);
 
   // Keep ref updated with latest handleNext
