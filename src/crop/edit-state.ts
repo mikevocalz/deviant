@@ -88,7 +88,7 @@ export function createInitialEditState(
     sourceUri,
     sourceSize: { w: sourceW, h: sourceH },
     view: { scale: 1, tx: 0, ty: 0 },
-    aspect: "4:5",
+    aspect: "original",
     rotate90: 0,
     straighten: 0,
     flipX: false,
@@ -110,10 +110,7 @@ function takeSnapshot(state: EditState): EditStateSnapshot {
   };
 }
 
-function applySnapshot(
-  state: EditState,
-  snap: EditStateSnapshot,
-): EditState {
+function applySnapshot(state: EditState, snap: EditStateSnapshot): EditState {
   return {
     ...state,
     view: { ...snap.view },
@@ -208,7 +205,7 @@ export function editReducer(state: EditState, action: EditAction): EditState {
       return {
         ...s,
         view: { scale: 1, tx: 0, ty: 0 },
-        aspect: "4:5",
+        aspect: "original",
         rotate90: 0,
         straighten: 0,
         flipX: false,
