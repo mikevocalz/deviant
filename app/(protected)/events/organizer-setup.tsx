@@ -67,6 +67,16 @@ function OrganizerSetupContent() {
         return;
       }
       if (result.url) {
+        console.log("[OrganizerSetup] Opening URL:", result.url);
+        // Validate URL before opening
+        if (
+          typeof result.url !== "string" ||
+          !result.url.startsWith("https://")
+        ) {
+          showToast("error", "Error", `Invalid onboarding URL received`);
+          console.error("[OrganizerSetup] Invalid URL:", result.url);
+          return;
+        }
         await WebBrowser.openBrowserAsync(result.url, {
           presentationStyle:
             Platform.OS === "ios"
@@ -75,6 +85,8 @@ function OrganizerSetupContent() {
         });
         // Re-check status after browser closes
         await checkStatus();
+      } else {
+        showToast("error", "Error", "No onboarding URL returned");
       }
     } catch (err: any) {
       showToast("error", "Error", err.message || "Failed to start onboarding");

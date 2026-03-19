@@ -146,7 +146,16 @@ Deno.serve(async (req: Request) => {
         type: "account_onboarding",
       });
 
-      console.log("[organizer-connect] onboarding link created successfully");
+      console.log(
+        "[organizer-connect] account_links response:",
+        JSON.stringify(link),
+      );
+      if (!link.url) {
+        return new Response(
+          JSON.stringify({ error: "Stripe did not return an onboarding URL" }),
+          { status: 502, headers: { "Content-Type": "application/json" } },
+        );
+      }
       return new Response(
         JSON.stringify({ url: link.url, account_id: stripeAccountId }),
         { status: 200, headers: { "Content-Type": "application/json" } },
