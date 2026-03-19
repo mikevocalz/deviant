@@ -75,8 +75,6 @@ export function useMediaPicker() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images", "videos"],
         allowsMultipleSelection: allowMultiple,
-        allowsEditing: !allowMultiple,
-        aspect: [4, 5],
         quality: 1,
         videoMaxDuration: 60,
         selectionLimit: options?.maxSelection ?? 10,

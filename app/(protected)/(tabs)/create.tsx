@@ -879,7 +879,7 @@ export default function CreateScreen() {
           <Text style={{ color: "#666", fontSize: 13 }}>
             {hasVideo
               ? `Video (max ${MAX_VIDEO_DURATION}s)`
-              : `Photos ${selectedMedia.length}/${MAX_PHOTOS} (5:4 aspect ratio)`}
+              : `Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
           </Text>
         </View>
 

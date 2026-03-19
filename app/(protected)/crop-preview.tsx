@@ -140,20 +140,21 @@ export default function CropPreviewScreen() {
       }
     });
 
-    // Resolve dimensions for all images
+    // Resolve dimensions for all images — always use getImageDimensions
+    // to get EXIF-normalized sizes (picker width/height may be pre-rotation)
     const resolveDimensions = async () => {
       const dimMap = new Map<string, { width: number; height: number }>();
       for (const img of images) {
-        if (img.width && img.height) {
-          dimMap.set(img.id, { width: img.width, height: img.height });
-        } else {
-          try {
-            const sourceUri = img.originalUri || img.uri;
-            const dims = await getImageDimensions(sourceUri);
-            dimMap.set(img.id, dims);
-          } catch {
-            dimMap.set(img.id, { width: 1080, height: 1080 });
-          }
+        try {
+          const sourceUri = img.originalUri || img.uri;
+          const dims = await getImageDimensions(sourceUri);
+          dimMap.set(img.id, dims);
+        } catch {
+          // Fallback to picker dimensions, then default
+          dimMap.set(img.id, {
+            width: img.width || 1080,
+            height: img.height || 1080,
+          });
         }
       }
       setDimensions(dimMap);
