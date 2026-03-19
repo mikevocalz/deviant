@@ -185,7 +185,7 @@ export function useCreateEvent() {
 
       // Optimistically add the new event to all event lists
       queryClient.setQueriesData<any[]>({ queryKey: eventKeys.all }, (old) => {
-        if (!old) return old;
+        if (!old || !Array.isArray(old)) return old;
         const optimisticEvent: any = {
           id: `temp-${Date.now()}`,
           title: newEventData.title || "New Event",
@@ -231,7 +231,7 @@ export function useCreateEvent() {
         queryClient.setQueriesData<any[]>(
           { queryKey: eventKeys.all },
           (old) => {
-            if (!old) return old;
+            if (!old || !Array.isArray(old)) return old;
             // Remove temp events and add real event at the beginning
             const filteredData = old.filter(
               (e) => !String(e.id).startsWith("temp-"),
@@ -278,7 +278,7 @@ export function useDeleteEvent() {
       queryClient.setQueriesData<Event[]>(
         { queryKey: eventKeys.all },
         (old) => {
-          if (!old) return old;
+          if (!old || !Array.isArray(old)) return old;
           return old.filter((event) => event.id !== deletedEventId);
         },
       );
