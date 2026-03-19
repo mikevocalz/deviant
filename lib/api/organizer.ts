@@ -22,7 +22,16 @@ export const organizerApi = {
         },
       );
 
-      if (error) throw error;
+      if (error) {
+        // Extract actual error body from FunctionsHttpError
+        let detail = error.message;
+        try {
+          const ctx = await error.context?.json?.();
+          if (ctx?.error) detail = ctx.error;
+        } catch {}
+        console.error("[Organizer] startOnboarding edge error:", detail);
+        return { error: detail };
+      }
       return data;
     } catch (err: any) {
       console.error("[Organizer] startOnboarding error:", err);
