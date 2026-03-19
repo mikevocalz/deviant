@@ -77,6 +77,7 @@ import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
 import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
+import { supabase } from "@/lib/supabase/client";
 
 export const unstable_settings = {
   options: {
@@ -473,6 +474,40 @@ export default function ChatScreen() {
       loadChat();
     }
   }, [chatId, loadMessages, refreshMessageCounts]);
+
+  // Realtime subscription — listen for new incoming messages so the chat
+  // updates live without needing to close and reopen the screen.
+  useEffect(() => {
+    const convId = resolvedConvIdRef.current;
+    if (!convId || !/^\d+$/.test(convId)) return;
+
+    const userId = useAuthStore.getState().user?.id;
+    const channel = supabase
+      .channel(`chat-${convId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${convId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as any;
+          // Skip own messages — already handled by optimistic update
+          if (String(newMsg.sender_id) === String(userId)) return;
+          // Refresh messages to pick up the new incoming message
+          loadMessages(convId);
+          // Auto-mark as read since the user is actively viewing the chat
+          messagesApiClient.markAsRead(convId).catch(() => {});
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeConvId, loadMessages]);
   const currentUser = useAuthStore((s) => s.user);
 
   // Chat recipient info — seeded from route params for instant render,
