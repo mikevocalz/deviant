@@ -313,12 +313,12 @@ export default function CommentsScreen() {
       {/* Tappable backdrop — dismisses the sheet */}
       <Pressable style={{ flex: 1 }} onPress={() => router.back()} />
 
-      {/* Sheet container — liquid glass, 70% max height */}
+      {/* Sheet container — liquid glass, 70% height */}
       <BlurView
         intensity={40}
         tint="dark"
         style={{
-          maxHeight: SHEET_MAX_HEIGHT,
+          height: SHEET_MAX_HEIGHT,
           borderTopLeftRadius: 20,
           borderTopRightRadius: 20,
           overflow: "hidden",
@@ -326,8 +326,8 @@ export default function CommentsScreen() {
       >
         <View
           style={{
+            flex: 1,
             backgroundColor: "rgba(0,0,0,0.55)",
-            maxHeight: SHEET_MAX_HEIGHT,
           }}
         >
           {/* Grabber handle */}
