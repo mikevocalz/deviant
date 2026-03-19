@@ -7,3 +7,8 @@ export { MessagesSkeleton } from "./messages-skeleton";
 export { SearchSkeleton, SearchResultsSkeleton } from "./search-skeleton";
 export { PostDetailSkeleton } from "./post-detail-skeleton";
 export { ChatSkeleton } from "./chat-skeleton";
+export {
+  PaymentsListSkeleton,
+  HostPaymentsDashboardSkeleton,
+  OrderDetailSkeleton,
+} from "./payments-skeleton";

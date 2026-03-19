@@ -35,6 +35,7 @@ import {
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
+import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { brandingApi } from "@/lib/api/payments";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -195,9 +196,7 @@ export default function HostBrandingScreen() {
   return (
     <View className="flex-1 bg-background">
       {brandingLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
-        </View>
+        <ScreenSkeleton variant="form" rows={4} showHeader={false} />
       ) : (
         <ScrollView
           className="flex-1 px-4"

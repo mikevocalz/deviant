@@ -41,7 +41,11 @@ interface PurchasesSlice {
   purchasesCursor: string | undefined;
   purchasesHasMore: boolean;
   setPurchases: (purchases: Order[]) => void;
-  appendPurchases: (purchases: Order[], cursor?: string, hasMore?: boolean) => void;
+  appendPurchases: (
+    purchases: Order[],
+    cursor?: string,
+    hasMore?: boolean,
+  ) => void;
   setPurchasesLoading: (loading: boolean) => void;
   setPurchasesError: (error: string | null) => void;
 }
@@ -77,6 +81,15 @@ interface RefundsSlice {
   setRefunds: (refunds: Refund[]) => void;
   setRefundsLoading: (loading: boolean) => void;
   setRefundRequestLoading: (loading: boolean) => void;
+}
+
+// ─── Host: Disputes ──────────────────────────────────────────
+
+interface HostDisputesSlice {
+  hostDisputes: Dispute[];
+  hostDisputesLoading: boolean;
+  setHostDisputes: (disputes: Dispute[]) => void;
+  setHostDisputesLoading: (loading: boolean) => void;
 }
 
 // ─── Host: Payouts ────────────────────────────────────────────
@@ -132,6 +145,7 @@ type PaymentsState = PaymentMethodsSlice &
   OrderDetailSlice &
   ReceiptSlice &
   RefundsSlice &
+  HostDisputesSlice &
   HostPayoutsSlice &
   HostTransactionsSlice &
   ConnectSlice &
@@ -195,6 +209,12 @@ export const usePaymentsStore = create<PaymentsState>((set) => ({
   setRefundRequestLoading: (refundRequestLoading) =>
     set({ refundRequestLoading }),
 
+  // Host Disputes
+  hostDisputes: [],
+  hostDisputesLoading: false,
+  setHostDisputes: (hostDisputes) => set({ hostDisputes }),
+  setHostDisputesLoading: (hostDisputesLoading) => set({ hostDisputesLoading }),
+
   // Host Payouts
   payoutSummary: null,
   payouts: [],
@@ -211,8 +231,7 @@ export const usePaymentsStore = create<PaymentsState>((set) => ({
   transactionsLoading: false,
   transactionsFilter: undefined,
   setTransactions: (transactions) => set({ transactions }),
-  setTransactionsLoading: (transactionsLoading) =>
-    set({ transactionsLoading }),
+  setTransactionsLoading: (transactionsLoading) => set({ transactionsLoading }),
   setTransactionsFilter: (transactionsFilter) => set({ transactionsFilter }),
 
   // Connect
@@ -251,6 +270,8 @@ export const usePaymentsStore = create<PaymentsState>((set) => ({
       refunds: [],
       refundsLoading: false,
       refundRequestLoading: false,
+      hostDisputes: [],
+      hostDisputesLoading: false,
       payoutSummary: null,
       payouts: [],
       payoutsLoading: false,

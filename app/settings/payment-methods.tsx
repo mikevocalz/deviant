@@ -27,6 +27,7 @@ import {
   AlertCircle,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import { PaymentsListSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { paymentMethodsApi } from "@/lib/api/payments";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -214,11 +215,7 @@ export default function PaymentMethodsScreen() {
   return (
     <View className="flex-1 bg-background">
       {/* Loading */}
-      {isLoading && methods.length === 0 && (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
-        </View>
-      )}
+      {isLoading && methods.length === 0 && <PaymentsListSkeleton rows={4} />}
 
       {/* Error */}
       {error && !isLoading && (

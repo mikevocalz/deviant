@@ -11,13 +11,7 @@
  */
 
 import { useEffect, useCallback, useLayoutEffect } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -35,6 +29,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react-native";
+import { HostPaymentsDashboardSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { hostPayoutsApi, connectApi } from "@/lib/api/payments";
 import type { PayoutSummary, ConnectAccount } from "@/lib/types/payments";
@@ -110,9 +105,7 @@ export default function HostPaymentsScreen() {
   return (
     <View className="flex-1 bg-background">
       {isLoading && !payoutSummary ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
-        </View>
+        <HostPaymentsDashboardSkeleton />
       ) : (
         <ScrollView
           className="flex-1"

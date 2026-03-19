@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useCallback, useLayoutEffect } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -22,6 +22,7 @@ import {
   CreditCard,
 } from "lucide-react-native";
 import { LegendList } from "@/components/list";
+import { PaymentsListSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { purchasesApi } from "@/lib/api/payments";
 import { PAYMENT_STATUS_CONFIG, type Order } from "@/lib/types/payments";
@@ -91,9 +92,7 @@ export default function PurchasesScreen() {
     <View className="flex-1 bg-background">
       {/* Loading */}
       {purchasesLoading && purchases.length === 0 && (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
-        </View>
+        <PaymentsListSkeleton rows={5} />
       )}
 
       {/* Error */}
