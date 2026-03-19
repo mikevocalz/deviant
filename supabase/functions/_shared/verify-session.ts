@@ -11,8 +11,11 @@ export async function verifySession(
   supabase: any,
   req: Request,
 ): Promise<string | null> {
+  // Prefer x-auth-token (avoids Supabase gateway rejecting non-JWT in Authorization)
+  // Fall back to Authorization for backward compatibility
+  const customToken = req.headers.get("x-auth-token") || "";
   const authHeader = req.headers.get("Authorization") || "";
-  const token = authHeader.replace("Bearer ", "").trim();
+  const token = customToken.trim() || authHeader.replace("Bearer ", "").trim();
 
   if (!token) {
     console.error("[verify-session] No token in Authorization header");
@@ -82,7 +85,7 @@ export function corsHeaders(req?: Request): Record<string, string> {
     "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, apikey, x-client-info",
+      "Content-Type, Authorization, apikey, x-client-info, x-auth-token",
     ...(origin ? { Vary: "Origin" } : {}),
   };
 }
@@ -95,7 +98,7 @@ export const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers":
-    "Content-Type, Authorization, apikey, x-client-info",
+    "Content-Type, Authorization, apikey, x-client-info, x-auth-token",
 };
 
 /**

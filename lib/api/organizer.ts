@@ -18,7 +18,7 @@ export const organizerApi = {
         "organizer-connect",
         {
           body: { action: "start" },
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { "x-auth-token": token },
         },
       );
 
@@ -57,7 +57,7 @@ export const organizerApi = {
         "organizer-connect",
         {
           body: { action: "status" },
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { "x-auth-token": token },
         },
       );
 
