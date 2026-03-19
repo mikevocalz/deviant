@@ -167,14 +167,90 @@ export async function exportImage(
   }
 
   // ── 5. Save ────────────────────────────────────────────────────────
-  const result = await manipulateAsync(state.sourceUri, actions, {
+  const saveOptions = {
     compress: state.output.quality,
     format: toSaveFormat(state.output.format),
-  });
-
-  return {
-    uri: result.uri,
-    width: result.width,
-    height: result.height,
   };
+
+  try {
+    const result = await manipulateAsync(state.sourceUri, actions, saveOptions);
+    return { uri: result.uri, width: result.width, height: result.height };
+  } catch (firstErr) {
+    // ── Fallback: two-pass export ────────────────────────────────────
+    // The most common cause is an EXIF orientation mismatch — the image
+    // picker / Image.getSize reports raw sensor dimensions while
+    // expo-image-manipulator auto-applies EXIF rotation, producing a
+    // different actual size.  We normalise first, read the REAL
+    // dimensions, re-clamp the crop, then crop in a second pass.
+    console.warn(
+      "[ExportPipeline] First pass failed, retrying with two-pass fallback:",
+      firstErr,
+    );
+
+    // Pass 1 — apply rotate + flip only (no crop) to normalise the image
+    const preActions: Action[] = [];
+    if (totalRotation !== 0) preActions.push({ rotate: totalRotation });
+    if (state.flipX) preActions.push({ flip: FlipType.Horizontal });
+
+    const normalized = await manipulateAsync(state.sourceUri, preActions, {
+      compress: 1, // lossless intermediate
+      format: SaveFormat.JPEG,
+    });
+
+    // Real post-transform dimensions from the native side
+    const realW = normalized.width;
+    const realH = normalized.height;
+
+    // Re-compute crop against the ACTUAL dimensions
+    const fixedCrop = computeCropRectPixels({
+      sourceW: realW,
+      sourceH: realH,
+      containerW: cropFrameW,
+      containerH: cropFrameH,
+      cropFrameW,
+      cropFrameH,
+      scale: viewScale,
+      tx: viewTx,
+      ty: viewTy,
+      rotate90: 0, // already applied in pass 1
+      straighten: 0,
+      flipX: false,
+    });
+
+    // Clamp to integer pixel bounds
+    let fx = Math.max(0, Math.floor(fixedCrop.originX));
+    let fy = Math.max(0, Math.floor(fixedCrop.originY));
+    let fw = Math.max(1, Math.round(fixedCrop.width));
+    let fh = Math.max(1, Math.round(fixedCrop.height));
+    if (fx + fw > realW) fw = Math.max(1, realW - fx);
+    if (fy + fh > realH) fh = Math.max(1, realH - fy);
+    if (fx >= realW || fy >= realH) {
+      fx = 0;
+      fy = 0;
+      fw = realW;
+      fh = realH;
+    }
+
+    // Pass 2 — crop + resize on the normalised image
+    const pass2Actions: Action[] = [
+      { crop: { originX: fx, originY: fy, width: fw, height: fh } },
+    ];
+    if (state.output.maxEdge) {
+      const maxEdge = state.output.maxEdge;
+      if (fw > maxEdge || fh > maxEdge) {
+        if (fw >= fh) {
+          pass2Actions.push({ resize: { width: maxEdge } });
+        } else {
+          pass2Actions.push({ resize: { height: maxEdge } });
+        }
+      }
+    }
+
+    const result = await manipulateAsync(
+      normalized.uri,
+      pass2Actions,
+      saveOptions,
+    );
+    return { uri: result.uri, width: result.width, height: result.height };
+  }
 }

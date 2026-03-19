@@ -270,12 +270,17 @@ export default function CropPreviewScreen() {
           FRAME_WIDTH * (imgAspectVal ?? baseAspectRatio),
         );
 
-        // Read view transform from cropState or viewRefs
+        // Read view transform: prefer live viewRefs for the active image,
+        // then saved cropState, then computed fallback (minScale, centered).
+        const isActive = img.id === activeMedia?.id;
+        const liveRefs =
+          isActive && viewRefsRef.current ? viewRefsRef.current : null;
         const vs =
+          liveRefs?.scale.value ??
           cropState?.scale ??
           Math.max(FRAME_WIDTH / dims.width, imgFrameH / dims.height);
-        const vtx = cropState?.translateX ?? 0;
-        const vty = cropState?.translateY ?? 0;
+        const vtx = liveRefs?.translateX.value ?? cropState?.translateX ?? 0;
+        const vty = liveRefs?.translateY.value ?? cropState?.translateY ?? 0;
 
         // Export through the pipeline
         const result = await exportImage(

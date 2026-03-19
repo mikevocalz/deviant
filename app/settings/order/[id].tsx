@@ -13,13 +13,7 @@
  */
 
 import { useEffect, useCallback, useLayoutEffect } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -40,6 +34,7 @@ import {
   ExternalLink,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import { OrderDetailSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { purchasesApi } from "@/lib/api/payments";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -141,8 +136,8 @@ export default function OrderDetailScreen() {
   // Loading
   if (orderLoading && !activeOrder) {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator color="#8A40CF" size="large" />
+      <View className="flex-1 bg-background">
+        <OrderDetailSkeleton />
       </View>
     );
   }

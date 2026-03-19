@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useCallback, useLayoutEffect } from "react";
-import { View, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -20,6 +20,7 @@ import {
   XCircle,
 } from "lucide-react-native";
 import { LegendList } from "@/components/list";
+import { PaymentsListSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
 import { hostDisputesApi } from "@/lib/api/payments";
 import type { Dispute } from "@/lib/types/payments";
@@ -106,28 +107,23 @@ export default function HostDisputesScreen() {
   }, [navigation]);
 
   const {
-    refunds: disputes,
-    refundsLoading: disputesLoading,
-    setRefunds: setDisputes,
-    setRefundsLoading: setDisputesLoading,
+    hostDisputes,
+    hostDisputesLoading,
+    setHostDisputes,
+    setHostDisputesLoading,
   } = usePaymentsStore();
 
-  // Re-use refunds slice for disputes (same shape)
-  const disputesList = usePaymentsStore(
-    (s) => s.refunds,
-  ) as unknown as Dispute[];
-
   const loadDisputes = useCallback(async () => {
-    setDisputesLoading(true);
+    setHostDisputesLoading(true);
     try {
       const result = await hostDisputesApi.list();
-      setDisputes(result.data as any);
+      setHostDisputes(result.data);
     } catch (err) {
       console.error("[HostDisputes] load error:", err);
     } finally {
-      setDisputesLoading(false);
+      setHostDisputesLoading(false);
     }
-  }, [setDisputes, setDisputesLoading]);
+  }, [setHostDisputes, setHostDisputesLoading]);
 
   useEffect(() => {
     loadDisputes();
@@ -135,13 +131,11 @@ export default function HostDisputesScreen() {
 
   return (
     <View className="flex-1 bg-background">
-      {disputesLoading && disputesList.length === 0 && (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
-        </View>
+      {hostDisputesLoading && hostDisputes.length === 0 && (
+        <PaymentsListSkeleton rows={4} />
       )}
 
-      {!disputesLoading && disputesList.length === 0 && (
+      {!hostDisputesLoading && hostDisputes.length === 0 && (
         <Animated.View
           entering={FadeIn.duration(400)}
           className="flex-1 items-center justify-center px-8"
@@ -156,9 +150,9 @@ export default function HostDisputesScreen() {
         </Animated.View>
       )}
 
-      {disputesList.length > 0 && (
+      {hostDisputes.length > 0 && (
         <LegendList
-          data={disputesList}
+          data={hostDisputes}
           keyExtractor={(item: Dispute) => item.id}
           renderItem={({ item, index }: { item: Dispute; index: number }) => (
             <DisputeCard dispute={item} index={index} />
@@ -169,7 +163,7 @@ export default function HostDisputesScreen() {
             paddingBottom: insets.bottom + 20,
           }}
           onRefresh={loadDisputes}
-          refreshing={disputesLoading}
+          refreshing={hostDisputesLoading}
         />
       )}
     </View>

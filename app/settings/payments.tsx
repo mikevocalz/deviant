@@ -21,7 +21,6 @@ import {
   RotateCcw,
   ShoppingBag,
   ChevronRight,
-  Printer,
 } from "lucide-react-native";
 
 export default function PaymentsSettingsScreen() {
@@ -82,14 +81,7 @@ export default function PaymentsSettingsScreen() {
           <SettingsRow
             icon={<Receipt size={20} color="#22C55E" />}
             label="Receipts & Invoices"
-            subtitle="View and download receipts"
-            onPress={() => router.push("/settings/receipts" as any)}
-          />
-          <Divider />
-          <SettingsRow
-            icon={<Printer size={20} color="#6B7280" />}
-            label="Print Receipts"
-            subtitle="Print or export your receipts"
+            subtitle="View, print, and share receipts"
             onPress={() => router.push("/settings/receipts" as any)}
           />
         </Animated.View>
