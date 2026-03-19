@@ -2,7 +2,6 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
-import { useRef, useEffect } from "react";
 
 /**
  * SignUpStep3 - Terms Agreement
@@ -16,55 +15,11 @@ import { useRef, useEffect } from "react";
  * Account creation happens AFTER verification in SignUpStep2.
  */
 export function SignUpStep3() {
-  const {
-    hasScrolledToBottom,
-    termsAccepted,
-    setActiveStep,
-    setHasScrolledToBottom,
-    setTermsAccepted,
-  } = useSignupStore();
-
-  const layoutHeight = useRef(0);
-  const contentHeight = useRef(0);
-
-  const checkFitsOnScreen = () => {
-    if (
-      layoutHeight.current > 0 &&
-      contentHeight.current > 0 &&
-      contentHeight.current <= layoutHeight.current + 20
-    ) {
-      console.log("[Terms] Content fits on screen, auto-setting scrolled");
-      setHasScrolledToBottom(true);
-    }
-  };
-
-  // Safety fallback: if scroll detection fails after 8s, auto-unlock
-  useEffect(() => {
-    if (hasScrolledToBottom) return;
-    const timer = setTimeout(() => {
-      console.log(
-        "[Terms] Safety fallback: auto-setting scrolled after timeout",
-      );
-      setHasScrolledToBottom(true);
-    }, 8000);
-    return () => clearTimeout(timer);
-  }, [hasScrolledToBottom, setHasScrolledToBottom]);
-
-  const handleScroll = (event: any) => {
-    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
-    const isAtBottom =
-      layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
-    if (isAtBottom) {
-      setHasScrolledToBottom(true);
-    }
-  };
+  const { termsAccepted, setActiveStep, setTermsAccepted } = useSignupStore();
 
   const handleContinue = () => {
-    console.log("[Terms] handleContinue pressed", {
-      termsAccepted,
-      hasScrolledToBottom,
-    });
-    if (!termsAccepted || !hasScrolledToBottom) return;
+    console.log("[Terms] handleContinue pressed", { termsAccepted });
+    if (!termsAccepted) return;
     console.log("[Terms] Advancing to step 2 (Verification)");
     setActiveStep(2);
   };
@@ -90,20 +45,11 @@ export function SignUpStep3() {
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
-          onScroll={handleScroll}
           scrollEventThrottle={16}
           nestedScrollEnabled={true}
           showsVerticalScrollIndicator={true}
           bounces={true}
           overScrollMode="always"
-          onLayout={(e) => {
-            layoutHeight.current = e.nativeEvent.layout.height;
-            checkFitsOnScreen();
-          }}
-          onContentSizeChange={(_w, h) => {
-            contentHeight.current = h;
-            checkFitsOnScreen();
-          }}
         >
           <View style={{ gap: 16 }}>
             <View>
@@ -194,26 +140,16 @@ export function SignUpStep3() {
         </ScrollView>
       </View>
 
-      {!hasScrolledToBottom && (
-        <View className="items-center">
-          <Text className="text-sm" style={{ color: "#FC253A" }}>
-            Please scroll to the bottom to continue
-          </Text>
-        </View>
-      )}
-
       <Pressable
-        onPress={() => hasScrolledToBottom && setTermsAccepted(!termsAccepted)}
+        onPress={() => setTermsAccepted(!termsAccepted)}
         className="flex-row items-start gap-3 p-4 rounded-lg border border-border bg-card"
       >
         <Checkbox
           checked={termsAccepted}
-          onCheckedChange={(v) => hasScrolledToBottom && setTermsAccepted(v)}
+          onCheckedChange={(v) => setTermsAccepted(v)}
           borderColor="#34A2DF"
         />
-        <Text
-          className={`flex-1 text-sm leading-relaxed ${!hasScrolledToBottom ? "text-slate-400" : "text-foreground"}`}
-        >
+        <Text className="flex-1 text-sm leading-relaxed text-foreground">
           I confirm I am 18+ years old, and I agree to DVNT's Terms of Service,
           Privacy Policy, Community Standards, and Identity Verification
           Requirements.
@@ -230,7 +166,7 @@ export function SignUpStep3() {
         </Button>
         <Button
           onPress={handleContinue}
-          disabled={!termsAccepted || !hasScrolledToBottom}
+          disabled={!termsAccepted}
           className="flex-1"
         >
           Continue to Verification
