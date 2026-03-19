@@ -824,7 +824,7 @@ export function ChatSheet({
             paddingVertical: 12,
             borderTopWidth: 1,
             borderTopColor: "rgba(255,255,255,0.06)",
-            paddingBottom: insets.bottom + 12,
+            paddingBottom: insets.bottom + 36,
           }}
         >
           <PasteInput

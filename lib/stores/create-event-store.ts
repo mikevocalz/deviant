@@ -333,12 +333,20 @@ export const useCreateEventStore = create<CreateEventState>()(
       setCurrentStep: (step) => set({ currentStep: step }),
 
       nextStep: () =>
-        set((s) => ({
-          currentStep: Math.min(s.currentStep + 1, s.totalSteps - 1),
-        })),
+        set((s) => {
+          let next = Math.min(s.currentStep + 1, s.totalSteps - 1);
+          // Skip ticketing terms step for free events
+          if (next === 4 && !s.ticketingEnabled) next = 5;
+          return { currentStep: next };
+        }),
 
       prevStep: () =>
-        set((s) => ({ currentStep: Math.max(s.currentStep - 1, 0) })),
+        set((s) => {
+          let prev = Math.max(s.currentStep - 1, 0);
+          // Skip ticketing terms step for free events
+          if (prev === 4 && !s.ticketingEnabled) prev = 3;
+          return { currentStep: prev };
+        }),
 
       canProceed: () => {
         const s = get();
@@ -351,8 +359,8 @@ export const useCreateEventStore = create<CreateEventState>()(
             return s.location.trim().length > 0 || s.isOnline;
           case 3: // Details
             return true;
-          case 4: // Agreement — must accept before proceeding
-            return s.agreementAccepted;
+          case 4: // Agreement — must accept before proceeding (skip for free events)
+            return !s.ticketingEnabled || s.agreementAccepted;
           case 5: // Review
             return true;
           default:
