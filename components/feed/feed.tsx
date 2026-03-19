@@ -46,6 +46,7 @@ import { useDeletePost } from "@/lib/hooks/use-posts";
 import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { FeedModeToggle } from "@/app/(protected)/(tabs)/index";
 
 type FeedPostItem = { _type: "post"; data: Post };
 type FeedEventItem = { _type: "event"; data: Event };
@@ -571,7 +572,12 @@ export function Feed() {
         estimatedItemSize={500}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={StoriesBar}
+        ListHeaderComponent={() => (
+          <>
+            <FeedModeToggle />
+            <StoriesBar />
+          </>
+        )}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={ListEmpty}
         viewabilityConfig={viewabilityConfig}

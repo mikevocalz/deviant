@@ -5,10 +5,8 @@ import { MasonryFeed } from "@/components/feed/masonry-feed";
 import { SpicyToggleFAB } from "@/components/spicy-toggle-fab";
 import { useAppStore } from "@/lib/stores/app-store";
 import { LayoutGrid, List } from "lucide-react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useColorScheme } from "@/lib/hooks";
 import * as Haptics from "expo-haptics";
-import { Component, ErrorInfo, ReactNode, useCallback } from "react";
+import { Component, ErrorInfo, ReactNode, useCallback, memo } from "react";
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -44,49 +42,92 @@ class ErrorBoundary extends Component<
   }
 }
 
-function FeedModeFAB() {
+export const FeedModeToggle = memo(function FeedModeToggle() {
   const feedMode = useAppStore((s) => s.feedMode);
   const setFeedMode = useAppStore((s) => s.setFeedMode);
-  const insets = useSafeAreaInsets();
-  const { colors } = useColorScheme();
 
-  const toggle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFeedMode(feedMode === "classic" ? "masonry" : "classic");
+  const setClassic = useCallback(() => {
+    if (feedMode !== "classic") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setFeedMode("classic");
+    }
+  }, [feedMode, setFeedMode]);
+
+  const setMasonry = useCallback(() => {
+    if (feedMode !== "masonry") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setFeedMode("masonry");
+    }
   }, [feedMode, setFeedMode]);
 
   return (
-    <Pressable
-      onPress={toggle}
-      hitSlop={12}
+    <View
       style={{
-        position: "absolute",
-        bottom: insets.bottom + 66,
-        right: 16,
-        zIndex: 50,
-        elevation: 50,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "rgb(20, 20, 20)",
-        borderWidth: 1,
-        borderColor: "rgb(38, 38, 38)",
-        alignItems: "center",
-        justifyContent: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
+        flexDirection: "row",
+        alignSelf: "center",
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderRadius: 10,
+        padding: 3,
+        marginVertical: 8,
       }}
     >
-      {feedMode === "classic" ? (
-        <LayoutGrid size={18} color={colors.foreground} />
-      ) : (
-        <List size={18} color={colors.foreground} />
-      )}
-    </Pressable>
+      <Pressable
+        onPress={setClassic}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 5,
+          paddingHorizontal: 14,
+          paddingVertical: 7,
+          borderRadius: 8,
+          backgroundColor:
+            feedMode === "classic" ? "rgba(255,255,255,0.12)" : "transparent",
+        }}
+      >
+        <List
+          size={14}
+          color={feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)"}
+        />
+        <Text
+          style={{
+            color: feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)",
+            fontSize: 12,
+            fontWeight: "600",
+          }}
+        >
+          Feed
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={setMasonry}
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 5,
+          paddingHorizontal: 14,
+          paddingVertical: 7,
+          borderRadius: 8,
+          backgroundColor:
+            feedMode === "masonry" ? "rgba(255,255,255,0.12)" : "transparent",
+        }}
+      >
+        <LayoutGrid
+          size={14}
+          color={feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)"}
+        />
+        <Text
+          style={{
+            color: feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)",
+            fontSize: 12,
+            fontWeight: "600",
+          }}
+        >
+          Grid
+        </Text>
+      </Pressable>
+    </View>
   );
-}
+});
 
 export default function HomeScreen() {
   const feedMode = useAppStore((s) => s.feedMode);
@@ -98,7 +139,6 @@ export default function HomeScreen() {
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}
         </ErrorBoundary>
       </Main>
-      <FeedModeFAB />
       <SpicyToggleFAB />
     </View>
   );

@@ -503,6 +503,64 @@ export default function CreateScreen() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
+      {/* Header — Close / Title / Post */}
+      <View
+        style={{
+          paddingTop: insets.top,
+          paddingHorizontal: 16,
+          paddingBottom: 10,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          backgroundColor: "#000",
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.06)",
+        }}
+      >
+        <Pressable
+          onPress={handleClose}
+          hitSlop={12}
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <X size={24} color="#fff" />
+        </Pressable>
+        <Text style={{ color: "#fff", fontSize: 17, fontWeight: "700" }}>
+          New Post
+        </Text>
+        <Pressable
+          onPress={handlePost}
+          disabled={!isValid || isCreating || isUploading}
+          hitSlop={12}
+          style={{
+            paddingHorizontal: 18,
+            paddingVertical: 8,
+            borderRadius: 20,
+            backgroundColor:
+              isValid && !isCreating && !isUploading
+                ? "#3EA4E5"
+                : "rgba(255,255,255,0.08)",
+          }}
+        >
+          <Text
+            style={{
+              color:
+                isValid && !isCreating && !isUploading
+                  ? "#fff"
+                  : "rgba(255,255,255,0.3)",
+              fontSize: 15,
+              fontWeight: "700",
+            }}
+          >
+            {isCreating ? "Posting..." : "Post"}
+          </Text>
+        </Pressable>
+      </View>
+
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ flexGrow: 1 }}

@@ -595,12 +595,18 @@ export default function EventDetailScreen() {
     router.push(`/ticket/${eventId}` as any);
   }, [router, eventId]);
 
-  const isHost = !!(
-    user?.id &&
-    eventData?.host?.id &&
-    (String(user.id) === String(eventData.host.id) ||
-      String(getCurrentUserIdInt()) === String(eventData.host.id))
-  );
+  const isHost = useMemo(() => {
+    if (!user?.id || !eventData?.host?.id) return false;
+    const hostId = String(eventData.host.id);
+    // Compare against all possible user ID formats
+    if (String(user.id) === hostId) return true;
+    const intId = getCurrentUserIdInt();
+    if (intId != null && String(intId) === hostId) return true;
+    // Also check auth_id (host_id in DB is auth_id text)
+    const authId = (user as any)?.authId || (user as any)?.auth_id;
+    if (authId && String(authId) === hostId) return true;
+    return false;
+  }, [user?.id, eventData?.host?.id]);
 
   const handleDeleteEvent = useCallback(() => {
     Alert.alert(
@@ -713,12 +719,7 @@ export default function EventDetailScreen() {
   }, [eventData]);
 
   // Rating eligibility: event ended + user has ticket/RSVP + not the host
-  const isHostUser = !!(
-    user?.id &&
-    eventData?.host?.id &&
-    (String(user.id) === String(eventData.host.id) ||
-      String(getCurrentUserIdInt()) === String(eventData.host.id))
-  );
+  const isHostUser = isHost;
 
   const canRate = useMemo(() => {
     if (!isPast) return false;
@@ -1310,12 +1311,10 @@ export default function EventDetailScreen() {
           pointerEvents="none"
         />
         <View style={s.headerInner} pointerEvents="box-none">
-          <Pressable
-            onPress={() => router.back()}
-            style={s.headerButton}
-            hitSlop={12}
-          >
-            <ArrowLeft size={22} color="#fff" />
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <DVNTLiquidGlassIconButton size={40}>
+              <ArrowLeft size={20} color="#fff" />
+            </DVNTLiquidGlassIconButton>
           </Pressable>
           <Animated.Text
             style={[s.headerTitle, headerTitleStyle]}
@@ -1326,37 +1325,41 @@ export default function EventDetailScreen() {
           <View style={s.headerActions}>
             {isHost && (
               <Pressable
-                onPress={handleDeleteEvent}
-                style={s.headerButton}
+                onPress={() =>
+                  router.push(`/(protected)/events/${eventId}/edit` as any)
+                }
                 hitSlop={12}
               >
-                <Trash2 size={20} color="#ef4444" />
+                <DVNTLiquidGlassIconButton size={40}>
+                  <Pencil size={18} color="#fff" />
+                </DVNTLiquidGlassIconButton>
               </Pressable>
             )}
-            <Pressable
-              onPress={handleAddToCalendar}
-              style={s.headerButton}
-              hitSlop={12}
-            >
-              <CalendarPlus size={20} color="#fff" />
+            {isHost && (
+              <Pressable onPress={handleDeleteEvent} hitSlop={12}>
+                <DVNTLiquidGlassIconButton size={40}>
+                  <Trash2 size={18} color="#ef4444" />
+                </DVNTLiquidGlassIconButton>
+              </Pressable>
+            )}
+            <Pressable onPress={handleAddToCalendar} hitSlop={12}>
+              <DVNTLiquidGlassIconButton size={40}>
+                <CalendarPlus size={18} color="#fff" />
+              </DVNTLiquidGlassIconButton>
             </Pressable>
-            <Pressable
-              onPress={handleShare}
-              style={s.headerButton}
-              hitSlop={12}
-            >
-              <Share2 size={20} color="#fff" />
+            <Pressable onPress={handleShare} hitSlop={12}>
+              <DVNTLiquidGlassIconButton size={40}>
+                <Share2 size={18} color="#fff" />
+              </DVNTLiquidGlassIconButton>
             </Pressable>
-            <Pressable
-              onPress={handleToggleLike}
-              style={s.headerButton}
-              hitSlop={12}
-            >
-              <Heart
-                size={20}
-                color={isLiked ? "#FF5BFC" : "#fff"}
-                fill={isLiked ? "#FF5BFC" : "transparent"}
-              />
+            <Pressable onPress={handleToggleLike} hitSlop={12}>
+              <DVNTLiquidGlassIconButton size={40}>
+                <Heart
+                  size={18}
+                  color={isLiked ? "#FF5BFC" : "#fff"}
+                  fill={isLiked ? "#FF5BFC" : "transparent"}
+                />
+              </DVNTLiquidGlassIconButton>
             </Pressable>
           </View>
         </View>
