@@ -259,7 +259,8 @@ export default function ProtectedLayout() {
           options={{
             headerShown: false,
             presentation: "transparentModal",
-            animation: "none",
+            animation: "slide_from_bottom",
+            animationDuration: 250,
             contentStyle: { backgroundColor: "transparent" },
           }}
         />
