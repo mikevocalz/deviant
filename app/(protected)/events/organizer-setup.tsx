@@ -61,34 +61,39 @@ function OrganizerSetupContent() {
   const handleStartOnboarding = useCallback(async () => {
     setIsOnboarding(true);
     try {
+      console.log("[OrganizerSetup] Starting onboarding flow...");
       const result = await organizerApi.startOnboarding();
+
       if (result.error) {
         showToast("error", "Error", result.error);
         return;
       }
-      if (result.url) {
-        console.log("[OrganizerSetup] Opening URL:", result.url);
-        // Validate URL before opening
-        if (
-          typeof result.url !== "string" ||
-          !result.url.startsWith("https://")
-        ) {
-          showToast("error", "Error", `Invalid onboarding URL received`);
-          console.error("[OrganizerSetup] Invalid URL:", result.url);
-          return;
-        }
-        await WebBrowser.openBrowserAsync(result.url, {
-          presentationStyle:
-            Platform.OS === "ios"
-              ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-              : undefined,
-        });
-        // Re-check status after browser closes
-        await checkStatus();
-      } else {
-        showToast("error", "Error", "No onboarding URL returned");
+
+      if (!result.url) {
+        showToast(
+          "error",
+          "Error",
+          "No onboarding URL returned. Please try again.",
+        );
+        return;
       }
+
+      console.log(
+        "[OrganizerSetup] Opening URL:",
+        result.url.substring(0, 50) + "...",
+      );
+      await WebBrowser.openBrowserAsync(result.url, {
+        presentationStyle:
+          Platform.OS === "ios"
+            ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+            : undefined,
+      });
+
+      // Re-check status after browser closes
+      console.log("[OrganizerSetup] Browser closed, re-checking status...");
+      await checkStatus();
     } catch (err: any) {
+      console.error("[OrganizerSetup] Unexpected error:", err);
       showToast("error", "Error", err.message || "Failed to start onboarding");
     } finally {
       setIsOnboarding(false);
