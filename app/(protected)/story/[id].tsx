@@ -12,6 +12,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
+import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1371,7 +1372,7 @@ export default function StoryViewerScreen() {
       ))}
 
       {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
-      {!isOwnStory && story && resolvedUserId && (
+      {!isOwnStory && story && (
         <KeyboardStickyView
           offset={{ closed: 0, opened: 0 }}
           style={{
@@ -1414,39 +1415,22 @@ export default function StoryViewerScreen() {
             </View>
           )}
 
-          {/* Message input row — glass pill */}
+          {/* Message input row — liquid glass pill */}
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              paddingHorizontal: 16,
-              paddingTop: 10,
-              paddingBottom: insets.bottom + 12,
-              backgroundColor: "rgba(18,18,18,0.72)",
+              paddingHorizontal: 12,
+              paddingTop: 6,
+              paddingBottom: insets.bottom + 8,
             }}
           >
-            {/* Send Message pill input */}
-            <View
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: "rgba(255,255,255,0.1)",
-                borderRadius: 26,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.18)",
-                paddingHorizontal: 18,
-                paddingVertical: 10,
-                minHeight: 46,
-              }}
-            >
+            <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
               <TextInput
                 style={{
                   flex: 1,
                   color: "#fff",
                   fontSize: 15,
-                  paddingVertical: 0,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
                 }}
                 placeholder="Send Message"
                 placeholderTextColor="rgba(255,255,255,0.45)"
@@ -1458,53 +1442,38 @@ export default function StoryViewerScreen() {
                 onSubmitEditing={handleSendReply}
                 editable={!isSendingReply}
               />
-            </View>
 
-            {/* Emoji quick-react */}
-            <Pressable
-              onPress={() => handleStoryReaction("😍")}
-              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: "rgba(255,255,255,0.1)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.18)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ fontSize: 22 }}>😍</Text>
-            </Pressable>
+              {/* Emoji quick-react */}
+              <Pressable
+                onPress={() => handleStoryReaction("😍")}
+                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+              >
+                <Text style={{ fontSize: 26 }}>😍</Text>
+              </Pressable>
 
-            {/* Send button */}
-            <Pressable
-              onPress={
-                replyText.trim().length > 0 ? handleSendReply : undefined
-              }
-              disabled={isSendingReply}
-              hitSlop={{ top: 10, bottom: 10, left: 8, right: 8 }}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor:
-                  replyText.trim().length > 0
-                    ? "#8A40CF"
-                    : "rgba(255,255,255,0.1)",
-                borderWidth: 1,
-                borderColor:
-                  replyText.trim().length > 0
-                    ? "rgba(138,64,207,0.6)"
-                    : "rgba(255,255,255,0.18)",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: isSendingReply ? 0.5 : 1,
-              }}
-            >
-              <Send size={18} color="#fff" strokeWidth={2} />
-            </Pressable>
+              {/* Send button */}
+              <Pressable
+                onPress={
+                  replyText.trim().length > 0 ? handleSendReply : undefined
+                }
+                disabled={isSendingReply || !resolvedUserId}
+                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor:
+                    replyText.trim().length > 0
+                      ? "#8A40CF"
+                      : "rgba(255,255,255,0.15)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isSendingReply ? 0.5 : 1,
+                }}
+              >
+                <Send size={17} color="#fff" strokeWidth={2} />
+              </Pressable>
+            </DVNTLiquidGlass>
           </View>
         </KeyboardStickyView>
       )}
