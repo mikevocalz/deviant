@@ -316,6 +316,13 @@ export const ticketsApi = {
           ? `user_id.eq.${authId},user_id.eq.${intId}`
           : `user_id.eq.${authId}`;
 
+      console.log(
+        "[Tickets] getMyTicketForEvent:",
+        eventId,
+        "filter:",
+        userIdFilter,
+      );
+
       const { data, error } = await supabase
         .from("tickets")
         .select(
@@ -327,7 +334,41 @@ export const ticketsApi = {
         .limit(1)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error(
+          "[Tickets] getMyTicketForEvent join error:",
+          error.message,
+          error.code,
+        );
+        // Fallback: try without joins in case FK relationship is broken
+        const { data: fbData, error: fbError } = await supabase
+          .from("tickets")
+          .select("*")
+          .or(userIdFilter)
+          .eq("event_id", parseInt(eventId))
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        console.log(
+          "[Tickets] getMyTicketForEvent fallback:",
+          fbData ? "found" : "null",
+          fbError?.message,
+        );
+        if (fbError || !fbData) return null;
+        return {
+          ...fbData,
+          ticket_type_name: "General",
+          event_title: "",
+          event_image: "",
+          event_date: "",
+          event_location: "",
+        } as TicketRecord;
+      }
+
+      console.log(
+        "[Tickets] getMyTicketForEvent result:",
+        data ? "found" : "null",
+      );
       if (!data) return null;
 
       return {
