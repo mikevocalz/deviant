@@ -5,7 +5,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ticketsApi } from "@/lib/api/tickets";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
-import { isFeatureEnabled } from "@/lib/feature-flags";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
@@ -104,7 +103,7 @@ export function useEventTickets(eventId: string) {
   return useQuery({
     queryKey: ticketKeys.eventTickets(eventId),
     queryFn: () => ticketsApi.getEventTickets(eventId),
-    enabled: !!eventId && isFeatureEnabled("organizer_tools_enabled"),
+    enabled: !!eventId,
     staleTime: STALE_TIMES.events,
     gcTime: GC_TIMES.short,
   });
@@ -115,7 +114,7 @@ export function useTicketTypes(eventId: string) {
   return useQuery({
     queryKey: ticketKeys.ticketTypes(eventId),
     queryFn: () => ticketsApi.getTicketTypes(eventId),
-    enabled: !!eventId && isFeatureEnabled("ticketing_enabled"),
+    enabled: !!eventId,
     staleTime: STALE_TIMES.events,
     gcTime: GC_TIMES.short,
   });
@@ -126,7 +125,7 @@ export function useEventFinancials(eventId: string) {
   return useQuery({
     queryKey: ticketKeys.financials(eventId),
     queryFn: () => ticketsApi.getEventFinancials(eventId),
-    enabled: !!eventId && isFeatureEnabled("organizer_tools_enabled"),
+    enabled: !!eventId,
     staleTime: STALE_TIMES.events,
     gcTime: GC_TIMES.short,
   });

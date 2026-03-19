@@ -8,6 +8,12 @@
  * - Disputes / chargebacks
  * - Bank / verification status
  * - Branding (logo for receipts)
+ *
+ * Supports all connect account states:
+ * - not_started → full onboarding CTA
+ * - onboarding_incomplete → continue setup banner
+ * - restricted → verification warning
+ * - active → full dashboard with balance + nav
  */
 
 import { useEffect, useCallback, useLayoutEffect } from "react";
@@ -16,7 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
 import { SettingsCloseButton } from "@/components/settings-back-button";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import {
   DollarSign,
   Banknote,
@@ -28,6 +34,11 @@ import {
   CheckCircle,
   Clock,
   AlertCircle,
+  ExternalLink,
+  ShieldAlert,
+  CreditCard,
+  TrendingUp,
+  Shield,
 } from "lucide-react-native";
 import { HostPaymentsDashboardSkeleton } from "@/components/skeletons";
 import { usePaymentsStore } from "@/lib/stores/payments-store";
@@ -100,11 +111,15 @@ export default function HostPaymentsScreen() {
   }, [loadData]);
 
   const isLoading = payoutSummaryLoading || connectLoading;
-  const isConnected = connectAccount?.status === "active";
+  const accountStatus = connectAccount?.status ?? "not_started";
+  const isActive = accountStatus === "active";
+  const isRestricted = accountStatus === "restricted";
+  const isIncomplete = accountStatus === "onboarding_incomplete";
+  const isNotStarted = accountStatus === "not_started";
 
   return (
     <View className="flex-1 bg-background">
-      {isLoading && !payoutSummary ? (
+      {isLoading && !payoutSummary && !connectAccount ? (
         <HostPaymentsDashboardSkeleton />
       ) : (
         <ScrollView
@@ -112,8 +127,153 @@ export default function HostPaymentsScreen() {
           contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
           showsVerticalScrollIndicator={false}
         >
-          {/* Balance Card */}
-          {payoutSummary && (
+          {/* ── Not Started: Full onboarding CTA ── */}
+          {isNotStarted && (
+            <Animated.View
+              entering={FadeInDown.delay(50)
+                .duration(300)
+                .springify()
+                .damping(18)}
+              className="mx-4 mt-4"
+            >
+              <View className="bg-card rounded-2xl border border-border overflow-hidden">
+                <View className="bg-primary/5 px-5 pt-5 pb-4">
+                  <View className="w-14 h-14 rounded-2xl bg-primary/10 items-center justify-center mb-4">
+                    <CreditCard size={28} color="#8A40CF" />
+                  </View>
+                  <Text className="text-xl font-sans-bold text-foreground">
+                    Start Receiving Payouts
+                  </Text>
+                  <Text className="text-sm text-muted-foreground mt-1.5 leading-5">
+                    Connect your bank account through Stripe to receive ticket
+                    revenue from your events. Setup takes about 5 minutes.
+                  </Text>
+                </View>
+                <View className="px-5 pb-5 pt-4 gap-3">
+                  <View className="flex-row items-center gap-2.5">
+                    <DollarSign size={14} color="#22C55E" />
+                    <Text className="text-xs text-muted-foreground">
+                      Revenue minus 5% platform fee + Stripe processing
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center gap-2.5">
+                    <Shield size={14} color="#3B82F6" />
+                    <Text className="text-xs text-muted-foreground">
+                      Banking info secured by Stripe — never on our servers
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center gap-2.5">
+                    <Banknote size={14} color="#8A40CF" />
+                    <Text className="text-xs text-muted-foreground">
+                      Payouts released 5 business days after events end
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() =>
+                      router.push("/(protected)/events/organizer-setup" as any)
+                    }
+                    className="bg-primary rounded-xl py-3.5 flex-row items-center justify-center gap-2 mt-2 active:opacity-80"
+                  >
+                    <ExternalLink size={16} color="#000" />
+                    <Text className="text-[15px] font-sans-bold text-primary-foreground">
+                      Connect with Stripe
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Animated.View>
+          )}
+
+          {/* ── Incomplete Onboarding Banner ── */}
+          {isIncomplete && (
+            <Animated.View
+              entering={FadeInDown.delay(50)
+                .duration(300)
+                .springify()
+                .damping(18)}
+              className="mx-4 mt-4"
+            >
+              <Pressable
+                onPress={() =>
+                  router.push("/(protected)/events/organizer-setup" as any)
+                }
+                className="bg-orange-500/8 rounded-2xl border border-orange-500/20 p-4 active:opacity-80"
+              >
+                <View className="flex-row items-start gap-3">
+                  <View className="w-10 h-10 rounded-xl bg-orange-500/10 items-center justify-center">
+                    <AlertCircle size={20} color="#F97316" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-sans-bold text-foreground">
+                      Complete Your Setup
+                    </Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Your Stripe account needs more information before you can
+                      receive payouts. Tap to continue where you left off.
+                    </Text>
+                    <View className="flex-row items-center gap-1.5 mt-2.5">
+                      <ExternalLink size={13} color="#F97316" />
+                      <Text className="text-xs font-sans-semibold text-orange-400">
+                        Continue Setup
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {/* ── Restricted Account Banner ── */}
+          {isRestricted && (
+            <Animated.View
+              entering={FadeInDown.delay(50)
+                .duration(300)
+                .springify()
+                .damping(18)}
+              className="mx-4 mt-4"
+            >
+              <Pressable
+                onPress={() =>
+                  router.push("/(protected)/events/organizer-setup" as any)
+                }
+                className="bg-destructive/8 rounded-2xl border border-destructive/20 p-4 active:opacity-80"
+              >
+                <View className="flex-row items-start gap-3">
+                  <View className="w-10 h-10 rounded-xl bg-destructive/10 items-center justify-center">
+                    <ShieldAlert size={20} color="#EF4444" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[15px] font-sans-bold text-foreground">
+                      Verification Required
+                    </Text>
+                    <Text className="text-xs text-muted-foreground mt-0.5 leading-4">
+                      Stripe requires additional verification. Payouts are
+                      paused until you provide the required information.
+                    </Text>
+                    {connectAccount?.pendingVerification &&
+                      connectAccount.pendingVerification.length > 0 && (
+                        <Text className="text-[10px] text-destructive/70 mt-1.5">
+                          {connectAccount.pendingVerification.length} item
+                          {connectAccount.pendingVerification.length > 1
+                            ? "s"
+                            : ""}{" "}
+                          need attention
+                        </Text>
+                      )}
+                    <View className="flex-row items-center gap-1.5 mt-2.5">
+                      <ExternalLink size={13} color="#EF4444" />
+                      <Text className="text-xs font-sans-semibold text-destructive">
+                        Update Verification
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </Pressable>
+            </Animated.View>
+          )}
+
+          {/* ── Active: Balance Card ── */}
+          {isActive && payoutSummary && (
             <Animated.View
               entering={FadeInDown.delay(50)
                 .duration(300)
@@ -151,51 +311,43 @@ export default function HostPaymentsScreen() {
                   </Text>
                 </View>
               )}
+
+              {payoutSummary.totalEventsPaidOut > 0 && (
+                <View className="flex-row items-center gap-2 mt-2">
+                  <TrendingUp size={14} color="#666" />
+                  <Text className="text-xs text-muted-foreground">
+                    {payoutSummary.totalEventsPaidOut} event
+                    {payoutSummary.totalEventsPaidOut > 1 ? "s" : ""} paid out
+                  </Text>
+                </View>
+              )}
             </Animated.View>
           )}
 
-          {/* Connect Status */}
-          <Animated.View
-            entering={FadeInDown.delay(100)
-              .duration(300)
-              .springify()
-              .damping(18)}
-            className="mx-4 mt-3"
-          >
-            <Pressable
-              onPress={() =>
-                router.push("/(protected)/events/organizer-setup" as any)
-              }
-              className="bg-card rounded-2xl border border-border p-4 flex-row items-center active:bg-secondary/50"
+          {/* ── Active: Connected badge (compact) ── */}
+          {isActive && (
+            <Animated.View
+              entering={FadeInDown.delay(100)
+                .duration(300)
+                .springify()
+                .damping(18)}
+              className="mx-4 mt-3"
             >
-              <View
-                className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${
-                  isConnected ? "bg-green-500/10" : "bg-orange-500/10"
-                }`}
-              >
-                {isConnected ? (
-                  <CheckCircle size={20} color="#22C55E" />
-                ) : (
-                  <AlertCircle size={20} color="#F97316" />
-                )}
-              </View>
-              <View className="flex-1">
-                <Text className="text-[15px] font-sans-semibold text-foreground">
-                  {isConnected ? "Stripe Connected" : "Complete Stripe Setup"}
+              <View className="bg-green-500/5 rounded-xl border border-green-500/15 px-4 py-2.5 flex-row items-center">
+                <CheckCircle size={14} color="#22C55E" />
+                <Text className="text-xs font-sans-semibold text-green-400 ml-2 flex-1">
+                  Stripe Connected
                 </Text>
-                <Text className="text-xs text-muted-foreground mt-0.5">
-                  {isConnected
-                    ? "Charges and payouts enabled"
-                    : "Required to receive payouts"}
+                <Text className="text-[10px] text-muted-foreground">
+                  Charges & payouts enabled
                 </Text>
               </View>
-              <ChevronRight size={18} color="#666" />
-            </Pressable>
-          </Animated.View>
+            </Animated.View>
+          )}
 
-          {/* Navigation Items */}
+          {/* ── Navigation: Financial ── */}
           <Animated.View
-            entering={FadeInDown.delay(150)
+            entering={FadeInDown.delay(isNotStarted ? 100 : 150)
               .duration(300)
               .springify()
               .damping(18)}
@@ -223,8 +375,9 @@ export default function HostPaymentsScreen() {
             />
           </Animated.View>
 
+          {/* ── Navigation: Settings ── */}
           <Animated.View
-            entering={FadeInDown.delay(200)
+            entering={FadeInDown.delay(isNotStarted ? 150 : 200)
               .duration(300)
               .springify()
               .damping(18)}
@@ -233,9 +386,9 @@ export default function HostPaymentsScreen() {
             <NavRow
               icon={<Settings size={20} color="#6B7280" />}
               label="Bank & Verification"
-              subtitle="Manage your Stripe Connect account"
+              subtitle="Payout account, identity, and requirements"
               onPress={() =>
-                router.push("/(protected)/events/organizer-setup" as any)
+                router.push("/settings/host-bank-verification" as any)
               }
             />
             <Divider />

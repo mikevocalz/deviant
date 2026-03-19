@@ -38,7 +38,6 @@ import {
 import { useScanTicket } from "@/lib/hooks/use-tickets";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
-import { FeatureGate } from "@/lib/feature-flags";
 import * as Haptics from "expo-haptics";
 
 // Lazy-load VisionCamera to prevent crashes if not installed
@@ -624,16 +623,5 @@ function ScannerContent({ eventId }: { eventId: string }) {
 export default function TicketScannerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  return (
-    <FeatureGate
-      flag="organizer_tools_enabled"
-      fallback={
-        <View className="flex-1 bg-background items-center justify-center">
-          <Text className="text-muted-foreground">Scanner not available</Text>
-        </View>
-      }
-    >
-      <ScannerContent eventId={id || ""} />
-    </FeatureGate>
-  );
+  return <ScannerContent eventId={id || ""} />;
 }
