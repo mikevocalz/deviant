@@ -29,6 +29,7 @@ import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useAppStore } from "@/lib/stores/app-store";
+import { FeedModeToggle } from "@/app/(protected)/(tabs)/index";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
 import { FeedSkeleton } from "@/components/skeletons";
@@ -499,6 +500,7 @@ export function MasonryFeed() {
         />
       }
     >
+      <FeedModeToggle />
       <StoriesBar />
 
       {filteredPosts.length === 0 ? (

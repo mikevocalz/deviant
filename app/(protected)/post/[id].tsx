@@ -290,7 +290,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
             <VideoView
               player={player}
               style={{ flex: 1 }}
-              contentFit="cover"
+              contentFit="contain"
               nativeControls={false}
             />
             {!isPlaying && (
@@ -661,7 +661,7 @@ function PostDetailScreenContent() {
               style={{
                 width: SCREEN_WIDTH,
                 height: PORTRAIT_HEIGHT,
-                borderRadius: 12,
+                borderRadius: isVideo ? 0 : 12,
                 overflow: "hidden",
               }}
               className="bg-muted"
