@@ -57,6 +57,67 @@ import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { audioSession } from "@/src/services/calls/audioSession";
 
+// ── Error Boundary (per-route) — surfaces real crash message ────────
+
+export function ErrorBoundary({
+  error,
+  retry,
+}: {
+  error: Error;
+  retry: () => void;
+}) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#000",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 24,
+      }}
+    >
+      <Text
+        style={{
+          color: "#EF4444",
+          fontSize: 18,
+          fontWeight: "700",
+          marginBottom: 12,
+        }}
+      >
+        Room Error
+      </Text>
+      <Text
+        style={{
+          color: "#9CA3AF",
+          fontSize: 13,
+          textAlign: "center",
+          marginBottom: 8,
+        }}
+      >
+        {error.message}
+      </Text>
+      <ScrollView style={{ maxHeight: 200, width: "100%", marginBottom: 16 }}>
+        <Text
+          style={{ color: "#6B7280", fontSize: 10, fontFamily: "monospace" }}
+        >
+          {error.stack}
+        </Text>
+      </ScrollView>
+      <Pressable
+        onPress={retry}
+        style={{
+          backgroundColor: "#FC253A",
+          paddingHorizontal: 24,
+          paddingVertical: 12,
+          borderRadius: 24,
+        }}
+      >
+        <Text style={{ color: "#fff", fontWeight: "600" }}>Retry</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 // ── Shared helpers ──────────────────────────────────────────────────
 
 function buildLocalUser(authUser: any): SneakyUser {
@@ -587,11 +648,15 @@ function ServerRoom({
     router.back();
   }, [router, hideEject]);
 
-  if (connectionState === "connecting") {
+  if (connectionState === "connecting" || connectionState === "disconnected") {
     return (
       <View className="flex-1 bg-background items-center justify-center">
         <ActivityIndicator size="large" color="#FC253A" />
-        <Text className="text-foreground mt-4">Joining room...</Text>
+        <Text className="text-foreground mt-4">
+          {connectionState === "connecting"
+            ? "Joining room..."
+            : "Preparing room..."}
+        </Text>
       </View>
     );
   }
