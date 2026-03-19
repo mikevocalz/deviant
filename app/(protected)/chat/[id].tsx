@@ -530,6 +530,16 @@ export default function ChatScreen() {
   );
   const [isLoadingRecipient, setIsLoadingRecipient] = useState(!peerUsername);
   const [isGroupChat, setIsGroupChat] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<
+    Array<{
+      id: string;
+      authId?: string;
+      username: string;
+      name: string;
+      avatar: string;
+    }>
+  >([]);
+  const [groupName, setGroupName] = useState("");
 
   // Build a stable color map for group chat senders (only "them" messages)
   const senderColorMap = useMemo(() => {
@@ -562,6 +572,15 @@ export default function ChatScreen() {
 
         if (conversation) {
           setIsGroupChat(!!conversation.isGroup);
+          if (conversation.isGroup && conversation.members) {
+            setGroupMembers(conversation.members);
+            setGroupName(conversation.groupName || "");
+            console.log(
+              "[Chat] Group with",
+              conversation.members.length,
+              "other members",
+            );
+          }
           const otherUser = conversation.user;
 
           if (otherUser) {
@@ -991,72 +1010,115 @@ export default function ChatScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <ArrowLeft size={24} color="#fff" />
           </Pressable>
-          <Pressable
-            onPress={handleProfilePress}
-            className="flex-row items-center gap-3 flex-1"
-          >
-            <Image
-              source={{ uri: recipient?.avatar || "" }}
-              className="w-10 h-10 rounded-full"
-            />
-            <View className="flex-1">
-              <Text className="text-base font-semibold text-foreground">
-                {recipient?.username || "Loading..."}
-              </Text>
-              <ChatPresenceText recipientId={recipient?.id} />
+
+          {isGroupChat ? (
+            /* ── Group chat header ── */
+            <View className="flex-row items-center gap-3 flex-1">
+              {/* Stacked avatars */}
+              <View style={{ width: 44, height: 40 }}>
+                {groupMembers.slice(0, 3).map((m, i) => (
+                  <Image
+                    key={m.id || i}
+                    source={{ uri: m.avatar || "" }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 14,
+                      borderWidth: 2,
+                      borderColor: "#000",
+                      position: "absolute",
+                      left: i * 8,
+                      top: i === 1 ? 10 : i === 2 ? 4 : 0,
+                      zIndex: 3 - i,
+                    }}
+                  />
+                ))}
+              </View>
+              <View className="flex-1">
+                <Text
+                  className="text-base font-semibold text-foreground"
+                  numberOfLines={1}
+                >
+                  {groupName ||
+                    groupMembers.map((m) => m.username).join(", ") ||
+                    "Group"}
+                </Text>
+                <Text
+                  className="text-xs text-muted-foreground"
+                  numberOfLines={1}
+                >
+                  {groupMembers.length + 1} members
+                  {groupMembers.length > 0 && " · "}
+                  {groupMembers.map((m) => m.name || m.username).join(", ")}
+                </Text>
+              </View>
             </View>
-          </Pressable>
-          {/* Audio Call Button */}
-          <Pressable
-            onPress={() => {
-              // CRITICAL: participantIds MUST use integer PK (recipient.id), NOT authId.
-              // The callee's realtime subscription filters on user.id which is the integer PK.
-              // Using authId causes callee_id mismatch and callee never receives the call.
-              if (recipient?.id) {
-                router.push({
-                  pathname: "/(protected)/call/[roomId]",
-                  params: {
-                    roomId: `call-${Date.now()}`,
-                    isOutgoing: "true",
-                    participantIds: recipient.id,
-                    callType: "audio",
-                    chatId: chatId,
-                    recipientUsername: recipient.username,
-                    recipientAvatar: recipient.avatar || "",
-                  },
-                });
-              }
-            }}
-            className="p-2 rounded-full bg-primary/20"
-            hitSlop={12}
-          >
-            <Phone size={22} color="#3EA4E5" />
-          </Pressable>
-          {/* Video Call Button */}
-          <Pressable
-            onPress={() => {
-              // CRITICAL: participantIds MUST use integer PK (recipient.id), NOT authId.
-              // See audio call button comment above for explanation.
-              if (recipient?.id) {
-                router.push({
-                  pathname: "/(protected)/call/[roomId]",
-                  params: {
-                    roomId: `call-${Date.now()}`,
-                    isOutgoing: "true",
-                    participantIds: recipient.id,
-                    callType: "video",
-                    chatId: chatId,
-                    recipientUsername: recipient.username,
-                    recipientAvatar: recipient.avatar || "",
-                  },
-                });
-              }
-            }}
-            className="p-2 rounded-full bg-primary/20"
-            hitSlop={12}
-          >
-            <Video size={22} color="#3EA4E5" />
-          </Pressable>
+          ) : (
+            /* ── 1:1 chat header ── */
+            <>
+              <Pressable
+                onPress={handleProfilePress}
+                className="flex-row items-center gap-3 flex-1"
+              >
+                <Image
+                  source={{ uri: recipient?.avatar || "" }}
+                  className="w-10 h-10 rounded-full"
+                />
+                <View className="flex-1">
+                  <Text className="text-base font-semibold text-foreground">
+                    {recipient?.username || "Loading..."}
+                  </Text>
+                  <ChatPresenceText recipientId={recipient?.id} />
+                </View>
+              </Pressable>
+              {/* Audio Call Button */}
+              <Pressable
+                onPress={() => {
+                  if (recipient?.id) {
+                    router.push({
+                      pathname: "/(protected)/call/[roomId]",
+                      params: {
+                        roomId: `call-${Date.now()}`,
+                        isOutgoing: "true",
+                        participantIds: recipient.id,
+                        callType: "audio",
+                        chatId: chatId,
+                        recipientUsername: recipient.username,
+                        recipientAvatar: recipient.avatar || "",
+                      },
+                    });
+                  }
+                }}
+                className="p-2 rounded-full bg-primary/20"
+                hitSlop={12}
+              >
+                <Phone size={22} color="#3EA4E5" />
+              </Pressable>
+              {/* Video Call Button */}
+              <Pressable
+                onPress={() => {
+                  if (recipient?.id) {
+                    router.push({
+                      pathname: "/(protected)/call/[roomId]",
+                      params: {
+                        roomId: `call-${Date.now()}`,
+                        isOutgoing: "true",
+                        participantIds: recipient.id,
+                        callType: "video",
+                        chatId: chatId,
+                        recipientUsername: recipient.username,
+                        recipientAvatar: recipient.avatar || "",
+                      },
+                    });
+                  }
+                }}
+                className="p-2 rounded-full bg-primary/20"
+                hitSlop={12}
+              >
+                <Video size={22} color="#3EA4E5" />
+              </Pressable>
+            </>
+          )}
         </View>
 
         <LegendList
