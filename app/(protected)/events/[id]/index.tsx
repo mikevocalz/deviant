@@ -37,6 +37,7 @@ import {
   CalendarPlus,
   Zap,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -83,6 +84,9 @@ import type {
   EventDetail,
 } from "@/src/events/types";
 import { YouTubeEmbed } from "@/components/youtube-embed";
+import { EventActionSheet } from "@/components/events/event-action-sheet";
+import { EventEditSheet } from "@/components/events/event-edit-sheet";
+import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;

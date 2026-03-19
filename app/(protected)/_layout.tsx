@@ -66,8 +66,13 @@ function TabsHeader() {
   const { colors } = useColorScheme();
   const isProfile =
     pathname === "/profile" || pathname === "/(protected)/(tabs)/profile";
+  const isCreate =
+    pathname === "/create" || pathname === "/(protected)/(tabs)/create";
   const user = useAuthStore.getState().user;
   const router = useRouter();
+
+  // Create screen renders its own header
+  if (isCreate) return null;
 
   return (
     <View
