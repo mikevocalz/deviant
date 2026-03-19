@@ -35,9 +35,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   nsfwLoaded: false,
   feedMode: ((): FeedMode => {
     try {
-      return (mmkv.getString(FEED_MODE_KEY) as FeedMode) || "classic";
+      const stored = mmkv.getString(FEED_MODE_KEY) as FeedMode | undefined;
+      // Default to masonry — clear any stale "classic" persisted value
+      if (!stored || stored === "classic") {
+        mmkv.set(FEED_MODE_KEY, "masonry");
+        return "masonry";
+      }
+      return stored;
     } catch {
-      return "classic";
+      return "masonry";
     }
   })(),
   pendingNotificationRoute: null,
