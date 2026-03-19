@@ -18,6 +18,7 @@ import {
   Animated,
 } from "react-native";
 import { X, Send, Heart, Star } from "lucide-react-native";
+import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
@@ -344,71 +345,61 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
         </View>
       )}
 
-      {/* Reply input — only for other users' stories */}
+      {/* Reply input — liquid glass pill with send icon */}
       {!isOwnStory && customData && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
-        >
-          <View className="flex-row items-center gap-2 px-4 py-2">
-            <View
-              className="flex-1 flex-row items-center rounded-full px-4 py-2"
+        <View style={{ paddingHorizontal: 12, paddingTop: 6 }}>
+          <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
+            <TextInput
               style={{
-                backgroundColor: "rgba(255,255,255,0.15)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
+                flex: 1,
+                color: "#fff",
+                fontSize: 15,
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+              }}
+              placeholder="Send Message"
+              placeholderTextColor="rgba(255,255,255,0.45)"
+              value={replyText}
+              onChangeText={setReplyText}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              returnKeyType="send"
+              onSubmitEditing={handleSendReply}
+              editable={!isSending}
+            />
+
+            {/* Emoji quick-react */}
+            <Pressable
+              onPress={() => handleReact("😍")}
+              hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+            >
+              <Text style={{ fontSize: 26 }}>😍</Text>
+            </Pressable>
+
+            {/* Send button — always visible */}
+            <Pressable
+              onPress={
+                replyText.trim().length > 0 ? handleSendReply : undefined
+              }
+              disabled={isSending}
+              hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor:
+                  replyText.trim().length > 0
+                    ? "#8A40CF"
+                    : "rgba(255,255,255,0.15)",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSending ? 0.5 : 1,
               }}
             >
-              <TextInput
-                style={{
-                  flex: 1,
-                  color: "#fff",
-                  fontSize: 14,
-                  paddingVertical: 6,
-                }}
-                placeholder={`Reply to ${customData.username}...`}
-                placeholderTextColor="rgba(255,255,255,0.5)"
-                value={replyText}
-                onChangeText={setReplyText}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
-                returnKeyType="send"
-                onSubmitEditing={handleSendReply}
-                editable={!isSending}
-              />
-            </View>
-
-            {replyText.trim().length > 0 && (
-              <Pressable
-                onPress={handleSendReply}
-                disabled={isSending}
-                className="w-10 h-10 rounded-full items-center justify-center"
-                style={{
-                  backgroundColor: "#8A40CF",
-                  opacity: isSending ? 0.5 : 1,
-                }}
-              >
-                <Send size={18} color="#fff" />
-              </Pressable>
-            )}
-
-            {replyText.trim().length === 0 && (
-              <Pressable
-                onPress={() =>
-                  handleReact(
-                    REACTION_EMOJIS[
-                      Math.floor(Math.random() * REACTION_EMOJIS.length)
-                    ],
-                  )
-                }
-                className="w-10 h-10 rounded-full items-center justify-center"
-                style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
-              >
-                <Heart size={20} color="#fff" />
-              </Pressable>
-            )}
-          </View>
-        </KeyboardAvoidingView>
+              <Send size={17} color="#fff" strokeWidth={2} />
+            </Pressable>
+          </DVNTLiquidGlass>
+        </View>
       )}
     </View>
   );

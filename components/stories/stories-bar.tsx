@@ -367,13 +367,13 @@ const viewerStyles = StyleSheet.create({
 const progressStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    paddingTop: 54,
+    paddingTop: 62,
     paddingHorizontal: 8,
     gap: 4,
   },
   loaded: {
     height: 2.5,
-    backgroundColor: "#fff",
+    backgroundColor: "#8A40CF",
     borderRadius: 2,
   },
   unloaded: {
@@ -399,7 +399,7 @@ const headerStyles = StyleSheet.create({
   avatar: {
     height: 32,
     width: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.3)",
   },
