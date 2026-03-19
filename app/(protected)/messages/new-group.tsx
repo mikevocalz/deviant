@@ -185,7 +185,7 @@ export default function NewGroupScreen() {
                   >
                     <Image
                       source={{ uri: user.avatar }}
-                      className="w-7 h-7 rounded-full"
+                      className="w-7 h-7 rounded-lg"
                     />
                     <Text
                       className="text-sm text-foreground font-medium"
@@ -245,7 +245,7 @@ export default function NewGroupScreen() {
                   >
                     <Image
                       source={{ uri: user.avatar }}
-                      className="w-[50px] h-[50px] rounded-full"
+                      className="w-[50px] h-[50px] rounded-xl"
                     />
                     <View className="flex-1">
                       <Text className="text-base font-semibold text-foreground">

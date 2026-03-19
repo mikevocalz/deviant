@@ -1013,46 +1013,96 @@ export default function ChatScreen() {
 
           {isGroupChat ? (
             /* ── Group chat header ── */
-            <View className="flex-row items-center gap-3 flex-1">
-              {/* Stacked avatars */}
-              <View style={{ width: 44, height: 40 }}>
-                {groupMembers.slice(0, 3).map((m, i) => (
-                  <Image
-                    key={m.id || i}
-                    source={{ uri: m.avatar || "" }}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 14,
-                      borderWidth: 2,
-                      borderColor: "#000",
-                      position: "absolute",
-                      left: i * 8,
-                      top: i === 1 ? 10 : i === 2 ? 4 : 0,
-                      zIndex: 3 - i,
-                    }}
-                  />
-                ))}
+            <>
+              <View className="flex-row items-center gap-3 flex-1">
+                {/* Stacked avatars — rounded squares */}
+                <View style={{ width: 44, height: 40 }}>
+                  {groupMembers.slice(0, 3).map((m, i) => (
+                    <Image
+                      key={m.id || i}
+                      source={{ uri: m.avatar || "" }}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        borderColor: "#000",
+                        position: "absolute",
+                        left: i * 8,
+                        top: i === 1 ? 10 : i === 2 ? 4 : 0,
+                        zIndex: 3 - i,
+                      }}
+                    />
+                  ))}
+                </View>
+                <View className="flex-1">
+                  <Text
+                    className="text-base font-semibold text-foreground"
+                    numberOfLines={1}
+                  >
+                    {groupName ||
+                      groupMembers.map((m) => m.username).join(", ") ||
+                      "Group"}
+                  </Text>
+                  <Text
+                    className="text-xs text-muted-foreground"
+                    numberOfLines={1}
+                  >
+                    {groupMembers.length + 1} members
+                    {groupMembers.length > 0 && " · "}
+                    {groupMembers.map((m) => m.name || m.username).join(", ")}
+                  </Text>
+                </View>
               </View>
-              <View className="flex-1">
-                <Text
-                  className="text-base font-semibold text-foreground"
-                  numberOfLines={1}
-                >
-                  {groupName ||
-                    groupMembers.map((m) => m.username).join(", ") ||
-                    "Group"}
-                </Text>
-                <Text
-                  className="text-xs text-muted-foreground"
-                  numberOfLines={1}
-                >
-                  {groupMembers.length + 1} members
-                  {groupMembers.length > 0 && " · "}
-                  {groupMembers.map((m) => m.name || m.username).join(", ")}
-                </Text>
-              </View>
-            </View>
+              {/* Group Audio Call */}
+              <Pressable
+                onPress={() => {
+                  const ids = groupMembers.map((m) => m.id).join(",");
+                  if (ids) {
+                    router.push({
+                      pathname: "/(protected)/call/[roomId]",
+                      params: {
+                        roomId: `call-${Date.now()}`,
+                        isOutgoing: "true",
+                        participantIds: ids,
+                        callType: "audio",
+                        chatId: chatId,
+                        recipientUsername: groupName || "Group",
+                        recipientAvatar: groupMembers[0]?.avatar || "",
+                      },
+                    });
+                  }
+                }}
+                className="p-2 rounded-full bg-primary/20"
+                hitSlop={12}
+              >
+                <Phone size={22} color="#3EA4E5" />
+              </Pressable>
+              {/* Group Video Call */}
+              <Pressable
+                onPress={() => {
+                  const ids = groupMembers.map((m) => m.id).join(",");
+                  if (ids) {
+                    router.push({
+                      pathname: "/(protected)/call/[roomId]",
+                      params: {
+                        roomId: `call-${Date.now()}`,
+                        isOutgoing: "true",
+                        participantIds: ids,
+                        callType: "video",
+                        chatId: chatId,
+                        recipientUsername: groupName || "Group",
+                        recipientAvatar: groupMembers[0]?.avatar || "",
+                      },
+                    });
+                  }
+                }}
+                className="p-2 rounded-full bg-primary/20"
+                hitSlop={12}
+              >
+                <Video size={22} color="#3EA4E5" />
+              </Pressable>
+            </>
           ) : (
             /* ── 1:1 chat header ── */
             <>
