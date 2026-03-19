@@ -623,12 +623,11 @@ export const eventsApi = {
       const { data, error } = await supabase
         .from(DB.events.table)
         .update(updateData)
-        .eq(DB.events.id, eventId)
-        .select()
-        .single();
+        .eq(DB.events.id, parseInt(eventId))
+        .select();
 
       if (error) throw error;
-      return data;
+      return data?.[0] ?? null;
     } catch (error) {
       console.error("[Events] updateEvent error:", error);
       throw error;
@@ -666,7 +665,7 @@ export const eventsApi = {
         .from(DB.events.table)
         .select("*")
         .eq(DB.events.id, eventIdInt)
-        .single();
+        .maybeSingle();
 
       if (fetchError || !event) {
         console.error("[Events] deleteEvent fetch error:", fetchError);
@@ -786,7 +785,7 @@ export const eventsApi = {
         .from(DB.events.table)
         .select(DB.events.hostId)
         .eq(DB.events.id, parseInt(eventId))
-        .single();
+        .maybeSingle();
 
       if (event && event[DB.events.hostId] === authId) return true;
 
