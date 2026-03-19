@@ -5,6 +5,9 @@
  * - Post image/video thumbnail
  * - Bottom overlay: likes count, bookmark icon, time ago
  *
+ * Event cards are interleaved every EVENT_INTERVAL posts, full-width,
+ * identical to the classic feed event cards.
+ *
  * Uses the same data hooks as the classic Feed — just a different view.
  */
 import {
@@ -12,8 +15,9 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  useWindowDimensions,
+  ScrollView,
   RefreshControl,
+  useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
@@ -22,9 +26,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Heart, Bookmark, Play, Grid3x3 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
-import { useBookmarks } from "@/lib/hooks/use-bookmarks";
+import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
-import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
@@ -37,10 +40,11 @@ import { screenPrefetch } from "@/lib/prefetch";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
-import type { Post, MediaKind } from "@/lib/types";
-import { LegendList } from "@/components/list";
+import { FeedEventCard } from "./feed-event-card";
+import { useForYouEvents } from "@/lib/hooks/use-events";
+import type { Event } from "@/lib/hooks/use-events";
+import type { Post } from "@/lib/types";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
-import type { LegendListRef } from "@/components/list";
 import * as Haptics from "expo-haptics";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -49,6 +53,7 @@ const COLUMN_GAP = 3;
 const CELL_RADIUS = 12;
 const NUM_COLUMNS = 2;
 const VARIATION = 0.3;
+const EVENT_INTERVAL = 7;
 
 // ─── Height estimation (deterministic per post) ─────────────────────────────
 
@@ -68,6 +73,12 @@ function estimateRatio(post: Post): number {
   else if (media?.type === "gif") base = 0.75;
   const offset = (hashId(post.id) * 2 - 1) * VARIATION;
   return base + offset;
+}
+
+function formatCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
 }
 
 // ─── Video thumbnail cell ───────────────────────────────────────────────────
@@ -129,7 +140,8 @@ const MasonryCell = memo(function MasonryCell({
   height,
   onPress,
 }: MasonryCellProps) {
-  const isBookmarked = useBookmarkStore((s) => s.isBookmarked(post.id));
+  const bookmarkedPosts = useBookmarkStore((s) => s.bookmarkedPosts);
+  const isBookmarked = bookmarkedPosts.includes(post.id);
   const toggleBookmark = useToggleBookmark();
   const {
     likes: likesCount,
@@ -161,7 +173,6 @@ const MasonryCell = memo(function MasonryCell({
   return (
     <Pressable onPress={handlePress} style={{ marginBottom: COLUMN_GAP }}>
       <View style={[styles.cell, { width, height, borderRadius: CELL_RADIUS }]}>
-        {/* Image */}
         {isVideo ? (
           <VideoThumb
             videoUrl={media?.url || ""}
@@ -183,7 +194,6 @@ const MasonryCell = memo(function MasonryCell({
           </View>
         )}
 
-        {/* Media type badge (top-right) */}
         {isVideo && (
           <View style={styles.badgeTopRight}>
             <Play size={12} color="#fff" fill="#fff" />
@@ -200,13 +210,11 @@ const MasonryCell = memo(function MasonryCell({
           </View>
         )}
 
-        {/* Bottom overlay — likes, bookmark, time */}
         <LinearGradient
           colors={["transparent", "rgba(0,0,0,0.7)"]}
           style={styles.overlay}
         >
           <View style={styles.overlayRow}>
-            {/* Likes */}
             <Pressable
               onPress={handleLike}
               hitSlop={8}
@@ -224,7 +232,6 @@ const MasonryCell = memo(function MasonryCell({
               )}
             </Pressable>
 
-            {/* Bookmark */}
             <Pressable
               onPress={handleBookmark}
               hitSlop={8}
@@ -237,7 +244,6 @@ const MasonryCell = memo(function MasonryCell({
               />
             </Pressable>
 
-            {/* Time */}
             <Text style={styles.overlayTime}>{post.timeAgo || ""}</Text>
           </View>
         </LinearGradient>
@@ -245,12 +251,6 @@ const MasonryCell = memo(function MasonryCell({
     </Pressable>
   );
 });
-
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
 
 // ─── Pack posts into 2 columns (shortest-first) ────────────────────────────
 
@@ -282,6 +282,94 @@ function packIntoColumns(
   return [col0, col1];
 }
 
+// ─── Build sections: masonry chunks interleaved with event cards ────────────
+
+type MasonrySection =
+  | { type: "masonry"; key: string; posts: Post[] }
+  | { type: "event"; key: string; event: Event };
+
+function buildSections(posts: Post[], events: Event[]): MasonrySection[] {
+  const sections: MasonrySection[] = [];
+  let eventIdx = 0;
+  let chunkStart = 0;
+
+  for (let i = 0; i < posts.length; i++) {
+    if ((i + 1) % EVENT_INTERVAL === 0 && eventIdx < events.length) {
+      // Flush current chunk of posts as masonry section
+      if (i >= chunkStart) {
+        sections.push({
+          type: "masonry",
+          key: `m-${chunkStart}`,
+          posts: posts.slice(chunkStart, i + 1),
+        });
+      }
+      // Insert event card
+      sections.push({
+        type: "event",
+        key: `e-${events[eventIdx].id}`,
+        event: events[eventIdx],
+      });
+      eventIdx++;
+      chunkStart = i + 1;
+    }
+  }
+
+  // Remaining posts after last event
+  if (chunkStart < posts.length) {
+    sections.push({
+      type: "masonry",
+      key: `m-${chunkStart}`,
+      posts: posts.slice(chunkStart),
+    });
+  }
+
+  return sections;
+}
+
+// ─── Masonry section renderer ───────────────────────────────────────────────
+
+const MasonrySection_ = memo(function MasonrySection_({
+  posts,
+  columnWidth,
+  onPress,
+}: {
+  posts: Post[];
+  columnWidth: number;
+  onPress: (id: string) => void;
+}) {
+  const [col0, col1] = useMemo(
+    () => packIntoColumns(posts, columnWidth),
+    [posts, columnWidth],
+  );
+
+  return (
+    <View style={styles.gridContainer}>
+      <View style={{ width: columnWidth }}>
+        {col0.map(({ post, height }) => (
+          <MasonryCell
+            key={post.id}
+            post={post}
+            width={columnWidth}
+            height={height}
+            onPress={onPress}
+          />
+        ))}
+      </View>
+      <View style={{ width: columnWidth }}>
+        {col1.map(({ post, height }) => (
+          <MasonryCell
+            key={post.id}
+            post={post}
+            width={columnWidth}
+            height={height}
+            onPress={onPress}
+          />
+        ))}
+      </View>
+    </View>
+  );
+});
+
 // ─── Main MasonryFeed ───────────────────────────────────────────────────────
 
 export function MasonryFeed() {
@@ -289,12 +377,12 @@ export function MasonryFeed() {
   const queryClient = useQueryClient();
   const { width: screenWidth } = useWindowDimensions();
   const viewerId = useAuthStore((s) => s.user?.id) || "";
-  const listRef = useRef<LegendListRef>(null);
+  const scrollRef = useRef<ScrollView>(null);
   const scrollToTopTrigger = useFeedScrollStore((s) => s.scrollToTopTrigger);
 
   useEffect(() => {
-    if (scrollToTopTrigger > 0 && listRef.current) {
-      listRef.current.scrollToOffset?.({ offset: 0, animated: true });
+    if (scrollToTopTrigger > 0 && scrollRef.current) {
+      scrollRef.current.scrollTo?.({ y: 0, animated: true });
     }
   }, [scrollToTopTrigger]);
 
@@ -346,14 +434,18 @@ export function MasonryFeed() {
     return allPosts.filter((post) => !post.isNSFW);
   }, [allPosts, nsfwEnabled]);
 
+  // Fetch events for inline cards (same as classic feed)
+  const { data: forYouEvents } = useForYouEvents();
+
+  // Build interleaved sections
+  const sections = useMemo(
+    () => buildSections(filteredPosts, forYouEvents ?? []),
+    [filteredPosts, forYouEvents],
+  );
+
   // Layout
   const columnWidth = Math.floor(
     (screenWidth - COLUMN_GAP * (NUM_COLUMNS + 1)) / NUM_COLUMNS,
-  );
-
-  const [col0, col1] = useMemo(
-    () => packIntoColumns(filteredPosts, columnWidth),
-    [filteredPosts, columnWidth],
   );
 
   const handlePress = useCallback(
@@ -364,14 +456,23 @@ export function MasonryFeed() {
     [router, queryClient],
   );
 
-  const handleEndReached = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
-
   const handleRefresh = useCallback(async () => {
     queryClient.invalidateQueries({ queryKey: ["stories"] });
     await refetch();
   }, [refetch, queryClient]);
+
+  // Infinite scroll — fetch more when near bottom
+  const handleScroll = useCallback(
+    (e: any) => {
+      const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - layoutMeasurement.height - contentOffset.y;
+      if (distanceFromBottom < 800 && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
 
   if (isLoading || !nsfwLoaded) return <FeedSkeleton />;
 
@@ -383,72 +484,53 @@ export function MasonryFeed() {
     );
   }
 
-  if (filteredPosts.length === 0) {
-    return (
-      <View className="flex-1">
-        <StoriesBar />
+  return (
+    <ScrollView
+      ref={scrollRef}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 80 }}
+      onScroll={handleScroll}
+      scrollEventThrottle={200}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefetching}
+          onRefresh={handleRefresh}
+          tintColor="#fff"
+        />
+      }
+    >
+      <StoriesBar />
+
+      {filteredPosts.length === 0 ? (
         <EmptyState
           icon={ImageOff}
           title="No Posts Yet"
           description="When you or people you follow share posts, they'll appear here"
         />
-      </View>
-    );
-  }
-
-  // Stable single-item data for LegendList (render grid as one item)
-  const GRID_DATA = [{ key: "masonry" }];
-
-  return (
-    <LegendList
-      ref={listRef}
-      data={GRID_DATA}
-      keyExtractor={(item) => item.key}
-      estimatedItemSize={2000}
-      recycleItems={false}
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={{ paddingBottom: 80 }}
-      onEndReached={handleEndReached}
-      onEndReachedThreshold={0.5}
-      refreshing={isRefetching}
-      onRefresh={handleRefresh}
-      ListHeaderComponent={StoriesBar}
-      renderItem={() => (
-        <View style={styles.gridContainer}>
-          {/* Column 0 */}
-          <View style={{ width: columnWidth }}>
-            {col0.map(({ post, height }) => (
-              <MasonryCell
-                key={post.id}
-                post={post}
-                width={columnWidth}
-                height={height}
+      ) : (
+        <>
+          {sections.map((section) => {
+            if (section.type === "event") {
+              return <FeedEventCard key={section.key} event={section.event} />;
+            }
+            return (
+              <MasonrySection_
+                key={section.key}
+                posts={section.posts}
+                columnWidth={columnWidth}
                 onPress={handlePress}
               />
-            ))}
-          </View>
-          {/* Column 1 */}
-          <View style={{ width: columnWidth }}>
-            {col1.map(({ post, height }) => (
-              <MasonryCell
-                key={post.id}
-                post={post}
-                width={columnWidth}
-                height={height}
-                onPress={handlePress}
-              />
-            ))}
-          </View>
+            );
+          })}
+        </>
+      )}
+
+      {isFetchingNextPage && (
+        <View style={styles.loadMore}>
+          <Text style={styles.loadMoreText}>Loading...</Text>
         </View>
       )}
-      ListFooterComponent={
-        isFetchingNextPage ? (
-          <View style={styles.loadMore}>
-            <Text style={styles.loadMoreText}>Loading...</Text>
-          </View>
-        ) : null
-      }
-    />
+    </ScrollView>
   );
 }
 
