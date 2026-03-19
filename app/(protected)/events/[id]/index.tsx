@@ -300,6 +300,7 @@ export default function EventDetailScreen() {
   const {
     data: eventData,
     isLoading,
+    isPending,
     isError: hasError,
     refetch: fetchEvent,
   } = useQuery({
@@ -736,7 +737,8 @@ export default function EventDetailScreen() {
   }, [isPast, hasTicket, isHostUser]);
 
   // ── Loading state ───────────────────────────────────────────────────
-  if (isLoading) {
+  // Show skeleton while: params not ready, query disabled/pending, or actively fetching
+  if (!eventId || isPending || isLoading) {
     return <EventDetailSkeleton />;
   }
 
