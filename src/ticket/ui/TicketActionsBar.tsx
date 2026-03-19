@@ -301,7 +301,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       <BottomSheet
         ref={transferSheetRef}
         index={-1}
-        enableDynamicSizing
+        snapPoints={["45%"]}
         enablePanDownToClose
         backdropComponent={renderTransferBackdrop}
         onChange={handleTransferSheetChange}
