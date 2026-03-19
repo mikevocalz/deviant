@@ -1,12 +1,10 @@
-import { View, Text } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  runOnJS,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -47,88 +45,82 @@ export function SpicyToggleFAB() {
     setNsfwEnabled(!current);
   }, [setNsfwEnabled]);
 
-  // Gesture.Tap() participates natively in RNGH — won't get swallowed
-  // by the Feed LegendList scroll recognizer
-  const tapGesture = Gesture.Tap().onEnd(() => {
-    runOnJS(doToggle)();
-  });
-
   return (
-    <GestureDetector gesture={tapGesture}>
-      <Animated.View
+    <Pressable
+      onPress={doToggle}
+      hitSlop={12}
+      style={{
+        position: "absolute",
+        bottom: insets.bottom + 14,
+        right: 8,
+        zIndex: 50,
+        elevation: 50,
+        alignItems: "center",
+        padding: 8,
+      }}
+    >
+      {/* Track */}
+      <View
         style={{
-          position: "absolute",
-          bottom: insets.bottom + 14,
-          right: 8,
-          zIndex: 50,
-          elevation: 50,
-          alignItems: "center",
-          padding: 8,
+          width: TRACK_WIDTH,
+          height: TRACK_HEIGHT,
+          borderRadius: TRACK_HEIGHT / 2,
+          backgroundColor: nsfwEnabled ? "#991b1b" : "rgb(20, 20, 20)",
+          justifyContent: "center",
+          paddingHorizontal: TRACK_PADDING,
+          borderWidth: 1,
+          borderColor: "rgb(38, 38, 38)",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8,
         }}
       >
-        {/* Track */}
+        {/* Angel emoji (left side, visible when deviant mode ON) */}
         <View
           style={{
-            width: TRACK_WIDTH,
-            height: TRACK_HEIGHT,
-            borderRadius: TRACK_HEIGHT / 2,
-            backgroundColor: nsfwEnabled ? "#991b1b" : "rgb(20, 20, 20)",
-            justifyContent: "center",
-            paddingHorizontal: TRACK_PADDING,
-            borderWidth: 1,
-            borderColor: "rgb(38, 38, 38)",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: 8,
+            position: "absolute",
+            left: 10,
+            opacity: nsfwEnabled ? 0.8 : 0,
           }}
         >
-          {/* Angel emoji (left side, visible when deviant mode ON) */}
-          <View
-            style={{
-              position: "absolute",
-              left: 10,
-              opacity: nsfwEnabled ? 0.8 : 0,
-            }}
-          >
-            <Text style={{ fontSize: 18 }}>😇</Text>
-          </View>
-
-          {/* Devil emoji (right side, visible when angel mode / OFF) */}
-          <View
-            style={{
-              position: "absolute",
-              right: 10,
-              opacity: nsfwEnabled ? 0 : 0.8,
-            }}
-          >
-            <Text style={{ fontSize: 18 }}>😈</Text>
-          </View>
-
-          {/* Animated thumb — reanimated survives OTA reloads */}
-          <Animated.View
-            style={[
-              {
-                width: THUMB_SIZE,
-                height: THUMB_SIZE,
-                borderRadius: THUMB_SIZE / 2,
-                backgroundColor: "#fff",
-                alignItems: "center",
-                justifyContent: "center",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.2,
-                shadowRadius: 2,
-                elevation: 3,
-              },
-              thumbStyle,
-            ]}
-          >
-            <Text style={{ fontSize: 18 }}>{nsfwEnabled ? "😈" : "😇"}</Text>
-          </Animated.View>
+          <Text style={{ fontSize: 18 }}>😇</Text>
         </View>
-      </Animated.View>
-    </GestureDetector>
+
+        {/* Devil emoji (right side, visible when angel mode / OFF) */}
+        <View
+          style={{
+            position: "absolute",
+            right: 10,
+            opacity: nsfwEnabled ? 0 : 0.8,
+          }}
+        >
+          <Text style={{ fontSize: 18 }}>😈</Text>
+        </View>
+
+        {/* Animated thumb — reanimated survives OTA reloads */}
+        <Animated.View
+          style={[
+            {
+              width: THUMB_SIZE,
+              height: THUMB_SIZE,
+              borderRadius: THUMB_SIZE / 2,
+              backgroundColor: "#fff",
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.2,
+              shadowRadius: 2,
+              elevation: 3,
+            },
+            thumbStyle,
+          ]}
+        >
+          <Text style={{ fontSize: 18 }}>{nsfwEnabled ? "😈" : "😇"}</Text>
+        </Animated.View>
+      </View>
+    </Pressable>
   );
 }
