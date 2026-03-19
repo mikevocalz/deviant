@@ -169,7 +169,7 @@ BEGIN
 
   RETURN v_result;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public;
 
 -- ── 3. Grants ─────────────────────────────────────────────────
 GRANT EXECUTE ON FUNCTION public.get_event_detail(integer, integer) TO authenticated;
