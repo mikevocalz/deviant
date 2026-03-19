@@ -17,6 +17,7 @@ import {
   TextInput,
   ActivityIndicator,
   Platform,
+  Switch,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
@@ -31,6 +32,16 @@ import {
   MapPin,
   X,
   Plus,
+  DollarSign,
+  Users,
+  Tag,
+  Eye,
+  Youtube,
+  Shirt,
+  DoorOpen,
+  Music,
+  Gift,
+  ChevronDown,
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
@@ -62,8 +73,22 @@ export default function EditEventScreen() {
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [eventImages, setEventImages] = useState<string[]>([]);
   const [eventDate, setEventDate] = useState(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  // V2 fields
+  const [price, setPrice] = useState("");
+  const [maxAttendees, setMaxAttendees] = useState("");
+  const [category, setCategory] = useState("");
+  const [visibility, setVisibility] = useState("public");
+  const [dressCode, setDressCode] = useState("");
+  const [doorPolicy, setDoorPolicy] = useState("");
+  const [lineup, setLineup] = useState("");
+  const [perks, setPerks] = useState("");
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
+  const [ticketingEnabled, setTicketingEnabled] = useState(false);
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -103,42 +128,55 @@ export default function EditEventScreen() {
         }
 
         // Populate form
-        setTitle((event as any).title || "");
-        setDescription((event as any).description || "");
-        setLocation((event as any).location || "");
+        const ev = event as any;
+        setTitle(ev.title || "");
+        setDescription(ev.description || "");
+        setLocation(ev.location || "");
 
-        if ((event as any).latitude && (event as any).longitude) {
+        if (ev.locationLat && ev.locationLng) {
           setLocationData({
-            name: (event as any).location || "",
-            latitude: (event as any).latitude,
-            longitude: (event as any).longitude,
+            name: ev.locationName || ev.location || "",
+            latitude: ev.locationLat,
+            longitude: ev.locationLng,
             placeId: "",
           });
         }
 
         // Parse images
         const images: string[] = [];
-        if ((event as any).coverImage) {
-          const coverUrl =
-            typeof (event as any).coverImage === "object"
-              ? (event as any).coverImage.url
-              : (event as any).coverImage;
-          if (coverUrl) images.push(coverUrl);
+        const coverUrl = ev.image || ev.coverImage;
+        if (coverUrl) {
+          const url = typeof coverUrl === "object" ? coverUrl.url : coverUrl;
+          if (url) images.push(url);
         }
-        if ((event as any).images && Array.isArray((event as any).images)) {
-          (event as any).images.forEach((img: any) => {
+        if (Array.isArray(ev.images)) {
+          ev.images.forEach((img: any) => {
             const url = typeof img === "object" ? img.url : img;
             if (url && !images.includes(url)) images.push(url);
           });
         }
         setEventImages(images);
 
-        // Parse date
-        if ((event as any).startDate) {
-          setEventDate(new Date((event as any).startDate));
-        }
+        // Parse dates
+        const isoDate = ev.fullDate || ev.startDate || ev.date;
+        if (isoDate) setEventDate(new Date(isoDate));
+        if (ev.endDate) setEndDate(new Date(ev.endDate));
 
-        setOriginalData(event);
+        // V2 fields
+        setPrice(ev.price != null ? String(ev.price) : "");
+        setMaxAttendees(ev.maxAttendees != null ? String(ev.maxAttendees) : "");
+        setCategory(ev.category || "");
+        setVisibility(ev.visibility || "public");
+        setDressCode(ev.dressCode || "");
+        setDoorPolicy(ev.doorPolicy || "");
+        setLineup(ev.lineup || "");
+        setPerks(
+          Array.isArray(ev.perks) ? ev.perks.join(", ") : ev.perks || "",
+        );
+        setYoutubeVideoUrl(ev.youtubeVideoUrl || "");
+        setTicketingEnabled(!!ev.ticketingEnabled);
+
+        setOriginalData(ev);
         setIsLoading(false);
       } catch (error: any) {
         console.error("[EditEvent] Fetch error:", error);
@@ -153,16 +191,45 @@ export default function EditEventScreen() {
   // Track changes
   useEffect(() => {
     if (!originalData) return;
+    const od = originalData;
+    const isoDate = od.fullDate || od.startDate || od.date;
 
     const changed =
-      title !== ((originalData as any).title || "") ||
-      description !== ((originalData as any).description || "") ||
-      location !== ((originalData as any).location || "") ||
+      title !== (od.title || "") ||
+      description !== (od.description || "") ||
+      location !== (od.location || "") ||
       eventDate.toISOString() !==
-        new Date((originalData as any).startDate || Date.now()).toISOString();
+        new Date(isoDate || Date.now()).toISOString() ||
+      price !== (od.price != null ? String(od.price) : "") ||
+      maxAttendees !==
+        (od.maxAttendees != null ? String(od.maxAttendees) : "") ||
+      category !== (od.category || "") ||
+      visibility !== (od.visibility || "public") ||
+      dressCode !== (od.dressCode || "") ||
+      doorPolicy !== (od.doorPolicy || "") ||
+      lineup !== (od.lineup || "") ||
+      youtubeVideoUrl !== (od.youtubeVideoUrl || "") ||
+      ticketingEnabled !== !!od.ticketingEnabled;
 
     setHasChanges(changed);
-  }, [title, description, location, eventDate, originalData]);
+  }, [
+    title,
+    description,
+    location,
+    eventDate,
+    endDate,
+    price,
+    maxAttendees,
+    category,
+    visibility,
+    dressCode,
+    doorPolicy,
+    lineup,
+    perks,
+    youtubeVideoUrl,
+    ticketingEnabled,
+    originalData,
+  ]);
 
   const handlePickImages = async () => {
     const remaining = 4 - eventImages.length;
@@ -203,6 +270,29 @@ export default function EditEventScreen() {
       newDate.setHours(selectedTime.getHours());
       newDate.setMinutes(selectedTime.getMinutes());
       setEventDate(newDate);
+    }
+  };
+
+  const handleEndDateChange = (_event: unknown, selectedDate?: Date) => {
+    setShowEndDatePicker(false);
+    if (selectedDate) {
+      const base =
+        endDate || new Date(eventDate.getTime() + 3 * 60 * 60 * 1000);
+      base.setFullYear(selectedDate.getFullYear());
+      base.setMonth(selectedDate.getMonth());
+      base.setDate(selectedDate.getDate());
+      setEndDate(new Date(base));
+    }
+  };
+
+  const handleEndTimeChange = (_event: unknown, selectedTime?: Date) => {
+    setShowEndTimePicker(false);
+    if (selectedTime) {
+      const base =
+        endDate || new Date(eventDate.getTime() + 3 * 60 * 60 * 1000);
+      base.setHours(selectedTime.getHours());
+      base.setMinutes(selectedTime.getMinutes());
+      setEndDate(new Date(base));
     }
   };
 
@@ -267,11 +357,23 @@ export default function EditEventScreen() {
         description: description.trim(),
         location: locationData?.name || location,
         startDate: eventDate.toISOString(),
+        endDate: endDate ? endDate.toISOString() : undefined,
+        price: price ? parseFloat(price) : 0,
+        maxAttendees: maxAttendees ? parseInt(maxAttendees) : undefined,
+        category: category || undefined,
+        visibility,
+        dressCode: dressCode || undefined,
+        doorPolicy: doorPolicy || undefined,
+        lineup: lineup || undefined,
+        perks: perks || undefined,
+        youtubeVideoUrl: youtubeVideoUrl || undefined,
+        ticketingEnabled,
       };
 
       if (locationData) {
-        updateData.latitude = locationData.latitude;
-        updateData.longitude = locationData.longitude;
+        updateData.locationLat = locationData.latitude;
+        updateData.locationLng = locationData.longitude;
+        updateData.locationName = locationData.name;
       }
 
       if (allImages.length > 0) {
@@ -279,12 +381,11 @@ export default function EditEventScreen() {
         updateData.images = allImages.slice(1).map((url) => ({ url }));
       }
 
-      // PATCH /api/events/:id
       await eventsApi.updateEvent(id, updateData);
 
-      // Invalidate caches
+      // Invalidate all event caches so lists + detail refresh
       queryClient.invalidateQueries({ queryKey: ["events"] });
-      queryClient.invalidateQueries({ queryKey: ["event", id] });
+      queryClient.invalidateQueries({ queryKey: ["event-detail", id] });
 
       showToast("success", "Saved", "Event updated successfully");
       router.back();
@@ -301,7 +402,18 @@ export default function EditEventScreen() {
     location,
     locationData,
     eventDate,
+    endDate,
     eventImages,
+    price,
+    maxAttendees,
+    category,
+    visibility,
+    dressCode,
+    doorPolicy,
+    lineup,
+    perks,
+    youtubeVideoUrl,
+    ticketingEnabled,
     isSaving,
     uploadMultiple,
     queryClient,
@@ -526,6 +638,354 @@ export default function EditEventScreen() {
             onChange={handleTimeChange}
           />
         )}
+
+        {/* End Date & Time */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            End Date & Time
+          </Text>
+          <View className="flex-row gap-3">
+            <Pressable
+              onPress={() => setShowEndDatePicker(true)}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                padding: 16,
+                gap: 8,
+              }}
+            >
+              <Calendar size={20} color={colors.mutedForeground} />
+              <Text
+                style={{
+                  color: endDate ? colors.foreground : colors.mutedForeground,
+                }}
+              >
+                {endDate ? formatDate(endDate) : "Set end date"}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowEndTimePicker(true)}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                padding: 16,
+                gap: 8,
+              }}
+            >
+              <Clock size={20} color={colors.mutedForeground} />
+              <Text
+                style={{
+                  color: endDate ? colors.foreground : colors.mutedForeground,
+                }}
+              >
+                {endDate ? formatTime(endDate) : "--:--"}
+              </Text>
+            </Pressable>
+          </View>
+          {endDate && (
+            <Pressable onPress={() => setEndDate(null)} className="mt-1">
+              <Text className="text-xs text-destructive">Clear end date</Text>
+            </Pressable>
+          )}
+        </View>
+
+        {showEndDatePicker && (
+          <DateTimePicker
+            value={
+              endDate || new Date(eventDate.getTime() + 3 * 60 * 60 * 1000)
+            }
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={handleEndDateChange}
+            minimumDate={eventDate}
+          />
+        )}
+        {showEndTimePicker && (
+          <DateTimePicker
+            value={
+              endDate || new Date(eventDate.getTime() + 3 * 60 * 60 * 1000)
+            }
+            mode="time"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={handleEndTimeChange}
+          />
+        )}
+
+        {/* Price */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Price
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <DollarSign size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={price}
+              onChangeText={setPrice}
+              placeholder="0 (free)"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="decimal-pad"
+              style={{
+                flex: 1,
+                padding: 16,
+                color: colors.foreground,
+                fontSize: 16,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* Capacity */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Capacity
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <Users size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={maxAttendees}
+              onChangeText={setMaxAttendees}
+              placeholder="Max attendees"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              style={{
+                flex: 1,
+                padding: 16,
+                color: colors.foreground,
+                fontSize: 16,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* Category */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Category
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <Tag size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={category}
+              onChangeText={setCategory}
+              placeholder="e.g. Music, Nightlife, Tech..."
+              placeholderTextColor={colors.mutedForeground}
+              maxLength={50}
+              style={{
+                flex: 1,
+                padding: 16,
+                color: colors.foreground,
+                fontSize: 16,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* Visibility */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Visibility
+          </Text>
+          <View className="flex-row gap-3">
+            {(["public", "private", "unlisted"] as const).map((v) => (
+              <Pressable
+                key={v}
+                onPress={() => setVisibility(v)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  backgroundColor:
+                    visibility === v ? colors.primary : colors.card,
+                }}
+              >
+                <Text
+                  style={{
+                    color: visibility === v ? "#fff" : colors.foreground,
+                    fontSize: 13,
+                    fontWeight: visibility === v ? "600" : "400",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {v}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {/* Ticketing Toggle */}
+        <View
+          className="mb-4"
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: colors.card,
+            borderRadius: 12,
+            padding: 16,
+          }}
+        >
+          <Text style={{ color: colors.foreground, fontSize: 16 }}>
+            Ticketing Enabled
+          </Text>
+          <Switch
+            value={ticketingEnabled}
+            onValueChange={setTicketingEnabled}
+            trackColor={{ false: colors.border, true: colors.primary }}
+          />
+        </View>
+
+        {/* YouTube Video URL */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            YouTube Video URL
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              paddingHorizontal: 16,
+            }}
+          >
+            <Youtube size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={youtubeVideoUrl}
+              onChangeText={setYoutubeVideoUrl}
+              placeholder="https://youtube.com/watch?v=..."
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="none"
+              keyboardType="url"
+              style={{
+                flex: 1,
+                padding: 16,
+                color: colors.foreground,
+                fontSize: 16,
+              }}
+            />
+          </View>
+        </View>
+
+        {/* Dress Code */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Dress Code
+          </Text>
+          <TextInput
+            value={dressCode}
+            onChangeText={setDressCode}
+            placeholder="e.g. Smart casual — No sneakers"
+            placeholderTextColor={colors.mutedForeground}
+            maxLength={200}
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              padding: 16,
+              color: colors.foreground,
+              fontSize: 16,
+            }}
+          />
+        </View>
+
+        {/* Door Policy */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Door Policy
+          </Text>
+          <TextInput
+            value={doorPolicy}
+            onChangeText={setDoorPolicy}
+            placeholder="e.g. 21+ with valid ID"
+            placeholderTextColor={colors.mutedForeground}
+            maxLength={200}
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              padding: 16,
+              color: colors.foreground,
+              fontSize: 16,
+            }}
+          />
+        </View>
+
+        {/* Lineup */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            Lineup / Performers
+          </Text>
+          <TextInput
+            value={lineup}
+            onChangeText={setLineup}
+            placeholder="DJ sets, performers, speakers..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            maxLength={1000}
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              padding: 16,
+              color: colors.foreground,
+              fontSize: 16,
+              minHeight: 80,
+              textAlignVertical: "top",
+            }}
+          />
+        </View>
+
+        {/* Perks */}
+        <View className="mb-4">
+          <Text className="text-sm font-medium text-foreground mb-2">
+            What's Included
+          </Text>
+          <TextInput
+            value={perks}
+            onChangeText={setPerks}
+            placeholder="Complimentary drinks, VIP access..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            maxLength={1000}
+            style={{
+              backgroundColor: colors.card,
+              borderRadius: 12,
+              padding: 16,
+              color: colors.foreground,
+              fontSize: 16,
+              minHeight: 80,
+              textAlignVertical: "top",
+            }}
+          />
+        </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );

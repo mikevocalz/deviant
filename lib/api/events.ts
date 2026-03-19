@@ -579,17 +579,46 @@ export const eventsApi = {
 
       const updateData: any = {};
       if (updates.title) updateData[DB.events.title] = updates.title;
-      if (updates.description)
+      if (updates.description !== undefined)
         updateData[DB.events.description] = updates.description;
       if (updates.startDate || updates.date)
         updateData[DB.events.startDate] = updates.startDate || updates.date;
-      if (updates.location) updateData[DB.events.location] = updates.location;
+      if (updates.location !== undefined)
+        updateData[DB.events.location] = updates.location;
       if (updates.coverImage)
         updateData[DB.events.coverImageUrl] = updates.coverImage;
       if (updates.price !== undefined)
         updateData[DB.events.price] = updates.price;
       if (updates.maxAttendees !== undefined)
         updateData[DB.events.maxAttendees] = updates.maxAttendees;
+      // V2 fields
+      if (updates.endDate !== undefined)
+        updateData.end_date = updates.endDate || null;
+      if (updates.category !== undefined)
+        updateData.category = updates.category || null;
+      if (updates.visibility !== undefined)
+        updateData.visibility = updates.visibility;
+      if (updates.ageRestriction !== undefined)
+        updateData.age_restriction = updates.ageRestriction || null;
+      if (updates.dressCode !== undefined)
+        updateData.dress_code = updates.dressCode || null;
+      if (updates.doorPolicy !== undefined)
+        updateData.door_policy = updates.doorPolicy || null;
+      if (updates.lineup !== undefined)
+        updateData.lineup = updates.lineup || null;
+      if (updates.perks !== undefined) updateData.perks = updates.perks || null;
+      if (updates.youtubeVideoUrl !== undefined)
+        updateData.youtube_video_url = updates.youtubeVideoUrl || null;
+      if (updates.locationLat !== undefined)
+        updateData.location_lat = updates.locationLat;
+      if (updates.locationLng !== undefined)
+        updateData.location_lng = updates.locationLng;
+      if (updates.locationName !== undefined)
+        updateData.location_name = updates.locationName || null;
+      if (updates.ticketingEnabled !== undefined)
+        updateData.ticketing_enabled = updates.ticketingEnabled;
+      if (updates.isOnline !== undefined)
+        updateData[DB.events.isOnline] = updates.isOnline;
 
       const { data, error } = await supabase
         .from(DB.events.table)
@@ -759,7 +788,18 @@ export const eventsApi = {
         .eq(DB.events.id, parseInt(eventId))
         .single();
 
-      return !!(event && event[DB.events.hostId] === authId);
+      if (event && event[DB.events.hostId] === authId) return true;
+
+      // Check if user is a co-organizer with editor/admin role
+      const { data: coOrg } = await supabase
+        .from("event_co_organizers")
+        .select("role")
+        .eq("event_id", parseInt(eventId))
+        .eq("user_id", authId)
+        .in("role", ["editor", "admin"])
+        .maybeSingle();
+
+      return !!coOrg;
     } catch (error) {
       return false;
     }
