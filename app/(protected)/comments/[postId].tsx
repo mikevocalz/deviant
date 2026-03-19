@@ -4,11 +4,11 @@ import {
   Pressable,
   Keyboard,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput as RNTextInput,
 } from "react-native";
-import {
-  BottomSheetScrollView,
-  BottomSheetTextInput,
-} from "@gorhom/bottom-sheet";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
@@ -306,7 +306,7 @@ export default function CommentsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <SheetHeader title="Comments" onClose={() => router.back()} />
-      <BottomSheetScrollView
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="handled"
@@ -367,7 +367,7 @@ export default function CommentsScreen() {
               );
             })
         )}
-      </BottomSheetScrollView>
+      </ScrollView>
 
       {/* Input at bottom - outside scroll view */}
       <View style={{ backgroundColor: "#000" }}>
@@ -456,7 +456,7 @@ export default function CommentsScreen() {
           )}
 
           <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <BottomSheetTextInput
+            <RNTextInput
               ref={inputRef}
               value={comment}
               onChangeText={setComment}

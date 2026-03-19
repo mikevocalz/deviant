@@ -15,7 +15,7 @@ import {
   ArrowLeft,
   Heart,
   MessageCircle,
-  Share2,
+  Send,
   Bookmark,
   MoreHorizontal,
   Volume2,
@@ -45,7 +45,10 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { DVNTSeekBar } from "@/components/media/DVNTSeekBar";
-import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
+import {
+  DVNTLiquidGlass,
+  DVNTLiquidGlassIconButton,
+} from "@/components/media/DVNTLiquidGlass";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -782,6 +785,154 @@ function PostDetailScreenContent() {
                   />
                 </Pressable>
               )}
+
+              {/* Action pill overlay — matches feed design */}
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 12,
+                  left: 12,
+                  zIndex: 50,
+                }}
+              >
+                <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
+                  {/* Like */}
+                  <Pressable
+                    onPress={() => {
+                      if (!postIdString || !post || isLikePending) return;
+                      toggleLike();
+                    }}
+                    disabled={isLikePending}
+                    hitSlop={8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Heart
+                      size={22}
+                      color={isLiked ? "#FF5BFC" : "#fff"}
+                      fill={isLiked ? "#FF5BFC" : "none"}
+                    />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        textShadowColor: "rgba(0,0,0,0.8)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                      }}
+                    >
+                      {formatLikeCount(likeCount)}
+                    </Text>
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Comment */}
+                  <Pressable
+                    hitSlop={8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    onPressIn={() => {
+                      if (postIdString)
+                        screenPrefetch.comments(queryClient, postIdString);
+                    }}
+                    onPress={() => {
+                      if (postIdString)
+                        router.push(`/(protected)/comments/${postIdString}`);
+                    }}
+                  >
+                    <MessageCircle size={22} color="#fff" />
+                    {commentCount > 0 && (
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 14,
+                          fontWeight: "600",
+                          textShadowColor: "rgba(0,0,0,0.8)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 3,
+                        }}
+                      >
+                        {commentCount}
+                      </Text>
+                    )}
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Share */}
+                  <Pressable hitSlop={8} onPress={handleShare}>
+                    <Send size={22} color="#fff" />
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Bookmark */}
+                  <Pressable
+                    onPress={() => {
+                      if (!postIdString) return;
+                      toggleBookmarkMutation.mutate({
+                        postId: postIdString,
+                        isBookmarked: isSaved,
+                      });
+                    }}
+                    hitSlop={8}
+                  >
+                    <Bookmark
+                      size={22}
+                      color={isBookmarked ? "#3FDCFF" : "#fff"}
+                      fill={isBookmarked ? "#3FDCFF" : "none"}
+                    />
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Timestamp */}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.6)",
+                      textTransform: "uppercase",
+                      textShadowColor: "rgba(0,0,0,0.8)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 3,
+                    }}
+                  >
+                    {post.timeAgo}
+                  </Text>
+                </DVNTLiquidGlass>
+              </View>
             </View>
           ) : (
             <View
@@ -799,108 +950,33 @@ function PostDetailScreenContent() {
             </View>
           )}
 
-          {/* Actions */}
-          <View className="flex-row items-center justify-between p-4">
-            <View className="flex-row items-center gap-4">
-              <Pressable
-                onPress={() => {
-                  if (!postIdString || !post) return;
-                  // CRITICAL: Block if mutation already pending
-                  if (isLikePending) {
-                    console.log(
-                      `[PostDetail] Like blocked - mutation pending for ${postIdString}`,
-                    );
-                    return;
-                  }
-                  // CENTRALIZED: Use toggle from hook - handles optimistic updates internally
-                  toggleLike();
-                }}
-                disabled={isLikePending}
-                hitSlop={8}
-              >
-                <Heart
-                  size={28}
-                  color={isLiked ? "#FF5BFC" : colors.foreground}
-                  fill={isLiked ? "#FF5BFC" : "none"}
-                />
-              </Pressable>
-              <Pressable
-                onPressIn={() => {
-                  if (postIdString)
-                    screenPrefetch.comments(queryClient, postIdString);
-                }}
-                onPress={() => {
-                  if (postIdString)
-                    router.push(`/(protected)/comments/${postIdString}`);
-                }}
-                hitSlop={8}
-              >
-                <MessageCircle size={28} color={colors.foreground} />
-              </Pressable>
-              <Pressable onPress={handleShare} hitSlop={8}>
-                <Share2 size={28} color={colors.foreground} />
-              </Pressable>
-            </View>
-            <Pressable
-              onPress={() => {
-                if (!postIdString) return;
-                // STABILIZED: No dual state - only call mutation
-                toggleBookmarkMutation.mutate({
-                  postId: postIdString,
-                  isBookmarked: isSaved,
-                });
-              }}
-              hitSlop={8}
-            >
-              <Bookmark
-                size={28}
-                color={colors.foreground}
-                fill={isBookmarked ? colors.foreground : "none"}
-              />
-            </Pressable>
-          </View>
-
-          {/* Info - Caption Section with explicit white text, NO gaps */}
-          <View className="px-4 pb-4">
-            <Pressable
-              onPressIn={() => prefetchLikesSheet(postId)}
-              onPress={() => {
-                if (!postId) return;
-                fireLikesTap(postId, openLikesSheet);
-              }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={{ minHeight: 44, justifyContent: "center" }}
-            >
+          {/* Caption */}
+          {post.caption && (
+            <View className="px-4 py-3">
               <Text
-                style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "600" }}
+                style={{
+                  fontSize: 15,
+                  color: colors.foreground,
+                  lineHeight: 22,
+                }}
               >
-                {formatLikeCount(likeCount)}
-              </Text>
-            </Pressable>
-            {post.caption && (
-              <View className="mt-2">
-                <Text style={{ fontSize: 16, color: colors.foreground }}>
-                  <Text
-                    style={{ fontWeight: "700" }}
-                    onPress={() =>
-                      router.push(
-                        `/(protected)/profile/${post.author?.username}` as any,
-                      )
-                    }
-                  >
-                    {post.author?.username || "Unknown User"}{" "}
-                  </Text>
-                  <HashtagText
-                    text={post.caption}
-                    textStyle={{ fontSize: 16, color: colors.foreground }}
-                  />
+                <Text
+                  style={{ fontWeight: "700" }}
+                  onPress={() =>
+                    router.push(
+                      `/(protected)/profile/${post.author?.username}` as any,
+                    )
+                  }
+                >
+                  {post.author?.username || "Unknown User"}{" "}
                 </Text>
-              </View>
-            )}
-            <Text className="mt-2 text-xs uppercase text-muted-foreground">
-              {post.timeAgo}
-            </Text>
-          </View>
+                <HashtagText
+                  text={post.caption}
+                  textStyle={{ fontSize: 15, color: colors.foreground }}
+                />
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Comments */}

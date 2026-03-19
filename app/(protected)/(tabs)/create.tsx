@@ -903,7 +903,7 @@ export default function CreateScreen() {
                     <Image
                       source={{ uri: media.uri }}
                       style={{ width: "100%", height: "100%" }}
-                      contentFit={media.cropState ? "fill" : "cover"}
+                      contentFit="cover"
                     />
                   )}
 

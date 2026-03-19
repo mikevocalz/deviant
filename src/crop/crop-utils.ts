@@ -8,7 +8,6 @@
  */
 
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
-import { Image as RNImage } from "react-native";
 import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 
@@ -135,17 +134,17 @@ export async function generateCroppedBitmap(
 
 /**
  * Get image dimensions (fallback when MediaAsset doesn't have them).
+ * Uses manipulateAsync with no actions so EXIF orientation is auto-applied,
+ * returning the true post-rotation pixel dimensions.
  */
-export function getImageDimensions(
+export async function getImageDimensions(
   uri: string,
 ): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    RNImage.getSize(
-      uri,
-      (w, h) => resolve({ width: w, height: h }),
-      (err) => reject(err || new Error("Failed to get image dimensions")),
-    );
+  const result = await manipulateAsync(uri, [], {
+    compress: 1,
+    format: SaveFormat.JPEG,
   });
+  return { width: result.width, height: result.height };
 }
 
 // ── Pending crop bridge (module-level, consumed once) ───────────────
