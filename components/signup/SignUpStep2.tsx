@@ -542,11 +542,15 @@ export function SignUpStep2() {
       console.error("[SignUpStep2] Error message:", error?.message);
       console.error("[SignUpStep2] Error stack:", error?.stack);
 
-      // iOS fallback: If Regula SDK fails on iOS, mark as pending manual review
-      // This allows users to continue signup while their ID is flagged for review
-      if (Platform.OS === "ios") {
+      // Count SDK errors as failed attempts so "Submit for Manual Review" unlocks
+      const attempts = failedAttempts + 1;
+      setFailedAttempts(attempts);
+      console.log(`[SignUpStep2] SDK error (attempt ${attempts})`);
+
+      // After 2+ failures of ANY type, auto-mark for manual review (both platforms)
+      if (attempts >= 2) {
         console.log(
-          "[SignUpStep2] iOS Regula fallback - marking for manual review",
+          "[SignUpStep2] Auto-marking for manual review after repeated failures",
         );
         setVerified(true);
         setMatchConfidence(0); // Flag as needing manual review
@@ -575,7 +579,9 @@ export function SignUpStep2() {
         toastDescription =
           "No face was detected in your selfie. Please retake ensuring your face is clearly visible and well-lit.";
       } else {
-        toastDescription = errorMessage;
+        toastDescription =
+          errorMessage +
+          " Try again, or you'll be able to submit for manual review.";
       }
 
       showToast("error", "Verification Error", toastDescription);
