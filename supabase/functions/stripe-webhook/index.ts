@@ -23,6 +23,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computePayoutReleaseAt } from "../_shared/business-days.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 import { notifyEventOrganizers } from "../_shared/notify-event-organizers.ts";
+import { voidWalletPass } from "../_shared/wallet-push.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -508,6 +509,18 @@ Deno.serve(async (req: Request) => {
             console.error("[stripe-webhook] Refund update error:", refundError);
           }
 
+          // Void wallet passes for refunded tickets
+          const { data: refundedTickets } = await supabase
+            .from("tickets")
+            .select("id")
+            .eq("stripe_payment_intent_id", paymentIntent)
+            .eq("status", "refunded");
+          if (refundedTickets) {
+            for (const t of refundedTickets) {
+              await voidWalletPass(supabase, t.id);
+            }
+          }
+
           // Update order status + add timeline
           const { data: refundedOrder } = await supabase
             .from("orders")
@@ -821,11 +834,18 @@ Deno.serve(async (req: Request) => {
                 .eq("id", disputeOrder.id);
 
               // Revoke tickets for lost disputes
-              await supabase
+              const { data: disputeRevokedTickets } = await supabase
                 .from("tickets")
                 .update({ status: "refunded" })
                 .eq("stripe_payment_intent_id", closedPi)
-                .eq("status", "active");
+                .eq("status", "active")
+                .select("id");
+              // Void wallet passes for revoked tickets
+              if (disputeRevokedTickets) {
+                for (const t of disputeRevokedTickets) {
+                  await voidWalletPass(supabase, t.id);
+                }
+              }
 
               await supabase.from("order_timeline").insert({
                 order_id: disputeOrder.id,

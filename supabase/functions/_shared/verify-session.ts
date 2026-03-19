@@ -19,15 +19,28 @@ export async function verifySession(
     return null;
   }
 
+  console.log(
+    "[verify-session] Looking up token:",
+    token.substring(0, 12) + "...",
+  );
+
   // Direct DB lookup of session table (Better Auth uses camelCase columns)
+  // Use .maybeSingle() to avoid PostgREST error when 0 or 2+ rows match
   const { data: session, error } = await supabase
     .from("session")
     .select("userId, expiresAt")
     .eq("token", token)
-    .single();
+    .order("createdAt", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (error || !session) {
-    console.error("[verify-session] Session not found:", error?.message);
+  if (error) {
+    console.error("[verify-session] DB error:", error.message, error.code);
+    return null;
+  }
+
+  if (!session) {
+    console.error("[verify-session] No session row matches token");
     return null;
   }
 
