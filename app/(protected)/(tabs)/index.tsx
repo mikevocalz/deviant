@@ -134,6 +134,19 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          alignItems: "center",
+          pointerEvents: "box-none",
+        }}
+      >
+        <FeedModeToggle />
+      </View>
       <Main className="flex-1">
         <ErrorBoundary>
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}
