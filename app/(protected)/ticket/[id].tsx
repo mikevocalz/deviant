@@ -3,7 +3,7 @@
  * posh.vip-style VIP ticket with glassmorphism, tier accents, and animated QR
  */
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -11,8 +11,16 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Platform,
 } from "react-native";
-import { ArrowLeft, RefreshCw, TicketX, Shield } from "lucide-react-native";
+import {
+  ArrowLeft,
+  RefreshCw,
+  TicketX,
+  Shield,
+  Wallet,
+  Check,
+} from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Motion } from "@legendapp/motion";
@@ -26,6 +34,9 @@ import {
   TicketAccessDetails,
   TicketActionsBar,
 } from "@/src/ticket/ui";
+import * as Haptics from "expo-haptics";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { addToAppleWallet } from "@/src/ticket/helpers/add-to-wallet";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -136,6 +147,39 @@ export default function ViewTicketScreen() {
   const isExpired = ticket.status === "expired";
   const isRevoked = ticket.status === "revoked";
   const isTransferPending = ticket.status === "transfer_pending";
+  const showToast = useUIStore((s) => s.showToast);
+
+  // ── Apple Wallet banner state ──
+  const [walletBannerState, setWalletBannerState] = useState<
+    "idle" | "loading" | "success" | "dismissed"
+  >("idle");
+  const showWalletBanner =
+    Platform.OS === "ios" &&
+    ticket.status === "valid" &&
+    walletBannerState !== "dismissed" &&
+    walletBannerState !== "success";
+
+  const handleWalletBanner = useCallback(async () => {
+    if (walletBannerState === "loading") return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setWalletBannerState("loading");
+    const result = await addToAppleWallet(ticket);
+    if (result.success) {
+      setWalletBannerState("success");
+      showToast("success", "Added", "Ticket saved to Apple Wallet");
+    } else {
+      setWalletBannerState("idle");
+      if (
+        result.error === "not_configured" ||
+        result.error === "not_implemented"
+      ) {
+        showToast("info", "Coming Soon", "Apple Wallet passes coming soon");
+        setWalletBannerState("dismissed");
+      } else {
+        showToast("error", "Wallet", "Could not add to wallet");
+      }
+    }
+  }, [ticket, walletBannerState, showToast]);
 
   return (
     <View style={styles.screen}>
@@ -158,6 +202,38 @@ export default function ViewTicketScreen() {
         <View style={styles.heroWrap}>
           <TicketHeroCard ticket={ticket} />
         </View>
+
+        {/* ── Apple Wallet banner (iOS only, active tickets) ── */}
+        {showWalletBanner && (
+          <Motion.View
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+          >
+            <Pressable
+              onPress={handleWalletBanner}
+              disabled={walletBannerState === "loading"}
+              style={styles.walletBanner}
+            >
+              {walletBannerState === "loading" ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Wallet size={18} color="#fff" />
+              )}
+              <View style={styles.walletBannerTextWrap}>
+                <Text style={styles.walletBannerTitle}>
+                  Add to Apple Wallet
+                </Text>
+                <Text style={styles.walletBannerSubtitle}>
+                  Quick access at the door
+                </Text>
+              </View>
+              <View style={styles.walletBannerArrow}>
+                <Text style={styles.walletBannerArrowText}>+</Text>
+              </View>
+            </Pressable>
+          </Motion.View>
+        )}
 
         {/* ── Transfer Pending banner ── */}
         {isTransferPending && (
@@ -382,5 +458,46 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  walletBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginHorizontal: 20,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "rgba(138,64,207,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.25)",
+  },
+  walletBannerTextWrap: {
+    flex: 1,
+  },
+  walletBannerTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  walletBannerSubtitle: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  walletBannerArrow: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(138,64,207,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  walletBannerArrowText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 20,
   },
 });
