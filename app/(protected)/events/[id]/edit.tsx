@@ -381,18 +381,92 @@ export default function EditEventScreen() {
         updateData.images = allImages.slice(1).map((url) => ({ url }));
       }
 
-      await eventsApi.updateEvent(id, updateData);
+      // ── Optimistic update: patch cache + navigate back immediately ──
+      const detailKey = ["events", "detail", id];
+      const previousDetail = queryClient.getQueryData(detailKey);
 
-      // Invalidate all event caches so lists + detail refresh
-      queryClient.invalidateQueries({ queryKey: ["events"] });
-      queryClient.invalidateQueries({ queryKey: ["event-detail", id] });
+      // Build optimistic patch matching EventDetail shape
+      const optimisticPatch: Record<string, unknown> = {
+        title: updateData.title,
+        description: updateData.description,
+        location: updateData.location,
+        date: updateData.startDate,
+        endDate: updateData.endDate || null,
+        price: updateData.price,
+        maxAttendees: updateData.maxAttendees,
+        category: updateData.category || null,
+        visibility: updateData.visibility,
+        dressCode: updateData.dressCode || null,
+        doorPolicy: updateData.doorPolicy || null,
+        lineup: updateData.lineup
+          ? String(updateData.lineup)
+              .split(",")
+              .map((s: string) => s.trim())
+          : null,
+        perks: updateData.perks
+          ? String(updateData.perks)
+              .split(",")
+              .map((s: string) => s.trim())
+          : null,
+        youtubeVideoUrl: updateData.youtubeVideoUrl || null,
+        ticketingEnabled: updateData.ticketingEnabled,
+      };
+      if (updateData.locationLat != null) {
+        optimisticPatch.locationLat = updateData.locationLat;
+        optimisticPatch.locationLng = updateData.locationLng;
+        optimisticPatch.locationName = updateData.locationName;
+      }
+      if (allImages.length > 0) {
+        optimisticPatch.image = allImages[0];
+        optimisticPatch.images = allImages.slice(1).map((url) => ({
+          type: "image",
+          url,
+        }));
+      }
 
+      // Merge into cached detail
+      queryClient.setQueryData(detailKey, (old: any) =>
+        old ? { ...old, ...optimisticPatch } : old,
+      );
+
+      // Also patch any list caches that contain this event
+      queryClient.setQueriesData<any[]>({ queryKey: ["events"] }, (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((e) =>
+          String(e.id) === String(id) ? { ...e, ...optimisticPatch } : e,
+        );
+      });
+
+      // Navigate back immediately — user sees updated data
       showToast("success", "Saved", "Event updated successfully");
+      setIsSaving(false);
       router.back();
+
+      // ── Background: persist to server ──
+      eventsApi.updateEvent(id, updateData).then(
+        () => {
+          // Refetch canonical data from server
+          queryClient.invalidateQueries({ queryKey: ["events"] });
+          queryClient.invalidateQueries({ queryKey: ["event-detail", id] });
+        },
+        (err) => {
+          console.error("[EditEvent] Background save error:", err);
+          // Roll back optimistic update
+          if (previousDetail) {
+            queryClient.setQueryData(detailKey, previousDetail);
+          }
+          queryClient.invalidateQueries({ queryKey: ["events"] });
+          showToast(
+            "error",
+            "Save Failed",
+            err?.message || "Changes could not be saved. Please try again.",
+          );
+        },
+      );
+      return; // skip the finally block's setIsSaving
     } catch (error: any) {
       console.error("[EditEvent] Save error:", error);
       showToast("error", "Error", error?.message || "Failed to save changes");
-    } finally {
       setIsSaving(false);
     }
   }, [
