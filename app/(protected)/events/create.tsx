@@ -334,7 +334,7 @@ export default function CreateEventScreen() {
     });
   };
 
-  const isValid = title.trim() && description.trim() && location.trim();
+  const isValid = title.trim() && location.trim();
 
   const handleSubmit = async () => {
     // Prevent double submission
@@ -345,10 +345,6 @@ export default function CreateEventScreen() {
 
     if (!title.trim()) {
       showToast("error", "Error", "Please enter an event title");
-      return;
-    }
-    if (!description.trim()) {
-      showToast("error", "Error", "Please enter an event description");
       return;
     }
     if (!location.trim()) {
@@ -878,18 +874,18 @@ export default function CreateEventScreen() {
                     className="px-3 py-2 rounded-xl"
                     style={{
                       backgroundColor: isActive
-                        ? `${colors.primary}20`
+                        ? colors.primary
                         : "rgba(255,255,255,0.04)",
                       borderWidth: 1,
                       borderColor: isActive
-                        ? `${colors.primary}60`
+                        ? colors.primary
                         : "rgba(255,255,255,0.08)",
                     }}
                   >
                     <Text
                       className="text-xs font-semibold"
                       style={{
-                        color: isActive ? colors.primary : "#fff",
+                        color: isActive ? "#000" : "#fff",
                       }}
                     >
                       {label}
@@ -2057,9 +2053,9 @@ export default function CreateEventScreen() {
         ) : (
           <Pressable
             onPress={() => {
-              if (!isSubmitting && isValid) handleSubmit();
+              if (!isSubmitting) handleSubmit();
             }}
-            disabled={isSubmitting || !isValid}
+            disabled={isSubmitting}
             className="flex-row items-center gap-1.5 px-6 py-3 rounded-full"
             style={{
               backgroundColor:
