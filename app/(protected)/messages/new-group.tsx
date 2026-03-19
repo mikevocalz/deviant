@@ -171,26 +171,29 @@ export default function NewGroupScreen() {
         {/* Selected Users */}
         {selectedUsers.length > 0 && (
           <View className="px-4 py-3 border-b border-border">
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row gap-2">
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingRight: 8 }}
+            >
+              <View className="flex-row gap-3">
                 {selectedUsers.map((user) => (
                   <Pressable
                     key={user.id}
                     onPress={() => toggleUserSelection(user)}
-                    className="items-center"
+                    className="flex-row items-center gap-2 bg-secondary rounded-full pl-1 pr-3 py-1"
                   >
-                    <View className="relative">
-                      <Image
-                        source={{ uri: user.avatar }}
-                        className="w-[50px] h-[50px] rounded-full"
-                      />
-                      <View className="absolute -top-1 -right-1 bg-primary rounded-full p-0.5">
-                        <X size={12} color="#fff" />
-                      </View>
-                    </View>
-                    <Text className="text-xs text-muted-foreground mt-1">
-                      {user.username.slice(0, 8)}
+                    <Image
+                      source={{ uri: user.avatar }}
+                      className="w-7 h-7 rounded-full"
+                    />
+                    <Text
+                      className="text-sm text-foreground font-medium"
+                      numberOfLines={1}
+                    >
+                      {user.username}
                     </Text>
+                    <X size={14} color="#999" />
                   </Pressable>
                 ))}
               </View>
