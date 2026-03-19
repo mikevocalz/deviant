@@ -75,17 +75,26 @@ Deno.serve(async (req: Request) => {
     const { action } = await req.json();
 
     if (action === "start") {
-      // Check if account already exists
-      const { data: existing } = await supabase
+      // Step 1: Check if account already exists
+      console.log(
+        "[organizer-connect] start: checking existing account for",
+        host_id,
+      );
+      const { data: existing, error: dbErr } = await supabase
         .from("organizer_accounts")
         .select("stripe_account_id")
         .eq("host_id", host_id)
         .single();
 
+      if (dbErr && dbErr.code !== "PGRST116") {
+        console.error("[organizer-connect] DB lookup error:", dbErr);
+      }
+
       let stripeAccountId = existing?.stripe_account_id;
 
       if (!stripeAccountId) {
-        // Create new Express account
+        // Step 2: Create new Express account
+        console.log("[organizer-connect] creating Stripe Express account");
         const account = await stripeRequest("/accounts", {
           type: "express",
           "capabilities[card_payments][requested]": "true",
@@ -93,17 +102,26 @@ Deno.serve(async (req: Request) => {
           "metadata[dvnt_host_id]": host_id,
         });
         stripeAccountId = account.id;
-
-        // Save to DB (upsert with onConflict guards against race condition)
-        await supabase.from("organizer_accounts").upsert(
-          {
-            host_id,
-            stripe_account_id: stripeAccountId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "host_id", ignoreDuplicates: true },
+        console.log(
+          "[organizer-connect] Stripe account created:",
+          stripeAccountId,
         );
+
+        // Step 3: Save to DB
+        const { error: upsertErr } = await supabase
+          .from("organizer_accounts")
+          .upsert(
+            {
+              host_id,
+              stripe_account_id: stripeAccountId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "host_id", ignoreDuplicates: true },
+          );
+        if (upsertErr) {
+          console.error("[organizer-connect] DB upsert error:", upsertErr);
+        }
 
         // Re-read in case another request won the race
         const { data: recheck } = await supabase
@@ -116,7 +134,11 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      // Create onboarding link
+      // Step 4: Create onboarding link
+      console.log(
+        "[organizer-connect] creating account link for",
+        stripeAccountId,
+      );
       const link = await stripeRequest("/account_links", {
         account: stripeAccountId,
         refresh_url: `${APP_SCHEME}://organizer/connect?refresh=true`,
@@ -124,6 +146,7 @@ Deno.serve(async (req: Request) => {
         type: "account_onboarding",
       });
 
+      console.log("[organizer-connect] onboarding link created successfully");
       return new Response(
         JSON.stringify({ url: link.url, account_id: stripeAccountId }),
         { status: 200, headers: { "Content-Type": "application/json" } },
