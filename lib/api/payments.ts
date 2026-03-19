@@ -354,6 +354,8 @@ export const connectApi = {
         payoutsEnabled: data?.payouts_enabled || false,
         detailsSubmitted: data?.details_submitted || false,
         requiresAction: connected && !data?.details_submitted,
+        stripeAccountId: data?.stripe_account_id,
+        pendingVerification: data?.pending_verification,
       };
     } catch (err: any) {
       console.error("[Payments] getConnectStatus error:", err);

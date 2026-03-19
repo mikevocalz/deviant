@@ -166,6 +166,8 @@ Deno.serve(async (req: Request) => {
           charges_enabled: stripeAccount.charges_enabled,
           payouts_enabled: stripeAccount.payouts_enabled,
           details_submitted: stripeAccount.details_submitted,
+          stripe_account_id: account.stripe_account_id,
+          pending_verification: stripeAccount.requirements?.currently_due || [],
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
