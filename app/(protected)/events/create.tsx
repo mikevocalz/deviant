@@ -889,9 +889,7 @@ export default function CreateEventScreen() {
                     <Text
                       className="text-xs font-semibold"
                       style={{
-                        color: isActive
-                          ? colors.primary
-                          : colors.mutedForeground,
+                        color: isActive ? colors.primary : "#fff",
                       }}
                     >
                       {label}
