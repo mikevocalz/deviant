@@ -33,5 +33,8 @@ ALTER FUNCTION public.increment_event_attendees(integer)
   SECURITY DEFINER
   SET search_path = public;
 
--- 6. Reload PostgREST schema cache
+-- 6. Sync users_id_seq with current max ID (was at 16, max ID was 39)
+SELECT setval('users_id_seq', (SELECT COALESCE(MAX(id), 0) + 1 FROM public.users), false);
+
+-- 7. Reload PostgREST schema cache
 NOTIFY pgrst, 'reload schema';
