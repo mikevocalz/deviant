@@ -5,6 +5,8 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -36,11 +38,7 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  KeyboardController,
-  KeyboardProvider,
-  KeyboardStickyView,
-} from "react-native-keyboard-controller";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
@@ -975,8 +973,29 @@ export default function StoryViewerScreen() {
   }
 
   return (
-    <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-      <View style={{ flex: 1, backgroundColor: "#000" }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: "#000" }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={0}
+    >
+      {/* DEBUG: remove after confirming OTA delivery */}
+      <View
+        style={{
+          position: "absolute",
+          top: 60,
+          right: 16,
+          zIndex: 9999,
+          backgroundColor: "#00FF00",
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          borderRadius: 8,
+        }}
+      >
+        <Text style={{ color: "#000", fontSize: 11, fontWeight: "800" }}>
+          KB-FIX-v7
+        </Text>
+      </View>
+      <View style={{ flex: 1 }}>
         {/* ── FULL-BLEED MEDIA ───────────────────────────────────────────── */}
         <View
           style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
@@ -1395,106 +1414,97 @@ export default function StoryViewerScreen() {
             onComplete={() => removeFloatingEmoji(e.id)}
           />
         ))}
+      </View>
 
-        {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
-        {!isOwnStory && story && (
-          <KeyboardStickyView
-            offset={{ closed: 0, opened: 0 }}
-            style={{
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              zIndex: 80,
-            }}
-          >
-            {/* Emoji reactions row — hidden while typing */}
-            {!isInputFocused && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  gap: 8,
-                  paddingHorizontal: 20,
-                  marginBottom: 10,
-                }}
-              >
-                {REACTION_EMOJIS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => handleStoryReaction(emoji)}
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 21,
-                      backgroundColor: "rgba(40,40,40,0.7)",
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.12)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-
-            {/* Message input row — liquid glass pill */}
+      {/* ── BOTTOM BAR: reactions + message input (in flex flow, NOT absolute) ── */}
+      {!isOwnStory && story && (
+        <View>
+          {/* Emoji reactions row — hidden while typing */}
+          {!isInputFocused && (
             <View
               style={{
-                paddingHorizontal: 12,
-                paddingTop: 6,
-                paddingBottom: insets.bottom + 8,
+                flexDirection: "row",
+                justifyContent: "center",
+                gap: 8,
+                paddingHorizontal: 20,
+                marginBottom: 10,
               }}
             >
-              <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
-                <TextInput
-                  style={{
-                    flex: 1,
-                    color: "#fff",
-                    fontSize: 15,
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                  }}
-                  placeholder="Send Message"
-                  placeholderTextColor="rgba(255,255,255,0.45)"
-                  value={replyText}
-                  onChangeText={setReplyText}
-                  onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => setIsInputFocused(false)}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendReply}
-                  editable={!isSendingReply}
-                />
-
-                {/* Send button */}
+              {REACTION_EMOJIS.map((emoji) => (
                 <Pressable
-                  onPress={
-                    replyText.trim().length > 0 ? handleSendReply : undefined
-                  }
-                  disabled={isSendingReply || !resolvedUserId}
-                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                  key={emoji}
+                  onPress={() => handleStoryReaction(emoji)}
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor:
-                      replyText.trim().length > 0
-                        ? "#8A40CF"
-                        : "rgba(255,255,255,0.15)",
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    backgroundColor: "rgba(40,40,40,0.7)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.12)",
                     alignItems: "center",
                     justifyContent: "center",
-                    opacity: isSendingReply ? 0.5 : 1,
                   }}
                 >
-                  <Send size={17} color="#fff" strokeWidth={2} />
+                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
                 </Pressable>
-              </DVNTLiquidGlass>
+              ))}
             </View>
-          </KeyboardStickyView>
-        )}
-      </View>
-    </KeyboardProvider>
+          )}
+
+          {/* Message input row — liquid glass pill */}
+          <View
+            style={{
+              paddingHorizontal: 12,
+              paddingTop: 6,
+              paddingBottom: insets.bottom + 8,
+            }}
+          >
+            <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
+              <TextInput
+                style={{
+                  flex: 1,
+                  color: "#fff",
+                  fontSize: 15,
+                  paddingVertical: 6,
+                  paddingHorizontal: 12,
+                }}
+                placeholder="Send Message"
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                value={replyText}
+                onChangeText={setReplyText}
+                onFocus={() => setIsInputFocused(true)}
+                onBlur={() => setIsInputFocused(false)}
+                returnKeyType="send"
+                onSubmitEditing={handleSendReply}
+                editable={!isSendingReply}
+              />
+
+              {/* Send button */}
+              <Pressable
+                onPress={
+                  replyText.trim().length > 0 ? handleSendReply : undefined
+                }
+                disabled={isSendingReply || !resolvedUserId}
+                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor:
+                    replyText.trim().length > 0
+                      ? "#8A40CF"
+                      : "rgba(255,255,255,0.15)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: isSendingReply ? 0.5 : 1,
+                }}
+              >
+                <Send size={17} color="#fff" strokeWidth={2} />
+              </Pressable>
+            </DVNTLiquidGlass>
+          </View>
+        </View>
+      )}
+    </KeyboardAvoidingView>
   );
 }
