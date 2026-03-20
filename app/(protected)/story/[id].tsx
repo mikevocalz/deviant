@@ -5,6 +5,8 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  Keyboard,
+  Platform as RNPlatform,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -36,10 +38,7 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  KeyboardController,
-  useKeyboardHandler,
-} from "react-native-keyboard-controller";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
@@ -144,18 +143,26 @@ export default function StoryViewerScreen() {
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
 
-  // Keyboard tracking — useKeyboardHandler works in fullScreenModal (context-based KeyboardStickyView doesn't)
+  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in fullScreenModal)
   const keyboardHeight = useSharedValue(0);
-  useKeyboardHandler({
-    onMove: (e) => {
-      "worklet";
-      keyboardHeight.value = e.height;
-    },
-    onEnd: (e) => {
-      "worklet";
-      keyboardHeight.value = e.height;
-    },
-  });
+  useEffect(() => {
+    const showEvent =
+      RNPlatform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      RNPlatform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      keyboardHeight.value = withTiming(e.endCoordinates.height, {
+        duration: 250,
+      });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardHeight.value = withTiming(0, { duration: 200 });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   const stickyInputStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -keyboardHeight.value }],
   }));
