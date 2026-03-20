@@ -7,6 +7,7 @@ import {
   Alert,
   Keyboard,
   Platform,
+  InputAccessoryView,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -145,22 +146,8 @@ export default function StoryViewerScreen() {
 
   const progress = useSharedValue(0);
 
-  // ── Keyboard tracking — plain useState (debug: shows kb height on screen) ──
-  const [kbOffset, setKbOffset] = useState(0);
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardWillShow", (e) => {
-      console.log("[Story] KB SHOW:", e.endCoordinates.height);
-      setKbOffset(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
-      console.log("[Story] KB HIDE");
-      setKbOffset(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  // Ref to focus the TextInput inside InputAccessoryView
+  const replyInputRef = useRef<TextInput>(null);
 
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -992,21 +979,21 @@ export default function StoryViewerScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000" }}>
-      {/* DEBUG: remove after confirming OTA delivery */}
+      {/* DEBUG: unmissable centered badge */}
       <View
         style={{
           position: "absolute",
-          top: 60,
-          right: 16,
-          zIndex: 9999,
-          backgroundColor: "#00FF00",
-          paddingHorizontal: 8,
-          paddingVertical: 4,
-          borderRadius: 8,
+          top: 120,
+          alignSelf: "center",
+          zIndex: 99999,
+          backgroundColor: "#FF00FF",
+          paddingHorizontal: 20,
+          paddingVertical: 10,
+          borderRadius: 12,
         }}
       >
-        <Text style={{ color: "#000", fontSize: 11, fontWeight: "800" }}>
-          KB-v9 kb={kbOffset}
+        <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900" }}>
+          v10-IAV
         </Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -1430,12 +1417,12 @@ export default function StoryViewerScreen() {
         ))}
       </View>
 
-      {/* ── BOTTOM BAR: absolutely positioned, animated up by keyboard ── */}
+      {/* ── BOTTOM BAR: emoji reactions + tap-to-reply ── */}
       {!isOwnStory && story && (
         <View
           style={{
             position: "absolute",
-            bottom: kbOffset,
+            bottom: 0,
             left: 0,
             right: 0,
             zIndex: 80,
@@ -1473,59 +1460,115 @@ export default function StoryViewerScreen() {
             </View>
           )}
 
-          {/* Message input row — liquid glass pill */}
-          <View
-            style={{
-              paddingHorizontal: 12,
-              paddingTop: 6,
-              paddingBottom: insets.bottom + 8,
-            }}
-          >
-            <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
-              <TextInput
-                style={{
-                  flex: 1,
-                  color: "#fff",
-                  fontSize: 15,
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                }}
-                placeholder="Send Message"
-                placeholderTextColor="rgba(255,255,255,0.45)"
-                value={replyText}
-                onChangeText={setReplyText}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
-                returnKeyType="send"
-                onSubmitEditing={handleSendReply}
-                editable={!isSendingReply}
-              />
-
-              {/* Send button */}
+          {/* Tap-to-reply pill — focuses the real TextInput inside InputAccessoryView */}
+          {!isInputFocused && (
+            <View
+              style={{
+                paddingHorizontal: 12,
+                paddingTop: 6,
+                paddingBottom: insets.bottom + 8,
+              }}
+            >
               <Pressable
-                onPress={
-                  replyText.trim().length > 0 ? handleSendReply : undefined
-                }
-                disabled={isSendingReply || !resolvedUserId}
-                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                onPress={() => replyInputRef.current?.focus()}
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor:
-                    replyText.trim().length > 0
-                      ? "#8A40CF"
-                      : "rgba(255,255,255,0.15)",
+                  flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
-                  opacity: isSendingReply ? 0.5 : 1,
+                  backgroundColor: "rgba(40,40,40,0.65)",
+                  borderRadius: 28,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.12)",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
                 }}
               >
-                <Send size={17} color="#fff" strokeWidth={2} />
+                <Text
+                  style={{
+                    flex: 1,
+                    color: "rgba(255,255,255,0.45)",
+                    fontSize: 15,
+                  }}
+                >
+                  Send Message
+                </Text>
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Send size={17} color="#fff" strokeWidth={2} />
+                </View>
               </Pressable>
-            </DVNTLiquidGlass>
-          </View>
+            </View>
+          )}
         </View>
+      )}
+
+      {/* ── InputAccessoryView: native iOS keyboard attachment ── */}
+      {!isOwnStory && story && Platform.OS === "ios" && (
+        <InputAccessoryView nativeID="storyReplyAccessory">
+          <View
+            style={{
+              backgroundColor: "rgba(28,28,30,0.95)",
+              borderTopWidth: 0.5,
+              borderTopColor: "rgba(255,255,255,0.15)",
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <TextInput
+              ref={replyInputRef}
+              inputAccessoryViewID="storyReplyAccessory"
+              style={{
+                flex: 1,
+                color: "#fff",
+                fontSize: 15,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                borderRadius: 20,
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+              }}
+              placeholder="Send Message"
+              placeholderTextColor="rgba(255,255,255,0.45)"
+              value={replyText}
+              onChangeText={setReplyText}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              returnKeyType="send"
+              onSubmitEditing={handleSendReply}
+              editable={!isSendingReply}
+            />
+            <Pressable
+              onPress={
+                replyText.trim().length > 0 ? handleSendReply : undefined
+              }
+              disabled={isSendingReply || !resolvedUserId}
+              hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                backgroundColor:
+                  replyText.trim().length > 0
+                    ? "#8A40CF"
+                    : "rgba(255,255,255,0.15)",
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: isSendingReply ? 0.5 : 1,
+              }}
+            >
+              <Send size={17} color="#fff" strokeWidth={2} />
+            </Pressable>
+          </View>
+        </InputAccessoryView>
       )}
     </View>
   );
