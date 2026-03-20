@@ -622,13 +622,21 @@ function ServerRoom({
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
   const handleLeave = useCallback(async () => {
-    // If host, end the room in the database so all users see it as ended
     if (isHost) {
+      // Host ends the room for everyone
       try {
         await sneakyLynkApi.endRoom(id);
         console.log("[SneakyLynk:Server] Room ended in DB:", id);
       } catch (e) {
         console.error("[SneakyLynk:Server] Failed to end room in DB:", e);
+      }
+    } else {
+      // Non-host: leave room (decrement participant_count, auto-end if empty)
+      try {
+        await sneakyLynkApi.leaveRoom(id);
+        console.log("[SneakyLynk:Server] Left room in DB:", id);
+      } catch (e) {
+        console.error("[SneakyLynk:Server] Failed to leave room in DB:", e);
       }
     }
     endRoomHistory(id, storeListeners.length);

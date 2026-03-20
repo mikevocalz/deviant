@@ -397,10 +397,25 @@ export function useSneakyLynkRoom(
       clearTimeout(refreshTimeoutRef.current);
     }
 
+    // CRITICAL: Notify backend BEFORE disconnecting so participant_count is decremented
+    // and the room auto-ends if no participants remain
+    try {
+      const res = await sneakyLynkApi.leaveRoom(roomId);
+      if (res.ok) {
+        console.log(
+          `[SneakyLynk] Left room (remaining: ${res.data?.remainingParticipants}, ended: ${res.data?.roomEnded})`,
+        );
+      } else {
+        console.error("[SneakyLynk] Leave API error:", res.error?.message);
+      }
+    } catch (err) {
+      console.error("[SneakyLynk] Leave API call failed:", err);
+    }
+
     const client = getFishjamClient();
     await client.disconnect();
     resetFishjamClient();
-  }, []);
+  }, [roomId]);
 
   // Moderation actions
   const kickUser = useCallback(
