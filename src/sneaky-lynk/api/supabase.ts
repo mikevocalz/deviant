@@ -129,6 +129,20 @@ export const sneakyLynkApi = {
   },
 
   /**
+   * Leave a room (any participant)
+   * Marks member as "left", decrements participant_count, auto-ends if empty
+   */
+  async leaveRoom(roomId: string): Promise<
+    ApiResponse<{
+      left: boolean;
+      roomEnded: boolean;
+      remainingParticipants: number;
+    }>
+  > {
+    return callEdgeFunction("video_leave_room", { roomId });
+  },
+
+  /**
    * End the room (host only)
    * Uses existing video_end_room Edge Function
    */
@@ -196,15 +210,40 @@ export const sneakyLynkApi = {
         }
       }
 
+      // For open rooms, cross-check actual active member counts
+      // to prevent stale participant_count from showing dead rooms as LIVE
+      const openRoomIds = (data || [])
+        .filter((r: any) => r.status === "open")
+        .map((r: any) => r.id);
+
+      let activeCounts: Record<number, number> = {};
+      if (openRoomIds.length > 0) {
+        const { data: members } = await supabase
+          .from("video_room_members")
+          .select("room_id")
+          .in("room_id", openRoomIds)
+          .eq("status", "active");
+        if (members) {
+          for (const m of members) {
+            activeCounts[m.room_id] = (activeCounts[m.room_id] || 0) + 1;
+          }
+        }
+      }
+
       return (data || []).map((r: any) => {
         const creator = creatorsMap[r.created_by] || null;
+        // Use real active member count for open rooms, not stale participant_count
+        const realCount =
+          r.status === "open"
+            ? (activeCounts[r.id] ?? 0)
+            : r.participant_count || 0;
         return {
           id: r.uuid || String(r.id),
           createdBy: r.created_by || "",
           title: r.title || "Untitled Lynk",
           topic: r.topic || "",
           description: r.description || "",
-          isLive: r.status === "open" && (r.participant_count || 0) > 0,
+          isLive: r.status === "open" && realCount > 0,
           hasVideo: r.has_video ?? false,
           isPublic: r.is_public ?? true,
           status: r.status as "open" | "ended",
@@ -218,7 +257,7 @@ export const sneakyLynkApi = {
             isVerified: creator?.verified || false,
           },
           speakers: [],
-          listeners: r.participant_count || 0,
+          listeners: realCount,
           maxParticipants: r.max_participants || 50,
           fishjamRoomId: r.fishjam_room_id || undefined,
         };
