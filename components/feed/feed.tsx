@@ -44,7 +44,7 @@ import { useRouter } from "expo-router";
 import { Alert } from "react-native";
 import { useDeletePost } from "@/lib/hooks/use-posts";
 import { sharePost } from "@/lib/utils/sharing";
-import { useCreateStory } from "@/lib/hooks/use-stories";
+import { useCreateStory, useStories } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 type FeedPostItem = { _type: "post"; data: Post };
@@ -251,6 +251,11 @@ export function Feed() {
     refetch,
     isRefetching,
   } = useInfiniteFeedPosts();
+
+  // Gate: stories must be ready before revealing the feed (prevents waterfall)
+  // isPending = no data at all (cache miss + loading). With MMKV persistence,
+  // this is only true on first-ever launch. Errors also clear the gate.
+  const { isPending: storiesPending } = useStories();
 
   // CRITICAL: Get queryClient and viewerId for seeding likeState cache
   const queryClient = useQueryClient();
@@ -541,7 +546,7 @@ export function Feed() {
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
-  if (isLoading || !nsfwLoaded) {
+  if (isLoading || storiesPending || !nsfwLoaded) {
     return <FeedSkeleton />;
   }
 

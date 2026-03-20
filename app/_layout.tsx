@@ -1,4 +1,5 @@
 import "../global.css";
+import "@/lib/query-focus-manager";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient } from "@tanstack/react-query";

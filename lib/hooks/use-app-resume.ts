@@ -18,9 +18,11 @@ import { profileKeys } from "@/lib/hooks/use-profile";
 import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
+import { storyKeys } from "@/lib/hooks/use-stories";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { notificationsApi } from "@/lib/api/notifications";
 import { usersApi } from "@/lib/api/users";
+import { storiesApi as storiesApiClient } from "@/lib/api/stories";
 
 const THROTTLE_MS = 30_000; // At most once per 30 seconds
 
@@ -107,6 +109,12 @@ export function useAppResume() {
         queryClient.invalidateQueries({
           queryKey: notificationKeys.all,
           refetchType: "none",
+        }),
+
+        // Actively refetch stories — above-the-fold, must be fresh on resume
+        queryClient.prefetchQuery({
+          queryKey: storyKeys.list(),
+          queryFn: () => storiesApiClient.getStories(),
         }),
       ]).then((results) => {
         const failed = results.filter((r) => r.status === "rejected").length;
