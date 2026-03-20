@@ -188,6 +188,23 @@ export default function ProtectedLayout() {
 
   return (
     <>
+      {/* DEBUG: OTA delivery check — remove after confirming */}
+      <View
+        style={{
+          position: "absolute",
+          top: 50,
+          left: 16,
+          zIndex: 99999,
+          backgroundColor: "#FF0000",
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          borderRadius: 10,
+        }}
+      >
+        <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "900" }}>
+          OTA-v7
+        </Text>
+      </View>
       {/* CRITICAL: NotificationListener handles incoming call push notifications */}
       <NotificationListener />
       <Stack
