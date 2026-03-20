@@ -36,7 +36,10 @@ import {
   cleanupPlayer,
   logVideoHealth,
 } from "@/lib/video-lifecycle";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  useSafeAreaInsets,
+  initialWindowMetrics,
+} from "react-native-safe-area-context";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
@@ -141,6 +144,7 @@ export default function StoryViewerScreen() {
     setCurrentItemIndex,
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
+  const safeTop = Math.max(insets.top, initialWindowMetrics?.insets?.top ?? 0);
   const progress = useSharedValue(0);
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -1073,7 +1077,7 @@ export default function StoryViewerScreen() {
           style={{
             flexDirection: "row",
             paddingHorizontal: 10,
-            paddingTop: insets.top + 6,
+            paddingTop: safeTop + 6,
             gap: 3,
           }}
         >
@@ -1207,7 +1211,7 @@ export default function StoryViewerScreen() {
       <View
         style={{
           position: "absolute",
-          top: insets.top + 90,
+          top: safeTop + 90,
           bottom: isOwnStory ? 0 : 110,
           left: 0,
           right: 0,
