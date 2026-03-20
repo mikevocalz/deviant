@@ -1395,6 +1395,25 @@ export default function StoryViewerScreen() {
         />
       ))}
 
+      {/* DEBUG: visible keyboard height indicator */}
+      {kbHeight > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: 60,
+            left: 10,
+            zIndex: 999,
+            backgroundColor: "red",
+            padding: 6,
+            borderRadius: 8,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 14 }}>
+            KB: {kbHeight}px
+          </Text>
+        </View>
+      )}
+
       {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
       {!isOwnStory && story && (
         <View
