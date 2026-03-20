@@ -51,7 +51,7 @@ import { setPendingCrop } from "@/src/crop/crop-utils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
-const ASPECT_RATIO = 5 / 4;
+const ASPECT_RATIO = 4 / 5;
 
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
@@ -901,9 +901,11 @@ export default function CreateScreen() {
                     <VideoPreview uri={media.uri} duration={media.duration} />
                   ) : (
                     <Image
+                      key={media.uri}
                       source={{ uri: media.uri }}
                       style={{ width: "100%", height: "100%" }}
                       contentFit="cover"
+                      cachePolicy="none"
                     />
                   )}
 

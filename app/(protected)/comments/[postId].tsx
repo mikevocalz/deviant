@@ -324,7 +324,8 @@ export default function CommentsScreen() {
           overflow: "hidden",
         }}
       >
-        <View
+        <KeyboardAvoidingView
+          behavior="padding"
           style={{
             flex: 1,
             backgroundColor: "rgba(0,0,0,0.55)",
@@ -562,7 +563,7 @@ export default function CommentsScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </BlurView>
     </View>
   );
