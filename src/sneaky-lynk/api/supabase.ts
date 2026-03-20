@@ -211,10 +211,17 @@ export const sneakyLynkApi = {
       }
 
       // For open rooms, cross-check actual active member counts
-      // to prevent stale participant_count from showing dead rooms as LIVE
+      // to prevent stale participant_count from showing dead rooms as LIVE.
+      // Only count members who joined within the last 12 hours — older
+      // "active" rows are stale (user disconnected before the leaveRoom
+      // fix existed, or app crashed without calling leave).
       const openRoomIds = (data || [])
         .filter((r: any) => r.status === "open")
         .map((r: any) => r.id);
+
+      const twelveHoursAgo = new Date(
+        Date.now() - 12 * 60 * 60 * 1000,
+      ).toISOString();
 
       let activeCounts: Record<number, number> = {};
       if (openRoomIds.length > 0) {
@@ -222,7 +229,8 @@ export const sneakyLynkApi = {
           .from("video_room_members")
           .select("room_id")
           .in("room_id", openRoomIds)
-          .eq("status", "active");
+          .eq("status", "active")
+          .gte("joined_at", twelveHoursAgo);
         if (members) {
           for (const m of members) {
             activeCounts[m.room_id] = (activeCounts[m.room_id] || 0) + 1;
