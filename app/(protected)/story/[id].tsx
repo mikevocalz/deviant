@@ -5,7 +5,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
@@ -144,6 +144,29 @@ export default function StoryViewerScreen() {
   const insets = useSafeAreaInsets();
 
   const progress = useSharedValue(0);
+
+  // ── Keyboard tracking for fullScreenModal (UIKit NSNotifications work in any VC) ──
+  const kbHeight = useSharedValue(0);
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      kbHeight.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      kbHeight.value = withTiming(0, { duration: 200 });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+  const bottomBarAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -kbHeight.value }],
+  }));
+
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -973,11 +996,7 @@ export default function StoryViewerScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "#000" }}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      keyboardVerticalOffset={0}
-    >
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
       {/* DEBUG: remove after confirming OTA delivery */}
       <View
         style={{
@@ -992,7 +1011,7 @@ export default function StoryViewerScreen() {
         }}
       >
         <Text style={{ color: "#000", fontSize: 11, fontWeight: "800" }}>
-          KB-FIX-v7
+          KB-FIX-v8
         </Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -1416,9 +1435,14 @@ export default function StoryViewerScreen() {
         ))}
       </View>
 
-      {/* ── BOTTOM BAR: reactions + message input (in flex flow, NOT absolute) ── */}
+      {/* ── BOTTOM BAR: absolutely positioned, animated up by keyboard ── */}
       {!isOwnStory && story && (
-        <View>
+        <Animated.View
+          style={[
+            { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 80 },
+            bottomBarAnimStyle,
+          ]}
+        >
           {/* Emoji reactions row — hidden while typing */}
           {!isInputFocused && (
             <View
@@ -1503,8 +1527,8 @@ export default function StoryViewerScreen() {
               </Pressable>
             </DVNTLiquidGlass>
           </View>
-        </View>
+        </Animated.View>
       )}
-    </KeyboardAvoidingView>
+    </View>
   );
 }
