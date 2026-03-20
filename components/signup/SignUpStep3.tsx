@@ -1,7 +1,8 @@
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable, ScrollView, Dimensions } from "react-native";
 import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /**
  * SignUpStep3 - Terms Agreement
@@ -16,6 +17,18 @@ import { FileText } from "lucide-react-native";
  */
 export function SignUpStep3() {
   const { termsAccepted, setActiveStep, setTermsAccepted } = useSignupStore();
+  const insets = useSafeAreaInsets();
+
+  // Dynamic terms box height: fill available space minus header (~120),
+  // progress indicator (~80), checkbox (~80), buttons (~56), gaps (~72),
+  // safe areas, and outer padding. Clamp between 160–300.
+  const screenHeight = Dimensions.get("window").height;
+  const reservedSpace =
+    120 + 80 + 80 + 56 + 72 + insets.top + insets.bottom + 100;
+  const termsBoxHeight = Math.max(
+    160,
+    Math.min(300, screenHeight - reservedSpace),
+  );
 
   const handleContinue = () => {
     console.log("[Terms] handleContinue pressed", { termsAccepted });
@@ -25,7 +38,7 @@ export function SignUpStep3() {
   };
 
   return (
-    <View className="gap-6 flex-1">
+    <View className="gap-6">
       <View className="items-center gap-2">
         <View className="h-12 w-12 rounded-full bg-primary/60 items-center justify-center">
           <FileText size={24} className="text-white" />
@@ -40,7 +53,7 @@ export function SignUpStep3() {
 
       <View
         className="border border-border rounded-lg bg-card"
-        style={{ height: 300 }}
+        style={{ height: termsBoxHeight }}
       >
         <ScrollView
           style={{ flex: 1 }}
