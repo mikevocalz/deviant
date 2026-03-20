@@ -17,4 +17,11 @@ export interface Conversation {
   timestamp: string;
   unread: boolean;
   isGroup?: boolean;
+  groupName?: string;
+  members?: Array<{
+    id: string;
+    authId: string;
+    username: string;
+    avatar: string;
+  }>;
 }

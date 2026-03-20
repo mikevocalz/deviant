@@ -1,0 +1,28 @@
+diff --git a/lib/src/StoryListItem.js b/lib/src/StoryListItem.js
+--- a/lib/src/StoryListItem.js
++++ b/lib/src/StoryListItem.js
+@@ -290,9 +290,21 @@ const StoryListItem = ({ index, key, userId, profileImage, profileName, duration
+           </react_native_1.View>
+         </react_native_1.View>
+       </react_native_1.SafeAreaView>
+-      {typeof renderSwipeUpComponent === 'function' ? (renderSwipeUpComponent({
++      {typeof renderSwipeUpComponent === 'function' ? (renderSwipeUpComponent(Object.assign({
+             onPress: onSwipeUp,
+             item: content[current],
+-        })) : (<react_native_1.TouchableOpacity activeOpacity={1} onPress={onSwipeUp} style={styles.swipeUpBtn}>
++        }, {
++            pause: function() {
++                setIsInteractionPaused(true);
++                progress.stopAnimation();
++            },
++            resume: function() {
++                setIsInteractionPaused(false);
++                setPressed(false);
++                if (!isVideo) {
++                    startAnimation();
++                }
++            },
++        }))) : (<react_native_1.TouchableOpacity activeOpacity={1} onPress={onSwipeUp} style={styles.swipeUpBtn}>
+           <react_native_1.Text style={styles.swipeText}></react_native_1.Text>
+           <react_native_1.Text style={styles.swipeText}>{swipeText}</react_native_1.Text>
+         </react_native_1.TouchableOpacity>)}

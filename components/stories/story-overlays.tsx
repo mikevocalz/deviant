@@ -177,7 +177,10 @@ export const StoryHeaderText: RenderCustomText = ({ profileName, item }) => {
 
 // ── Swipe Up / Footer (renderSwipeUpComponent) ─────────────────────
 
-export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
+export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
+  // pause/resume are injected by our patched StoryListItem
+  const pause = (rest as any).pause as (() => void) | undefined;
+  const resume = (rest as any).resume as (() => void) | undefined;
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
   const showToast = useUIStore((s) => s.showToast);
@@ -312,8 +315,9 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
     } finally {
       setIsSending(false);
       setIsInputFocused(false);
+      resume?.();
     }
-  }, [replyText, isSending, customData, isOwnStory, showToast]);
+  }, [replyText, isSending, customData, isOwnStory, showToast, resume]);
 
   return (
     <View
@@ -364,8 +368,14 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
               placeholderTextColor="rgba(255,255,255,0.45)"
               value={replyText}
               onChangeText={setReplyText}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
+              onFocus={() => {
+                setIsInputFocused(true);
+                pause?.();
+              }}
+              onBlur={() => {
+                setIsInputFocused(false);
+                resume?.();
+              }}
               returnKeyType="send"
               onSubmitEditing={handleSendReply}
               editable={!isSending}

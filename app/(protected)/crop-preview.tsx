@@ -67,6 +67,7 @@ export default function CropPreviewScreen() {
   const [dimensions, setDimensions] = useState<
     Map<string, { width: number; height: number }>
   >(new Map());
+  const normalizedUris = useRef<Map<string, string>>(new Map());
   const [activeIndex, setActiveIndex] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -149,6 +150,9 @@ export default function CropPreviewScreen() {
           const sourceUri = img.originalUri || img.uri;
           const dims = await getImageDimensions(sourceUri);
           dimMap.set(img.id, dims);
+          // Store EXIF-normalized URI — pixels match dims, no residual
+          // EXIF orientation tag that could cause double-rotation.
+          normalizedUris.current.set(img.id, dims.normalizedUri);
         } catch {
           // Fallback to picker dimensions, then default
           dimMap.set(img.id, {
@@ -164,7 +168,10 @@ export default function CropPreviewScreen() {
       if (images.length > 0) {
         const first = images[0];
         const firstDims = dimMap.get(first.id) || { width: 1080, height: 1080 };
-        const sourceUri = first.originalUri || first.uri;
+        const sourceUri =
+          normalizedUris.current.get(first.id) ||
+          first.originalUri ||
+          first.uri;
         const initial = createInitialEditState(
           sourceUri,
           firstDims.width,
@@ -200,7 +207,10 @@ export default function CropPreviewScreen() {
       }
       if (existing.flipX) editDispatch({ type: "FLIP_X" });
     } else {
-      const sourceUri = activeMedia.originalUri || activeMedia.uri;
+      const sourceUri =
+        normalizedUris.current.get(activeMedia.id) ||
+        activeMedia.originalUri ||
+        activeMedia.uri;
       const initial = createInitialEditState(
         sourceUri,
         activeDims.width,
@@ -216,7 +226,10 @@ export default function CropPreviewScreen() {
     if (activeMedia) {
       editStatesRef.current.set(activeMedia.id, {
         ...editState,
-        sourceUri: activeMedia.originalUri || activeMedia.uri,
+        sourceUri:
+          normalizedUris.current.get(activeMedia.id) ||
+          activeMedia.originalUri ||
+          activeMedia.uri,
         sourceSize: activeDims
           ? { w: activeDims.width, h: activeDims.height }
           : editState.sourceSize,
@@ -224,8 +237,12 @@ export default function CropPreviewScreen() {
     }
   }, [editState, activeMedia, activeDims]);
 
+  // Prefer the EXIF-normalized URI (no residual orientation tag) to
+  // prevent double-rotation in both the crop view and the export pipeline.
   const activeSourceUri = activeMedia
-    ? activeMedia.originalUri || activeMedia.uri
+    ? normalizedUris.current.get(activeMedia.id) ||
+      activeMedia.originalUri ||
+      activeMedia.uri
     : "";
 
   const handleCropChange = useCallback(
@@ -249,7 +266,8 @@ export default function CropPreviewScreen() {
         const dims = dimensions.get(img.id);
         if (!dims) continue;
 
-        const sourceUri = img.originalUri || img.uri;
+        const sourceUri =
+          normalizedUris.current.get(img.id) || img.originalUri || img.uri;
         const imgEditState = editStatesRef.current.get(img.id);
         const cropState = cropStates.current.get(img.id);
 

@@ -2,14 +2,17 @@ import {
   View,
   Text,
   Pressable,
-  Keyboard,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   TextInput as RNTextInput,
   Dimensions,
 } from "react-native";
+import {
+  KeyboardAvoidingView,
+  KeyboardController,
+  KeyboardEvents,
+} from "react-native-keyboard-controller";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
@@ -134,7 +137,7 @@ export default function CommentsScreen() {
     const originalReplyingTo = replyingTo;
     setComment("");
     setReplyingTo(null);
-    Keyboard.dismiss();
+    KeyboardController.dismiss();
 
     createComment.mutate(
       {
@@ -147,7 +150,7 @@ export default function CommentsScreen() {
       },
       {
         onSuccess: () => {
-          Keyboard.dismiss();
+          KeyboardController.dismiss();
           showToast("success", "Posted!", "Your comment was added");
           // Unlock after success
           setIsSubmitLocked(false);
@@ -181,15 +184,12 @@ export default function CommentsScreen() {
   ]);
 
   useEffect(() => {
-    const keyboardDidHideListener = Keyboard.addListener(
-      "keyboardDidHide",
-      () => {
-        setReplyingTo(null);
-      },
-    );
+    const sub = KeyboardEvents.addListener("keyboardDidHide", () => {
+      setReplyingTo(null);
+    });
 
     return () => {
-      keyboardDidHideListener.remove();
+      sub.remove();
     };
   }, [setReplyingTo]);
 
@@ -435,7 +435,7 @@ export default function CommentsScreen() {
                     onPress={() => {
                       setReplyingTo(null);
                       setComment("");
-                      Keyboard.dismiss();
+                      KeyboardController.dismiss();
                     }}
                     hitSlop={12}
                   >
