@@ -31,8 +31,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   appReady: false,
   // Initialize from module-level flag to handle any store resets
   splashAnimationFinished: splashHasFinishedEver,
-  nsfwEnabled: false,
-  nsfwLoaded: false,
+  nsfwEnabled: ((): boolean => {
+    try {
+      const stored = mmkv.getString(NSFW_STORAGE_KEY) ?? null;
+      return stored !== null ? JSON.parse(stored) : false;
+    } catch {
+      return false;
+    }
+  })(),
+  nsfwLoaded: true,
   feedMode: ((): FeedMode => {
     try {
       const stored = mmkv.getString(FEED_MODE_KEY) as FeedMode | undefined;
