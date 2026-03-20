@@ -524,9 +524,15 @@ export default function CropPreviewScreen() {
                 ]}
               >
                 <Image
-                  source={{ uri: img.originalUri || img.uri }}
+                  source={{
+                    uri:
+                      normalizedUris.current.get(img.id) ||
+                      img.originalUri ||
+                      img.uri,
+                  }}
                   style={styles.thumbImage}
                   contentFit="cover"
+                  cachePolicy="none"
                 />
                 <View style={styles.thumbBadge}>
                   <Text style={styles.thumbBadgeText}>{idx + 1}</Text>

@@ -142,7 +142,12 @@ export async function generateCroppedBitmap(
 export async function getImageDimensions(
   uri: string,
 ): Promise<{ width: number; height: number; normalizedUri: string }> {
-  const result = await manipulateAsync(uri, [], {
+  // Use a no-op rotate(0) action instead of an empty array.
+  // Some versions of expo-image-manipulator skip processing when actions=[]
+  // and may preserve the original EXIF orientation tag, causing double-rotation
+  // when expo-image auto-applies EXIF on display.  rotate(0) forces a full
+  // pixel re-encode that strips EXIF orientation metadata.
+  const result = await manipulateAsync(uri, [{ rotate: 0 }], {
     compress: 1,
     format: SaveFormat.JPEG,
   });

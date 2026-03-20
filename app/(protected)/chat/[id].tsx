@@ -20,6 +20,7 @@ import type { LegendListRef } from "@/components/list";
 import {
   KeyboardAvoidingView,
   KeyboardController,
+  KeyboardGestureArea,
 } from "react-native-keyboard-controller";
 import {
   useLocalSearchParams,
@@ -1173,426 +1174,441 @@ export default function ChatScreen() {
           )}
         </View>
 
-        <LegendList
-          ref={listRef}
-          data={chatMessages}
-          extraData={chatMessages}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
-          keyboardDismissMode={
-            Platform.OS === "ios" ? "interactive" : "on-drag"
-          }
-          keyboardShouldPersistTaps="handled"
-          initialScrollAtEnd
-          maintainScrollAtEnd
-          alignItemsAtEnd
-          renderItem={({ item }) => {
-            const isMe = item.sender === "me";
-            const hasReactions = item.reactions && item.reactions.length > 0;
-            // Show read receipt only on the last read message sent by me
-            const isLastReadByMe =
-              isMe &&
-              item.readAt &&
-              (() => {
-                // Find the last "me" message with readAt in the list
-                for (let i = chatMessages.length - 1; i >= 0; i--) {
-                  const m = chatMessages[i];
-                  if (m.sender === "me" && m.readAt) return m.id === item.id;
-                }
-                return false;
-              })();
+        <KeyboardGestureArea
+          interpolator="ios"
+          style={{ flex: 1 }}
+          textInputNativeID="chat-input"
+        >
+          <LegendList
+            ref={listRef}
+            data={chatMessages}
+            extraData={chatMessages}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            initialScrollAtEnd
+            maintainScrollAtEnd
+            alignItemsAtEnd
+            renderItem={({ item }) => {
+              const isMe = item.sender === "me";
+              const hasReactions = item.reactions && item.reactions.length > 0;
+              // Show read receipt only on the last read message sent by me
+              const isLastReadByMe =
+                isMe &&
+                item.readAt &&
+                (() => {
+                  // Find the last "me" message with readAt in the list
+                  for (let i = chatMessages.length - 1; i >= 0; i--) {
+                    const m = chatMessages[i];
+                    if (m.sender === "me" && m.readAt) return m.id === item.id;
+                  }
+                  return false;
+                })();
 
-            // Group reactions by emoji for display
-            const groupedReactions = (item.reactions || []).reduce(
-              (acc, r) => {
-                acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                return acc;
-              },
-              {} as Record<string, number>,
-            );
-
-            const bubble = (() => {
-              if (item.sharedPost) {
-                return (
-                  <View style={{ flexShrink: 1 }}>
-                    <View className="mb-1">
-                      <SharedPostBubble
-                        sharedPost={item.sharedPost}
-                        isOwnMessage={isMe}
-                      />
-                      <Text
-                        className={`text-[11px] mt-1 px-1 ${
-                          isMe ? "text-foreground/70" : "text-muted-foreground"
-                        }`}
-                      >
-                        {item.time}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
-              if (item.storyReply) {
-                return (
-                  <View style={{ flexShrink: 1 }}>
-                    <View className="mb-1">
-                      <StoryReplyBubble
-                        storyReply={item.storyReply}
-                        replyText={item.text}
-                        isOwnMessage={isMe}
-                      />
-                      <Text
-                        className={`text-[11px] mt-1 px-1 ${
-                          isMe ? "text-foreground/70" : "text-muted-foreground"
-                        }`}
-                      >
-                        {item.time}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
-
-              const hasMedia = item.media && item.media.length > 0;
-              const bubbleBg = isMe
-                ? "#3FDCFF"
-                : isGroupChat
-                  ? getGroupBubbleColor(item.senderId, senderColorMap)
-                  : "#8A40CF";
-              const darkText = needsDarkText(bubbleBg);
-
-              return (
-                <View style={{ flexShrink: 1 }}>
-                  <View
-                    style={{
-                      borderRadius: 16,
-                      backgroundColor: bubbleBg,
-                      flexShrink: 1,
-                      maxWidth: "100%",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {hasMedia && (
-                      <View style={{ padding: 4 }}>
-                        <MediaMessage
-                          mediaList={item.media!}
-                          onPress={(m) => handleMediaPreview(m)}
-                        />
-                      </View>
-                    )}
-                    <Pressable
-                      onPress={() => handleDoubleTap(item)}
-                      onLongPress={() => handleLongPressMessage(item)}
-                      delayLongPress={400}
-                      style={{
-                        paddingHorizontal: 14,
-                        paddingTop: hasMedia ? 6 : 10,
-                        paddingBottom: 10,
-                      }}
-                    >
-                      {item.text ? (
-                        <Text
-                          style={{
-                            fontSize: 15,
-                            color: darkText ? "#000" : "#fff",
-                          }}
-                        >
-                          {renderMessageText(item.text, handleMentionPress)}
-                        </Text>
-                      ) : null}
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          marginTop: 4,
-                          color: darkText
-                            ? "rgba(0,0,0,0.5)"
-                            : "rgba(255,255,255,0.6)",
-                        }}
-                      >
-                        {item.time}
-                      </Text>
-                    </Pressable>
-                  </View>
-                </View>
+              // Group reactions by emoji for display
+              const groupedReactions = (item.reactions || []).reduce(
+                (acc, r) => {
+                  acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                  return acc;
+                },
+                {} as Record<string, number>,
               );
-            })();
 
-            const reactionPills = hasReactions ? (
-              <View
-                style={{
-                  flexDirection: "row",
-                  gap: 4,
-                  marginTop: 2,
-                  alignSelf: isMe ? "flex-end" : "flex-start",
-                  marginLeft: isMe ? 0 : 40,
-                }}
-              >
-                {Object.entries(groupedReactions).map(([emoji, count]) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => reactToMessage(chatId, item.id, emoji)}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      backgroundColor: "rgba(255,255,255,0.1)",
-                      borderRadius: 12,
-                      paddingHorizontal: 6,
-                      paddingVertical: 2,
-                      borderWidth: 1,
-                      borderColor: (item.reactions || []).some(
-                        (r) =>
-                          r.emoji === emoji && r.userId === currentUser?.id,
-                      )
-                        ? "#3EA4E5"
-                        : "transparent",
-                    }}
-                  >
-                    <Text style={{ fontSize: 14 }}>{emoji}</Text>
-                    {(count as number) > 1 && (
-                      <Text
-                        style={{
-                          fontSize: 11,
-                          color: "#999",
-                          marginLeft: 2,
-                        }}
-                      >
-                        {count}
-                      </Text>
-                    )}
-                  </Pressable>
-                ))}
-              </View>
-            ) : null;
+              const bubble = (() => {
+                if (item.sharedPost) {
+                  return (
+                    <View style={{ flexShrink: 1 }}>
+                      <View className="mb-1">
+                        <SharedPostBubble
+                          sharedPost={item.sharedPost}
+                          isOwnMessage={isMe}
+                        />
+                        <Text
+                          className={`text-[11px] mt-1 px-1 ${
+                            isMe
+                              ? "text-foreground/70"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+                if (item.storyReply) {
+                  return (
+                    <View style={{ flexShrink: 1 }}>
+                      <View className="mb-1">
+                        <StoryReplyBubble
+                          storyReply={item.storyReply}
+                          replyText={item.text}
+                          isOwnMessage={isMe}
+                        />
+                        <Text
+                          className={`text-[11px] mt-1 px-1 ${
+                            isMe
+                              ? "text-foreground/70"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
 
-            const isFailed = isMe && item.status === "failed";
-            const isMsgSending = isMe && item.status === "sending";
+                const hasMedia = item.media && item.media.length > 0;
+                const bubbleBg = isMe
+                  ? "#3FDCFF"
+                  : isGroupChat
+                    ? getGroupBubbleColor(item.senderId, senderColorMap)
+                    : "#8A40CF";
+                const darkText = needsDarkText(bubbleBg);
 
-            const messageContent = isMe ? (
-              <View
-                className="flex-row items-end gap-2 mb-2 self-end"
-                style={{ maxWidth: "80%", opacity: isMsgSending ? 0.6 : 1 }}
-              >
-                <View style={{ flexShrink: 1 }}>
-                  {isFailed ? (
-                    <Pressable
-                      onPress={() => {
-                        const convId = resolvedConvIdRef.current || chatId;
-                        retryMessage(convId, item.id);
+                return (
+                  <View style={{ flexShrink: 1 }}>
+                    <View
+                      style={{
+                        borderRadius: 16,
+                        backgroundColor: bubbleBg,
+                        flexShrink: 1,
+                        maxWidth: "100%",
+                        overflow: "hidden",
                       }}
                     >
-                      {bubble}
-                      <View
+                      {hasMedia && (
+                        <View style={{ padding: 4 }}>
+                          <MediaMessage
+                            mediaList={item.media!}
+                            onPress={(m) => handleMediaPreview(m)}
+                          />
+                        </View>
+                      )}
+                      <Pressable
+                        onPress={() => handleDoubleTap(item)}
+                        onLongPress={() => handleLongPressMessage(item)}
+                        delayLongPress={400}
                         style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "flex-end",
-                          marginTop: 2,
-                          gap: 4,
+                          paddingHorizontal: 14,
+                          paddingTop: hasMedia ? 6 : 10,
+                          paddingBottom: 10,
                         }}
                       >
+                        {item.text ? (
+                          <Text
+                            style={{
+                              fontSize: 15,
+                              color: darkText ? "#000" : "#fff",
+                            }}
+                          >
+                            {renderMessageText(item.text, handleMentionPress)}
+                          </Text>
+                        ) : null}
                         <Text
                           style={{
                             fontSize: 11,
-                            color: "#ef4444",
-                            fontWeight: "600",
+                            marginTop: 4,
+                            color: darkText
+                              ? "rgba(0,0,0,0.5)"
+                              : "rgba(255,255,255,0.6)",
                           }}
                         >
-                          Not sent · Tap to retry
+                          {item.time}
                         </Text>
-                      </View>
-                    </Pressable>
-                  ) : (
-                    bubble
-                  )}
-                  {reactionPills}
-                  {isLastReadByMe && (
-                    <Text
+                      </Pressable>
+                    </View>
+                  </View>
+                );
+              })();
+
+              const reactionPills = hasReactions ? (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 4,
+                    marginTop: 2,
+                    alignSelf: isMe ? "flex-end" : "flex-start",
+                    marginLeft: isMe ? 0 : 40,
+                  }}
+                >
+                  {Object.entries(groupedReactions).map(([emoji, count]) => (
+                    <Pressable
+                      key={emoji}
+                      onPress={() => reactToMessage(chatId, item.id, emoji)}
                       style={{
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.45)",
-                        textAlign: "right",
-                        marginTop: 2,
-                        paddingRight: 4,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        backgroundColor: "rgba(255,255,255,0.1)",
+                        borderRadius: 12,
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderWidth: 1,
+                        borderColor: (item.reactions || []).some(
+                          (r) =>
+                            r.emoji === emoji && r.userId === currentUser?.id,
+                        )
+                          ? "#3EA4E5"
+                          : "transparent",
                       }}
                     >
-                      Read{" "}
-                      {(() => {
-                        try {
-                          const d = new Date(item.readAt!);
-                          return isNaN(d.getTime())
-                            ? ""
-                            : `· ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-                        } catch {
-                          return "";
-                        }
-                      })()}
-                    </Text>
-                  )}
+                      <Text style={{ fontSize: 14 }}>{emoji}</Text>
+                      {(count as number) > 1 && (
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            color: "#999",
+                            marginLeft: 2,
+                          }}
+                        >
+                          {count}
+                        </Text>
+                      )}
+                    </Pressable>
+                  ))}
                 </View>
-                <Avatar
-                  uri={currentUser?.avatar || ""}
-                  username={currentUser?.username || currentUser?.name || ""}
-                  size={28}
-                  variant="roundedSquare"
-                />
-              </View>
-            ) : (
-              <View className="flex-row items-end gap-2 mb-2 self-start">
-                <Avatar
-                  uri={recipient?.avatar || ""}
-                  username={recipient?.username || ""}
-                  size={28}
-                  variant="roundedSquare"
-                />
-                <View style={{ flexShrink: 1, maxWidth: "80%" }}>
-                  {bubble}
-                  {reactionPills}
-                </View>
-              </View>
-            );
+              ) : null;
 
-            // Only own messages can be swiped to delete
-            if (isMe) {
-              return (
-                <ReanimatedSwipeable
-                  friction={2}
-                  rightThreshold={40}
-                  renderRightActions={SwipeDeleteAction}
-                  onSwipeableOpen={(direction) => {
-                    if (direction === "right") {
-                      Alert.alert(
-                        "Unsend Message",
-                        "This message will be removed for everyone.",
-                        [
-                          { text: "Cancel", style: "cancel" },
-                          {
-                            text: "Unsend",
-                            style: "destructive",
-                            onPress: () => {
-                              deleteMessage(chatId, item.id);
-                              showToast("success", "Unsent", "Message removed");
-                            },
-                          },
-                        ],
-                      );
-                    }
-                  }}
-                  overshootRight={false}
+              const isFailed = isMe && item.status === "failed";
+              const isMsgSending = isMe && item.status === "sending";
+
+              const messageContent = isMe ? (
+                <View
+                  className="flex-row items-end gap-2 mb-2 self-end"
+                  style={{ maxWidth: "80%", opacity: isMsgSending ? 0.6 : 1 }}
                 >
-                  {messageContent}
-                </ReanimatedSwipeable>
-              );
-            }
-
-            return messageContent;
-          }}
-        />
-
-        {/* Typing Indicator */}
-        <TypingIndicator
-          username={recipient?.username}
-          visible={isRecipientTyping}
-        />
-
-        {showMentions && filteredUsers.length > 0 && (
-          <View className="bg-card border-t border-border max-h-[200px]">
-            <Text className="text-muted-foreground text-xs px-4 pt-3 pb-2">
-              Mention a user
-            </Text>
-            {filteredUsers.map((u) => (
-              <Pressable
-                key={u.id}
-                onPress={() => handleMentionSelect(u.username)}
-                className="flex-row items-center gap-3 px-4 py-2.5 bg-card"
-              >
-                <Image
-                  source={{ uri: u.avatar }}
-                  className="w-9 h-9 rounded-full"
-                />
-                <View>
-                  <Text className="text-foreground font-medium">
-                    {u.username}
-                  </Text>
-                  <Text className="text-muted-foreground text-xs">
-                    {u.name}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
-
-        <View>
-          {pendingMedia.length > 0 && (
-            <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
-              <View style={{ flexDirection: "row", gap: 4 }}>
-                {pendingMedia.slice(0, 4).map((m, i) => (
-                  <Image
-                    key={i}
-                    source={{ uri: m.uri }}
-                    style={{ width: 48, height: 48, borderRadius: 8 }}
-                    contentFit="cover"
+                  <View style={{ flexShrink: 1 }}>
+                    {isFailed ? (
+                      <Pressable
+                        onPress={() => {
+                          const convId = resolvedConvIdRef.current || chatId;
+                          retryMessage(convId, item.id);
+                        }}
+                      >
+                        {bubble}
+                        <View
+                          style={{
+                            flexDirection: "row",
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                            marginTop: 2,
+                            gap: 4,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 11,
+                              color: "#ef4444",
+                              fontWeight: "600",
+                            }}
+                          >
+                            Not sent · Tap to retry
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ) : (
+                      bubble
+                    )}
+                    {reactionPills}
+                    {isLastReadByMe && (
+                      <Text
+                        style={{
+                          fontSize: 11,
+                          color: "rgba(255,255,255,0.45)",
+                          textAlign: "right",
+                          marginTop: 2,
+                          paddingRight: 4,
+                        }}
+                      >
+                        Read{" "}
+                        {(() => {
+                          try {
+                            const d = new Date(item.readAt!);
+                            return isNaN(d.getTime())
+                              ? ""
+                              : `· ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                          } catch {
+                            return "";
+                          }
+                        })()}
+                      </Text>
+                    )}
+                  </View>
+                  <Avatar
+                    uri={currentUser?.avatar || ""}
+                    username={currentUser?.username || currentUser?.name || ""}
+                    size={28}
+                    variant="roundedSquare"
                   />
-                ))}
-              </View>
-              <View className="flex-1">
-                <Text className="text-foreground font-semibold text-sm">
-                  {pendingMedia.length === 1
-                    ? pendingMedia[0].type === "video"
-                      ? "Video"
-                      : "Photo"
-                    : `${pendingMedia.length} items`}
-                </Text>
-                <Text className="text-muted-foreground text-xs">
-                  Ready to send
-                </Text>
-              </View>
-              <Pressable
-                onPress={() => setPendingMedia(null)}
-                className="w-8 h-8 rounded-full bg-white/10 justify-center items-center"
-              >
-                <X size={18} color="#fff" />
-              </Pressable>
+                </View>
+              ) : (
+                <View className="flex-row items-end gap-2 mb-2 self-start">
+                  <Avatar
+                    uri={recipient?.avatar || ""}
+                    username={recipient?.username || ""}
+                    size={28}
+                    variant="roundedSquare"
+                  />
+                  <View style={{ flexShrink: 1, maxWidth: "80%" }}>
+                    {bubble}
+                    {reactionPills}
+                  </View>
+                </View>
+              );
+
+              // Only own messages can be swiped to delete
+              if (isMe) {
+                return (
+                  <ReanimatedSwipeable
+                    friction={2}
+                    rightThreshold={40}
+                    renderRightActions={SwipeDeleteAction}
+                    onSwipeableOpen={(direction) => {
+                      if (direction === "right") {
+                        Alert.alert(
+                          "Unsend Message",
+                          "This message will be removed for everyone.",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Unsend",
+                              style: "destructive",
+                              onPress: () => {
+                                deleteMessage(chatId, item.id);
+                                showToast(
+                                  "success",
+                                  "Unsent",
+                                  "Message removed",
+                                );
+                              },
+                            },
+                          ],
+                        );
+                      }
+                    }}
+                    overshootRight={false}
+                  >
+                    {messageContent}
+                  </ReanimatedSwipeable>
+                );
+              }
+
+              return messageContent;
+            }}
+          />
+
+          {/* Typing Indicator */}
+          <TypingIndicator
+            username={recipient?.username}
+            visible={isRecipientTyping}
+          />
+
+          {showMentions && filteredUsers.length > 0 && (
+            <View className="bg-card border-t border-border max-h-[200px]">
+              <Text className="text-muted-foreground text-xs px-4 pt-3 pb-2">
+                Mention a user
+              </Text>
+              {filteredUsers.map((u) => (
+                <Pressable
+                  key={u.id}
+                  onPress={() => handleMentionSelect(u.username)}
+                  className="flex-row items-center gap-3 px-4 py-2.5 bg-card"
+                >
+                  <Image
+                    source={{ uri: u.avatar }}
+                    className="w-9 h-9 rounded-full"
+                  />
+                  <View>
+                    <Text className="text-foreground font-medium">
+                      {u.username}
+                    </Text>
+                    <Text className="text-muted-foreground text-xs">
+                      {u.name}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
             </View>
           )}
 
-          <View className="flex-row items-center gap-2 border-t border-border px-3 py-3">
-            <Pressable
-              onPress={handleOpenCamera}
-              className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
-            >
-              <Camera size={22} color="#3EA4E5" />
-            </Pressable>
-            <Pressable
-              onPress={handlePickMedia}
-              className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
-            >
-              <ImageIcon size={22} color="#3EA4E5" />
-            </Pressable>
+          <View>
+            {pendingMedia.length > 0 && (
+              <View className="flex-row items-center bg-secondary p-2 mx-4 mt-2 rounded-xl gap-3">
+                <View style={{ flexDirection: "row", gap: 4 }}>
+                  {pendingMedia.slice(0, 4).map((m, i) => (
+                    <Image
+                      key={i}
+                      source={{ uri: m.uri }}
+                      style={{ width: 48, height: 48, borderRadius: 8 }}
+                      contentFit="cover"
+                    />
+                  ))}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-foreground font-semibold text-sm">
+                    {pendingMedia.length === 1
+                      ? pendingMedia[0].type === "video"
+                        ? "Video"
+                        : "Photo"
+                      : `${pendingMedia.length} items`}
+                  </Text>
+                  <Text className="text-muted-foreground text-xs">
+                    Ready to send
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setPendingMedia(null)}
+                  className="w-8 h-8 rounded-full bg-white/10 justify-center items-center"
+                >
+                  <X size={18} color="#fff" />
+                </Pressable>
+              </View>
+            )}
 
-            <TextInput
-              ref={inputRef}
-              value={currentMessage}
-              onChangeText={handleTextChange}
-              onSelectionChange={handleSelectionChange}
-              placeholder="Message... (use @ to mention)"
-              placeholderTextColor="#666"
-              className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
-              multiline
-            />
-
-            <Animated.View style={{ transform: [{ scale: sendButtonScale }] }}>
+            <View className="flex-row items-center gap-2 border-t border-border px-3 py-3">
               <Pressable
-                onPress={handleSend}
-                disabled={!canSend}
-                className={`w-10 h-10 rounded-full justify-center items-center ${
-                  canSend ? "bg-primary" : "bg-secondary"
-                }`}
+                onPress={handleOpenCamera}
+                className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
               >
-                <Send size={20} color={canSend ? "#fff" : "#666"} />
+                <Camera size={22} color="#3EA4E5" />
               </Pressable>
-            </Animated.View>
+              <Pressable
+                onPress={handlePickMedia}
+                className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+              >
+                <ImageIcon size={22} color="#3EA4E5" />
+              </Pressable>
+
+              <TextInput
+                ref={inputRef}
+                nativeID="chat-input"
+                value={currentMessage}
+                onChangeText={handleTextChange}
+                onSelectionChange={handleSelectionChange}
+                placeholder="Message... (use @ to mention)"
+                placeholderTextColor="#666"
+                className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
+                multiline
+              />
+
+              <Animated.View
+                style={{ transform: [{ scale: sendButtonScale }] }}
+              >
+                <Pressable
+                  onPress={handleSend}
+                  disabled={!canSend}
+                  className={`w-10 h-10 rounded-full justify-center items-center ${
+                    canSend ? "bg-primary" : "bg-secondary"
+                  }`}
+                >
+                  <Send size={20} color={canSend ? "#fff" : "#666"} />
+                </Pressable>
+              </Animated.View>
+            </View>
           </View>
-        </View>
+        </KeyboardGestureArea>
 
         <MediaPreviewModal
           visible={showPreviewModal}

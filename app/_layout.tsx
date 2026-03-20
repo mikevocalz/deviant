@@ -341,7 +341,7 @@ export default function RootLayout() {
       >
         <LayoutAnimationConfig skipEntering={false} skipExiting={false}>
           <BottomSheetModalProvider>
-            <KeyboardProvider>
+            <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
               <StripeProvider
                 publishableKey={
                   process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
