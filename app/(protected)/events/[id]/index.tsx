@@ -534,9 +534,16 @@ export default function EventDetailScreen() {
     // ── Legacy RSVP path (ticketing OFF) ──
     toggleRsvp(eventId);
 
-    // Optimistically update local attendee count
+    // Optimistically update local attendee count + RSVP status
     queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
-      old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
+      old
+        ? {
+            ...old,
+            attendees: (old.attendees || 0) + 1,
+            rsvpCount: (old.rsvpCount || 0) + 1,
+            userRsvpStatus: "going",
+          }
+        : old,
     );
 
     // Persist RSVP to database (increments total_attendees via RPC)

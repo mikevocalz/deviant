@@ -285,6 +285,7 @@ export function useSyncLikedPosts() {
 // Create post mutation
 export function useCreatePost() {
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
 
   return useMutation({
     mutationFn: postsApi.createPost,
@@ -360,6 +361,38 @@ export function useCreatePost() {
         return [optimisticPost, ...old];
       });
 
+      // Optimistically add to profile posts cache
+      const userId = user?.id ? String(user.id) : null;
+      if (userId) {
+        queryClient.setQueryData<Post[]>(
+          postKeys.profilePosts(userId),
+          (old) => {
+            if (!old) return old;
+            const optimisticPost: Post = {
+              id: `temp-${Date.now()}`,
+              author: {
+                id: userId,
+                username: user?.username || "You",
+                avatar: (user as any)?.avatar || "",
+                verified: (user as any)?.verified || false,
+              },
+              media: (newPostData.media || []).map((m) => ({
+                ...m,
+                type: (m.type as any) ?? "image",
+              })),
+              caption: newPostData.content || "",
+              likes: 0,
+              comments: [],
+              timeAgo: "Just now",
+              createdAt: new Date().toISOString(),
+              location: newPostData.location,
+              isNSFW: newPostData.isNSFW || false,
+            };
+            return [optimisticPost, ...old];
+          },
+        );
+      }
+
       return { previousData };
     },
     onError: (_err, _variables, context) => {
@@ -405,7 +438,19 @@ export function useCreatePost() {
           return [newPost, ...filteredData];
         });
 
-        // Invalidate profile posts so new post shows on user's profile
+        // Replace temp post in profile posts cache with real post
+        const userId = user?.id ? String(user.id) : null;
+        if (userId) {
+          queryClient.setQueryData<Post[]>(
+            postKeys.profilePosts(userId),
+            (old) => {
+              if (!old) return old;
+              const filtered = old.filter((p) => !p.id.startsWith("temp-"));
+              return [newPost, ...filtered];
+            },
+          );
+        }
+        // Also invalidate to pick up any server-side changes
         queryClient.invalidateQueries({
           queryKey: ["profilePosts"],
           refetchType: "active",
