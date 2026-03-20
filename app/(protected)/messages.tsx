@@ -56,6 +56,9 @@ interface ConversationItem {
   lastMessage: string;
   timeAgo: string;
   unread: boolean;
+  isGroup?: boolean;
+  groupName?: string;
+  members?: Array<{ id: string; username: string; avatar: string }>;
 }
 
 function PresenceDot({ oderpantId }: { oderpantId: string }) {
@@ -134,17 +137,45 @@ function ConversationList({
           key={item.id}
           className="flex-row items-center gap-3 border-b border-border px-4 py-3"
         >
-          <Pressable onPress={() => onProfilePress(item.user.username)}>
-            <View className="relative">
-              <Avatar
-                uri={item.user.avatar}
-                username={item.user.username}
-                size={56}
-                variant="roundedSquare"
-              />
-              <PresenceDot oderpantId={item.oderpantId} />
-            </View>
-          </Pressable>
+          {item.isGroup && item.members && item.members.length > 1 ? (
+            <Pressable
+              onPress={() => onChatPress(item.id, item)}
+              style={{ width: 56, height: 56 }}
+            >
+              <View style={{ width: 56, height: 56 }}>
+                {item.members.slice(0, 3).map((member, idx) => (
+                  <View
+                    key={member.id || idx}
+                    style={{
+                      position: "absolute",
+                      top: idx === 0 ? 0 : idx === 1 ? 4 : 20,
+                      left: idx === 0 ? 0 : idx === 1 ? 22 : 11,
+                      zIndex: 3 - idx,
+                    }}
+                  >
+                    <Avatar
+                      uri={member.avatar}
+                      username={member.username}
+                      size={32}
+                      variant="roundedSquare"
+                    />
+                  </View>
+                ))}
+              </View>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => onProfilePress(item.user.username)}>
+              <View className="relative">
+                <Avatar
+                  uri={item.user.avatar}
+                  username={item.user.username}
+                  size={56}
+                  variant="roundedSquare"
+                />
+                <PresenceDot oderpantId={item.oderpantId} />
+              </View>
+            </Pressable>
+          )}
 
           <TouchableOpacity
             onPress={() => onChatPress(item.id, item)}
@@ -156,19 +187,35 @@ function ConversationList({
             className="flex-1"
           >
             <View className="flex-row items-center justify-between">
-              <Pressable onPress={() => onProfilePress(item.user.username)}>
-                <Text
-                  className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
-                >
-                  {item.user.username}
-                </Text>
-              </Pressable>
+              {item.isGroup ? (
+                <View className="flex-row items-center gap-1.5">
+                  <Users size={14} color="#8A40CF" />
+                  <Text
+                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
+                  >
+                    {item.groupName || item.user.username}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable onPress={() => onProfilePress(item.user.username)}>
+                  <Text
+                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
+                  >
+                    {item.user.username}
+                  </Text>
+                </Pressable>
+              )}
               <Text
                 className={`text-xs ${item.unread ? "text-primary font-semibold" : "text-muted-foreground"}`}
               >
                 {item.timeAgo}
               </Text>
             </View>
+            {item.isGroup && item.members && item.members.length > 0 && (
+              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                {item.members.map((m) => m.username).join(", ")}
+              </Text>
+            )}
             <Text
               className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
               numberOfLines={1}
@@ -507,13 +554,26 @@ export default function MessagesScreen() {
         id: conv.id,
         oderpantId: otherUser.id || conv.id,
         user: {
-          username: otherUser.username,
-          name: otherUser.name || otherUser.username,
+          username:
+            conv.isGroup && conv.groupName
+              ? conv.groupName
+              : otherUser.username,
+          name:
+            conv.isGroup && conv.groupName
+              ? conv.groupName
+              : otherUser.name || otherUser.username,
           avatar: otherUser.avatar || "",
         },
         lastMessage: conv.lastMessage || "",
         timeAgo: conv.timestamp || "",
         unread: conv.unread || false,
+        isGroup: conv.isGroup,
+        groupName: conv.groupName,
+        members: conv.members?.map((m) => ({
+          id: m.id,
+          username: m.username,
+          avatar: m.avatar,
+        })),
       };
     },
     [currentUser?.username],

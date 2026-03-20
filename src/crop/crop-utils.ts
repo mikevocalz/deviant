@@ -135,16 +135,22 @@ export async function generateCroppedBitmap(
 /**
  * Get image dimensions (fallback when MediaAsset doesn't have them).
  * Uses manipulateAsync with no actions so EXIF orientation is auto-applied,
- * returning the true post-rotation pixel dimensions.
+ * returning the true post-rotation pixel dimensions AND a normalizedUri
+ * whose pixels are guaranteed to match the returned width/height (no
+ * residual EXIF orientation tag that could cause double-rotation).
  */
 export async function getImageDimensions(
   uri: string,
-): Promise<{ width: number; height: number }> {
+): Promise<{ width: number; height: number; normalizedUri: string }> {
   const result = await manipulateAsync(uri, [], {
     compress: 1,
     format: SaveFormat.JPEG,
   });
-  return { width: result.width, height: result.height };
+  return {
+    width: result.width,
+    height: result.height,
+    normalizedUri: result.uri,
+  };
 }
 
 // ── Pending crop bridge (module-level, consumed once) ───────────────

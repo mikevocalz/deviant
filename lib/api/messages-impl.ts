@@ -113,13 +113,17 @@ export const messagesApi = {
         }
       }
 
-      // Other participant auth_id per conversation
+      // Other participant auth_ids per conversation (all members for group chats)
       const otherAuthIdMap = new Map<number, string>();
+      const allParticipantsMap = new Map<number, string[]>();
       for (const rel of otherParticipantsResult.data || []) {
         const cid = rel[DB.conversationsRels.parentId];
         if (!otherAuthIdMap.has(cid)) {
           otherAuthIdMap.set(cid, rel[DB.conversationsRels.usersId]);
         }
+        const existing = allParticipantsMap.get(cid) || [];
+        existing.push(rel[DB.conversationsRels.usersId]);
+        allParticipantsMap.set(cid, existing);
       }
 
       // Unread flag per conversation
@@ -129,9 +133,11 @@ export const messagesApi = {
       }
 
       // Step 4: Batch-fetch all other users in ONE query
-      const otherAuthIds = [...new Set(otherAuthIdMap.values())].filter(
-        Boolean,
-      );
+      const allUniqueAuthIds = new Set<string>();
+      for (const ids of allParticipantsMap.values()) {
+        for (const id of ids) if (id) allUniqueAuthIds.add(id);
+      }
+      const otherAuthIds = [...allUniqueAuthIds];
       let usersByAuthId = new Map<string, any>();
       if (otherAuthIds.length > 0) {
         const { data: usersData } = await supabase
@@ -159,6 +165,39 @@ export const messagesApi = {
             row.conversation[DB.conversations.lastMessageAt] ||
             "";
 
+          const isGroup = !!row.conversation[DB.conversations.isGroup];
+          const groupName = row.conversation[DB.conversations.groupName] || "";
+
+          // For group chats, collect all members' data
+          let members:
+            | Array<{
+                id: string;
+                authId: string;
+                username: string;
+                avatar: string;
+              }>
+            | undefined;
+          if (isGroup) {
+            const participantAuthIds = allParticipantsMap.get(convId) || [];
+            members = participantAuthIds
+              .map((aid) => {
+                const u = usersByAuthId.get(aid);
+                if (!u) return null;
+                return {
+                  id: u[DB.users.id] ? String(u[DB.users.id]) : "",
+                  authId: u[DB.users.authId] || aid,
+                  username: u[DB.users.username] || "unknown",
+                  avatar: u?.avatar?.url || "",
+                };
+              })
+              .filter(Boolean) as Array<{
+              id: string;
+              authId: string;
+              username: string;
+              avatar: string;
+            }>;
+          }
+
           return {
             id: String(convId),
             user: {
@@ -173,7 +212,9 @@ export const messagesApi = {
             lastMessage: lastMsg.content,
             timestamp: formatTimeAgo(rawTs),
             unread: unreadConvIds.has(convId),
-            isGroup: !!row.conversation[DB.conversations.isGroup],
+            isGroup,
+            groupName,
+            members,
             _rawTs: rawTs,
           };
         })

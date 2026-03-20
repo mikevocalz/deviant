@@ -14,9 +14,9 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { X, Search, Check } from "lucide-react-native";
 import { create } from "zustand";
@@ -64,8 +64,15 @@ const useTagPeopleSheetStore = create<TagPeopleSheetState>((set) => ({
 // ── Component ───────────────────────────────────────────────
 export const TagPeopleSheet: React.FC<TagPeopleSheetProps> = React.memo(
   ({ visible, onClose, selectedUsers, onSelectionChange }) => {
-    const { query, results, isSearching, setQuery, setResults, setIsSearching, reset } =
-      useTagPeopleSheetStore();
+    const {
+      query,
+      results,
+      isSearching,
+      setQuery,
+      setResults,
+      setIsSearching,
+      reset,
+    } = useTagPeopleSheetStore();
 
     // TanStack Debouncer for search
     const searchDebouncerRef = useRef(
