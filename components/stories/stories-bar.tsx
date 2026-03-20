@@ -367,7 +367,7 @@ const viewerStyles = StyleSheet.create({
 const progressStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    paddingTop: 82,
+    paddingTop: 8,
     paddingHorizontal: 8,
     gap: 4,
   },
