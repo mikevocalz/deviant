@@ -1073,7 +1073,8 @@ export default function StoryViewerScreen() {
           style={{
             flexDirection: "row",
             paddingHorizontal: 10,
-            paddingTop: insets.top + 14,
+            //paddingTop: insets.top + 4,
+            paddingTop: 8,
             gap: 3,
           }}
         >
