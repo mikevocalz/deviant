@@ -143,29 +143,26 @@ export default function StoryViewerScreen() {
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
 
-  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in fullScreenModal)
-  const keyboardHeight = useSharedValue(0);
+  // Keyboard tracking — plain useState, no Reanimated (debug: verify events fire in fullScreenModal)
+  const [kbHeight, setKbHeight] = useState(0);
   useEffect(() => {
     const showEvent =
       RNPlatform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
     const hideEvent =
       RNPlatform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
     const showSub = Keyboard.addListener(showEvent, (e) => {
-      keyboardHeight.value = withTiming(e.endCoordinates.height, {
-        duration: 250,
-      });
+      console.log("[StoryViewer] KB SHOW", e.endCoordinates.height);
+      setKbHeight(e.endCoordinates.height);
     });
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      keyboardHeight.value = withTiming(0, { duration: 200 });
+      console.log("[StoryViewer] KB HIDE");
+      setKbHeight(0);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
-  const stickyInputStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -keyboardHeight.value }],
-  }));
 
   const progress = useSharedValue(0);
   const [showSeekBar, setShowSeekBar] = useState(false);
@@ -1400,17 +1397,14 @@ export default function StoryViewerScreen() {
 
       {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
       {!isOwnStory && story && (
-        <Animated.View
-          style={[
-            {
-              position: "absolute",
-              bottom: 0,
-              left: 0,
-              right: 0,
-              zIndex: 80,
-            },
-            stickyInputStyle,
-          ]}
+        <View
+          style={{
+            position: "absolute",
+            bottom: kbHeight,
+            left: 0,
+            right: 0,
+            zIndex: 80,
+          }}
         >
           {/* Emoji reactions row — hidden while typing */}
           {!isInputFocused && (
@@ -1496,7 +1490,7 @@ export default function StoryViewerScreen() {
               </Pressable>
             </DVNTLiquidGlass>
           </View>
-        </Animated.View>
+        </View>
       )}
     </View>
   );
