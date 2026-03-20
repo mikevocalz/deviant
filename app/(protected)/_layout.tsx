@@ -202,7 +202,7 @@ export default function ProtectedLayout() {
         }}
       >
         <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "900" }}>
-          OTA-v11
+          OTA-v12
         </Text>
       </View>
       {/* CRITICAL: NotificationListener handles incoming call push notifications */}
