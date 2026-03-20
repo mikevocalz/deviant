@@ -347,7 +347,10 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
 
       {/* Reply input — liquid glass pill with send icon */}
       {!isOwnStory && customData && (
-        <View style={{ paddingHorizontal: 12, paddingTop: 6 }}>
+        <View
+          style={{ paddingHorizontal: 12, paddingTop: 6, zIndex: 9999 }}
+          pointerEvents="auto"
+        >
           <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
             <TextInput
               style={{
@@ -367,14 +370,6 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item }) => {
               onSubmitEditing={handleSendReply}
               editable={!isSending}
             />
-
-            {/* Emoji quick-react */}
-            <Pressable
-              onPress={() => handleReact("😍")}
-              hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-            >
-              <Text style={{ fontSize: 26 }}>😍</Text>
-            </Pressable>
 
             {/* Send button — always visible */}
             <Pressable

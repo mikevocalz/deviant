@@ -1443,14 +1443,6 @@ export default function StoryViewerScreen() {
                 editable={!isSendingReply}
               />
 
-              {/* Emoji quick-react */}
-              <Pressable
-                onPress={() => handleStoryReaction("😍")}
-                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-              >
-                <Text style={{ fontSize: 26 }}>😍</Text>
-              </Pressable>
-
               {/* Send button */}
               <Pressable
                 onPress={
