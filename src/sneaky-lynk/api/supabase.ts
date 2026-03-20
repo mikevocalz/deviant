@@ -178,10 +178,10 @@ export const sneakyLynkApi = {
       const { data, error } = await supabase
         .from("video_rooms")
         .select("*")
+        .eq("is_public", true)
         .or(
           `status.eq.open,and(status.eq.ended,ended_at.gte.${twentyFourHoursAgo})`,
         )
-        .not("title", "in", '("Video Call","Audio Call")')
         .order("status", { ascending: false }) // "open" (o) before "ended" (e)
         .order("created_at", { ascending: false })
         .limit(50);
