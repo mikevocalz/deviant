@@ -5,9 +5,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
-  Keyboard,
   Platform,
-  InputAccessoryView,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -39,7 +37,11 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardController } from "react-native-keyboard-controller";
+import {
+  KeyboardProvider,
+  KeyboardStickyView,
+  KeyboardController,
+} from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
@@ -145,9 +147,6 @@ export default function StoryViewerScreen() {
   const insets = useSafeAreaInsets();
 
   const progress = useSharedValue(0);
-
-  // Ref to focus the TextInput inside InputAccessoryView
-  const replyInputRef = useRef<TextInput>(null);
 
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -978,490 +977,494 @@ export default function StoryViewerScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      {/* DEBUG: unmissable centered badge */}
-      <View
-        style={{
-          position: "absolute",
-          top: 120,
-          alignSelf: "center",
-          zIndex: 99999,
-          backgroundColor: "#FF00FF",
-          paddingHorizontal: 20,
-          paddingVertical: 10,
-          borderRadius: 12,
-        }}
-      >
-        <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900" }}>
-          v10-IAV
-        </Text>
-      </View>
-      <View style={{ flex: 1 }}>
-        {/* ── FULL-BLEED MEDIA ───────────────────────────────────────────── */}
+    <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+      <View style={{ flex: 1, backgroundColor: "#000" }}>
+        {/* DEBUG: unmissable centered badge */}
         <View
-          style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+          style={{
+            position: "absolute",
+            top: 120,
+            alignSelf: "center",
+            zIndex: 99999,
+            backgroundColor: "#FF00FF",
+            paddingHorizontal: 20,
+            paddingVertical: 10,
+            borderRadius: 12,
+          }}
         >
-          {isVideo && videoUrl && player ? (
-            <>
-              {currentItem?.thumbnail ? (
-                <Image
-                  source={{ uri: currentItem.thumbnail }}
-                  style={{
-                    position: "absolute",
-                    width: "100%",
-                    height: "100%",
-                  }}
-                  contentFit="cover"
-                />
-              ) : null}
-              <VideoView
-                player={player}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                nativeControls={false}
-                fullscreenOptions={{ enable: false }}
-                allowsPictureInPicture={false}
-              />
-              <VideoSeekBar
-                currentTime={videoCurrentTime}
-                duration={videoDuration}
-                onSeek={handleSeek}
-                visible={showSeekBar}
-                barWidth={width - 32}
-              />
-            </>
-          ) : isImage &&
-            currentItem?.url &&
-            (currentItem.url.startsWith("http://") ||
-              currentItem.url.startsWith("https://")) ? (
-            <Image
-              source={{ uri: currentItem.url }}
-              style={{ width: "100%", height: "100%" }}
-              contentFit="cover"
-              transition={150}
-              cachePolicy="memory-disk"
-            />
-          ) : currentItem?.type === "text" ? (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-                padding: 20,
-              }}
-            >
-              <Text
-                style={{
-                  color: currentItem.textColor || "#fff",
-                  fontSize: 36,
-                  fontWeight: "bold",
-                  textAlign: "center",
-                }}
-              >
-                {currentItem.text}
-              </Text>
-            </View>
-          ) : (
-            <View
-              style={{
-                flex: 1,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
-                No content
-              </Text>
-            </View>
-          )}
-
-          {/* Subtle top vignette for readability */}
+          <Text style={{ color: "#FFF", fontSize: 18, fontWeight: "900" }}>
+            v11-KS
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          {/* ── FULL-BLEED MEDIA ───────────────────────────────────────────── */}
           <View
-            pointerEvents="none"
             style={{
               position: "absolute",
               top: 0,
               left: 0,
               right: 0,
-              height: 180,
-              opacity: 0.45,
-              backgroundColor: "rgba(0,0,0,0.3)",
-            }}
-          />
-        </View>
-
-        {/* ── TOP OVERLAY: progress bars + header ───────────────────────── */}
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            zIndex: 50,
-          }}
-          pointerEvents="box-none"
-        >
-          {/* Progress bars */}
-          <View
-            style={{
-              flexDirection: "row",
-              paddingHorizontal: 10,
-              //paddingTop: insets.top + 4,
-              paddingTop: 22,
-              gap: 3,
+              bottom: 0,
             }}
           >
-            {story.items?.map((_: any, index: number) => (
+            {isVideo && videoUrl && player ? (
+              <>
+                {currentItem?.thumbnail ? (
+                  <Image
+                    source={{ uri: currentItem.thumbnail }}
+                    style={{
+                      position: "absolute",
+                      width: "100%",
+                      height: "100%",
+                    }}
+                    contentFit="cover"
+                  />
+                ) : null}
+                <VideoView
+                  player={player}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  nativeControls={false}
+                  fullscreenOptions={{ enable: false }}
+                  allowsPictureInPicture={false}
+                />
+                <VideoSeekBar
+                  currentTime={videoCurrentTime}
+                  duration={videoDuration}
+                  onSeek={handleSeek}
+                  visible={showSeekBar}
+                  barWidth={width - 32}
+                />
+              </>
+            ) : isImage &&
+              currentItem?.url &&
+              (currentItem.url.startsWith("http://") ||
+                currentItem.url.startsWith("https://")) ? (
+              <Image
+                source={{ uri: currentItem.url }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                transition={150}
+                cachePolicy="memory-disk"
+              />
+            ) : currentItem?.type === "text" ? (
               <View
-                key={index}
                 style={{
                   flex: 1,
-                  height: 2.5,
-                  backgroundColor: "rgba(255,255,255,0.35)",
-                  borderRadius: 2,
-                  overflow: "hidden",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  padding: 20,
                 }}
               >
-                {index < currentItemIndex ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: "rgba(255,255,255,0.92)",
-                    }}
-                  />
-                ) : index === currentItemIndex ? (
-                  <ProgressBar progress={progress} />
-                ) : null}
+                <Text
+                  style={{
+                    color: currentItem.textColor || "#fff",
+                    fontSize: 36,
+                    fontWeight: "bold",
+                    textAlign: "center",
+                  }}
+                >
+                  {currentItem.text}
+                </Text>
               </View>
-            ))}
+            ) : (
+              <View
+                style={{
+                  flex: 1,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>
+                  No content
+                </Text>
+              </View>
+            )}
+
+            {/* Subtle top vignette for readability */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 180,
+                opacity: 0.45,
+                backgroundColor: "rgba(0,0,0,0.3)",
+              }}
+            />
           </View>
 
-          {/* Header row: avatar + name | X */}
+          {/* ── TOP OVERLAY: progress bars + header ───────────────────────── */}
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingHorizontal: 14,
-              paddingTop: 10,
-              paddingBottom: 6,
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 50,
             }}
             pointerEvents="box-none"
           >
-            <Pressable
+            {/* Progress bars */}
+            <View
+              style={{
+                flexDirection: "row",
+                paddingHorizontal: 10,
+                //paddingTop: insets.top + 4,
+                paddingTop: 22,
+                gap: 3,
+              }}
+            >
+              {story.items?.map((_: any, index: number) => (
+                <View
+                  key={index}
+                  style={{
+                    flex: 1,
+                    height: 2.5,
+                    backgroundColor: "rgba(255,255,255,0.35)",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                  }}
+                >
+                  {index < currentItemIndex ? (
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: "rgba(255,255,255,0.92)",
+                      }}
+                    />
+                  ) : index === currentItemIndex ? (
+                    <ProgressBar progress={progress} />
+                  ) : null}
+                </View>
+              ))}
+            </View>
+
+            {/* Header row: avatar + name | X */}
+            <View
               style={{
                 flexDirection: "row",
                 alignItems: "center",
-                gap: 10,
-                flex: 1,
+                justifyContent: "space-between",
+                paddingHorizontal: 14,
+                paddingTop: 10,
+                paddingBottom: 6,
               }}
-              onPress={() => {
-                if (!story?.username) return;
-                isPaused.current = true;
-                cancelAnimation(progress);
-                try {
-                  player?.pause();
-                } catch {}
-                if (
-                  story.username.toLowerCase() ===
-                  currentUser?.username?.toLowerCase()
-                ) {
-                  router.push("/(protected)/(tabs)/profile");
-                } else {
-                  screenPrefetch.profile(queryClient, story.username);
-                  router.push(`/(protected)/profile/${story.username}`);
-                }
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              pointerEvents="box-none"
             >
-              <Image
-                source={{ uri: story.avatar }}
+              <Pressable
                 style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  borderWidth: 1.5,
-                  borderColor: "rgba(255,255,255,0.4)",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 10,
+                  flex: 1,
                 }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text
+                onPress={() => {
+                  if (!story?.username) return;
+                  isPaused.current = true;
+                  cancelAnimation(progress);
+                  try {
+                    player?.pause();
+                  } catch {}
+                  if (
+                    story.username.toLowerCase() ===
+                    currentUser?.username?.toLowerCase()
+                  ) {
+                    router.push("/(protected)/(tabs)/profile");
+                  } else {
+                    screenPrefetch.profile(queryClient, story.username);
+                    router.push(`/(protected)/profile/${story.username}`);
+                  }
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Image
+                  source={{ uri: story.avatar }}
                   style={{
-                    color: "#fff",
-                    fontWeight: "700",
-                    fontSize: 14,
-                    textShadowColor: "rgba(0,0,0,0.5)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 4,
+                    width: 38,
+                    height: 38,
+                    borderRadius: 10,
+                    borderWidth: 1.5,
+                    borderColor: "rgba(255,255,255,0.4)",
                   }}
-                  numberOfLines={1}
-                >
-                  {story.username}
-                </Text>
-                {(currentItem as any).header?.subheading ? (
+                />
+                <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      color: "rgba(255,255,255,0.75)",
-                      fontSize: 12,
-                      textShadowColor: "rgba(0,0,0,0.4)",
+                      color: "#fff",
+                      fontWeight: "700",
+                      fontSize: 14,
+                      textShadowColor: "rgba(0,0,0,0.5)",
                       textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 3,
+                      textShadowRadius: 4,
                     }}
                     numberOfLines={1}
                   >
-                    {(currentItem as any).header?.subheading}
+                    {story.username}
                   </Text>
-                ) : null}
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                if (isExitingRef.current) return;
-                markExiting();
-                cancelAnimation(progress);
-                if (router.canDismiss()) {
-                  router.dismiss();
-                } else {
-                  router.back();
-                }
-              }}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: "rgba(30,30,30,0.55)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-            >
-              <X size={18} color="#fff" strokeWidth={2.5} />
-            </Pressable>
+                  {(currentItem as any).header?.subheading ? (
+                    <Text
+                      style={{
+                        color: "rgba(255,255,255,0.75)",
+                        fontSize: 12,
+                        textShadowColor: "rgba(0,0,0,0.4)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                      }}
+                      numberOfLines={1}
+                    >
+                      {(currentItem as any).header?.subheading}
+                    </Text>
+                  ) : null}
+                </View>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  if (isExitingRef.current) return;
+                  markExiting();
+                  cancelAnimation(progress);
+                  if (router.canDismiss()) {
+                    router.dismiss();
+                  } else {
+                    router.back();
+                  }
+                }}
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(30,30,30,0.55)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              >
+                <X size={18} color="#fff" strokeWidth={2.5} />
+              </Pressable>
+            </View>
           </View>
-        </View>
 
-        {/* ── TOUCH ZONES (prev / next) ─────────────────────────────────── */}
-        <View
-          style={{
-            position: "absolute",
-            top: insets.top + 90,
-            bottom: isOwnStory ? 0 : 110,
-            left: 0,
-            right: 0,
-            flexDirection: "row",
-            zIndex: 20,
-          }}
-          pointerEvents="box-none"
-        >
-          <Pressable onPress={handlePrev} style={{ flex: 1 }} />
-          <Pressable onPress={handleNext} style={{ flex: 1 }} />
-        </View>
-
-        {/* ── TAGGED USERS PILL ─────────────────────────────────────────── */}
-        {storyTags.length > 0 && (
-          <Pressable
-            onPress={() => setShowTags((v) => !v)}
+          {/* ── TOUCH ZONES (prev / next) ─────────────────────────────────── */}
+          <View
             style={{
               position: "absolute",
-              bottom: isOwnStory ? insets.bottom + 20 : 130,
-              alignSelf: "center",
+              top: insets.top + 90,
+              bottom: isOwnStory ? 0 : 110,
+              left: 0,
+              right: 0,
               flexDirection: "row",
-              alignItems: "center",
-              gap: 6,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 20,
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.18)",
-              zIndex: 60,
+              zIndex: 20,
             }}
+            pointerEvents="box-none"
           >
-            {showTags ? (
-              <View style={{ gap: 6 }}>
-                {storyTags.map((tag) => (
-                  <Pressable
-                    key={tag.id}
-                    onPress={() => {
-                      isPaused.current = true;
-                      cancelAnimation(progress);
-                      try {
-                        player?.pause();
-                      } catch {}
-                      if (
-                        tag.username.toLowerCase() ===
-                        currentUser?.username?.toLowerCase()
-                      ) {
-                        router.push("/(protected)/(tabs)/profile");
-                      } else {
-                        screenPrefetch.profile(queryClient, tag.username);
-                        router.push(`/(protected)/profile/${tag.username}`);
-                      }
-                    }}
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <Image
-                      source={{ uri: tag.avatar || "" }}
-                      style={{ width: 22, height: 22, borderRadius: 6 }}
-                    />
-                    <Text
-                      style={{ color: "#fff", fontSize: 13, fontWeight: "600" }}
-                    >
-                      @{tag.username}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <>
-                <Image
-                  source={{ uri: storyTags[0].avatar || "" }}
-                  style={{ width: 20, height: 20, borderRadius: 5 }}
-                />
-                <Text
-                  style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
-                >
-                  {storyTags.length === 1
-                    ? `@${storyTags[0].username}`
-                    : `@${storyTags[0].username} +${storyTags.length - 1}`}
-                </Text>
-              </>
-            )}
-          </Pressable>
-        )}
+            <Pressable onPress={handlePrev} style={{ flex: 1 }} />
+            <Pressable onPress={handleNext} style={{ flex: 1 }} />
+          </View>
 
-        {/* ── OWN STORY: viewer count + delete ──────────────────────────── */}
-        {isOwnStory && (
-          <>
+          {/* ── TAGGED USERS PILL ─────────────────────────────────────────── */}
+          {storyTags.length > 0 && (
             <Pressable
-              onPress={() => {
-                isPaused.current = true;
-                cancelAnimation(progress);
-                try {
-                  player?.pause();
-                } catch {}
-                setShowViewersSheet(true);
-              }}
+              onPress={() => setShowTags((v) => !v)}
               style={{
                 position: "absolute",
-                bottom: insets.bottom + 20,
-                left: 16,
+                bottom: isOwnStory ? insets.bottom + 20 : 130,
+                alignSelf: "center",
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 6,
-                backgroundColor: "rgba(0,0,0,0.55)",
+                backgroundColor: "rgba(0,0,0,0.6)",
                 paddingHorizontal: 14,
-                paddingVertical: 9,
-                borderRadius: 22,
+                paddingVertical: 8,
+                borderRadius: 20,
                 borderWidth: 1,
                 borderColor: "rgba(255,255,255,0.18)",
                 zIndex: 60,
               }}
             >
-              <Eye size={16} color="#fff" />
-              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
-                {viewerCount}
-              </Text>
+              {showTags ? (
+                <View style={{ gap: 6 }}>
+                  {storyTags.map((tag) => (
+                    <Pressable
+                      key={tag.id}
+                      onPress={() => {
+                        isPaused.current = true;
+                        cancelAnimation(progress);
+                        try {
+                          player?.pause();
+                        } catch {}
+                        if (
+                          tag.username.toLowerCase() ===
+                          currentUser?.username?.toLowerCase()
+                        ) {
+                          router.push("/(protected)/(tabs)/profile");
+                        } else {
+                          screenPrefetch.profile(queryClient, tag.username);
+                          router.push(`/(protected)/profile/${tag.username}`);
+                        }
+                      }}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <Image
+                        source={{ uri: tag.avatar || "" }}
+                        style={{ width: 22, height: 22, borderRadius: 6 }}
+                      />
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 13,
+                          fontWeight: "600",
+                        }}
+                      >
+                        @{tag.username}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : (
+                <>
+                  <Image
+                    source={{ uri: storyTags[0].avatar || "" }}
+                    style={{ width: 20, height: 20, borderRadius: 5 }}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
+                  >
+                    {storyTags.length === 1
+                      ? `@${storyTags[0].username}`
+                      : `@${storyTags[0].username} +${storyTags.length - 1}`}
+                  </Text>
+                </>
+              )}
             </Pressable>
-
-            <Pressable
-              onPress={handleDeleteStory}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={{
-                position: "absolute",
-                bottom: insets.bottom + 20,
-                right: 16,
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 6,
-                backgroundColor: "rgba(0,0,0,0.55)",
-                paddingHorizontal: 14,
-                paddingVertical: 9,
-                borderRadius: 22,
-                borderWidth: 1,
-                borderColor: "rgba(255,90,90,0.3)",
-                zIndex: 60,
-              }}
-            >
-              <Trash2 size={16} color="#FF5555" />
-              <Text
-                style={{ color: "#FF5555", fontSize: 13, fontWeight: "700" }}
-              >
-                Delete
-              </Text>
-            </Pressable>
-          </>
-        )}
-
-        {/* ── STORY VIEWERS SHEET ───────────────────────────────────────── */}
-        <StoryViewersSheet
-          storyId={storyParentId}
-          visible={showViewersSheet}
-          onClose={() => {
-            setShowViewersSheet(false);
-            isPaused.current = false;
-          }}
-        />
-
-        {/* ── FLOATING EMOJI REACTIONS ──────────────────────────────────── */}
-        {floatingEmojis.map((e) => (
-          <FloatingReactionEmoji
-            key={e.id}
-            emoji={e.emoji}
-            onComplete={() => removeFloatingEmoji(e.id)}
-          />
-        ))}
-      </View>
-
-      {/* ── BOTTOM BAR: emoji reactions + tap-to-reply ── */}
-      {!isOwnStory && story && (
-        <View
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 80,
-          }}
-        >
-          {/* Emoji reactions row — hidden while typing */}
-          {!isInputFocused && (
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 8,
-                paddingHorizontal: 20,
-                marginBottom: 10,
-              }}
-            >
-              {REACTION_EMOJIS.map((emoji) => (
-                <Pressable
-                  key={emoji}
-                  onPress={() => handleStoryReaction(emoji)}
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
-                    backgroundColor: "rgba(40,40,40,0.7)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.12)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                </Pressable>
-              ))}
-            </View>
           )}
 
-          {/* Tap-to-reply pill — focuses the real TextInput inside InputAccessoryView */}
-          {!isInputFocused && (
+          {/* ── OWN STORY: viewer count + delete ──────────────────────────── */}
+          {isOwnStory && (
+            <>
+              <Pressable
+                onPress={() => {
+                  isPaused.current = true;
+                  cancelAnimation(progress);
+                  try {
+                    player?.pause();
+                  } catch {}
+                  setShowViewersSheet(true);
+                }}
+                style={{
+                  position: "absolute",
+                  bottom: insets.bottom + 20,
+                  left: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: 22,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.18)",
+                  zIndex: 60,
+                }}
+              >
+                <Eye size={16} color="#fff" />
+                <Text
+                  style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                >
+                  {viewerCount}
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleDeleteStory}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{
+                  position: "absolute",
+                  bottom: insets.bottom + 20,
+                  right: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 6,
+                  backgroundColor: "rgba(0,0,0,0.55)",
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                  borderRadius: 22,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,90,90,0.3)",
+                  zIndex: 60,
+                }}
+              >
+                <Trash2 size={16} color="#FF5555" />
+                <Text
+                  style={{ color: "#FF5555", fontSize: 13, fontWeight: "700" }}
+                >
+                  Delete
+                </Text>
+              </Pressable>
+            </>
+          )}
+
+          {/* ── STORY VIEWERS SHEET ───────────────────────────────────────── */}
+          <StoryViewersSheet
+            storyId={storyParentId}
+            visible={showViewersSheet}
+            onClose={() => {
+              setShowViewersSheet(false);
+              isPaused.current = false;
+            }}
+          />
+
+          {/* ── FLOATING EMOJI REACTIONS ──────────────────────────────────── */}
+          {floatingEmojis.map((e) => (
+            <FloatingReactionEmoji
+              key={e.id}
+              emoji={e.emoji}
+              onComplete={() => removeFloatingEmoji(e.id)}
+            />
+          ))}
+        </View>
+
+        {/* ── BOTTOM BAR: KeyboardStickyView keeps only this above the keyboard ── */}
+        {!isOwnStory && story && (
+          <KeyboardStickyView offset={{ closed: 0, opened: 0 }}>
+            {/* Emoji reactions row — hidden while typing */}
+            {!isInputFocused && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 8,
+                  paddingHorizontal: 20,
+                  marginBottom: 10,
+                }}
+              >
+                {REACTION_EMOJIS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => handleStoryReaction(emoji)}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      backgroundColor: "rgba(40,40,40,0.7)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.12)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Message input row — liquid glass pill */}
             <View
               style={{
                 paddingHorizontal: 12,
@@ -1469,107 +1472,51 @@ export default function StoryViewerScreen() {
                 paddingBottom: insets.bottom + 8,
               }}
             >
-              <Pressable
-                onPress={() => replyInputRef.current?.focus()}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  backgroundColor: "rgba(40,40,40,0.65)",
-                  borderRadius: 28,
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.12)",
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                }}
-              >
-                <Text
+              <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
+                <TextInput
                   style={{
                     flex: 1,
-                    color: "rgba(255,255,255,0.45)",
+                    color: "#fff",
                     fontSize: 15,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
                   }}
-                >
-                  Send Message
-                </Text>
-                <View
+                  placeholder="Send Message"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendReply}
+                  editable={!isSendingReply}
+                />
+                <Pressable
+                  onPress={
+                    replyText.trim().length > 0 ? handleSendReply : undefined
+                  }
+                  disabled={isSendingReply || !resolvedUserId}
+                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
                   style={{
                     width: 36,
                     height: 36,
                     borderRadius: 18,
-                    backgroundColor: "rgba(255,255,255,0.15)",
+                    backgroundColor:
+                      replyText.trim().length > 0
+                        ? "#8A40CF"
+                        : "rgba(255,255,255,0.15)",
                     alignItems: "center",
                     justifyContent: "center",
+                    opacity: isSendingReply ? 0.5 : 1,
                   }}
                 >
                   <Send size={17} color="#fff" strokeWidth={2} />
-                </View>
-              </Pressable>
+                </Pressable>
+              </DVNTLiquidGlass>
             </View>
-          )}
-        </View>
-      )}
-
-      {/* ── InputAccessoryView: native iOS keyboard attachment ── */}
-      {!isOwnStory && story && Platform.OS === "ios" && (
-        <InputAccessoryView nativeID="storyReplyAccessory">
-          <View
-            style={{
-              backgroundColor: "rgba(28,28,30,0.95)",
-              borderTopWidth: 0.5,
-              borderTopColor: "rgba(255,255,255,0.15)",
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-            }}
-          >
-            <TextInput
-              ref={replyInputRef}
-              inputAccessoryViewID="storyReplyAccessory"
-              style={{
-                flex: 1,
-                color: "#fff",
-                fontSize: 15,
-                backgroundColor: "rgba(255,255,255,0.08)",
-                borderRadius: 20,
-                paddingVertical: 8,
-                paddingHorizontal: 14,
-              }}
-              placeholder="Send Message"
-              placeholderTextColor="rgba(255,255,255,0.45)"
-              value={replyText}
-              onChangeText={setReplyText}
-              onFocus={() => setIsInputFocused(true)}
-              onBlur={() => setIsInputFocused(false)}
-              returnKeyType="send"
-              onSubmitEditing={handleSendReply}
-              editable={!isSendingReply}
-            />
-            <Pressable
-              onPress={
-                replyText.trim().length > 0 ? handleSendReply : undefined
-              }
-              disabled={isSendingReply || !resolvedUserId}
-              hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor:
-                  replyText.trim().length > 0
-                    ? "#8A40CF"
-                    : "rgba(255,255,255,0.15)",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: isSendingReply ? 0.5 : 1,
-              }}
-            >
-              <Send size={17} color="#fff" strokeWidth={2} />
-            </Pressable>
-          </View>
-        </InputAccessoryView>
-      )}
-    </View>
+          </KeyboardStickyView>
+        )}
+      </View>
+    </KeyboardProvider>
   );
 }

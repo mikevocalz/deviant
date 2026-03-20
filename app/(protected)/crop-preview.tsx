@@ -1,13 +1,14 @@
 /**
  * Crop & Preview Screen
  *
- * Mandatory step after image selection, before the create screen accepts images.
- * Shows each image in a 4:5 crop frame with pinch/zoom/drag.
+ * Opens ONLY when user explicitly taps the edit (scissors) button on a
+ * selected thumbnail. NOT part of the import pipeline.
+ * Shows each image in a crop frame with pinch/zoom/drag.
  * Generates deterministic cropped bitmaps on "Done".
  *
  * Navigation:
- *   - Back (left arrow) = cancel, images are NOT added to post
- *   - Done (right button) = generate crops, add to post, pop back
+ *   - Back (left arrow) = cancel edits
+ *   - Done (right button) = generate crops, replace media in store, pop back
  */
 
 import React, {
@@ -314,7 +315,9 @@ export default function CropPreviewScreen() {
         croppedResults.push({
           ...img,
           uri: result.uri,
-          originalUri: sourceUri,
+          editedUri: result.uri,
+          editorOpened: true,
+          originalUri: img.originalUri || img.uri,
           width: result.width,
           height: result.height,
           cropState: { scale: vs, translateX: vtx, translateY: vty },

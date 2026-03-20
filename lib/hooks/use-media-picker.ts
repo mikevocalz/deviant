@@ -19,6 +19,10 @@ export interface MediaAsset {
   fileSize?: number;
   originalUri?: string;
   pairedVideoUri?: string; // Live Photo video component (iOS only)
+  /** URI of the edited derivative — only set when user explicitly opens editor */
+  editedUri?: string;
+  /** Whether the user explicitly opened the crop/editor for this asset */
+  editorOpened?: boolean;
   cropState?: {
     scale: number;
     translateX: number;
@@ -120,8 +124,6 @@ export function useMediaPicker() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ["images"],
         quality: 1,
-        allowsEditing: true,
-        aspect: [4, 5],
       });
 
       if (!result.canceled && result.assets[0]) {
