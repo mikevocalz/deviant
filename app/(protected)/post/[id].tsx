@@ -26,7 +26,7 @@ import {
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { PostDetailSkeleton } from "@/components/skeletons";
-import { usePost } from "@/lib/hooks/use-posts";
+import { usePost, useDeletePost } from "@/lib/hooks/use-posts";
 import { useComments } from "@/lib/hooks/use-comments";
 import { CommentLikeButton } from "@/components/comments/threaded-comment";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
@@ -391,6 +391,7 @@ function PostDetailScreenContent() {
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const [showActionSheet, setShowActionSheet] = useState(false);
+  const deletePostMutation = useDeletePost();
   const bookmarkStore = useBookmarkStore();
   const { open: openLikesSheet, prefetch: prefetchLikesSheet } =
     useLikesSheet();
@@ -485,6 +486,32 @@ function PostDetailScreenContent() {
       console.error("[PostDetail] Share error:", error);
     }
   }, [postId, post]);
+
+  const handleActionEdit = useCallback(() => {
+    if (postId) router.push(`/(protected)/edit-post/${postId}`);
+    setShowActionSheet(false);
+  }, [postId, router]);
+
+  const handleActionDelete = useCallback(() => {
+    if (!postId) return;
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: () => {
+          deletePostMutation.mutate(postId, {
+            onSuccess: () => {
+              showToast("success", "Deleted", "Post deleted");
+              router.back();
+            },
+            onError: () => showToast("error", "Error", "Failed to delete post"),
+          });
+          setShowActionSheet(false);
+        },
+      },
+    ]);
+  }, [postId, deletePostMutation, showToast, router]);
 
   // NOW we can have early returns - after all hooks
   if (!postId) {
@@ -617,15 +644,26 @@ function PostDetailScreenContent() {
       edges={["top"]}
       className="flex-1 bg-background max-w-3xl w-full self-center"
     >
-      <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={16}
-          style={{ padding: 8, margin: -8, marginRight: 8 }}
-        >
-          <ArrowLeft size={24} color={colors.foreground} />
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+        }}
+      >
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <DVNTLiquidGlassIconButton size={40}>
+            <ArrowLeft size={20} color="#fff" />
+          </DVNTLiquidGlassIconButton>
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">Post</Text>
+        <Pressable onPress={() => setShowActionSheet(true)} hitSlop={12}>
+          <DVNTLiquidGlassIconButton size={40}>
+            <MoreHorizontal size={20} color="#fff" />
+          </DVNTLiquidGlassIconButton>
+        </Pressable>
       </View>
 
       <ScrollView>
@@ -1131,6 +1169,15 @@ function PostDetailScreenContent() {
           )}
         </View>
       </ScrollView>
+
+      <PostActionSheet
+        visible={showActionSheet}
+        onClose={() => setShowActionSheet(false)}
+        isOwner={isOwner}
+        onEdit={handleActionEdit}
+        onDelete={handleActionDelete}
+        onShare={handleShare}
+      />
     </SafeAreaView>
   );
 }

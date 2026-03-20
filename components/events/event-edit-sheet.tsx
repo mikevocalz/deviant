@@ -29,6 +29,7 @@ import {
   MapPin,
   Image as ImageIcon,
   Plus,
+  Youtube,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -57,6 +58,7 @@ interface EventEditSheetProps {
     entryWindow?: string;
     lineup?: string;
     perks?: string;
+    youtubeVideoUrl?: string;
     price?: number;
     maxAttendees?: number;
   } | null;
@@ -87,6 +89,7 @@ export function EventEditSheet({
   const [entryWindow, setEntryWindow] = useState("");
   const [lineup, setLineup] = useState("");
   const [perks, setPerks] = useState("");
+  const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
   const [price, setPrice] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -106,6 +109,7 @@ export function EventEditSheet({
     setEntryWindow(initialData.entryWindow || "");
     setLineup(typeof initialData.lineup === "string" ? initialData.lineup : "");
     setPerks(typeof initialData.perks === "string" ? initialData.perks : "");
+    setYoutubeVideoUrl(initialData.youtubeVideoUrl || "");
     setPrice(initialData.price ? String(initialData.price) : "0");
     setMaxAttendees(
       initialData.maxAttendees ? String(initialData.maxAttendees) : "",
@@ -293,6 +297,12 @@ export function EventEditSheet({
       }
       if (price) updateData.price = Number(price) || 0;
       if (maxAttendees) updateData.maxAttendees = Number(maxAttendees) || 0;
+      // V2 fields — use null (not undefined) so the API clears them when empty
+      updateData.dressCode = dressCode.trim() || null;
+      updateData.doorPolicy = doorPolicy.trim() || null;
+      updateData.lineup = lineup.trim() || null;
+      updateData.perks = perks.trim() || null;
+      updateData.youtubeVideoUrl = youtubeVideoUrl.trim() || null;
 
       await eventsApi.updateEvent(eventId, updateData);
 
@@ -317,6 +327,11 @@ export function EventEditSheet({
     eventImages,
     price,
     maxAttendees,
+    dressCode,
+    doorPolicy,
+    lineup,
+    perks,
+    youtubeVideoUrl,
     isSaving,
     uploadMultiple,
     queryClient,
@@ -392,7 +407,10 @@ export function EventEditSheet({
                 </View>
               ))}
               {eventImages.length < 5 && (
-                <Pressable onPress={handlePickImages} style={styles.addImageBtn}>
+                <Pressable
+                  onPress={handlePickImages}
+                  style={styles.addImageBtn}
+                >
                   <Plus size={22} color="#71717a" />
                 </Pressable>
               )}
@@ -574,6 +592,29 @@ export function EventEditSheet({
             multiline
             style={[styles.input, styles.inputMultiline]}
           />
+        </View>
+
+        {/* YouTube Video URL */}
+        <View style={styles.fieldGroup}>
+          <Text style={styles.label}>YouTube Video</Text>
+          <View style={styles.inputWithIcon}>
+            <Youtube size={18} color="#71717a" />
+            <TextInput
+              value={youtubeVideoUrl}
+              onChangeText={setYoutubeVideoUrl}
+              placeholder="https://youtube.com/watch?v=..."
+              placeholderTextColor="#52525b"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              style={styles.inputInner}
+            />
+            {youtubeVideoUrl.trim() !== "" && (
+              <Pressable onPress={() => setYoutubeVideoUrl("")} hitSlop={8}>
+                <X size={16} color="#71717a" />
+              </Pressable>
+            )}
+          </View>
         </View>
 
         <View style={{ height: 60 }} />

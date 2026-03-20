@@ -400,7 +400,7 @@ export function useToggleEventLike() {
   });
 }
 
-// RSVP to event mutation
+// RSVP to event mutation with optimistic update
 export function useRsvpEvent() {
   const queryClient = useQueryClient();
 
@@ -412,9 +412,51 @@ export function useRsvpEvent() {
       eventId: string;
       status: "going" | "interested" | "not_going";
     }) => eventsApiClient.rsvpEvent(eventId, status),
+    onMutate: async ({ eventId, status }) => {
+      await queryClient.cancelQueries({ queryKey: eventKeys.detail(eventId) });
+
+      const previousDetail = queryClient.getQueryData(
+        eventKeys.detail(eventId),
+      );
+      const previousLists = queryClient.getQueriesData({
+        queryKey: eventKeys.all,
+      });
+
+      // Patch event detail cache
+      queryClient.setQueryData(eventKeys.detail(eventId), (old: any) => {
+        if (!old) return old;
+        const wasGoing = old.userRsvpStatus === "going";
+        const isNowGoing = status === "going";
+        const delta =
+          isNowGoing && !wasGoing ? 1 : !isNowGoing && wasGoing ? -1 : 0;
+        return {
+          ...old,
+          userRsvpStatus: status,
+          attendees: Math.max((old.attendees || 0) + delta, 0),
+          rsvpCount: Math.max((old.rsvpCount || 0) + delta, 0),
+        };
+      });
+
+      return { previousDetail, previousLists };
+    },
+    onError: (_err, { eventId }, context) => {
+      if (context?.previousDetail) {
+        queryClient.setQueryData(
+          eventKeys.detail(eventId),
+          context.previousDetail,
+        );
+      }
+      if (context?.previousLists) {
+        context.previousLists.forEach(([key, data]) => {
+          queryClient.setQueryData(key, data);
+        });
+      }
+    },
     onSuccess: (_result, { eventId }) => {
-      // Invalidate the specific event
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+      queryClient.invalidateQueries({
+        queryKey: [...eventKeys.all, "mine"],
+      });
     },
   });
 }

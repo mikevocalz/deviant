@@ -51,6 +51,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { eventsApi } from "@/lib/api/events";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
+import { eventKeys } from "@/lib/hooks/use-events";
 import {
   LocationAutocomplete,
   type LocationData,
@@ -366,7 +367,7 @@ export default function EditEventScreen() {
         doorPolicy: doorPolicy || undefined,
         lineup: lineup || undefined,
         perks: perks || undefined,
-        youtubeVideoUrl: youtubeVideoUrl || undefined,
+        youtubeVideoUrl: youtubeVideoUrl.trim() || null,
         ticketingEnabled,
       };
 
@@ -390,7 +391,7 @@ export default function EditEventScreen() {
         title: updateData.title,
         description: updateData.description,
         location: updateData.location,
-        date: updateData.startDate,
+        fullDate: updateData.startDate,
         endDate: updateData.endDate || null,
         price: updateData.price,
         maxAttendees: updateData.maxAttendees,
@@ -446,8 +447,8 @@ export default function EditEventScreen() {
       eventsApi.updateEvent(id, updateData).then(
         () => {
           // Refetch canonical data from server
-          queryClient.invalidateQueries({ queryKey: ["events"] });
-          queryClient.invalidateQueries({ queryKey: ["event-detail", id] });
+          queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
+          queryClient.invalidateQueries({ queryKey: eventKeys.all });
         },
         (err) => {
           console.error("[EditEvent] Background save error:", err);

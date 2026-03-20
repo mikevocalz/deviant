@@ -275,7 +275,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           try {
             const compressed = await manipulateAsync(
               file.uri,
-              [{ resize: { width: 1440 } }],
+              [{ rotate: 0 }, { resize: { width: 1440 } }],
               { compress: 0.85, format: SaveFormat.JPEG },
             );
             stillUri = compressed.uri;
@@ -316,7 +316,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           try {
             const compressed = await manipulateAsync(
               file.uri,
-              [{ resize: { width: 1440 } }],
+              [{ rotate: 0 }, { resize: { width: 1440 } }],
               { compress: 0.85, format: SaveFormat.JPEG },
             );
             imageUri = compressed.uri;
