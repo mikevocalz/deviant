@@ -11,8 +11,11 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
-  Keyboard,
 } from "react-native";
+import {
+  KeyboardController,
+  KeyboardEvents,
+} from "react-native-keyboard-controller";
 import BottomSheet, {
   BottomSheetScrollView,
   BottomSheetTextInput,
@@ -129,7 +132,7 @@ export function CommentsSheet({
     const originalReplyingTo = replyingTo;
     setComment("");
     setReplyingTo(null);
-    Keyboard.dismiss();
+    KeyboardController.dismiss();
 
     createComment.mutate(
       {
@@ -142,7 +145,7 @@ export function CommentsSheet({
       },
       {
         onSuccess: () => {
-          Keyboard.dismiss();
+          KeyboardController.dismiss();
           showToast("success", "Posted!", "Your comment was added");
           setIsSubmitLocked(false);
         },
@@ -173,7 +176,7 @@ export function CommentsSheet({
   ]);
 
   useEffect(() => {
-    const keyboardDidHideListener = Keyboard.addListener(
+    const keyboardDidHideListener = KeyboardEvents.addListener(
       "keyboardDidHide",
       () => setReplyingTo(null),
     );
@@ -416,7 +419,7 @@ export function CommentsSheet({
                 onPress={() => {
                   setReplyingTo(null);
                   setComment("");
-                  Keyboard.dismiss();
+                  KeyboardController.dismiss();
                 }}
                 hitSlop={12}
               >

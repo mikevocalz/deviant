@@ -6,7 +6,6 @@ import {
   ScrollView,
   Dimensions,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { useNavigation } from "@react-navigation/native";
@@ -312,59 +311,165 @@ export default function SearchScreen() {
   }, [clearSearch, searchDebouncer]);
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <View
-        className="flex-1 bg-background max-w-3xl w-full self-center"
-        style={{ paddingTop: insets.top }}
-      >
-        {/* Header */}
-        <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-          <Pressable
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
-          >
-            <ArrowLeft size={24} color="#fff" />
-          </Pressable>
-          <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
-            <Search size={20} color="#999" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={handleQueryChange}
-              placeholder={isHashtag ? "Search hashtags..." : "Search"}
-              placeholderTextColor="#999"
-              autoFocus={false}
-              className="flex-1 h-10 ml-2 text-foreground"
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={handleClear}>
-                <X size={20} color="#999" />
-              </Pressable>
-            )}
-          </View>
+    <View
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+      style={{ paddingTop: insets.top }}
+    >
+      {/* Header */}
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+        <Pressable
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+        >
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+        <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
+          <Search size={20} color="#999" />
+          <TextInput
+            value={searchQuery}
+            onChangeText={handleQueryChange}
+            placeholder={isHashtag ? "Search hashtags..." : "Search"}
+            placeholderTextColor="#999"
+            autoFocus={false}
+            className="flex-1 h-10 ml-2 text-foreground"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={handleClear}>
+              <X size={20} color="#999" />
+            </Pressable>
+          )}
         </View>
+      </View>
 
-        {/* Content */}
-        <ScrollView className="flex-1" keyboardDismissMode="on-drag">
-          {debouncedSearch.length >= 2 ? (
-            isSearchLoading && !searchData ? (
-              <SearchResultsSkeleton />
-            ) : (
-              <View className="flex-1">
-                {isHashtag ? (
-                  <>
-                    <View className="p-4 border-b border-border">
-                      <View className="flex-row items-center gap-2">
-                        <Hash size={20} color="#fff" />
-                        <Text className="text-lg font-semibold text-foreground">
-                          {searchQuery}
-                        </Text>
-                      </View>
-                      <Text className="text-sm text-muted-foreground mt-1">
-                        {searchResults.length}{" "}
-                        {searchResults.length === 1 ? "post" : "posts"}
+      {/* Content */}
+      <ScrollView className="flex-1" keyboardDismissMode="on-drag">
+        {debouncedSearch.length >= 2 ? (
+          isSearchLoading && !searchData ? (
+            <SearchResultsSkeleton />
+          ) : (
+            <View className="flex-1">
+              {isHashtag ? (
+                <>
+                  <View className="p-4 border-b border-border">
+                    <View className="flex-row items-center gap-2">
+                      <Hash size={20} color="#fff" />
+                      <Text className="text-lg font-semibold text-foreground">
+                        {searchQuery}
                       </Text>
                     </View>
-                    {searchResults.length > 0 ? (
+                    <Text className="text-sm text-muted-foreground mt-1">
+                      {searchResults.length}{" "}
+                      {searchResults.length === 1 ? "post" : "posts"}
+                    </Text>
+                  </View>
+                  {searchResults.length > 0 ? (
+                    <View className="flex-row flex-wrap">
+                      {searchResults.map((post: any) => {
+                        const firstMedia = post.media?.[0];
+                        const thumbnail = firstMedia?.url;
+                        const isVideo = firstMedia?.type === "video";
+
+                        return (
+                          <Pressable
+                            key={post.id}
+                            onPress={() => {
+                              if (post?.id) {
+                                screenPrefetch.postDetail(queryClient, post.id);
+                                router.push(`/(protected)/post/${post.id}`);
+                              }
+                            }}
+                            style={{
+                              width: columnWidth,
+                              height: columnWidth,
+                              padding: 1,
+                            }}
+                          >
+                            <View
+                              className="flex-1 overflow-hidden bg-secondary"
+                              style={{ borderRadius: 8 }}
+                            >
+                              {thumbnail &&
+                              (thumbnail.startsWith("http://") ||
+                                thumbnail.startsWith("https://")) ? (
+                                <>
+                                  <Image
+                                    source={{ uri: thumbnail }}
+                                    style={{ width: "100%", height: "100%" }}
+                                    contentFit="cover"
+                                  />
+                                  {isVideo && (
+                                    <View className="absolute top-2 right-2">
+                                      <Play
+                                        size={20}
+                                        color="#fff"
+                                        fill="#fff"
+                                      />
+                                    </View>
+                                  )}
+                                </>
+                              ) : (
+                                <View className="w-full h-full items-center justify-center">
+                                  <Text className="text-muted-foreground text-xs">
+                                    No media
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View className="p-8 items-center">
+                      <Hash size={48} color="#666" />
+                      <Text className="text-muted-foreground mt-4 text-center">
+                        No posts found for {searchQuery}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <>
+                  {userResults.length > 0 && (
+                    <View className="p-4 border-b border-border">
+                      <Text className="text-base font-semibold text-foreground mb-3">
+                        Users
+                      </Text>
+                      {userResults.map((user: any) => (
+                        <Pressable
+                          key={user.id}
+                          onPress={() =>
+                            router.push(
+                              `/(protected)/profile/${user.username}?authId=${user.id}` as any,
+                            )
+                          }
+                          className="flex-row items-center py-3 border-b border-border"
+                        >
+                          <Avatar
+                            uri={user.avatar}
+                            username={user.username || "User"}
+                            size="md"
+                            variant="circle"
+                          />
+                          <View className="ml-3 flex-1">
+                            <Text className="font-semibold text-foreground">
+                              {user.username}
+                            </Text>
+                            {user.name && (
+                              <Text className="text-muted-foreground text-[13px]">
+                                {user.name}
+                              </Text>
+                            )}
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {searchResults.length > 0 && (
+                    <View className="p-4">
+                      <Text className="text-base font-semibold text-foreground mb-3">
+                        Posts
+                      </Text>
                       <View className="flex-row flex-wrap">
                         {searchResults.map((post: any) => {
                           const firstMedia = post.media?.[0];
@@ -399,7 +504,10 @@ export default function SearchScreen() {
                                   <>
                                     <Image
                                       source={{ uri: thumbnail }}
-                                      style={{ width: "100%", height: "100%" }}
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                      }}
                                       contentFit="cover"
                                     />
                                     {isVideo && (
@@ -424,150 +532,36 @@ export default function SearchScreen() {
                           );
                         })}
                       </View>
-                    ) : (
-                      <View className="p-8 items-center">
-                        <Hash size={48} color="#666" />
-                        <Text className="text-muted-foreground mt-4 text-center">
-                          No posts found for {searchQuery}
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {userResults.length > 0 && (
-                      <View className="p-4 border-b border-border">
-                        <Text className="text-base font-semibold text-foreground mb-3">
-                          Users
-                        </Text>
-                        {userResults.map((user: any) => (
-                          <Pressable
-                            key={user.id}
-                            onPress={() =>
-                              router.push(
-                                `/(protected)/profile/${user.username}?authId=${user.id}` as any,
-                              )
-                            }
-                            className="flex-row items-center py-3 border-b border-border"
-                          >
-                            <Avatar
-                              uri={user.avatar}
-                              username={user.username || "User"}
-                              size="md"
-                              variant="circle"
-                            />
-                            <View className="ml-3 flex-1">
-                              <Text className="font-semibold text-foreground">
-                                {user.username}
-                              </Text>
-                              {user.name && (
-                                <Text className="text-muted-foreground text-[13px]">
-                                  {user.name}
-                                </Text>
-                              )}
-                            </View>
-                          </Pressable>
-                        ))}
-                      </View>
-                    )}
-                    {searchResults.length > 0 && (
-                      <View className="p-4">
-                        <Text className="text-base font-semibold text-foreground mb-3">
-                          Posts
-                        </Text>
-                        <View className="flex-row flex-wrap">
-                          {searchResults.map((post: any) => {
-                            const firstMedia = post.media?.[0];
-                            const thumbnail = firstMedia?.url;
-                            const isVideo = firstMedia?.type === "video";
-
-                            return (
-                              <Pressable
-                                key={post.id}
-                                onPress={() => {
-                                  if (post?.id) {
-                                    screenPrefetch.postDetail(
-                                      queryClient,
-                                      post.id,
-                                    );
-                                    router.push(`/(protected)/post/${post.id}`);
-                                  }
-                                }}
-                                style={{
-                                  width: columnWidth,
-                                  height: columnWidth,
-                                  padding: 1,
-                                }}
-                              >
-                                <View
-                                  className="flex-1 overflow-hidden bg-secondary"
-                                  style={{ borderRadius: 8 }}
-                                >
-                                  {thumbnail &&
-                                  (thumbnail.startsWith("http://") ||
-                                    thumbnail.startsWith("https://")) ? (
-                                    <>
-                                      <Image
-                                        source={{ uri: thumbnail }}
-                                        style={{
-                                          width: "100%",
-                                          height: "100%",
-                                        }}
-                                        contentFit="cover"
-                                      />
-                                      {isVideo && (
-                                        <View className="absolute top-2 right-2">
-                                          <Play
-                                            size={20}
-                                            color="#fff"
-                                            fill="#fff"
-                                          />
-                                        </View>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <View className="w-full h-full items-center justify-center">
-                                      <Text className="text-muted-foreground text-xs">
-                                        No media
-                                      </Text>
-                                    </View>
-                                  )}
-                                </View>
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      </View>
-                    )}
-                    {userResults.length === 0 && searchResults.length === 0 && (
-                      <View className="p-8 items-center">
-                        <Search size={48} color="#666" />
-                        <Text className="text-muted-foreground mt-4 text-center">
-                          No results found for "{debouncedSearch}"
-                        </Text>
-                      </View>
-                    )}
-                  </>
-                )}
-              </View>
-            )
-          ) : isDiscoverLoading && !discoverData ? (
-            <SearchSkeleton />
-          ) : (
-            <>
-              <DiscoverSection
-                router={router}
-                users={discoverData?.users ?? []}
-              />
-              <DiscoverGrid
-                router={router}
-                posts={discoverData?.posts ?? []}
-                queryClient={queryClient}
-              />
-            </>
-          )}
-        </ScrollView>
-      </View>
-    </KeyboardAvoidingView>
+                    </View>
+                  )}
+                  {userResults.length === 0 && searchResults.length === 0 && (
+                    <View className="p-8 items-center">
+                      <Search size={48} color="#666" />
+                      <Text className="text-muted-foreground mt-4 text-center">
+                        No results found for "{debouncedSearch}"
+                      </Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+          )
+        ) : isDiscoverLoading && !discoverData ? (
+          <SearchSkeleton />
+        ) : (
+          <>
+            <DiscoverSection
+              router={router}
+              users={discoverData?.users ?? []}
+            />
+            <DiscoverGrid
+              router={router}
+              posts={discoverData?.posts ?? []}
+              queryClient={queryClient}
+            />
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }

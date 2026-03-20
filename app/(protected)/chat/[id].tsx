@@ -8,7 +8,6 @@ import {
   Modal,
   Alert,
   StyleSheet,
-  Keyboard,
   InteractionManager,
 } from "react-native";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -18,7 +17,10 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { LegendList } from "@/components/list";
 import type { LegendListRef } from "@/components/list";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import {
+  KeyboardAvoidingView,
+  KeyboardController,
+} from "react-native-keyboard-controller";
 import {
   useLocalSearchParams,
   useRouter,
@@ -694,7 +696,7 @@ export default function ChatScreen() {
 
     // PERF: Defer keyboard dismiss — calling it synchronously before send
     // triggers a layout recalculation that blocks the JS thread on iOS.
-    InteractionManager.runAfterInteractions(() => Keyboard.dismiss());
+    InteractionManager.runAfterInteractions(() => KeyboardController.dismiss());
     // Use the resolved numeric conversation ID — chatId may be a username string
     // which parseInt() turns into NaN, causing the edge function to reject the send.
     const convId = resolvedConvIdRef.current || chatId;
@@ -742,7 +744,7 @@ export default function ChatScreen() {
     sendMessageToBackend(convId);
 
     // CRITICAL: Clear the native TextInput buffer immediately.
-    // Without this, the deferred Keyboard.dismiss() triggers the native input
+    // Without this, the deferred KeyboardController.dismiss() triggers the native input
     // to commit its stale buffer → fires onChangeText with old text → overwrites
     // the store's cleared currentMessage. Clearing natively prevents the race.
     inputRef.current?.clear();
@@ -1177,6 +1179,10 @@ export default function ChatScreen() {
           extraData={chatMessages}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
+          keyboardDismissMode={
+            Platform.OS === "ios" ? "interactive" : "on-drag"
+          }
+          keyboardShouldPersistTaps="handled"
           initialScrollAtEnd
           maintainScrollAtEnd
           alignItemsAtEnd

@@ -4,7 +4,6 @@ import {
   TextInput,
   Pressable,
   Dimensions,
-  Keyboard,
   Alert,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
@@ -37,7 +36,10 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  KeyboardStickyView,
+  KeyboardController,
+} from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
 import {
@@ -841,7 +843,7 @@ export default function StoryViewerScreen() {
     }
 
     setIsSendingReply(true);
-    Keyboard.dismiss();
+    KeyboardController.dismiss();
 
     try {
       console.log("[StoryViewer] Sending reply to userId:", resolvedUserId);

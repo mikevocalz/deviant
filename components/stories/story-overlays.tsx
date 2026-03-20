@@ -13,14 +13,16 @@ import {
   TextInput,
   Pressable,
   TouchableOpacity,
-  Keyboard,
   Platform,
   Animated,
 } from "react-native";
 import { X, Send, Heart, Star } from "lucide-react-native";
 import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import {
+  KeyboardAvoidingView,
+  KeyboardController,
+} from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import * as Haptics from "expo-haptics";
@@ -269,7 +271,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
     }
 
     setIsSending(true);
-    Keyboard.dismiss();
+    KeyboardController.dismiss();
 
     try {
       let userId = customData.appUserId;
