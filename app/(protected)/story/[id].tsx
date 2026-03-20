@@ -7,6 +7,7 @@ import {
   Alert,
   Platform,
   Keyboard,
+  InputAccessoryView,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
@@ -144,20 +145,7 @@ export default function StoryViewerScreen() {
 
   const progress = useSharedValue(0);
 
-  // ── Keyboard tracking — pure RN Keyboard API, no library wrappers ──
-  const [kbHeight, setKbHeight] = useState(0);
-  useEffect(() => {
-    const showSub = Keyboard.addListener("keyboardWillShow", (e) => {
-      setKbHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
-      setKbHeight(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const INPUT_ACCESSORY_ID = "storyReplyInput";
 
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -196,10 +184,14 @@ export default function StoryViewerScreen() {
   const { data: storiesData = [], isLoading } = useStories();
 
   useEffect(() => {
-    if (id && currentStoryId !== id) {
+    if (id) {
       setCurrentStoryId(id);
     }
-  }, [id, currentStoryId, setCurrentStoryId]);
+    // Only sync from URL param on mount / route change.
+    // Do NOT include currentStoryId — internal navigation (goToNextUser)
+    // updates it and must not be overwritten by this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, setCurrentStoryId]);
 
   // Filter stories that have content
   const availableStories = storiesData.filter(
@@ -379,12 +371,30 @@ export default function StoryViewerScreen() {
         if (duration > 0) {
           const progressValue = Math.min(currentTime / duration, 1);
           progress.value = progressValue;
+
+          // Detect video end and auto-advance
+          if (
+            currentTime >= duration - 0.3 &&
+            duration > 0.5 &&
+            !hasAdvanced.current &&
+            !isPaused.current
+          ) {
+            callHandleNext();
+          }
         }
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [isVideo, player, videoUrl, progress, isSafeToOperate, isMountedRef]);
+  }, [
+    isVideo,
+    player,
+    videoUrl,
+    progress,
+    isSafeToOperate,
+    isMountedRef,
+    callHandleNext,
+  ]);
 
   const handleLongPressStart = useCallback(() => {
     if (!isVideo || !isSafeToOperate()) return;
@@ -1105,8 +1115,7 @@ export default function StoryViewerScreen() {
             style={{
               flexDirection: "row",
               paddingHorizontal: 10,
-              //paddingTop: insets.top + 4,
-              paddingTop: 22,
+              paddingTop: isOwnStory ? insets.top + 10 : 22,
               gap: 3,
             }}
           >
@@ -1420,100 +1429,95 @@ export default function StoryViewerScreen() {
         ))}
       </View>
 
-      {/* ── BOTTOM BAR: positioned above keyboard ── */}
+      {/* ── BOTTOM BAR: InputAccessoryView docks above keyboard natively ── */}
       {!isOwnStory && story && (
-        <View
-          style={{
-            position: "absolute",
-            bottom: kbHeight,
-            left: 0,
-            right: 0,
-            zIndex: 80,
-          }}
-        >
-          {/* Emoji reactions row — hidden while typing */}
-          {!isInputFocused && (
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 8,
-                paddingHorizontal: 20,
-                marginBottom: 10,
-              }}
-            >
-              {REACTION_EMOJIS.map((emoji) => (
-                <Pressable
-                  key={emoji}
-                  onPress={() => handleStoryReaction(emoji)}
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
-                    backgroundColor: "rgba(40,40,40,0.7)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.12)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-
-          {/* Message input row — liquid glass pill */}
-          <View
-            style={{
-              paddingHorizontal: 12,
-              paddingTop: 6,
-              paddingBottom: insets.bottom + 8,
-            }}
-          >
-            <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
-              <TextInput
+        <InputAccessoryView nativeID={INPUT_ACCESSORY_ID}>
+          <View style={{ backgroundColor: "transparent" }}>
+            {/* Emoji reactions row — hidden while typing */}
+            {!isInputFocused && (
+              <View
                 style={{
-                  flex: 1,
-                  color: "#fff",
-                  fontSize: 15,
-                  paddingVertical: 6,
-                  paddingHorizontal: 12,
-                }}
-                placeholder="Send Message"
-                placeholderTextColor="rgba(255,255,255,0.45)"
-                value={replyText}
-                onChangeText={setReplyText}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
-                returnKeyType="send"
-                onSubmitEditing={handleSendReply}
-                editable={!isSendingReply}
-              />
-              <Pressable
-                onPress={
-                  replyText.trim().length > 0 ? handleSendReply : undefined
-                }
-                disabled={isSendingReply || !resolvedUserId}
-                hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 18,
-                  backgroundColor:
-                    replyText.trim().length > 0
-                      ? "#8A40CF"
-                      : "rgba(255,255,255,0.15)",
-                  alignItems: "center",
+                  flexDirection: "row",
                   justifyContent: "center",
-                  opacity: isSendingReply ? 0.5 : 1,
+                  gap: 8,
+                  paddingHorizontal: 20,
+                  marginBottom: 10,
                 }}
               >
-                <Send size={17} color="#fff" strokeWidth={2} />
-              </Pressable>
-            </DVNTLiquidGlass>
+                {REACTION_EMOJIS.map((emoji) => (
+                  <Pressable
+                    key={emoji}
+                    onPress={() => handleStoryReaction(emoji)}
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      backgroundColor: "rgba(40,40,40,0.7)",
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.12)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
+
+            {/* Message input row — liquid glass pill */}
+            <View
+              style={{
+                paddingHorizontal: 12,
+                paddingTop: 6,
+                paddingBottom: insets.bottom + 8,
+              }}
+            >
+              <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
+                <TextInput
+                  inputAccessoryViewID={INPUT_ACCESSORY_ID}
+                  style={{
+                    flex: 1,
+                    color: "#fff",
+                    fontSize: 15,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                  }}
+                  placeholder="Send Message"
+                  placeholderTextColor="rgba(255,255,255,0.45)"
+                  value={replyText}
+                  onChangeText={setReplyText}
+                  onFocus={() => setIsInputFocused(true)}
+                  onBlur={() => setIsInputFocused(false)}
+                  returnKeyType="send"
+                  onSubmitEditing={handleSendReply}
+                  editable={!isSendingReply}
+                />
+                <Pressable
+                  onPress={
+                    replyText.trim().length > 0 ? handleSendReply : undefined
+                  }
+                  disabled={isSendingReply || !resolvedUserId}
+                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor:
+                      replyText.trim().length > 0
+                        ? "#8A40CF"
+                        : "rgba(255,255,255,0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: isSendingReply ? 0.5 : 1,
+                  }}
+                >
+                  <Send size={17} color="#fff" strokeWidth={2} />
+                </Pressable>
+              </DVNTLiquidGlass>
+            </View>
           </View>
-        </View>
+        </InputAccessoryView>
       )}
     </View>
   );
