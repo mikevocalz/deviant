@@ -37,8 +37,8 @@ import {
 } from "@/lib/video-lifecycle";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  KeyboardStickyView,
   KeyboardController,
+  useKeyboardHandler,
 } from "react-native-keyboard-controller";
 import { useStoryViewerStore } from "@/lib/stores/comments-store";
 import { VideoSeekBar } from "@/components/video-seek-bar";
@@ -143,6 +143,23 @@ export default function StoryViewerScreen() {
     setCurrentItemIndex,
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
+
+  // Keyboard tracking — useKeyboardHandler works in fullScreenModal (context-based KeyboardStickyView doesn't)
+  const keyboardHeight = useSharedValue(0);
+  useKeyboardHandler({
+    onMove: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+    onEnd: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+  });
+  const stickyInputStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -keyboardHeight.value }],
+  }));
+
   const progress = useSharedValue(0);
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -1376,15 +1393,17 @@ export default function StoryViewerScreen() {
 
       {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
       {!isOwnStory && story && (
-        <KeyboardStickyView
-          offset={{ closed: 0, opened: 0 }}
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            zIndex: 80,
-          }}
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              zIndex: 80,
+            },
+            stickyInputStyle,
+          ]}
         >
           {/* Emoji reactions row — hidden while typing */}
           {!isInputFocused && (
@@ -1470,7 +1489,7 @@ export default function StoryViewerScreen() {
               </Pressable>
             </DVNTLiquidGlass>
           </View>
-        </KeyboardStickyView>
+        </Animated.View>
       )}
     </View>
   );
