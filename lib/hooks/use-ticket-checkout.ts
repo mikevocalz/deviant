@@ -58,7 +58,16 @@ export function useTicketCheckout() {
           },
         );
 
-        if (error) throw new Error(error.message || "Failed to create payment");
+        if (error) {
+          // Extract actual error from edge function response body
+          let msg = "Failed to create payment";
+          try {
+            const ctx = await (error as any).context?.json?.();
+            if (ctx?.error) msg = ctx.error;
+          } catch {}
+          if (msg === "Failed to create payment") msg = error.message || msg;
+          throw new Error(msg);
+        }
 
         const result = typeof data === "string" ? JSON.parse(data) : data;
 
