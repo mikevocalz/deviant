@@ -9,15 +9,19 @@ import {
   Dimensions,
 } from "react-native";
 import {
-  KeyboardAvoidingView,
   KeyboardController,
   KeyboardEvents,
+  useKeyboardHandler,
 } from "react-native-keyboard-controller";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -51,6 +55,22 @@ export default function CommentsScreen() {
     setReplyingTo,
   } = useCommentsStore();
   const insets = useSafeAreaInsets();
+
+  // Keyboard tracking — useKeyboardHandler works in transparentModal (context-based hooks don't)
+  const keyboardHeight = useSharedValue(0);
+  useKeyboardHandler({
+    onMove: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+    onEnd: (e) => {
+      "worklet";
+      keyboardHeight.value = e.height;
+    },
+  });
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -keyboardHeight.value }],
+  }));
 
   // PHASE 1 FIX: Robust submit lock to prevent duplicates
   const [isSubmitLocked, setIsSubmitLocked] = useState(false);
@@ -314,257 +334,264 @@ export default function CommentsScreen() {
       <Pressable style={{ flex: 1 }} onPress={() => router.back()} />
 
       {/* Sheet container — liquid glass, 70% height */}
-      <BlurView
-        intensity={40}
-        tint="dark"
-        style={{
-          height: SHEET_MAX_HEIGHT,
-          borderTopLeftRadius: 20,
-          borderTopRightRadius: 20,
-          overflow: "hidden",
-        }}
-      >
-        <KeyboardAvoidingView
-          behavior="padding"
+      <Animated.View style={sheetAnimatedStyle}>
+        <BlurView
+          intensity={40}
+          tint="dark"
           style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.55)",
+            height: SHEET_MAX_HEIGHT,
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+            overflow: "hidden",
           }}
         >
-          {/* Grabber handle */}
           <View
-            style={{ alignItems: "center", paddingTop: 10, paddingBottom: 2 }}
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.55)",
+            }}
           >
+            {/* Grabber handle */}
             <View
-              style={{
-                width: 40,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: "rgba(255,255,255,0.3)",
-              }}
-            />
-          </View>
-
-          <SheetHeader title="Comments" onClose={() => router.back()} />
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-          >
-            {isLoading ? (
-              <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                <ActivityIndicator size="small" color="#3EA4E5" />
-                <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
-                  Loading comments...
-                </Text>
-              </View>
-            ) : comments.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                <Text style={{ color: "#999" }}>No comments yet</Text>
-                <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
-                  Be the first to comment!
-                </Text>
-              </View>
-            ) : (
-              comments
-                .filter((item) => item && item.id && item.username && item.text)
-                .map((item) => {
-                  const isHighlightedComment = item.id === commentId;
-
-                  // Transform to CommentData format for ThreadedComment component
-                  const commentData: CommentData = {
-                    id: item.id,
-                    username: item.username,
-                    avatar: item.avatar,
-                    text: item.text,
-                    timeAgo: item.timeAgo,
-                    likes: item.likes,
-                    replies: item.replies
-                      ?.filter((r) => r && r.id && r.username && r.text)
-                      .map((r) => ({
-                        id: r.id,
-                        username: r.username,
-                        avatar: r.avatar,
-                        text: r.text,
-                        timeAgo: r.timeAgo,
-                        likes: r.likes,
-                      })),
-                  };
-
-                  return (
-                    <ThreadedComment
-                      key={item.id}
-                      postId={postId || ""}
-                      comment={commentData}
-                      isHighlighted={isHighlightedComment}
-                      onReply={handleReply}
-                      onViewAllReplies={handleViewReplies}
-                      onProfilePress={handleProfilePress}
-                      maxVisibleReplies={isHighlightedComment ? 100 : 2}
-                      showAllReplies={isHighlightedComment}
-                    />
-                  );
-                })
-            )}
-          </ScrollView>
-
-          {/* Input at bottom - outside scroll view */}
-          <View>
-            <View
-              style={{
-                borderTopWidth: 1,
-                borderTopColor: "rgba(255,255,255,0.08)",
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                paddingBottom: Math.max(insets.bottom, 12),
-              }}
+              style={{ alignItems: "center", paddingTop: 10, paddingBottom: 2 }}
             >
-              {replyingTo && (
+              <View
+                style={{
+                  width: 40,
+                  height: 5,
+                  borderRadius: 3,
+                  backgroundColor: "rgba(255,255,255,0.3)",
+                }}
+              />
+            </View>
+
+            <SheetHeader title="Comments" onClose={() => router.back()} />
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
+              {isLoading ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <ActivityIndicator size="small" color="#3EA4E5" />
+                  <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
+                    Loading comments...
+                  </Text>
+                </View>
+              ) : comments.length === 0 ? (
+                <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                  <Text style={{ color: "#999" }}>No comments yet</Text>
+                  <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
+                    Be the first to comment!
+                  </Text>
+                </View>
+              ) : (
+                comments
+                  .filter(
+                    (item) => item && item.id && item.username && item.text,
+                  )
+                  .map((item) => {
+                    const isHighlightedComment = item.id === commentId;
+
+                    // Transform to CommentData format for ThreadedComment component
+                    const commentData: CommentData = {
+                      id: item.id,
+                      username: item.username,
+                      avatar: item.avatar,
+                      text: item.text,
+                      timeAgo: item.timeAgo,
+                      likes: item.likes,
+                      replies: item.replies
+                        ?.filter((r) => r && r.id && r.username && r.text)
+                        .map((r) => ({
+                          id: r.id,
+                          username: r.username,
+                          avatar: r.avatar,
+                          text: r.text,
+                          timeAgo: r.timeAgo,
+                          likes: r.likes,
+                        })),
+                    };
+
+                    return (
+                      <ThreadedComment
+                        key={item.id}
+                        postId={postId || ""}
+                        comment={commentData}
+                        isHighlighted={isHighlightedComment}
+                        onReply={handleReply}
+                        onViewAllReplies={handleViewReplies}
+                        onProfilePress={handleProfilePress}
+                        maxVisibleReplies={isHighlightedComment ? 100 : 2}
+                        showAllReplies={isHighlightedComment}
+                      />
+                    );
+                  })
+              )}
+            </ScrollView>
+
+            {/* Input at bottom - outside scroll view */}
+            <View>
+              <View
+                style={{
+                  borderTopWidth: 1,
+                  borderTopColor: "rgba(255,255,255,0.08)",
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  paddingBottom: Math.max(insets.bottom, 12),
+                }}
+              >
+                {replyingTo && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <Text style={{ color: "#666", fontSize: 12 }}>
+                      Replying to comment
+                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        setReplyingTo(null);
+                        setComment("");
+                        KeyboardController.dismiss();
+                      }}
+                      hitSlop={12}
+                    >
+                      <X size={16} color="#666" />
+                    </Pressable>
+                  </View>
+                )}
+                {/* @mention autocomplete dropdown */}
+                {mentionSuggestions.length > 0 && (
+                  <View
+                    style={{
+                      backgroundColor: "#1a1a1a",
+                      borderRadius: 12,
+                      marginBottom: 8,
+                      maxHeight: 180,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#666",
+                        fontSize: 11,
+                        paddingHorizontal: 12,
+                        paddingTop: 8,
+                        paddingBottom: 4,
+                      }}
+                    >
+                      Mention a user
+                    </Text>
+                    {mentionSuggestions.map((u) => (
+                      <Pressable
+                        key={u.username}
+                        onPress={() => handleInsertMention(u.username)}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 10,
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Image
+                          source={{
+                            uri: u.avatar || "",
+                          }}
+                          style={{ width: 28, height: 28, borderRadius: 6 }}
+                        />
+                        <Text
+                          style={{
+                            color: "#fff",
+                            fontSize: 14,
+                            fontWeight: "500",
+                          }}
+                        >
+                          {u.username}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 8,
+                    gap: 12,
                   }}
                 >
-                  <Text style={{ color: "#666", fontSize: 12 }}>
-                    Replying to comment
-                  </Text>
-                  <Pressable
-                    onPress={() => {
-                      setReplyingTo(null);
-                      setComment("");
-                      KeyboardController.dismiss();
+                  <RNTextInput
+                    ref={inputRef}
+                    value={comment}
+                    onChangeText={setComment}
+                    onSelectionChange={(e) =>
+                      setCursorPos(e.nativeEvent.selection.end)
+                    }
+                    placeholder="Add a comment... (@ to mention)"
+                    placeholderTextColor="#666"
+                    multiline
+                    returnKeyType="send"
+                    onSubmitEditing={
+                      isSubmitLocked || createComment.isPending
+                        ? undefined
+                        : handleSend
+                    }
+                    blurOnSubmit={false}
+                    enablesReturnKeyAutomatically={true}
+                    editable={!isSubmitLocked && !createComment.isPending}
+                    style={{
+                      flex: 1,
+                      minHeight: 40,
+                      maxHeight: 100,
+                      backgroundColor: "#1a1a1a",
+                      borderRadius: 20,
+                      paddingHorizontal: 16,
+                      paddingVertical: 10,
+                      color: "#fff",
                     }}
-                    hitSlop={12}
+                  />
+                  <Pressable
+                    onPress={handleSend}
+                    disabled={
+                      !comment.trim() ||
+                      createComment.isPending ||
+                      !user ||
+                      isSubmitLocked
+                    }
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor:
+                        comment.trim() && !createComment.isPending && user
+                          ? "#3EA4E5"
+                          : "#1a1a1a",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
                   >
-                    <X size={16} color="#666" />
+                    {createComment.isPending || isSubmitLocked ? (
+                      <ActivityIndicator size="small" color="#666" />
+                    ) : (
+                      <Send
+                        size={20}
+                        color={comment.trim() && user ? "#fff" : "#666"}
+                      />
+                    )}
                   </Pressable>
                 </View>
-              )}
-              {/* @mention autocomplete dropdown */}
-              {mentionSuggestions.length > 0 && (
-                <View
-                  style={{
-                    backgroundColor: "#1a1a1a",
-                    borderRadius: 12,
-                    marginBottom: 8,
-                    maxHeight: 180,
-                    overflow: "hidden",
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: "#666",
-                      fontSize: 11,
-                      paddingHorizontal: 12,
-                      paddingTop: 8,
-                      paddingBottom: 4,
-                    }}
-                  >
-                    Mention a user
-                  </Text>
-                  {mentionSuggestions.map((u) => (
-                    <Pressable
-                      key={u.username}
-                      onPress={() => handleInsertMention(u.username)}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 10,
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                      }}
-                    >
-                      <Image
-                        source={{
-                          uri: u.avatar || "",
-                        }}
-                        style={{ width: 28, height: 28, borderRadius: 6 }}
-                      />
-                      <Text
-                        style={{
-                          color: "#fff",
-                          fontSize: 14,
-                          fontWeight: "500",
-                        }}
-                      >
-                        {u.username}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
-              >
-                <RNTextInput
-                  ref={inputRef}
-                  value={comment}
-                  onChangeText={setComment}
-                  onSelectionChange={(e) =>
-                    setCursorPos(e.nativeEvent.selection.end)
-                  }
-                  placeholder="Add a comment... (@ to mention)"
-                  placeholderTextColor="#666"
-                  multiline
-                  returnKeyType="send"
-                  onSubmitEditing={
-                    isSubmitLocked || createComment.isPending
-                      ? undefined
-                      : handleSend
-                  }
-                  blurOnSubmit={false}
-                  enablesReturnKeyAutomatically={true}
-                  editable={!isSubmitLocked && !createComment.isPending}
-                  style={{
-                    flex: 1,
-                    minHeight: 40,
-                    maxHeight: 100,
-                    backgroundColor: "#1a1a1a",
-                    borderRadius: 20,
-                    paddingHorizontal: 16,
-                    paddingVertical: 10,
-                    color: "#fff",
-                  }}
-                />
-                <Pressable
-                  onPress={handleSend}
-                  disabled={
-                    !comment.trim() ||
-                    createComment.isPending ||
-                    !user ||
-                    isSubmitLocked
-                  }
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor:
-                      comment.trim() && !createComment.isPending && user
-                        ? "#3EA4E5"
-                        : "#1a1a1a",
-                    justifyContent: "center",
-                    alignItems: "center",
-                  }}
-                >
-                  {createComment.isPending || isSubmitLocked ? (
-                    <ActivityIndicator size="small" color="#666" />
-                  ) : (
-                    <Send
-                      size={20}
-                      color={comment.trim() && user ? "#fff" : "#666"}
-                    />
-                  )}
-                </Pressable>
               </View>
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </BlurView>
+        </BlurView>
+      </Animated.View>
     </View>
   );
 }

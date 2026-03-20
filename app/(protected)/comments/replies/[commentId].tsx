@@ -7,10 +7,14 @@ import {
   Platform,
 } from "react-native";
 import {
-  KeyboardAvoidingView,
   KeyboardController,
   KeyboardEvents,
+  useKeyboardHandler,
 } from "react-native-keyboard-controller";
+import ReAnimated, {
+  useSharedValue,
+  useAnimatedStyle,
+} from "react-native-reanimated";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
@@ -46,6 +50,22 @@ export default function RepliesScreen() {
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const insets = useSafeAreaInsets();
+
+  // Keyboard tracking — useKeyboardHandler works in TrueSheet/transparentModal (context-based hooks don't)
+  const kbHeight = useSharedValue(0);
+  useKeyboardHandler({
+    onMove: (e) => {
+      "worklet";
+      kbHeight.value = e.height;
+    },
+    onEnd: (e) => {
+      "worklet";
+      kbHeight.value = e.height;
+    },
+  });
+  const inputBarStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: -kbHeight.value }],
+  }));
 
   // @mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
@@ -277,7 +297,7 @@ export default function RepliesScreen() {
       </ScrollView>
 
       {/* Input */}
-      <KeyboardAvoidingView behavior="padding" keyboardVerticalOffset={0}>
+      <ReAnimated.View style={inputBarStyle}>
         <View
           style={{
             borderTopWidth: 1,
@@ -377,7 +397,7 @@ export default function RepliesScreen() {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </ReAnimated.View>
     </View>
   );
 }
