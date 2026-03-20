@@ -5,15 +5,16 @@ import {
   Pressable,
   ScrollView,
   Platform,
+  Keyboard,
 } from "react-native";
 import {
   KeyboardController,
   KeyboardEvents,
-  useKeyboardHandler,
 } from "react-native-keyboard-controller";
 import ReAnimated, {
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
 } from "react-native-reanimated";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
@@ -51,18 +52,24 @@ export default function RepliesScreen() {
   const showToast = useUIStore((state) => state.showToast);
   const insets = useSafeAreaInsets();
 
-  // Keyboard tracking — useKeyboardHandler works in TrueSheet/transparentModal (context-based hooks don't)
+  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in TrueSheet/transparentModal)
   const kbHeight = useSharedValue(0);
-  useKeyboardHandler({
-    onMove: (e) => {
-      "worklet";
-      kbHeight.value = e.height;
-    },
-    onEnd: (e) => {
-      "worklet";
-      kbHeight.value = e.height;
-    },
-  });
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      kbHeight.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      kbHeight.value = withTiming(0, { duration: 200 });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   const inputBarStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -kbHeight.value }],
   }));

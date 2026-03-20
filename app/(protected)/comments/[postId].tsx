@@ -7,11 +7,11 @@ import {
   ScrollView,
   TextInput as RNTextInput,
   Dimensions,
+  Keyboard,
 } from "react-native";
 import {
   KeyboardController,
   KeyboardEvents,
-  useKeyboardHandler,
 } from "react-native-keyboard-controller";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,6 +21,7 @@ import { useEffect, useCallback, useMemo, useRef, useState } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
+  withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
@@ -56,18 +57,26 @@ export default function CommentsScreen() {
   } = useCommentsStore();
   const insets = useSafeAreaInsets();
 
-  // Keyboard tracking — useKeyboardHandler works in transparentModal (context-based hooks don't)
+  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in transparentModal)
   const keyboardHeight = useSharedValue(0);
-  useKeyboardHandler({
-    onMove: (e) => {
-      "worklet";
-      keyboardHeight.value = e.height;
-    },
-    onEnd: (e) => {
-      "worklet";
-      keyboardHeight.value = e.height;
-    },
-  });
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      keyboardHeight.value = withTiming(e.endCoordinates.height, {
+        duration: 250,
+      });
+    });
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      keyboardHeight.value = withTiming(0, { duration: 200 });
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
   const sheetAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -keyboardHeight.value }],
   }));
