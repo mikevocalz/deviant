@@ -423,8 +423,10 @@ export default function EventDetailScreen() {
       }
     }
 
-    // ── Stripe checkout path (when ticketing feature is ON AND ticket tiers exist) ──
-    if (eventData.ticketingEnabled && selectedTier?.id) {
+    // ── Stripe checkout path (only when real DB ticket tiers exist) ──
+    const hasDbTiers =
+      Array.isArray(eventData.ticketTiers) && eventData.ticketTiers.length > 0;
+    if (eventData.ticketingEnabled && hasDbTiers && selectedTier?.id) {
       setIsCheckingOut(true);
       try {
         // Use native PaymentSheet for in-app checkout
