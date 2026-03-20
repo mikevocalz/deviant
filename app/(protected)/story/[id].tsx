@@ -145,27 +145,22 @@ export default function StoryViewerScreen() {
 
   const progress = useSharedValue(0);
 
-  // ── Keyboard tracking for fullScreenModal (UIKit NSNotifications work in any VC) ──
-  const kbHeight = useSharedValue(0);
+  // ── Keyboard tracking — plain useState (debug: shows kb height on screen) ──
+  const [kbOffset, setKbOffset] = useState(0);
   useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      kbHeight.value = withTiming(e.endCoordinates.height, { duration: 250 });
+    const showSub = Keyboard.addListener("keyboardWillShow", (e) => {
+      console.log("[Story] KB SHOW:", e.endCoordinates.height);
+      setKbOffset(e.endCoordinates.height);
     });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      kbHeight.value = withTiming(0, { duration: 200 });
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
+      console.log("[Story] KB HIDE");
+      setKbOffset(0);
     });
     return () => {
       showSub.remove();
       hideSub.remove();
     };
   }, []);
-  const bottomBarAnimStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -kbHeight.value }],
-  }));
 
   const [showSeekBar, setShowSeekBar] = useState(false);
   const [videoCurrentTime, setVideoCurrentTime] = useState(0);
@@ -1011,7 +1006,7 @@ export default function StoryViewerScreen() {
         }}
       >
         <Text style={{ color: "#000", fontSize: 11, fontWeight: "800" }}>
-          KB-FIX-v8
+          KB-v9 kb={kbOffset}
         </Text>
       </View>
       <View style={{ flex: 1 }}>
@@ -1437,11 +1432,14 @@ export default function StoryViewerScreen() {
 
       {/* ── BOTTOM BAR: absolutely positioned, animated up by keyboard ── */}
       {!isOwnStory && story && (
-        <Animated.View
-          style={[
-            { position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 80 },
-            bottomBarAnimStyle,
-          ]}
+        <View
+          style={{
+            position: "absolute",
+            bottom: kbOffset,
+            left: 0,
+            right: 0,
+            zIndex: 80,
+          }}
         >
           {/* Emoji reactions row — hidden while typing */}
           {!isInputFocused && (
@@ -1527,7 +1525,7 @@ export default function StoryViewerScreen() {
               </Pressable>
             </DVNTLiquidGlass>
           </View>
-        </Animated.View>
+        </View>
       )}
     </View>
   );
