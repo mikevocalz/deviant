@@ -5,7 +5,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
-  Keyboard,
+  InputAccessoryView,
   Platform as RNPlatform,
 } from "react-native";
 import { Animated as RNAnimated, Easing } from "react-native";
@@ -143,26 +143,7 @@ export default function StoryViewerScreen() {
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
 
-  // Keyboard tracking — plain useState, no Reanimated (debug: verify events fire in fullScreenModal)
-  const [kbHeight, setKbHeight] = useState(0);
-  useEffect(() => {
-    const showEvent =
-      RNPlatform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      RNPlatform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      console.log("[StoryViewer] KB SHOW", e.endCoordinates.height);
-      setKbHeight(e.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      console.log("[StoryViewer] KB HIDE");
-      setKbHeight(0);
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
+  const STORY_INPUT_ACCESSORY_ID = "storyReplyInput";
 
   const progress = useSharedValue(0);
   const [showSeekBar, setShowSeekBar] = useState(false);
@@ -1395,78 +1376,62 @@ export default function StoryViewerScreen() {
         />
       ))}
 
-      {/* DEBUG: visible keyboard height indicator */}
-      {kbHeight > 0 && (
-        <View
-          style={{
-            position: "absolute",
-            top: 60,
-            left: 10,
-            zIndex: 999,
-            backgroundColor: "red",
-            padding: 6,
-            borderRadius: 8,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 14 }}>
-            KB: {kbHeight}px
-          </Text>
-        </View>
-      )}
-
       {/* ── BOTTOM GLASS BAR: reactions + message input ───────────────── */}
-      {!isOwnStory && story && (
+      {/* Emoji reactions row — absolute positioned, hidden while typing */}
+      {!isOwnStory && story && !isInputFocused && (
         <View
           style={{
             position: "absolute",
-            bottom: kbHeight,
+            bottom: insets.bottom + 60,
             left: 0,
             right: 0,
             zIndex: 80,
           }}
         >
-          {/* Emoji reactions row — hidden while typing */}
-          {!isInputFocused && (
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "center",
-                gap: 8,
-                paddingHorizontal: 20,
-                marginBottom: 10,
-              }}
-            >
-              {REACTION_EMOJIS.map((emoji) => (
-                <Pressable
-                  key={emoji}
-                  onPress={() => handleStoryReaction(emoji)}
-                  style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
-                    backgroundColor: "rgba(40,40,40,0.7)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.12)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 8,
+              paddingHorizontal: 20,
+            }}
+          >
+            {REACTION_EMOJIS.map((emoji) => (
+              <Pressable
+                key={emoji}
+                onPress={() => handleStoryReaction(emoji)}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: "rgba(40,40,40,0.7)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.12)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 22 }}>{emoji}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      )}
 
-          {/* Message input row — liquid glass pill */}
+      {/* InputAccessoryView — managed by UIKit, docks to bottom + slides above keyboard */}
+      {!isOwnStory && story && RNPlatform.OS === "ios" && (
+        <InputAccessoryView nativeID={STORY_INPUT_ACCESSORY_ID}>
           <View
             style={{
               paddingHorizontal: 12,
               paddingTop: 6,
-              paddingBottom: insets.bottom + 8,
+              paddingBottom: isInputFocused ? 8 : insets.bottom + 8,
+              backgroundColor: "transparent",
             }}
           >
             <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
               <TextInput
+                inputAccessoryViewID={STORY_INPUT_ACCESSORY_ID}
                 style={{
                   flex: 1,
                   color: "#fff",
@@ -1509,7 +1474,7 @@ export default function StoryViewerScreen() {
               </Pressable>
             </DVNTLiquidGlass>
           </View>
-        </View>
+        </InputAccessoryView>
       )}
     </View>
   );
