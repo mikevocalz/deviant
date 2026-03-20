@@ -194,9 +194,6 @@
       "hermes-compiler": "250829098.0.4",
       "react-native-nitro-modules": "0.34.1"
     },
-    "patchedDependencies": {
-      "@rive-app/react-native@0.2.1": "patches/@rive-app__react-native@0.2.1.patch",
-      "react-native-insta-story@2.0.2": "patches/react-native-insta-story@2.0.2.patch"
-    }
+    "patchedDependencies": {}
   }
 }
