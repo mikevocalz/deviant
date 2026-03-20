@@ -491,6 +491,9 @@ export function useDeletePost() {
   return useMutation({
     mutationFn: postsApi.deletePost,
     onMutate: async (deletedPostId) => {
+      // Normalize to string for safe comparison (post.id may be number, deletedPostId is string)
+      const idStr = String(deletedPostId);
+
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: postKeys.all });
 
@@ -507,7 +510,7 @@ export function useDeletePost() {
           ...old,
           pages: old.pages.map((page: any) => ({
             ...page,
-            data: page.data?.filter((post: Post) => post.id !== deletedPostId),
+            data: page.data?.filter((post: Post) => String(post.id) !== idStr),
           })),
         };
       });
@@ -515,7 +518,7 @@ export function useDeletePost() {
       // Optimistically remove from legacy feed
       queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
         if (!old) return old;
-        return old.filter((post) => post.id !== deletedPostId);
+        return old.filter((post) => String(post.id) !== idStr);
       });
 
       // Optimistically remove from profile posts (all users)
@@ -523,7 +526,7 @@ export function useDeletePost() {
         { queryKey: ["profilePosts"] },
         (old) => {
           if (!old) return old;
-          return old.filter((post) => post.id !== deletedPostId);
+          return old.filter((post) => String(post.id) !== idStr);
         },
       );
 
@@ -571,7 +574,10 @@ export function useDeletePost() {
           "[useDeletePost] Post deleted successfully:",
           deletedPostId,
         );
-      // Invalidate profile to sync server count
+      // Invalidate feeds + profile to sync server state
+      queryClient.invalidateQueries({ queryKey: postKeys.feedInfinite() });
+      queryClient.invalidateQueries({ queryKey: postKeys.feed() });
+      queryClient.invalidateQueries({ queryKey: ["profilePosts"] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
   });
