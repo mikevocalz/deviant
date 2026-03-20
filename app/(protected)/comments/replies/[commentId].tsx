@@ -1,21 +1,10 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  Platform,
-  Keyboard,
-} from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import {
   KeyboardController,
   KeyboardEvents,
+  KeyboardProvider,
+  KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
-import ReAnimated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
@@ -51,28 +40,6 @@ export default function RepliesScreen() {
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const insets = useSafeAreaInsets();
-
-  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in TrueSheet/transparentModal)
-  const kbHeight = useSharedValue(0);
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      kbHeight.value = withTiming(e.endCoordinates.height, { duration: 250 });
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      kbHeight.value = withTiming(0, { duration: 200 });
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-  const inputBarStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -kbHeight.value }],
-  }));
 
   // @mention autocomplete state
   const [cursorPos, setCursorPos] = useState(0);
@@ -211,200 +178,214 @@ export default function RepliesScreen() {
   }, [navigation, router]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#000" }}>
-      {/* Replies List */}
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: 16 }}
-        nestedScrollEnabled
+    <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={{ flex: 1, backgroundColor: "#000" }}
       >
-        {isLoading ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <Text style={{ color: "#999" }}>Loading replies...</Text>
-          </View>
-        ) : !replies || replies.length === 0 ? (
-          <View style={{ alignItems: "center", paddingVertical: 40 }}>
-            <Text style={{ color: "#999" }}>No replies yet</Text>
-          </View>
-        ) : (
-          replies.map((item: Comment) => (
-            <View key={item.id} style={{ marginBottom: 20 }}>
-              <View style={{ flexDirection: "row", gap: 12 }}>
-                <UserAvatar
-                  uri={item.avatar}
-                  username={item.username}
-                  size={36}
-                  variant="roundedSquare"
-                />
-                <View style={{ flex: 1 }}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <Text
-                      style={{ fontWeight: "600", fontSize: 14, color: "#fff" }}
+        {/* Replies List */}
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 16 }}
+          nestedScrollEnabled
+        >
+          {isLoading ? (
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
+              <Text style={{ color: "#999" }}>Loading replies...</Text>
+            </View>
+          ) : !replies || replies.length === 0 ? (
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
+              <Text style={{ color: "#999" }}>No replies yet</Text>
+            </View>
+          ) : (
+            replies.map((item: Comment) => (
+              <View key={item.id} style={{ marginBottom: 20 }}>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <UserAvatar
+                    uri={item.avatar}
+                    username={item.username}
+                    size={36}
+                    variant="roundedSquare"
+                  />
+                  <View style={{ flex: 1 }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
                     >
-                      {item.username}
+                      <Text
+                        style={{
+                          fontWeight: "600",
+                          fontSize: 14,
+                          color: "#fff",
+                        }}
+                      >
+                        {item.username}
+                      </Text>
+                      <Text style={{ color: "#999", fontSize: 12 }}>
+                        {item.timeAgo}
+                      </Text>
+                    </View>
+                    <Text
+                      style={{
+                        fontSize: 14,
+                        marginTop: 4,
+                        lineHeight: 20,
+                        color: "#fff",
+                      }}
+                    >
+                      {item.text
+                        .split(/(@\w+)/g)
+                        .map((part: string, i: number) =>
+                          part.startsWith("@") ? (
+                            <Text
+                              key={i}
+                              onPress={() =>
+                                router.push(
+                                  `/(protected)/profile/${part.slice(1)}` as any,
+                                )
+                              }
+                              style={{
+                                color: MENTION_COLOR,
+                                fontWeight: "600",
+                              }}
+                            >
+                              {part}
+                            </Text>
+                          ) : (
+                            <Text key={i}>{part}</Text>
+                          ),
+                        )}
                     </Text>
-                    <Text style={{ color: "#999", fontSize: 12 }}>
-                      {item.timeAgo}
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 14,
-                      marginTop: 4,
-                      lineHeight: 20,
-                      color: "#fff",
-                    }}
-                  >
-                    {item.text
-                      .split(/(@\w+)/g)
-                      .map((part: string, i: number) =>
-                        part.startsWith("@") ? (
-                          <Text
-                            key={i}
-                            onPress={() =>
-                              router.push(
-                                `/(protected)/profile/${part.slice(1)}` as any,
-                              )
-                            }
-                            style={{ color: MENTION_COLOR, fontWeight: "600" }}
-                          >
-                            {part}
-                          </Text>
-                        ) : (
-                          <Text key={i}>{part}</Text>
-                        ),
-                      )}
-                  </Text>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 16,
-                      marginTop: 8,
-                    }}
-                  >
-                    <CommentLikeButton
-                      postId={postId || ""}
-                      commentId={item.id}
-                      initialLikes={item.likes}
-                      initialHasLiked={item.hasLiked}
-                    />
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 16,
+                        marginTop: 8,
+                      }}
+                    >
+                      <CommentLikeButton
+                        postId={postId || ""}
+                        commentId={item.id}
+                        initialLikes={item.likes}
+                        initialHasLiked={item.hasLiked}
+                      />
+                    </View>
                   </View>
                 </View>
               </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+            ))
+          )}
+        </ScrollView>
 
-      {/* Input */}
-      <ReAnimated.View style={inputBarStyle}>
-        <View
-          style={{
-            borderTopWidth: 1,
-            borderTopColor: "#333",
-            paddingHorizontal: 16,
-            paddingVertical: 12,
-          }}
-        >
-          {/* @mention autocomplete dropdown */}
-          {mentionSuggestions.length > 0 && (
-            <View
-              style={{
-                backgroundColor: "#1a1a1a",
-                borderRadius: 12,
-                marginBottom: 8,
-                maxHeight: 180,
-                overflow: "hidden",
-              }}
-            >
-              <Text
+        {/* Input */}
+        <View>
+          <View
+            style={{
+              borderTopWidth: 1,
+              borderTopColor: "#333",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            }}
+          >
+            {/* @mention autocomplete dropdown */}
+            {mentionSuggestions.length > 0 && (
+              <View
                 style={{
-                  color: "#666",
-                  fontSize: 11,
-                  paddingHorizontal: 12,
-                  paddingTop: 8,
-                  paddingBottom: 4,
+                  backgroundColor: "#1a1a1a",
+                  borderRadius: 12,
+                  marginBottom: 8,
+                  maxHeight: 180,
+                  overflow: "hidden",
                 }}
               >
-                Mention a user
-              </Text>
-              {mentionSuggestions.map((u) => (
-                <Pressable
-                  key={u.username}
-                  onPress={() => handleInsertMention(u.username)}
+                <Text
                   style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 10,
+                    color: "#666",
+                    fontSize: 11,
                     paddingHorizontal: 12,
-                    paddingVertical: 8,
+                    paddingTop: 8,
+                    paddingBottom: 4,
                   }}
                 >
-                  <Image
-                    source={{
-                      uri: u.avatar || "",
+                  Mention a user
+                </Text>
+                {mentionSuggestions.map((u) => (
+                  <Pressable
+                    key={u.username}
+                    onPress={() => handleInsertMention(u.username)}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 10,
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
                     }}
-                    style={{ width: 28, height: 28, borderRadius: 6 }}
-                  />
-                  <Text
-                    style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}
                   >
-                    {u.username}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+                    <Image
+                      source={{
+                        uri: u.avatar || "",
+                      }}
+                      style={{ width: 28, height: 28, borderRadius: 6 }}
+                    />
+                    <Text
+                      style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}
+                    >
+                      {u.username}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-            <TextInput
-              ref={inputRef}
-              value={reply}
-              onChangeText={setReply}
-              onSelectionChange={(e) =>
-                setCursorPos(e.nativeEvent.selection.end)
-              }
-              placeholder="Add a reply... (@ to mention)"
-              placeholderTextColor="#999"
-              multiline
-              returnKeyType="send"
-              onSubmitEditing={handleSend}
-              blurOnSubmit={false}
-              enablesReturnKeyAutomatically={true}
-              style={{
-                flex: 1,
-                minHeight: 40,
-                maxHeight: 100,
-                backgroundColor: "#1f1f1f",
-                borderRadius: 20,
-                paddingHorizontal: 16,
-                paddingVertical: 10,
-                color: "#fff",
-              }}
-            />
-            <Pressable
-              onPress={handleSend}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: "#6366f1",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <Send size={20} color="#fff" />
-            </Pressable>
+              <TextInput
+                ref={inputRef}
+                value={reply}
+                onChangeText={setReply}
+                onSelectionChange={(e) =>
+                  setCursorPos(e.nativeEvent.selection.end)
+                }
+                placeholder="Add a reply... (@ to mention)"
+                placeholderTextColor="#999"
+                multiline
+                returnKeyType="send"
+                onSubmitEditing={handleSend}
+                blurOnSubmit={false}
+                enablesReturnKeyAutomatically={true}
+                style={{
+                  flex: 1,
+                  minHeight: 40,
+                  maxHeight: 100,
+                  backgroundColor: "#1f1f1f",
+                  borderRadius: 20,
+                  paddingHorizontal: 16,
+                  paddingVertical: 10,
+                  color: "#fff",
+                }}
+              />
+              <Pressable
+                onPress={handleSend}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: "#6366f1",
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Send size={20} color="#fff" />
+              </Pressable>
+            </View>
           </View>
         </View>
-      </ReAnimated.View>
-    </View>
+      </KeyboardAvoidingView>
+    </KeyboardProvider>
   );
 }

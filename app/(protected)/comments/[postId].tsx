@@ -7,22 +7,18 @@ import {
   ScrollView,
   TextInput as RNTextInput,
   Dimensions,
-  Keyboard,
 } from "react-native";
 import {
   KeyboardController,
   KeyboardEvents,
+  KeyboardProvider,
+  KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-} from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -56,30 +52,6 @@ export default function CommentsScreen() {
     setReplyingTo,
   } = useCommentsStore();
   const insets = useSafeAreaInsets();
-
-  // Keyboard tracking — native Keyboard API uses global UIKit notifications (works in transparentModal)
-  const keyboardHeight = useSharedValue(0);
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-    const showSub = Keyboard.addListener(showEvent, (e) => {
-      keyboardHeight.value = withTiming(e.endCoordinates.height, {
-        duration: 250,
-      });
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      keyboardHeight.value = withTiming(0, { duration: 200 });
-    });
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-  const sheetAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -keyboardHeight.value }],
-  }));
 
   // PHASE 1 FIX: Robust submit lock to prevent duplicates
   const [isSubmitLocked, setIsSubmitLocked] = useState(false);
@@ -338,12 +310,15 @@ export default function CommentsScreen() {
   const SHEET_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * 0.7);
 
   return (
-    <View style={{ flex: 1, justifyContent: "flex-end" }}>
-      {/* Tappable backdrop — dismisses the sheet */}
-      <Pressable style={{ flex: 1 }} onPress={() => router.back()} />
+    <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={{ flex: 1, justifyContent: "flex-end" }}
+      >
+        {/* Tappable backdrop — dismisses the sheet */}
+        <Pressable style={{ flex: 1 }} onPress={() => router.back()} />
 
-      {/* Sheet container — liquid glass, 70% height */}
-      <Animated.View style={sheetAnimatedStyle}>
+        {/* Sheet container — liquid glass, 70% height */}
         <BlurView
           intensity={40}
           tint="dark"
@@ -362,7 +337,11 @@ export default function CommentsScreen() {
           >
             {/* Grabber handle */}
             <View
-              style={{ alignItems: "center", paddingTop: 10, paddingBottom: 2 }}
+              style={{
+                alignItems: "center",
+                paddingTop: 10,
+                paddingBottom: 2,
+              }}
             >
               <View
                 style={{
@@ -600,7 +579,7 @@ export default function CommentsScreen() {
             </View>
           </View>
         </BlurView>
-      </Animated.View>
-    </View>
+      </KeyboardAvoidingView>
+    </KeyboardProvider>
   );
 }
