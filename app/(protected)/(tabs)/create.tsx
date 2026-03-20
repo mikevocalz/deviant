@@ -264,16 +264,23 @@ export default function CreateScreen() {
     if (media && media.length > 0) {
       const validMedia = validateMedia(media);
       if (validMedia.length > 0) {
-        const images = validMedia.filter((m) => m.type === "image");
-        const videos = validMedia.filter((m) => m.type === "video");
-        // Videos go straight to selectedMedia (no crop)
-        if (videos.length > 0) {
-          setSelectedMedia([...selectedMedia, ...videos]);
-        }
-        // Images go through crop screen first
-        if (images.length > 0) {
-          setPendingCrop(images);
-          router.push("/(protected)/crop-preview" as any);
+        // All media (images AND videos) go directly to composer.
+        // No automatic crop/editor navigation.
+        // The crop/editor is ONLY opened via explicit edit button on thumbnails.
+        setSelectedMedia([...selectedMedia, ...validMedia]);
+
+        if (__DEV__) {
+          for (const m of validMedia) {
+            console.log("[MediaPipeline] IMPORTED (library):", {
+              id: m.id,
+              uri: m.uri.substring(0, 60),
+              type: m.type,
+              width: m.width,
+              height: m.height,
+              editorOpened: false,
+              cropState: null,
+            });
+          }
         }
       }
     }
@@ -295,22 +302,23 @@ export default function CreateScreen() {
         };
         const validMedia = validateMedia([media]);
         if (validMedia.length > 0) {
-          if (media.type === "video") {
-            setSelectedMedia(validMedia);
-          } else {
-            // Camera photos go through crop screen
-            setPendingCrop(validMedia);
-            router.push("/(protected)/crop-preview" as any);
+          // All camera results go directly to composer.
+          // No automatic crop/editor navigation.
+          setSelectedMedia([...selectedMedia, ...validMedia]);
+
+          if (__DEV__) {
+            console.log("[MediaPipeline] IMPORTED (camera):", {
+              uri: result.uri.substring(0, 60),
+              type: result.type,
+              width: result.width,
+              height: result.height,
+              editorOpened: false,
+              cropState: null,
+            });
           }
         }
       }
-    }, [
-      consumeCameraResult,
-      validateMedia,
-      selectedMedia,
-      setSelectedMedia,
-      router,
-    ]),
+    }, [consumeCameraResult, validateMedia, selectedMedia, setSelectedMedia]),
   );
 
   const handleOpenCamera = (mode: "photo" | "video" | "both" = "both") => {
@@ -373,13 +381,27 @@ export default function CreateScreen() {
       console.log("[Create] Selected media count:", selectedMedia.length);
 
       // Upload media to Bunny.net CDN
-      const mediaFiles = selectedMedia.map((m) => ({
-        uri: m.uri,
-        type: m.type as "image" | "video",
-        kind: m.kind,
-        mimeType: m.mimeType,
-        pairedVideoUri: m.pairedVideoUri,
-      }));
+      // Use editedUri if user explicitly edited, otherwise use original uri
+      const mediaFiles = selectedMedia.map((m) => {
+        const uploadUri = m.editorOpened && m.editedUri ? m.editedUri : m.uri;
+        if (__DEV__) {
+          console.log("[MediaPipeline] UPLOAD:", {
+            id: m.id,
+            originalUri: m.uri.substring(0, 60),
+            editedUri: m.editedUri?.substring(0, 60) ?? null,
+            uploadUri: uploadUri.substring(0, 60),
+            editorOpened: !!m.editorOpened,
+            usingEdited: !!(m.editorOpened && m.editedUri),
+          });
+        }
+        return {
+          uri: uploadUri,
+          type: m.type as "image" | "video",
+          kind: m.kind,
+          mimeType: m.mimeType,
+          pairedVideoUri: m.pairedVideoUri,
+        };
+      });
 
       console.log("[Create] Uploading media to CDN...");
       let uploadResults;
