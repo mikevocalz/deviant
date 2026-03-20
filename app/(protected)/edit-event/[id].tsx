@@ -3,13 +3,12 @@ import {
   Text,
   TextInput,
   Pressable,
-  ScrollView,
   Platform,
   ActivityIndicator,
   Switch,
   Alert,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -268,306 +267,297 @@ export default function EditEventScreen() {
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        keyboardVerticalOffset={insets.top}
+        contentContainerStyle={{ padding: 20 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={40}
       >
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ padding: 20 }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Cover Image */}
-          <View className="mb-6">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Cover Image
-            </Text>
-            <Pressable onPress={pickCoverImage} disabled={isUploadingCover}>
-              <Motion.View
-                whileTap={{ scale: 0.98 }}
-                transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                className="rounded-xl overflow-hidden"
-                style={{
-                  height: 180,
-                  backgroundColor: colors.muted,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              >
-                {coverImageUrl ? (
-                  <Image
-                    source={{ uri: coverImageUrl }}
-                    className="w-full h-full"
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <View className="flex-1 items-center justify-center">
-                    <Camera size={32} color={colors.mutedForeground} />
-                    <Text
-                      className="mt-2 text-sm"
-                      style={{ color: colors.mutedForeground }}
-                    >
-                      Add cover image
-                    </Text>
-                  </View>
-                )}
-                {isUploadingCover && (
-                  <View className="absolute inset-0 items-center justify-center bg-black/50">
-                    <ActivityIndicator size="large" color="#fff" />
-                  </View>
-                )}
-              </Motion.View>
-            </Pressable>
-          </View>
-
-          {/* Title */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Event Title *
-            </Text>
-            <TextInput
-              value={title}
-              onChangeText={setTitle}
-              placeholder="Enter event title"
-              placeholderTextColor={colors.mutedForeground}
-              className="px-4 py-3 rounded-xl border"
+        {/* Cover Image */}
+        <View className="mb-6">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Cover Image
+          </Text>
+          <Pressable onPress={pickCoverImage} disabled={isUploadingCover}>
+            <Motion.View
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", damping: 15, stiffness: 400 }}
+              className="rounded-xl overflow-hidden"
               style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-              }}
-            />
-          </View>
-
-          {/* Description */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Description *
-            </Text>
-            <TextInput
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Describe your event..."
-              placeholderTextColor={colors.mutedForeground}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-              className="px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-                color: colors.foreground,
-                minHeight: 100,
-              }}
-            />
-          </View>
-
-          {/* Start Date */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Start Date & Time
-            </Text>
-            <Pressable
-              onPress={() => setShowStartDatePicker(true)}
-              className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
+                height: 180,
+                backgroundColor: colors.muted,
+                borderWidth: 1,
                 borderColor: colors.border,
               }}
             >
-              <Calendar size={18} color={colors.mutedForeground} />
-              <Text className="ml-2" style={{ color: colors.foreground }}>
-                {formatDateTime(startDate)}
-              </Text>
-            </Pressable>
-          </View>
+              {coverImageUrl ? (
+                <Image
+                  source={{ uri: coverImageUrl }}
+                  className="w-full h-full"
+                  contentFit="cover"
+                  transition={200}
+                />
+              ) : (
+                <View className="flex-1 items-center justify-center">
+                  <Camera size={32} color={colors.mutedForeground} />
+                  <Text
+                    className="mt-2 text-sm"
+                    style={{ color: colors.mutedForeground }}
+                  >
+                    Add cover image
+                  </Text>
+                </View>
+              )}
+              {isUploadingCover && (
+                <View className="absolute inset-0 items-center justify-center bg-black/50">
+                  <ActivityIndicator size="large" color="#fff" />
+                </View>
+              )}
+            </Motion.View>
+          </Pressable>
+        </View>
 
-          {/* End Date */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              End Date & Time
-            </Text>
-            <Pressable
-              onPress={() => setShowEndDatePicker(true)}
-              className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              }}
-            >
-              <Clock size={18} color={colors.mutedForeground} />
-              <Text className="ml-2" style={{ color: colors.foreground }}>
-                {formatDateTime(endDate)}
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Location */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Location
-            </Text>
-            <View
-              className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              }}
-            >
-              <MapPin size={18} color={colors.mutedForeground} />
-              <TextInput
-                value={location}
-                onChangeText={setLocation}
-                placeholder={
-                  isOnline ? "Add meeting link" : "Add venue address"
-                }
-                placeholderTextColor={colors.mutedForeground}
-                className="flex-1 ml-2"
-                style={{ color: colors.foreground }}
-                editable={!isOnline}
-              />
-            </View>
-          </View>
-
-          {/* Online Event Toggle */}
-          <View
-            className="flex-row items-center justify-between p-4 rounded-xl mb-5"
+        {/* Title */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Event Title *
+          </Text>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            placeholder="Enter event title"
+            placeholderTextColor={colors.mutedForeground}
+            className="px-4 py-3 rounded-xl border"
             style={{
               backgroundColor: colors.card,
-              borderWidth: 1,
+              borderColor: colors.border,
+              color: colors.foreground,
+            }}
+          />
+        </View>
+
+        {/* Description */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Description *
+          </Text>
+          <TextInput
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Describe your event..."
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            numberOfLines={4}
+            textAlignVertical="top"
+            className="px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              color: colors.foreground,
+              minHeight: 100,
+            }}
+          />
+        </View>
+
+        {/* Start Date */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Start Date & Time
+          </Text>
+          <Pressable
+            onPress={() => setShowStartDatePicker(true)}
+            className="flex-row items-center px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
               borderColor: colors.border,
             }}
           >
-            <View className="flex-row items-center gap-2 flex-1">
-              <Globe size={20} color={colors.foreground} />
-              <View className="flex-1">
-                <Text
-                  className="text-sm font-medium"
-                  style={{ color: colors.foreground }}
-                >
-                  Online Event
-                </Text>
-                <Text
-                  className="text-xs"
-                  style={{ color: colors.mutedForeground }}
-                >
-                  Event will be hosted virtually
-                </Text>
-              </View>
-            </View>
-            <Switch
-              value={isOnline}
-              onValueChange={setIsOnline}
-              trackColor={{ false: colors.muted, true: colors.primary }}
-              thumbColor="#fff"
+            <Calendar size={18} color={colors.mutedForeground} />
+            <Text className="ml-2" style={{ color: colors.foreground }}>
+              {formatDateTime(startDate)}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* End Date */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            End Date & Time
+          </Text>
+          <Pressable
+            onPress={() => setShowEndDatePicker(true)}
+            className="flex-row items-center px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+          >
+            <Clock size={18} color={colors.mutedForeground} />
+            <Text className="ml-2" style={{ color: colors.foreground }}>
+              {formatDateTime(endDate)}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Location */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Location
+          </Text>
+          <View
+            className="flex-row items-center px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+          >
+            <MapPin size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={location}
+              onChangeText={setLocation}
+              placeholder={isOnline ? "Add meeting link" : "Add venue address"}
+              placeholderTextColor={colors.mutedForeground}
+              className="flex-1 ml-2"
+              style={{ color: colors.foreground }}
+              editable={!isOnline}
             />
           </View>
+        </View>
 
-          {/* Price */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Price (Optional)
-            </Text>
-            <View
-              className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              }}
-            >
-              <DollarSign size={18} color={colors.mutedForeground} />
-              <TextInput
-                value={price}
-                onChangeText={setPrice}
-                placeholder="0.00"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="decimal-pad"
-                className="flex-1 ml-2"
-                style={{ color: colors.foreground }}
-              />
-            </View>
-            <Text
-              className="text-xs mt-1"
-              style={{ color: colors.mutedForeground }}
-            >
-              Leave empty for free events
-            </Text>
-          </View>
-
-          {/* Max Attendees */}
-          <View className="mb-5">
-            <Text
-              className="text-sm font-medium mb-2"
-              style={{ color: colors.mutedForeground }}
-            >
-              Max Attendees (Optional)
-            </Text>
-            <View
-              className="flex-row items-center px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
-              }}
-            >
-              <Users size={18} color={colors.mutedForeground} />
-              <TextInput
-                value={maxAttendees}
-                onChangeText={setMaxAttendees}
-                placeholder="Unlimited"
-                placeholderTextColor={colors.mutedForeground}
-                keyboardType="number-pad"
-                className="flex-1 ml-2"
-                style={{ color: colors.foreground }}
-              />
-            </View>
-          </View>
-
-          {/* Info */}
-          <Motion.View
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "timing", duration: 300 }}
-            className="p-4 rounded-xl flex-row gap-3"
-            style={{ backgroundColor: colors.muted }}
-          >
-            <AlertCircle size={20} color={colors.mutedForeground} />
+        {/* Online Event Toggle */}
+        <View
+          className="flex-row items-center justify-between p-4 rounded-xl mb-5"
+          style={{
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <View className="flex-row items-center gap-2 flex-1">
+            <Globe size={20} color={colors.foreground} />
             <View className="flex-1">
+              <Text
+                className="text-sm font-medium"
+                style={{ color: colors.foreground }}
+              >
+                Online Event
+              </Text>
               <Text
                 className="text-xs"
                 style={{ color: colors.mutedForeground }}
               >
-                All attendees will be notified of any changes to the event
-                details.
+                Event will be hosted virtually
               </Text>
             </View>
-          </Motion.View>
+          </View>
+          <Switch
+            value={isOnline}
+            onValueChange={setIsOnline}
+            trackColor={{ false: colors.muted, true: colors.primary }}
+            thumbColor="#fff"
+          />
+        </View>
 
-          <View style={{ height: insets.bottom + 40 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Price */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Price (Optional)
+          </Text>
+          <View
+            className="flex-row items-center px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+          >
+            <DollarSign size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={price}
+              onChangeText={setPrice}
+              placeholder="0.00"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="decimal-pad"
+              className="flex-1 ml-2"
+              style={{ color: colors.foreground }}
+            />
+          </View>
+          <Text
+            className="text-xs mt-1"
+            style={{ color: colors.mutedForeground }}
+          >
+            Leave empty for free events
+          </Text>
+        </View>
+
+        {/* Max Attendees */}
+        <View className="mb-5">
+          <Text
+            className="text-sm font-medium mb-2"
+            style={{ color: colors.mutedForeground }}
+          >
+            Max Attendees (Optional)
+          </Text>
+          <View
+            className="flex-row items-center px-4 py-3 rounded-xl border"
+            style={{
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            }}
+          >
+            <Users size={18} color={colors.mutedForeground} />
+            <TextInput
+              value={maxAttendees}
+              onChangeText={setMaxAttendees}
+              placeholder="Unlimited"
+              placeholderTextColor={colors.mutedForeground}
+              keyboardType="number-pad"
+              className="flex-1 ml-2"
+              style={{ color: colors.foreground }}
+            />
+          </View>
+        </View>
+
+        {/* Info */}
+        <Motion.View
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "timing", duration: 300 }}
+          className="p-4 rounded-xl flex-row gap-3"
+          style={{ backgroundColor: colors.muted }}
+        >
+          <AlertCircle size={20} color={colors.mutedForeground} />
+          <View className="flex-1">
+            <Text className="text-xs" style={{ color: colors.mutedForeground }}>
+              All attendees will be notified of any changes to the event
+              details.
+            </Text>
+          </View>
+        </Motion.View>
+
+        <View style={{ height: insets.bottom + 40 }} />
+      </KeyboardAwareScrollView>
 
       {/* Date Pickers */}
       {showStartDatePicker && (

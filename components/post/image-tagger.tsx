@@ -14,8 +14,8 @@ import {
   ScrollView,
   StyleSheet,
   Dimensions,
-  Keyboard,
 } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { X, UserPlus, Search } from "lucide-react-native";
 import { Motion, AnimatePresence } from "@legendapp/motion";
@@ -175,7 +175,7 @@ export function ImageTagger({
       setPendingPosition(null);
       setSearchQuery("");
       setSearchResults([]);
-      Keyboard.dismiss();
+      KeyboardController.dismiss();
 
       // Save to backend
       const updatedTags = alreadyTagged
@@ -233,7 +233,7 @@ export function ImageTagger({
     setPendingPosition(null);
     setSearchQuery("");
     setSearchResults([]);
-    Keyboard.dismiss();
+    KeyboardController.dismiss();
   }, []);
 
   const toggleTagVisibility = useCallback(() => {

@@ -4,10 +4,13 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  Keyboard,
   Platform,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import {
+  KeyboardAvoidingView,
+  KeyboardController,
+  KeyboardEvents,
+} from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
@@ -77,7 +80,7 @@ export default function RepliesScreen() {
         authorId: user.id,
       });
       setReply("");
-      Keyboard.dismiss();
+      KeyboardController.dismiss();
     } catch (error: any) {
       showToast("error", "Error", error?.message || "Failed to post reply");
     }
@@ -161,7 +164,7 @@ export default function RepliesScreen() {
 
   // Handle keyboard dismiss
   useEffect(() => {
-    const keyboardDidHideListener = Keyboard.addListener(
+    const keyboardDidHideListener = KeyboardEvents.addListener(
       "keyboardDidHide",
       () => {
         // Clear reply state when keyboard is dismissed
@@ -319,9 +322,7 @@ export default function RepliesScreen() {
                 >
                   <Image
                     source={{
-                      uri:
-                        u.avatar ||
-                        "",
+                      uri: u.avatar || "",
                     }}
                     style={{ width: 28, height: 28, borderRadius: 6 }}
                   />

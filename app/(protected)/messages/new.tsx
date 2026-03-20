@@ -3,10 +3,9 @@ import {
   Text,
   TextInput,
   Pressable,
-  ScrollView,
   ActivityIndicator,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Search, X } from "lucide-react-native";
@@ -110,93 +109,93 @@ export default function NewMessageScreen() {
   );
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-        <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-          <Pressable onPress={() => router.back()} hitSlop={12}>
-            <ArrowLeft size={24} color="#fff" />
-          </Pressable>
-          <Text className="flex-1 text-lg font-bold text-foreground">
-            New Message
-          </Text>
-        </View>
+    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+        <Text className="flex-1 text-lg font-bold text-foreground">
+          New Message
+        </Text>
+      </View>
 
-        <View className="px-4 py-3 border-b border-border">
-          <View className="flex-row items-center bg-secondary rounded-xl px-3">
-            <Search size={20} color="#666" />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search users..."
-              placeholderTextColor="#666"
-              autoFocus
-              className="flex-1 h-11 ml-2 text-foreground text-base"
-            />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery("")} hitSlop={12}>
-                <X size={20} color="#666" />
-              </Pressable>
-            )}
+      <View className="px-4 py-3 border-b border-border">
+        <View className="flex-row items-center bg-secondary rounded-xl px-3">
+          <Search size={20} color="#666" />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search users..."
+            placeholderTextColor="#666"
+            autoFocus
+            className="flex-1 h-11 ml-2 text-foreground text-base"
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={12}>
+              <X size={20} color="#666" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
+        bottomOffset={20}
+      >
+        <Text className="px-4 pt-4 pb-2 text-muted-foreground text-sm font-semibold">
+          {searchQuery ? "Search Results" : "All Users"}
+        </Text>
+        {isLoading ? (
+          <View className="p-8 items-center">
+            <ActivityIndicator size="large" color="#fff" />
           </View>
-        </View>
-
-        <ScrollView className="flex-1">
-          <Text className="px-4 pt-4 pb-2 text-muted-foreground text-sm font-semibold">
-            {searchQuery ? "Search Results" : "All Users"}
-          </Text>
-          {isLoading ? (
-            <View className="p-8 items-center">
-              <ActivityIndicator size="large" color="#fff" />
-            </View>
-          ) : (
-            <>
-              {filteredUsers.map((user) => (
-                <View
-                  key={user.id}
-                  className="flex-row items-center gap-3 px-4 py-3"
+        ) : (
+          <>
+            {filteredUsers.map((user) => (
+              <View
+                key={user.id}
+                className="flex-row items-center gap-3 px-4 py-3"
+              >
+                <Pressable onPress={() => handleProfilePress(user.username)}>
+                  <Image
+                    source={{ uri: user.avatar }}
+                    className="w-[50px] h-[50px] rounded-full"
+                  />
+                </Pressable>
+                <Pressable
+                  onPress={() => handleSelectUser(user.id)}
+                  className="flex-1"
                 >
                   <Pressable onPress={() => handleProfilePress(user.username)}>
-                    <Image
-                      source={{ uri: user.avatar }}
-                      className="w-[50px] h-[50px] rounded-full"
-                    />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => handleSelectUser(user.id)}
-                    className="flex-1"
-                  >
-                    <Pressable
-                      onPress={() => handleProfilePress(user.username)}
-                    >
-                      <Text className="text-base font-semibold text-foreground">
-                        {user.username}
-                      </Text>
-                    </Pressable>
-                    <Text className="text-sm text-muted-foreground">
-                      {user.name}
+                    <Text className="text-base font-semibold text-foreground">
+                      {user.username}
                     </Text>
                   </Pressable>
-                  <Pressable
-                    onPress={() => handleSelectUser(user.id)}
-                    className="bg-primary px-4 py-2 rounded-full"
-                  >
-                    <Text className="text-white font-semibold text-sm">
-                      Message
-                    </Text>
-                  </Pressable>
-                </View>
-              ))}
-              {filteredUsers.length === 0 && !isLoading && (
-                <View className="p-8 items-center">
-                  <Text className="text-muted-foreground">
-                    {searchQuery ? "No users found" : "No users available"}
+                  <Text className="text-sm text-muted-foreground">
+                    {user.name}
                   </Text>
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+                </Pressable>
+                <Pressable
+                  onPress={() => handleSelectUser(user.id)}
+                  className="bg-primary px-4 py-2 rounded-full"
+                >
+                  <Text className="text-white font-semibold text-sm">
+                    Message
+                  </Text>
+                </Pressable>
+              </View>
+            ))}
+            {filteredUsers.length === 0 && !isLoading && (
+              <View className="p-8 items-center">
+                <Text className="text-muted-foreground">
+                  {searchQuery ? "No users found" : "No users available"}
+                </Text>
+              </View>
+            )}
+          </>
+        )}
+      </KeyboardAwareScrollView>
+    </SafeAreaView>
   );
 }

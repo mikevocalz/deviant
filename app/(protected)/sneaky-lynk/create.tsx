@@ -3,16 +3,8 @@
  * Form to create a new Sneaky Lynk room
  */
 
-import {
-  View,
-  Text,
-  Pressable,
-  TextInput,
-  Switch,
-  ScrollView,
-  Platform,
-} from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { View, Text, Pressable, TextInput, Switch } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ArrowLeft, Radio, Video, Globe, Lock } from "lucide-react-native";
@@ -117,11 +109,7 @@ export default function CreateLynkScreen() {
   ]);
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1 bg-background"
-      style={{ paddingTop: insets.top }}
-    >
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
       {/* Header */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
         <Pressable onPress={() => router.back()} hitSlop={12}>
@@ -134,10 +122,11 @@ export default function CreateLynkScreen() {
         <View className="w-6" />
       </View>
 
-      <ScrollView
-        className="flex-1"
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={{ padding: 20 }}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={40}
       >
         {/* Title Input */}
         <View className="mb-6">
@@ -248,7 +237,7 @@ export default function CreateLynkScreen() {
           Your Lynk will go live immediately after creation.{"\n"}
           You'll be the host and can invite speakers.
         </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
