@@ -7,6 +7,7 @@ import { View, Text, Pressable, TextInput, Switch } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ArrowLeft, Radio, Video, Globe, Lock } from "lucide-react-native";
 import { useState, useCallback } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -14,7 +15,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 
-export default function CreateLynkScreen() {
+function CreateLynkScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
@@ -239,5 +240,14 @@ export default function CreateLynkScreen() {
         </Text>
       </KeyboardAwareScrollView>
     </View>
+  );
+}
+
+export default function CreateLynkScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="CreateLynk" onGoBack={() => router.back()}>
+      <CreateLynkScreenContent />
+    </ErrorBoundary>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary as GlobalErrorBoundary } from "@/components/error-boundary";
 import {
   ArrowLeft,
   MoreHorizontal,
@@ -226,7 +227,7 @@ function PreJoinScreen({
 
 // ── Router entry point ──────────────────────────────────────────────
 
-export default function SneakyLynkRoomScreen() {
+function SneakyLynkRoomScreenContent() {
   const {
     id,
     title: paramTitle,
@@ -1062,5 +1063,17 @@ function RoomLayout({
         participants={allParticipants.map((p) => p.user)}
       />
     </View>
+  );
+}
+
+export default function SneakyLynkRoomScreen() {
+  const router = useRouter();
+  return (
+    <GlobalErrorBoundary
+      screenName="SneakyLynkRoom"
+      onGoBack={() => router.back()}
+    >
+      <SneakyLynkRoomScreenContent />
+    </GlobalErrorBoundary>
   );
 }

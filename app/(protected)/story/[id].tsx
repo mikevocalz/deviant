@@ -20,6 +20,7 @@ import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { Debouncer } from "@tanstack/react-pacer";
@@ -131,7 +132,7 @@ function FloatingReactionEmoji({
   );
 }
 
-export default function StoryViewerScreen() {
+function StoryViewerScreenContent() {
   const { id, username: usernameParam } = useLocalSearchParams<{
     id: string;
     username?: string;
@@ -1531,5 +1532,19 @@ export default function StoryViewerScreen() {
         )}
       </KeyboardAvoidingView>
     </KeyboardProvider>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection
+export default function StoryViewerScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="StoryViewer"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <StoryViewerScreenContent />
+    </ErrorBoundary>
   );
 }

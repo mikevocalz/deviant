@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   View,
   Text,
@@ -49,7 +50,7 @@ interface Ticket {
   createdAt: string;
 }
 
-export default function EventOrganizerScreen() {
+function EventOrganizerScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -602,5 +603,14 @@ export default function EventOrganizerScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+export default function EventOrganizerScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EventOrganizer" onGoBack={() => router.back()}>
+      <EventOrganizerScreenContent />
+    </ErrorBoundary>
   );
 }

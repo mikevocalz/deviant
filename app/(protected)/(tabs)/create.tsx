@@ -22,7 +22,8 @@ import {
   UserPlus,
   Scissors,
 } from "lucide-react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
@@ -134,7 +135,7 @@ function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
   );
 }
 
-export default function CreateScreen() {
+function CreateScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const {
@@ -1143,5 +1144,13 @@ export default function CreateScreen() {
         </View>
       )}
     </View>
+  );
+}
+
+export default function CreateScreen() {
+  return (
+    <ErrorBoundary screenName="Create">
+      <CreateScreenContent />
+    </ErrorBoundary>
   );
 }

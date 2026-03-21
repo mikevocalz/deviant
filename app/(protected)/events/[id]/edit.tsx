@@ -22,6 +22,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -57,7 +58,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete";
 
-export default function EditEventScreen() {
+function EditEventScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -1063,5 +1064,14 @@ export default function EditEventScreen() {
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function EditEventScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EditEventDetail" onGoBack={() => router.back()}>
+      <EditEventScreenContent />
+    </ErrorBoundary>
   );
 }

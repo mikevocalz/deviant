@@ -16,6 +16,7 @@ import {
 } from "react-native-keyboard-controller";
 import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { X, Send } from "lucide-react-native";
 import { useEffect, useCallback, useMemo, useRef, useState } from "react";
@@ -38,7 +39,7 @@ function generateMutationId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export default function CommentsScreen() {
+function CommentsScreenContent() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const { commentId } = useLocalSearchParams<{ commentId?: string }>();
   const router = useRouter();
@@ -581,5 +582,16 @@ export default function CommentsScreen() {
         </BlurView>
       </KeyboardAvoidingView>
     </KeyboardProvider>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection
+export default function CommentsScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary screenName="Comments" onGoBack={() => router.back()}>
+      <CommentsScreenContent />
+    </ErrorBoundary>
   );
 }

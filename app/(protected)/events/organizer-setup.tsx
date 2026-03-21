@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Platform,
 } from "react-native";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useState, useCallback, useEffect } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -273,5 +274,10 @@ function InfoCard({
 }
 
 export default function OrganizerSetupScreen() {
-  return <OrganizerSetupContent />;
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="OrganizerSetup" onGoBack={() => router.back()}>
+      <OrganizerSetupContent />
+    </ErrorBoundary>
+  );
 }

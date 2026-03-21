@@ -6,6 +6,7 @@
 import { View, Text, Pressable, TextInput, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ChevronLeft, Play, Copy, Link2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useState, useCallback } from "react";
@@ -31,7 +32,7 @@ const SAMPLE_URLS = [
   "https://dvntlive.app/unknown-route",
 ];
 
-export default function DeepLinkTesterScreen() {
+function DeepLinkTesterScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const [url, setUrl] = useState("");
@@ -210,5 +211,14 @@ export default function DeepLinkTesterScreen() {
         ))}
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function DeepLinkTesterScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="DeepLinkTester" onGoBack={() => router.back()}>
+      <DeepLinkTesterScreenContent />
+    </ErrorBoundary>
   );
 }

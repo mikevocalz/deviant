@@ -8,6 +8,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ArrowLeft, Search, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useNewMessageStore } from "@/lib/stores/comments-store";
@@ -20,7 +21,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 
-export default function NewMessageScreen() {
+function NewMessageScreenContent() {
   const router = useRouter();
   const { searchQuery, setSearchQuery } = useNewMessageStore();
   const currentUser = useAuthStore((state) => state.user);
@@ -197,5 +198,14 @@ export default function NewMessageScreen() {
         )}
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function NewMessageScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="NewMessage" onGoBack={() => router.back()}>
+      <NewMessageScreenContent />
+    </ErrorBoundary>
   );
 }

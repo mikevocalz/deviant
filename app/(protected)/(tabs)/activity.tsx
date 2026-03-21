@@ -3,6 +3,7 @@ import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useColorScheme } from "@/lib/hooks";
 import { useCallback, useEffect, memo, useState, useRef, useMemo } from "react";
 import { useFocusEffect } from "expo-router";
@@ -177,7 +178,7 @@ const ActivityItem = memo(
   ),
 );
 
-export default function ActivityScreen() {
+function ActivityScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
@@ -539,5 +540,13 @@ export default function ActivityScreen() {
         extraData={{ followedUsers, pendingFollows }}
       />
     </View>
+  );
+}
+
+export default function ActivityScreen() {
+  return (
+    <ErrorBoundary screenName="Activity">
+      <ActivityScreenContent />
+    </ErrorBoundary>
   );
 }

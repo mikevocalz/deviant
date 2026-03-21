@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useState, useEffect } from "react";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useColorScheme } from "@/lib/hooks";
 import {
   ChevronLeft,
@@ -56,7 +57,7 @@ async function getAuthToken(): Promise<string | null> {
   }
 }
 
-export default function DebugScreen() {
+function DebugScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
@@ -401,5 +402,14 @@ export default function DebugScreen() {
         </View>
       </ScrollView>
     </View>
+  );
+}
+
+export default function DebugScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Debug" onGoBack={() => router.back()}>
+      <DebugScreenContent />
+    </ErrorBoundary>
   );
 }

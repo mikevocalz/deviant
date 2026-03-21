@@ -9,6 +9,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
@@ -16,7 +17,7 @@ import { useState, useEffect } from "react";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 
-export default function EditEventScreen() {
+function EditEventScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -346,5 +347,14 @@ export default function EditEventScreen() {
         <View className="h-8" />
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function EditEventScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EditEvent" onGoBack={() => router.back()}>
+      <EditEventScreenContent />
+    </ErrorBoundary>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ArrowLeft, Search, X, Check, Users } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useState } from "react";
@@ -35,7 +36,7 @@ interface SelectedUser {
 
 const MAX_GROUP_MEMBERS = 4;
 
-export default function NewGroupScreen() {
+function NewGroupScreenContent() {
   const router = useRouter();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((s) => s.showToast);
@@ -281,5 +282,14 @@ export default function NewGroupScreen() {
         )}
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function NewGroupScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="NewGroup" onGoBack={() => router.back()}>
+      <NewGroupScreenContent />
+    </ErrorBoundary>
   );
 }

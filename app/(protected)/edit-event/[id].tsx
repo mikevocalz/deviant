@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -34,7 +35,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
-export default function EditEventScreen() {
+function EditEventScreenContent() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string }>();
   const eventId = params.id;
@@ -583,5 +584,14 @@ export default function EditEventScreen() {
         />
       )}
     </View>
+  );
+}
+
+export default function EditEventScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EditEvent" onGoBack={() => router.back()}>
+      <EditEventScreenContent />
+    </ErrorBoundary>
   );
 }

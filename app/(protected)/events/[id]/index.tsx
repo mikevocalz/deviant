@@ -12,6 +12,7 @@ import {
 import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { eventKeys } from "@/lib/hooks/use-events";
@@ -206,7 +207,7 @@ function formatEventTime(dateStr: string): string {
   }
 }
 
-export default function EventDetailScreen() {
+function EventDetailScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -1792,3 +1793,17 @@ const s = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
+// Wrap with ErrorBoundary for crash protection
+export default function EventDetailScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="EventDetail"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <EventDetailScreenContent />
+    </ErrorBoundary>
+  );
+}

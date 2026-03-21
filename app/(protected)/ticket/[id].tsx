@@ -23,6 +23,7 @@ import {
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Motion } from "@legendapp/motion";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
@@ -79,7 +80,7 @@ function dbToTicket(rec: TicketRecord): Ticket {
   };
 }
 
-export default function ViewTicketScreen() {
+function ViewTicketScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -501,3 +502,14 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 });
+
+// Wrap with ErrorBoundary for crash protection
+export default function ViewTicketScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary screenName="ViewTicket" onGoBack={() => router.back()}>
+      <ViewTicketScreenContent />
+    </ErrorBoundary>
+  );
+}

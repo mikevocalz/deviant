@@ -13,7 +13,7 @@
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { AlertTriangle, RefreshCw, Home } from "lucide-react-native";
+import { AlertTriangle, RefreshCw, Home, ArrowLeft } from "lucide-react-native";
 
 interface Props {
   children: ReactNode;
@@ -90,7 +90,22 @@ export class ErrorBoundary extends Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // TODO: Send to crash reporting service (Sentry, Bugsnag, etc.)
+    // Send to Sentry (best-effort, non-blocking)
+    try {
+      const Sentry = require("@sentry/react-native");
+      Sentry.withScope((scope: any) => {
+        scope.setTag("screen", screenName);
+        if (debugContext.routeParams) {
+          scope.setContext("routeParams", debugContext.routeParams);
+        }
+        if (debugContext.userId) {
+          scope.setUser({ id: debugContext.userId });
+        }
+        Sentry.captureException(error);
+      });
+    } catch {
+      // Sentry not available — no-op
+    }
   }
 
   handleRetry = () => {
@@ -138,6 +153,16 @@ export class ErrorBoundary extends Component<Props, State> {
                 <RefreshCw size={20} color="#fff" />
                 <Text style={styles.buttonText}>Try Again</Text>
               </Pressable>
+
+              {this.props.onGoBack && (
+                <Pressable
+                  style={[styles.button, styles.secondaryButton]}
+                  onPress={this.props.onGoBack}
+                >
+                  <ArrowLeft size={20} color="#fff" />
+                  <Text style={styles.buttonText}>Go Back</Text>
+                </Pressable>
+              )}
 
               {this.props.onGoHome && (
                 <Pressable
@@ -231,6 +256,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
     gap: 12,
     marginTop: 24,
   },

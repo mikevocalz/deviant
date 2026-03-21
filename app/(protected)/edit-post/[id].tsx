@@ -25,6 +25,7 @@ import {
   Switch,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -61,7 +62,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_HEIGHT = SCREEN_WIDTH * 0.65;
 const MAX_CAPTION = 2200;
 
-export default function EditPostScreen() {
+function EditPostScreenContent() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -794,5 +795,16 @@ export default function EditPostScreen() {
         <View style={{ height: insets.bottom + 60 }} />
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection
+export default function EditPostScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary screenName="EditPost" onGoBack={() => router.back()}>
+      <EditPostScreenContent />
+    </ErrorBoundary>
   );
 }

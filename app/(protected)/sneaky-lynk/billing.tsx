@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ChevronLeft,
@@ -51,7 +52,7 @@ const PLAN_LABELS: Record<
   host_50: { name: "Host 50", price: "$24.99/mo", maxPax: 50 },
 };
 
-export default function BillingScreen() {
+function BillingScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
@@ -394,5 +395,14 @@ export default function BillingScreen() {
         />
       )}
     </View>
+  );
+}
+
+export default function BillingScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Billing" onGoBack={() => router.back()}>
+      <BillingScreenContent />
+    </ErrorBoundary>
   );
 }

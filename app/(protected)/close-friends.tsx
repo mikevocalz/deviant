@@ -13,6 +13,7 @@ import {
 import { LegendList } from "@/components/list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ChevronLeft, Search, Star, X } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useColorScheme } from "@/lib/hooks";
@@ -30,7 +31,7 @@ import * as Haptics from "expo-haptics";
 
 const CF_ACCENT = "#FC253A";
 
-export default function ManageCloseFriendsScreen() {
+function ManageCloseFriendsScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const { user } = useAuthStore();
@@ -101,9 +102,7 @@ export default function ManageCloseFriendsScreen() {
         >
           <Image
             source={{
-              uri:
-                item.avatar ||
-                "",
+              uri: item.avatar || "",
             }}
             style={{ width: 48, height: 48, borderRadius: 24 }}
             contentFit="cover"
@@ -235,5 +234,14 @@ export default function ManageCloseFriendsScreen() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+export default function ManageCloseFriendsScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="CloseFriends" onGoBack={() => router.back()}>
+      <ManageCloseFriendsScreenContent />
+    </ErrorBoundary>
   );
 }

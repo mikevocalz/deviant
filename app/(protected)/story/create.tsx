@@ -30,6 +30,7 @@ import {
   useFocusEffect,
   useLocalSearchParams,
 } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
@@ -117,7 +118,7 @@ const MAX_STORY_ITEMS = 4;
 const MAX_VIDEO_DURATION = 30;
 const MAX_FILE_SIZE_MB = 50;
 
-export default function CreateStoryScreen() {
+function CreateStoryScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -960,5 +961,14 @@ export default function CreateStoryScreen() {
         onUsersChanged={setTaggedUsers}
       />
     </>
+  );
+}
+
+export default function CreateStoryScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="StoryCreate" onGoBack={() => router.back()}>
+      <CreateStoryScreenContent />
+    </ErrorBoundary>
   );
 }

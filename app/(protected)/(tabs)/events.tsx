@@ -29,6 +29,7 @@ import {
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useColorScheme } from "@/lib/hooks";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { LinearGradient } from "expo-linear-gradient";
@@ -294,7 +295,7 @@ function EventCard({
   );
 }
 
-export default function EventsScreen() {
+function EventsScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const scrollY = useSharedValue(0);
@@ -1042,5 +1043,13 @@ export default function EventsScreen() {
       {/* Promote Event Sheet (organizer bottom sheet) */}
       <PromoteEventSheet />
     </View>
+  );
+}
+
+export default function EventsScreen() {
+  return (
+    <ErrorBoundary screenName="Events">
+      <EventsScreenContent />
+    </ErrorBoundary>
   );
 }
