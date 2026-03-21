@@ -1,7 +1,13 @@
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  ScrollView,
+  Platform,
+} from "react-native";
 import {
   KeyboardController,
-  KeyboardEvents,
   KeyboardProvider,
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
@@ -157,19 +163,7 @@ function RepliesScreenContent() {
     [reply, cursorPos, setReply],
   );
 
-  // Handle keyboard dismiss
-  useEffect(() => {
-    const keyboardDidHideListener = KeyboardEvents.addListener(
-      "keyboardDidHide",
-      () => {
-        // Clear reply state when keyboard is dismissed
-      },
-    );
-
-    return () => {
-      keyboardDidHideListener.remove();
-    };
-  }, []);
+  // Handle keyboard dismiss - not needed for react-native-keyboard-controller
 
   // Set TrueSheet header prop — fixed above scrollable content
   useLayoutEffect(() => {

@@ -81,6 +81,7 @@ import {
   StickyCTA,
   EventDetailSkeleton,
   WeatherModule,
+  EventMapSection,
 } from "@/src/events/ui";
 import type {
   TicketTier,
@@ -959,6 +960,25 @@ function EventDetailScreenContent() {
               />
             </View>
           ) : null}
+
+          {/* ── 3.6 EVENT MAP & DIRECTIONS ───────────────────────── */}
+          {event.locationLat && event.locationLng && (
+            <View style={s.section}>
+              <EventMapSection
+                location={{
+                  placeId: `event_${eventId}`,
+                  provider: "google",
+                  name:
+                    event.locationName || event.location || "Event Location",
+                  formattedAddress: event.location || "",
+                  latitude: event.locationLat,
+                  longitude: event.locationLng,
+                }}
+                eventTitle={event.title}
+                fallbackAddress={event.location}
+              />
+            </View>
+          )}
 
           {/* ── 4. COLLAPSIBLE EVENT DETAILS ─────────────────────── */}
           <View style={s.collapsibleSection}>
