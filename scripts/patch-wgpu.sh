@@ -49,7 +49,7 @@ if [ -f "$WGPU_DIR/apple/WebGPUView.h" ]; then
 fi
 
 # Update class names in all files
-find "$WGPU_DIR" -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -name "*.m" -o -name "*.json" 2>/dev/null | while read -r file; do
+find "$WGPU_DIR" -type f \( -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -name "*.m" -o -name "*.json" -o -name "*.java" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" \) 2>/dev/null | while read -r file; do
   if grep -q "WebGPUView" "$file" 2>/dev/null; then
     # Rename class declarations and usages
     sed -i '' 's/@interface WebGPUView/@interface WGPUWebGPUView/g' "$file" 2>/dev/null || true
@@ -58,6 +58,15 @@ find "$WGPU_DIR" -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -name "*.m" -o 
     sed -i '' 's/WebGPUViewComponentDescriptor/WGPUWebGPUViewComponentDescriptor/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUViewProps/WGPUWebGPUViewProps/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUViewCls/WGPUWebGPUViewCls/g' "$file" 2>/dev/null || true
+    sed -i '' 's/"WebGPUView"/"WGPUWebGPUView"/g' "$file" 2>/dev/null || true
+    sed -i '' 's/'\''WebGPUView'\''/'\''WGPUWebGPUView'\''/g' "$file" 2>/dev/null || true
+    sed -i '' 's/Java_com_webgpu_WebGPUView/Java_com_webgpu_WGPUWebGPUView/g' "$file" 2>/dev/null || true
+    sed -i '' 's/WebGPUViewManager/WebGPUWGPUViewManager/g' "$file" 2>/dev/null || true
+    sed -i '' 's/"WebGPUView"/"WGPUWebGPUView"/g' "$file" 2>/dev/null || true
+    sed -i '' 's/'\''WebGPUView'\''/'\''WGPUWebGPUView'\''/g' "$file" 2>/dev/null || true
+    sed -i '' 's/\.\/WebGPUViewNativeComponent/\.\/WGPUWebGPUViewNativeComponent/g' "$file" 2>/dev/null || true
+    sed -i '' 's/WebGPUViewNativeComponent/WGPUWebGPUViewNativeComponent/g' "$file" 2>/dev/null || true
+    sed -i '' 's/WebGPUViewPackage/WGPUWebGPUViewPackage/g' "$file" 2>/dev/null || true
     # Use perl for more complex replacements
     perl -i -pe 's/\bWebGPUView\b/WGPUWebGPUView/g' "$file" 2>/dev/null || true
   fi
