@@ -43,6 +43,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
+import { normalizeArray } from "@/lib/normalization/safe-entity";
 import {
   safeProfile,
   safeGridTiles,
@@ -501,10 +502,15 @@ function ProfileScreenContent() {
   }, [taggedPostsRaw]);
 
   // Fetch user's events (hosting + RSVP'd)
-  const { data: myEvents = [] } = useMyEvents();
+  const { data: myEventsRaw } = useMyEvents();
+  const myEvents = useMemo(() => normalizeArray(myEventsRaw), [myEventsRaw]);
 
   // Fetch user's liked/saved events
-  const { data: likedEvents = [] } = useLikedEvents();
+  const { data: likedEventsRaw } = useLikedEvents();
+  const likedEvents = useMemo(
+    () => normalizeArray(likedEventsRaw),
+    [likedEventsRaw],
+  );
 
   // Select display posts based on active tab - fully typed
   const displayPosts: SafeGridTile[] = useMemo(() => {

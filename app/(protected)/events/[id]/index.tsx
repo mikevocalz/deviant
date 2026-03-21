@@ -54,6 +54,10 @@ import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
+import {
+  normalizeEvent,
+  normalizeArray,
+} from "@/lib/normalization/safe-entity";
 import { ticketsApi } from "@/lib/api/tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
@@ -325,12 +329,6 @@ function EventDetailScreenContent() {
     }
   }, [eventData?.isLiked]);
 
-  // Derive reviews + comments from batch payload
-  const reviews = eventData?.topReviews || [];
-  const comments = eventData?.topComments || [];
-  const isLoadingReviews = isLoading;
-  const isLoadingComments = isLoading;
-
   const handleToggleLike = useCallback(async () => {
     if (!eventId) return;
     const wasLiked = isLiked;
@@ -352,6 +350,16 @@ function EventDetailScreenContent() {
     }
   }, [eventId, isLiked, showToast, queryClient]);
 
+  // NORMALIZATION: Create safeEvent with guaranteed non-null values
+  // This prevents crashes if TanStack Query updates eventData to null during render
+  const safeEvent = useMemo(() => normalizeEvent(eventData), [eventData]);
+
+  // Derive reviews + comments from batch payload
+  const reviews = normalizeArray(safeEvent?.topReviews);
+  const comments = normalizeArray(safeEvent?.topComments);
+  const isLoadingReviews = isLoading;
+  const isLoadingComments = isLoading;
+
   // ── Derived data ────────────────────────────────────────────────────
   // Use real ticket tiers from DB when available, fall back to synthetic
   const ticketTiers = useMemo(() => {
@@ -362,27 +370,24 @@ function EventDetailScreenContent() {
         id: t.id,
         name: t.name,
         price: (t.price_cents || 0) / 100,
-        originalPrice: undefined,
-        perks: [],
-        remaining: t.quantity_total
-          ? Math.max(0, t.quantity_total - (t.quantity_sold || 0))
+        originalPrice: t.original_price_cents
+          ? t.original_price_cents / 100
           : undefined,
-        maxPerOrder: t.max_per_user || 4,
-        isSoldOut: t.quantity_total
-          ? (t.quantity_sold || 0) >= t.quantity_total
-          : false,
-        tier: i === 0 ? "ga" : i === 1 ? "vip" : "table",
-        glowColor: ["#34A2DF", "#8A40CF", "#FF5BFC"][i % 3],
-        saleStart: t.sale_start,
-        saleEnd: t.sale_end,
-      })) as TicketTier[];
+        description: t.description,
+        perks: t.perks || [],
+        remaining: t.remaining ?? 0,
+        maxPerOrder: t.max_per_order || 4,
+        isSoldOut: t.is_sold_out || false,
+        tier: t.tier || "ga",
+        glowColor: t.glow_color || "#3b82f6",
+      }));
     }
-    return buildTicketTiers(eventData);
-  }, [eventData]);
+    return [];
+  }, [safeEvent]);
 
   // Use real attendee avatars from batch payload, fall back to mock
   const realAttendees = useMemo(() => {
-    const avatars = eventData?.attendeeAvatars;
+    const avatars = safeEvent?.attendeeAvatars;
     if (Array.isArray(avatars) && avatars.length > 0) {
       return avatars.map((a: any) => ({
         id: String(a.id || ""),
@@ -390,8 +395,8 @@ function EventDetailScreenContent() {
         color: "#3b82f6",
       }));
     }
-    return buildPlaceholderAttendees(eventData?.attendees || 0);
-  }, [eventData?.attendeeAvatars, eventData?.attendees]);
+    return [];
+  }, [safeEvent]);
 
   // Auto-select first tier
   useEffect(() => {
@@ -771,7 +776,7 @@ function EventDetailScreenContent() {
     );
   }
 
-  const event = eventData;
+  const event = safeEvent;
   const host = event.host;
   // CRITICAL: event.date is the day number ("22"), event.fullDate is the ISO string
   const isoDate = event.fullDate || event.date;

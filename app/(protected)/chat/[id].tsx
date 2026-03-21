@@ -52,6 +52,7 @@ import {
   MediaAttachment,
 } from "@/lib/stores/chat-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
@@ -67,7 +68,7 @@ import {
 } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { normalizeArray } from "@/lib/normalization/safe-entity";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import * as ImagePicker from "expo-image-picker";
 import { MediaPreviewModal } from "@/components/media-preview-modal";
@@ -194,12 +195,13 @@ function SingleVideoThumb({ media }: { media: MediaAttachment }) {
 }
 
 function MediaMessage({ mediaList, onPress }: MediaMessageProps) {
-  const imageUrls = mediaList
+  const safeMediaList = normalizeArray(mediaList);
+  const imageUrls = safeMediaList
     .filter((m) => m.type === "image")
     .map((m) => m.uri);
-  const total = mediaList.length;
+  const total = safeMediaList.length;
   // Show max 4 tiles; if more, last tile gets a "+N" overlay
-  const visible = mediaList.slice(0, 4);
+  const visible = safeMediaList.slice(0, 4);
   const overflow = total > 4 ? total - 4 : 0;
   const GRID = 220; // grid width in px
   const GAP = 3;
@@ -539,10 +541,14 @@ function ChatScreenContent() {
       id: string;
       authId?: string;
       username: string;
-      name: string;
-      avatar: string;
+      name?: string;
+      avatar?: string;
     }>
   >([]);
+  const safeGroupMembers = useMemo(
+    () => normalizeArray(groupMembers),
+    [groupMembers],
+  );
   const [groupName, setGroupName] = useState("");
 
   // Build a stable color map for group chat senders (only "them" messages)
@@ -1021,7 +1027,7 @@ function ChatScreenContent() {
               <View className="flex-row items-center gap-3 flex-1">
                 {/* Stacked avatars — rounded squares */}
                 <View style={{ width: 44, height: 40 }}>
-                  {groupMembers.slice(0, 3).map((m, i) => (
+                  {safeGroupMembers.slice(0, 3).map((m, i) => (
                     <Image
                       key={m.id || i}
                       source={{ uri: m.avatar || "" }}
@@ -1045,23 +1051,25 @@ function ChatScreenContent() {
                     numberOfLines={1}
                   >
                     {groupName ||
-                      groupMembers.map((m) => m.username).join(", ") ||
+                      safeGroupMembers.map((m) => m.username).join(", ") ||
                       "Group"}
                   </Text>
                   <Text
                     className="text-xs text-muted-foreground"
                     numberOfLines={1}
                   >
-                    {groupMembers.length + 1} members
-                    {groupMembers.length > 0 && " · "}
-                    {groupMembers.map((m) => m.name || m.username).join(", ")}
+                    {safeGroupMembers.length + 1} members
+                    {safeGroupMembers.length > 0 && " · "}
+                    {safeGroupMembers
+                      .map((m) => m.name || m.username)
+                      .join(", ")}
                   </Text>
                 </View>
               </View>
               {/* Group Audio Call */}
               <Pressable
                 onPress={() => {
-                  const ids = groupMembers.map((m) => m.id).join(",");
+                  const ids = safeGroupMembers.map((m) => m.id).join(",");
                   if (ids) {
                     router.push({
                       pathname: "/(protected)/call/[roomId]",
@@ -1085,7 +1093,7 @@ function ChatScreenContent() {
               {/* Group Video Call */}
               <Pressable
                 onPress={() => {
-                  const ids = groupMembers.map((m) => m.id).join(",");
+                  const ids = safeGroupMembers.map((m) => m.id).join(",");
                   if (ids) {
                     router.push({
                       pathname: "/(protected)/call/[roomId]",
