@@ -2,17 +2,15 @@
 # patch-wgpu.sh
 # Fixes header collisions between react-native-wgpu and @shopify/react-native-skia.
 #
-# Problem: Both packages share identically-named headers (NativeObject.h, Promise.h,
+# Problem 1: Both packages share identically-named headers (NativeObject.h, Promise.h,
 # EnumMapper.h, RuntimeAwareCache.h, RuntimeLifecycleMonitor.h, JSIConverter.h).
 # CocoaPods flattens all private headers into Pods/Headers/Private/<pod>/, and the
 # Xcode project-level header map can resolve bare #include "X.h" to the WRONG pod's
 # copy, causing 'utils/RNSkLog.h' file not found errors.
 #
-# Fix: Qualify all includes of colliding headers so they bypass the header map:
-#   - Cross-directory includes (rnwgpu/ → jsi/): use "jsi/X.h"
-#   - Same-directory includes (jsi/ → jsi/): use "./X.h"
-# Qualified includes don't match bare-filename hmap keys, so they resolve via
-# -I search paths ($(PODS_TARGET_SRCROOT)/cpp) to wgpu's own headers.
+# Problem 2: Both packages define WebGPUView class causing duplicate symbol linker errors.
+#
+# Fix: Qualify all includes of colliding headers and rename WebGPUView to WGPUWebGPUView.
 
 set -euo pipefail
 
@@ -24,12 +22,12 @@ if [ ! -d "$WGPU_DIR/cpp" ]; then
 fi
 
 # Skip if already patched (check for our marker)
-if [ -f "$WGPU_DIR/.wgpu-headers-patched" ]; then
+if [ -f "$WGPU_DIR/.wgpu-patched-v2" ]; then
   echo "[patch-wgpu] Already patched, skipping"
   exit 0
 fi
 
-echo "[patch-wgpu] Patching header includes to avoid Skia collisions..."
+echo "[patch-wgpu] Patching react-native-wgpu to avoid Skia conflicts..."
 
 # ── Step 1: Rename JSIConverter.h → WGPUJSIConverter.h ──
 if [ -f "$WGPU_DIR/cpp/jsi/JSIConverter.h" ]; then
@@ -37,7 +35,32 @@ if [ -f "$WGPU_DIR/cpp/jsi/JSIConverter.h" ]; then
   echo "[patch-wgpu] Renamed JSIConverter.h → WGPUJSIConverter.h"
 fi
 
-# ── Step 2: Fix all includes in wgpu source files ──
+# ── Step 2: Rename WebGPUView → WGPUWebGPUView to avoid duplicate symbols ──
+echo "[patch-wgpu] Renaming WebGPUView class to WGPUWebGPUView..."
+
+# Rename files first
+if [ -f "$WGPU_DIR/apple/WebGPUView.mm" ]; then
+  mv "$WGPU_DIR/apple/WebGPUView.mm" "$WGPU_DIR/apple/WGPUWebGPUView.mm"
+  echo "[patch-wgpu] Renamed WebGPUView.mm → WGPUWebGPUView.mm"
+fi
+if [ -f "$WGPU_DIR/apple/WebGPUView.h" ]; then
+  mv "$WGPU_DIR/apple/WebGPUView.h" "$WGPU_DIR/apple/WGPUWebGPUView.h"
+  echo "[patch-wgpu] Renamed WebGPUView.h → WGPUWebGPUView.h"
+fi
+
+# Update class names in all files
+find "$WGPU_DIR" -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -name "*.m" 2>/dev/null | while read -r file; do
+  if grep -q "WebGPUView" "$file" 2>/dev/null; then
+    # Rename class declarations and usages
+    sed -i '' 's/@interface WebGPUView/@interface WGPUWebGPUView/g' "$file" 2>/dev/null || true
+    sed -i '' 's/@implementation WebGPUView/@implementation WGPUWebGPUView/g' "$file" 2>/dev/null || true
+    sed -i '' 's/WebGPUView:/WGPUWebGPUView:/g' "$file" 2>/dev/null || true
+    # Use perl for more complex replacements
+    perl -i -pe 's/\bWebGPUView\b/WGPUWebGPUView/g' "$file" 2>/dev/null || true
+  fi
+done
+
+# ── Step 3: Fix all includes in wgpu source files ──
 # Use python3 for reliable cross-platform in-place editing
 python3 - "$WGPU_DIR" <<'PYEOF'
 import os, sys, re
@@ -75,7 +98,6 @@ for root, dirs, files in os.walk(cpp_dir):
         in_jsi = is_in_jsi_dir(fpath)
 
         # ── Fix JSIConverter.h references ──
-        # Bare include → qualified
         if '#include "JSIConverter.h"' in content:
             if in_jsi:
                 content = content.replace('#include "JSIConverter.h"', '#include "./WGPUJSIConverter.h"')
@@ -139,6 +161,7 @@ for root, dirs, files in os.walk(cpp_dir):
 print(f"[patch-wgpu] Patched {count} files")
 PYEOF
 
-# ── Step 3: Write marker file ──
-touch "$WGPU_DIR/.wgpu-headers-patched"
+# ── Step 4: Write marker file (v2 for WebGPUView fix) ──
+rm -f "$WGPU_DIR/.wgpu-headers-patched"  # Remove old marker
+touch "$WGPU_DIR/.wgpu-patched-v2"
 echo "[patch-wgpu] Done"
