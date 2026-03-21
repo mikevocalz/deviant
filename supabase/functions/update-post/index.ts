@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
       content?: string;
       location?: string;
       isNSFW?: boolean;
+      media?: Array<{ order: number; url: string }>;
     };
     try {
       body = await req.json();
@@ -85,7 +86,7 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { postId, content, location, isNSFW } = body;
+    const { postId, content, location, isNSFW, media } = body;
     if (!postId) return errorResponse("validation_error", "postId is required");
 
     const userData = await resolveOrProvisionUser(
@@ -113,13 +114,40 @@ Deno.serve(async (req) => {
     if (location !== undefined) updateData.location = location;
     if (isNSFW !== undefined) updateData.is_nsfw = isNSFW;
 
-    const { data: updated, error } = await supabaseAdmin
+    // Update post columns (if any)
+    if (Object.keys(updateData).length > 0) {
+      const { error } = await supabaseAdmin
+        .from("posts")
+        .update(updateData)
+        .eq("id", postId);
+      if (error)
+        return errorResponse("internal_error", "Failed to update post");
+    }
+
+    // Update media URLs (e.g. after image rotation)
+    if (media && Array.isArray(media) && media.length > 0) {
+      for (const item of media) {
+        if (item.order == null || !item.url) continue;
+        // Update by post id + display order
+        const { error: mediaError } = await supabaseAdmin
+          .from("posts_media")
+          .update({ url: item.url })
+          .eq("_parent_id", postId)
+          .eq("_order", item.order);
+        if (mediaError) {
+          console.error("[Edge:update-post] Media update error:", mediaError);
+        }
+      }
+    }
+
+    // Re-fetch updated post
+    const { data: updated, error: fetchError } = await supabaseAdmin
       .from("posts")
-      .update(updateData)
-      .eq("id", postId)
       .select()
+      .eq("id", postId)
       .single();
-    if (error) return errorResponse("internal_error", "Failed to update post");
+    if (fetchError)
+      return errorResponse("internal_error", "Failed to fetch updated post");
 
     return jsonResponse({ ok: true, data: { post: updated } });
   } catch (err) {

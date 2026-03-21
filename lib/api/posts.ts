@@ -532,7 +532,12 @@ export const postsApi = {
    */
   async updatePost(
     postId: string,
-    updates: { content?: string; location?: string; isNSFW?: boolean },
+    updates: {
+      content?: string;
+      location?: string;
+      isNSFW?: boolean;
+      media?: Array<{ order: number; url: string }>;
+    },
   ) {
     try {
       const token = await requireBetterAuthToken();

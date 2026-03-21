@@ -54,6 +54,8 @@ import { postsApi } from "@/lib/api/posts";
 import { postTagsApi, type PostTag } from "@/lib/api/post-tags";
 import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import type { Post } from "@/lib/types";
+import * as ImageManipulator from "expo-image-manipulator";
+import { uploadToServer } from "@/lib/server-upload";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_HEIGHT = SCREEN_WIDTH * 0.65;
@@ -79,6 +81,8 @@ export default function EditPostScreen() {
   const [isNSFW, setIsNSFW] = useState(false);
   const [originalIsNSFW, setOriginalIsNSFW] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
+  const [rotations, setRotations] = useState<Record<number, number>>({});
+  const [isRotating, setIsRotating] = useState(false);
 
   // ─── Post tags (Instagram-style) ───
   const { data: postTags = [], refetch: refetchTags } = useQuery({
@@ -107,11 +111,13 @@ export default function EditPostScreen() {
   }, [post]);
 
   // ─── Dirty detection ───
+  const hasRotations = Object.values(rotations).some((r) => r % 360 !== 0);
   const isDirty = useMemo(
     () =>
       caption !== originalCaption ||
       location !== originalLocation ||
-      isNSFW !== originalIsNSFW,
+      isNSFW !== originalIsNSFW ||
+      hasRotations,
     [
       caption,
       originalCaption,
@@ -119,6 +125,7 @@ export default function EditPostScreen() {
       originalLocation,
       isNSFW,
       originalIsNSFW,
+      hasRotations,
     ],
   );
 
@@ -219,16 +226,76 @@ export default function EditPostScreen() {
   });
 
   // ─── Save handler ───
-  const handleSave = useCallback(() => {
-    if (!id || !isDirty || captionOverLimit || updateMutation.isPending) return;
+  const handleSave = useCallback(async () => {
+    if (
+      !id ||
+      !isDirty ||
+      captionOverLimit ||
+      updateMutation.isPending ||
+      isRotating
+    )
+      return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    updateMutation.mutate({
+    const updates: {
+      content?: string;
+      location?: string;
+      isNSFW?: boolean;
+      media?: Array<{ order: number; url: string }>;
+    } = {
       content: caption.trim(),
       location: location.trim() || undefined,
       ...(isNSFW !== originalIsNSFW ? { isNSFW } : {}),
-    });
+    };
+
+    // Process rotated images: manipulate → upload → collect new URLs
+    if (hasRotations && post?.media) {
+      setIsRotating(true);
+      try {
+        const mediaUpdates: Array<{ order: number; url: string }> = [];
+
+        for (const [indexStr, degrees] of Object.entries(rotations)) {
+          if (degrees % 360 === 0) continue;
+          const idx = parseInt(indexStr, 10);
+          const mediaItem = post.media[idx];
+          if (!mediaItem?.url || mediaItem.type === "video") continue;
+
+          // Rotate locally with expo-image-manipulator
+          const rotated = await ImageManipulator.manipulateAsync(
+            mediaItem.url,
+            [{ rotate: degrees }],
+            { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG },
+          );
+
+          // Upload rotated image via server upload
+          const uploadResult = await uploadToServer(rotated.uri, "posts");
+          if (uploadResult.success && uploadResult.url) {
+            mediaUpdates.push({ order: idx, url: uploadResult.url });
+          } else {
+            showToast(
+              "error",
+              "Upload Failed",
+              `Failed to upload rotated image ${idx + 1}`,
+            );
+            setIsRotating(false);
+            return;
+          }
+        }
+
+        if (mediaUpdates.length > 0) {
+          updates.media = mediaUpdates;
+        }
+      } catch (err) {
+        console.error("[EditPost] Rotation processing error:", err);
+        showToast("error", "Error", "Failed to process rotated images");
+        setIsRotating(false);
+        return;
+      }
+      setIsRotating(false);
+    }
+
+    updateMutation.mutate(updates);
 
     // Navigate back immediately (optimistic)
     router.back();
@@ -242,6 +309,11 @@ export default function EditPostScreen() {
     originalIsNSFW,
     updateMutation,
     router,
+    hasRotations,
+    rotations,
+    post?.media,
+    isRotating,
+    showToast,
   ]);
 
   // ─── Cancel with unsaved changes warning ───
@@ -263,6 +335,15 @@ export default function EditPostScreen() {
       router.back();
     }
   }, [isDirty, router]);
+
+  // ─── Image rotation handler ───
+  const handleRotate = useCallback((index: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRotations((prev) => ({
+      ...prev,
+      [index]: ((prev[index] || 0) + 90) % 360,
+    }));
+  }, []);
 
   // ─── Media carousel scroll handler ───
   const handleMediaScroll = useCallback(
@@ -402,19 +483,27 @@ export default function EditPostScreen() {
 
         <Pressable
           onPress={handleSave}
-          disabled={!isDirty || captionOverLimit || updateMutation.isPending}
+          disabled={
+            !isDirty ||
+            captionOverLimit ||
+            updateMutation.isPending ||
+            isRotating
+          }
           hitSlop={12}
           className={`px-5 py-2 rounded-full ${
             isDirty && !captionOverLimit ? "bg-primary" : "bg-white/10"
           }`}
           style={{
             opacity:
-              isDirty && !captionOverLimit && !updateMutation.isPending
+              isDirty &&
+              !captionOverLimit &&
+              !updateMutation.isPending &&
+              !isRotating
                 ? 1
                 : 0.4,
           }}
         >
-          {updateMutation.isPending ? (
+          {updateMutation.isPending || isRotating ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
             <Text
@@ -476,6 +565,8 @@ export default function EditPostScreen() {
                       height={MEDIA_HEIGHT}
                       existingTags={postTags}
                       onTagsChanged={handleTagsChanged}
+                      onRotate={() => handleRotate(index)}
+                      rotationDegrees={rotations[index] || 0}
                     />
                   )}
                 </View>
@@ -508,7 +599,9 @@ export default function EditPostScreen() {
                 </Text>
               </View>
               <Text className="text-muted-foreground text-[11px]">
-                Media cannot be changed
+                {hasRotations
+                  ? "Rotated images will be re-uploaded on save"
+                  : "Tap rotate to adjust images"}
               </Text>
             </View>
           </Motion.View>
