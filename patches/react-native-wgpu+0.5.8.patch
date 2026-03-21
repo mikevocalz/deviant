@@ -1,0 +1,65 @@
+diff --git a/node_modules/react-native-wgpu/apple/WebGPUView.h b/node_modules/react-native-wgpu/apple/WGPUWebGPUView.h
+similarity index 82%
+rename from node_modules/react-native-wgpu/apple/WebGPUView.h
+rename to node_modules/react-native-wgpu/apple/WGPUWebGPUView.h
+index 88ece5c..e69de29 100644
+--- a/node_modules/react-native-wgpu/apple/WebGPUView.h
++++ b/node_modules/react-native-wgpu/apple/WGPUWebGPUView.h
+@@ -9,7 +9,7 @@
+ 
+ NS_ASSUME_NONNULL_BEGIN
+ 
+-@interface WebGPUView : RCTViewComponentView
++@interface WGPUWebGPUView : RCTViewComponentView
+ @end
+ 
+ NS_ASSUME_NONNULL_END
+diff --git a/node_modules/react-native-wgpu/apple/WebGPUView.mm b/node_modules/react-native-wgpu/apple/WGPUWebGPUView.mm
+similarity index 84%
+rename from node_modules/react-native-wgpu/apple/WebGPUView.mm
+rename to node_modules/react-native-wgpu/apple/WGPUWebGPUView.mm
+index 651030b..e69de29 100644
+--- a/node_modules/react-native-wgpu/apple/WebGPUView.mm
++++ b/node_modules/react-native-wgpu/apple/WGPUWebGPUView.mm
+@@ -1,4 +1,4 @@
+-#import "WebGPUView.h"
++#import "WGPUWebGPUView.h"
+ 
+ #import <react/renderer/components/RNWgpuViewSpec/ComponentDescriptors.h>
+ #import <react/renderer/components/RNWgpuViewSpec/EventEmitters.h>
+@@ -12,10 +12,10 @@
+ 
+ using namespace facebook::react;
+ 
+-@implementation WebGPUView
++@implementation WGPUWebGPUView
+ 
+ + (ComponentDescriptorProvider)componentDescriptorProvider {
+-  return concreteComponentDescriptorProvider<WebGPUViewComponentDescriptor>();
++  return concreteComponentDescriptorProvider<WGPUWebGPUViewComponentDescriptor>();
+ }
+ 
+ - (void)prepareForRecycle {
+@@ -39,9 +39,9 @@
+ - (void)updateProps:(const Props::Shared &)props
+            oldProps:(const Props::Shared &)oldProps {
+   const auto &oldViewProps =
+-      *std::static_pointer_cast<const WebGPUViewProps>(_props);
++      *std::static_pointer_cast<const WGPUWebGPUViewProps>(_props);
+   const auto &newViewProps =
+-      *std::static_pointer_cast<const WebGPUViewProps>(props);
++      *std::static_pointer_cast<const WGPUWebGPUViewProps>(props);
+ 
+   if (newViewProps.contextId != oldViewProps.contextId) {
+     /*
+@@ -58,7 +58,7 @@
+ - (void)updateLayoutMetrics:(const LayoutMetrics &)layoutMetrics
+            oldLayoutMetrics:(const LayoutMetrics &)oldLayoutMetrics {
+   [super updateLayoutMetrics:layoutMetrics oldLayoutMetrics:oldLayoutMetrics];
+   [(MetalView *)self.contentView update];
+ }
+ 
+-Class<RCTComponentViewProtocol> WebGPUViewCls(void) { return WebGPUView.class; }
++Class<RCTComponentViewProtocol> WebGPUViewCls(void) { return WGPUWebGPUView.class; }
+ 
+ @end
