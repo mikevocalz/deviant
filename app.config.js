@@ -157,7 +157,7 @@ export default {
           },
           // Disable experimental RN/Hermes flags in production to reduce SIGTRAP crash risk
           buildReactNativeFromSource: !isProd,
-          useHermesV1: !isProd,
+          // useHermesV1: !isProd, // Disabled due to version conflicts
         },
       ],
       [
