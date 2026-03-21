@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "packageManager": "pnpm@10.28.0",
   "main": "index.js",
+  "resolutions": {
+    "hermes-compiler": "250829098.0.4",
+    "hermes-engine": "250829098.0.4"
+  },
   "scripts": {
     "start": "expo start --clear --dev-client",
     "android": "expo run:android",
