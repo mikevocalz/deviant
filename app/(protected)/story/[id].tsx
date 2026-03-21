@@ -527,6 +527,8 @@ export default function StoryViewerScreen() {
   const goToNextUser = useCallback(() => {
     if (currentStoryIndex < availableStories.length - 1) {
       const nextStory = availableStories[currentStoryIndex + 1];
+      // Cancel running animation before switching to prevent stale callbacks
+      cancelAnimation(progress);
       // Update state instead of navigating - this keeps the viewer open
       setCurrentItemIndex(0);
       setCurrentStoryId(String(nextStory.id));
@@ -539,12 +541,15 @@ export default function StoryViewerScreen() {
     setCurrentItemIndex,
     setCurrentStoryId,
     progress,
+    cancelAnimation,
   ]);
 
   const goToPrevUser = useCallback(() => {
     if (currentStoryIndex > 0) {
       const prevStory = availableStories[currentStoryIndex - 1];
       const prevStoryItemsCount = prevStory?.items?.length || 0;
+      // Cancel running animation before switching to prevent stale callbacks
+      cancelAnimation(progress);
       // Update state instead of navigating - this keeps the viewer open
       setCurrentItemIndex(Math.max(0, prevStoryItemsCount - 1));
       setCurrentStoryId(String(prevStory.id));
@@ -557,6 +562,7 @@ export default function StoryViewerScreen() {
     setCurrentItemIndex,
     setCurrentStoryId,
     progress,
+    cancelAnimation,
   ]);
 
   // Check if viewing own story (don't show reply input for own story)
@@ -1204,7 +1210,7 @@ export default function StoryViewerScreen() {
                   }}
                   numberOfLines={1}
                 >
-                  {story.username} [v12]
+                  {story.username}
                 </Text>
                 {(currentItem as any).header?.subheading ? (
                   <Text
