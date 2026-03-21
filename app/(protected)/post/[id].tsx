@@ -8,7 +8,13 @@ import {
   StatusBar,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState, useEffect, useRef } from "react";
+import React, {
+  useCallback,
+  useMemo,
+  useState,
+  useEffect,
+  useRef,
+} from "react";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -74,10 +80,49 @@ import {
   useLikesSheet,
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
+import { normalizePost } from "@/lib/normalization/safe-entity";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
 const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * (5 / 4));
+
+/**
+ * Mini error boundary for media section — if video or Galeria crashes,
+ * the rest of the screen (header, caption, comments) still works.
+ */
+class SafeMediaWrapper extends React.Component<
+  { children: React.ReactNode; width: number; height: number },
+  { crashed: boolean; error: string }
+> {
+  state = { crashed: false, error: "" };
+  static getDerivedStateFromError(e: Error) {
+    return { crashed: true, error: e?.message || "Media failed to load" };
+  }
+  componentDidCatch(e: Error) {
+    console.error("[PostDetail:SafeMedia]", e?.message);
+  }
+  render() {
+    if (this.state.crashed) {
+      return (
+        <View
+          style={{
+            width: this.props.width,
+            height: this.props.height,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#1a1a1a",
+          }}
+        >
+          <Text style={{ color: "#999", fontSize: 14 }}>Media unavailable</Text>
+          <Text style={{ color: "#666", fontSize: 11, marginTop: 4 }}>
+            {this.state.error}
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /**
  * Isolated video player — only mounts for actual video posts.
@@ -459,34 +504,39 @@ function PostDetailScreenContent() {
     setCurrentSlide(slideIndex);
   }, []);
 
+  // NORMALIZATION: Create safePost with guaranteed non-null values
+  // This prevents crashes if TanStack Query updates post to null during render
+  const safePost = useMemo(() => normalizePost(post, postId), [post, postId]);
+
   // Navigate to user profile
   const handleProfilePress = useCallback(() => {
-    if (!post?.author?.username) return;
-    console.log(`[PostDetail] Navigating to profile: ${post.author.username}`);
-    screenPrefetch.profile(queryClient, post.author.username);
+    const username = safePost.author?.username;
+    if (!username) return;
+    console.log(`[PostDetail] Navigating to profile: ${username}`);
+    screenPrefetch.profile(queryClient, username);
     router.push({
-      pathname: `/(protected)/profile/${post.author.username}`,
+      pathname: `/(protected)/profile/${username}`,
       params: {
-        ...(post.author.avatar ? { avatar: post.author.avatar } : {}),
-        ...(post.author.name ? { name: post.author.name } : {}),
+        ...(safePost.author?.avatar ? { avatar: safePost.author.avatar } : {}),
+        ...(safePost.author?.name ? { name: safePost.author.name } : {}),
       },
     } as any);
   }, [
-    post?.author?.username,
-    post?.author?.avatar,
-    post?.author?.name,
+    safePost.author?.username,
+    safePost.author?.avatar,
+    safePost.author?.name,
     router,
     queryClient,
   ]);
 
   const handleShare = useCallback(async () => {
-    if (!postId || !post) return;
+    if (!postId || !safePost) return;
     try {
-      await sharePost(postId, post.caption || "");
+      await sharePost(postId, safePost.caption || "");
     } catch (error) {
       console.error("[PostDetail] Share error:", error);
     }
-  }, [postId, post]);
+  }, [postId, safePost]);
 
   const handleActionEdit = useCallback(() => {
     if (postId) router.push(`/(protected)/edit-post/${postId}`);
@@ -631,16 +681,18 @@ function PostDetailScreenContent() {
     );
   }
 
-  const isVideo = post?.media?.[0]?.type === "video";
+  const isVideo = safePost.media?.[0]?.type === "video";
   const hasMedia =
-    post?.media && Array.isArray(post.media) && post.media.length > 0;
-  const hasMultipleMedia = hasMedia && post.media.length > 1 && !isVideo;
-  const postIdString = post?.id ? String(post.id) : postId;
+    safePost.media &&
+    Array.isArray(safePost.media) &&
+    safePost.media.length > 0;
+  const hasMultipleMedia = hasMedia && safePost.media.length > 1 && !isVideo;
+  const postIdString = safePost.id ? String(safePost.id) : postId;
 
   // Collect valid image URLs for Galeria full-screen viewer
   const imageUrls = useMemo(() => {
     if (!hasMedia || isVideo) return [];
-    return post.media
+    return safePost.media
       .filter(
         (m) =>
           m.type !== "video" &&
@@ -648,7 +700,7 @@ function PostDetailScreenContent() {
           (m.url.startsWith("http://") || m.url.startsWith("https://")),
       )
       .map((m) => m.url);
-  }, [hasMedia, isVideo, post?.media]);
+  }, [hasMedia, isVideo, safePost.media]);
   const isLiked = isPostLiked; // From usePostLikeState hook
   const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
   const commentCount = comments.length;
@@ -687,23 +739,23 @@ function PostDetailScreenContent() {
             <View className="flex-row items-center gap-3">
               <Pressable onPress={handleProfilePress}>
                 <Avatar
-                  uri={post.author?.avatar}
-                  username={post.author?.username || "User"}
+                  uri={safePost.author?.avatar}
+                  username={safePost.author?.username || "User"}
                   size="md"
                   variant="roundedSquare"
                 />
               </Pressable>
               <View>
-                {post.author?.username && (
+                {safePost.author?.username && (
                   <Pressable onPress={handleProfilePress}>
                     <Text className="text-base font-semibold text-foreground">
-                      {post.author.username}
+                      {safePost.author.username}
                     </Text>
                   </Pressable>
                 )}
-                {post.location && (
+                {safePost.location && (
                   <Text className="text-sm text-muted-foreground">
-                    {post.location}
+                    {safePost.location}
                   </Text>
                 )}
               </View>
@@ -722,113 +774,123 @@ function PostDetailScreenContent() {
               className="bg-muted"
             >
               {isVideo ? (
-                <PostVideoPlayer postId={postId} url={post?.media?.[0]?.url} />
+                <SafeMediaWrapper width={SCREEN_WIDTH} height={PORTRAIT_HEIGHT}>
+                  <PostVideoPlayer
+                    postId={postId}
+                    url={safePost.media?.[0]?.url}
+                  />
+                </SafeMediaWrapper>
               ) : (
-                <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
-                  {hasMultipleMedia ? (
-                    // Carousel - SAME pattern as FeedItem
-                    <>
-                      <ScrollView
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        onScroll={handleScroll}
-                        scrollEventThrottle={16}
-                      >
-                        {post.media.map((medium, index) => {
-                          const isValidUrl =
-                            medium.url &&
-                            (medium.url.startsWith("http://") ||
-                              medium.url.startsWith("https://"));
-                          const galeriaIndex = isValidUrl
-                            ? imageUrls.indexOf(medium.url)
-                            : -1;
-                          return (
-                            <View key={index}>
-                              {isValidUrl ? (
-                                <Galeria.Image
-                                  index={galeriaIndex >= 0 ? galeriaIndex : 0}
-                                >
-                                  <Image
-                                    source={{ uri: medium.url }}
+                <SafeMediaWrapper width={SCREEN_WIDTH} height={PORTRAIT_HEIGHT}>
+                  <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
+                    {hasMultipleMedia ? (
+                      // Carousel - SAME pattern as FeedItem
+                      <>
+                        <ScrollView
+                          horizontal
+                          pagingEnabled
+                          showsHorizontalScrollIndicator={false}
+                          onScroll={handleScroll}
+                          scrollEventThrottle={16}
+                        >
+                          {safePost.media.map((medium, index) => {
+                            const isValidUrl =
+                              medium.url &&
+                              (medium.url.startsWith("http://") ||
+                                medium.url.startsWith("https://"));
+                            const galeriaIndex = isValidUrl
+                              ? imageUrls.indexOf(medium.url)
+                              : -1;
+                            return (
+                              <View key={index}>
+                                {isValidUrl ? (
+                                  <Galeria.Image
+                                    index={galeriaIndex >= 0 ? galeriaIndex : 0}
+                                  >
+                                    <Image
+                                      source={{ uri: medium.url }}
+                                      style={{
+                                        width: SCREEN_WIDTH,
+                                        height: PORTRAIT_HEIGHT,
+                                      }}
+                                      contentFit="cover"
+                                      contentPosition="top"
+                                    />
+                                  </Galeria.Image>
+                                ) : (
+                                  <View
                                     style={{
                                       width: SCREEN_WIDTH,
                                       height: PORTRAIT_HEIGHT,
+                                      alignItems: "center",
+                                      justifyContent: "center",
                                     }}
-                                    contentFit="cover"
-                                    contentPosition="top"
-                                  />
-                                </Galeria.Image>
-                              ) : (
-                                <View
-                                  style={{
-                                    width: SCREEN_WIDTH,
-                                    height: PORTRAIT_HEIGHT,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                  className="bg-muted"
-                                >
-                                  <Text className="text-muted-foreground text-xs">
-                                    No image
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </ScrollView>
-                      {/* Pagination dots - SAME as FeedItem */}
+                                    className="bg-muted"
+                                  >
+                                    <Text className="text-muted-foreground text-xs">
+                                      No image
+                                    </Text>
+                                  </View>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                        {/* Pagination dots - SAME as FeedItem */}
+                        <View
+                          className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
+                          pointerEvents="none"
+                        >
+                          {safePost.media.map((_, index) => (
+                            <View
+                              key={index}
+                              style={{
+                                width: index === currentSlide ? 12 : 6,
+                                opacity: index === currentSlide ? 1 : 0.5,
+                              }}
+                              className={`h-1.5 rounded-full ${
+                                index === currentSlide
+                                  ? "bg-primary"
+                                  : "bg-foreground/50"
+                              }`}
+                            />
+                          ))}
+                        </View>
+                      </>
+                    ) : post.media?.[0]?.url &&
+                      (post.media[0].url.startsWith("http://") ||
+                        post.media[0].url.startsWith("https://")) ? (
+                      // Single image — tap to view full-screen via Galeria
+                      <Galeria.Image index={0}>
+                        <Image
+                          source={{ uri: post.media[0].url }}
+                          style={{
+                            width: SCREEN_WIDTH,
+                            height: PORTRAIT_HEIGHT,
+                          }}
+                          contentFit="cover"
+                          contentPosition="top"
+                          transition={200}
+                          cachePolicy="memory-disk"
+                        />
+                      </Galeria.Image>
+                    ) : (
                       <View
-                        className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
-                        pointerEvents="none"
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          paddingHorizontal: 24,
+                        }}
                       >
-                        {post.media.map((_, index) => (
-                          <View
-                            key={index}
-                            style={{
-                              width: index === currentSlide ? 12 : 6,
-                              opacity: index === currentSlide ? 1 : 0.5,
-                            }}
-                            className={`h-1.5 rounded-full ${
-                              index === currentSlide
-                                ? "bg-primary"
-                                : "bg-foreground/50"
-                            }`}
-                          />
-                        ))}
+                        <Text className="text-foreground text-base font-medium text-center leading-6">
+                          {safePost?.caption || "Media unavailable"}
+                        </Text>
                       </View>
-                    </>
-                  ) : post.media?.[0]?.url &&
-                    (post.media[0].url.startsWith("http://") ||
-                      post.media[0].url.startsWith("https://")) ? (
-                    // Single image — tap to view full-screen via Galeria
-                    <Galeria.Image index={0}>
-                      <Image
-                        source={{ uri: post.media[0].url }}
-                        style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
-                        contentFit="cover"
-                        contentPosition="top"
-                        transition={200}
-                        cachePolicy="memory-disk"
-                      />
-                    </Galeria.Image>
-                  ) : (
-                    <View
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingHorizontal: 24,
-                      }}
-                    >
-                      <Text className="text-foreground text-base font-medium text-center leading-6">
-                        {post?.caption || "Media unavailable"}
-                      </Text>
-                    </View>
-                  )}
-                </Galeria>
+                    )}
+                  </Galeria>
+                </SafeMediaWrapper>
               )}
 
               {/* Tag overlay — tap image to toggle, sits on top of all media */}
@@ -994,7 +1056,7 @@ function PostDetailScreenContent() {
                       textShadowRadius: 3,
                     }}
                   >
-                    {post.timeAgo}
+                    {safePost.timeAgo}
                   </Text>
                 </DVNTLiquidGlass>
               </View>
@@ -1010,13 +1072,13 @@ function PostDetailScreenContent() {
               className="bg-card items-center justify-center"
             >
               <Text className="text-foreground text-lg font-semibold text-center leading-7">
-                {post?.caption || ""}
+                {safePost?.caption || ""}
               </Text>
             </View>
           )}
 
           {/* Caption */}
-          {post.caption && (
+          {safePost.caption && (
             <View className="px-4 py-3">
               <Text
                 style={{
@@ -1029,14 +1091,14 @@ function PostDetailScreenContent() {
                   style={{ fontWeight: "700" }}
                   onPress={() =>
                     router.push(
-                      `/(protected)/profile/${post.author?.username}` as any,
+                      `/(protected)/profile/${safePost.author?.username}` as any,
                     )
                   }
                 >
-                  {post.author?.username || "Unknown User"}{" "}
+                  {safePost.author?.username || "Unknown User"}{" "}
                 </Text>
                 <HashtagText
-                  text={post.caption}
+                  text={safePost.caption}
                   textStyle={{ fontSize: 15, color: colors.foreground }}
                 />
               </Text>
@@ -1216,7 +1278,8 @@ export default function PostDetailScreen() {
   return (
     <ErrorBoundary
       screenName="PostDetail"
-      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+      onGoBack={() => router.back()}
+      onGoHome={() => router.replace("/(protected)/(tabs)" as any)}
     >
       <PostDetailScreenContent />
     </ErrorBoundary>

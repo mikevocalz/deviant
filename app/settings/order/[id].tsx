@@ -45,6 +45,7 @@ import {
 } from "@/lib/types/payments";
 import { printHtml, shareHtmlAsPdf } from "@/lib/print/print-utils";
 import { receiptPdfHtml } from "@/lib/print/thermal-templates";
+import { normalizeArray } from "@/lib/normalization/safe-entity";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -166,6 +167,10 @@ export default function OrderDetailScreen() {
   }
 
   if (!activeOrder) return null;
+
+  // Normalization to prevent crashes during store updates
+  const safeTimeline = normalizeArray(activeOrder.timeline);
+  const safeTickets = normalizeArray(activeOrder.tickets);
 
   const statusConfig =
     PAYMENT_STATUS_CONFIG[activeOrder.status] || PAYMENT_STATUS_CONFIG.pending;
@@ -291,18 +296,18 @@ export default function OrderDetailScreen() {
             <Text className="text-xs font-sans-semibold text-muted-foreground uppercase tracking-wider mb-3">
               Timeline
             </Text>
-            {activeOrder.timeline.map((event, i) => (
+            {safeTimeline.map((event, i) => (
               <TimelineItem
                 key={`${event.type}-${i}`}
                 event={event}
-                isLast={i === activeOrder.timeline.length - 1}
+                isLast={i === safeTimeline.length - 1}
               />
             ))}
           </Animated.View>
         )}
 
         {/* Tickets */}
-        {activeOrder.tickets && activeOrder.tickets.length > 0 && (
+        {safeTickets.length > 0 && (
           <Animated.View
             entering={FadeInDown.delay(200)
               .duration(300)
@@ -313,7 +318,7 @@ export default function OrderDetailScreen() {
             <Text className="text-xs font-sans-semibold text-muted-foreground uppercase tracking-wider mb-3">
               Tickets
             </Text>
-            {activeOrder.tickets.map((ticket) => (
+            {safeTickets.map((ticket) => (
               <Pressable
                 key={ticket.id}
                 onPress={() =>
