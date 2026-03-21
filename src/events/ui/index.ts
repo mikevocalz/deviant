@@ -5,3 +5,4 @@ export { TicketTierCard } from "./TicketTierCard";
 export { StickyCTA } from "./StickyCTA";
 export { EventDetailSkeleton } from "./EventDetailSkeleton";
 export { WeatherModule } from "./WeatherModule";
+export { EventMapSection, EventMapSectionSkeleton } from "./EventMapSection";
