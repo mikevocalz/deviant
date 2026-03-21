@@ -192,6 +192,8 @@
       "hermes-compiler": "250829098.0.10",
       "react-native-nitro-modules": "0.35.2"
     },
-    "patchedDependencies": {}
+    "patchedDependencies": {
+      "react-native-wgpu": "patches/react-native-wgpu+0.5.8.patch"
+    }
   }
 }
