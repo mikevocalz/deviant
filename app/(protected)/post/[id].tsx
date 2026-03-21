@@ -712,174 +712,215 @@ function PostDetailScreenContent() {
 
           {/* Media - CRITICAL: Uses same dimensions as FeedItem (4:5 ratio) */}
           {hasMedia ? (
-            <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
-              <View
-                style={{
-                  width: SCREEN_WIDTH,
-                  height: PORTRAIT_HEIGHT,
-                  borderRadius: isVideo ? 0 : 12,
-                  overflow: "hidden",
-                }}
-                className="bg-muted"
-              >
-                {isVideo ? (
-                  <PostVideoPlayer
-                    postId={postId}
-                    url={post?.media?.[0]?.url}
-                  />
-                ) : hasMultipleMedia ? (
-                  // Carousel - SAME pattern as FeedItem
-                  <>
-                    <ScrollView
-                      horizontal
-                      pagingEnabled
-                      showsHorizontalScrollIndicator={false}
-                      onScroll={handleScroll}
-                      scrollEventThrottle={16}
-                    >
-                      {post.media.map((medium, index) => {
-                        const isValidUrl =
-                          medium.url &&
-                          (medium.url.startsWith("http://") ||
-                            medium.url.startsWith("https://"));
-                        const galeriaIndex = isValidUrl
-                          ? imageUrls.indexOf(medium.url)
-                          : -1;
-                        return (
-                          <View key={index}>
-                            {isValidUrl ? (
-                              <Galeria.Image
-                                index={galeriaIndex >= 0 ? galeriaIndex : 0}
-                              >
-                                <Image
-                                  source={{ uri: medium.url }}
+            <View
+              style={{
+                width: SCREEN_WIDTH,
+                height: PORTRAIT_HEIGHT,
+                borderRadius: isVideo ? 0 : 12,
+                overflow: "hidden",
+              }}
+              className="bg-muted"
+            >
+              {isVideo ? (
+                <PostVideoPlayer postId={postId} url={post?.media?.[0]?.url} />
+              ) : (
+                <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
+                  {hasMultipleMedia ? (
+                    // Carousel - SAME pattern as FeedItem
+                    <>
+                      <ScrollView
+                        horizontal
+                        pagingEnabled
+                        showsHorizontalScrollIndicator={false}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
+                      >
+                        {post.media.map((medium, index) => {
+                          const isValidUrl =
+                            medium.url &&
+                            (medium.url.startsWith("http://") ||
+                              medium.url.startsWith("https://"));
+                          const galeriaIndex = isValidUrl
+                            ? imageUrls.indexOf(medium.url)
+                            : -1;
+                          return (
+                            <View key={index}>
+                              {isValidUrl ? (
+                                <Galeria.Image
+                                  index={galeriaIndex >= 0 ? galeriaIndex : 0}
+                                >
+                                  <Image
+                                    source={{ uri: medium.url }}
+                                    style={{
+                                      width: SCREEN_WIDTH,
+                                      height: PORTRAIT_HEIGHT,
+                                    }}
+                                    contentFit="cover"
+                                    contentPosition="top"
+                                  />
+                                </Galeria.Image>
+                              ) : (
+                                <View
                                   style={{
                                     width: SCREEN_WIDTH,
                                     height: PORTRAIT_HEIGHT,
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
-                                  contentFit="cover"
-                                  contentPosition="top"
-                                />
-                              </Galeria.Image>
-                            ) : (
-                              <View
-                                style={{
-                                  width: SCREEN_WIDTH,
-                                  height: PORTRAIT_HEIGHT,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                                className="bg-muted"
-                              >
-                                <Text className="text-muted-foreground text-xs">
-                                  No image
-                                </Text>
-                              </View>
-                            )}
-                          </View>
-                        );
-                      })}
-                    </ScrollView>
-                    {/* Pagination dots - SAME as FeedItem */}
+                                  className="bg-muted"
+                                >
+                                  <Text className="text-muted-foreground text-xs">
+                                    No image
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </ScrollView>
+                      {/* Pagination dots - SAME as FeedItem */}
+                      <View
+                        className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
+                        pointerEvents="none"
+                      >
+                        {post.media.map((_, index) => (
+                          <View
+                            key={index}
+                            style={{
+                              width: index === currentSlide ? 12 : 6,
+                              opacity: index === currentSlide ? 1 : 0.5,
+                            }}
+                            className={`h-1.5 rounded-full ${
+                              index === currentSlide
+                                ? "bg-primary"
+                                : "bg-foreground/50"
+                            }`}
+                          />
+                        ))}
+                      </View>
+                    </>
+                  ) : post.media?.[0]?.url &&
+                    (post.media[0].url.startsWith("http://") ||
+                      post.media[0].url.startsWith("https://")) ? (
+                    // Single image — tap to view full-screen via Galeria
+                    <Galeria.Image index={0}>
+                      <Image
+                        source={{ uri: post.media[0].url }}
+                        style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
+                        contentFit="cover"
+                        contentPosition="top"
+                        transition={200}
+                        cachePolicy="memory-disk"
+                      />
+                    </Galeria.Image>
+                  ) : (
                     <View
-                      className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
-                      pointerEvents="none"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingHorizontal: 24,
+                      }}
                     >
-                      {post.media.map((_, index) => (
-                        <View
-                          key={index}
-                          style={{
-                            width: index === currentSlide ? 12 : 6,
-                            opacity: index === currentSlide ? 1 : 0.5,
-                          }}
-                          className={`h-1.5 rounded-full ${
-                            index === currentSlide
-                              ? "bg-primary"
-                              : "bg-foreground/50"
-                          }`}
-                        />
-                      ))}
+                      <Text className="text-foreground text-base font-medium text-center leading-6">
+                        {post?.caption || "Media unavailable"}
+                      </Text>
                     </View>
-                  </>
-                ) : post.media?.[0]?.url &&
-                  (post.media[0].url.startsWith("http://") ||
-                    post.media[0].url.startsWith("https://")) ? (
-                  // Single image — tap to view full-screen via Galeria
-                  <Galeria.Image index={0}>
-                    <Image
-                      source={{ uri: post.media[0].url }}
-                      style={{ width: SCREEN_WIDTH, height: PORTRAIT_HEIGHT }}
-                      contentFit="cover"
-                      contentPosition="top"
-                      transition={200}
-                      cachePolicy="memory-disk"
-                    />
-                  </Galeria.Image>
-                ) : (
-                  <View
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      paddingHorizontal: 24,
-                    }}
-                  >
-                    <Text className="text-foreground text-base font-medium text-center leading-6">
-                      {post?.caption || "Media unavailable"}
-                    </Text>
-                  </View>
-                )}
+                  )}
+                </Galeria>
+              )}
 
-                {/* Tag overlay — tap image to toggle, sits on top of all media */}
-                {!isVideo && postTags.length > 0 && (
-                  <Pressable
-                    onPress={handleImageTap}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                    }}
-                  >
-                    <TagOverlayViewer
-                      postId={postId}
-                      mediaIndex={currentSlide}
-                      tagProgress={tagProgress}
-                    />
-                  </Pressable>
-                )}
-
-                {/* Action pill overlay — matches feed design */}
-                <View
+              {/* Tag overlay — tap image to toggle, sits on top of all media */}
+              {!isVideo && postTags.length > 0 && (
+                <Pressable
+                  onPress={handleImageTap}
                   style={{
                     position: "absolute",
-                    bottom: 12,
-                    left: 12,
-                    zIndex: 50,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
                   }}
                 >
-                  <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
-                    {/* Like */}
-                    <Pressable
-                      onPress={() => {
-                        if (!postIdString || !post || isLikePending) return;
-                        toggleLike();
-                      }}
-                      disabled={isLikePending}
-                      hitSlop={8}
+                  <TagOverlayViewer
+                    postId={postId}
+                    mediaIndex={currentSlide}
+                    tagProgress={tagProgress}
+                  />
+                </Pressable>
+              )}
+
+              {/* Action pill overlay — matches feed design */}
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 12,
+                  left: 12,
+                  zIndex: 50,
+                }}
+              >
+                <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
+                  {/* Like */}
+                  <Pressable
+                    onPress={() => {
+                      if (!postIdString || !post || isLikePending) return;
+                      toggleLike();
+                    }}
+                    disabled={isLikePending}
+                    hitSlop={8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <Heart
+                      size={22}
+                      color={isLiked ? "#FF5BFC" : "#fff"}
+                      fill={isLiked ? "#FF5BFC" : "none"}
+                    />
+                    <Text
                       style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
+                        color: "#fff",
+                        fontSize: 14,
+                        fontWeight: "600",
+                        textShadowColor: "rgba(0,0,0,0.8)",
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
                       }}
                     >
-                      <Heart
-                        size={22}
-                        color={isLiked ? "#FF5BFC" : "#fff"}
-                        fill={isLiked ? "#FF5BFC" : "none"}
-                      />
+                      {formatLikeCount(likeCount)}
+                    </Text>
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Comment */}
+                  <Pressable
+                    hitSlop={8}
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                    onPressIn={() => {
+                      if (postIdString)
+                        screenPrefetch.comments(queryClient, postIdString);
+                    }}
+                    onPress={() => {
+                      if (postIdString)
+                        router.push(`/(protected)/comments/${postIdString}`);
+                    }}
+                  >
+                    <MessageCircle size={22} color="#fff" />
+                    {commentCount > 0 && (
                       <Text
                         style={{
                           color: "#fff",
@@ -890,116 +931,74 @@ function PostDetailScreenContent() {
                           textShadowRadius: 3,
                         }}
                       >
-                        {formatLikeCount(likeCount)}
+                        {commentCount}
                       </Text>
-                    </Pressable>
+                    )}
+                  </Pressable>
 
-                    <View
-                      style={{
-                        width: 1,
-                        height: 18,
-                        backgroundColor: "rgba(255,255,255,0.2)",
-                      }}
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Share */}
+                  <Pressable hitSlop={8} onPress={handleShare}>
+                    <Send size={22} color="#fff" />
+                  </Pressable>
+
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
+
+                  {/* Bookmark */}
+                  <Pressable
+                    onPress={() => {
+                      if (!postIdString) return;
+                      toggleBookmarkMutation.mutate({
+                        postId: postIdString,
+                        isBookmarked: isSaved,
+                      });
+                    }}
+                    hitSlop={8}
+                  >
+                    <Bookmark
+                      size={22}
+                      color={isBookmarked ? "#3FDCFF" : "#fff"}
+                      fill={isBookmarked ? "#3FDCFF" : "none"}
                     />
+                  </Pressable>
 
-                    {/* Comment */}
-                    <Pressable
-                      hitSlop={8}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                      onPressIn={() => {
-                        if (postIdString)
-                          screenPrefetch.comments(queryClient, postIdString);
-                      }}
-                      onPress={() => {
-                        if (postIdString)
-                          router.push(`/(protected)/comments/${postIdString}`);
-                      }}
-                    >
-                      <MessageCircle size={22} color="#fff" />
-                      {commentCount > 0 && (
-                        <Text
-                          style={{
-                            color: "#fff",
-                            fontSize: 14,
-                            fontWeight: "600",
-                            textShadowColor: "rgba(0,0,0,0.8)",
-                            textShadowOffset: { width: 0, height: 1 },
-                            textShadowRadius: 3,
-                          }}
-                        >
-                          {commentCount}
-                        </Text>
-                      )}
-                    </Pressable>
+                  <View
+                    style={{
+                      width: 1,
+                      height: 18,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                    }}
+                  />
 
-                    <View
-                      style={{
-                        width: 1,
-                        height: 18,
-                        backgroundColor: "rgba(255,255,255,0.2)",
-                      }}
-                    />
-
-                    {/* Share */}
-                    <Pressable hitSlop={8} onPress={handleShare}>
-                      <Send size={22} color="#fff" />
-                    </Pressable>
-
-                    <View
-                      style={{
-                        width: 1,
-                        height: 18,
-                        backgroundColor: "rgba(255,255,255,0.2)",
-                      }}
-                    />
-
-                    {/* Bookmark */}
-                    <Pressable
-                      onPress={() => {
-                        if (!postIdString) return;
-                        toggleBookmarkMutation.mutate({
-                          postId: postIdString,
-                          isBookmarked: isSaved,
-                        });
-                      }}
-                      hitSlop={8}
-                    >
-                      <Bookmark
-                        size={22}
-                        color={isBookmarked ? "#3FDCFF" : "#fff"}
-                        fill={isBookmarked ? "#3FDCFF" : "none"}
-                      />
-                    </Pressable>
-
-                    <View
-                      style={{
-                        width: 1,
-                        height: 18,
-                        backgroundColor: "rgba(255,255,255,0.2)",
-                      }}
-                    />
-
-                    {/* Timestamp */}
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        color: "rgba(255,255,255,0.6)",
-                        textTransform: "uppercase",
-                        textShadowColor: "rgba(0,0,0,0.8)",
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 3,
-                      }}
-                    >
-                      {post.timeAgo}
-                    </Text>
-                  </DVNTLiquidGlass>
-                </View>
+                  {/* Timestamp */}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: "rgba(255,255,255,0.6)",
+                      textTransform: "uppercase",
+                      textShadowColor: "rgba(0,0,0,0.8)",
+                      textShadowOffset: { width: 0, height: 1 },
+                      textShadowRadius: 3,
+                    }}
+                  >
+                    {post.timeAgo}
+                  </Text>
+                </DVNTLiquidGlass>
               </View>
-            </Galeria>
+            </View>
           ) : (
             <View
               style={{
