@@ -111,7 +111,9 @@ export function useDeleteStory() {
       // Optimistically remove from stories list
       queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
         if (!old) return old;
-        return old.filter((story) => story.id !== deletedStoryId);
+        return old.filter(
+          (story) => String(story.id) !== String(deletedStoryId),
+        );
       });
 
       return { previousData };
@@ -127,7 +129,8 @@ export function useDeleteStory() {
         "[useDeleteStory] Story deleted successfully:",
         deletedStoryId,
       );
-      // No need to invalidate - optimistic update already removed the story
+      // Invalidate to refetch the full list after optimistic removal
+      queryClient.invalidateQueries({ queryKey: storyKeys.list() });
     },
   });
 }
