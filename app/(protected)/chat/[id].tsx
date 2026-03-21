@@ -68,7 +68,7 @@ import {
 } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { normalizeArray } from "@/lib/normalization/safe-entity";
+// import { normalizeArray } from "@/lib/normalization/safe-entity"; // Temporarily disabled
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import * as ImagePicker from "expo-image-picker";
 import { MediaPreviewModal } from "@/components/media-preview-modal";
@@ -195,7 +195,7 @@ function SingleVideoThumb({ media }: { media: MediaAttachment }) {
 }
 
 function MediaMessage({ mediaList, onPress }: MediaMessageProps) {
-  const safeMediaList = normalizeArray(mediaList);
+  const safeMediaList = mediaList || [];
   const imageUrls = safeMediaList
     .filter((m) => m.type === "image")
     .map((m) => m.uri);
@@ -545,10 +545,7 @@ function ChatScreenContent() {
       avatar?: string;
     }>
   >([]);
-  const safeGroupMembers = useMemo(
-    () => normalizeArray(groupMembers),
-    [groupMembers],
-  );
+  const safeGroupMembers = useMemo(() => groupMembers || [], [groupMembers]);
   const [groupName, setGroupName] = useState("");
 
   // Build a stable color map for group chat senders (only "them" messages)
