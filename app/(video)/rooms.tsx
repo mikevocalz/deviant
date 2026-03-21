@@ -28,6 +28,7 @@ import {
 import { videoApi } from "@/src/video/api";
 import { c } from "@/src/video/ui/styles";
 import type { VideoRoom } from "@/src/video/types";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export default function RoomsScreen() {
   const queryClient = useQueryClient();
@@ -66,84 +67,89 @@ export default function RoomsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <View className="flex-row items-center gap-3">
-          <Video size={24} color="rgb(var(--primary))" />
-          <Text className={c.textTitle}>Video Rooms</Text>
+    <ErrorBoundary screenName="VideoRooms">
+      <SafeAreaView className="flex-1 bg-background">
+        {/* Header */}
+        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
+          <View className="flex-row items-center gap-3">
+            <Video size={24} color="rgb(var(--primary))" />
+            <Text className={c.textTitle}>Video Rooms</Text>
+          </View>
+          <Pressable
+            className={c.btnPrimary}
+            style={{ paddingHorizontal: 16, paddingVertical: 10 }}
+            onPress={handleCreateRoom}
+          >
+            <View className="flex-row items-center gap-2">
+              <Plus size={18} color="#fff" />
+              <Text className="text-white font-semibold">Create</Text>
+            </View>
+          </Pressable>
         </View>
-        <Pressable
-          className={c.btnPrimary}
-          style={{ paddingHorizontal: 16, paddingVertical: 10 }}
-          onPress={handleCreateRoom}
+
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
+          }
         >
-          <View className="flex-row items-center gap-2">
-            <Plus size={18} color="#fff" />
-            <Text className="text-white font-semibold">Create</Text>
-          </View>
-        </Pressable>
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
-        }
-      >
-        {/* My Active Rooms */}
-        {myRooms && myRooms.length > 0 && (
-          <View className="mb-6">
-            <Text className="text-lg font-semibold text-foreground mb-3">
-              Your Active Rooms
-            </Text>
-            {myRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                onPress={() => handleJoinRoom(room.id)}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* Public Rooms */}
-        <View>
-          <Text className="text-lg font-semibold text-foreground mb-3">
-            Public Rooms
-          </Text>
-          {publicRooms && publicRooms.length > 0 ? (
-            publicRooms.map((room) => (
-              <RoomCard
-                key={room.id}
-                room={room}
-                onPress={() => handleJoinRoom(room.id)}
-              />
-            ))
-          ) : (
-            <View className={c.emptyState}>
-              <Globe size={48} color="rgb(var(--muted-foreground))" />
-              <Text className="text-muted-foreground mt-4 text-center">
-                No public rooms available.{"\n"}Create one to get started!
+          {/* My Active Rooms */}
+          {myRooms && myRooms.length > 0 && (
+            <View className="mb-6">
+              <Text className="text-lg font-semibold text-foreground mb-3">
+                Your Active Rooms
               </Text>
+              {myRooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  onPress={() => handleJoinRoom(room.id)}
+                />
+              ))}
             </View>
           )}
-        </View>
-      </ScrollView>
 
-      {/* Create Room Modal */}
-      {showCreateModal && (
-        <CreateRoomModal
-          onClose={() => setShowCreateModal(false)}
-          onCreated={(roomId) => {
-            setShowCreateModal(false);
-            queryClient.invalidateQueries({ queryKey: ["videoRooms"] });
-            handleJoinRoom(roomId);
-          }}
-        />
-      )}
-    </SafeAreaView>
+          {/* Public Rooms */}
+          <View>
+            <Text className="text-lg font-semibold text-foreground mb-3">
+              Public Rooms
+            </Text>
+            {publicRooms && publicRooms.length > 0 ? (
+              publicRooms.map((room) => (
+                <RoomCard
+                  key={room.id}
+                  room={room}
+                  onPress={() => handleJoinRoom(room.id)}
+                />
+              ))
+            ) : (
+              <View className={c.emptyState}>
+                <Globe size={48} color="rgb(var(--muted-foreground))" />
+                <Text className="text-muted-foreground mt-4 text-center">
+                  No public rooms available.{"\n"}Create one to get started!
+                </Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        {/* Create Room Modal */}
+        {showCreateModal && (
+          <CreateRoomModal
+            onClose={() => setShowCreateModal(false)}
+            onCreated={(roomId) => {
+              setShowCreateModal(false);
+              queryClient.invalidateQueries({
+                queryKey: ["videoRooms", "public"],
+              });
+              queryClient.invalidateQueries({ queryKey: ["videoRooms", "my"] });
+              handleJoinRoom(roomId);
+            }}
+          />
+        )}
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 
@@ -190,8 +196,7 @@ function CreateRoomModal({
   const [maxParticipants, setMaxParticipants] = useState(10);
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      videoApi.createRoom({ title, isPublic, maxParticipants }),
+    mutationFn: () => videoApi.createRoom({ title, isPublic, maxParticipants }),
     onSuccess: (result) => {
       if (result.ok && result.data) {
         onCreated(result.data.room.id);

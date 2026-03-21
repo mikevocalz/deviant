@@ -38,7 +38,7 @@ export function useInfiniteFeedPosts() {
     queryKey: postKeys.feedInfinite(),
     queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
     initialPageParam: 0,
-    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: STALE_TIMES.feed,
   });
 }
@@ -70,8 +70,14 @@ export function usePost(id: string) {
 
 // Fetch multiple posts by IDs
 export function usePostsByIds(ids: string[]) {
+  // Create stable query key regardless of input array order
+  const stableQueryKey = useMemo(
+    () => [...postKeys.all, "byIds", [...ids].sort().join(",")],
+    [ids],
+  );
+
   return useQuery({
-    queryKey: [...postKeys.all, "byIds", ids.sort().join(",")],
+    queryKey: stableQueryKey,
     queryFn: async () => {
       const posts = await Promise.all(
         ids.map((id) => postsApi.getPostById(id)),
