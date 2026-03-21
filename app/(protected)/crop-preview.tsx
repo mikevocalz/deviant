@@ -29,6 +29,7 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter, useNavigation } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, Check, RotateCcw } from "lucide-react-native";
@@ -57,7 +58,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const FRAME_WIDTH = SCREEN_WIDTH;
 const THUMB_SIZE = 64;
 
-export default function CropPreviewScreen() {
+function CropPreviewScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -683,3 +684,12 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+
+export default function CropPreviewScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="CropPreview" onGoBack={() => router.back()}>
+      <CropPreviewScreenContent />
+    </ErrorBoundary>
+  );
+}

@@ -10,6 +10,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   ArrowLeft,
   Edit,
@@ -502,7 +503,7 @@ const lynkStyles = StyleSheet.create({
   },
 });
 
-export default function MessagesScreen() {
+function MessagesScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
@@ -823,5 +824,14 @@ export default function MessagesScreen() {
         </View>
       </PagerView>
     </View>
+  );
+}
+
+export default function MessagesScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Messages" onGoBack={() => router.back()}>
+      <MessagesScreenContent />
+    </ErrorBoundary>
   );
 }

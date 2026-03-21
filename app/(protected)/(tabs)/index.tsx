@@ -6,41 +6,8 @@ import { SpicyToggleFAB } from "@/components/spicy-toggle-fab";
 import { useAppStore } from "@/lib/stores/app-store";
 import { LayoutGrid, List } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import { Component, ErrorInfo, ReactNode, useCallback, memo } from "react";
-
-class ErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("[HomeScreen] Error caught:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.hasError) {
-      return (
-        <View className="flex-1 items-center justify-center bg-background p-4">
-          <Text className="text-foreground text-lg font-bold mb-2">
-            Something went wrong
-          </Text>
-          <Text className="text-muted-foreground text-center">
-            {this.state.error?.message || "Unknown error"}
-          </Text>
-        </View>
-      );
-    }
-    return this.props.children;
-  }
-}
+import { useCallback, memo } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 export const FeedModeToggle = memo(function FeedModeToggle() {
   const feedMode = useAppStore((s) => s.feedMode);
@@ -148,7 +115,7 @@ export default function HomeScreen() {
         <FeedModeToggle />
       </View>
       <Main className="flex-1">
-        <ErrorBoundary>
+        <ErrorBoundary screenName="Feed">
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}
         </ErrorBoundary>
       </Main>

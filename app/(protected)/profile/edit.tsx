@@ -1,6 +1,7 @@
 import { View, Text, Pressable, TextInput } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
@@ -18,7 +19,7 @@ import { useMediaPicker } from "@/lib/hooks";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 
-export default function EditProfileScreen() {
+function EditProfileScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const user = useAuthStore((state) => state.user);
@@ -379,5 +380,14 @@ export default function EditProfileScreen() {
         <View className="h-8" />
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function EditProfileScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EditProfile" onGoBack={() => router.back()}>
+      <EditProfileScreenContent />
+    </ErrorBoundary>
   );
 }

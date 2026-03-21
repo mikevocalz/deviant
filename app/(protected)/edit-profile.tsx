@@ -9,6 +9,7 @@ import { Image } from "expo-image";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useNavigation } from "@react-navigation/native";
 import {
   X,
@@ -48,7 +49,7 @@ const GENDER_OPTIONS = [
   "Custom",
 ];
 
-export default function EditProfileScreen() {
+function EditProfileScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
@@ -798,5 +799,14 @@ export default function EditProfileScreen() {
         </View>
       </KeyboardAwareScrollView>
     </SafeAreaView>
+  );
+}
+
+export default function EditProfileScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EditProfile" onGoBack={() => router.back()}>
+      <EditProfileScreenContent />
+    </ErrorBoundary>
   );
 }

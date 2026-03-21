@@ -66,6 +66,7 @@ import {
   useState,
 } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import * as ImagePicker from "expo-image-picker";
@@ -360,7 +361,7 @@ function ChatPresenceText({ recipientId }: { recipientId?: string }) {
   );
 }
 
-export default function ChatScreen() {
+function ChatScreenContent() {
   const { id, peerAvatar, peerUsername, peerName } = useLocalSearchParams<{
     id: string;
     peerAvatar?: string;
@@ -1866,5 +1867,19 @@ export default function ChatScreen() {
         </Modal>
       </SafeAreaView>
     </KeyboardAvoidingView>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection
+export default function ChatScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary
+      screenName="Chat"
+      onGoHome={() => router.replace("/(protected)/(tabs)/feed" as any)}
+    >
+      <ChatScreenContent />
+    </ErrorBoundary>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { LegendList } from "@/components/list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ArrowLeft, Search, X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
@@ -99,7 +100,7 @@ const FollowerRow = memo(function FollowerRow({
   );
 });
 
-export default function FollowersScreen() {
+function FollowersScreenContent() {
   const { userId, username } = useLocalSearchParams<{
     userId?: string;
     username?: string;
@@ -311,5 +312,14 @@ export default function FollowersScreen() {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+export default function FollowersScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Followers" onGoBack={() => router.back()}>
+      <FollowersScreenContent />
+    </ErrorBoundary>
   );
 }

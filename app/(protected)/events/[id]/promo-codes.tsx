@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   View,
   Text,
@@ -49,7 +50,7 @@ interface PromoCode {
   created_at: string;
 }
 
-export default function PromoCodesScreen() {
+function PromoCodesScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -594,5 +595,14 @@ export default function PromoCodesScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+  );
+}
+
+export default function PromoCodesScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="PromoCodes" onGoBack={() => router.back()}>
+      <PromoCodesScreenContent />
+    </ErrorBoundary>
   );
 }

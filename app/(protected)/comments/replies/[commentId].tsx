@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { Image } from "expo-image";
 import { Send, Heart } from "lucide-react-native";
@@ -29,7 +30,7 @@ import { CommentLikeButton } from "@/components/comments/threaded-comment";
 import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 
-export default function RepliesScreen() {
+function RepliesScreenContent() {
   const { commentId, postId } = useLocalSearchParams<{
     commentId: string;
     postId?: string;
@@ -387,5 +388,16 @@ export default function RepliesScreen() {
         </View>
       </KeyboardAvoidingView>
     </KeyboardProvider>
+  );
+}
+
+// Wrap with ErrorBoundary for crash protection
+export default function RepliesScreen() {
+  const router = useRouter();
+
+  return (
+    <ErrorBoundary screenName="Replies" onGoBack={() => router.back()}>
+      <RepliesScreenContent />
+    </ErrorBoundary>
   );
 }

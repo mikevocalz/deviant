@@ -10,11 +10,12 @@
  */
 
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { CameraScreen, type CapturedMedia } from "@/src/camera";
 import * as ImagePicker from "expo-image-picker";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 
-export default function CameraRoute() {
+function CameraRouteContent() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     mode?: string;
@@ -32,7 +33,9 @@ export default function CameraRoute() {
         ? (["video"] as const)
         : (["photo", "video"] as const);
 
-  const maxDuration = params.maxDuration ? parseInt(params.maxDuration, 10) : 60;
+  const maxDuration = params.maxDuration
+    ? parseInt(params.maxDuration, 10)
+    : 60;
 
   const handleCapture = (media: CapturedMedia) => {
     setResult(media);
@@ -72,5 +75,14 @@ export default function CameraRoute() {
       showGallery={true}
       onGalleryPress={handleGalleryPress}
     />
+  );
+}
+
+export default function CameraRoute() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Camera" onGoBack={() => router.back()}>
+      <CameraRouteContent />
+    </ErrorBoundary>
   );
 }

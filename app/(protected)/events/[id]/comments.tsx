@@ -17,6 +17,7 @@ import {
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useLayoutEffect } from "react";
 import { Image } from "expo-image";
 import { ArrowLeft, Send, MessageCircle } from "lucide-react-native";
@@ -31,7 +32,7 @@ import { MENTION_COLOR } from "@/src/constants/mentions";
 import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
 
-export default function EventCommentsScreen() {
+function EventCommentsScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -274,9 +275,7 @@ export default function EventCommentsScreen() {
             >
               <Image
                 source={{
-                  uri:
-                    comment.author?.avatar ||
-                    "",
+                  uri: comment.author?.avatar || "",
                 }}
                 style={{
                   width: 40,
@@ -379,9 +378,7 @@ export default function EventCommentsScreen() {
             >
               <Image
                 source={{
-                  uri:
-                    u.avatar ||
-                    "",
+                  uri: u.avatar || "",
                 }}
                 style={{ width: 32, height: 32, borderRadius: 16 }}
               />
@@ -414,9 +411,7 @@ export default function EventCommentsScreen() {
           >
             <Image
               source={{
-                uri:
-                  user?.avatar ||
-                  "",
+                uri: user?.avatar || "",
               }}
               style={{
                 width: 32,
@@ -483,5 +478,14 @@ export default function EventCommentsScreen() {
         </View>
       </KeyboardStickyView>
     </SafeAreaView>
+  );
+}
+
+export default function EventCommentsScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="EventComments" onGoBack={() => router.back()}>
+      <EventCommentsScreenContent />
+    </ErrorBoundary>
   );
 }

@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from "react-native";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -622,6 +623,11 @@ function ScannerContent({ eventId }: { eventId: string }) {
 
 export default function TicketScannerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
 
-  return <ScannerContent eventId={id || ""} />;
+  return (
+    <ErrorBoundary screenName="TicketScanner" onGoBack={() => router.back()}>
+      <ScannerContent eventId={id || ""} />
+    </ErrorBoundary>
+  );
 }

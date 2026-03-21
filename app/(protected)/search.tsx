@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useNavigation } from "@react-navigation/native";
 import { ArrowLeft, Search, X, Play, Hash, Compass } from "lucide-react-native";
 import { Image } from "expo-image";
@@ -260,7 +261,7 @@ function DiscoverGrid({
   );
 }
 
-export default function SearchScreen() {
+function SearchScreenContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const navigation = useNavigation();
@@ -563,5 +564,14 @@ export default function SearchScreen() {
         )}
       </ScrollView>
     </View>
+  );
+}
+
+export default function SearchScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Search" onGoBack={() => router.back()}>
+      <SearchScreenContent />
+    </ErrorBoundary>
   );
 }

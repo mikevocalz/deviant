@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useLayoutEffect, useEffect, useRef } from "react";
 import { EditorScreen } from "@/src/stories-editor";
 import { useEditorStore } from "@/src/stories-editor/stores/editor-store";
 import type { EditorMode } from "@/src/stories-editor";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 
-export default function StoryEditorRoute() {
+function StoryEditorRouteContent() {
   const { uri, type, initialMode } = useLocalSearchParams<{
     uri: string;
     type: string;
@@ -78,5 +79,14 @@ export default function StoryEditorRoute() {
       onSave={handleSave}
       initialMode={initialMode as EditorMode | undefined}
     />
+  );
+}
+
+export default function StoryEditorRoute() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="StoryEditor" onGoBack={() => router.back()}>
+      <StoryEditorRouteContent />
+    </ErrorBoundary>
   );
 }

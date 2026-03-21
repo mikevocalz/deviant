@@ -11,6 +11,7 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { useRouter, useNavigation } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   useSafeAreaInsets,
   SafeAreaView,
@@ -134,7 +135,7 @@ const SUGGESTED_TAGS = [
   "charity",
 ];
 
-export default function CreateEventScreen() {
+function CreateEventScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -2113,5 +2114,14 @@ export default function CreateEventScreen() {
         </View>
       )}
     </SafeAreaView>
+  );
+}
+
+export default function CreateEventScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="CreateEvent" onGoBack={() => router.back()}>
+      <CreateEventScreenContent />
+    </ErrorBoundary>
   );
 }

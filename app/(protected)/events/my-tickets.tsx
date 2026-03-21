@@ -9,6 +9,7 @@
 import { View, Text, Pressable, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import {
   ArrowLeft,
@@ -358,5 +359,10 @@ function MyTicketsContent() {
 }
 
 export default function MyTicketsScreen() {
-  return <MyTicketsContent />;
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="MyTickets" onGoBack={() => router.back()}>
+      <MyTicketsContent />
+    </ErrorBoundary>
+  );
 }
