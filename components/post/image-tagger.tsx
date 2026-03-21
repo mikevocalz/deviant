@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import { KeyboardController } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
-import { X, UserPlus, Search } from "lucide-react-native";
+import { X, UserPlus, Search, RotateCw } from "lucide-react-native";
 import { Motion, AnimatePresence } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
 import { Debouncer } from "@tanstack/react-pacer";
@@ -46,6 +46,8 @@ interface ImageTaggerProps {
   height: number;
   existingTags?: PostTag[];
   onTagsChanged?: (tags: PostTag[]) => void;
+  onRotate?: () => void;
+  rotationDegrees?: number;
 }
 
 export function ImageTagger({
@@ -55,6 +57,8 @@ export function ImageTagger({
   height,
   existingTags = [],
   onTagsChanged,
+  onRotate,
+  rotationDegrees,
 }: ImageTaggerProps) {
   const [tags, setTags] = useState<TaggedUser[]>(() =>
     existingTags
@@ -292,6 +296,20 @@ export function ImageTagger({
           </View>
         )}
       </Pressable>
+
+      {/* Rotate button — rendered above the image tap area */}
+      {onRotate && (
+        <Pressable onPress={onRotate} hitSlop={8} style={styles.rotateButton}>
+          <RotateCw size={18} color="#fff" />
+        </Pressable>
+      )}
+
+      {/* Rotation badge */}
+      {rotationDegrees ? (
+        <View style={styles.rotationBadge}>
+          <Text style={styles.rotationBadgeText}>{rotationDegrees}°</Text>
+        </View>
+      ) : null}
 
       {/* Tag count badge + toggle */}
       {tags.length > 0 && !pendingPosition && (
@@ -558,5 +576,32 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: "center",
     paddingVertical: 16,
+  },
+  rotateButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    zIndex: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rotationBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    zIndex: 20,
+    backgroundColor: "rgba(138,64,207,0.8)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  rotationBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
   },
 });
