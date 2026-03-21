@@ -30,9 +30,10 @@ export default {
     assetBundlePatterns: ["**/*"],
     updates: {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
-      fallbackToCacheTimeout: 0,
+      fallbackToCacheTimeout: 30000, // 30 seconds fallback to prevent crashes
       checkAutomatically: "ON_LOAD",
       enableBsdiffPatchSupport: true,
+      waitBeforeLaunchMs: 5000, // 5 seconds to allow rollback detection
     },
     buildCacheProvider: "eas",
     ios: {
