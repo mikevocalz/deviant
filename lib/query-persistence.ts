@@ -140,12 +140,44 @@ export const queryPersister = createSyncStoragePersister({
 export const persistOptions = {
   persister: queryPersister,
   maxAge: 30 * 60 * 1000, // 30 min — matches gcTime
-  buster: "v3", // Increment to invalidate all persisted caches (bumped: v15 OTA)
+  buster: "v3", // CRITICAL: Must increment on every OTA that changes query structures
 };
 
 /**
- * Clear persisted query cache — call on logout/user switch.
+ * OTA Update Detector — Auto-clear cache when new OTA is detected
+ * Prevents crashes from stale/incompatible persisted cache after updates
  */
+const OTA_VERSION_KEY = "dvnt-ota-version";
+
+/**
+ * Check if this is a new OTA update and clear cache if so.
+ * Call this early in app boot before QueryClient is created.
+ */
+export function checkAndClearCacheOnOTAUpdate(): void {
+  try {
+    if (!queryMmkv) return;
+
+    const previousVersion = queryMmkv.getString(OTA_VERSION_KEY);
+    const currentVersion = "v3"; // Must match buster version
+
+    if (previousVersion !== currentVersion) {
+      console.log(
+        `[QueryPersistence] OTA update detected: ${previousVersion} → ${currentVersion}`,
+      );
+      console.log(
+        "[QueryPersistence] Clearing persisted cache to prevent crashes",
+      );
+
+      // Clear the query cache
+      mmkvStorage.removeItem(STORAGE_KEY);
+
+      // Store new version
+      queryMmkv.set(OTA_VERSION_KEY, currentVersion);
+    }
+  } catch (error) {
+    console.error("[QueryPersistence] OTA check error:", error);
+  }
+}
 export function clearPersistedQueryCache(): void {
   console.log("[QueryPersistence] Clearing persisted query cache");
   try {

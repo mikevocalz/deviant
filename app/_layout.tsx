@@ -4,7 +4,10 @@ import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { persistOptions } from "@/lib/query-persistence";
+import {
+  persistOptions,
+  checkAndClearCacheOnOTAUpdate,
+} from "@/lib/query-persistence";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { useEffect, useState } from "react";
@@ -42,6 +45,10 @@ import {
   getBootDiagnostics,
 } from "@/lib/boot-guard";
 import { SafeModeBanner } from "@/components/safe-mode-banner";
+
+// CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
+// This prevents crashes from incompatible persisted cache after OTA updates
+checkAndClearCacheOnOTAUpdate();
 
 // DEV-only: Enforce LegendList-only policy on app boot
 enforceListPolicy();
