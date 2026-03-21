@@ -1,11 +1,78 @@
 import { View, Text } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { ProgressSteps, ProgressStep } from "react-native-progress-steps";
 import { SignUpStep1, SignUpStep2, SignUpStep3 } from "@/components/signup";
 import { useSignupStore } from "@/lib/stores/signup-store";
+import { Check } from "lucide-react-native";
+
+const STEPS = ["User Info", "Terms", "Verification"] as const;
+
+function StepIndicator({ activeStep }: { activeStep: number }) {
+  return (
+    <View className="flex-row items-center justify-center px-6 pt-6 pb-4">
+      {STEPS.map((label, i) => {
+        const isCompleted = i < activeStep;
+        const isActive = i === activeStep;
+        return (
+          <View key={label} className="flex-1 items-center">
+            <View className="flex-row items-center w-full justify-center">
+              {i > 0 && (
+                <View
+                  className="flex-1 h-[2px]"
+                  style={{
+                    backgroundColor: isCompleted ? "#34A2DF" : "#3f3f46",
+                  }}
+                />
+              )}
+              <View
+                className="h-8 w-8 rounded-full items-center justify-center border-2"
+                style={{
+                  borderColor: isCompleted || isActive ? "#34A2DF" : "#71717a",
+                  backgroundColor: isCompleted ? "#34A2DF" : "transparent",
+                }}
+              >
+                {isCompleted ? (
+                  <Check size={14} color="#fff" />
+                ) : (
+                  <Text
+                    className="text-xs font-bold"
+                    style={{
+                      color: isActive ? "#34A2DF" : "#71717a",
+                    }}
+                  >
+                    {i + 1}
+                  </Text>
+                )}
+              </View>
+              {i < STEPS.length - 1 && (
+                <View
+                  className="flex-1 h-[2px]"
+                  style={{
+                    backgroundColor: isCompleted ? "#34A2DF" : "#3f3f46",
+                  }}
+                />
+              )}
+            </View>
+            <Text
+              className="text-xs mt-1"
+              style={{
+                color: isCompleted
+                  ? "#34A2DF"
+                  : isActive
+                    ? "#34A2DF"
+                    : "#a3a3a3",
+              }}
+            >
+              {label}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 export default function SignupScreen() {
-  const { activeStep } = useSignupStore();
+  const activeStep = useSignupStore((s) => s.activeStep);
 
   return (
     <KeyboardAwareScrollView
@@ -26,30 +93,13 @@ export default function SignupScreen() {
         </View>
       </View>
 
-      <ProgressSteps
-        activeStep={activeStep}
-        activeStepIconBorderColor="#34A2DF"
-        completedProgressBarColor="#34A2DF"
-        completedStepIconColor="#34A2DF"
-        activeStepIconColor="#34A2DF"
-        activeLabelColor="#34A2DF"
-        labelColor="#a3a3a3"
-        completedLabelColor="#34A2DF"
-        disabledStepIconColor="#71717a"
-        progressBarColor="#3f3f46"
-      >
-        <ProgressStep label="User Info" removeBtnRow>
-          <SignUpStep1 />
-        </ProgressStep>
+      <StepIndicator activeStep={activeStep} />
 
-        <ProgressStep label="Terms" removeBtnRow>
-          <SignUpStep3 />
-        </ProgressStep>
-
-        <ProgressStep label="Verification" removeBtnRow>
-          <SignUpStep2 />
-        </ProgressStep>
-      </ProgressSteps>
+      <View className="flex-1 px-5">
+        {activeStep === 0 && <SignUpStep1 />}
+        {activeStep === 1 && <SignUpStep3 />}
+        {activeStep === 2 && <SignUpStep2 />}
+      </View>
     </KeyboardAwareScrollView>
   );
 }

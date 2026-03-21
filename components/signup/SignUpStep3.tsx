@@ -159,7 +159,7 @@ export function SignUpStep3() {
       >
         <Checkbox
           checked={termsAccepted}
-          onCheckedChange={(v) => setTermsAccepted(v)}
+          onCheckedChange={() => {}}
           borderColor="#34A2DF"
         />
         <Text className="flex-1 text-sm leading-relaxed text-foreground">
