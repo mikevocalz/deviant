@@ -140,7 +140,7 @@ export const queryPersister = createSyncStoragePersister({
 export const persistOptions = {
   persister: queryPersister,
   maxAge: 30 * 60 * 1000, // 30 min — matches gcTime
-  buster: "v1", // Increment to invalidate all persisted caches
+  buster: "v2", // Increment to invalidate all persisted caches (bumped: clear stale OTA data)
 };
 
 /**

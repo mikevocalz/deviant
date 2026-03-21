@@ -239,7 +239,16 @@ export default function ProtectedLayout() {
             animationDuration: 300,
           }}
         />
-        <Stack.Screen name="story/[id]" options={fullScreenModalConfig} />
+        <Stack.Screen
+          name="story/[id]"
+          options={{
+            headerShown: false,
+            presentation: "transparentModal",
+            animation: "fade",
+            animationDuration: 250,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
         <Stack.Screen
           name="story/create"
           options={{ ...fullScreenModalConfig, headerShown: true }}

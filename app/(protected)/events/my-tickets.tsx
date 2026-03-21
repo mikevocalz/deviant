@@ -255,8 +255,12 @@ function MyTicketsContent() {
   const [pendingTransfers, setPendingTransfers] = useState<any[]>([]);
 
   const loadTransfers = useCallback(async () => {
-    const { incoming } = await ticketsApi.getPendingTransfers();
-    setPendingTransfers(incoming);
+    try {
+      const { incoming } = await ticketsApi.getPendingTransfers();
+      setPendingTransfers(incoming ?? []);
+    } catch (e) {
+      console.warn("[MyTickets] loadTransfers failed:", e);
+    }
   }, []);
 
   useEffect(() => {
@@ -318,7 +322,7 @@ function MyTicketsContent() {
         </Animated.View>
       )}
 
-      {tickets?.length || pendingTransfers.length > 0 ? (
+      {!isLoading && (tickets?.length || pendingTransfers.length > 0) ? (
         <LegendList
           data={[
             ...pendingTransfers.map((t: any) => ({ ...t, _isTransfer: true })),
