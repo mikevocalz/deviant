@@ -4,7 +4,6 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -84,20 +83,13 @@ Deno.serve(async (req) => {
     if (!storyId)
       return errorResponse("validation_error", "storyId is required");
 
-    const userData = await resolveOrProvisionUser(
-      supabaseAdmin,
-      authUserId,
-      "id",
-    );
-    if (!userData) return errorResponse("not_found", "User not found");
-
-    // Verify ownership
+    // Verify ownership — author_id stores the Better Auth UUID (authUserId)
     const { data: story } = await supabaseAdmin
       .from("stories")
       .select("author_id")
       .eq("id", storyId)
       .single();
-    if (!story || story.author_id !== userData.id)
+    if (!story || String(story.author_id) !== String(authUserId))
       return errorResponse(
         "forbidden",
         "You can only delete your own stories",
