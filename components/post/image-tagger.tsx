@@ -250,7 +250,12 @@ export function ImageTagger({
       <Pressable onPress={handleImageTap} style={styles.imageContainer}>
         <Image
           source={{ uri: mediaUrl }}
-          style={styles.image}
+          style={[
+            styles.image,
+            rotationDegrees
+              ? { transform: [{ rotate: `${rotationDegrees}deg` }] }
+              : undefined,
+          ]}
           contentFit="cover"
           transition={200}
         />
