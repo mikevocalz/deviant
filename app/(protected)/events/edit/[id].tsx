@@ -14,6 +14,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-instagram";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { DvntMap } from "@/src/components/map";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
@@ -33,7 +34,7 @@ function EditEventScreenContent() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState<LocationData | null>(null);
+  const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [eventDate, setEventDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -59,7 +60,7 @@ function EditEventScreenContent() {
       setEvent(eventData);
       setTitle(eventData.title || "");
       setDescription(eventData.description || "");
-      setLocation(eventData.location ? { name: eventData.location } : null);
+      setLocationData(eventData.location ? { name: eventData.location } : null);
       setEventDate(
         eventData.fullDate ? new Date(eventData.fullDate) : new Date(),
       );
@@ -87,7 +88,7 @@ function EditEventScreenContent() {
       await eventsApi.updateEvent(eventId, {
         title,
         description,
-        location: location?.name || undefined,
+        location: locationData?.name || undefined,
         startDate: eventDate.toISOString(),
         price: ticketPrice ? parseFloat(ticketPrice) : undefined,
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
@@ -243,21 +244,45 @@ function EditEventScreenContent() {
           </Text>
           <View style={{ zIndex: 1000, position: "relative" }}>
             <LocationAutocompleteInstagram
-              value={location?.name || ""}
+              value={locationData?.name || ""}
               placeholder="Enter event location"
               onLocationSelect={(data: LocationData) => {
                 console.log("[EditEvent] Location selected:", data);
-                setLocation(data);
+                setLocationData(data);
               }}
               onClear={() => {
                 console.log("[EditEvent] Location cleared");
-                setLocation(null);
+                setLocationData(null);
               }}
               onTextChange={(text) => {
                 console.log("[EditEvent] Location text changed:", text);
+                // Update location name for form validation
+                if (!text) {
+                  setLocationData(null);
+                }
               }}
             />
           </View>
+
+          {/* Map Preview - matches create flow UX */}
+          {locationData?.latitude && locationData?.longitude && (
+            <View
+              className="mt-3 rounded-2xl overflow-hidden"
+              style={{ height: 180 }}
+            >
+              <DvntMap
+                center={[locationData.longitude, locationData.latitude]}
+                zoom={15}
+                markers={[
+                  {
+                    id: "event-location",
+                    coordinate: [locationData.longitude, locationData.latitude],
+                  },
+                ]}
+                showControls={false}
+              />
+            </View>
+          )}
         </View>
 
         {/* Date */}
