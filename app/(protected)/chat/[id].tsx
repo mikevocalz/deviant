@@ -380,6 +380,9 @@ function ChatScreenContent() {
   // This ensures messages[activeConvId] matches where loadMessages stores data.
   const [activeConvId, setActiveConvId] = useState(chatId);
 
+  // Track if we're still resolving the conversation ID (for new chats)
+  const [isResolvingConversation, setIsResolvingConversation] = useState(false);
+
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
   useLayoutEffect(() => {
@@ -450,9 +453,11 @@ function ChatScreenContent() {
             !/^\d+$/.test(chatId);
           if (looksLikeUsername) {
             console.log("[Chat] chatId is username, resolving conversation...");
+            setIsResolvingConversation(true);
             const convId =
               await messagesApiClient.getOrCreateConversation(chatId);
             if (convId) actualConversationId = convId;
+            setIsResolvingConversation(false);
           }
 
           // Store resolved ID for useFocusEffect AND update activeConvId
@@ -473,6 +478,7 @@ function ChatScreenContent() {
           });
         } catch (error) {
           console.error("[Chat] loadChat error:", error);
+          setIsResolvingConversation(false);
           await loadMessages(chatId);
         }
       };
@@ -897,7 +903,9 @@ function ChatScreenContent() {
   }, [setShowPreviewModal, setPreviewMedia]);
 
   const canSend =
-    (currentMessage.trim() || pendingMedia.length > 0) && !isSending;
+    (currentMessage.trim() || pendingMedia.length > 0) &&
+    !isSending &&
+    !isResolvingConversation;
 
   // Message action sheet state
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -1574,30 +1582,41 @@ function ChatScreenContent() {
             )}
 
             <View className="flex-row items-center gap-2 border-t border-border px-3 py-3">
-              <Pressable
-                onPress={handleOpenCamera}
-                className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
-              >
-                <Camera size={22} color="#3EA4E5" />
-              </Pressable>
-              <Pressable
-                onPress={handlePickMedia}
-                className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
-              >
-                <ImageIcon size={22} color="#3EA4E5" />
-              </Pressable>
+              {isResolvingConversation ? (
+                <View className="flex-1 flex-row items-center justify-center gap-2 py-3">
+                  <View className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  <Text className="text-muted-foreground text-sm">
+                    Setting up chat...
+                  </Text>
+                </View>
+              ) : (
+                <>
+                  <Pressable
+                    onPress={handleOpenCamera}
+                    className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+                  >
+                    <Camera size={22} color="#3EA4E5" />
+                  </Pressable>
+                  <Pressable
+                    onPress={handlePickMedia}
+                    className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+                  >
+                    <ImageIcon size={22} color="#3EA4E5" />
+                  </Pressable>
 
-              <TextInput
-                ref={inputRef}
-                nativeID="chat-input"
-                value={currentMessage}
-                onChangeText={handleTextChange}
-                onSelectionChange={handleSelectionChange}
-                placeholder="Message... (use @ to mention)"
-                placeholderTextColor="#666"
-                className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
-                multiline
-              />
+                  <TextInput
+                    ref={inputRef}
+                    nativeID="chat-input"
+                    value={currentMessage}
+                    onChangeText={handleTextChange}
+                    onSelectionChange={handleSelectionChange}
+                    placeholder="Message... (use @ to mention)"
+                    placeholderTextColor="#666"
+                    className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
+                    multiline
+                  />
+                </>
+              )}
 
               <Animated.View
                 style={{ transform: [{ scale: sendButtonScale }] }}

@@ -48,6 +48,16 @@ if [ -f "$WGPU_DIR/apple/WebGPUView.h" ]; then
   echo "[patch-wgpu] Renamed WebGPUView.h → WGPUWebGPUView.h"
 fi
 
+# Rename WebGPUViewNativeComponent files
+if [ -f "$WGPU_DIR/src/WebGPUViewNativeComponent.ts" ]; then
+  mv "$WGPU_DIR/src/WebGPUViewNativeComponent.ts" "$WGPU_DIR/src/WGPUWebGPUViewNativeComponent.ts"
+  echo "[patch-wgpu] Renamed WebGPUViewNativeComponent.ts → WGPUWebGPUViewNativeComponent.ts"
+fi
+if [ -f "$WGPU_DIR/src/WebGPUViewNativeComponent.web.ts" ]; then
+  mv "$WGPU_DIR/src/WebGPUViewNativeComponent.web.ts" "$WGPU_DIR/src/WGPUWebGPUViewNativeComponent.web.ts"
+  echo "[patch-wgpu] Renamed WebGPUViewNativeComponent.web.ts → WGPUWebGPUViewNativeComponent.web.ts"
+fi
+
 # Update class names in all files
 find "$WGPU_DIR" -type f \( -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -name "*.m" -o -name "*.json" -o -name "*.java" -o -name "*.js" -o -name "*.ts" -o -name "*.tsx" \) 2>/dev/null | while read -r file; do
   if grep -q "WebGPUView" "$file" 2>/dev/null; then
