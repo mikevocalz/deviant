@@ -30,6 +30,8 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { usersApi } from "@/lib/api/users";
+import { useQueryClient } from "@tanstack/react-query";
+import { getOrCreateConversationCached } from "@/lib/hooks/use-conversation-resolution";
 import type { StoryItemCustomData } from "./story-adapter";
 import type {
   IUserStoryItem,
@@ -233,8 +235,14 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
         }
         if (!userId) return;
 
-        const conversationId =
-          await messagesApiClient.getOrCreateConversation(userId);
+        // Use cached conversation resolution to prevent duplicate edge function calls
+        const queryClient = (
+          await import("@tanstack/react-query")
+        ).useQueryClient();
+        const conversationId = await getOrCreateConversationCached(
+          queryClient,
+          userId,
+        );
         if (!conversationId) return;
 
         await messagesApiClient.sendMessage({
@@ -287,8 +295,14 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
         return;
       }
 
-      const conversationId =
-        await messagesApiClient.getOrCreateConversation(userId);
+      // Use cached conversation resolution
+      const queryClient = (
+        await import("@tanstack/react-query")
+      ).useQueryClient();
+      const conversationId = await getOrCreateConversationCached(
+        queryClient,
+        userId,
+      );
       if (!conversationId) {
         showToast("error", "Error", "Could not start conversation");
         setIsSending(false);

@@ -465,11 +465,20 @@ function UserProfileScreenComponent() {
       }
     }
 
-    // Fast path 2: navigate immediately using username — the chat screen resolves
-    // the conversation ID itself (getOrCreateConversation) so we don't block here.
-    // This makes the chat open instantly instead of waiting for an edge function call.
+    // Fast path 2: prefetch conversation resolution, then navigate with username
+    // The prefetch populates the TanStack Query cache so the chat screen
+    // reads the conversation ID instantly without waiting for edge function.
     if (username) {
-      console.log("[Profile] Navigating to chat via username:", username);
+      console.log(
+        "[Profile] Prefetching conversation resolution for:",
+        username,
+      );
+      const { prefetchConversationResolution } =
+        await import("@/lib/hooks/use-conversation-resolution");
+
+      // Fire prefetch (non-blocking) then navigate immediately
+      prefetchConversationResolution(queryClient, username);
+
       router.push({
         pathname: "/(protected)/chat/[id]",
         params: {

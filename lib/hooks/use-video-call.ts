@@ -614,6 +614,7 @@ export function useVideoCall() {
 
       const createResult = await videoApi.createRoom({
         title,
+        isPublic: false, // CRITICAL: Personal calls must be private (not shown in Sneaky Lynk)
         maxParticipants: Math.max(participantIds.length + 1, 10),
       });
 

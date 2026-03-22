@@ -93,20 +93,22 @@ function hydrateFromBootstrap(
 /**
  * Hook: use bootstrap feed if the feature flag is enabled.
  *
- * Returns the stories data from bootstrap (since stories aren't in TanStack cache),
- * or null if bootstrap is disabled/failed.
+ * Returns bootstrap status to gate dependent queries.
+ * Prevents double-loading by ensuring bootstrap completes BEFORE
+ * useInfiniteFeedPosts runs.
  */
 export function useBootstrapFeed() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id) || "";
   const hasRun = useRef(false);
+  const isBootstrapping = useRef(false);
   const trace = useScreenTrace("Feed");
 
   const enabled = isFeatureEnabled("perf_bootstrap_feed");
 
   useEffect(() => {
-    if (!enabled || !userId || hasRun.current) return;
-    hasRun.current = true;
+    if (!enabled || !userId || hasRun.current || isBootstrapping.current)
+      return;
 
     // Check if we already have fresh feed data from MMKV cache
     const existingFeed = queryClient.getQueryData(
@@ -116,23 +118,39 @@ export function useBootstrapFeed() {
       trace.markCacheHit();
       trace.markUsable();
       console.log("[BootstrapFeed] Cache hit — skipping bootstrap call");
+      hasRun.current = true;
       return;
     }
 
+    // Mark as bootstrapping to prevent duplicate calls
+    hasRun.current = true;
+    isBootstrapping.current = true;
+
     // Fire bootstrap request
     console.log("[BootstrapFeed] No cached data, running bootstrap");
-    bootstrapApi.feed({ userId }).then((data) => {
-      if (!data) {
-        console.warn(
-          "[BootstrapFeed] Bootstrap failed — falling back to individual queries",
-        );
-        return;
-      }
+    bootstrapApi
+      .feed({ userId })
+      .then((data) => {
+        isBootstrapping.current = false;
 
-      hydrateFromBootstrap(queryClient, userId, data);
-      trace.markUsable();
-    });
+        if (!data) {
+          console.warn(
+            "[BootstrapFeed] Bootstrap failed — falling back to individual queries",
+          );
+          return;
+        }
+
+        hydrateFromBootstrap(queryClient, userId, data);
+        trace.markUsable();
+      })
+      .catch((error) => {
+        isBootstrapping.current = false;
+        console.error("[BootstrapFeed] Bootstrap error:", error);
+      });
   }, [enabled, userId, queryClient, trace]);
 
-  return { enabled };
+  return {
+    enabled,
+    isBootstrapping: isBootstrapping.current,
+  };
 }
