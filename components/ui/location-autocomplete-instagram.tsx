@@ -197,7 +197,11 @@ export function LocationAutocompleteInstagram({
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      setCurrentLocation(location);
+      setCurrentLocation({
+        name: "Current Location",
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
     } catch (error) {
       console.error(
         "[LocationAutocompleteInstagram] Failed to get current location:",
