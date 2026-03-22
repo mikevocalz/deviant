@@ -558,23 +558,25 @@ export function Feed() {
   // Simple loading state - only show skeleton during initial load
   const isActuallyLoading = isLoading || storiesPending || !nsfwLoaded;
 
-  useEffect(() => {
-    console.log("[Feed] Loading state changed:", {
+  if (__DEV__) {
+    useEffect(() => {
+      console.log("[Feed] Loading state changed:", {
+        isLoading,
+        storiesPending,
+        nsfwLoaded,
+        hasData: !!data,
+        allPostsLength: allPosts.length,
+        isActuallyLoading,
+      });
+    }, [
       isLoading,
       storiesPending,
       nsfwLoaded,
-      hasData: !!data,
-      allPostsLength: allPosts.length,
+      data,
+      allPosts.length,
       isActuallyLoading,
-    });
-  }, [
-    isLoading,
-    storiesPending,
-    nsfwLoaded,
-    data,
-    allPosts.length,
-    isActuallyLoading,
-  ]);
+    ]);
+  }
 
   if (isActuallyLoading) {
     return <FeedSkeleton />;

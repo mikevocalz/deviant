@@ -15,7 +15,25 @@ import { profileKeys } from "@/lib/hooks/use-profile";
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
 
-// Query keys
+/**
+ * Query key factory for posts
+ *
+ * RULES:
+ * - Always use factory functions, never construct keys manually
+ * - Profile posts MUST include userId for proper scoping
+ * - Detail keys MUST include post ID
+ * - Use feedInfinite() for infinite scroll queries
+ *
+ * @example
+ * // ✅ Correct
+ * queryKey: postKeys.detail(postId)
+ * queryKey: postKeys.profilePosts(userId)
+ * queryKey: postKeys.feedInfinite()
+ *
+ * // ❌ Wrong - never construct manually
+ * queryKey: ["posts", "detail", postId]
+ * queryKey: ["profilePosts", userId]
+ */
 export const postKeys = {
   all: ["posts"] as const,
   feed: () => [...postKeys.all, "feed"] as const,
@@ -66,7 +84,12 @@ export function usePost(id: string) {
       return postsApi.getPostById(id);
     },
     enabled: !!id && id.length > 0,
-    retry: 2,
+    retry: (failureCount, error: any) => {
+      // Don't retry 404s (post deleted) or 403s (unauthorized)
+      if (error?.status === 404 || error?.status === 403) return false;
+      // Retry network errors up to 2 times
+      return failureCount < 2;
+    },
     staleTime: STALE_TIMES.postDetail,
   });
 }
