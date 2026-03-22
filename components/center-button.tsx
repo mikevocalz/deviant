@@ -1,11 +1,18 @@
 import { useMemo, useRef, useState } from "react";
 import { Platform, Pressable, View, ViewStyle } from "react-native";
 import type { LucideIcon } from "lucide-react-native";
-import AnimatedGlow, {
-  type GlowEvent,
-  type PresetConfig,
-  glowPresets,
-} from "react-native-animated-glow";
+import { SafeAnimatedGlow } from "@/lib/safe-native-modules";
+
+// Safe imports for types and presets
+let glowPresets: any = { oceanSunset: { states: [{ preset: {} }] } };
+try {
+  const glow = require("react-native-animated-glow");
+  glowPresets = glow.glowPresets;
+} catch {
+  // Types not available, use fallbacks
+}
+
+type GlowState = "default" | "hover" | "press";
 
 type CenterButtonProps = {
   Icon: LucideIcon;
@@ -19,12 +26,12 @@ export function CenterButton({
   onPress,
   accessoryPlacement,
 }: CenterButtonProps) {
-  const [glowState, setGlowState] = useState<GlowEvent>("default");
+  const [glowState, setGlowState] = useState<GlowState>("default");
   const isHovered = useRef(false);
   // inline = rendered inside the liquid glass tab bar on iOS 26+
   const isInline = accessoryPlacement === "inline";
 
-  const radiusByState = useMemo<Record<GlowEvent, number>>(
+  const radiusByState = useMemo<Record<GlowState, number>>(
     () => ({
       default: 12,
       hover: 14,
@@ -33,7 +40,7 @@ export function CenterButton({
     [],
   );
 
-  const glowPreset = useMemo<PresetConfig>(() => {
+  const glowPreset = useMemo(() => {
     const base = glowPresets.oceanSunset;
     const smallGlow = 10;
     const largeGlow = 14;
@@ -124,7 +131,7 @@ export function CenterButton({
 
   return (
     <View style={containerStyle}>
-      <AnimatedGlow
+      <SafeAnimatedGlow
         preset={glowPreset}
         activeState={glowState}
         style={{
@@ -164,7 +171,7 @@ export function CenterButton({
         >
           <Icon size={28} color="#000" strokeWidth={3} />
         </Pressable>
-      </AnimatedGlow>
+      </SafeAnimatedGlow>
     </View>
   );
 }
