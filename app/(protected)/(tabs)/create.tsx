@@ -623,6 +623,12 @@ function CreateScreenContent() {
             placeholder="Add location"
             onLocationSelect={(data: LocationData) => setLocationData(data)}
             onClear={() => setLocationData(null)}
+            onTextChange={(text) => {
+              // Clear location data if text is cleared
+              if (!text) {
+                setLocationData(null);
+              }
+            }}
           />
         </View>
 

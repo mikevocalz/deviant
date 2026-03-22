@@ -709,6 +709,12 @@ function EditPostScreenContent() {
             placeholder="Add a location..."
             onLocationSelect={(data: LocationData) => setLocation(data)}
             onClear={() => setLocation(null)}
+            onTextChange={(text) => {
+              // Clear location data if text is cleared
+              if (!text) {
+                setLocation(null);
+              }
+            }}
           />
         </Motion.View>
 

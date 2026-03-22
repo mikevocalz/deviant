@@ -1,12 +1,12 @@
 /**
- * DvntMap — Production MapLibre + MapTiler map component (iOS/Android)
+ * DvntMap — Production Expo Maps component (iOS/Android)
  *
- * Renders a MapLibre GL map with MapTiler tiles. Supports markers,
- * user location, and camera control. Gracefully falls back if
- * the native module is unavailable or the API key is missing.
+ * Renders Google Maps (Android) or Apple Maps (iOS) using expo-maps.
+ * Supports markers, user location, and camera control. Gracefully falls
+ * back if the native module is unavailable.
  */
 
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,14 +14,20 @@ import {
   Platform,
   ActivityIndicator,
 } from "react-native";
-import { Locate, ZoomIn, ZoomOut, MapPin } from "lucide-react-native";
+import { Locate, MapPin } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { getMaptilerStyleUrl, isMapsEnabled } from "./maptiler";
 
-// Lazy-load MapLibre to avoid crashes if native module isn't linked
-let MapLibreGL: typeof import("@maplibre/maplibre-react-native") | null = null;
+// Lazy-load expo-maps to avoid crashes if native module isn't linked
+let GoogleMapsView: any = null;
+let AppleMapsView: any = null;
 try {
-  MapLibreGL = require("@maplibre/maplibre-react-native");
+  if (Platform.OS === "android") {
+    const { GoogleMaps } = require("expo-maps");
+    GoogleMapsView = GoogleMaps.View;
+  } else if (Platform.OS === "ios") {
+    const { AppleMaps } = require("expo-maps");
+    AppleMapsView = AppleMaps.View;
+  }
 } catch {
   // Not available (Expo Go or web)
 }
@@ -51,26 +57,22 @@ export interface DvntMapProps {
   onMapReady?: () => void;
 }
 
-// ---------- GeoJSON helpers ----------
+// Convert [lng, lat] to {latitude, longitude}
+function toLatLng(coord: [number, number]) {
+  return { latitude: coord[1], longitude: coord[0] };
+}
 
-function markersToGeoJSON(markers: DvntMapMarker[]) {
-  return {
-    type: "FeatureCollection" as const,
-    features: markers.map((m) => ({
-      type: "Feature" as const,
-      id: m.id,
-      properties: {
-        id: m.id,
-        title: m.title || "",
-        subtitle: m.subtitle || "",
-        icon: m.icon || "pin",
-      },
-      geometry: {
-        type: "Point" as const,
-        coordinates: m.coordinate,
-      },
-    })),
-  };
+// ---------- Marker helpers ----------
+
+function getMarkerColor(icon?: string): string {
+  switch (icon) {
+    case "event":
+      return "#3EA4E5"; // Deviant primary blue
+    case "user":
+      return "#FF6DC1"; // Deviant accent pink
+    default:
+      return "#3EA4E5"; // Default to primary blue
+  }
 }
 
 // ---------- Fallback ----------
@@ -90,10 +92,22 @@ function MapUnavailable({ reason }: { reason: string }) {
   );
 }
 
+// ---------- Loading State ----------
+
+function MapLoading() {
+  const { colors } = useColorScheme();
+  return (
+    <View className="flex-1 items-center justify-center bg-card rounded-2xl">
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text className="mt-3 text-sm text-muted-foreground">Loading map...</Text>
+    </View>
+  );
+}
+
 // ---------- Main Component ----------
 
 function DvntMapInner({
-  center = [-73.9857, 40.7484], // NYC default
+  center = [-73.9857, 40.7484], // NYC default [lng, lat]
   zoom = 12,
   markers = [],
   onMarkerPress,
@@ -105,20 +119,23 @@ function DvntMapInner({
   onMapReady,
 }: DvntMapProps) {
   const { colors } = useColorScheme();
-  const cameraRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Memoize style URL (stable across renders)
-  const styleUrl = useMemo(() => getMaptilerStyleUrl(), []);
-
-  // Memoize GeoJSON to avoid re-creating on every render
-  const geojson = useMemo(() => markersToGeoJSON(markers), [markers]);
+  // Convert center to {latitude, longitude}
+  const initialRegion = useMemo(
+    () => ({
+      ...toLatLng(center),
+      latitudeDelta: 0.01, // Zoom level ~15
+      longitudeDelta: 0.01,
+    }),
+    [center],
+  );
 
   // Stable callback for marker press
-  const handleShapePress = useCallback(
+  const handleMarkerPress = useCallback(
     (e: any) => {
-      const feature = e?.features?.[0];
-      const markerId = feature?.properties?.id || feature?.id;
+      const markerId = e.nativeEvent?.id;
       if (markerId && onMarkerPress) {
         onMarkerPress(String(markerId));
       }
@@ -126,85 +143,53 @@ function DvntMapInner({
     [onMarkerPress],
   );
 
-  // Zoom controls
-  const handleZoomIn = useCallback(() => {
-    cameraRef.current?.zoomTo?.((zoom || 12) + 1, 300);
-  }, [zoom]);
-
-  const handleZoomOut = useCallback(() => {
-    cameraRef.current?.zoomTo?.((zoom || 12) - 1, 300);
-  }, [zoom]);
-
+  // Recenter map
   const handleRecenter = useCallback(() => {
-    cameraRef.current?.setCamera?.({
-      centerCoordinate: center,
-      zoomLevel: zoom,
-      animationDuration: 500,
-    });
-  }, [center, zoom]);
+    mapRef.current?.animateToRegion?.(initialRegion, 500);
+  }, [initialRegion]);
 
-  // Bail out if no native module or no style URL
-  if (!MapLibreGL) {
+  // Map ready callback
+  const handleMapReady = useCallback(() => {
+    setIsLoading(false);
+    onMapReady?.();
+  }, [onMapReady]);
+
+  // Bail out if no native module
+  const MapView = Platform.OS === "android" ? GoogleMapsView : AppleMapsView;
+  if (!MapView) {
     return (
-      <MapUnavailable reason="MapLibre native module is not linked. Use a development build (not Expo Go)." />
+      <MapUnavailable reason="expo-maps native module is not linked. Use a development build (not Expo Go)." />
     );
   }
-
-  if (!styleUrl) {
-    return (
-      <MapUnavailable reason="MapTiler API key is not configured. Add EXPO_PUBLIC_MAPTILER_KEY to your .env file." />
-    );
-  }
-
-  const MLMapView = MapLibreGL.MapView;
-  const MLCamera = MapLibreGL.Camera;
-  const MLShapeSource = MapLibreGL.ShapeSource;
-  const MLCircleLayer = MapLibreGL.CircleLayer;
-  const MLSymbolLayer = MapLibreGL.SymbolLayer;
-  const MLUserLocation = MapLibreGL.UserLocation;
 
   return (
     <View className={`flex-1 ${className || ""}`}>
-      <MLMapView
+      {isLoading && <MapLoading />}
+      <MapView
         ref={mapRef}
         style={{ flex: 1 }}
-        mapStyle={styleUrl}
-        logoEnabled={false}
-        attributionEnabled={false}
-        onDidFinishLoadingMap={onMapReady}
-      >
-        <MLCamera
-          ref={cameraRef}
-          defaultSettings={{
-            centerCoordinate: center,
-            zoomLevel: zoom,
-            pitch,
-            heading: bearing,
-          }}
-          animationDuration={0}
-        />
-
-        {showUserLocation && <MLUserLocation visible animated />}
-
-        {markers.length > 0 && (
-          <MLShapeSource
-            id="dvnt-markers"
-            shape={geojson as any}
-            onPress={handleShapePress}
-            hitbox={{ width: 44, height: 44 }}
-          >
-            <MLCircleLayer
-              id="dvnt-marker-circles"
-              style={{
-                circleRadius: 8,
-                circleColor: colors.primary,
-                circleStrokeWidth: 2,
-                circleStrokeColor: "#ffffff",
-              }}
-            />
-          </MLShapeSource>
-        )}
-      </MLMapView>
+        initialCameraPosition={{
+          coordinates: toLatLng(center),
+          zoom: zoom || 15,
+        }}
+        markers={markers.map((marker) => ({
+          id: marker.id,
+          coordinates: toLatLng(marker.coordinate),
+          title: marker.title,
+          subtitle: marker.subtitle,
+          color: getMarkerColor(marker.icon),
+        }))}
+        onMarkerPress={handleMarkerPress}
+        onMapReady={handleMapReady}
+        uiSettings={{
+          myLocationButtonEnabled: false,
+          compassEnabled: false,
+          scaleControlsEnabled: false,
+        }}
+        properties={{
+          showsUserLocation: showUserLocation,
+        }}
+      />
 
       {/* Overlay Controls */}
       {showControls && (
@@ -224,32 +209,6 @@ function DvntMapInner({
             }}
           >
             <Locate size={18} color={colors.foreground} />
-          </Pressable>
-          <Pressable
-            onPress={handleZoomIn}
-            className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center"
-            style={{
-              elevation: 4,
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 4,
-              shadowOffset: { width: 0, height: 2 },
-            }}
-          >
-            <ZoomIn size={18} color={colors.foreground} />
-          </Pressable>
-          <Pressable
-            onPress={handleZoomOut}
-            className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center"
-            style={{
-              elevation: 4,
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 4,
-              shadowOffset: { width: 0, height: 2 },
-            }}
-          >
-            <ZoomOut size={18} color={colors.foreground} />
           </Pressable>
         </View>
       )}
