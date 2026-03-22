@@ -102,6 +102,7 @@ interface ChatState {
   ) => Promise<void>;
   addSystemMessage: (chatId: string, text: string) => void;
   retryMessage: (conversationId: string, messageId: string) => Promise<void>;
+  clearConversation: (conversationId: string) => void;
 }
 
 // Empty array - messages will come from backend
@@ -139,6 +140,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   showMentions: false,
   cursorPosition: 0,
   pendingMedia: [],
+  // CRITICAL: isSending is NOT persisted - it's ephemeral UI state
+  // This prevents stuck send buttons after app restart/crash
   isSending: false,
 
   setPendingMedia: (media) => set({ pendingMedia: media || [] }),
@@ -857,6 +860,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
       cursorPosition: newCursorPosition,
       mentionQuery: "",
       showMentions: false,
+    });
+  },
+
+  // CRITICAL: Clear conversation messages on unmount to prevent leakage
+  // Messages are server state - should be fetched fresh, not persisted
+  clearConversation: (conversationId) => {
+    set((state) => {
+      const { [conversationId]: removed, ...rest } = state.messages;
+      console.log("[ChatStore] Cleared conversation:", conversationId);
+      return { messages: rest };
     });
   },
 }));

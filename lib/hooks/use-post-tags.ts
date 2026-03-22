@@ -4,6 +4,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { postTagsApi, type PostTag, type TagDiffInput } from "../api/post-tags";
+import { postKeys } from "./use-posts";
 
 // ── Query Keys ──────────────────────────────────────────────
 export const postTagKeys = {
@@ -86,9 +87,9 @@ export function useSaveTagsDiff() {
     onSuccess: (data, { postId }) => {
       // Replace optimistic data with server data
       queryClient.setQueryData(postTagKeys.forPost(postId), data);
-      // Invalidate related caches
-      queryClient.invalidateQueries({ queryKey: ["feed"] });
-      queryClient.invalidateQueries({ queryKey: ["post", postId] });
+      // Invalidate related caches - use proper key factories
+      queryClient.invalidateQueries({ queryKey: postKeys.feedInfinite() });
+      queryClient.invalidateQueries({ queryKey: postKeys.detail(postId) });
     },
   });
 }
@@ -103,7 +104,12 @@ export function useAddPostTags() {
       tags,
     }: {
       postId: string;
-      tags: Array<{ userId: number; x: number; y: number; mediaIndex?: number }>;
+      tags: Array<{
+        userId: number;
+        x: number;
+        y: number;
+        mediaIndex?: number;
+      }>;
     }) => postTagsApi.addTags(postId, tags),
 
     onSuccess: (data, { postId }) => {

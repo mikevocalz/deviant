@@ -28,6 +28,7 @@ import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { prefetchComments } from "@/lib/hooks/use-comments";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
+import { storyKeys } from "@/lib/hooks/use-stories";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import {
   prefetchImages,
@@ -392,7 +393,7 @@ export function Feed() {
 
   const handleRefresh = useCallback(async () => {
     // Refetch feed posts AND stories on pull-to-refresh
-    queryClient.invalidateQueries({ queryKey: ["stories"] });
+    queryClient.invalidateQueries({ queryKey: storyKeys.list() });
     await refetch();
   }, [refetch, queryClient]);
 

@@ -228,7 +228,7 @@ export function useBootPrefetch() {
           },
         }),
         queryClient.prefetchQuery({
-          queryKey: [...messageKeys.all, "filtered", "primary", userId],
+          queryKey: [...messageKeys.all(userId), "filtered", "primary"],
           queryFn: () => messagesApiClient.getFilteredConversations("primary"),
         }),
       ]).then((r) => logLane(2, r));

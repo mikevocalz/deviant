@@ -463,6 +463,12 @@ function ChatScreenContent() {
       .catch((error) => {
         console.error("[Chat] markAsRead error:", error);
       });
+
+    // CRITICAL: Cleanup on unmount to prevent message leakage
+    return () => {
+      console.log("[Chat] Cleaning up conversation:", activeConvId);
+      useChatStore.getState().clearConversation(activeConvId);
+    };
   }, [
     activeConvId,
     isResolvingConversation,
@@ -476,9 +482,16 @@ function ChatScreenContent() {
     const convId = resolvedConvIdRef.current;
     if (!convId || !/^\d+$/.test(convId)) return;
 
+    // Cancellation guard: prevents stale callbacks from executing after cleanup
+    let cancelled = false;
     const userId = useAuthStore.getState().user?.id;
+
+    // Unique channel ID prevents collisions on rapid navigation
+    const channelId = `chat-${convId}-${Date.now()}`;
+    console.log("[Chat] Subscribing to realtime messages:", channelId);
+
     const channel = supabase
-      .channel(`chat-${convId}`)
+      .channel(channelId)
       .on(
         "postgres_changes",
         {
@@ -488,6 +501,10 @@ function ChatScreenContent() {
           filter: `conversation_id=eq.${convId}`,
         },
         (payload) => {
+          if (cancelled) {
+            console.log("[Chat] Ignoring message - subscription cancelled");
+            return;
+          }
           const newMsg = payload.new as any;
           // Skip own messages — already handled by optimistic update
           if (String(newMsg.sender_id) === String(userId)) return;
@@ -497,9 +514,17 @@ function ChatScreenContent() {
           messagesApiClient.markAsRead(convId).catch(() => {});
         },
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (cancelled) return;
+        console.log("[Chat] Realtime subscription status:", status);
+        if (err) {
+          console.error("[Chat] Subscription error:", err);
+        }
+      });
 
     return () => {
+      console.log("[Chat] Unsubscribing from:", channelId);
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, [activeConvId, loadMessages]);

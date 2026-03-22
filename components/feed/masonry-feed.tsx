@@ -28,6 +28,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { storyKeys } from "@/lib/hooks/use-stories";
 import { useAppStore } from "@/lib/stores/app-store";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -458,7 +459,7 @@ export function MasonryFeed() {
   );
 
   const handleRefresh = useCallback(async () => {
-    queryClient.invalidateQueries({ queryKey: ["stories"] });
+    queryClient.invalidateQueries({ queryKey: storyKeys.list() });
     await refetch();
   }, [refetch, queryClient]);
 

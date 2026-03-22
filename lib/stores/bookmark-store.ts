@@ -59,6 +59,12 @@ export const useBookmarkStore = create<BookmarkState>()(
     {
       name: "bookmark-storage",
       storage: createJSONStorage(() => storage),
+      // CRITICAL: Don't persist user-specific bookmarks across logins
+      // This prevents User B from seeing User A's bookmarks
+      partialize: (state) => ({
+        // Bookmarks are server state - fetch fresh on each login
+        // Don't persist anything from this store
+      }),
     },
   ),
 );

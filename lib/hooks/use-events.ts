@@ -401,17 +401,34 @@ export function useToggleEventLike() {
 }
 
 // RSVP to event mutation with optimistic update
+// Module-level set to track in-flight RSVP mutations
+const pendingRsvpMutations = new Set<string>();
+
 export function useRsvpEvent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       eventId,
       status,
     }: {
       eventId: string;
       status: "going" | "interested" | "not_going";
-    }) => eventsApiClient.rsvpEvent(eventId, status),
+    }) => {
+      // Prevent concurrent RSVP mutations on the same event
+      if (pendingRsvpMutations.has(eventId)) {
+        console.log(
+          `[useRsvpEvent] Mutation already in flight for ${eventId}, skipping`,
+        );
+        throw new Error("DUPLICATE_RSVP_MUTATION");
+      }
+      pendingRsvpMutations.add(eventId);
+      try {
+        return await eventsApiClient.rsvpEvent(eventId, status);
+      } finally {
+        pendingRsvpMutations.delete(eventId);
+      }
+    },
     onMutate: async ({ eventId, status }) => {
       await queryClient.cancelQueries({ queryKey: eventKeys.detail(eventId) });
 
@@ -439,7 +456,11 @@ export function useRsvpEvent() {
 
       return { previousDetail, previousLists };
     },
-    onError: (_err, { eventId }, context) => {
+    onError: (err, { eventId }, context) => {
+      // Silently ignore duplicate mutations
+      if (err.message === "DUPLICATE_RSVP_MUTATION") {
+        return;
+      }
       if (context?.previousDetail) {
         queryClient.setQueryData(
           eventKeys.detail(eventId),

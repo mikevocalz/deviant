@@ -121,6 +121,13 @@ export const usePostStore = create<PostState>()(
     {
       name: "post-storage",
       storage: createJSONStorage(() => storage),
+      // CRITICAL: Don't persist user-specific state across logins
+      // This prevents User B from seeing User A's liked posts
+      partialize: (state) => ({
+        // Only persist UI state, not user-specific server state
+        // likedPosts and likedComments should come from server on each login
+        postCommentCounts: state.postCommentCounts,
+      }),
     },
   ),
 );
