@@ -6,6 +6,7 @@ import {
   Dimensions,
   Modal,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import React, {
@@ -425,6 +426,15 @@ function PostDetailScreenContent() {
 
   // Normalize id - use empty string as fallback for hooks
   const postId = id ? String(id) : "";
+
+  // Show loading state if no post ID yet (prevents crashes on initial load)
+  if (!postId) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   // ALL HOOKS MUST BE CALLED UNCONDITIONALLY - before any early returns
   const { data: post, isLoading, error: postError } = usePost(postId);
