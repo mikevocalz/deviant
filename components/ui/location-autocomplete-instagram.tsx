@@ -90,15 +90,17 @@ export function LocationAutocompleteInstagram({
   const [inputText, setInputText] = useState(value || "");
   const [predictions, setPredictions] = useState<GooglePlace[]>([]);
   const [recentLocations, setRecentLocations] = useState<RecentLocation[]>([]);
-  const [currentLocation, setCurrentLocation] =
-    useState<Location.LocationObject | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  const [hasError, setHasError] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const [activeSection, setActiveSection] = useState<
     "recent" | "current" | "search"
   >("recent");
+  const [justSelected, setJustSelected] = useState(false); // Prevent dropdown from reopening after selection
 
   // Debounce the input text for API calls (300ms delay)
   const debouncedText = useDebounce(inputText, 300);
@@ -232,6 +234,14 @@ export function LocationAutocompleteInstagram({
       debouncedText.length,
     );
 
+    // Don't fetch if we just selected something (prevents dropdown from reopening)
+    if (justSelected) {
+      console.log(
+        "[LocationAutocompleteInstagram] Just selected, skipping fetch",
+      );
+      return;
+    }
+
     if (debouncedText.length < 2) {
       console.log(
         "[LocationAutocompleteInstagram] Text too short, clearing predictions",
@@ -251,7 +261,7 @@ export function LocationAutocompleteInstagram({
     );
     setActiveSection("search");
     fetchPredictions(debouncedText);
-  }, [debouncedText, hasError, recentLocations.length]);
+  }, [debouncedText, hasError, recentLocations.length, justSelected]);
 
   const fetchPredictions = async (text: string) => {
     console.log(
@@ -461,6 +471,7 @@ export function LocationAutocompleteInstagram({
   };
 
   const handleSelectPrediction = async (prediction: GooglePlace) => {
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText(prediction.description);
     setShowDropdown(false);
     setPredictions([]);
@@ -480,9 +491,13 @@ export function LocationAutocompleteInstagram({
     saveToRecentLocations(locationData);
 
     onLocationSelect(locationData);
+
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleSelectRecent = (recent: RecentLocation) => {
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText(recent.name);
     setShowDropdown(false);
 
@@ -498,21 +513,28 @@ export function LocationAutocompleteInstagram({
     saveToRecentLocations(locationData);
 
     onLocationSelect(locationData);
+
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleSelectCurrentLocation = () => {
     if (!currentLocation) return;
 
-    const locationData: LocationData = {
-      name: "Current Location",
-      latitude: currentLocation.coords.latitude,
-      longitude: currentLocation.coords.longitude,
-    };
-
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText("Current Location");
     setShowDropdown(false);
 
+    const locationData: LocationData = {
+      name: "Current Location",
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+    };
+
     onLocationSelect(locationData);
+
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleTextChange = useCallback(
@@ -740,14 +762,30 @@ export function LocationAutocompleteInstagram({
           onSubmitEditing={handleSubmit}
           onFocus={() => {
             console.log(
-              "[LocationAutocompleteInstagram] Input focused, current state:",
-              {
-                recentLocationsCount: recentLocations.length,
-                hasCurrentLocation: !!currentLocation,
-              },
+              "[LocationAutocompleteInstagram] Input focused, justSelected:",
+              justSelected,
+              "inputText:",
+              inputText,
             );
-            setShowDropdown(true);
-            setActiveSection(recentLocations.length > 0 ? "recent" : "current");
+            // Don't show dropdown if we just selected something OR if we have a selected value
+            if (!justSelected && !inputText) {
+              console.log(
+                "[LocationAutocompleteInstagram] Showing dropdown on focus",
+              );
+              setShowDropdown(true);
+              setActiveSection(
+                recentLocations.length > 0 ? "recent" : "current",
+              );
+            } else {
+              console.log(
+                "[LocationAutocompleteInstagram] Skipping dropdown - just selected or has value",
+              );
+            }
+          }}
+          onBlur={() => {
+            console.log("[LocationAutocompleteInstagram] Input blurred");
+            // Reset the flag on blur to allow normal behavior next time
+            setJustSelected(false);
           }}
         />
         {(isLoading || isLoadingLocation) && (
