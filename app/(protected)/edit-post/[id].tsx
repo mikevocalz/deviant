@@ -149,12 +149,12 @@ function EditPostScreenContent() {
   const updateMutation = useMutation({
     mutationFn: (updates: {
       content?: string;
-      location?: LocationData | null;
+      location?: string | undefined;
       isNSFW?: boolean;
     }) =>
       postsApi.updatePost(id!, {
         content: updates.content,
-        location: updates.location?.name || null,
+        location: updates.location,
         isNSFW: updates.isNSFW,
       }),
 
@@ -173,7 +173,7 @@ function EditPostScreenContent() {
         return {
           ...old,
           caption: updates.content ?? old.caption,
-          location: updates.location?.name ?? old.location,
+          location: updates.location ?? old.location,
         };
       });
 

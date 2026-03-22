@@ -17,7 +17,7 @@ import { MapPin, AlertCircle, X, Loader2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 
-interface LocationData {
+export interface LocationData {
   name: string;
   latitude?: number;
   longitude?: number;
