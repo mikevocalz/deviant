@@ -1,3 +1,15 @@
+/**
+ * Chat Store - Client-side message composition state
+ *
+ * OWNERSHIP RULES:
+ * - This store owns: message composition, pending media, optimistic messages, reply/share contexts
+ * - Server state (persisted messages) lives in TanStack Query (use-messages.ts)
+ * - NEVER mutate this store from outside chat screens
+ * - ALWAYS use actions, never direct state mutation
+ * - Conversation cleanup must NOT trigger re-renders (use refs, not store mutations in useEffect cleanup)
+ *
+ * CRITICAL: Do not call clearConversation() from useEffect cleanup - causes infinite loops
+ */
 import { create } from "zustand";
 import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { uploadToServer } from "@/lib/server-upload";
