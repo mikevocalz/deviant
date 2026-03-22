@@ -21,9 +21,6 @@ import {
   TouchableOpacity,
   SectionList,
   ScrollView,
-  Modal,
-  Platform,
-  Keyboard,
 } from "react-native";
 import {
   MapPin,
@@ -39,7 +36,6 @@ import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import * as Location from "expo-location";
 import { createMMKV } from "react-native-mmkv";
-import { KeyboardController } from "react-native-keyboard-controller";
 
 export type LocationData = {
   name: string;
@@ -104,9 +100,7 @@ export function LocationAutocompleteInstagram({
   const [activeSection, setActiveSection] = useState<
     "recent" | "current" | "search"
   >("recent");
-  const justSelectedRef = useRef(false); // Ref-based tracking to avoid re-renders
-  const inputRef = useRef<TextInput>(null);
-  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [justSelected, setJustSelected] = useState(false); // Prevent dropdown from reopening after selection
 
   // Debounce the input text for API calls (300ms delay)
   const debouncedText = useDebounce(inputText, 300);
@@ -117,7 +111,7 @@ export function LocationAutocompleteInstagram({
     requestCurrentLocation();
   }, []);
 
-  // Check if API key is configured (non-blocking, with recovery)
+  // Check if API key is configured
   useEffect(() => {
     console.log(
       "[LocationAutocompleteInstagram] Checking API key configuration...",
@@ -129,15 +123,11 @@ export function LocationAutocompleteInstagram({
       console.warn(
         "[LocationAutocompleteInstagram] Google Places API key not configured or using placeholder.",
       );
-      setApiKeyError(
-        "Location search unavailable. Please configure Google Places API key.",
-      );
-      // Don't set hasError - allow fallback to popular locations
+      setHasError(true);
     } else {
       console.log(
         "[LocationAutocompleteInstagram] API key configured successfully",
       );
-      setApiKeyError(null);
     }
   }, []);
 
@@ -248,8 +238,8 @@ export function LocationAutocompleteInstagram({
       debouncedText.length,
     );
 
-    // Don't fetch if we just selected something (ref-based, no race)
-    if (justSelectedRef.current) {
+    // Don't fetch if we just selected something (prevents dropdown from reopening)
+    if (justSelected) {
       console.log(
         "[LocationAutocompleteInstagram] Just selected, skipping fetch",
       );
@@ -265,13 +255,17 @@ export function LocationAutocompleteInstagram({
       return;
     }
 
-    // Allow fetch even with API key error (will use fallback)
+    if (hasError) {
+      console.log("[LocationAutocompleteInstagram] Has error, skipping fetch");
+      return;
+    }
+
     console.log(
       "[LocationAutocompleteInstagram] Setting active section to search",
     );
     setActiveSection("search");
     fetchPredictions(debouncedText);
-  }, [debouncedText, recentLocations.length]);
+  }, [debouncedText, hasError, recentLocations.length, justSelected]);
 
   const fetchPredictions = async (text: string) => {
     console.log(
@@ -481,13 +475,10 @@ export function LocationAutocompleteInstagram({
   };
 
   const handleSelectPrediction = async (prediction: GooglePlace) => {
-    justSelectedRef.current = true; // Ref-based, no re-render
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText(prediction.description);
     setShowDropdown(false);
     setPredictions([]);
-
-    // Dismiss keyboard immediately on selection
-    KeyboardController.dismiss();
 
     // Fetch detailed place information
     const details = await fetchPlaceDetails(prediction.place_id);
@@ -505,19 +496,14 @@ export function LocationAutocompleteInstagram({
 
     onLocationSelect(locationData);
 
-    // Reset the flag after a longer delay (ref doesn't cause re-render)
-    setTimeout(() => {
-      justSelectedRef.current = false;
-    }, 1000);
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleSelectRecent = (recent: RecentLocation) => {
-    justSelectedRef.current = true;
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText(recent.name);
     setShowDropdown(false);
-
-    // Dismiss keyboard immediately
-    KeyboardController.dismiss();
 
     const locationData: LocationData = {
       name: recent.name,
@@ -532,20 +518,16 @@ export function LocationAutocompleteInstagram({
 
     onLocationSelect(locationData);
 
-    setTimeout(() => {
-      justSelectedRef.current = false;
-    }, 1000);
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleSelectCurrentLocation = () => {
     if (!currentLocation) return;
 
-    justSelectedRef.current = true;
+    setJustSelected(true); // Prevent dropdown from reopening
     setInputText("Current Location");
     setShowDropdown(false);
-
-    // Dismiss keyboard immediately
-    KeyboardController.dismiss();
 
     const locationData: LocationData = {
       name: "Current Location",
@@ -555,9 +537,8 @@ export function LocationAutocompleteInstagram({
 
     onLocationSelect(locationData);
 
-    setTimeout(() => {
-      justSelectedRef.current = false;
-    }, 1000);
+    // Reset the flag after a longer delay
+    setTimeout(() => setJustSelected(false), 1000);
   };
 
   const handleTextChange = useCallback(
@@ -575,7 +556,6 @@ export function LocationAutocompleteInstagram({
     setPredictions([]);
     setShowDropdown(false);
     setActiveSection(recentLocations.length > 0 ? "recent" : "current");
-    justSelectedRef.current = false; // Reset selection flag
     if (onClear) {
       onClear();
     }
@@ -771,7 +751,6 @@ export function LocationAutocompleteInstagram({
       >
         <MapPin size={18} color={colors.mutedForeground} />
         <TextInput
-          ref={inputRef}
           style={{
             flex: 1,
             height: 48,
@@ -788,12 +767,12 @@ export function LocationAutocompleteInstagram({
           onFocus={() => {
             console.log(
               "[LocationAutocompleteInstagram] Input focused, justSelected:",
-              justSelectedRef.current,
+              justSelected,
               "inputText:",
               inputText,
             );
             // Don't show dropdown if we just selected something OR if we have a selected value
-            if (!justSelectedRef.current && !inputText) {
+            if (!justSelected && !inputText) {
               console.log(
                 "[LocationAutocompleteInstagram] Showing dropdown on focus",
               );
@@ -809,7 +788,8 @@ export function LocationAutocompleteInstagram({
           }}
           onBlur={() => {
             console.log("[LocationAutocompleteInstagram] Input blurred");
-            // Don't reset justSelectedRef here - let the timeout handle it
+            // Reset the flag on blur to allow normal behavior next time
+            setJustSelected(false);
           }}
         />
         {(isLoading || isLoadingLocation) && (
@@ -822,71 +802,46 @@ export function LocationAutocompleteInstagram({
         )}
       </View>
 
-      {/* Modal-based dropdown for proper z-index layering */}
-      <Modal
-        visible={showDropdown}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowDropdown(false)}
-      >
-        <Pressable
+      {/* Render dropdown outside of any scrollview context */}
+      {showDropdown && (
+        <View
           style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.4)",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 99999,
+            backgroundColor: "transparent", // Make sure it captures touches
           }}
-          onPress={() => {
-            setShowDropdown(false);
-            KeyboardController.dismiss();
-          }}
+          onStartShouldSetResponder={() => true}
+          onResponderRelease={() => setShowDropdown(false)}
         >
           <View
             style={{
-              marginTop: 100, // Position below typical input location
-              marginHorizontal: 16,
+              position: "absolute",
+              top: 56, // Position below the input
+              left: 0, // Full width to prevent edge issues
+              right: 0,
               backgroundColor: colors.card,
               borderRadius: 12,
               borderWidth: 1,
               borderColor: colors.border,
-              maxHeight: 400,
+              maxHeight: 300,
+              zIndex: 99999,
+              elevation: 5,
               shadowColor: "#000",
               shadowOffset: {
                 width: 0,
-                height: 4,
+                height: 2,
               },
-              shadowOpacity: 0.3,
-              shadowRadius: 8,
-              elevation: 8,
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
             }}
             onStartShouldSetResponder={() => true}
+            onResponderRelease={(e) => e.stopPropagation()}
           >
-            {apiKeyError && (
-              <View
-                style={{
-                  padding: 12,
-                  backgroundColor: "rgba(239, 68, 68, 0.1)",
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <AlertCircle size={16} color="#ef4444" />
-                <Text
-                  style={{
-                    color: "#ef4444",
-                    fontSize: 12,
-                    flex: 1,
-                  }}
-                >
-                  {apiKeyError}
-                </Text>
-              </View>
-            )}
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
+            <ScrollView showsVerticalScrollIndicator={false}>
               {/* Recent Locations Section */}
               {recentLocations.length > 0 && activeSection === "recent" && (
                 <View>
@@ -951,8 +906,8 @@ export function LocationAutocompleteInstagram({
               )}
             </ScrollView>
           </View>
-        </Pressable>
-      </Modal>
+        </View>
+      )}
     </View>
   );
 }

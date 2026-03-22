@@ -463,12 +463,6 @@ function ChatScreenContent() {
       .catch((error) => {
         console.error("[Chat] markAsRead error:", error);
       });
-
-    // CRITICAL: Cleanup on unmount to prevent message leakage
-    return () => {
-      console.log("[Chat] Cleaning up conversation:", activeConvId);
-      useChatStore.getState().clearConversation(activeConvId);
-    };
   }, [
     activeConvId,
     isResolvingConversation,
