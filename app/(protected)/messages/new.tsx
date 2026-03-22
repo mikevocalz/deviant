@@ -19,6 +19,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
+import { getOrCreateConversationCached } from "@/lib/hooks/use-conversation-resolution";
 import { useUIStore } from "@/lib/stores/ui-store";
 
 function NewMessageScreenContent() {
@@ -76,9 +77,12 @@ function NewMessageScreenContent() {
           userId,
         );
 
-        // Get or create conversation with selected user
-        const conversationId =
-          await messagesApiClient.getOrCreateConversation(userId);
+        // Get or create conversation with selected user (cached)
+        const queryClient = useQueryClient();
+        const conversationId = await getOrCreateConversationCached(
+          queryClient,
+          userId,
+        );
 
         if (conversationId) {
           console.log(

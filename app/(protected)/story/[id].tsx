@@ -23,6 +23,7 @@ import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
+import { getOrCreateConversationCached } from "@/lib/hooks/use-conversation-resolution";
 import { Debouncer } from "@tanstack/react-pacer";
 import Animated, {
   useSharedValue,
@@ -804,8 +805,11 @@ function StoryViewerScreenContent() {
           const idx = currentItemIndexRef.current;
           if (!userId || !s) return;
 
-          const conversationId =
-            await messagesApiClient.getOrCreateConversation(userId);
+          // Use cached conversation resolution
+          const conversationId = await getOrCreateConversationCached(
+            queryClient,
+            userId,
+          );
           if (!conversationId) return;
 
           const item = s.items?.[idx];
@@ -880,9 +884,11 @@ function StoryViewerScreenContent() {
 
     try {
       console.log("[StoryViewer] Sending reply to userId:", resolvedUserId);
-      // Get or create conversation with story owner
-      const conversationId =
-        await messagesApiClient.getOrCreateConversation(resolvedUserId);
+      // Get or create conversation with story owner (cached)
+      const conversationId = await getOrCreateConversationCached(
+        queryClient,
+        resolvedUserId,
+      );
 
       if (!conversationId) {
         console.error("[StoryViewer] Failed to get/create conversation");

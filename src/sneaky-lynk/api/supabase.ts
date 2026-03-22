@@ -238,38 +238,41 @@ export const sneakyLynkApi = {
         }
       }
 
-      return (data || []).map((r: any) => {
-        const creator = creatorsMap[r.created_by] || null;
-        // Use real active member count for open rooms, not stale participant_count
-        const realCount =
-          r.status === "open"
-            ? (activeCounts[r.id] ?? 0)
-            : r.participant_count || 0;
-        return {
-          id: r.uuid || String(r.id),
-          createdBy: r.created_by || "",
-          title: r.title || "Untitled Lynk",
-          topic: r.topic || "",
-          description: r.description || "",
-          isLive: r.status === "open" && realCount > 0,
-          hasVideo: r.has_video ?? false,
-          isPublic: r.is_public ?? true,
-          status: r.status as "open" | "ended",
-          createdAt: r.created_at,
-          endedAt: r.ended_at || undefined,
-          host: {
-            id: String(creator?.id || ""),
-            username: creator?.username || "unknown",
-            displayName: creator?.first_name || creator?.username || "unknown",
-            avatar: (creator?.avatar as any)?.url || "",
-            isVerified: creator?.verified || false,
-          },
-          speakers: [],
-          listeners: realCount,
-          maxParticipants: r.max_participants || 50,
-          fishjamRoomId: r.fishjam_room_id || undefined,
-        };
-      });
+      return (data || [])
+        .filter((r: any) => r.is_public === true) // SAFETY NET: Exclude private rooms
+        .map((r: any) => {
+          const creator = creatorsMap[r.created_by] || null;
+          // Use real active member count for open rooms, not stale participant_count
+          const realCount =
+            r.status === "open"
+              ? (activeCounts[r.id] ?? 0)
+              : r.participant_count || 0;
+          return {
+            id: r.uuid || String(r.id),
+            createdBy: r.created_by || "",
+            title: r.title || "Untitled Lynk",
+            topic: r.topic || "",
+            description: r.description || "",
+            isLive: r.status === "open" && realCount > 0,
+            hasVideo: r.has_video ?? false,
+            isPublic: r.is_public ?? true,
+            status: r.status as "open" | "ended",
+            createdAt: r.created_at,
+            endedAt: r.ended_at || undefined,
+            host: {
+              id: String(creator?.id || ""),
+              username: creator?.username || "unknown",
+              displayName:
+                creator?.first_name || creator?.username || "unknown",
+              avatar: (creator?.avatar as any)?.url || "",
+              isVerified: creator?.verified || false,
+            },
+            speakers: [],
+            listeners: realCount,
+            maxParticipants: r.max_participants || 50,
+            fishjamRoomId: r.fishjam_room_id || undefined,
+          };
+        });
     } catch (error) {
       console.error("[SneakyLynk] getLiveRooms error:", error);
       return [];

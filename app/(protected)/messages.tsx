@@ -314,10 +314,13 @@ function SneakyLynkContent({
 
   // Merge: DB rooms take priority, then local-only rooms
   // Only show rooms that are actually live (status open + participants > 0)
+  // CRITICAL: Filter out public rooms (those belong in Sneaky Lynk, not Messages)
   const allRooms = useCallback(() => {
     const dbIds = new Set(dbRooms.map((r) => r.id));
     const localOnly = localRooms.filter((r) => !dbIds.has(r.id));
-    return [...dbRooms, ...localOnly].filter((r) => r.isLive);
+    return [...dbRooms, ...localOnly].filter(
+      (r) => r.isLive && r.isPublic === false,
+    );
   }, [dbRooms, localRooms])();
 
   const handleCreateLynk = useCallback(() => {

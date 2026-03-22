@@ -54,6 +54,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { messagesApiClient } from "@/lib/api/messages";
+import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
@@ -374,14 +375,18 @@ function ChatScreenContent() {
   const navigation = useNavigation();
   const chatId = id || "1";
 
-  // Track the active conversation ID used for reading/writing messages.
-  // Starts as chatId (could be username like "woahmikey"), then gets updated
-  // to the resolved numeric ID (e.g., "42") after username resolution.
-  // This ensures messages[activeConvId] matches where loadMessages stores data.
-  const [activeConvId, setActiveConvId] = useState(chatId);
+  // PRODUCTION FIX: Use TanStack Query for conversation resolution with caching.
+  // This prevents duplicate edge function calls and eliminates the waterfall pattern.
+  // The query returns instantly from cache if we've already resolved this identifier.
+  const {
+    data: resolvedConvId,
+    isLoading: isResolvingConversation,
+    error: resolutionError,
+  } = useConversationResolution(chatId);
 
-  // Track if we're still resolving the conversation ID (for new chats)
-  const [isResolvingConversation, setIsResolvingConversation] = useState(false);
+  // Track the active conversation ID used for reading/writing messages.
+  // Use resolved ID from query, fallback to chatId for numeric IDs
+  const activeConvId = resolvedConvId || chatId;
 
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
@@ -436,56 +441,34 @@ function ChatScreenContent() {
     useChatStore.setState({ isSending: false });
   }, [chatId]);
 
-  // Load messages from backend on mount and mark as read
+  // Load messages once conversation ID is resolved
   useEffect(() => {
-    if (chatId) {
-      console.log("[Chat] Loading messages for conversation:", chatId);
+    if (!activeConvId || isResolvingConversation) return;
 
-      // Resolve conversation ID then load messages — NO waterfalls
-      const loadChat = async () => {
-        try {
-          let actualConversationId = chatId;
+    console.log("[Chat] Loading messages for conversation:", activeConvId);
 
-          // If chatId looks like a username (alphanumeric, no hyphens) → resolve to conversation ID
-          const looksLikeUsername =
-            /^[a-zA-Z0-9_]+$/.test(chatId) &&
-            !chatId.includes("-") &&
-            !/^\d+$/.test(chatId);
-          if (looksLikeUsername) {
-            console.log("[Chat] chatId is username, resolving conversation...");
-            setIsResolvingConversation(true);
-            const convId =
-              await messagesApiClient.getOrCreateConversation(chatId);
-            if (convId) actualConversationId = convId;
-            setIsResolvingConversation(false);
-          }
+    // Store resolved ID for useFocusEffect
+    resolvedConvIdRef.current = activeConvId;
 
-          // Store resolved ID for useFocusEffect AND update activeConvId
-          // so the screen reads from the same bucket that loadMessages writes to.
-          resolvedConvIdRef.current = actualConversationId;
-          setActiveConvId(actualConversationId);
+    // Load messages FIRST — this is what the user sees
+    loadMessages(activeConvId);
 
-          // Load messages FIRST — this is what the user sees
-          await loadMessages(actualConversationId);
-
-          // Mark as read + reload read receipts + refresh badge — all background, no blocking
-          messagesApiClient.markAsRead(actualConversationId).then(async () => {
-            await Promise.all([
-              loadMessages(actualConversationId),
-              refreshMessageCounts(),
-            ]);
-            console.log("[Chat] Read receipts + badge refreshed");
-          });
-        } catch (error) {
-          console.error("[Chat] loadChat error:", error);
-          setIsResolvingConversation(false);
-          await loadMessages(chatId);
-        }
-      };
-
-      loadChat();
-    }
-  }, [chatId, loadMessages, refreshMessageCounts]);
+    // Mark as read + reload read receipts + refresh badge — all background, no blocking
+    messagesApiClient
+      .markAsRead(activeConvId)
+      .then(async () => {
+        await Promise.all([loadMessages(activeConvId), refreshMessageCounts()]);
+        console.log("[Chat] Read receipts + badge refreshed");
+      })
+      .catch((error) => {
+        console.error("[Chat] markAsRead error:", error);
+      });
+  }, [
+    activeConvId,
+    isResolvingConversation,
+    loadMessages,
+    refreshMessageCounts,
+  ]);
 
   // Realtime subscription — listen for new incoming messages so the chat
   // updates live without needing to close and reopen the screen.
@@ -708,14 +691,11 @@ function ChatScreenContent() {
     // PERF: Defer keyboard dismiss — calling it synchronously before send
     // triggers a layout recalculation that blocks the JS thread on iOS.
     InteractionManager.runAfterInteractions(() => KeyboardController.dismiss());
-    // Use the resolved numeric conversation ID — chatId may be a username string
-    // which parseInt() turns into NaN, causing the edge function to reject the send.
-    const convId = resolvedConvIdRef.current || chatId;
+    // Use the resolved conversation ID from TanStack Query
+    const convId = activeConvId;
 
-    // GUARD: If conv ID hasn't resolved yet and chatId is a username, block send.
-    // Without this, sendMessage would pass a username to the edge function,
-    // parseInt() → NaN, and the message silently fails.
-    if (!resolvedConvIdRef.current && !/^\d+$/.test(chatId)) {
+    // GUARD: Block send if conversation is still resolving
+    if (isResolvingConversation || !convId) {
       console.warn("[Chat] Send blocked — conversation ID not resolved yet");
       useUIStore
         .getState()

@@ -514,6 +514,44 @@ function PostDetailScreenContent() {
     setCurrentSlide(slideIndex);
   }, []);
 
+  // CRITICAL: Suspense-style guard - if post becomes null mid-render (e.g., deleted),
+  // show loading state instead of crashing. This handles the case where:
+  // 1. Initial render has cached post data
+  // 2. Background refetch completes
+  // 3. Post was deleted → query updates to null
+  // 4. Component re-renders with null post
+  // Without this guard, accessing post.media crashes the app.
+  if (!post && !isLoading && !postError) {
+    // Post became null after initial load (likely deleted)
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground text-center">
+            This post is no longer available
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="mt-4 px-4 py-2 bg-primary rounded-lg"
+          >
+            <Text className="text-primary-foreground font-semibold">
+              Go Back
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   // NORMALIZATION: Create safePost with guaranteed non-null values
   // This prevents crashes if TanStack Query updates post to null during render
   const safePost = useMemo(() => normalizePost(post, postId), [post, postId]);
