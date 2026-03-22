@@ -10,6 +10,7 @@ import type { Post } from "@/lib/types";
 import { useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
+import { profileKeys } from "@/lib/hooks/use-profile";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
@@ -585,8 +586,14 @@ export function useDeletePost() {
       // Invalidate feeds + profile to sync server state
       queryClient.invalidateQueries({ queryKey: postKeys.feedInfinite() });
       queryClient.invalidateQueries({ queryKey: postKeys.feed() });
-      queryClient.invalidateQueries({ queryKey: ["profilePosts"] });
-      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Use proper key factories for profile posts
+      const userId = useAuthStore.getState().user?.id;
+      if (userId) {
+        queryClient.invalidateQueries({
+          queryKey: postKeys.profilePosts(userId),
+        });
+        queryClient.invalidateQueries({ queryKey: profileKeys.byId(userId) });
+      }
     },
   });
 }

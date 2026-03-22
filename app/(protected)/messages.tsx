@@ -32,6 +32,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   useUnreadMessageCount,
   useFilteredConversations,
+  messageKeys,
 } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePresenceStore } from "@/lib/stores/presence-store";
@@ -531,10 +532,14 @@ function MessagesScreenContent() {
         ? Date.now() - state.dataUpdatedAt
         : Infinity;
       if (dataAge > 30_000) {
-        queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
+        queryClient.invalidateQueries({
+          queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
+        });
       }
       // Always refresh unread counts on focus — clears phantom badge after markAsRead
-      queryClient.invalidateQueries({ queryKey: ["messages", "unreadCount"] });
+      queryClient.invalidateQueries({
+        queryKey: messageKeys.unreadCount(currentUser?.id),
+      });
     }, [queryClient, currentUser?.id]),
   );
 
@@ -652,9 +657,11 @@ function MessagesScreenContent() {
     async (conversationId: string) => {
       try {
         await messagesApiClient.markAsRead(conversationId);
-        queryClient.invalidateQueries({ queryKey: ["messages", "filtered"] });
         queryClient.invalidateQueries({
-          queryKey: ["messages", "unreadCount"],
+          queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: messageKeys.unreadCount(currentUser?.id),
         });
         showToast("success", "Done", "Marked as read");
       } catch (err) {

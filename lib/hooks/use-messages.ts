@@ -6,14 +6,15 @@ import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys - scoped by viewerId for cache isolation
+// CRITICAL: viewerId MUST be first parameter to prevent cross-user cache pollution
 export const messageKeys = {
-  all: ["messages"] as const,
+  all: (viewerId?: string) => ["messages", viewerId || "__no_user__"] as const,
   unreadCount: (viewerId?: string) =>
-    [...messageKeys.all, "unreadCount", viewerId || "__no_user__"] as const,
+    [...messageKeys.all(viewerId), "unreadCount"] as const,
   spamUnreadCount: (viewerId?: string) =>
-    [...messageKeys.all, "spamUnreadCount", viewerId || "__no_user__"] as const,
+    [...messageKeys.all(viewerId), "spamUnreadCount"] as const,
   conversations: (viewerId?: string) =>
-    [...messageKeys.all, "conversations", viewerId || "__no_user__"] as const,
+    [...messageKeys.all(viewerId), "conversations"] as const,
 };
 
 /**
@@ -82,12 +83,7 @@ export function useFilteredConversations(filter: "primary" | "requests") {
   const viewerId = user?.id;
 
   return useQuery({
-    queryKey: [
-      ...messageKeys.all,
-      "filtered",
-      filter,
-      viewerId || "__no_user__",
-    ],
+    queryKey: [...messageKeys.all(viewerId), "filtered", filter],
     queryFn: () => messagesApiClient.getFilteredConversations(filter),
     enabled: !!viewerId,
     staleTime: STALE_TIMES.conversations,
@@ -115,7 +111,7 @@ export function useRefreshMessageCounts() {
     }
     // Also invalidate conversations list so unread flags update
     await queryClient.invalidateQueries({
-      queryKey: ["messages", "filtered"],
+      queryKey: [...messageKeys.all(viewerId), "filtered"],
     });
     // Also refresh store
     await refreshMessagesUnread();

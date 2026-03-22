@@ -9,9 +9,8 @@ import { supabase } from "@/lib/supabase/client";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { followsApi } from "@/lib/api/follows";
 
-// Module-level channel ref — ensures only ONE realtime subscription exists at a time.
-// Rapid tab mount/unmount cycles must never create duplicate channels ("too many clients").
-let _notificationsChannel: ReturnType<typeof supabase.channel> | null = null;
+// REMOVED: Module-level channel state causes leaks on rapid mount/unmount.
+// Each subscription is now component-scoped with proper cleanup guards.
 
 // Activity types (excludes 'message' - messages are handled separately)
 export type ActivityType =
@@ -357,24 +356,18 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       return undefined;
     }
 
-    // CRITICAL: Remove any existing channel before creating a new one.
-    // Tab mount/unmount cycles must never accumulate channels — Supabase
-    // has a per-client connection limit and will sign the user out with
-    // "too many clients" if channels pile up.
-    if (_notificationsChannel) {
-      console.log(
-        "[ActivityStore] Removing stale notifications channel before re-subscribing",
-      );
-      supabase.removeChannel(_notificationsChannel);
-      _notificationsChannel = null;
-    }
+    // Cancellation guard: prevents stale callbacks from executing after cleanup
+    let cancelled = false;
 
+    // Unique channel ID prevents collisions on rapid remount
+    const channelId = `notifications:${userId}:${Date.now()}`;
     console.log(
-      "[ActivityStore] Subscribing to realtime notifications for user:",
-      userId,
+      "[ActivityStore] Subscribing to realtime notifications:",
+      channelId,
     );
+
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(channelId)
       .on(
         "postgres_changes",
         {
@@ -384,6 +377,12 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
           filter: `recipient_id=eq.${userId}`,
         },
         async (payload) => {
+          if (cancelled) {
+            console.log(
+              "[ActivityStore] Ignoring notification - subscription cancelled",
+            );
+            return;
+          }
           console.log(
             "[ActivityStore] Realtime notification received:",
             payload.new?.type,
@@ -393,16 +392,18 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
           await get().fetchFromBackend();
         },
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        if (cancelled) return;
         console.log("[ActivityStore] Realtime subscription status:", status);
+        if (err) {
+          console.error("[ActivityStore] Subscription error:", err);
+        }
       });
 
-    _notificationsChannel = channel;
-
     return () => {
-      console.log("[ActivityStore] Unsubscribing from realtime notifications");
+      console.log("[ActivityStore] Unsubscribing from:", channelId);
+      cancelled = true;
       supabase.removeChannel(channel);
-      if (_notificationsChannel === channel) _notificationsChannel = null;
     };
   },
 
