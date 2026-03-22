@@ -419,19 +419,9 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
 }
 
 function PostDetailScreenContent() {
-  // Try different approach to get the ID
+  const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
-
-  // Method 1: Try useLocalSearchParams with error handling
-  let id: string | undefined;
-  try {
-    const params = useLocalSearchParams();
-    id = params.id as string;
-  } catch (e) {
-    console.error("[PostDetail] Error getting search params:", e);
-    id = undefined;
-  }
 
   // Normalize id - use empty string as fallback for hooks
   const postId = id ? String(id) : "";
