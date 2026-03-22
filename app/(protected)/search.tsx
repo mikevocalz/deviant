@@ -10,11 +10,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useNavigation } from "@react-navigation/native";
-import { ArrowLeft, Search, X, Play, Hash, Compass } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Search,
+  X,
+  Play,
+  Hash,
+  Compass,
+  MapPin,
+} from "lucide-react-native";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useSearchStore } from "@/lib/stores/search-store";
-import { useEffect, useCallback, useRef, useMemo } from "react";
+import { useEffect, useCallback, useRef, useMemo, useState } from "react";
 import { Debouncer } from "@tanstack/pacer";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import {
@@ -28,6 +36,10 @@ import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import type { Post } from "@/lib/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
+import {
+  LocationAutocompleteV3,
+  type LocationData,
+} from "@/components/ui/location-autocomplete-v3";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const columnWidth = (SCREEN_WIDTH - 8) / 3;
@@ -273,6 +285,14 @@ function SearchScreenContent() {
   const clearSearch = useSearchStore((s) => s.clearSearch);
   const insets = useSafeAreaInsets();
 
+  // Location search state
+  const [searchMode, setSearchMode] = useState<"content" | "location">(
+    "content",
+  );
+  const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(
+    null,
+  );
+
   // TanStack Debouncer — 300ms delay prevents query-per-keystroke
   const searchDebouncer = useMemo(
     () =>
@@ -309,7 +329,23 @@ function SearchScreenContent() {
   const handleClear = useCallback(() => {
     searchDebouncer.cancel();
     clearSearch();
+    setSelectedLocation(null);
   }, [clearSearch, searchDebouncer]);
+
+  const handleLocationSelect = useCallback(
+    (location: LocationData) => {
+      setSelectedLocation(location);
+      // Navigate to location results or show posts from this location
+      router.push(`/location/${location.placeId || location.name}`);
+    },
+    [router],
+  );
+
+  const toggleSearchMode = useCallback(() => {
+    setSearchMode((prev) => (prev === "content" ? "location" : "content"));
+    clearSearch();
+    setSelectedLocation(null);
+  }, [clearSearch]);
 
   return (
     <View
@@ -325,26 +361,77 @@ function SearchScreenContent() {
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
         <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
-          <Search size={20} color="#999" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={handleQueryChange}
-            placeholder={isHashtag ? "Search hashtags..." : "Search"}
-            placeholderTextColor="#999"
-            autoFocus={false}
-            className="flex-1 h-10 ml-2 text-foreground"
-          />
-          {searchQuery.length > 0 && (
+          {searchMode === "content" ? (
+            <Search size={20} color="#999" />
+          ) : (
+            <MapPin size={20} color="#999" />
+          )}
+          {searchMode === "content" ? (
+            <TextInput
+              value={searchQuery}
+              onChangeText={handleQueryChange}
+              placeholder={isHashtag ? "Search hashtags..." : "Search"}
+              placeholderTextColor="#999"
+              autoFocus={false}
+              className="flex-1 h-10 ml-2 text-foreground"
+            />
+          ) : (
+            <LocationAutocompleteV3
+              value={selectedLocation?.name || ""}
+              placeholder="Search locations..."
+              onLocationSelect={handleLocationSelect}
+              onClear={() => setSelectedLocation(null)}
+            />
+          )}
+          {searchMode === "content" && searchQuery.length > 0 && (
             <Pressable onPress={handleClear}>
               <X size={20} color="#999" />
             </Pressable>
           )}
         </View>
+        <Pressable
+          onPress={toggleSearchMode}
+          className="bg-secondary rounded-lg p-2"
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {searchMode === "content" ? (
+            <MapPin size={18} color="#3FDCFF" />
+          ) : (
+            <Search size={18} color="#3FDCFF" />
+          )}
+        </Pressable>
       </View>
 
       {/* Content */}
       <ScrollView className="flex-1" keyboardDismissMode="on-drag">
-        {debouncedSearch.length >= 2 ? (
+        {searchMode === "location" ? (
+          // Location search mode
+          <View className="flex-1 p-4">
+            <View className="flex-row items-center gap-2 mb-4">
+              <MapPin size={20} color="#3FDCFF" />
+              <Text className="text-lg font-semibold text-foreground">
+                Location Search
+              </Text>
+            </View>
+            <Text className="text-sm text-muted-foreground mb-4">
+              Search for locations to find posts from specific places, venues,
+              or areas.
+            </Text>
+            {selectedLocation && (
+              <View className="bg-secondary rounded-lg p-4 mb-4">
+                <Text className="font-medium text-foreground mb-1">
+                  {selectedLocation.name}
+                </Text>
+                {selectedLocation.formattedAddress && (
+                  <Text className="text-sm text-muted-foreground">
+                    {selectedLocation.formattedAddress}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        ) : debouncedSearch.length >= 2 ? (
+          // Content search mode
           isSearchLoading && !searchData ? (
             <SearchResultsSkeleton />
           ) : (

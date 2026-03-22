@@ -477,6 +477,14 @@ export function Feed() {
     [],
   );
 
+  // Only show empty state if we're definitely not loading and have no data
+  const shouldShowEmptyState =
+    !isLoading &&
+    !storiesPending &&
+    nsfwLoaded &&
+    allPosts.length === 0 &&
+    !error;
+
   const actionPost = useMemo(
     () =>
       actionSheetPostId
@@ -546,7 +554,28 @@ export function Feed() {
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
-  if (isLoading || storiesPending || !nsfwLoaded) {
+  // Simple loading state - only show skeleton during initial load
+  const isActuallyLoading = isLoading || storiesPending || !nsfwLoaded;
+
+  useEffect(() => {
+    console.log("[Feed] Loading state changed:", {
+      isLoading,
+      storiesPending,
+      nsfwLoaded,
+      hasData: !!data,
+      allPostsLength: allPosts.length,
+      isActuallyLoading,
+    });
+  }, [
+    isLoading,
+    storiesPending,
+    nsfwLoaded,
+    data,
+    allPosts.length,
+    isActuallyLoading,
+  ]);
+
+  if (isActuallyLoading) {
     return <FeedSkeleton />;
   }
 
@@ -583,7 +612,7 @@ export function Feed() {
           </>
         )}
         ListFooterComponent={renderFooter}
-        ListEmptyComponent={ListEmpty}
+        ListEmptyComponent={shouldShowEmptyState ? ListEmpty : undefined}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         refreshing={isRefetching}

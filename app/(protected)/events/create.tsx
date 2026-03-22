@@ -56,9 +56,9 @@ import { Badge } from "@/components/ui/badge";
 import { Text as UIText } from "@/components/ui/text";
 import { Progress } from "@/components/ui/progress";
 import {
-  LocationAutocomplete,
+  LocationAutocompleteInstagram,
   type LocationData,
-} from "@/components/ui/location-autocomplete";
+} from "@/components/ui/location-autocomplete-instagram";
 import { useCreateEvent } from "@/lib/hooks/use-events";
 import {
   ticketTypesApi,
@@ -906,7 +906,7 @@ function CreateEventScreenContent() {
               <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                 Location
               </Text>
-              <LocationAutocomplete
+              <LocationAutocompleteInstagram
                 value={location}
                 placeholder="Search venue or address"
                 onLocationSelect={(data: LocationData) => {

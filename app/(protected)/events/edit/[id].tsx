@@ -9,6 +9,10 @@ import {
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import {
+  LocationAutocompleteInstagram,
+  type LocationData,
+} from "@/components/ui/location-autocomplete-instagram";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
@@ -29,7 +33,7 @@ function EditEventScreenContent() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("");
+  const [location, setLocation] = useState<LocationData | null>(null);
   const [eventDate, setEventDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -55,7 +59,7 @@ function EditEventScreenContent() {
       setEvent(eventData);
       setTitle(eventData.title || "");
       setDescription(eventData.description || "");
-      setLocation(eventData.location || "");
+      setLocation(eventData.location ? { name: eventData.location } : null);
       setEventDate(
         eventData.fullDate ? new Date(eventData.fullDate) : new Date(),
       );
@@ -83,7 +87,7 @@ function EditEventScreenContent() {
       await eventsApi.updateEvent(eventId, {
         title,
         description,
-        location: location || undefined,
+        location: location?.name || undefined,
         startDate: eventDate.toISOString(),
         price: ticketPrice ? parseFloat(ticketPrice) : undefined,
         maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
@@ -237,13 +241,23 @@ function EditEventScreenContent() {
           <Text className="mb-2 text-sm font-medium text-foreground">
             Location
           </Text>
-          <TextInput
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Enter event location"
-            placeholderTextColor={colors.mutedForeground}
-            className="rounded-lg border border-border bg-background px-4 py-3 text-foreground"
-          />
+          <View style={{ zIndex: 1000, position: "relative" }}>
+            <LocationAutocompleteInstagram
+              value={location?.name || ""}
+              placeholder="Enter event location"
+              onLocationSelect={(data: LocationData) => {
+                console.log("[EditEvent] Location selected:", data);
+                setLocation(data);
+              }}
+              onClear={() => {
+                console.log("[EditEvent] Location cleared");
+                setLocation(null);
+              }}
+              onTextChange={(text) => {
+                console.log("[EditEvent] Location text changed:", text);
+              }}
+            />
+          </View>
         </View>
 
         {/* Date */}

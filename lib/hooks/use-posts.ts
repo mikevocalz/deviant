@@ -40,6 +40,8 @@ export function useInfiniteFeedPosts() {
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: STALE_TIMES.feed,
+    refetchOnMount: false, // Prevent double loading on mount
+    refetchOnWindowFocus: false, // Prevent refetch on app focus
   });
 }
 

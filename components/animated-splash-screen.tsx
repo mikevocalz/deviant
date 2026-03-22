@@ -19,8 +19,8 @@ const SUPABASE_URL =
     ? _rawSplashUrl
     : "https://npfjanxturvmjyevoyfo.supabase.co";
 
-const BOOT_TIMEOUT_MS = 10000; // 10 second boot timeout
-const ANIMATION_DURATION_MS = 8000; // 8 second animation
+const BOOT_TIMEOUT_MS = 15000; // 15 second boot timeout (increased)
+const ANIMATION_DURATION_MS = 6000; // 6 second animation (reduced)
 
 // Module-level flag - persists across component remounts
 let hasCalledFinish = false;
@@ -123,7 +123,7 @@ export default function AnimatedSplashScreen({
     return () => clearTimeout(bootTimer);
   }, []);
 
-  // Start timer only after Rive file is loaded
+  // Start timer only after Rive file is loaded AND API is healthy
   useEffect(() => {
     // Guard: If already finished (from previous mount), don't start timer
     if (hasCalledFinish) {
@@ -139,12 +139,23 @@ export default function AnimatedSplashScreen({
       return;
     }
 
-    console.log("[Splash] Rive file loaded, starting animation timer");
-    const timer = setTimeout(() => {
-      finishSplash();
-    }, ANIMATION_DURATION_MS);
+    // Check API health before starting timer
+    (async () => {
+      const healthy = await checkApiHealth();
+      if (!healthy) {
+        console.log("[Splash] API not healthy, waiting for retry...");
+        return; // Don't start timer if API is not healthy
+      }
 
-    return () => clearTimeout(timer);
+      console.log(
+        "[Splash] API healthy and Rive file loaded, starting animation timer",
+      );
+      const timer = setTimeout(() => {
+        finishSplash();
+      }, ANIMATION_DURATION_MS);
+
+      return () => clearTimeout(timer);
+    })();
   }, [riveFile, onAnimationFinish]);
 
   // Show timeout/retry UI

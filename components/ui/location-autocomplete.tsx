@@ -1,26 +1,41 @@
-import { useRef, useEffect, useState, useCallback } from "react"
-import { View, StyleSheet, Text, TextInput } from "react-native"
-import { GooglePlacesAutocomplete, GooglePlaceData, GooglePlaceDetail } from "react-native-google-places-autocomplete"
-import { MapPin, AlertCircle } from "lucide-react-native"
-import { useColorScheme } from "@/lib/hooks"
-import { useDebounce } from "@/lib/hooks/use-debounce"
+import { useRef, useEffect, useState, useCallback } from "react";
+import { View, StyleSheet, Text, TextInput, Pressable } from "react-native";
+import {
+  GooglePlacesAutocomplete,
+  GooglePlaceData,
+  GooglePlaceDetail,
+} from "react-native-google-places-autocomplete";
+import { MapPin, AlertCircle, X } from "lucide-react-native";
+import { useColorScheme } from "@/lib/hooks";
+import { useDebounce } from "@/lib/hooks/use-debounce";
 
 interface LocationData {
-  name: string
-  latitude?: number
-  longitude?: number
-  placeId?: string
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  placeId?: string;
 }
 
 interface LocationAutocompleteProps {
-  value?: string
-  placeholder?: string
-  onLocationSelect: (location: LocationData) => void
-  onClear?: () => void
-  onTextChange?: (text: string) => void
+  value?: string;
+  placeholder?: string;
+  onLocationSelect: (location: LocationData) => void;
+  onClear?: () => void;
+  onTextChange?: (text: string) => void;
 }
 
-const GOOGLE_PLACES_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || ""
+const GOOGLE_PLACES_API_KEY =
+  process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || "";
+
+// Debug: Log the API key status
+console.log(
+  "[LocationAutocomplete] API Key:",
+  GOOGLE_PLACES_API_KEY ? "Present" : "Missing",
+);
+console.log(
+  "[LocationAutocomplete] API Key Length:",
+  GOOGLE_PLACES_API_KEY.length,
+);
 
 export function LocationAutocomplete({
   value,
@@ -29,67 +44,93 @@ export function LocationAutocomplete({
   onClear,
   onTextChange,
 }: LocationAutocompleteProps) {
-  const { colors } = useColorScheme()
-  const ref = useRef<any>(null)
-  const [inputText, setInputText] = useState(value || "")
-  const [hasError, setHasError] = useState(false)
-  
+  const { colors } = useColorScheme();
+  const ref = useRef<any>(null);
+  const [inputText, setInputText] = useState(value || "");
+  const [hasError, setHasError] = useState(false);
+
   // Debounce the input text for callbacks (300ms delay)
-  const debouncedText = useDebounce(inputText, 300)
-  
+  const debouncedText = useDebounce(inputText, 300);
+
   // Check if API key is configured
   useEffect(() => {
-    if (!GOOGLE_PLACES_API_KEY) {
-      console.warn("[LocationAutocomplete] Google Places API key not configured. Set EXPO_PUBLIC_GOOGLE_PLACES_API_KEY in your .env file.")
-      setHasError(true)
+    console.log("[LocationAutocomplete] Checking API key configuration...");
+    if (
+      !GOOGLE_PLACES_API_KEY ||
+      GOOGLE_PLACES_API_KEY === "YOUR_GOOGLE_PLACES_API_KEY_HERE"
+    ) {
+      console.warn(
+        "[LocationAutocomplete] Google Places API key not configured or using placeholder. Using manual input mode.",
+      );
+      setHasError(true);
+    } else {
+      console.log("[LocationAutocomplete] API key configured successfully");
     }
-  }, [])
-  
+  }, []);
+
   // Call onTextChange with debounced value
   useEffect(() => {
     if (debouncedText) {
       if (onTextChange) {
-        onTextChange(debouncedText)
+        onTextChange(debouncedText);
       } else {
-        onLocationSelect({ name: debouncedText })
+        onLocationSelect({ name: debouncedText });
       }
     } else if (!debouncedText && onClear) {
-      onClear()
+      onClear();
     }
-  }, [debouncedText])
-  
+  }, [debouncedText]);
+
   // Sync external value changes
   useEffect(() => {
     if (value !== undefined && value !== inputText) {
-      setInputText(value)
+      setInputText(value);
       // Update the GooglePlacesAutocomplete internal value
       if (ref.current) {
-        ref.current.setAddressText(value)
+        ref.current.setAddressText(value);
       }
     }
-  }, [value])
+  }, [value]);
 
-  const handlePress = (data: GooglePlaceData, details: GooglePlaceDetail | null) => {
-    const locationName = data.description || details?.formatted_address || details?.name || inputText
+  const handlePress = (
+    data: GooglePlaceData,
+    details: GooglePlaceDetail | null,
+  ) => {
+    const locationName =
+      data.description ||
+      details?.formatted_address ||
+      details?.name ||
+      inputText;
     const locationData: LocationData = {
       name: locationName,
       placeId: data.place_id,
       latitude: details?.geometry?.location?.lat,
       longitude: details?.geometry?.location?.lng,
-    }
-    setInputText(locationName)
-    onLocationSelect(locationData)
-  }
-  
+    };
+    setInputText(locationName);
+    onLocationSelect(locationData);
+  };
+
   // Just update local state - debounced effect handles callbacks
   const handleTextChange = useCallback((text: string) => {
-    setInputText(text)
-  }, [])
+    setInputText(text);
+  }, []);
 
-  // Show manual input when API key is missing
+  // Show manual input when API key is missing or invalid
   if (hasError) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.card,
+            borderRadius: 16,
+            paddingHorizontal: 12,
+            flexDirection: "row",
+            alignItems: "center",
+          },
+        ]}
+      >
         <MapPin size={18} color={colors.mutedForeground} />
         <TextInput
           style={{
@@ -103,9 +144,22 @@ export function LocationAutocomplete({
           placeholderTextColor={colors.mutedForeground}
           value={inputText}
           onChangeText={handleTextChange}
+          onSubmitEditing={() => {
+            if (inputText.trim()) {
+              const locationData: LocationData = {
+                name: inputText.trim(),
+              };
+              onLocationSelect(locationData);
+            }
+          }}
         />
+        {inputText.length > 0 && (
+          <Pressable onPress={() => setInputText("")} hitSlop={8}>
+            <X size={18} color={colors.mutedForeground} />
+          </Pressable>
+        )}
       </View>
-    )
+    );
   }
 
   return (
@@ -122,7 +176,21 @@ export function LocationAutocomplete({
         query={{
           key: GOOGLE_PLACES_API_KEY,
           language: "en",
-          types: "establishment|geocode",
+          types: "establishment|geocode|address",
+          components: "country:us", // Restrict to US for better results
+          region: "us",
+          // Use newer Places API
+          fields: "formatted_address,name,geometry,place_id",
+        }}
+        onFail={(error) => {
+          console.error(
+            "[LocationAutocomplete] Google Places API error:",
+            error,
+          );
+          setHasError(true);
+        }}
+        onNotFound={() => {
+          console.log("[LocationAutocomplete] No results found");
         }}
         styles={{
           container: {
@@ -180,13 +248,13 @@ export function LocationAutocomplete({
         }}
       />
     </View>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     zIndex: 10,
   },
-})
+});
 
-export type { LocationData }
+export type { LocationData };

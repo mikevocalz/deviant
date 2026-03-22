@@ -34,6 +34,10 @@ export default {
       checkAutomatically: "ON_LOAD",
       enableBsdiffPatchSupport: true,
       waitBeforeLaunchMs: 5000, // 5 seconds to allow rollback detection
+      // Enhanced crash hardening
+      enabled: process.env.NODE_ENV !== "development", // Disable updates in development to prevent conflicts
+      runtimeVersion: "1.0.0", // Fixed runtime version for OTA safety
+      message: "A new version is available. Restart to apply updates.", // User-friendly message
     },
     buildCacheProvider: "eas",
     ios: {
