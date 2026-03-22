@@ -57,7 +57,7 @@ export function LocationAutocomplete({
     console.log("[LocationAutocomplete] Checking API key configuration...");
     if (
       !GOOGLE_PLACES_API_KEY ||
-      GOOGLE_PLACES_API_KEY === "YOUR_GOOGLE_PLACES_API_KEY_HERE"
+      GOOGLE_PLACES_API_KEY === "your_google_places_api_key_here"
     ) {
       console.warn(
         "[LocationAutocomplete] Google Places API key not configured or using placeholder. Using manual input mode.",

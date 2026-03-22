@@ -116,7 +116,7 @@ export function LocationAutocompleteInstagram({
     );
     if (
       !GOOGLE_PLACES_API_KEY ||
-      GOOGLE_PLACES_API_KEY === "YOUR_GOOGLE_PLACES_API_KEY_HERE"
+      GOOGLE_PLACES_API_KEY === "your_google_places_api_key_here"
     ) {
       console.warn(
         "[LocationAutocompleteInstagram] Google Places API key not configured or using placeholder.",
@@ -796,7 +796,8 @@ export function LocationAutocompleteInstagram({
               shadowOpacity: 0.25,
               shadowRadius: 3.84,
             }}
-            onStartShouldSetResponder={(e) => e.stopPropagation()}
+            onStartShouldSetResponder={() => true}
+            onResponderRelease={(e) => e.stopPropagation()}
           >
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Recent Locations Section */}
