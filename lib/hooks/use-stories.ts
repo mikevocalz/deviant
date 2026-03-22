@@ -32,6 +32,7 @@ export function useStories() {
     staleTime: STALE_TIMES.stories,
     gcTime: GC_TIMES.standard, // 30min — keep stories in cache through background periods
     refetchInterval: 60 * 1000, // Background refresh every 60s
+    refetchOnMount: false, // Prevent double loading on mount
     // Inherits global refetchOnMount: false — no flicker on tab switch
   });
 }

@@ -74,7 +74,13 @@ function hydrateFromBootstrap(
 
   // 3. Seed like state per post
   data.posts.forEach((post) => {
-    seedLikeState(queryClient, userId, post.id, post.viewerHasLiked, post.likes);
+    seedLikeState(
+      queryClient,
+      userId,
+      post.id,
+      post.viewerHasLiked,
+      post.likes,
+    );
   });
 
   console.log(
@@ -103,8 +109,10 @@ export function useBootstrapFeed() {
     hasRun.current = true;
 
     // Check if we already have fresh feed data from MMKV cache
-    const existingFeed = queryClient.getQueryData(postKeys.feedInfinite());
-    if (existingFeed) {
+    const existingFeed = queryClient.getQueryData(
+      postKeys.feedInfinite(),
+    ) as any;
+    if (existingFeed && existingFeed.pages && existingFeed.pages.length > 0) {
       trace.markCacheHit();
       trace.markUsable();
       console.log("[BootstrapFeed] Cache hit — skipping bootstrap call");
@@ -112,9 +120,12 @@ export function useBootstrapFeed() {
     }
 
     // Fire bootstrap request
+    console.log("[BootstrapFeed] No cached data, running bootstrap");
     bootstrapApi.feed({ userId }).then((data) => {
       if (!data) {
-        console.warn("[BootstrapFeed] Bootstrap failed — falling back to individual queries");
+        console.warn(
+          "[BootstrapFeed] Bootstrap failed — falling back to individual queries",
+        );
         return;
       }
 

@@ -45,7 +45,10 @@ import {
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
-import { Input } from "@/components/ui/input";
+import {
+  LocationAutocompleteInstagram,
+  type LocationData,
+} from "@/components/ui/location-autocomplete-instagram";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { ImageTagger } from "@/components/post/image-tagger";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
@@ -76,9 +79,11 @@ function EditPostScreenContent() {
 
   // ─── Local form state ───
   const [caption, setCaption] = useState("");
-  const [location, setLocation] = useState("");
   const [originalCaption, setOriginalCaption] = useState("");
-  const [originalLocation, setOriginalLocation] = useState("");
+  const [location, setLocation] = useState<LocationData | null>(null);
+  const [originalLocation, setOriginalLocation] = useState<LocationData | null>(
+    null,
+  );
   const [isNSFW, setIsNSFW] = useState(false);
   const [originalIsNSFW, setOriginalIsNSFW] = useState(false);
   const [mediaIndex, setMediaIndex] = useState(0);
@@ -103,9 +108,9 @@ function EditPostScreenContent() {
   useEffect(() => {
     if (post) {
       setCaption(post.caption || "");
-      setLocation(post.location || "");
       setOriginalCaption(post.caption || "");
-      setOriginalLocation(post.location || "");
+      setLocation(post.location ? { name: post.location } : null);
+      setOriginalLocation(post.location ? { name: post.location } : null);
       setIsNSFW(post.isNSFW || false);
       setOriginalIsNSFW(post.isNSFW || false);
     }
@@ -116,7 +121,7 @@ function EditPostScreenContent() {
   const isDirty = useMemo(
     () =>
       caption !== originalCaption ||
-      location !== originalLocation ||
+      location?.name !== originalLocation?.name ||
       isNSFW !== originalIsNSFW ||
       hasRotations,
     [
@@ -144,9 +149,14 @@ function EditPostScreenContent() {
   const updateMutation = useMutation({
     mutationFn: (updates: {
       content?: string;
-      location?: string;
+      location?: LocationData | null;
       isNSFW?: boolean;
-    }) => postsApi.updatePost(id!, updates),
+    }) =>
+      postsApi.updatePost(id!, {
+        content: updates.content,
+        location: updates.location?.name || null,
+        isNSFW: updates.isNSFW,
+      }),
 
     onMutate: async (updates) => {
       // Cancel outgoing refetches
@@ -163,7 +173,7 @@ function EditPostScreenContent() {
         return {
           ...old,
           caption: updates.content ?? old.caption,
-          location: updates.location ?? old.location,
+          location: updates.location?.name ?? old.location,
         };
       });
 
@@ -246,7 +256,7 @@ function EditPostScreenContent() {
       media?: Array<{ order: number; url: string }>;
     } = {
       content: caption.trim(),
-      location: location.trim() || undefined,
+      location: location?.name || undefined,
       ...(isNSFW !== originalIsNSFW ? { isNSFW } : {}),
     };
 
@@ -694,26 +704,11 @@ function EditPostScreenContent() {
           }}
           className="px-4 pb-3"
         >
-          <Input
-            label="LOCATION"
-            labelClassName="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-            value={location}
-            onChangeText={setLocation}
+          <LocationAutocompleteInstagram
+            value={location?.name || ""}
             placeholder="Add a location..."
-            leftIcon={<MapPin size={18} color="rgba(255,255,255,0.35)" />}
-            rightIcon={
-              location.length > 0 ? (
-                <Pressable
-                  onPress={() => setLocation("")}
-                  hitSlop={12}
-                  className="w-6 h-6 rounded-full bg-white/10 items-center justify-center"
-                >
-                  <X size={12} color="rgba(255,255,255,0.5)" />
-                </Pressable>
-              ) : undefined
-            }
-            className="text-[15px]"
-            returnKeyType="done"
+            onLocationSelect={(data: LocationData) => setLocation(data)}
+            onClear={() => setLocation(null)}
           />
         </Motion.View>
 
