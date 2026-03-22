@@ -23,10 +23,10 @@ import { useBootLocation } from "@/lib/hooks/use-boot-location";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { refreshWeather } from "@/src/features/weatherfx/WeatherDecisionEngine";
 import { useWeatherFXStore } from "@/src/features/weatherfx/WeatherFXStore";
-import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
+// import { WeatherGPUEngine } from "@/src/features/weatherfx/WeatherGPUEngine";
 import { WeatherReanimatedOverlay } from "@/src/features/weatherfx/WeatherReanimatedOverlay";
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
-import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
+// import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
 import { useLiveSurface } from "@/src/live-surface";
 
 const screenTransitionConfig = Platform.select({
@@ -281,7 +281,8 @@ export default function ProtectedLayout() {
       {/* PERSISTENT: Weather overlay — renders ON TOP of screens.
           pointerEvents="none" — touches pass through to content below. */}
       <WeatherReanimatedOverlay />
-      {isWebGPUAvailable() && <WeatherGPUEngine />}
+      {/* WeatherGPUEngine disabled - requires react-native-wgpu native module */}
+      {/* {isWebGPUAvailable() && <WeatherGPUEngine />} */}
     </>
   );
 }

@@ -118,3 +118,23 @@ export const SafeLiquidGlassView: React.ComponentType<any> =
 export const SafeLiquidGlassContainerView: React.ComponentType<any> =
   _LiquidGlassContainerView ?? View;
 export const safeIsLiquidGlassSupported = _isLiquidGlassSupported;
+
+// ── react-native-wgpu ───────────────────────────────────────────────
+// NOTE: Cannot use require() here because Metro will try to resolve the native
+// components even inside try/catch. The entire WeatherGPU feature must be
+// conditionally imported at the app level instead.
+export const SafeWebGPUModule: any = null;
+export const SafeWGPUCanvas: React.ComponentType<any> = View;
+
+// ── react-native-animated-glow ─────────────────────────────────────
+let _AnimatedGlow: React.ComponentType<any> | null = null;
+
+try {
+  _AnimatedGlow = require("react-native-animated-glow").default;
+} catch {
+  console.warn(
+    "[SafeModules] react-native-animated-glow not available in this binary",
+  );
+}
+
+export const SafeAnimatedGlow: React.ComponentType<any> = _AnimatedGlow ?? View;
