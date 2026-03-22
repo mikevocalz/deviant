@@ -419,7 +419,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
 }
 
 function PostDetailScreenContent() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
 
