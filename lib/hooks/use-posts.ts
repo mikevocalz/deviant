@@ -11,6 +11,7 @@ import { useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 import { profileKeys } from "@/lib/hooks/use-profile";
+import { isValidPostId } from "@/lib/validation/post-params";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
@@ -83,7 +84,9 @@ export function usePost(id: string) {
       if (__DEV__) console.log("[usePost] Fetching post:", id);
       return postsApi.getPostById(id);
     },
-    enabled: !!id && id.length > 0,
+    // STRICT VALIDATION: Only enable query if ID is valid format (numeric or UUID)
+    // This prevents queries with "undefined", "null", empty strings, etc.
+    enabled: isValidPostId(id),
     retry: (failureCount, error: any) => {
       // Don't retry 404s (post deleted) or 403s (unauthorized)
       if (error?.status === 404 || error?.status === 403) return false;

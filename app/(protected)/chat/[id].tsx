@@ -53,6 +53,8 @@ import {
 } from "@/lib/stores/chat-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useChatScreenStore } from "@/lib/stores/chat-screen-store";
+import { normalizeChatParams } from "@/lib/navigation/chat-routes";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
@@ -65,7 +67,6 @@ import {
   useMemo,
   useEffect,
   useLayoutEffect,
-  useState,
 } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -365,15 +366,27 @@ function ChatPresenceText({ recipientId }: { recipientId?: string }) {
 }
 
 function ChatScreenContent() {
-  const { id, peerAvatar, peerUsername, peerName } = useLocalSearchParams<{
+  const rawParams = useLocalSearchParams<{
     id: string;
     peerAvatar?: string;
     peerUsername?: string;
     peerName?: string;
   }>();
+
+  // CRITICAL: Normalize params ONCE at mount to stable primitives
+  // Prevents infinite loops from string|string[] type instability
+  const { chatId, peerAvatar, peerUsername, peerName } = useMemo(
+    () => normalizeChatParams(rawParams),
+    [
+      rawParams.id,
+      rawParams.peerAvatar,
+      rawParams.peerUsername,
+      rawParams.peerName,
+    ],
+  );
+
   const router = useRouter();
   const navigation = useNavigation();
-  const chatId = id || "1";
 
   // PRODUCTION FIX: Use TanStack Query for conversation resolution with caching.
   // This prevents duplicate edge function calls and eliminates the waterfall pattern.
@@ -390,6 +403,7 @@ function ChatScreenContent() {
 
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
+  // STABLE: peerUsername is now a primitive string from normalizeChatParams
   useLayoutEffect(() => {
     navigation.setOptions({
       header: () => (
@@ -425,15 +439,20 @@ function ChatScreenContent() {
   // (chatId may be a username like "ibreathereal", not a numeric conv ID)
   const resolvedConvIdRef = useRef<string | null>(null);
 
+  // CRITICAL FIX: Track if initial load is complete to prevent infinite loop
+  const hasLoadedInitialMessagesRef = useRef(false);
+
   // Refresh messages on focus to pick up read receipts from the other user
+  // FIX: Removed unstable chatMessages.length dependency that caused infinite loop
   useFocusEffect(
     useCallback(() => {
       const convId = resolvedConvIdRef.current;
-      if (convId && chatMessages.length > 0) {
-        // Silently reload to pick up readAt changes — use RESOLVED conv ID
+      // Only reload if we've already loaded messages once (not on mount)
+      if (convId && hasLoadedInitialMessagesRef.current) {
+        console.log("[Chat] Focus refresh - reloading read receipts");
         loadMessages(convId);
       }
-    }, [loadMessages, chatMessages.length > 0]),
+    }, [loadMessages]),
   );
 
   // SAFETY: Reset isSending on mount — prevents stuck state from prior chat sessions
@@ -442,23 +461,35 @@ function ChatScreenContent() {
   }, [chatId]);
 
   // Load messages once conversation ID is resolved
+  // FIX: Added guard to prevent duplicate loads and infinite loops
   useEffect(() => {
     if (!activeConvId || isResolvingConversation) return;
+
+    // GUARD: Prevent duplicate initial load
+    if (
+      hasLoadedInitialMessagesRef.current &&
+      resolvedConvIdRef.current === activeConvId
+    ) {
+      console.log("[Chat] Skipping duplicate load for:", activeConvId);
+      return;
+    }
 
     console.log("[Chat] Loading messages for conversation:", activeConvId);
 
     // Store resolved ID for useFocusEffect
     resolvedConvIdRef.current = activeConvId;
+    hasLoadedInitialMessagesRef.current = true;
 
     // Load messages FIRST — this is what the user sees
     loadMessages(activeConvId);
 
-    // Mark as read + reload read receipts + refresh badge — all background, no blocking
+    // Mark as read + refresh badge in background (NO second loadMessages call)
+    // FIX: Removed duplicate loadMessages call that caused infinite loop
     messagesApiClient
       .markAsRead(activeConvId)
       .then(async () => {
-        await Promise.all([loadMessages(activeConvId), refreshMessageCounts()]);
-        console.log("[Chat] Read receipts + badge refreshed");
+        await refreshMessageCounts();
+        console.log("[Chat] Marked as read + badge refreshed");
       })
       .catch((error) => {
         console.error("[Chat] markAsRead error:", error);
@@ -472,13 +503,21 @@ function ChatScreenContent() {
 
   // Realtime subscription — listen for new incoming messages so the chat
   // updates live without needing to close and reopen the screen.
+  // FIX: Stabilized dependencies and added throttle guard
   useEffect(() => {
     const convId = resolvedConvIdRef.current;
     if (!convId || !/^\d+$/.test(convId)) return;
 
+    // GUARD: Only subscribe after initial load completes
+    if (!hasLoadedInitialMessagesRef.current) return;
+
     // Cancellation guard: prevents stale callbacks from executing after cleanup
     let cancelled = false;
     const userId = useAuthStore.getState().user?.id;
+
+    // Throttle guard: prevent rapid-fire reloads
+    let lastReloadTime = 0;
+    const RELOAD_THROTTLE_MS = 1000;
 
     // Unique channel ID prevents collisions on rapid navigation
     const channelId = `chat-${convId}-${Date.now()}`;
@@ -502,6 +541,15 @@ function ChatScreenContent() {
           const newMsg = payload.new as any;
           // Skip own messages — already handled by optimistic update
           if (String(newMsg.sender_id) === String(userId)) return;
+
+          // Throttle: prevent rapid reloads that can cause loops
+          const now = Date.now();
+          if (now - lastReloadTime < RELOAD_THROTTLE_MS) {
+            console.log("[Chat] Throttling realtime reload");
+            return;
+          }
+          lastReloadTime = now;
+
           // Refresh messages to pick up the new incoming message
           loadMessages(convId);
           // Auto-mark as read since the user is actively viewing the chat
@@ -522,39 +570,47 @@ function ChatScreenContent() {
       supabase.removeChannel(channel);
     };
   }, [activeConvId, loadMessages]);
+  // FIX: Replaced ALL useState with Zustand to comply with project mandate
+  // and eliminate render loop triggers from state updates
   const currentUser = useAuthStore((s) => s.user);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
-  // Chat recipient info — seeded from route params for instant render,
-  // then overwritten by full conversation data from backend
-  const [recipient, setRecipient] = useState<{
-    id: string;
-    authId?: string;
-    username: string;
-    name: string;
-    avatar: string;
-  } | null>(
-    peerUsername
-      ? {
-          id: "",
-          username: peerUsername,
-          name: peerName || peerUsername,
-          avatar: peerAvatar || "",
-        }
-      : null,
-  );
-  const [isLoadingRecipient, setIsLoadingRecipient] = useState(!peerUsername);
-  const [isGroupChat, setIsGroupChat] = useState(false);
-  const [groupMembers, setGroupMembers] = useState<
-    Array<{
-      id: string;
-      authId?: string;
-      username: string;
-      name?: string;
-      avatar?: string;
-    }>
-  >([]);
+  const {
+    recipient,
+    isLoadingRecipient,
+    isGroupChat,
+    groupMembers,
+    groupName,
+    selectedMessage,
+    showMessageActions,
+    editingMessage,
+    editText,
+    setRecipient,
+    setIsLoadingRecipient,
+    setGroupInfo,
+    setSelectedMessage,
+    setShowMessageActions,
+    setEditingMessage,
+    setEditText,
+    resetChatScreen,
+  } = useChatScreenStore();
+
   const safeGroupMembers = useMemo(() => groupMembers || [], [groupMembers]);
-  const [groupName, setGroupName] = useState("");
+
+  // Initialize recipient from route params on mount (instant render)
+  useEffect(() => {
+    if (peerUsername && !recipient) {
+      setRecipient({
+        id: "",
+        username: peerUsername,
+        name: peerName || peerUsername,
+        avatar: peerAvatar || "",
+      });
+      setIsLoadingRecipient(false);
+    } else if (!peerUsername) {
+      setIsLoadingRecipient(true);
+    }
+  }, []); // Only on mount
 
   // Build a stable color map for group chat senders (only "them" messages)
   const senderColorMap = useMemo(() => {
@@ -571,25 +627,34 @@ function ChatScreenContent() {
 
   // Load recipient info via direct conversation lookup (no ghost filter, no heavy getConversations)
   // NEVER call getOrCreateConversation(chatId) — chatId is a conversation ID, not a user ID.
+  // FIX: Stabilized dependencies - use primitive currentUserId instead of object currentUser
+  const hasLoadedRecipientRef = useRef(false);
+
   useEffect(() => {
+    // GUARD: Only load once per chatId
+    if (hasLoadedRecipientRef.current) return;
+
     const loadRecipientFromConversation = async () => {
-      if (!chatId || !currentUser) {
+      if (!chatId || !currentUserId) {
         setIsLoadingRecipient(false);
         return;
       }
 
       try {
         console.log("[Chat] Loading conversation data for:", chatId);
+        hasLoadedRecipientRef.current = true;
 
         // Direct single-conversation query — works for new (empty) conversations too
         const conversation =
           await messagesApiClient.getConversationById(chatId);
 
         if (conversation) {
-          setIsGroupChat(!!conversation.isGroup);
           if (conversation.isGroup && conversation.members) {
-            setGroupMembers(conversation.members);
-            setGroupName(conversation.groupName || "");
+            setGroupInfo(
+              true,
+              conversation.members,
+              conversation.groupName || "",
+            );
             console.log(
               "[Chat] Group with",
               conversation.members.length,
@@ -621,22 +686,44 @@ function ChatScreenContent() {
     };
 
     loadRecipientFromConversation();
-  }, [chatId, currentUser]);
+  }, [
+    chatId,
+    currentUserId,
+    setRecipient,
+    setIsLoadingRecipient,
+    setGroupInfo,
+  ]);
 
   // Get toast function
   const showToast = useUIStore((s) => s.showToast);
 
   // Prevent self-messaging
+  // FIX: Use primitive IDs instead of objects, add ref guard to prevent loop
+  const selfMessageCheckDoneRef = useRef(false);
+
   useEffect(() => {
-    if (currentUser && recipient && currentUser.id === recipient.id) {
+    if (selfMessageCheckDoneRef.current) return;
+    if (currentUserId && recipient?.id && currentUserId === recipient.id) {
+      selfMessageCheckDoneRef.current = true;
       showToast("error", "Error", "You cannot message yourself");
       router.back();
     }
-  }, [currentUser, recipient, router, showToast]);
+  }, [currentUserId, recipient?.id, router, showToast]);
 
   // Typing indicator
   const { typingUsers, handleInputChange: handleTypingChange } =
     useTypingIndicator({ conversationId: chatId });
+
+  // Cleanup: Reset chat screen state when unmounting
+  useEffect(() => {
+    return () => {
+      console.log("[Chat] Unmounting, resetting screen state");
+      resetChatScreen();
+      hasLoadedInitialMessagesRef.current = false;
+      hasLoadedRecipientRef.current = false;
+      selfMessageCheckDoneRef.current = false;
+    };
+  }, [resetChatScreen]);
 
   const isRecipientTyping = typingUsers.length > 0;
 
@@ -905,12 +992,6 @@ function ChatScreenContent() {
     (currentMessage.trim() || pendingMedia.length > 0) &&
     !isSending &&
     !isResolvingConversation;
-
-  // Message action sheet state
-  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
-  const [showMessageActions, setShowMessageActions] = useState(false);
-  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
-  const [editText, setEditText] = useState("");
 
   const { deleteMessage, editMessage, reactToMessage } = useChatStore();
 

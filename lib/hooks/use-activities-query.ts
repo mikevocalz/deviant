@@ -10,6 +10,7 @@
  */
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getPostDetailRoute } from "@/lib/routes/post-routes";
 import {
   notificationsApiClient,
   type Notification,
@@ -160,9 +161,9 @@ export function getRouteForActivity(activity: Activity): string {
   if (entityType && entityId) {
     switch (entityType) {
       case "post":
-        return `/(protected)/post/${entityId}`;
+        return getPostDetailRoute(entityId);
       case "comment":
-        return `/(protected)/post/${entityId}`;
+        return getPostDetailRoute(entityId);
       case "user":
         return `/(protected)/profile/${user.username}`;
       case "event":
@@ -177,7 +178,7 @@ export function getRouteForActivity(activity: Activity): string {
     case "mention":
     case "tag":
       if (post?.id) {
-        return `/(protected)/post/${post.id}`;
+        return getPostDetailRoute(post.id);
       }
       return `/(protected)/profile/${user.username}`;
     case "follow":

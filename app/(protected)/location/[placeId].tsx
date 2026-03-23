@@ -10,34 +10,36 @@ import {
   Pressable,
   Dimensions,
   RefreshControl,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState, useCallback } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { navigateToPost } from "@/lib/routes/post-routes";
+import { useEffect, useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   MapPin,
   Navigation,
   Grid3X3,
   Bookmark,
-} from 'lucide-react-native';
-import { Image } from 'expo-image';
-import { useColorScheme } from '@/lib/hooks';
-import { DvntMap } from '@/src/components/map';
-import { LegendList } from '@/components/list';
-import { ErrorBoundary } from '@/components/error-boundary';
-import type { NormalizedLocation } from '@/lib/types/location';
-import type { Post } from '@/lib/types';
+} from "lucide-react-native";
+import { Image } from "expo-image";
+import { useColorScheme } from "@/lib/hooks";
+import { DvntMap } from "@/src/components/map";
+import { LegendList } from "@/components/list";
+import { ErrorBoundary } from "@/components/error-boundary";
+import type { NormalizedLocation } from "@/lib/types/location";
+import type { Post } from "@/lib/types";
 import {
   openDirections,
   openMapView,
   hasValidCoordinates,
   getStaticMapUrl,
-} from '@/lib/utils/location';
-import { postsApi } from '@/lib/api/posts';
+} from "@/lib/utils/location";
+import { postsApi } from "@/lib/api/posts";
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_COLS = 3;
 const GRID_GAP = 2;
 const GRID_CELL_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
@@ -67,7 +69,7 @@ function LocationHeader({
             zoom={15}
             markers={[
               {
-                id: 'location',
+                id: "location",
                 coordinate: [location.longitude, location.latitude],
                 title: location.name,
               },
@@ -78,7 +80,7 @@ function LocationHeader({
       ) : (
         <View
           className="h-32 w-full items-center justify-center"
-          style={{ backgroundColor: colors.muted + '30' }}
+          style={{ backgroundColor: colors.muted + "30" }}
         >
           <MapPin size={40} color={colors.mutedForeground} />
         </View>
@@ -88,7 +90,7 @@ function LocationHeader({
       <View
         className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8"
         style={{
-          backgroundImage: 'linear-gradient(transparent, rgba(0,0,0,0.8))',
+          backgroundImage: "linear-gradient(transparent, rgba(0,0,0,0.8))",
         }}
       >
         <Text className="text-2xl font-bold text-white" numberOfLines={1}>
@@ -97,11 +99,11 @@ function LocationHeader({
         {location.city && (
           <Text className="text-sm text-white/80" numberOfLines={1}>
             {location.city}
-            {location.country ? `, ${location.country}` : ''}
+            {location.country ? `, ${location.country}` : ""}
           </Text>
         )}
         <Text className="text-xs text-white/60 mt-1">
-          {postCount} {postCount === 1 ? 'post' : 'posts'}
+          {postCount} {postCount === 1 ? "post" : "posts"}
         </Text>
       </View>
     </View>
@@ -109,15 +111,9 @@ function LocationHeader({
 }
 
 // Post grid item
-function PostGridItem({
-  post,
-  onPress,
-}: {
-  post: Post;
-  onPress: () => void;
-}) {
+function PostGridItem({ post, onPress }: { post: Post; onPress: () => void }) {
   const imageUri = post.thumbnail || post.media?.[0]?.url;
-  const isVideo = post.type === 'video';
+  const isVideo = post.type === "video";
 
   return (
     <Pressable onPress={onPress}>
@@ -132,14 +128,14 @@ function PostGridItem({
         {imageUri ? (
           <Image
             source={{ uri: imageUri }}
-            style={{ width: '100%', height: '100%' }}
+            style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             cachePolicy="memory-disk"
           />
         ) : (
           <View
             className="w-full h-full items-center justify-center"
-            style={{ backgroundColor: '#1a1a1a' }}
+            style={{ backgroundColor: "#1a1a1a" }}
           >
             <MapPin size={24} color="#666" />
           </View>
@@ -177,13 +173,15 @@ function LocationScreenContent() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['posts', 'by-location', placeId],
+    queryKey: ["posts", "by-location", placeId],
     queryFn: async () => {
       // TODO: Replace with actual API call once backend supports placeId search
       // For now, fetch all posts and filter client-side
       const allPosts = await postsApi.getExplorePosts(100);
       return allPosts.filter(
-        (p) => p.location && p.location.toLowerCase().includes(placeId.toLowerCase())
+        (p) =>
+          p.location &&
+          p.location.toLowerCase().includes(placeId.toLowerCase()),
       );
     },
     enabled: !!placeId,
@@ -196,8 +194,8 @@ function LocationScreenContent() {
       // Create a mock location from the first post
       setLocation({
         placeId: placeId,
-        provider: 'google',
-        name: posts[0].location.split(',')[0] || posts[0].location,
+        provider: "google",
+        name: posts[0].location.split(",")[0] || posts[0].location,
         formattedAddress: posts[0].location,
         latitude: 0,
         longitude: 0,
@@ -207,9 +205,9 @@ function LocationScreenContent() {
 
   const handlePostPress = useCallback(
     (postId: string) => {
-      router.push(`/(protected)/post/${postId}`);
+      navigateToPost(router, queryClient, postId);
     },
-    [router]
+    [router, queryClient],
   );
 
   const handleGetDirections = useCallback(() => {
@@ -222,7 +220,7 @@ function LocationScreenContent() {
     ({ item }: { item: Post }) => (
       <PostGridItem post={item} onPress={() => handlePostPress(item.id)} />
     ),
-    [handlePostPress]
+    [handlePostPress],
   );
 
   return (
@@ -232,7 +230,10 @@ function LocationScreenContent() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
-        <Text className="flex-1 text-lg font-semibold text-foreground" numberOfLines={1}>
+        <Text
+          className="flex-1 text-lg font-semibold text-foreground"
+          numberOfLines={1}
+        >
           Location
         </Text>
         {location && hasValidCoordinates(location) && (
@@ -251,7 +252,7 @@ function LocationScreenContent() {
           <View className="flex-1 items-center justify-center">
             <View
               className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent"
-              style={{ transform: [{ rotate: '0deg' }] }}
+              style={{ transform: [{ rotate: "0deg" }] }}
             />
           </View>
         ) : isError ? (

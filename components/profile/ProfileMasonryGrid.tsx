@@ -24,7 +24,7 @@ import { useRouter } from "expo-router";
 import { Play, Grid3x3 } from "lucide-react-native";
 import { type SafeGridTile } from "@/lib/utils/safe-profile-mappers";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
-import { screenPrefetch } from "@/lib/prefetch";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { LegendList } from "@/components/list";
 
@@ -193,8 +193,7 @@ export function ProfileMasonryGrid({
 
   const handlePress = useCallback(
     (id: string) => {
-      screenPrefetch.postDetail(queryClient, id);
-      router.push(`/(protected)/post/${id}` as any);
+      navigateToPost(router, queryClient, id);
     },
     [router, queryClient],
   );

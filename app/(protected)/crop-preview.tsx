@@ -28,7 +28,9 @@ import {
   StyleSheet,
   ScrollView,
 } from "react-native";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -377,79 +379,69 @@ function CropPreviewScreenContent() {
   const headerTitle =
     media.length > 1 ? `Crop (${activeIndex + 1}/${media.length})` : "Crop";
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: headerTitle,
-      headerTitleAlign: "center" as const,
-      headerStyle: { backgroundColor: "#000" },
-      headerTitleStyle: {
-        color: "#fff",
-        fontWeight: "600" as const,
-        fontSize: 17,
-      },
-      headerShadowVisible: false,
-      headerLeft: () => (
+  // FIX: Use safe header update to prevent loops
+  useSafeHeader({
+    headerShown: true,
+    headerTitle: headerTitle,
+    headerTitleAlign: "center" as const,
+    headerStyle: { backgroundColor: "#000" },
+    headerTitleStyle: {
+      color: "#fff",
+      fontWeight: "600" as const,
+      fontSize: 17,
+    },
+    headerShadowVisible: false,
+    headerLeft: () => (
+      <Pressable
+        onPress={handleBack}
+        hitSlop={12}
+        style={{
+          marginLeft: 4,
+          width: 44,
+          height: 44,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ArrowLeft size={24} color="#fff" />
+      </Pressable>
+    ),
+    headerRight: () => (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Pressable
-          onPress={handleBack}
+          onPress={handleReset}
           hitSlop={12}
           style={{
-            marginLeft: 4,
-            width: 44,
+            width: 40,
             height: 44,
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          <ArrowLeft size={24} color="#fff" />
+          <RotateCcw size={20} color="#999" />
         </Pressable>
-      ),
-      headerRight: () => (
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-          <Pressable
-            onPress={handleReset}
-            hitSlop={12}
-            style={{
-              width: 40,
-              height: 44,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <RotateCcw size={20} color="#999" />
-          </Pressable>
-          <Pressable
-            onPress={handleDone}
-            disabled={isProcessing}
-            hitSlop={12}
-            style={{
-              height: 44,
-              paddingHorizontal: 12,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#3EA4E5" />
-            ) : (
-              <Text
-                style={{ color: "#3EA4E5", fontSize: 16, fontWeight: "700" }}
-              >
-                Done
-              </Text>
-            )}
-          </Pressable>
-        </View>
-      ),
-    });
-  }, [
-    navigation,
-    headerTitle,
-    handleBack,
-    handleReset,
-    handleDone,
-    isProcessing,
-  ]);
+        <Pressable
+          onPress={handleDone}
+          disabled={isProcessing}
+          hitSlop={12}
+          style={{
+            height: 44,
+            paddingHorizontal: 12,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {isProcessing ? (
+            <ActivityIndicator size="small" color="#3EA4E5" />
+          ) : (
+            <Text style={{ color: "#3EA4E5", fontSize: 16, fontWeight: "700" }}>
+              Done
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    ),
+  });
 
   // Skeleton while loading dimensions
   if (isLoading) {

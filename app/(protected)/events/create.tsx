@@ -9,8 +9,9 @@ import {
   Switch,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
-import { Image } from "expo-image";
-import { useRouter, useNavigation } from "expo-router";
+import { useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {
   useSafeAreaInsets,
@@ -45,6 +46,7 @@ import {
   Eye,
 } from "lucide-react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Image } from "expo-image";
 import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useCreateEventStore } from "@/lib/stores/create-event-store";
@@ -518,63 +520,59 @@ function CreateEventScreenContent() {
     }
   };
 
-  // Set up header with useLayoutEffect
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: `${WIZARD_STEPS[currentStep]?.label ?? "Create"} (${currentStep + 1}/${totalSteps})`,
-      headerTitleAlign: "left" as const,
-      headerStyle: {
-        backgroundColor: colors.background,
-      },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600" as const,
-        fontSize: 18,
-      },
-      headerLeft: () => (
-        <Pressable
-          onPress={() => {
-            if (currentStep > 0) {
-              prevStep();
-            } else {
-              router.back();
-            }
-          }}
-          hitSlop={12}
-          style={{
-            marginLeft: 8,
-            width: 44,
-            height: 44,
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {currentStep > 0 ? (
-            <ChevronLeft
-              size={24}
-              color={colors.foreground}
-              strokeWidth={2.5}
-            />
-          ) : (
-            <X size={24} color={colors.foreground} strokeWidth={2.5} />
-          )}
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Text
-          style={{
-            fontSize: 13,
-            fontWeight: "500",
-            color: colors.mutedForeground,
-            marginRight: 12,
-          }}
-        >
-          Step {currentStep + 1} of {totalSteps}
-        </Text>
-      ),
-    });
-  }, [navigation, colors, currentStep, totalSteps, prevStep, router]);
+  // FIX: Use safe header update to prevent loops
+  const headerTitle = `${WIZARD_STEPS[currentStep]?.label ?? "Create"} (${currentStep + 1}/${totalSteps})`;
+
+  useSafeHeader({
+    headerShown: true,
+    headerTitle: headerTitle,
+    headerTitleAlign: "left" as const,
+    headerStyle: {
+      backgroundColor: colors.background,
+    },
+    headerTitleStyle: {
+      color: colors.foreground,
+      fontWeight: "600" as const,
+      fontSize: 18,
+    },
+    headerLeft: () => (
+      <Pressable
+        onPress={() => {
+          if (currentStep > 0) {
+            prevStep();
+          } else {
+            router.back();
+          }
+        }}
+        hitSlop={12}
+        style={{
+          marginLeft: 8,
+          width: 44,
+          height: 44,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {currentStep > 0 ? (
+          <ChevronLeft size={24} color={colors.foreground} strokeWidth={2.5} />
+        ) : (
+          <X size={24} color={colors.foreground} strokeWidth={2.5} />
+        )}
+      </Pressable>
+    ),
+    headerRight: () => (
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: "500",
+          color: colors.mutedForeground,
+          marginRight: 12,
+        }}
+      >
+        Step {currentStep + 1} of {totalSteps}
+      </Text>
+    ),
+  });
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">

@@ -11,9 +11,11 @@ import {
   KeyboardProvider,
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
-import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SheetHeader } from "@/components/ui/sheet-header";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { Image } from "expo-image";
 import { Send, Heart } from "lucide-react-native";
 import { MENTION_COLOR } from "@/src/constants/mentions";
@@ -165,12 +167,10 @@ function RepliesScreenContent() {
 
   // Handle keyboard dismiss - not needed for react-native-keyboard-controller
 
-  // Set TrueSheet header prop — fixed above scrollable content
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      header: <SheetHeader title="Replies" onClose={() => router.back()} />,
-    });
-  }, [navigation, router]);
+  // FIX: Use safe header update to prevent loops
+  useSafeHeader({
+    header: () => <SheetHeader title="Replies" onClose={() => router.back()} />,
+  });
 
   return (
     <KeyboardProvider statusBarTranslucent navigationBarTranslucent>

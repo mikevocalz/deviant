@@ -35,7 +35,7 @@ import { LegendList } from "@/components/list";
 import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import type { Post } from "@/lib/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { screenPrefetch } from "@/lib/prefetch";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import {
   LocationAutocompleteV3,
   type LocationData,
@@ -153,8 +153,7 @@ function DiscoverGrid({
       return (
         <Pressable
           onPress={() => {
-            screenPrefetch.postDetail(queryClient, item.id);
-            router.push(`/(protected)/post/${item.id}`);
+            navigateToPost(router, queryClient, item.id);
           }}
           style={{
             width: GRID_CELL_SIZE,
@@ -462,8 +461,7 @@ function SearchScreenContent() {
                             key={post.id}
                             onPress={() => {
                               if (post?.id) {
-                                screenPrefetch.postDetail(queryClient, post.id);
-                                router.push(`/(protected)/post/${post.id}`);
+                                navigateToPost(router, queryClient, post.id);
                               }
                             }}
                             style={{
@@ -569,11 +567,7 @@ function SearchScreenContent() {
                               key={post.id}
                               onPress={() => {
                                 if (post?.id) {
-                                  screenPrefetch.postDetail(
-                                    queryClient,
-                                    post.id,
-                                  );
-                                  router.push(`/(protected)/post/${post.id}`);
+                                  navigateToPost(router, queryClient, post.id);
                                 }
                               }}
                               style={{

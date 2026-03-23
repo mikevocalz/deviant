@@ -42,6 +42,7 @@ import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { StoryTagPicker } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
 // generateVideoThumbnail disabled — expo-video-thumbnails hangs on iOS 26.3
@@ -526,42 +527,41 @@ function CreateStoryScreenContent() {
   const hasMedia = mediaAssets.length > 0;
   const isValid = selectedMedia.length > 0;
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: "New Story",
-      headerTitleAlign: "left" as const,
-      headerStyle: { backgroundColor: colors.background },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600",
-        fontSize: 18,
-      },
-      headerLeft: () => (
-        <Pressable
-          onPress={handleClose}
-          hitSlop={12}
-          className="ml-2 w-11 h-11 items-center justify-center"
+  // FIX: Use safe header update to prevent loops
+  useSafeHeader({
+    headerShown: true,
+    headerTitle: "New Story",
+    headerTitleAlign: "left" as const,
+    headerStyle: { backgroundColor: colors.background },
+    headerTitleStyle: {
+      color: colors.foreground,
+      fontWeight: "600",
+      fontSize: 18,
+    },
+    headerLeft: () => (
+      <Pressable
+        onPress={handleClose}
+        hitSlop={12}
+        className="ml-2 w-11 h-11 items-center justify-center"
+      >
+        <X size={24} color={colors.foreground} strokeWidth={2.5} />
+      </Pressable>
+    ),
+    headerRight: () => (
+      <Pressable
+        onPress={handleShare}
+        disabled={isSharing || !isValid}
+        hitSlop={12}
+        className="mr-2"
+      >
+        <Text
+          className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
         >
-          <X size={24} color={colors.foreground} strokeWidth={2.5} />
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Pressable
-          onPress={handleShare}
-          disabled={isSharing || !isValid}
-          hitSlop={12}
-          className="mr-2"
-        >
-          <Text
-            className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {isSharing ? "Sharing..." : "Share"}
-          </Text>
-        </Pressable>
-      ),
-    });
-  }, [navigation, colors, isValid, isSharing, handleClose, handleShare]);
+          {isSharing ? "Sharing..." : "Share"}
+        </Text>
+      </Pressable>
+    ),
+  });
 
   return (
     <>
