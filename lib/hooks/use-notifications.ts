@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
+import { getPostDetailRoute } from "@/lib/routes/post-routes";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   useActivityStore,
@@ -201,7 +202,7 @@ export function useNotifications() {
                 case "mention":
                 case "tag":
                   if (data.postId) {
-                    router.push(`/(protected)/post/${data.postId}` as any);
+                    router.push(getPostDetailRoute(String(data.postId)) as any);
                   }
                   break;
                 case "follow":

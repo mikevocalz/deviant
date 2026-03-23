@@ -75,7 +75,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
 import { useQueryClient } from "@tanstack/react-query";
-import { screenPrefetch } from "@/lib/prefetch";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
@@ -299,10 +299,7 @@ function FeedPostComponent({
 
   const handleVideoPress = useCallback(() => {
     if (!isSafeToOperate() || !id) return;
-    if (id) {
-      screenPrefetch.postDetail(queryClient, id);
-      router.push(`/(protected)/post/${id}`);
-    }
+    navigateToPost(router, queryClient, id);
   }, [id, router, queryClient, isSafeToOperate]);
 
   const handleLike = useCallback(() => {
@@ -344,8 +341,7 @@ function FeedPostComponent({
         : withSpring(1, { damping: 18, stiffness: 180, mass: 0.8 });
       return;
     }
-    screenPrefetch.postDetail(queryClient, id);
-    router.push(`/(protected)/post/${id}`);
+    navigateToPost(router, queryClient, id);
   }, [
     router,
     id,

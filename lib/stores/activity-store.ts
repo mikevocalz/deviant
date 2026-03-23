@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getPostDetailRoute } from "@/lib/routes/post-routes";
 import {
   notificationsApiClient,
   type Notification,
@@ -277,9 +278,9 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
     if (entityType && entityId) {
       switch (entityType) {
         case "post":
-          return `/(protected)/post/${entityId}`;
+          return getPostDetailRoute(entityId);
         case "comment":
-          return `/(protected)/post/${entityId}`;
+          return getPostDetailRoute(entityId);
         case "user":
           return `/(protected)/profile/${entityId}`;
         case "event":
@@ -294,7 +295,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
       case "mention":
       case "tag":
         if (post?.id) {
-          return `/(protected)/post/${post.id}`;
+          return getPostDetailRoute(post.id);
         }
         return `/(protected)/profile/${user.username}`;
       case "follow":

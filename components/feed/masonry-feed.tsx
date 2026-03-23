@@ -38,7 +38,7 @@ import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import { seedLikeState, usePostLikeState } from "@/lib/hooks/usePostLikeState";
-import { screenPrefetch } from "@/lib/prefetch";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
@@ -452,8 +452,7 @@ export function MasonryFeed() {
 
   const handlePress = useCallback(
     (id: string) => {
-      screenPrefetch.postDetail(queryClient, id);
-      router.push(`/(protected)/post/${id}` as any);
+      navigateToPost(router, queryClient, id);
     },
     [router, queryClient],
   );

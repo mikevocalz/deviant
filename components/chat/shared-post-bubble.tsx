@@ -1,6 +1,8 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import { Avatar } from "@/components/ui/avatar";
 import type { SharedPostContext } from "@/lib/stores/chat-store";
 
@@ -14,10 +16,11 @@ export function SharedPostBubble({
   isOwnMessage,
 }: SharedPostBubbleProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const handlePress = () => {
     if (sharedPost.postId) {
-      router.push(`/(protected)/post/${sharedPost.postId}`);
+      navigateToPost(router, queryClient, sharedPost.postId);
     }
   };
 

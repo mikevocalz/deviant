@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Platform, View, Pressable, Text } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
+import { screenPrefetch } from "@/lib/prefetch";
+import { getPostDetailRoute } from "@/lib/routes/post-routes";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
@@ -198,7 +200,7 @@ export default function RootLayout() {
         case "like":
         case "comment":
         case "mention":
-          if (data.postId) route = `/(protected)/post/${data.postId}`;
+          if (data.postId) route = getPostDetailRoute(String(data.postId));
           break;
         case "follow":
           if (data.senderUsername)

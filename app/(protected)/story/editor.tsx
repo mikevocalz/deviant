@@ -1,4 +1,6 @@
-import { useLocalSearchParams, useRouter, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useNavigation } from "@react-navigation/native";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useLayoutEffect, useEffect, useRef } from "react";
 import { EditorScreen } from "@/src/stories-editor";
@@ -27,9 +29,8 @@ function StoryEditorRouteContent() {
     }
   }, []);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ headerShown: false });
-  }, [navigation]);
+  // FIX: Use safe header update to prevent loops
+  useSafeHeader({ headerShown: false });
 
   const handleClose = () => {
     // Navigate FIRST, then defer reset so the text-only BackgroundPicker

@@ -56,6 +56,12 @@ import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useStoryViewerScreenStore } from "@/lib/stores/story-viewer-screen-store";
+import { normalizeRouteParams } from "@/lib/navigation/route-params";
+import {
+  loopDetection,
+  useRenderLoopDetector,
+} from "@/lib/diagnostics/loop-detection";
 import { usersApi } from "@/lib/api/users";
 import { storyTagsApi, type StoryTag } from "@/lib/api/stories";
 
@@ -134,12 +140,25 @@ function FloatingReactionEmoji({
 }
 
 function StoryViewerScreenContent() {
-  const { id, username: usernameParam } = useLocalSearchParams<{
+  // DEV-only loop detection
+  useRenderLoopDetector("StoryViewer");
+
+  const rawParams = useLocalSearchParams<{
     id: string;
     username?: string;
   }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+
+  // FIX: Normalize params once to prevent string|string[] instability loops
+  const normalizedParams = useMemo(
+    () => normalizeRouteParams(rawParams),
+    [rawParams.id, rawParams.username],
+  );
+  const id = normalizedParams.id;
+  const usernameParam = normalizedParams.username;
+
+  loopDetection.log("StoryViewer", "mount", { id, username: usernameParam });
   const {
     currentStoryId,
     currentItemIndex,
@@ -150,18 +169,32 @@ function StoryViewerScreenContent() {
 
   const progress = useSharedValue(0);
 
-  const [showSeekBar, setShowSeekBar] = useState(false);
-  const [videoCurrentTime, setVideoCurrentTime] = useState(0);
-  const [videoDuration, setVideoDuration] = useState(0);
-  const [replyText, setReplyText] = useState("");
-  const [isSendingReply, setIsSendingReply] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
-  const [resolvedUserId, setResolvedUserId] = useState<string | null>(null);
-  const [storyTags, setStoryTags] = useState<StoryTag[]>([]);
-  const [showTags, setShowTags] = useState(false);
-  const [floatingEmojis, setFloatingEmojis] = useState<
-    { id: number; emoji: string }[]
-  >([]);
+  // FIX: Replace useState with Zustand to comply with project mandate
+  const {
+    showSeekBar,
+    setShowSeekBar,
+    videoCurrentTime,
+    setVideoCurrentTime,
+    videoDuration,
+    setVideoDuration,
+    replyText,
+    setReplyText,
+    isSendingReply,
+    setIsSendingReply,
+    isInputFocused,
+    setIsInputFocused,
+    resolvedUserId,
+    setResolvedUserId,
+    storyTags,
+    setStoryTags,
+    showTags,
+    setShowTags,
+    floatingEmojis,
+    addFloatingEmoji,
+    removeFloatingEmoji,
+    resetStoryViewerScreen,
+  } = useStoryViewerScreenStore();
+
   const emojiCounter = useRef(0);
 
   const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮", "😈"];
@@ -280,7 +313,7 @@ function StoryViewerScreenContent() {
     }
     storyTagsApi
       .getTagsForStory(String(currentItem.id))
-      .then(setStoryTags)
+      .then((tags) => setStoryTags(tags as any))
       .catch(() => setStoryTags([]));
   }, [currentItem?.id]);
 
@@ -573,8 +606,8 @@ function StoryViewerScreenContent() {
   const isOwnStory =
     story?.username?.toLowerCase() === currentUser?.username?.toLowerCase();
 
-  // Story viewers (own stories only)
-  const [showViewersSheet, setShowViewersSheet] = useState(false);
+  // FIX: Replace useState with Zustand
+  const { showViewersSheet, setShowViewersSheet } = useStoryViewerScreenStore();
   const currentItemId = currentItem?.id;
   // story_views.story_id is an integer FK to stories.id (parent),
   // NOT the hex string item ID from stories_items
@@ -846,24 +879,17 @@ function StoryViewerScreenContent() {
     ),
   ).current;
 
-  const handleStoryReaction = useCallback(
+  const handleQuickReaction = useCallback(
     (emoji: string) => {
+      loopDetection.log("StoryViewer", "reaction:quick", { emoji });
       if (!story || !resolvedUserId || isOwnStory) return;
-
-      // Floating animation + haptic (always immediate)
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const id = emojiCounter.current++;
-      setFloatingEmojis((prev) => [...prev, { id, emoji }]);
-
-      // Debounced send — prevents duplicate sends within 1.5s
+      addFloatingEmoji({ id, emoji });
       reactionDebouncer.maybeExecute(emoji);
     },
-    [story, resolvedUserId, isOwnStory, reactionDebouncer],
+    [story, resolvedUserId, isOwnStory, reactionDebouncer, addFloatingEmoji],
   );
-
-  const removeFloatingEmoji = useCallback((id: number) => {
-    setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
-  }, []);
 
   // Send story reply as DM
   const handleSendReply = useCallback(async () => {
@@ -1286,7 +1312,7 @@ function StoryViewerScreenContent() {
           {/* ── TAGGED USERS PILL ─────────────────────────────────────────── */}
           {storyTags.length > 0 && (
             <Pressable
-              onPress={() => setShowTags((v) => !v)}
+              onPress={() => setShowTags(!showTags)}
               style={{
                 position: "absolute",
                 bottom: isOwnStory ? insets.bottom + 20 : 130,
@@ -1331,7 +1357,7 @@ function StoryViewerScreenContent() {
                       }}
                     >
                       <Image
-                        source={{ uri: tag.avatar || "" }}
+                        source={{ uri: (tag as any).avatar || "" }}
                         style={{ width: 22, height: 22, borderRadius: 6 }}
                       />
                       <Text
@@ -1349,7 +1375,7 @@ function StoryViewerScreenContent() {
               ) : (
                 <>
                   <Image
-                    source={{ uri: storyTags[0].avatar || "" }}
+                    source={{ uri: (storyTags[0] as any).avatar || "" }}
                     style={{ width: 20, height: 20, borderRadius: 5 }}
                   />
                   <Text
@@ -1466,7 +1492,7 @@ function StoryViewerScreenContent() {
                 {REACTION_EMOJIS.map((emoji) => (
                   <Pressable
                     key={emoji}
-                    onPress={() => handleStoryReaction(emoji)}
+                    onPress={() => handleQuickReaction(emoji)}
                     style={{
                       width: 42,
                       height: 42,

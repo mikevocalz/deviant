@@ -26,6 +26,7 @@ import { usersApi } from "@/lib/api/users";
 import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { navigateToChat } from "@/lib/navigation/chat-routes";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import { Galeria } from "@nandorojo/galeria";
 import { Debouncer } from "@tanstack/react-pacer";
@@ -500,7 +501,12 @@ function UserProfileScreenComponent() {
         String(user.id),
       );
       if (conversationId) {
-        router.push(`/(protected)/chat/${conversationId}`);
+        navigateToChat(router, {
+          identifier: conversationId,
+          peerAvatar: user.avatar,
+          peerUsername: user.username,
+          peerName: user.name || user.username,
+        });
       } else {
         showToast("error", "Error", "Could not start conversation");
       }

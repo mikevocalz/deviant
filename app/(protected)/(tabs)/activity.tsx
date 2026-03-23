@@ -30,6 +30,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFollow } from "@/lib/hooks/use-follow";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { navigateToPost } from "@/lib/routes/post-routes";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useBootstrapNotifications } from "@/lib/hooks/use-bootstrap-notifications";
 
@@ -334,10 +335,9 @@ function ActivityScreenContent() {
 
   const handlePostPress = useCallback(
     (postId: string) => {
-      console.log("[Activity] Navigating to post:", postId);
+      if (__DEV__) console.log("[Activity] Navigating to post:", postId);
       if (postId) {
-        screenPrefetch.postDetail(queryClient, postId);
-        router.push(`/(protected)/post/${postId}`);
+        navigateToPost(router, queryClient, postId);
       }
     },
     [router, queryClient],

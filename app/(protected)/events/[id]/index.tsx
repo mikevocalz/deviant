@@ -54,6 +54,12 @@ import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
+import { useEventDetailScreenStore } from "@/lib/stores/event-detail-screen-store";
+import { normalizeRouteParams } from "@/lib/navigation/route-params";
+import {
+  loopDetection,
+  useRenderLoopDetector,
+} from "@/lib/diagnostics/loop-detection";
 import {
   normalizeEvent,
   normalizeArray,
@@ -213,10 +219,21 @@ function formatEventTime(dateStr: string): string {
 }
 
 function EventDetailScreenContent() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // DEV-only loop detection
+  useRenderLoopDetector("EventDetail");
+
+  const rawParams = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const eventId = id || "";
+
+  // FIX: Normalize params once to prevent string|string[] instability loops
+  const normalizedParams = useMemo(
+    () => normalizeRouteParams(rawParams),
+    [rawParams.id],
+  );
+  const eventId = normalizedParams.id || "";
+
+  loopDetection.log("EventDetail", "mount", { eventId });
   const { isRsvped, toggleRsvp } = useEventViewStore();
   const deviceLat = useEventsLocationStore(
     (s) => s.activeCity?.lat ?? s.deviceLat,
@@ -259,10 +276,17 @@ function EventDetailScreenContent() {
     }
   }, [eventId, offlineCheckin, showToast]);
 
-  // ── Local UI state ──────────────────────────────────────────────────
-  const [selectedTier, setSelectedTier] = useState<TicketTier | null>(null);
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
+  // FIX: Replace useState with Zustand to comply with project mandate
+  const {
+    selectedTier,
+    setSelectedTier,
+    showRatingModal,
+    setShowRatingModal,
+    isLiked,
+    setIsLiked,
+    resetEventDetailScreen,
+  } = useEventDetailScreenStore();
+
   const scrollY = useSharedValue(0);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -410,11 +434,21 @@ function EventDetailScreenContent() {
     setSelectedTier(tier);
   }, []);
 
-  const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [promoCode, setPromoCode] = useState("");
+  // FIX: Replace useState with Zustand
+  const { isCheckingOut, setIsCheckingOut, promoCode, setPromoCode } =
+    useEventDetailScreenStore();
+
+  // FIX: Cleanup effect - reset all screen state on unmount
+  useEffect(() => {
+    return () => {
+      loopDetection.log("EventDetail", "unmount", { eventId });
+      resetEventDetailScreen();
+    };
+  }, [eventId, resetEventDetailScreen]);
 
   const handleGetTickets = useCallback(async () => {
     if (!eventData || isCheckingOut) return;
+    loopDetection.log("EventDetail", "checkout:start", { eventId });
     // Block ticket purchase for past events
     const now = new Date();
     if (eventData.endDate && new Date(eventData.endDate) < now) {

@@ -31,6 +31,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 
 function EventCommentsScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,31 +54,29 @@ function EventCommentsScreenContent() {
   } = useEventComments(eventId, 100);
   const createComment = useCreateEventComment();
 
-  // Set up header
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerTitle: "Comments",
-      headerTitleAlign: "left" as const,
-      headerStyle: {
-        backgroundColor: colors.background,
-      },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600" as const,
-        fontSize: 18,
-      },
-      headerLeft: () => (
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={{ marginLeft: 8 }}
-        >
-          <ArrowLeft size={24} color={colors.foreground} />
-        </Pressable>
-      ),
-    });
-  }, [navigation, colors, router]);
+  // FIX: Use safe header update to prevent loops
+  useSafeHeader({
+    headerShown: true,
+    headerTitle: "Comments",
+    headerTitleAlign: "left" as const,
+    headerStyle: {
+      backgroundColor: colors.background,
+    },
+    headerTitleStyle: {
+      color: colors.foreground,
+      fontWeight: "600" as const,
+      fontSize: 18,
+    },
+    headerLeft: () => (
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={12}
+        style={{ marginLeft: 8 }}
+      >
+        <ArrowLeft size={24} color={colors.foreground} />
+      </Pressable>
+    ),
+  });
 
   // @mention detection
   const mentionQuery = useMemo(() => {

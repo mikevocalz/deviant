@@ -35,6 +35,7 @@ import {
   messageKeys,
 } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
+import { navigateToChat } from "@/lib/navigation/chat-routes";
 import { usePresenceStore } from "@/lib/stores/presence-store";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import PagerView from "react-native-pager-view";
@@ -624,21 +625,12 @@ function MessagesScreenContent() {
       try {
         useChatStore.getState().loadMessages(id);
       } catch {}
-      // Pass conversation data via params so chat header renders instantly
-      // without waiting for async fetch — eliminates layout jump during transition
-      if (item) {
-        router.push({
-          pathname: "/(protected)/chat/[id]",
-          params: {
-            id,
-            peerAvatar: item.user.avatar || "",
-            peerUsername: item.user.username || "",
-            peerName: item.user.name || "",
-          },
-        });
-      } else {
-        router.push(`/(protected)/chat/${id}`);
-      }
+      navigateToChat(router, {
+        identifier: id,
+        peerAvatar: item?.user?.avatar,
+        peerUsername: item?.user?.username,
+        peerName: item?.user?.name,
+      });
     },
     [router],
   );

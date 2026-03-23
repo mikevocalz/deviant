@@ -61,6 +61,12 @@ import { PostActionSheet } from "@/components/post-action-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
+import { usePostDetailScreenStore } from "@/lib/stores/post-detail-screen-store";
+import { normalizeRouteParams } from "@/lib/navigation/route-params";
+import {
+  loopDetection,
+  useRenderLoopDetector,
+} from "@/lib/diagnostics/loop-detection";
 import { postsApi } from "@/lib/api/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -82,6 +88,7 @@ import {
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
 import { normalizePost } from "@/lib/normalization/safe-entity";
+import { validatePostParams } from "@/lib/validation/post-params";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
@@ -420,33 +427,83 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
 }
 
 function PostDetailScreenContent() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // DEV-only loop detection
+  useRenderLoopDetector("PostDetail");
+
+  const rawParams = useLocalSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors } = useColorScheme();
 
-  // Normalize id - use empty string as fallback for hooks
-  const postId = id ? String(id) : "";
+  // FIX: Normalize params once to prevent string|string[] instability loops
+  const normalizedParams = useMemo(
+    () => normalizeRouteParams(rawParams),
+    [rawParams.id],
+  );
 
-  // Show loading state if no post ID yet (prevents crashes on initial load)
-  if (!postId) {
+  loopDetection.log("PostDetail", "mount", { id: normalizedParams.id });
+
+  // CRITICAL: Validate params BEFORE any other hooks
+  // This prevents crashes from undefined/null/invalid IDs
+  const paramsResult = validatePostParams(normalizedParams);
+
+  // Show error UI if params are invalid (before calling data hooks)
+  if (!paramsResult.valid) {
+    if (__DEV__) {
+      console.error(
+        "[PostDetail] Invalid params:",
+        paramsResult.error,
+        paramsResult.rawValue,
+      );
+    }
     return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" />
-      </View>
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground text-center mb-2">
+            Invalid post link
+          </Text>
+          <Text className="text-muted-foreground text-sm text-center mb-4">
+            {paramsResult.error}
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="px-4 py-2 bg-primary rounded-lg"
+          >
+            <Text className="text-primary-foreground font-semibold">
+              Go Back
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  // ALL HOOKS MUST BE CALLED UNCONDITIONALLY - before any early returns
+  // Extract validated post ID
+  const postId = paramsResult.postId;
+
+  // NOW call data hooks with guaranteed valid ID
   const { data: post, isLoading, error: postError } = usePost(postId);
   const { data: comments = [], isLoading: commentsLoading } =
     useComments(postId);
-  // STABILIZED: Only use boolean checks from store for comments
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
-  const { colors } = useColorScheme();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
-  const [showActionSheet, setShowActionSheet] = useState(false);
+
+  // FIX: Replace useState with Zustand to comply with project mandate
+  const { showActionSheet, setShowActionSheet, resetPostDetailScreen } =
+    usePostDetailScreenStore();
+
   const deletePostMutation = useDeletePost();
   const bookmarkStore = useBookmarkStore();
   const { open: openLikesSheet, prefetch: prefetchLikesSheet } =
@@ -504,15 +561,27 @@ function PostDetailScreenContent() {
     }
   }, [postTags.length, tagsVisible, toggleTags, postId, tagProgress]);
 
-  // Carousel state - track current slide for multi-image posts
-  const [currentSlide, setCurrentSlide] = useState(0);
+  // FIX: Replace useState with Zustand
+  const { currentSlide, setCurrentSlide } = usePostDetailScreenStore();
 
-  const handleScroll = useCallback((event: any) => {
-    const slideIndex = Math.round(
-      event.nativeEvent.contentOffset.x / SCREEN_WIDTH,
-    );
-    setCurrentSlide(slideIndex);
-  }, []);
+  const handleScroll = useCallback(
+    (event: any) => {
+      const slideIndex = Math.round(
+        event.nativeEvent.contentOffset.x / SCREEN_WIDTH,
+      );
+      setCurrentSlide(slideIndex);
+      loopDetection.log("PostDetail", "carousel:scroll", { slideIndex });
+    },
+    [setCurrentSlide],
+  );
+
+  // FIX: Cleanup effect - reset all screen state on unmount
+  useEffect(() => {
+    return () => {
+      loopDetection.log("PostDetail", "unmount", { postId });
+      resetPostDetailScreen();
+    };
+  }, [postId, resetPostDetailScreen]);
 
   // CRITICAL: Suspense-style guard - if post becomes null mid-render (e.g., deleted),
   // show loading state instead of crashing. This handles the case where:
@@ -587,9 +656,12 @@ function PostDetailScreenContent() {
   }, [postId, safePost]);
 
   const handleActionEdit = useCallback(() => {
-    if (postId) router.push(`/(protected)/edit-post/${postId}`);
+    if (postId) {
+      loopDetection.log("PostDetail", "navigation:edit", { postId });
+      router.push(`/(protected)/edit-post/${postId}`);
+    }
     setShowActionSheet(false);
-  }, [postId, router]);
+  }, [postId, router, setShowActionSheet]);
 
   const handleActionDelete = useCallback(() => {
     if (!postId) return;
