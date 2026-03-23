@@ -18,6 +18,7 @@ interface FeedPostUIState {
   actionSheetPostId: string | null;
   shareSheetPostId: string | null;
   commentsSheetPostId: string | null;
+  firstPageImagesPrefetched: boolean;
 
   setPressedPost: (postId: string, pressed: boolean) => void;
   setLikeAnimating: (postId: string, animating: boolean) => void;
@@ -33,6 +34,8 @@ interface FeedPostUIState {
   setActionSheetPostId: (postId: string | null) => void;
   setShareSheetPostId: (postId: string | null) => void;
   setCommentsSheetPostId: (postId: string | null) => void;
+  setFirstPageImagesPrefetched: (prefetched: boolean) => void;
+  resetImagePrefetch: () => void;
 }
 
 const defaultVideoState: VideoState = {
@@ -53,6 +56,7 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
   actionSheetPostId: null,
   shareSheetPostId: null,
   commentsSheetPostId: null,
+  firstPageImagesPrefetched: false,
 
   setPressedPost: (postId, pressed) =>
     set((state) => ({
@@ -90,4 +94,7 @@ export const useFeedPostUIStore = create<FeedPostUIState>((set, get) => ({
   setActionSheetPostId: (postId) => set({ actionSheetPostId: postId }),
   setShareSheetPostId: (postId) => set({ shareSheetPostId: postId }),
   setCommentsSheetPostId: (postId) => set({ commentsSheetPostId: postId }),
+  setFirstPageImagesPrefetched: (prefetched) =>
+    set({ firstPageImagesPrefetched: prefetched }),
+  resetImagePrefetch: () => set({ firstPageImagesPrefetched: false }),
 }));

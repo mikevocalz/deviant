@@ -291,23 +291,50 @@ export function Feed() {
     return data.pages.flatMap((page) => page.data);
   }, [data]);
 
-  // Perf: Mark TTUC when first posts are visible + prefetch off-screen images + comments
+  const firstPageImagesPrefetched = useFeedPostUIStore(
+    (s) => s.firstPageImagesPrefetched,
+  );
+  const setFirstPageImagesPrefetched = useFeedPostUIStore(
+    (s) => s.setFirstPageImagesPrefetched,
+  );
+  const resetImagePrefetch = useFeedPostUIStore((s) => s.resetImagePrefetch);
+
+  // Perf: Prefetch first page images BEFORE showing content (prevents waterfall)
   useEffect(() => {
-    if (allPosts.length > 0) {
-      if (trace.elapsed() < 50) trace.markCacheHit();
-      trace.markUsable();
-      // Prefetch images for posts below the fold (posts 4+)
-      const offScreenPosts = allPosts.slice(3);
-      if (offScreenPosts.length > 0) {
-        const urls = extractFeedImageUrls(offScreenPosts);
+    if (allPosts.length > 0 && !firstPageImagesPrefetched) {
+      const firstPagePosts = allPosts.slice(0, 10); // First page
+      const urls = extractFeedImageUrls(firstPagePosts);
+
+      if (urls.length > 0) {
+        // Prefetch using expo-image
         prefetchImages(urls);
+
+        // Mark as prefetched after a short delay to allow images to start loading
+        setTimeout(() => {
+          setFirstPageImagesPrefetched(true);
+          if (trace.elapsed() < 50) trace.markCacheHit();
+          trace.markUsable();
+        }, 800);
+
+        // Also prefetch off-screen posts
+        const offScreenPosts = allPosts.slice(10);
+        if (offScreenPosts.length > 0) {
+          const offScreenUrls = extractFeedImageUrls(offScreenPosts);
+          setTimeout(() => prefetchImages(offScreenUrls), 1000);
+        }
+      } else {
+        // No images to prefetch
+        setFirstPageImagesPrefetched(true);
+        if (trace.elapsed() < 50) trace.markCacheHit();
+        trace.markUsable();
       }
-      // Eager prefetch comments for first 5 posts — data in cache before user taps
+
+      // Eager prefetch comments for first 5 posts
       allPosts.slice(0, 5).forEach((post) => {
         if (post?.id) prefetchComments(queryClient, post.id);
       });
     }
-  }, [allPosts.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allPosts.length > 0, firstPageImagesPrefetched]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // CRITICAL: Seed like states from feed data
   // The custom /api/posts/feed endpoint now returns isLiked and likesCount per post
@@ -430,8 +457,9 @@ export function Feed() {
   useEffect(() => {
     if (isRefetching) {
       hasSetInitialPost.current = false;
+      resetImagePrefetch();
     }
-  }, [isRefetching]);
+  }, [isRefetching, resetImagePrefetch]);
 
   // Track which posts we've already prefetched comments for
   const prefetchedComments = useRef(new Set<string>()).current;
@@ -556,7 +584,12 @@ export function Feed() {
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
   // Simple loading state - only show skeleton during initial load
-  const isActuallyLoading = isLoading || storiesPending || !nsfwLoaded;
+  // CRITICAL: Also wait for first page images to prevent waterfall loading
+  const isActuallyLoading =
+    isLoading ||
+    storiesPending ||
+    !nsfwLoaded ||
+    (allPosts.length > 0 && !firstPageImagesPrefetched);
 
   if (__DEV__) {
     useEffect(() => {
