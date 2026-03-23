@@ -10,7 +10,7 @@
  * - Instagram-style UI with categories
  */
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -33,9 +33,10 @@ import {
   Building,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { useDebounce } from "@/lib/hooks/use-debounce";
 import * as Location from "expo-location";
 import { createMMKV } from "react-native-mmkv";
+import { create } from "zustand";
+import { Debouncer } from "@tanstack/react-pacer";
 
 export type LocationData = {
   name: string;
@@ -79,6 +80,33 @@ const GOOGLE_PLACES_API_KEY =
 // MMKV storage for recent locations
 const recentLocationsStorage = createMMKV({ id: "dvnt-recent-locations" });
 
+// Zustand store - persists across parent re-renders (fixes dropdown reopening)
+interface LocationAutocompleteState {
+  showDropdown: boolean;
+  justSelected: boolean;
+  inputText: string;
+  isLoading: boolean;
+  activeSection: "recent" | "current" | "search";
+  predictions: GooglePlace[];
+  recentLocations: RecentLocation[];
+  currentLocation: LocationData | null;
+  isLoadingLocation: boolean;
+  hasError: boolean;
+}
+
+const useLocationStore = create<LocationAutocompleteState>(() => ({
+  showDropdown: false,
+  justSelected: false,
+  inputText: "",
+  isLoading: false,
+  activeSection: "recent",
+  predictions: [],
+  recentLocations: [],
+  currentLocation: null,
+  isLoadingLocation: false,
+  hasError: false,
+}));
+
 export function LocationAutocompleteInstagram({
   value,
   placeholder = "Search location...",
@@ -87,23 +115,78 @@ export function LocationAutocompleteInstagram({
   onTextChange,
 }: LocationAutocompleteProps) {
   const { colors } = useColorScheme();
-  const [inputText, setInputText] = useState(value || "");
-  const [predictions, setPredictions] = useState<GooglePlace[]>([]);
-  const [recentLocations, setRecentLocations] = useState<RecentLocation[]>([]);
-  const [currentLocation, setCurrentLocation] = useState<LocationData | null>(
-    null,
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [activeSection, setActiveSection] = useState<
-    "recent" | "current" | "search"
-  >("recent");
-  const [justSelected, setJustSelected] = useState(false); // Prevent dropdown from reopening after selection
 
-  // Debounce the input text for API calls (300ms delay)
-  const debouncedText = useDebounce(inputText, 300);
+  // Zustand store - persists across parent re-renders
+  const inputText = useLocationStore((s) => s.inputText);
+  const setInputText = useCallback((text: string) => {
+    useLocationStore.setState({ inputText: text });
+  }, []);
+
+  const predictions = useLocationStore((s) => s.predictions);
+  const setPredictions = useCallback((preds: GooglePlace[]) => {
+    useLocationStore.setState({ predictions: preds });
+  }, []);
+
+  const recentLocations = useLocationStore((s) => s.recentLocations);
+  const setRecentLocations = useCallback((locs: RecentLocation[]) => {
+    useLocationStore.setState({ recentLocations: locs });
+  }, []);
+
+  const currentLocation = useLocationStore((s) => s.currentLocation);
+  const setCurrentLocation = useCallback((loc: LocationData | null) => {
+    useLocationStore.setState({ currentLocation: loc });
+  }, []);
+
+  const isLoading = useLocationStore((s) => s.isLoading);
+  const setIsLoading = useCallback((loading: boolean) => {
+    useLocationStore.setState({ isLoading: loading });
+  }, []);
+
+  const isLoadingLocation = useLocationStore((s) => s.isLoadingLocation);
+  const setIsLoadingLocation = useCallback((loading: boolean) => {
+    useLocationStore.setState({ isLoadingLocation: loading });
+  }, []);
+
+  const showDropdown = useLocationStore((s) => s.showDropdown);
+  const setShowDropdown = useCallback((show: boolean) => {
+    useLocationStore.setState({ showDropdown: show });
+  }, []);
+
+  const hasError = useLocationStore((s) => s.hasError);
+  const setHasError = useCallback((error: boolean) => {
+    useLocationStore.setState({ hasError: error });
+  }, []);
+
+  const activeSection = useLocationStore((s) => s.activeSection);
+  const setActiveSection = useCallback(
+    (section: "recent" | "current" | "search") => {
+      useLocationStore.setState({ activeSection: section });
+    },
+    [],
+  );
+
+  const justSelected = useLocationStore((s) => s.justSelected);
+  const setJustSelected = useCallback((value: boolean) => {
+    useLocationStore.setState({ justSelected: value });
+  }, []);
+
+  // TanStack Debouncer for API calls
+  const fetchDebouncerRef = useRef(
+    new Debouncer(
+      async (text: string) => {
+        if (text.length < 2) {
+          setPredictions([]);
+          setActiveSection(recentLocations.length > 0 ? "recent" : "current");
+          return;
+        }
+        if (hasError) return;
+
+        setActiveSection("search");
+        await fetchPredictions(text);
+      },
+      { wait: 300 },
+    ),
+  );
 
   // Load recent locations on mount
   useEffect(() => {
@@ -229,13 +312,13 @@ export function LocationAutocompleteInstagram({
     inputText.length,
   ]);
 
-  // Fetch predictions when debounced text changes
+  // Fetch predictions when input text changes (debounced via TanStack)
   useEffect(() => {
     console.log(
       "[LocationAutocompleteInstagram] Text changed:",
-      debouncedText,
+      inputText,
       "length:",
-      debouncedText.length,
+      inputText.length,
     );
 
     // Don't fetch if we just selected something (prevents dropdown from reopening)
@@ -246,26 +329,9 @@ export function LocationAutocompleteInstagram({
       return;
     }
 
-    if (debouncedText.length < 2) {
-      console.log(
-        "[LocationAutocompleteInstagram] Text too short, clearing predictions",
-      );
-      setPredictions([]);
-      setActiveSection(recentLocations.length > 0 ? "recent" : "current");
-      return;
-    }
-
-    if (hasError) {
-      console.log("[LocationAutocompleteInstagram] Has error, skipping fetch");
-      return;
-    }
-
-    console.log(
-      "[LocationAutocompleteInstagram] Setting active section to search",
-    );
-    setActiveSection("search");
-    fetchPredictions(debouncedText);
-  }, [debouncedText, hasError, recentLocations.length, justSelected]);
+    // Trigger debounced fetch
+    fetchDebouncerRef.current.maybeExecute(inputText);
+  }, [inputText, justSelected]);
 
   const fetchPredictions = async (text: string) => {
     console.log(
