@@ -37,6 +37,7 @@ import { usePost, useDeletePost } from "@/lib/hooks/use-posts";
 import { useComments } from "@/lib/hooks/use-comments";
 import { CommentLikeButton } from "@/components/comments/threaded-comment";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
+import { useVideoPlayerStore } from "@/lib/stores/video-player-store";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
@@ -142,11 +143,19 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     "PostDetail",
     postId,
   );
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const {
+    currentTime,
+    duration,
+    isMuted,
+    isPlaying,
+    isFullscreen,
+    setCurrentTime,
+    setDuration,
+    setIsMuted,
+    setIsPlaying,
+    setIsFullscreen,
+    reset,
+  } = useVideoPlayerStore();
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const videoUrl = useMemo(() => {
@@ -231,8 +240,8 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
   }, [player, isMountedRef, isMuted]);
 
   const handleFullscreenToggle = useCallback(() => {
-    setIsFullscreen((prev) => !prev);
-  }, []);
+    setIsFullscreen(!isFullscreen);
+  }, [isFullscreen, setIsFullscreen]);
 
   if (!videoUrl) {
     return (
