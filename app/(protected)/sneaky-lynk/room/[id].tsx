@@ -667,79 +667,7 @@ function ServerRoom({
   const roomTitle = videoRoom.room?.title || paramTitle || "Room";
   const roomUuid = videoRoom.room?.id || id;
 
-  // ── EARLY RETURN: Only after ALL hooks have been called ───────────
-  if (connectionState === "connecting" || connectionState === "disconnected") {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <ActivityIndicator size="large" color="#FC253A" />
-        <Text className="text-foreground mt-4">
-          {connectionState === "connecting"
-            ? "Joining room..."
-            : "Preparing room..."}
-        </Text>
-      </View>
-    );
-  }
-
-  // Build SneakyUser from a Fishjam participant
-  const peerToUser = (p: any): SneakyUser => {
-    const isAnon = p.isAnonymous || p.username?.startsWith("ANON LYNK");
-    return {
-      id: p.userId || p.oderId || p.odId,
-      username: isAnon
-        ? p.anonLabel || p.username || "ANON LYNK"
-        : p.username || "User",
-      displayName: isAnon
-        ? p.anonLabel || p.username || "ANON LYNK"
-        : p.username || "User",
-      avatar: isAnon ? "" : p.avatar || "",
-      isVerified: false,
-      isAnonymous: isAnon,
-      anonLabel: isAnon ? p.anonLabel || p.username : null,
-    };
-  };
-
-  // ── Build flat VideoParticipant[] for VideoGrid ──────────────────
-  const remotePeers = videoRoom.participants || [];
-  const localCameraStream = videoRoom.camera?.cameraStream || null;
-
-  const allParticipants: VideoParticipant[] = [];
-
-  // Local user first (always shown at top-left)
-  allParticipants.push({
-    id: localUser.id,
-    user: localUser,
-    role: isHost ? "host" : videoRoom.localUser?.role || "participant",
-    isLocal: true,
-    isCameraOn: effectiveVideoOn,
-    isMicOn: !effectiveMuted,
-    videoTrack: localCameraStream ? { stream: localCameraStream } : undefined,
-  });
-
-  // Remote peers
-  remotePeers.forEach((p: any) => {
-    allParticipants.push({
-      id: p.userId || p.oderId || p.odId,
-      user: peerToUser(p),
-      role: p.role || "participant",
-      isLocal: false,
-      isCameraOn: p.isCameraOn || false,
-      isMicOn: p.isMicOn || false,
-      videoTrack: p.videoTrack,
-      audioTrack: p.audioTrack,
-    });
-  });
-
-  // Active speakers
-  const activeSpeakerIds = new Set<string>();
-  if (!effectiveMuted) activeSpeakerIds.add(localUser.id);
-  remotePeers.forEach((p: any) => {
-    if (p.isMicOn) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
-  });
-
-  const totalParticipants = allParticipants.length;
-
-  // ── Host action handlers ─────────────────────────────────────────
+  // ── CRITICAL: All useCallback handlers BEFORE early return ────────
   const handleMutePeer = useCallback(
     async (targetUserId: string) => {
       const res = await videoApi.mutePeer({ roomId: roomUuid, targetUserId });
@@ -839,6 +767,78 @@ function ServerRoom({
   const handleParticipantPress = useCallback((p: VideoParticipant) => {
     setActionTarget(p);
   }, []);
+
+  // ── EARLY RETURN: Only after ALL hooks have been called ───────────
+  if (connectionState === "connecting" || connectionState === "disconnected") {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#FC253A" />
+        <Text className="text-foreground mt-4">
+          {connectionState === "connecting"
+            ? "Joining room..."
+            : "Preparing room..."}
+        </Text>
+      </View>
+    );
+  }
+
+  // Build SneakyUser from a Fishjam participant
+  const peerToUser = (p: any): SneakyUser => {
+    const isAnon = p.isAnonymous || p.username?.startsWith("ANON LYNK");
+    return {
+      id: p.userId || p.oderId || p.odId,
+      username: isAnon
+        ? p.anonLabel || p.username || "ANON LYNK"
+        : p.username || "User",
+      displayName: isAnon
+        ? p.anonLabel || p.username || "ANON LYNK"
+        : p.username || "User",
+      avatar: isAnon ? "" : p.avatar || "",
+      isVerified: false,
+      isAnonymous: isAnon,
+      anonLabel: isAnon ? p.anonLabel || p.username : null,
+    };
+  };
+
+  // ── Build flat VideoParticipant[] for VideoGrid ──────────────────
+  const remotePeers = videoRoom.participants || [];
+  const localCameraStream = videoRoom.camera?.cameraStream || null;
+
+  const allParticipants: VideoParticipant[] = [];
+
+  // Local user first (always shown at top-left)
+  allParticipants.push({
+    id: localUser.id,
+    user: localUser,
+    role: isHost ? "host" : videoRoom.localUser?.role || "participant",
+    isLocal: true,
+    isCameraOn: effectiveVideoOn,
+    isMicOn: !effectiveMuted,
+    videoTrack: localCameraStream ? { stream: localCameraStream } : undefined,
+  });
+
+  // Remote peers
+  remotePeers.forEach((p: any) => {
+    allParticipants.push({
+      id: p.userId || p.oderId || p.odId,
+      user: peerToUser(p),
+      role: p.role || "participant",
+      isLocal: false,
+      isCameraOn: p.isCameraOn || false,
+      isMicOn: p.isMicOn || false,
+      videoTrack: p.videoTrack,
+      audioTrack: p.audioTrack,
+    });
+  });
+
+  // Active speakers
+  const activeSpeakerIds = new Set<string>();
+  if (!effectiveMuted) activeSpeakerIds.add(localUser.id);
+  remotePeers.forEach((p: any) => {
+    if (p.isMicOn) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
+  });
+
+  const totalParticipants = allParticipants.length;
 
   return (
     <>
