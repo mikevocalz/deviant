@@ -372,10 +372,12 @@ function FeedPostComponent({
     queryClient,
   ]);
 
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isFullscreen = useFeedPostUIStore(
+    (s) => s.getVideoState(id).isFullscreen,
+  );
   const handleFullscreenToggle = useCallback(() => {
-    setIsFullscreen((prev) => !prev);
-  }, []);
+    setVideoState(id, { isFullscreen: !isFullscreen });
+  }, [id, isFullscreen, setVideoState]);
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
   const commentCount = Array.isArray(comments) ? comments.length : comments;
