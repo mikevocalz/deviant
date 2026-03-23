@@ -900,17 +900,17 @@ function PostDetailScreenContent() {
             </View>
           </View>
 
-          {/* Media - CRITICAL: Uses same dimensions as FeedItem (4:5 ratio) */}
-          {hasMedia ? (
-            <View
-              style={{
-                width: SCREEN_WIDTH,
-                height: PORTRAIT_HEIGHT,
-                borderRadius: isVideo ? 0 : 12,
-                overflow: "hidden",
-              }}
-              className="bg-muted"
-            >
+          {/* Media - CRITICAL: Always render to maintain stable hook count */}
+          <View
+            style={{
+              display: hasMedia ? "flex" : "none",
+              width: SCREEN_WIDTH,
+              height: PORTRAIT_HEIGHT,
+              borderRadius: isVideo ? 0 : 12,
+              overflow: "hidden",
+            }}
+            className="bg-muted"
+          >
               {/* CRITICAL: Always render PostVideoPlayer to prevent hook-order violations
                   Pass empty URL for image posts - component handles gracefully */}
               <View
@@ -1215,7 +1215,10 @@ function PostDetailScreenContent() {
                 </DVNTLiquidGlass>
               </View>
             </View>
-          ) : (
+          </View>
+
+          {/* Text-only post - shown when no media */}
+          {!hasMedia && (
             <View
               style={{
                 width: SCREEN_WIDTH,
