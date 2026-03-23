@@ -613,14 +613,15 @@ function ServerRoom({
     })();
   }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Speaking indicator
+  // Speaking indicator - only clear when muted, don't auto-set when unmuted
+  // Actual voice activity detection should come from Fishjam SDK
   useEffect(() => {
     if (effectiveMuted) {
       setActiveSpeakerId(null as any);
-    } else {
-      setActiveSpeakerId(localUser.id);
     }
-  }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
+    // Removed: auto-setting localUser.id as active speaker when unmuted
+    // This caused talk animation to show constantly even when not speaking
+  }, [effectiveMuted, setActiveSpeakerId]);
 
   const handleLeave = useCallback(async () => {
     if (isHost) {
@@ -817,10 +818,14 @@ function ServerRoom({
     videoTrack: localCameraStream ? { stream: localCameraStream } : undefined,
   });
 
-  // Remote peers
+  // Remote peers - exclude local user to prevent duplicates
   remotePeers.forEach((p: any) => {
+    const peerId = p.userId || p.oderId || p.odId;
+    // Skip if this is actually the local user (prevents duplicate)
+    if (peerId === localUser.id || peerId === authUser?.id) return;
+
     allParticipants.push({
-      id: p.userId || p.oderId || p.odId,
+      id: peerId,
       user: peerToUser(p),
       role: p.role || "participant",
       isLocal: false,
@@ -831,11 +836,13 @@ function ServerRoom({
     });
   });
 
-  // Active speakers
+  // Active speakers - should be set by voice activity detection, not mic state
   const activeSpeakerIds = new Set<string>();
-  if (!effectiveMuted) activeSpeakerIds.add(localUser.id);
+  // Removed auto-adding based on mic state - causes talk animation when not speaking
+  // Voice activity detection should come from Fishjam SDK
   remotePeers.forEach((p: any) => {
-    if (p.isMicOn) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
+    // Only add if actually speaking (voice activity), not just unmuted
+    if (p.isSpeaking) activeSpeakerIds.add(p.userId || p.oderId || p.odId);
   });
 
   const totalParticipants = allParticipants.length;
@@ -1022,7 +1029,7 @@ function RoomLayout({
       </View>
 
       {/* Video Grid — Zoom-like layout for all participants */}
-      <View className="flex-1">
+      <View className="flex-1" style={{ paddingBottom: 96 }}>
         <VideoGrid
           participants={allParticipants}
           activeSpeakers={activeSpeakers}
