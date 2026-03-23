@@ -35,7 +35,9 @@ export default {
       enableBsdiffPatchSupport: true,
       waitBeforeLaunchMs: 5000, // 5 seconds to allow rollback detection
       // Enhanced crash hardening
-      enabled: process.env.NODE_ENV !== "development", // Disable updates in development to prevent conflicts
+      // CRITICAL: Use appEnv (which reads APP_ENV from EAS profiles), NOT NODE_ENV
+      // NODE_ENV defaults to "development" during Metro bundling even for production builds
+      enabled: appEnv === "production" || appEnv === "preview", // Enable OTA for production and preview builds only
       runtimeVersion: "1.0.0", // Fixed runtime version for OTA safety
       message: "A new version is available. Restart to apply updates.", // User-friendly message
     },
