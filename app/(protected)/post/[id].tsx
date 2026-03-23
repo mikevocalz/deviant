@@ -879,9 +879,9 @@ function PostDetailScreenContent() {
       </View>
 
       <ScrollView>
-        <View className="border-b border-border bg-card">
+        <View className="border-b border-border">
           {/* Header */}
-          <View className="flex-row items-center justify-between p-4">
+          <View className="flex-row items-center justify-between p-4 bg-card">
             <View className="flex-row items-center gap-3">
               <Pressable onPress={handleProfilePress}>
                 <Avatar
