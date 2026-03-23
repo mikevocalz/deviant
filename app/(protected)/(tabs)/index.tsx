@@ -8,7 +8,6 @@ import { LayoutGrid, List } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { DebugOTAStatus } from "@/components/debug-ota-status";
 
 export const FeedModeToggle = memo(function FeedModeToggle() {
   const feedMode = useAppStore((s) => s.feedMode);
@@ -102,7 +101,6 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
-      <DebugOTAStatus />
       <View
         style={{
           position: "absolute",
