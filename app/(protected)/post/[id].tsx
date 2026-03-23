@@ -243,194 +243,203 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     setIsFullscreen(!isFullscreen);
   }, [isFullscreen, setIsFullscreen]);
 
-  if (!videoUrl) {
-    return (
-      <View
-        style={{
-          width: "100%",
-          height: "100%",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text className="text-muted-foreground">Video unavailable</Text>
-      </View>
-    );
-  }
+  // CRITICAL: NO early returns - always render same structure to maintain hook count
+  const hasVideo = !!videoUrl;
 
   return (
     <View style={{ width: "100%", height: "100%" }}>
-      <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
-        <VideoView
-          player={player}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-          nativeControls={false}
-        />
-        {/* Play overlay when paused */}
-        {!isPlaying && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <View
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 28,
-                backgroundColor: "rgba(0,0,0,0.5)",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Play size={28} color="#fff" fill="#fff" />
-            </View>
-          </View>
-        )}
-      </Pressable>
-
-      {/* Mute toggle */}
-      <Pressable
-        onPress={toggleMute}
-        style={{ position: "absolute", top: 12, right: 12, zIndex: 50 }}
-        hitSlop={12}
-      >
+      {!hasVideo ? (
         <View
           style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            backgroundColor: "rgba(0,0,0,0.5)",
+            width: "100%",
+            height: "100%",
             alignItems: "center",
             justifyContent: "center",
           }}
         >
-          {isMuted ? (
-            <VolumeX size={16} color="#fff" />
-          ) : (
-            <Volume2 size={16} color="#fff" />
-          )}
+          <Text className="text-muted-foreground">Video unavailable</Text>
         </View>
-      </Pressable>
-
-      {/* Expand button */}
-      <Pressable
-        onPress={handleFullscreenToggle}
-        style={{ position: "absolute", bottom: 12, right: 12, zIndex: 50 }}
-        hitSlop={12}
-      >
-        <DVNTLiquidGlassIconButton size={36}>
-          <Maximize2 size={17} color="#fff" />
-        </DVNTLiquidGlassIconButton>
-      </Pressable>
-
-      {/* Seek bar */}
-      <DVNTSeekBar
-        currentTime={currentTime}
-        duration={duration}
-        onSeek={handleSeek}
-        onSeekEnd={() => {
-          if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
-        }}
-        barWidth={SCREEN_WIDTH - 32}
-      />
-
-      {/* Fullscreen modal */}
-      <Modal
-        visible={isFullscreen}
-        animationType="fade"
-        supportedOrientations={["portrait", "landscape"]}
-        statusBarTranslucent
-        onRequestClose={handleFullscreenToggle}
-      >
-        <StatusBar hidden />
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
-            <VideoView
-              player={player}
-              style={{ flex: 1 }}
-              contentFit="contain"
-              nativeControls={false}
-            />
-            {!isPlaying && (
+      ) : (
+        <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
+          <VideoView
+            player={player}
+            style={{ width: "100%", height: "100%" }}
+            contentFit="cover"
+            nativeControls={false}
+          />
+          {/* Play overlay when paused */}
+          {!isPlaying && (
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               <View
                 style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
+                  width: 56,
+                  height: 56,
+                  borderRadius: 28,
+                  backgroundColor: "rgba(0,0,0,0.5)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
+                <Play size={28} color="#fff" fill="#fff" />
+              </View>
+            </View>
+          )}
+        </Pressable>
+      )}
+
+      {/* Mute toggle - only show for videos */}
+      {hasVideo && (
+        <Pressable
+          onPress={toggleMute}
+          style={{ position: "absolute", top: 12, right: 12, zIndex: 50 }}
+          hitSlop={12}
+        >
+          <View
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 17,
+              backgroundColor: "rgba(0,0,0,0.5)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isMuted ? (
+              <VolumeX size={16} color="#fff" />
+            ) : (
+              <Volume2 size={16} color="#fff" />
+            )}
+          </View>
+        </Pressable>
+      )}
+
+      {/* Expand button - only show for videos */}
+      {hasVideo && (
+        <Pressable
+          onPress={handleFullscreenToggle}
+          style={{ position: "absolute", bottom: 12, right: 12, zIndex: 50 }}
+          hitSlop={12}
+        >
+          <DVNTLiquidGlassIconButton size={36}>
+            <Maximize2 size={17} color="#fff" />
+          </DVNTLiquidGlassIconButton>
+        </Pressable>
+      )}
+
+      {/* Seek bar - only show for videos */}
+      {hasVideo && (
+        <DVNTSeekBar
+          currentTime={currentTime}
+          duration={duration}
+          onSeek={handleSeek}
+          onSeekEnd={() => {
+            if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
+          }}
+          barWidth={SCREEN_WIDTH - 32}
+        />
+      )}
+
+      {/* Fullscreen modal - only show for videos */}
+      {hasVideo && (
+        <Modal
+          visible={isFullscreen}
+          animationType="fade"
+          supportedOrientations={["portrait", "landscape"]}
+          statusBarTranslucent
+          onRequestClose={handleFullscreenToggle}
+        >
+          <StatusBar hidden />
+          <View style={{ flex: 1, backgroundColor: "#000" }}>
+            <Pressable onPress={togglePlayPause} style={{ flex: 1 }}>
+              <VideoView
+                player={player}
+                style={{ flex: 1 }}
+                contentFit="contain"
+                nativeControls={false}
+              />
+              {!isPlaying && (
                 <View
                   style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    backgroundColor: "rgba(0,0,0,0.5)",
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
                     alignItems: "center",
                     justifyContent: "center",
                   }}
                 >
-                  <Play size={28} color="#fff" fill="#fff" />
+                  <View
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: "rgba(0,0,0,0.5)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Play size={28} color="#fff" fill="#fff" />
+                  </View>
                 </View>
-              </View>
-            )}
-          </Pressable>
-          {/* Seek bar — 20px from bottom */}
-          <View
-            style={{
-              position: "absolute",
-              bottom: 16,
-              left: 0,
-              right: 0,
-              height: 28,
-            }}
-          >
-            <DVNTSeekBar
-              currentTime={currentTime}
-              duration={duration}
-              onSeek={handleSeek}
-              onSeekEnd={() => {
-                if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
-              }}
-            />
-          </View>
-          {/* Minimize — bottom right, above seek bar */}
-          <Pressable
-            onPress={handleFullscreenToggle}
-            style={{ position: "absolute", bottom: 56, right: 20 }}
-            hitSlop={16}
-          >
-            <DVNTLiquidGlassIconButton size={42}>
-              <Minimize2 size={20} color="#fff" />
-            </DVNTLiquidGlassIconButton>
-          </Pressable>
-          {/* Mute */}
-          <Pressable
-            onPress={toggleMute}
-            style={{ position: "absolute", top: 52, left: 20 }}
-            hitSlop={16}
-          >
-            <DVNTLiquidGlassIconButton size={42}>
-              {isMuted ? (
-                <VolumeX size={20} color="#fff" />
-              ) : (
-                <Volume2 size={20} color="#fff" />
               )}
-            </DVNTLiquidGlassIconButton>
-          </Pressable>
-        </View>
-      </Modal>
+            </Pressable>
+            {/* Seek bar — 20px from bottom */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: 16,
+                left: 0,
+                right: 0,
+                height: 28,
+              }}
+            >
+              <DVNTSeekBar
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={handleSeek}
+                onSeekEnd={() => {
+                  if (isPlaying) safePlay(player, isMountedRef, "PostDetail");
+                }}
+              />
+            </View>
+            {/* Minimize — bottom right, above seek bar */}
+            <Pressable
+              onPress={handleFullscreenToggle}
+              style={{ position: "absolute", bottom: 56, right: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                <Minimize2 size={20} color="#fff" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+            {/* Mute */}
+            <Pressable
+              onPress={toggleMute}
+              style={{ position: "absolute", top: 52, left: 20 }}
+              hitSlop={16}
+            >
+              <DVNTLiquidGlassIconButton size={42}>
+                {isMuted ? (
+                  <VolumeX size={20} color="#fff" />
+                ) : (
+                  <Volume2 size={20} color="#fff" />
+                )}
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
