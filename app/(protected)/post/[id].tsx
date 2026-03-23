@@ -1048,24 +1048,23 @@ function PostDetailScreenContent() {
             </View>
 
             {/* Tag overlay — tap image to toggle, sits on top of all media */}
-            {!isVideo && postTags.length > 0 && (
-              <Pressable
-                onPress={handleImageTap}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                }}
-              >
-                <TagOverlayViewer
-                  postId={postId}
-                  mediaIndex={currentSlide}
-                  tagProgress={tagProgress}
-                />
-              </Pressable>
-            )}
+            <Pressable
+              onPress={handleImageTap}
+              style={{
+                display: !isVideo && postTags.length > 0 ? "flex" : "none",
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+              }}
+            >
+              <TagOverlayViewer
+                postId={postId}
+                mediaIndex={currentSlide}
+                tagProgress={tagProgress}
+              />
+            </Pressable>
 
             {/* Action pill overlay — matches feed design */}
             <View
