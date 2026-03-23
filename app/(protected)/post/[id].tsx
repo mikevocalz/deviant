@@ -893,14 +893,30 @@ function PostDetailScreenContent() {
               }}
               className="bg-muted"
             >
-              {isVideo ? (
+              {/* CRITICAL: Always render PostVideoPlayer to prevent hook-order violations
+                  Pass empty URL for image posts - component handles gracefully */}
+              <View
+                style={{
+                  display: isVideo ? "flex" : "none",
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
                 <SafeMediaWrapper width={SCREEN_WIDTH} height={PORTRAIT_HEIGHT}>
                   <PostVideoPlayer
                     postId={postId}
-                    url={safePost.media?.[0]?.url}
+                    url={isVideo ? safePost.media?.[0]?.url : ""}
                   />
                 </SafeMediaWrapper>
-              ) : (
+              </View>
+
+              <View
+                style={{
+                  display: isVideo ? "none" : "flex",
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
                 <SafeMediaWrapper width={SCREEN_WIDTH} height={PORTRAIT_HEIGHT}>
                   <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
                     {hasMultipleMedia ? (
@@ -1011,7 +1027,7 @@ function PostDetailScreenContent() {
                     )}
                   </Galeria>
                 </SafeMediaWrapper>
-              )}
+              </View>
 
               {/* Tag overlay — tap image to toggle, sits on top of all media */}
               {!isVideo && postTags.length > 0 && (
