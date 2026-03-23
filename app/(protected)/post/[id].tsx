@@ -666,6 +666,32 @@ function PostDetailScreenContent() {
     ]);
   }, [postId, deletePostMutation, showToast, router]);
 
+  // CRITICAL: Compute all derived values and useMemo BEFORE early returns
+  // These must be called unconditionally to maintain stable hook count
+  const isVideo = safePost.media?.[0]?.type === "video";
+  const hasMedia =
+    safePost.media &&
+    Array.isArray(safePost.media) &&
+    safePost.media.length > 0;
+  const hasMultipleMedia = hasMedia && safePost.media.length > 1 && !isVideo;
+  const postIdString = safePost.id ? String(safePost.id) : postId;
+
+  // Collect valid image URLs for Galeria full-screen viewer
+  const imageUrls = useMemo(() => {
+    if (!hasMedia || isVideo) return [];
+    return safePost.media
+      .filter(
+        (m) =>
+          m.type !== "video" &&
+          m.url &&
+          (m.url.startsWith("http://") || m.url.startsWith("https://")),
+      )
+      .map((m) => m.url);
+  }, [hasMedia, isVideo, safePost.media]);
+  const isLiked = isPostLiked; // From usePostLikeState hook
+  const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
+  const commentCount = comments.length;
+
   // EARLY RETURNS: Only AFTER all hooks have been called
   // Invalid params - show error UI
   if (!paramsResult.valid) {
@@ -824,30 +850,6 @@ function PostDetailScreenContent() {
       </SafeAreaView>
     );
   }
-
-  const isVideo = safePost.media?.[0]?.type === "video";
-  const hasMedia =
-    safePost.media &&
-    Array.isArray(safePost.media) &&
-    safePost.media.length > 0;
-  const hasMultipleMedia = hasMedia && safePost.media.length > 1 && !isVideo;
-  const postIdString = safePost.id ? String(safePost.id) : postId;
-
-  // Collect valid image URLs for Galeria full-screen viewer
-  const imageUrls = useMemo(() => {
-    if (!hasMedia || isVideo) return [];
-    return safePost.media
-      .filter(
-        (m) =>
-          m.type !== "video" &&
-          m.url &&
-          (m.url.startsWith("http://") || m.url.startsWith("https://")),
-      )
-      .map((m) => m.url);
-  }, [hasMedia, isVideo, safePost.media]);
-  const isLiked = isPostLiked; // From usePostLikeState hook
-  const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
-  const commentCount = comments.length;
 
   return (
     <SafeAreaView
