@@ -657,6 +657,17 @@ function ServerRoom({
     router.back();
   }, [router, hideEject]);
 
+  // ── CRITICAL: All useState MUST be called BEFORE early returns ────
+  const [actionTarget, setActionTarget] = useState<VideoParticipant | null>(
+    null,
+  );
+  const [allMuted, setAllMuted] = useState(false);
+
+  // ── Derived values that depend on videoRoom (also before early return) ─
+  const roomTitle = videoRoom.room?.title || paramTitle || "Room";
+  const roomUuid = videoRoom.room?.id || id;
+
+  // ── EARLY RETURN: Only after ALL hooks have been called ───────────
   if (connectionState === "connecting" || connectionState === "disconnected") {
     return (
       <View className="flex-1 bg-background items-center justify-center">
@@ -669,14 +680,6 @@ function ServerRoom({
       </View>
     );
   }
-
-  const roomTitle = videoRoom.room?.title || paramTitle || "Room";
-  const roomUuid = videoRoom.room?.id || id;
-
-  // ── Host action state ────────────────────────────────────────────
-  const [actionTarget, setActionTarget] = useState<VideoParticipant | null>(
-    null,
-  );
 
   // Build SneakyUser from a Fishjam participant
   const peerToUser = (p: any): SneakyUser => {
@@ -748,8 +751,6 @@ function ServerRoom({
     },
     [roomUuid, showToast],
   );
-
-  const [allMuted, setAllMuted] = useState(false);
 
   const handleToggleMuteAll = useCallback(async () => {
     if (allMuted) {
