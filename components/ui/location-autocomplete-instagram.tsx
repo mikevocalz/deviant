@@ -771,8 +771,8 @@ export function LocationAutocompleteInstagram({
               "inputText:",
               inputText,
             );
-            // Don't show dropdown if we just selected something OR if we have a selected value
-            if (!justSelected && !inputText) {
+            // Don't show dropdown if we just selected something
+            if (!justSelected) {
               console.log(
                 "[LocationAutocompleteInstagram] Showing dropdown on focus",
               );
@@ -782,14 +782,15 @@ export function LocationAutocompleteInstagram({
               );
             } else {
               console.log(
-                "[LocationAutocompleteInstagram] Skipping dropdown - just selected or has value",
+                "[LocationAutocompleteInstagram] Skipping dropdown - just selected",
               );
             }
           }}
           onBlur={() => {
             console.log("[LocationAutocompleteInstagram] Input blurred");
-            // Reset the flag on blur to allow normal behavior next time
-            setJustSelected(false);
+            // Don't reset justSelected on blur - the setTimeout in selection handlers
+            // will reset it after 1 second, which prevents dropdown from reopening
+            // when input regains focus during parent component re-renders
           }}
         />
         {(isLoading || isLoadingLocation) && (
