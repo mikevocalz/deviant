@@ -54,9 +54,9 @@ import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
 import {
-  LocationAutocomplete,
+  LocationAutocompleteInstagram,
   type LocationData,
-} from "@/components/ui/location-autocomplete";
+} from "@/components/ui/location-autocomplete-instagram";
 
 function EditEventScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -640,10 +640,10 @@ function EditEventScreenContent() {
           <Text className="text-sm font-medium text-foreground mb-2">
             Location
           </Text>
-          <LocationAutocomplete
+          <LocationAutocompleteInstagram
             value={location}
             placeholder="Search location..."
-            onLocationSelect={(data) => {
+            onLocationSelect={(data: LocationData) => {
               setLocation(data.name);
               setLocationData(data);
             }}
