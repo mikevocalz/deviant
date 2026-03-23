@@ -22,21 +22,33 @@ export const conversationResolutionKeys = {
 export function useConversationResolution(identifier: string) {
   return useQuery({
     queryKey: conversationResolutionKeys.byIdentifier(identifier),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // Fast path: already a numeric conversation ID
       if (/^\d+$/.test(identifier)) {
         return identifier;
       }
 
-      // Resolve username/auth_id to conversation ID via edge function
-      const convId =
-        await messagesApiClient.getOrCreateConversation(identifier);
-      return convId;
+      // CRITICAL: 10-second timeout to prevent infinite loading
+      const timeoutId = setTimeout(() => {
+        console.error("[ConversationResolution] Timeout after 10s");
+      }, 10000);
+
+      try {
+        // Resolve username/auth_id to conversation ID via edge function
+        const convId =
+          await messagesApiClient.getOrCreateConversation(identifier);
+        clearTimeout(timeoutId);
+        return convId;
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
     },
     staleTime: 5 * 60 * 1000, // 5 minutes - conversations don't change
     gcTime: 30 * 60 * 1000, // 30 minutes in cache
     enabled: !!identifier,
-    retry: 2,
+    retry: 1, // Only retry once - fail fast
+    retryDelay: 1000, // 1 second between retries
   });
 }
 

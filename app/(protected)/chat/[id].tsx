@@ -395,11 +395,14 @@ function ChatScreenContent() {
     data: resolvedConvId,
     isLoading: isResolvingConversation,
     error: resolutionError,
+    refetch: retryResolution,
   } = useConversationResolution(chatId);
 
   // Track the active conversation ID used for reading/writing messages.
-  // Use resolved ID from query, fallback to chatId for numeric IDs
-  const activeConvId = resolvedConvId || chatId;
+  // CRITICAL: For numeric IDs, use chatId directly even if resolution failed
+  // This allows existing conversations to work even if edge function is down
+  const isNumericId = /^\d+$/.test(chatId);
+  const activeConvId = resolvedConvId || (isNumericId ? chatId : "");
 
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
@@ -800,15 +803,16 @@ function ChatScreenContent() {
     // Use the resolved conversation ID from TanStack Query
     const convId = activeConvId;
 
-    // GUARD: Block send if conversation is still resolving
-    if (isResolvingConversation || !convId) {
-      console.warn("[Chat] Send blocked — conversation ID not resolved yet");
+    // GUARD: Block send ONLY if we have no conversation ID at all
+    // Allow send to proceed even if resolution is slow/retrying
+    if (!convId) {
+      console.warn("[Chat] Send blocked — no conversation ID available");
       useUIStore
         .getState()
         .showToast(
           "error",
-          "Hold on",
-          "Chat is still loading. Try again in a moment.",
+          "Can't send yet",
+          "Still setting up chat. Try again in a moment.",
         );
       return;
     }
@@ -988,10 +992,13 @@ function ChatScreenContent() {
     setPreviewMedia(null);
   }, [setShowPreviewModal, setPreviewMedia]);
 
+  // CRITICAL: Allow send if we have an active conversation ID
+  // Don't block on isResolvingConversation - it might be retrying/slow
+  // Block only if we truly have no conversation ID to send to
   const canSend =
     (currentMessage.trim() || pendingMedia.length > 0) &&
     !isSending &&
-    !isResolvingConversation;
+    !!activeConvId;
 
   const { deleteMessage, editMessage, reactToMessage } = useChatStore();
 
@@ -1082,11 +1089,50 @@ function ChatScreenContent() {
     setSelectedMessage(null);
   }, [selectedMessage, showToast]);
 
-  // Show loading while loading screen state OR loading recipient
-  if (isLoading || isLoadingRecipient) {
+  // Show loading ONLY if truly loading, not if we have an error
+  if ((isLoading || isLoadingRecipient) && !resolutionError) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <ChatSkeleton />
+      </SafeAreaView>
+    );
+  }
+
+  // Show error UI if conversation resolution failed (Instagram-like retry)
+  if (resolutionError && !activeConvId) {
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <ArrowLeft size={24} color="#fff" />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Chat</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-6">
+          <MessageCircle size={64} color="#666" strokeWidth={1.5} />
+          <Text className="text-foreground text-lg font-semibold mt-4 text-center">
+            Couldn't load chat
+          </Text>
+          <Text className="text-muted-foreground text-sm mt-2 text-center">
+            Check your connection and try again
+          </Text>
+          <View className="flex-row gap-3 mt-6">
+            <Pressable
+              onPress={() => router.back()}
+              className="px-6 py-3 bg-secondary rounded-xl"
+            >
+              <Text className="text-foreground font-semibold">Go Back</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => retryResolution()}
+              className="px-6 py-3 bg-primary rounded-xl"
+            >
+              <Text className="text-primary-foreground font-semibold">
+                Try Again
+              </Text>
+            </Pressable>
+          </View>
+        </View>
       </SafeAreaView>
     );
   }

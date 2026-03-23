@@ -443,55 +443,13 @@ function PostDetailScreenContent() {
 
   loopDetection.log("PostDetail", "mount", { id: normalizedParams.id });
 
-  // CRITICAL: Validate params BEFORE any other hooks
-  // This prevents crashes from undefined/null/invalid IDs
+  // CRITICAL: Validate params but DON'T return early
+  // Compute validation result, use for conditional rendering AFTER all hooks
   const paramsResult = validatePostParams(normalizedParams);
+  const postId = paramsResult.valid ? paramsResult.postId : "";
 
-  // Show error UI if params are invalid (before calling data hooks)
-  if (!paramsResult.valid) {
-    if (__DEV__) {
-      console.error(
-        "[PostDetail] Invalid params:",
-        paramsResult.error,
-        paramsResult.rawValue,
-      );
-    }
-    return (
-      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={16}
-            style={{ padding: 8, margin: -8, marginRight: 8 }}
-          >
-            <ArrowLeft size={24} color={colors.foreground} />
-          </Pressable>
-          <Text className="text-lg font-semibold text-foreground">Post</Text>
-        </View>
-        <View className="flex-1 items-center justify-center p-4">
-          <Text className="text-muted-foreground text-center mb-2">
-            Invalid post link
-          </Text>
-          <Text className="text-muted-foreground text-sm text-center mb-4">
-            {paramsResult.error}
-          </Text>
-          <Pressable
-            onPress={() => router.back()}
-            className="px-4 py-2 bg-primary rounded-lg"
-          >
-            <Text className="text-primary-foreground font-semibold">
-              Go Back
-            </Text>
-          </Pressable>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Extract validated post ID
-  const postId = paramsResult.postId;
-
-  // NOW call data hooks with guaranteed valid ID
+  // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY
+  // Pass empty string if invalid - hooks will handle gracefully
   const { data: post, isLoading, error: postError } = usePost(postId);
   const { data: comments = [], isLoading: commentsLoading } =
     useComments(postId);
@@ -684,7 +642,49 @@ function PostDetailScreenContent() {
     ]);
   }, [postId, deletePostMutation, showToast, router]);
 
-  // NOW we can have early returns - after all hooks
+  // EARLY RETURNS: Only AFTER all hooks have been called
+  // Invalid params - show error UI
+  if (!paramsResult.valid) {
+    if (__DEV__) {
+      console.error(
+        "[PostDetail] Invalid params:",
+        paramsResult.error,
+        paramsResult.rawValue,
+      );
+    }
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center border-b border-border bg-background px-4 py-3">
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={16}
+            style={{ padding: 8, margin: -8, marginRight: 8 }}
+          >
+            <ArrowLeft size={24} color={colors.foreground} />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Post</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-4">
+          <Text className="text-muted-foreground text-center mb-2">
+            Invalid post link
+          </Text>
+          <Text className="text-muted-foreground text-sm text-center mb-4">
+            {paramsResult.error}
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            className="px-4 py-2 bg-primary rounded-lg"
+          >
+            <Text className="text-primary-foreground font-semibold">
+              Go Back
+            </Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Empty postId after validation
   if (!postId) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
