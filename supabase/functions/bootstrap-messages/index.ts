@@ -157,7 +157,7 @@ Deno.serve(async (req: Request) => {
           .select("id", { count: "exact", head: true })
           .eq("conversation_id", convId)
           .is("read_at", null)
-          .neq("sender_id", userIntId);
+          .neq("sender_id", authId);
 
         const hasUnread = (unreadCount ?? 0) > 0;
 
