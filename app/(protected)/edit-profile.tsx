@@ -261,10 +261,17 @@ function EditProfileScreenContent() {
         const updatedUser = await usersApi.updateProfile(updateData);
         console.log("[EditProfile] Server confirmed:", updatedUser);
 
-        // Update with server response for any server-side changes
+        // Update with server response, preserving required AppUser fields
         setUser({
-          ...optimisticUser,
-          ...updatedUser,
+          ...user, // Start with original user (has all counts)
+          ...optimisticUser, // Apply optimistic changes
+          ...updatedUser, // Apply server response
+          // CRITICAL: Ensure counts are preserved
+          postsCount: updatedUser.postsCount ?? user.postsCount ?? 0,
+          followersCount:
+            updatedUser.followersCount ?? user.followersCount ?? 0,
+          followingCount:
+            updatedUser.followingCount ?? user.followingCount ?? 0,
         });
       } catch (serverError: any) {
         // Server update failed - rollback to original user state
