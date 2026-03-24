@@ -127,7 +127,7 @@ export function SneakyPaywallModal({
 
         {/* Description */}
         <Text className="text-sm text-muted-foreground text-center mb-6 px-4">
-          This room has reached the free limit of 10 participants. Unlock access
+          This room has reached the free limit of 7 participants. Unlock access
           for a one-time fee.
         </Text>
 

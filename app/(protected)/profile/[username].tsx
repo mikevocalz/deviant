@@ -737,6 +737,11 @@ function UserProfileScreenComponent() {
             <Text className="font-semibold text-foreground">
               {user.name || user.fullName || user.username}
             </Text>
+            {(user as any).pronouns && (
+              <Text className="text-muted-foreground text-[13px] mt-1">
+                {(user as any).pronouns}
+              </Text>
+            )}
             {user.bio && (
               <Text className="mt-1 text-sm text-foreground/90">
                 {user.bio}

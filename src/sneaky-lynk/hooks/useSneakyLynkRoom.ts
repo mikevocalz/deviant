@@ -220,7 +220,34 @@ export function useSneakyLynkRoom(
             // Add peer to participants
             const peer = event.peer;
             setParticipants((prev) => {
-              if (prev.some((p) => p.peerId === peer.id)) return prev;
+              // CRITICAL: Deduplicate by BOTH peerId AND userId to prevent duplicates on reconnect
+              const existingByPeerId = prev.find((p) => p.peerId === peer.id);
+              const existingByUserId = prev.find(
+                (p) => p.id === peer.metadata.userId,
+              );
+
+              if (existingByPeerId) {
+                // Same peerId - already have this exact peer
+                return prev;
+              }
+
+              if (existingByUserId) {
+                // Same user reconnecting with new peerId - update existing entry
+                return prev.map((p) =>
+                  p.id === peer.metadata.userId
+                    ? {
+                        ...p,
+                        peerId: peer.id,
+                        hasVideo: peer.tracks.some((t) => t.type === "video"),
+                        isMuted: !peer.tracks.some(
+                          (t) => t.type === "audio" && t.enabled,
+                        ),
+                      }
+                    : p,
+                );
+              }
+
+              // New user - add to list
               return [
                 ...prev,
                 {

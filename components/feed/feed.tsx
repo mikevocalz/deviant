@@ -591,7 +591,7 @@ export function Feed() {
 
   if (error) {
     return (
-      <View className="flex-1 items-center justify-center pb-20">
+      <View className="flex-1 bg-background items-center justify-center pb-20">
         <Text className="text-destructive">Failed to load posts</Text>
       </View>
     );
