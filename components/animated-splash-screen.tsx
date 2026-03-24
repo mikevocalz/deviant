@@ -6,12 +6,24 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import {
-  RiveView,
-  useRiveFile,
-  Fit,
-  type RiveError,
-} from "@rive-app/react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withDelay,
+  Easing,
+  interpolate,
+  Extrapolation,
+} from "react-native-reanimated";
+// import {
+//   RiveView,
+//   useRiveFile,
+//   Fit,
+//   type RiveError,
+// } from "@rive-app/react-native";
 // Supabase URL for health checks
 const _rawSplashUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
@@ -19,8 +31,8 @@ const SUPABASE_URL =
     ? _rawSplashUrl
     : "https://npfjanxturvmjyevoyfo.supabase.co";
 
-const BOOT_TIMEOUT_MS = 15000; // 15 second boot timeout (increased)
-const ANIMATION_DURATION_MS = 6000; // 6 second animation (reduced)
+const BOOT_TIMEOUT_MS = 1000; // 1 second max (hard cap)
+const ANIMATION_DURATION_MS = 1000; // 0.8 second display time
 
 // Module-level flag - persists across component remounts
 let hasCalledFinish = false;
@@ -37,9 +49,14 @@ export default function AnimatedSplashScreen({
   const [isRetrying, setIsRetrying] = useState(false);
   const [apiStatus, setApiStatus] = useState<string>("checking...");
 
-  const { riveFile, error: riveError } = useRiveFile(
-    require("../assets/deviant.riv"),
-  );
+  // Polished icon animation
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.85);
+  const glowOpacity = useSharedValue(0);
+
+  // const { riveFile, error: riveError } = useRiveFile(
+  //   require("../assets/deviant.riv"),
+  // );
 
   // Check Supabase health
   const checkApiHealth = async (): Promise<boolean> => {
@@ -82,7 +99,7 @@ export default function AnimatedSplashScreen({
     setIsRetrying(false);
   };
 
-  // Finish splash helper
+  // Finish splash helper - instant exit
   const finishSplash = () => {
     if (!animationFinished.current && !hasCalledFinish) {
       animationFinished.current = true;
@@ -92,11 +109,40 @@ export default function AnimatedSplashScreen({
     }
   };
 
+  // Fast animation sequence
   useEffect(() => {
-    if (riveError) {
-      console.error("[Splash] Rive file load error:", riveError);
-    }
-  }, [riveError]);
+    // Instant fade + scale
+    opacity.value = withTiming(1, {
+      duration: 100,
+      easing: Easing.out(Easing.quad),
+    });
+
+    scale.value = withSequence(
+      withTiming(1.05, {
+        duration: 100,
+        easing: Easing.out(Easing.back(1.2)),
+      }),
+      withTiming(1, {
+        duration: 100,
+        easing: Easing.out(Easing.quad),
+      }),
+    );
+
+    // Quick glow
+    glowOpacity.value = withDelay(
+      100,
+      withSequence(
+        withTiming(0.3, { duration: 200 }),
+        withTiming(0.15, { duration: 350 }),
+      ),
+    );
+  }, []);
+
+  // useEffect(() => {
+  //   if (riveError) {
+  //     console.error("[Splash] Rive file load error:", riveError);
+  //   }
+  // }, [riveError]);
 
   // Boot timeout - ensures app never gets stuck
   useEffect(() => {
@@ -123,7 +169,7 @@ export default function AnimatedSplashScreen({
     return () => clearTimeout(bootTimer);
   }, []);
 
-  // Start timer only after Rive file is loaded AND API is healthy
+  // Start timer immediately - fast boot
   useEffect(() => {
     // Guard: If already finished (from previous mount), don't start timer
     if (hasCalledFinish) {
@@ -134,29 +180,20 @@ export default function AnimatedSplashScreen({
       return;
     }
 
-    if (!riveFile) {
-      console.log("[Splash] Waiting for Rive file to load...");
-      return;
-    }
-
-    // Check API health before starting timer
-    (async () => {
-      const healthy = await checkApiHealth();
+    // Check API health in parallel (non-blocking)
+    checkApiHealth().then((healthy) => {
       if (!healthy) {
-        console.log("[Splash] API not healthy, waiting for retry...");
-        return; // Don't start timer if API is not healthy
+        console.warn("[Splash] API check failed, but continuing boot");
       }
+    });
 
-      console.log(
-        "[Splash] API healthy and Rive file loaded, starting animation timer",
-      );
-      const timer = setTimeout(() => {
-        finishSplash();
-      }, ANIMATION_DURATION_MS);
+    console.log("[Splash] Starting fast icon splash timer");
+    const timer = setTimeout(() => {
+      finishSplash();
+    }, ANIMATION_DURATION_MS);
 
-      return () => clearTimeout(timer);
-    })();
-  }, [riveFile, onAnimationFinish]);
+    return () => clearTimeout(timer);
+  }, [onAnimationFinish]);
 
   // Show timeout/retry UI
   if (bootTimedOut) {
@@ -184,27 +221,75 @@ export default function AnimatedSplashScreen({
     );
   }
 
-  const handleRiveError = (err: RiveError) => {
-    console.error("[Splash] Rive error:", err.message, "type:", err.type);
-  };
+  const iconStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [
+      {
+        scale: interpolate(
+          glowOpacity.value,
+          [0, 0.4],
+          [0.8, 1.2],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  // const handleRiveError = (err: RiveError) => {
+  //   console.error("[Splash] Rive error:", err.message, "type:", err.type);
+  // };
 
   return (
     <View style={styles.container}>
-      <View style={styles.riveContainer}>
-        {riveFile ? (
-          <RiveView
-            file={riveFile}
-            style={styles.rive}
-            fit={Fit.Contain}
-            autoPlay={true}
-            onError={handleRiveError}
-          />
-        ) : (
-          <View style={styles.placeholder} />
-        )}
-      </View>
+      {/* Subtle radial glow */}
+      <Animated.View style={[styles.glowContainer, glowStyle]}>
+        <LinearGradient
+          colors={[
+            "rgba(62, 164, 229, 0.15)",
+            "rgba(255, 109, 193, 0.08)",
+            "transparent",
+          ]}
+          style={styles.glow}
+          start={{ x: 0.5, y: 0.5 }}
+          end={{ x: 1, y: 1 }}
+        />
+      </Animated.View>
+
+      {/* App icon */}
+      <Animated.View style={[styles.iconContainer, iconStyle]}>
+        <Image
+          source={require("../assets/images/icon.png")}
+          style={styles.icon}
+          contentFit="contain"
+          priority="high"
+        />
+      </Animated.View>
     </View>
   );
+
+  // RIVE SPLASH (preserved for rollback):
+  // return (
+  //   <View style={styles.container}>
+  //     <View style={styles.riveContainer}>
+  //       {riveFile ? (
+  //         <RiveView
+  //           file={riveFile}
+  //           style={styles.rive}
+  //           fit={Fit.Contain}
+  //           autoPlay={true}
+  //           onError={handleRiveError}
+  //         />
+  //       ) : (
+  //         <View style={styles.placeholder} />
+  //       )}
+  //     </View>
+  //   </View>
+  // );
 }
 
 const styles = StyleSheet.create({
@@ -214,20 +299,44 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  riveContainer: {
-    backgroundColor: "#000",
-    width: 300,
-    height: 300,
+  iconContainer: {
+    width: 220,
+    height: 220,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2,
   },
-  rive: {
+  icon: {
     width: "100%",
     height: "100%",
   },
-  placeholder: {
+  glowContainer: {
+    position: "absolute",
+    width: 350,
+    height: 350,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  glow: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#000",
+    borderRadius: 175,
   },
+  // riveContainer: {
+  //   backgroundColor: "#000",
+  //   width: 300,
+  //   height: 300,
+  // },
+  // rive: {
+  //   width: "100%",
+  //   height: "100%",
+  // },
+  // placeholder: {
+  //   width: "100%",
+  //   height: "100%",
+  //   backgroundColor: "#000",
+  // },
   errorContainer: {
     alignItems: "center",
     padding: 32,
