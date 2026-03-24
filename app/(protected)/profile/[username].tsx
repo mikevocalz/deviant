@@ -691,8 +691,9 @@ function UserProfileScreenComponent() {
                   }}
                 >
                   <Text className="text-lg font-bold text-foreground">
-                    {(user.followersCount ?? 0) >= 1000
-                      ? `${((user.followersCount ?? 0) / 1000).toFixed(1)}K`
+                    {typeof user.followersCount === "number" &&
+                    user.followersCount >= 1000
+                      ? `${(user.followersCount / 1000).toFixed(1)}K`
                       : (user.followersCount ?? 0)}
                   </Text>
                   <Text className="text-xs text-muted-foreground">

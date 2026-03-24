@@ -44,6 +44,8 @@ const PRONOUNS_OPTIONS = [
 const GENDER_OPTIONS = [
   "Male",
   "Female",
+  "Trans Male",
+  "Trans Female",
   "Non-binary",
   "Prefer not to say",
   "Custom",
@@ -203,6 +205,7 @@ function EditProfileScreenContent() {
         avatar?: string;
         username?: string;
         pronouns?: string;
+        gender?: string;
       } = {
         name: editName.trim(),
         bio: editBio.trim(),
@@ -210,6 +213,7 @@ function EditProfileScreenContent() {
         links: allLinks,
         location: editLocation.trim(),
         pronouns: pronouns.trim(),
+        gender: gender.trim(),
         ...(avatarUrl ? { avatar: avatarUrl } : {}),
         // Only include username if it changed
         ...(trimmedUsername !== (user.username || "").toLowerCase()
@@ -316,7 +320,9 @@ function EditProfileScreenContent() {
       setEditWebsite(user.website || "");
       setEditLocation(user.location || "");
       setUsername(user.username || "");
-      setPronouns((user as any).pronouns || "");
+      // Initialize pronouns and gender from user object
+      setPronouns(user.pronouns || "");
+      setGender(user.gender || "");
     }
   }, [user, setEditName, setEditBio, setEditWebsite, setEditLocation]);
 

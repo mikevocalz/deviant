@@ -252,4 +252,12 @@ export interface AppUser {
   postsCount: number;
   followersCount: number;
   followingCount: number;
+  gender?:
+    | "male"
+    | "female"
+    | "trans_male"
+    | "trans_female"
+    | "non_binary"
+    | "other";
+  pronouns?: string;
 }
