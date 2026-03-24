@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
       .single();
 
     // Determine effective plan limits
-    let planMaxParticipants = 5; // free tier default
+    let planMaxParticipants = 7; // free tier default
     if (userSub) {
       const isGraceExpired =
         userSub.status === "past_due" &&
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
 
       if (isGraceExpired) {
         // Grace period expired — enforce free-tier limits
-        planMaxParticipants = 5;
+        planMaxParticipants = 7;
         console.log(
           `[video_create_room] Grace period expired for ${userId}, enforcing free limits`,
         );

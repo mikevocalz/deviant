@@ -49,13 +49,13 @@ const PLANS: Plan[] = [
     name: "Free",
     price: "$0",
     priceNote: "forever",
-    maxParticipants: 5,
+    maxParticipants: 7,
     durationLabel: "5 min / session",
     highlight: false,
     features: [
-      "Up to 5 participants",
-      "5 min session limit",
-      "Basic audio/video",
+      "Up to 7 people per room",
+      "5 minute session limit",
+      "2 sessions per day",
     ],
   },
   {
