@@ -38,6 +38,7 @@ const UpdateProfileSchema = z
     avatarUrl: z.string().optional(),
     links: z.array(z.string().max(200)).max(4).optional(),
     pronouns: z.string().max(50).optional(),
+    gender: z.string().max(50).optional(),
   })
   .refine((data) => Object.values(data).some((v) => v !== undefined), {
     message: "At least one field must be provided",
@@ -381,6 +382,7 @@ Deno.serve(async (req) => {
           website: updatedUser.website,
           links: updatedUser.links || [],
           pronouns: updatedUser.pronouns,
+          gender: updatedUser.gender,
           avatar: (updatedUser.avatar as any)?.url,
           isVerified: updatedUser.verified || false,
           postsCount: updatedUser.posts_count || 0,
