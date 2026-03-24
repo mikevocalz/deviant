@@ -497,8 +497,10 @@ function UserProfileScreenComponent() {
     setIsCreatingConversation(true);
     safetyResetRef.current.maybeExecute();
     try {
+      // CRITICAL: Must pass authId (UUID) or integer user.id, NOT username
+      const identifier = (user as any).authId || user.id;
       const conversationId = await messagesApiClient.getOrCreateConversation(
-        user.username || String(user.id),
+        identifier,
       );
       if (conversationId) {
         navigateToChat(router, {
