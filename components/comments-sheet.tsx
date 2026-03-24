@@ -81,6 +81,10 @@ export function CommentsSheet({
   useEffect(() => {
     if (visible) {
       bottomSheetRef.current?.snapToIndex(0);
+      // Auto-focus input after sheet animation
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 300);
     } else {
       bottomSheetRef.current?.close();
       setComment("");
@@ -291,7 +295,7 @@ export function CommentsSheet({
       enableOverDrag={false}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
-      keyboardBehavior="interactive"
+      keyboardBehavior="extend"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundComponent={GlassSheetBackground}
@@ -499,6 +503,7 @@ export function CommentsSheet({
               blurOnSubmit={false}
               enablesReturnKeyAutomatically={true}
               editable={!isSubmitLocked && !createComment.isPending}
+              onFocus={() => bottomSheetRef.current?.snapToIndex(1)}
               style={{
                 flex: 1,
                 minHeight: 40,
