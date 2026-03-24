@@ -976,7 +976,6 @@ function PostDetailScreenContent() {
                                       height: PORTRAIT_HEIGHT,
                                     }}
                                     contentFit="cover"
-                                    contentPosition="top"
                                   />
                                 </Galeria.Image>
                               ) : (
@@ -1031,7 +1030,6 @@ function PostDetailScreenContent() {
                           height: PORTRAIT_HEIGHT,
                         }}
                         contentFit="cover"
-                        contentPosition="top"
                         transition={200}
                         cachePolicy="memory-disk"
                       />
