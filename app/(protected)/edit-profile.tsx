@@ -222,22 +222,20 @@ function EditProfileScreenContent() {
         JSON.stringify(updateData),
       );
 
-      const updatedUser = await usersApi.updateProfile(updateData);
-      console.log("[EditProfile] Profile updated:", updatedUser);
-
-      // Update local auth store — use server response, then form values as fallback
-      // Do NOT use || (which prevents clearing fields to empty string)
-      setUser({
+      // OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+      const optimisticUser = {
         ...user,
-        name: updatedUser.name ?? editName.trim(),
-        username: updatedUser.username ?? trimmedUsername,
-        bio: updatedUser.bio ?? editBio.trim(),
-        website: updatedUser.website ?? editWebsite.trim(),
-        location: updatedUser.location ?? editLocation.trim(),
+        name: editName.trim(),
+        username: trimmedUsername,
+        bio: editBio.trim(),
+        website: editWebsite.trim(),
+        location: editLocation.trim(),
         avatar: avatarUrl ?? user.avatar,
-      });
+        pronouns: pronouns.trim(),
+      };
+      setUser(optimisticUser);
 
-      // CRITICAL: Patch all caches where MY avatar appears
+      // Optimistically patch avatar in caches
       if (avatarUrl && avatarUrl !== user.avatar) {
         const patchStories = (old: any) => {
           if (!old || !Array.isArray(old)) return old;
@@ -255,7 +253,32 @@ function EditProfileScreenContent() {
         queryClient.setQueryData(["stories", "list"], patchStories);
       }
 
-      // Invalidate the current user's profile cache
+      // Show optimistic success immediately
+      showToast("success", "Saved", "Profile updated successfully");
+      navigation.goBack();
+
+      // Background: Persist to server
+      try {
+        const updatedUser = await usersApi.updateProfile(updateData);
+        console.log("[EditProfile] Server confirmed:", updatedUser);
+
+        // Update with server response for any server-side changes
+        setUser({
+          ...optimisticUser,
+          ...updatedUser,
+        });
+      } catch (serverError: any) {
+        // Server update failed - rollback to original user state
+        console.error("[EditProfile] Server update failed:", serverError);
+        setUser(user);
+        showToast(
+          "warning",
+          "Sync Issue",
+          "Some changes may not have saved. Please try again.",
+        );
+      }
+
+      // Invalidate caches after successful server update
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
       if (user?.id) {
         queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
@@ -265,14 +288,15 @@ function EditProfileScreenContent() {
           queryKey: ["profile", "username", user.username],
         });
       }
-
-      showToast("success", "Saved", "Profile updated successfully");
-      navigation.goBack();
     } catch (error: any) {
+      // Upload or initial save error - rollback and show error
       console.error("[EditProfile] Save error:", error);
+      setUser(user);
       const errorMessage =
         error?.message || "Failed to save profile. Please try again.";
       showToast("error", "Error", errorMessage);
+      setIsSaving(false);
+      return;
     } finally {
       setIsSaving(false);
     }
