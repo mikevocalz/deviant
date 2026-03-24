@@ -231,7 +231,6 @@ function EditProfileScreenContent() {
         website: editWebsite.trim(),
         location: editLocation.trim(),
         avatar: avatarUrl ?? user.avatar,
-        pronouns: pronouns.trim(),
       };
       setUser(optimisticUser);
 
@@ -310,6 +309,7 @@ function EditProfileScreenContent() {
       setEditWebsite(user.website || "");
       setEditLocation(user.location || "");
       setUsername(user.username || "");
+      setPronouns((user as any).pronouns || "");
     }
   }, [user, setEditName, setEditBio, setEditWebsite, setEditLocation]);
 
