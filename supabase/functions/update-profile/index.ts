@@ -180,6 +180,9 @@ Deno.serve(async (req) => {
     if (updates.pronouns !== undefined) {
       updateData.pronouns = updates.pronouns;
     }
+    if (updates.gender !== undefined) {
+      updateData.gender = updates.gender;
+    }
 
     // Username change — check uniqueness before updating
     if (updates.username !== undefined) {
