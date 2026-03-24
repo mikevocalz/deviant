@@ -23,6 +23,7 @@ interface UpdateProfileParams {
   website?: string;
   links?: string[];
   avatarUrl?: string;
+  pronouns?: string;
 }
 
 interface PrivilegedResponse<T> {

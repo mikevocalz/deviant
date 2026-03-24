@@ -202,12 +202,14 @@ function EditProfileScreenContent() {
         location?: string;
         avatar?: string;
         username?: string;
+        pronouns?: string;
       } = {
         name: editName.trim(),
         bio: editBio.trim(),
         website: editWebsite.trim(),
         links: allLinks,
         location: editLocation.trim(),
+        pronouns: pronouns.trim(),
         ...(avatarUrl ? { avatar: avatarUrl } : {}),
         // Only include username if it changed
         ...(trimmedUsername !== (user.username || "").toLowerCase()
