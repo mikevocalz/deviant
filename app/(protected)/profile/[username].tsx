@@ -499,9 +499,29 @@ function UserProfileScreenComponent() {
     try {
       // CRITICAL: Must pass authId (UUID) or integer user.id, NOT username
       const identifier = (user as any).authId || user.id;
-      const conversationId = await messagesApiClient.getOrCreateConversation(
-        identifier,
-      );
+
+      // DEFENSIVE CHECK: Ensure we're not accidentally passing username
+      if (
+        !identifier ||
+        (typeof identifier === "string" &&
+          !/^(\d+|[0-9a-f-]{36})$/i.test(identifier))
+      ) {
+        console.error(
+          "[Profile] Invalid identifier for conversation creation:",
+          {
+            identifier,
+            userId: user.id,
+            username: user.username,
+            authId: (user as any).authId,
+          },
+        );
+        throw new Error(
+          "Unable to create conversation - invalid user identifier",
+        );
+      }
+
+      const conversationId =
+        await messagesApiClient.getOrCreateConversation(identifier);
       if (conversationId) {
         navigateToChat(router, {
           identifier: conversationId,
