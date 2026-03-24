@@ -7,7 +7,7 @@
 
 -- 1. Update free plan max_participants from 5 to 7
 UPDATE sneaky_subscription_plans 
-SET max_participants = 7, updated_at = NOW()
+SET max_participants = 7
 WHERE id = 'free';
 
 -- 2. Add pronouns column to users table (if not exists)
@@ -16,9 +16,9 @@ ADD COLUMN IF NOT EXISTS pronouns TEXT;
 
 -- 3. Create usage tracking table for daily session limits
 CREATE TABLE IF NOT EXISTS sneaky_usage_tracking (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id TEXT NOT NULL,
-  room_id UUID NOT NULL REFERENCES video_rooms(id) ON DELETE CASCADE,
+  room_id INTEGER NOT NULL REFERENCES video_rooms(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   ended_at TIMESTAMPTZ,
   duration_seconds INTEGER

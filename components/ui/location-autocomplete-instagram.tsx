@@ -83,7 +83,6 @@ const recentLocationsStorage = createMMKV({ id: "dvnt-recent-locations" });
 // Zustand store - persists across parent re-renders (fixes dropdown reopening)
 interface LocationAutocompleteState {
   showDropdown: boolean;
-  justSelected: boolean;
   inputText: string;
   isLoading: boolean;
   activeSection: "recent" | "current" | "search";
@@ -96,7 +95,6 @@ interface LocationAutocompleteState {
 
 const useLocationStore = create<LocationAutocompleteState>(() => ({
   showDropdown: false,
-  justSelected: false,
   inputText: "",
   isLoading: false,
   activeSection: "recent",
@@ -115,6 +113,9 @@ export function LocationAutocompleteInstagram({
   onTextChange,
 }: LocationAutocompleteProps) {
   const { colors } = useColorScheme();
+
+  // useRef for justSelected - MUST be synchronous to prevent race condition
+  const justSelectedRef = useRef(false);
 
   // Zustand store - persists across parent re-renders
   const inputText = useLocationStore((s) => s.inputText);
@@ -164,11 +165,6 @@ export function LocationAutocompleteInstagram({
     },
     [],
   );
-
-  const justSelected = useLocationStore((s) => s.justSelected);
-  const setJustSelected = useCallback((value: boolean) => {
-    useLocationStore.setState({ justSelected: value });
-  }, []);
 
   // TanStack Debouncer for API calls
   const fetchDebouncerRef = useRef(
@@ -319,10 +315,12 @@ export function LocationAutocompleteInstagram({
       inputText,
       "length:",
       inputText.length,
+      "justSelected:",
+      justSelectedRef.current,
     );
 
     // Don't fetch if we just selected something (prevents dropdown from reopening)
-    if (justSelected) {
+    if (justSelectedRef.current) {
       console.log(
         "[LocationAutocompleteInstagram] Just selected, skipping fetch",
       );
@@ -331,7 +329,7 @@ export function LocationAutocompleteInstagram({
 
     // Trigger debounced fetch
     fetchDebouncerRef.current.maybeExecute(inputText);
-  }, [inputText, justSelected]);
+  }, [inputText]);
 
   const fetchPredictions = async (text: string) => {
     console.log(
@@ -544,8 +542,8 @@ export function LocationAutocompleteInstagram({
     // Cancel any pending debounced fetch
     fetchDebouncerRef.current.cancel();
 
-    // Set justSelected FIRST before changing inputText to prevent race condition
-    setJustSelected(true);
+    // Set justSelected FIRST (useRef is synchronous)
+    justSelectedRef.current = true;
     setShowDropdown(false);
     setPredictions([]);
     setInputText(prediction.description);
@@ -567,15 +565,15 @@ export function LocationAutocompleteInstagram({
     onLocationSelect(locationData);
 
     // Reset the flag after a longer delay
-    setTimeout(() => setJustSelected(false), 1000);
+    setTimeout(() => (justSelectedRef.current = false), 1000);
   };
 
   const handleSelectRecent = (recent: RecentLocation) => {
     // Cancel any pending debounced fetch
     fetchDebouncerRef.current.cancel();
 
-    // Set justSelected FIRST before changing inputText to prevent race condition
-    setJustSelected(true);
+    // Set justSelected FIRST (useRef is synchronous)
+    justSelectedRef.current = true;
     setShowDropdown(false);
     setInputText(recent.name);
 
@@ -593,7 +591,7 @@ export function LocationAutocompleteInstagram({
     onLocationSelect(locationData);
 
     // Reset the flag after a longer delay
-    setTimeout(() => setJustSelected(false), 1000);
+    setTimeout(() => (justSelectedRef.current = false), 1000);
   };
 
   const handleSelectCurrentLocation = () => {
@@ -602,8 +600,8 @@ export function LocationAutocompleteInstagram({
     // Cancel any pending debounced fetch
     fetchDebouncerRef.current.cancel();
 
-    // Set justSelected FIRST before changing inputText to prevent race condition
-    setJustSelected(true);
+    // Set justSelected FIRST (useRef is synchronous)
+    justSelectedRef.current = true;
     setShowDropdown(false);
     setInputText("Current Location");
 
@@ -616,7 +614,9 @@ export function LocationAutocompleteInstagram({
     onLocationSelect(locationData);
 
     // Reset the flag after a longer delay
-    setTimeout(() => setJustSelected(false), 1000);
+    setTimeout(() => {
+      justSelectedRef.current = false;
+    }, 1000);
   };
 
   const handleTextChange = useCallback(
@@ -845,12 +845,12 @@ export function LocationAutocompleteInstagram({
           onFocus={() => {
             console.log(
               "[LocationAutocompleteInstagram] Input focused, justSelected:",
-              justSelected,
+              justSelectedRef.current,
               "inputText:",
               inputText,
             );
             // Don't show dropdown if we just selected something
-            if (!justSelected) {
+            if (!justSelectedRef.current) {
               console.log(
                 "[LocationAutocompleteInstagram] Showing dropdown on focus",
               );
