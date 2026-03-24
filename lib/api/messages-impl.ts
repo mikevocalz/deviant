@@ -440,9 +440,42 @@ export const messagesApi = {
 
   /**
    * Create or get direct conversation via Edge Function
+   *
+   * @param otherUserId - MUST be either:
+   *   - A UUID string (authId from auth.users.id)
+   *   - A numeric string (integer user.id)
+   *   - NEVER pass a username - this will fail!
+   *
+   * @example
+   * // ✅ CORRECT - Pass authId (UUID)
+   * await getOrCreateConversation(user.authId)
+   *
+   * // ✅ CORRECT - Pass numeric user.id
+   * await getOrCreateConversation(String(user.id))
+   *
+   * // ❌ WRONG - Don't pass username
+   * await getOrCreateConversation(user.username) // WILL FAIL!
    */
   async getOrCreateConversation(otherUserId: string) {
     try {
+      // CRITICAL VALIDATION: Prevent username from being passed
+      // Usernames can contain letters and underscores, authIds are UUIDs, user IDs are numeric
+      const isNumeric = /^\d+$/.test(otherUserId);
+      const isUUID =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          otherUserId,
+        );
+
+      if (!isNumeric && !isUUID) {
+        console.error(
+          "[Messages] INVALID INPUT: getOrCreateConversation expects authId (UUID) or numeric user.id, got:",
+          otherUserId,
+        );
+        throw new Error(
+          "Invalid user identifier. Use authId (UUID) or numeric user.id, not username.",
+        );
+      }
+
       const token = await requireBetterAuthToken();
 
       let bodyPayload: { otherUserId?: number; otherAuthId?: string };
