@@ -498,7 +498,7 @@ function UserProfileScreenComponent() {
     safetyResetRef.current.maybeExecute();
     try {
       const conversationId = await messagesApiClient.getOrCreateConversation(
-        String(user.id),
+        user.username || String(user.id),
       );
       if (conversationId) {
         navigateToChat(router, {
