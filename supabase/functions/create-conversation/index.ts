@@ -26,8 +26,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+function errorResponse(code: string, message: string, status = 400): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
 Deno.serve(async (req) => {

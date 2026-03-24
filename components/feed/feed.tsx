@@ -253,10 +253,8 @@ export function Feed() {
     isRefetching,
   } = useInfiniteFeedPosts();
 
-  // Gate: stories must be ready before revealing the feed (prevents waterfall)
-  // isPending = no data at all (cache miss + loading). With MMKV persistence,
-  // this is only true on first-ever launch. Errors also clear the gate.
-  const { isPending: storiesPending } = useStories();
+  // Stories load in background - don't block feed
+  useStories();
 
   // CRITICAL: Get queryClient and viewerId for seeding likeState cache
   const queryClient = useQueryClient();
@@ -306,28 +304,21 @@ export function Feed() {
       const urls = extractFeedImageUrls(firstPagePosts);
 
       if (urls.length > 0) {
-        // Prefetch using expo-image
+        // Prefetch using expo-image (non-blocking)
         prefetchImages(urls);
-
-        // Mark as prefetched after a short delay to allow images to start loading
-        setTimeout(() => {
-          setFirstPageImagesPrefetched(true);
-          if (trace.elapsed() < 50) trace.markCacheHit();
-          trace.markUsable();
-        }, 800);
 
         // Also prefetch off-screen posts
         const offScreenPosts = allPosts.slice(10);
         if (offScreenPosts.length > 0) {
           const offScreenUrls = extractFeedImageUrls(offScreenPosts);
-          setTimeout(() => prefetchImages(offScreenUrls), 1000);
+          prefetchImages(offScreenUrls);
         }
-      } else {
-        // No images to prefetch
-        setFirstPageImagesPrefetched(true);
-        if (trace.elapsed() < 50) trace.markCacheHit();
-        trace.markUsable();
       }
+
+      // Mark as prefetched immediately - images load progressively
+      setFirstPageImagesPrefetched(true);
+      if (trace.elapsed() < 50) trace.markCacheHit();
+      trace.markUsable();
 
       // Eager prefetch comments for first 5 posts
       allPosts.slice(0, 5).forEach((post) => {
@@ -508,11 +499,7 @@ export function Feed() {
 
   // Only show empty state if we're definitely not loading and have no data
   const shouldShowEmptyState =
-    !isLoading &&
-    !storiesPending &&
-    nsfwLoaded &&
-    allPosts.length === 0 &&
-    !error;
+    !isLoading && nsfwLoaded && allPosts.length === 0 && !error;
 
   const actionPost = useMemo(
     () =>
@@ -583,32 +570,19 @@ export function Feed() {
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
-  // Simple loading state - only show skeleton during initial load
-  // CRITICAL: Also wait for first page images to prevent waterfall loading
-  const isActuallyLoading =
-    isLoading ||
-    storiesPending ||
-    !nsfwLoaded ||
-    (allPosts.length > 0 && !firstPageImagesPrefetched);
+  // Simple loading state - show skeleton during initial load OR when no data yet
+  const isActuallyLoading = isLoading || !nsfwLoaded || allPosts.length === 0;
 
   if (__DEV__) {
     useEffect(() => {
       console.log("[Feed] Loading state changed:", {
         isLoading,
-        storiesPending,
         nsfwLoaded,
         hasData: !!data,
         allPostsLength: allPosts.length,
         isActuallyLoading,
       });
-    }, [
-      isLoading,
-      storiesPending,
-      nsfwLoaded,
-      data,
-      allPosts.length,
-      isActuallyLoading,
-    ]);
+    }, [isLoading, nsfwLoaded, data, allPosts.length, isActuallyLoading]);
   }
 
   if (isActuallyLoading) {
