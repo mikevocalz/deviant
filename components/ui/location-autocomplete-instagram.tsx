@@ -541,10 +541,14 @@ export function LocationAutocompleteInstagram({
   };
 
   const handleSelectPrediction = async (prediction: GooglePlace) => {
-    setJustSelected(true); // Prevent dropdown from reopening
-    setInputText(prediction.description);
+    // Cancel any pending debounced fetch
+    fetchDebouncerRef.current.cancel();
+
+    // Set justSelected FIRST before changing inputText to prevent race condition
+    setJustSelected(true);
     setShowDropdown(false);
     setPredictions([]);
+    setInputText(prediction.description);
 
     // Fetch detailed place information
     const details = await fetchPlaceDetails(prediction.place_id);
@@ -567,9 +571,13 @@ export function LocationAutocompleteInstagram({
   };
 
   const handleSelectRecent = (recent: RecentLocation) => {
-    setJustSelected(true); // Prevent dropdown from reopening
-    setInputText(recent.name);
+    // Cancel any pending debounced fetch
+    fetchDebouncerRef.current.cancel();
+
+    // Set justSelected FIRST before changing inputText to prevent race condition
+    setJustSelected(true);
     setShowDropdown(false);
+    setInputText(recent.name);
 
     const locationData: LocationData = {
       name: recent.name,
@@ -591,9 +599,13 @@ export function LocationAutocompleteInstagram({
   const handleSelectCurrentLocation = () => {
     if (!currentLocation) return;
 
-    setJustSelected(true); // Prevent dropdown from reopening
-    setInputText("Current Location");
+    // Cancel any pending debounced fetch
+    fetchDebouncerRef.current.cancel();
+
+    // Set justSelected FIRST before changing inputText to prevent race condition
+    setJustSelected(true);
     setShowDropdown(false);
+    setInputText("Current Location");
 
     const locationData: LocationData = {
       name: "Current Location",
