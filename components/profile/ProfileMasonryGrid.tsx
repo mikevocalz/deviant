@@ -63,6 +63,7 @@ const VideoThumbnailCell = memo(function VideoThumbnailCell({
       source={{ uri: thumbUri }}
       style={{ width, height }}
       contentFit="cover"
+      contentPosition="top"
       cachePolicy="memory-disk"
       transition={150}
     />
@@ -116,6 +117,7 @@ const GridCell = memo(function GridCell({
             source={{ uri: tile.coverUrl }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
+            contentPosition="top"
             transition={200}
             cachePolicy="memory-disk"
           />
