@@ -458,7 +458,7 @@ function UserProfileScreenComponent() {
           params: {
             id: match.id,
             peerUsername: user.username,
-            peerName: user.name || user.fullName || user.username,
+            peerName: user.name || user.username,
             peerAvatar: user.avatar || "",
           },
         });
@@ -485,7 +485,7 @@ function UserProfileScreenComponent() {
         params: {
           id: username,
           peerUsername: username,
-          peerName: user.name || user.fullName || username,
+          peerName: user.name || username,
           peerAvatar: user.avatar || "",
         },
       });
@@ -526,7 +526,6 @@ function UserProfileScreenComponent() {
     user.id,
     user.username,
     user.name,
-    user.fullName,
     user.avatar,
     username,
     router,
@@ -614,7 +613,7 @@ function UserProfileScreenComponent() {
         onClose={() => setMenuVisible(false)}
         username={user.username}
         onShareProfile={() => {
-          shareProfile(user.username, user.fullName || user.name);
+          shareProfile(user.username, user.name || user.username);
         }}
         onAddCloseFriend={() => {
           showToast(
@@ -735,7 +734,7 @@ function UserProfileScreenComponent() {
 
           <View className="mt-4">
             <Text className="font-semibold text-foreground">
-              {user.name || user.fullName || user.username}
+              {user.name || user.username}
             </Text>
             {(user as any).pronouns && (
               <Text className="text-muted-foreground text-[13px] mt-1">
@@ -771,7 +770,7 @@ function UserProfileScreenComponent() {
                 </Pressable>
                 <Pressable
                   onPress={() =>
-                    shareProfile(user.username, user.fullName || user.name)
+                    shareProfile(user.username, user.name || user.username)
                   }
                   style={styles.shareButton}
                 >
