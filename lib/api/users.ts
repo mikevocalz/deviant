@@ -284,6 +284,7 @@ export const usersApi = {
     firstName?: string;
     lastName?: string;
     username?: string;
+    pronouns?: string;
     bio?: string;
     location?: string;
     name?: string;
@@ -299,6 +300,7 @@ export const usersApi = {
         name: updates.name,
         firstName: updates.firstName,
         lastName: updates.lastName,
+        pronouns: updates.pronouns,
         username: updates.username,
         bio: updates.bio,
         location: updates.location,
