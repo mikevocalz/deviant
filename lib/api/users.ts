@@ -77,6 +77,48 @@ function buildDisplayNameParts(displayName: string | null | undefined) {
   };
 }
 
+async function getLiveProfileCounts(targetUserId: number | null | undefined) {
+  if (!targetUserId || !Number.isFinite(targetUserId)) {
+    return null;
+  }
+
+  const [
+    { count: followersCount, error: followersError },
+    { count: followingCount, error: followingError },
+    { count: postsCount, error: postsError },
+  ] = await Promise.all([
+    supabase
+      .from(DB.follows.table)
+      .select(DB.follows.id, { count: "exact", head: true })
+      .eq(DB.follows.followingId, targetUserId),
+    supabase
+      .from(DB.follows.table)
+      .select(DB.follows.id, { count: "exact", head: true })
+      .eq(DB.follows.followerId, targetUserId),
+    supabase
+      .from(DB.posts.table)
+      .select(DB.posts.id, { count: "exact", head: true })
+      .eq(DB.posts.authorId, targetUserId),
+  ]);
+
+  if (followersError || followingError || postsError) {
+    console.error("[Users] getLiveProfileCounts error:", {
+      targetUserId,
+      followersError,
+      followingError,
+      postsError,
+    });
+  }
+
+  return {
+    followersCount:
+      typeof followersCount === "number" ? followersCount : undefined,
+    followingCount:
+      typeof followingCount === "number" ? followingCount : undefined,
+    postsCount: typeof postsCount === "number" ? postsCount : undefined,
+  };
+}
+
 export const usersApi = {
   /**
    * Get user profile by username
@@ -123,8 +165,10 @@ export const usersApi = {
         const authId = data[DB.users.authId];
         const dbAvatar =
           (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "";
-        const betterAuthUser =
-          !dbAvatar && authId ? await getBetterAuthUserById(authId) : null;
+        const [betterAuthUser, liveCounts] = await Promise.all([
+          !dbAvatar && authId ? getBetterAuthUserById(authId) : null,
+          getLiveProfileCounts(targetUserId),
+        ]);
         const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
         const resolvedUsername =
           data[DB.users.username] || betterAuthUser?.username || username;
@@ -160,9 +204,16 @@ export const usersApi = {
           gender: data[DB.users.gender] || "",
           avatar: dbAvatar || betterAuthUser?.image || "",
           verified: data[DB.users.verified] || false,
-          followersCount: Number(data[DB.users.followersCount]) || 0,
-          followingCount: Number(data[DB.users.followingCount]) || 0,
-          postsCount: Number(data[DB.users.postsCount]) || 0,
+          followersCount:
+            (liveCounts?.followersCount ??
+              Number(data[DB.users.followersCount])) ||
+            0,
+          followingCount:
+            (liveCounts?.followingCount ??
+              Number(data[DB.users.followingCount])) ||
+            0,
+          postsCount:
+            (liveCounts?.postsCount ?? Number(data[DB.users.postsCount])) || 0,
           isPrivate: data[DB.users.isPrivate] || false,
           isFollowing,
           createdAt: data[DB.users.createdAt],
@@ -248,8 +299,10 @@ export const usersApi = {
       const authId = data[DB.users.authId];
       const dbAvatar =
         (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "";
-      const betterAuthUser =
-        !dbAvatar && authId ? await getBetterAuthUserById(authId) : null;
+      const [betterAuthUser, liveCounts] = await Promise.all([
+        !dbAvatar && authId ? getBetterAuthUserById(authId) : null,
+        getLiveProfileCounts(data[DB.users.id]),
+      ]);
       const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
       const resolvedUsername =
         data[DB.users.username] || betterAuthUser?.username || "";
@@ -272,9 +325,16 @@ export const usersApi = {
         gender: data[DB.users.gender] || "",
         avatar: dbAvatar || betterAuthUser?.image || "",
         verified: data[DB.users.verified] || false,
-        followersCount: Number(data[DB.users.followersCount]) || 0,
-        followingCount: Number(data[DB.users.followingCount]) || 0,
-        postsCount: Number(data[DB.users.postsCount]) || 0,
+        followersCount:
+          (liveCounts?.followersCount ??
+            Number(data[DB.users.followersCount])) ||
+          0,
+        followingCount:
+          (liveCounts?.followingCount ??
+            Number(data[DB.users.followingCount])) ||
+          0,
+        postsCount:
+          (liveCounts?.postsCount ?? Number(data[DB.users.postsCount])) || 0,
         isPrivate: data[DB.users.isPrivate] || false,
         createdAt: data[DB.users.createdAt],
       };
@@ -329,10 +389,12 @@ export const usersApi = {
           (profile.avatar as any)?.url ||
           (profile.avatar as any)?.[0]?.url ||
           "";
-        const betterAuthUser =
+        const [betterAuthUser, liveCounts] = await Promise.all([
           (!dbAvatar || !profile[DB.users.firstName]) && resolvedAuthId
-            ? await getBetterAuthUserById(resolvedAuthId)
-            : null;
+            ? getBetterAuthUserById(resolvedAuthId)
+            : null,
+          getLiveProfileCounts(targetUserId),
+        ]);
         const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
         const resolvedUsername =
           profile[DB.users.username] || betterAuthUser?.username || authId;
@@ -366,9 +428,17 @@ export const usersApi = {
           gender: profile[DB.users.gender] || "",
           avatar: dbAvatar || betterAuthUser?.image || "",
           verified: profile[DB.users.verified] || false,
-          followersCount: Number(profile[DB.users.followersCount]) || 0,
-          followingCount: Number(profile[DB.users.followingCount]) || 0,
-          postsCount: Number(profile[DB.users.postsCount]) || 0,
+          followersCount:
+            (liveCounts?.followersCount ??
+              Number(profile[DB.users.followersCount])) ||
+            0,
+          followingCount:
+            (liveCounts?.followingCount ??
+              Number(profile[DB.users.followingCount])) ||
+            0,
+          postsCount:
+            (liveCounts?.postsCount ?? Number(profile[DB.users.postsCount])) ||
+            0,
           isPrivate: profile[DB.users.isPrivate] || false,
           isFollowing,
           createdAt: profile[DB.users.createdAt],

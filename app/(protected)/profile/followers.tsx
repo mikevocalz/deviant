@@ -29,6 +29,26 @@ interface FollowerUser {
   isFollowing?: boolean;
 }
 
+function seedProfilePreviewCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  user: FollowerUser,
+) {
+  queryClient.setQueryData(
+    ["users", "username", user.username],
+    (old: any) => ({
+      ...(old || {}),
+      id: user.id || old?.id,
+      username: user.username,
+      name: user.name || old?.name || user.username,
+      avatar: user.avatar || old?.avatar || "",
+      isFollowing:
+        typeof user.isFollowing === "boolean"
+          ? user.isFollowing
+          : old?.isFollowing,
+    }),
+  );
+}
+
 // Individual follower row component
 const FollowerRow = memo(function FollowerRow({
   user,
@@ -168,8 +188,16 @@ function FollowersScreenContent() {
 
   const handleUserPress = useCallback(
     (user: FollowerUser) => {
+      seedProfilePreviewCache(queryClient, user);
       screenPrefetch.profile(queryClient, user.username);
-      router.push(`/(protected)/profile/${user.username}`);
+      router.push({
+        pathname: "/(protected)/profile/[username]",
+        params: {
+          username: user.username,
+          avatar: user.avatar || "",
+          name: user.name || "",
+        },
+      });
     },
     [router, queryClient],
   );

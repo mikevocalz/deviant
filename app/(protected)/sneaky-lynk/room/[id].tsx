@@ -52,7 +52,6 @@ import {
   RoomTimer,
   RoomParticipantsSheet,
 } from "@/src/sneaky-lynk/ui";
-import { SweetSpicyToggle } from "@/src/sneaky-lynk/components/SweetSpicyToggle";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
 import { videoApi } from "@/src/video/api";
@@ -691,9 +690,6 @@ function LocalRoom({
       onEjectDismiss={handleEjectDismiss}
       onShare={handleShare}
       localRole="host"
-      roomMode="sweet"
-      isUpdatingRoomMode={false}
-      onRoomModeChange={() => {}}
     />
   );
 }
@@ -1403,9 +1399,6 @@ function ServerRoom({
         onOpenParticipants={
           isHost ? () => setShowParticipantsSheet(true) : undefined
         }
-        roomMode={roomMode}
-        isUpdatingRoomMode={isUpdatingRoomMode}
-        onRoomModeChange={handleRoomModeChange}
       />
 
       <RoomParticipantsSheet
@@ -1478,9 +1471,6 @@ function RoomLayout({
   localRole,
   canOpenParticipants,
   onOpenParticipants,
-  roomMode,
-  isUpdatingRoomMode,
-  onRoomModeChange,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -1514,9 +1504,6 @@ function RoomLayout({
   allMuted?: boolean;
   canOpenParticipants?: boolean;
   onOpenParticipants?: () => void;
-  roomMode: "sweet" | "spicy";
-  isUpdatingRoomMode: boolean;
-  onRoomModeChange: (mode: "sweet" | "spicy") => void;
 }) {
   const { reactions, sendReaction } = useRoomReactions({
     roomId,
@@ -1716,14 +1703,6 @@ function RoomLayout({
                 >
                   {roomTitle}
                 </Text>
-                <View style={{ marginTop: 8 }}>
-                  <SweetSpicyToggle
-                    mode={roomMode}
-                    onModeChange={onRoomModeChange}
-                    disabled={!isHost || isUpdatingRoomMode}
-                    compact
-                  />
-                </View>
               </View>
             </DVNTLiquidGlass>
 
