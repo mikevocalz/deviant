@@ -54,9 +54,12 @@ export interface RecipientInfo {
 interface LocalUser {
   id: string;
   username?: string;
+  displayName?: string;
   avatar?: string;
   role: MemberRole;
   peerId?: string;
+  isAnonymous?: boolean;
+  anonLabel?: string | null;
 }
 
 interface VideoRoomStoreState {

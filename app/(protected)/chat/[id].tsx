@@ -67,6 +67,7 @@ import {
   useMemo,
   useEffect,
   useLayoutEffect,
+  useState,
 } from "react";
 import { ChatSkeleton } from "@/components/skeletons";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -438,12 +439,20 @@ function ChatScreenContent() {
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
 
+  // CRITICAL: Declare queryClient early so it can be passed to async functions
+  // This prevents illegal hook calls inside async/nested functions
+  const queryClient = useQueryClient();
+
   // Track the resolved conversation ID so useFocusEffect can use it
   // (chatId may be a username like "ibreathereal", not a numeric conv ID)
   const resolvedConvIdRef = useRef<string | null>(null);
 
   // CRITICAL FIX: Track if initial load is complete to prevent infinite loop
   const hasLoadedInitialMessagesRef = useRef(false);
+
+  // CRITICAL FIX #2: Track conversation validation state
+  // Prevents markAsRead from firing before recipient load completes
+  const [isConversationValid, setIsConversationValid] = useState(false);
 
   // Refresh messages on focus to pick up read receipts from the other user
   // FIX: Removed unstable chatMessages.length dependency that caused infinite loop
@@ -486,20 +495,27 @@ function ChatScreenContent() {
     // Load messages FIRST — this is what the user sees
     loadMessages(activeConvId);
 
-    // Mark as read + refresh badge in background (NO second loadMessages call)
-    // FIX: Removed duplicate loadMessages call that caused infinite loop
-    messagesApiClient
-      .markAsRead(activeConvId)
-      .then(async () => {
-        await refreshMessageCounts();
-        console.log("[Chat] Marked as read + badge refreshed");
-      })
-      .catch((error) => {
-        console.error("[Chat] markAsRead error:", error);
-      });
+    // CRITICAL FIX: Only mark as read if conversation is validated
+    // This prevents "Not a participant" errors for new conversations
+    if (isConversationValid) {
+      messagesApiClient
+        .markAsRead(activeConvId)
+        .then(async () => {
+          await refreshMessageCounts();
+          console.log("[Chat] Marked as read + badge refreshed");
+        })
+        .catch((error) => {
+          console.error("[Chat] markAsRead error:", error);
+        });
+    } else {
+      console.log(
+        "[Chat] Skipping markAsRead - conversation not validated yet",
+      );
+    }
   }, [
     activeConvId,
     isResolvingConversation,
+    isConversationValid,
     loadMessages,
     refreshMessageCounts,
   ]);
@@ -637,7 +653,9 @@ function ChatScreenContent() {
     // GUARD: Only load once per chatId
     if (hasLoadedRecipientRef.current) return;
 
-    const loadRecipientFromConversation = async () => {
+    const loadRecipientFromConversation = async (
+      queryClient: ReturnType<typeof useQueryClient>,
+    ) => {
       if (!chatId || !currentUserId) {
         setIsLoadingRecipient(false);
         return;
@@ -675,26 +693,63 @@ function ChatScreenContent() {
               name: otherUser.name || otherUser.username,
               avatar: otherUser.avatar || "",
             });
+            // Mark conversation as validated - safe to call markAsRead now
+            setIsConversationValid(true);
           } else {
             console.warn("[Chat] No user found in conversation");
+            setIsConversationValid(false);
           }
         } else {
           console.warn("[Chat] Conversation not found:", chatId);
+          setIsConversationValid(false);
+          // CRITICAL: Orphaned conversation - invalidate cache and navigate back
+          // This ensures retry will call edge function to create NEW conversation
+          const { invalidateConversationCache } =
+            await import("@/lib/hooks/use-conversation-resolution");
+          invalidateConversationCache(queryClient, chatId);
+          console.log(
+            "[Chat] Invalidated cache for orphaned conversation:",
+            chatId,
+          );
+
+          useUIStore
+            .getState()
+            .showToast(
+              "error",
+              "Conversation Error",
+              "This conversation could not be loaded. Please try again.",
+            );
+          setIsLoadingRecipient(false);
+          router.back();
+          return;
         }
       } catch (error) {
         console.error("[Chat] Error loading conversation:", error);
+        setIsConversationValid(false);
+        // Also invalidate cache on error
+        const { invalidateConversationCache } =
+          await import("@/lib/hooks/use-conversation-resolution");
+        invalidateConversationCache(queryClient, chatId);
+
+        useUIStore
+          .getState()
+          .showToast("error", "Error", "Failed to load conversation");
+        setIsLoadingRecipient(false);
+        router.back();
+        return;
       } finally {
         setIsLoadingRecipient(false);
       }
     };
 
-    loadRecipientFromConversation();
+    loadRecipientFromConversation(queryClient);
   }, [
     chatId,
     currentUserId,
     setRecipient,
     setIsLoadingRecipient,
     setGroupInfo,
+    queryClient,
   ]);
 
   // Get toast function
@@ -773,8 +828,6 @@ function ChatScreenContent() {
 
     return [];
   }, [mentionQuery, recipient]);
-
-  const queryClient = useQueryClient();
 
   const handleSend = useCallback(() => {
     // Read fresh state from store — avoids stale closure bugs

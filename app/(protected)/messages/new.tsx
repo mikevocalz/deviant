@@ -65,23 +65,25 @@ function NewMessageScreenContent() {
       avatar: (user.avatar as string) || "",
     }));
 
+  const queryClient = useQueryClient();
+
   // FIXED: Create or get conversation BEFORE navigating to chat
   const handleSelectUser = useCallback(
-    async (userId: string) => {
+    async (username: string) => {
       if (isCreatingConversation) return;
 
       setIsCreatingConversation(true);
       try {
         console.log(
-          "[NewMessage] Creating/getting conversation with user:",
-          userId,
+          "[NewMessage] Creating/getting conversation with username:",
+          username,
         );
 
         // Get or create conversation with selected user (cached)
-        const queryClient = useQueryClient();
+        // CRITICAL: Pass username, not numeric user.id
         const conversationId = await getOrCreateConversationCached(
           queryClient,
-          userId,
+          username,
         );
 
         if (conversationId) {
@@ -101,10 +103,8 @@ function NewMessageScreenContent() {
         setIsCreatingConversation(false);
       }
     },
-    [router, isCreatingConversation, showToast],
+    [router, isCreatingConversation, showToast, queryClient],
   );
-
-  const queryClient = useQueryClient();
   const handleProfilePress = useCallback(
     (username: string) => {
       screenPrefetch.profile(queryClient, username);
@@ -169,7 +169,7 @@ function NewMessageScreenContent() {
                   />
                 </Pressable>
                 <Pressable
-                  onPress={() => handleSelectUser(user.id)}
+                  onPress={() => handleSelectUser(user.username)}
                   className="flex-1"
                 >
                   <Pressable onPress={() => handleProfilePress(user.username)}>
@@ -182,7 +182,7 @@ function NewMessageScreenContent() {
                   </Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => handleSelectUser(user.id)}
+                  onPress={() => handleSelectUser(user.username)}
                   className="bg-primary px-4 py-2 rounded-full"
                 >
                   <Text className="text-white font-semibold text-sm">

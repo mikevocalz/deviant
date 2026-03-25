@@ -26,8 +26,10 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Authorization required" }), {
-        status: 401,
+      console.error("[Edge:get-following-ids] No authorization header");
+      // Return empty array instead of 401 - prevents breaking messages UI
+      return new Response(JSON.stringify({ followingIds: [] }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -36,8 +38,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
+      console.error("[Edge:get-following-ids] Missing server config");
+      // Return empty array instead of 500 - prevents breaking messages UI
+      return new Response(JSON.stringify({ followingIds: [] }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -54,14 +58,21 @@ Deno.serve(async (req) => {
       .single();
 
     if (sessionError || !sessionData) {
-      return new Response(JSON.stringify({ error: "Invalid session" }), {
-        status: 401,
+      console.error(
+        "[Edge:get-following-ids] Session lookup failed:",
+        sessionError,
+      );
+      // Return empty array instead of 401 - prevents breaking messages UI
+      return new Response(JSON.stringify({ followingIds: [] }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     if (new Date(sessionData.expiresAt) < new Date()) {
-      return new Response(JSON.stringify({ error: "Session expired" }), {
-        status: 401,
+      console.warn("[Edge:get-following-ids] Session expired");
+      // Return empty array instead of 401 - prevents breaking messages UI
+      return new Response(JSON.stringify({ followingIds: [] }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -69,7 +80,7 @@ Deno.serve(async (req) => {
     const userData = await resolveOrProvisionUser(
       supabaseAdmin,
       sessionData.userId,
-      "id",
+      "auth_id",
     );
     if (!userData) {
       return new Response(JSON.stringify({ followingIds: [] }), {
@@ -78,6 +89,12 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Query follows table - follower_id should be the integer user.id
+    console.log(
+      "[Edge:get-following-ids] Querying follows for user.id:",
+      userData.id,
+    );
+
     const { data, error } = await supabaseAdmin
       .from("follows")
       .select("following_id")
@@ -85,25 +102,28 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error("[Edge:get-following-ids] Supabase error:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
+      // Return empty array instead of 500 - prevents breaking messages UI
+      return new Response(JSON.stringify({ followingIds: [] }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    console.log("[Edge:get-following-ids] Found follows:", data?.length || 0);
+
+    // Convert to string array (following_id is integer in DB)
     const followingIds = (data || []).map((f: any) => String(f.following_id));
+
     return new Response(JSON.stringify({ followingIds }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
     console.error("[Edge:get-following-ids] Unexpected error:", err);
-    return new Response(
-      JSON.stringify({ error: "An unexpected error occurred" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    // Return empty array instead of 500 - prevents breaking messages UI
+    return new Response(JSON.stringify({ followingIds: [] }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

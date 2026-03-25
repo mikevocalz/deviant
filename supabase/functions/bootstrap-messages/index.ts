@@ -53,7 +53,7 @@ Deno.serve(async (req: Request) => {
     const { data: userRow } = await supabase
       .from("users")
       .select("id, auth_id, username")
-      .eq("auth_id", user_id)
+      .eq("id", user_id)
       .single();
 
     if (!userRow) {

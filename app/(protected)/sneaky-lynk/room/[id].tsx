@@ -50,7 +50,7 @@ import {
   RoomTimer,
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
-import type { SneakyUser } from "@/src/sneaky-lynk/types";
+import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
 import { videoApi } from "@/src/video/api";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
@@ -129,6 +129,62 @@ function buildLocalUser(authUser: any): SneakyUser {
     avatar: authUser?.avatar || "",
     isVerified: authUser?.isVerified || false,
   };
+}
+
+function isClosedRoomError(message?: string | null) {
+  if (!message) return false;
+  return /no longer open|already ended|has ended|room not found|not found/i.test(
+    message,
+  );
+}
+
+function ClosedRoomScreen({
+  roomTitle,
+  message,
+  onBack,
+}: {
+  roomTitle: string;
+  message: string;
+  onBack: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View className="flex-row items-center px-4 py-3 border-b border-border">
+        <Pressable onPress={onBack} hitSlop={12}>
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+        <View className="flex-1 mx-4">
+          <Text
+            className="text-foreground font-semibold text-center"
+            numberOfLines={1}
+          >
+            {roomTitle || "Sneaky Lynk"}
+          </Text>
+        </View>
+        <View className="w-6" />
+      </View>
+
+      <View className="flex-1 items-center justify-center px-6">
+        <View className="w-20 h-20 rounded-full bg-secondary items-center justify-center mb-6">
+          <Radio size={36} color="#6B7280" />
+        </View>
+        <Text className="text-2xl font-bold text-foreground text-center mb-3">
+          Lynk Closed
+        </Text>
+        <Text className="text-muted-foreground text-center mb-8">
+          {message}
+        </Text>
+        <Pressable
+          onPress={onBack}
+          className="px-6 py-4 rounded-full bg-secondary items-center"
+        >
+          <Text className="text-foreground font-semibold">Back</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
 }
 
 // ── Pre-Join Screen ──────────────────────────────────────────────────
@@ -246,20 +302,74 @@ function SneakyLynkRoomScreenContent() {
 
   // Host (creator) skips the pre-join screen entirely
   const isCreator = isHostParam === "1";
+  const shouldGateJoin = isServerRoom && !isCreator;
   // Pre-join state for server rooms (joiners, not creators)
   const [hasJoined, setHasJoined] = useState(!isServerRoom || isCreator);
   const [joinAnonymous, setJoinAnonymous] = useState(false);
+  const [roomLookup, setRoomLookup] = useState<{
+    loading: boolean;
+    room: SneakyRoom | null;
+  }>({
+    loading: shouldGateJoin,
+    room: null,
+  });
+
+  useEffect(() => {
+    if (!shouldGateJoin || !id) return;
+
+    let cancelled = false;
+    setRoomLookup({ loading: true, room: null });
+
+    (async () => {
+      const room = await sneakyLynkApi.getRoomById(id);
+      if (!cancelled) {
+        setRoomLookup({ loading: false, room });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, shouldGateJoin]);
 
   const handleJoin = useCallback((anonymous: boolean) => {
     setJoinAnonymous(anonymous);
     setHasJoined(true);
   }, []);
 
+  if (shouldGateJoin && roomLookup.loading) {
+    return (
+      <View className="flex-1 bg-background items-center justify-center">
+        <ActivityIndicator size="large" color="#FC253A" />
+        <Text className="text-muted-foreground mt-4">Loading Lynk...</Text>
+      </View>
+    );
+  }
+
+  if (
+    shouldGateJoin &&
+    (!roomLookup.room ||
+      roomLookup.room.status === "ended" ||
+      !roomLookup.room.isLive)
+  ) {
+    return (
+      <ClosedRoomScreen
+        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
+        message={
+          roomLookup.room
+            ? "This Lynk has ended and can't be reopened."
+            : "This Lynk is unavailable."
+        }
+        onBack={() => router.back()}
+      />
+    );
+  }
+
   // Show pre-join screen for server rooms
   if (isServerRoom && !hasJoined) {
     return (
       <PreJoinScreen
-        roomTitle={paramTitle || "Sneaky Lynk"}
+        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
         onJoin={handleJoin}
         onBack={() => router.back()}
       />
@@ -273,6 +383,7 @@ function SneakyLynkRoomScreenContent() {
         paramTitle={paramTitle}
         roomHasVideo={roomHasVideo}
         anonymous={joinAnonymous}
+        initialRoom={roomLookup.room}
       />
     );
   }
@@ -295,6 +406,7 @@ function LocalRoom({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const authUser = useAuthStore((s) => s.user);
+  const showToast = useUIStore((s) => s.showToast);
   const fishjamCamera = useCamera();
   const fishjamMic = useMicrophone();
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
@@ -357,7 +469,8 @@ function LocalRoom({
     (async () => {
       try {
         // Configure audio session BEFORE starting mic (no CallKit for Lynk rooms)
-        audioSession.startForLynk(roomHasVideo);
+        // Lynks are social rooms, not private calls. Always route audio to speaker.
+        audioSession.startForLynk(true);
         console.log("[SneakyLynk:Local] Starting mic");
         await micRef.current.startMicrophone();
         if (!cancelled) console.log("[SneakyLynk:Local] Mic started");
@@ -383,16 +496,32 @@ function LocalRoom({
 
   const handleLeave = useCallback(async () => {
     // Local rooms are always hosted by the creator — end in DB too
-    try {
-      await sneakyLynkApi.endRoom(id);
-      console.log("[SneakyLynk:Local] Room ended in DB:", id);
-    } catch (e) {
-      // Non-fatal: room may not exist in DB (legacy local-only rooms)
-      console.warn("[SneakyLynk:Local] Failed to end room in DB:", e);
+    const result = await sneakyLynkApi.endRoom(id);
+    if (!result.ok && !isClosedRoomError(result.error?.message)) {
+      console.error(
+        "[SneakyLynk:Local] Failed to end room in DB:",
+        result.error?.message,
+      );
+      showToast(
+        "error",
+        "Couldn't close Lynk",
+        result.error?.message || "Try again. The Lynk is still open.",
+      );
+      return;
     }
+
+    if (result.ok) {
+      console.log("[SneakyLynk:Local] Room ended in DB:", id);
+    } else {
+      console.warn(
+        "[SneakyLynk:Local] Room already closed or unavailable:",
+        result.error?.message,
+      );
+    }
+
     endRoom(id, storeListeners.length);
     router.back();
-  }, [router, id, endRoom, storeListeners.length]);
+  }, [router, id, endRoom, storeListeners.length, showToast]);
   const handleToggleMic = useCallback(async () => {
     if (micRef.current.isMicrophoneOn) micRef.current.stopMicrophone();
     else await micRef.current.startMicrophone();
@@ -488,11 +617,13 @@ function ServerRoom({
   paramTitle,
   roomHasVideo = true,
   anonymous = false,
+  initialRoom = null,
 }: {
   id: string;
   paramTitle?: string;
   roomHasVideo?: boolean;
   anonymous?: boolean;
+  initialRoom?: SneakyRoom | null;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -521,6 +652,22 @@ function ServerRoom({
     promoteListener,
     reset,
   } = useRoomStore();
+  const [roomSnapshot, setRoomSnapshot] = useState<SneakyRoom | null>(
+    initialRoom,
+  );
+  const [closedReason, setClosedReason] = useState<string | null>(
+    initialRoom && (initialRoom.status === "ended" || !initialRoom.isLive)
+      ? "This Lynk has ended and can't be reopened."
+      : null,
+  );
+  const markRoomClosed = useCallback(
+    (room?: SneakyRoom | null, reason?: string) => {
+      if (room) setRoomSnapshot(room);
+      setClosedReason(reason || "This Lynk has ended and can't be reopened.");
+      endRoomHistory(id, room?.listeners ?? storeListeners.length);
+    },
+    [endRoomHistory, id, storeListeners.length],
+  );
 
   const videoRoom = useVideoRoom({
     roomId: id || "",
@@ -528,9 +675,20 @@ function ServerRoom({
     onEjected: (reason) => showEject(reason),
     onRoomEnded: () => {
       showToast("info", "Room Ended", "The host has ended this room");
-      router.back();
+      markRoomClosed(roomSnapshot);
     },
-    onError: (error) => showToast("error", "Error", error),
+    onError: (error) => {
+      showToast("error", "Error", error);
+      if (isClosedRoomError(error)) {
+        const normalizedError = error.toLowerCase();
+        markRoomClosed(
+          undefined,
+          normalizedError.includes("not found")
+            ? "This Lynk is unavailable."
+            : "This Lynk has ended and can't be reopened.",
+        );
+      }
+    },
   });
 
   // When anonymous, use the anon label from the server response instead of real profile
@@ -573,6 +731,20 @@ function ServerRoom({
       const joined = await videoRoom.join();
       if (!cancelled) {
         console.log("[SneakyLynk:Server] Join result:", joined);
+        if (!joined) {
+          const latestRoom = await sneakyLynkApi.getRoomById(id);
+          if (cancelled) return;
+          if (!latestRoom) {
+            markRoomClosed(null, "This Lynk is unavailable.");
+          } else if (latestRoom.status === "ended" || !latestRoom.isLive) {
+            markRoomClosed(
+              latestRoom,
+              "This Lynk has ended and can't be reopened.",
+            );
+          } else {
+            setRoomSnapshot(latestRoom);
+          }
+        }
       }
     })();
     return () => {
@@ -580,7 +752,7 @@ function ServerRoom({
       videoRoom.leave();
       audioSession.stop();
     };
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, markRoomClosed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start camera + mic ONLY after Fishjam peer is fully connected.
   // toggleCamera/toggleMic must be called when peerStatus === "connected",
@@ -596,7 +768,8 @@ function ServerRoom({
           "[SneakyLynk:Server] Peer connected — starting media, isHost:",
           isHost,
         );
-        audioSession.startForLynk(roomHasVideo);
+        // Lynks are social rooms, not private calls. Always route audio to speaker.
+        audioSession.startForLynk(true);
         if (roomHasVideo) {
           console.log("[SneakyLynk:Server] Starting camera...");
           await videoRoom.toggleCamera();
@@ -626,24 +799,56 @@ function ServerRoom({
   const handleLeave = useCallback(async () => {
     if (isHost) {
       // Host ends the room for everyone
-      try {
-        await sneakyLynkApi.endRoom(id);
+      const result = await sneakyLynkApi.endRoom(id);
+      if (!result.ok && !isClosedRoomError(result.error?.message)) {
+        console.error(
+          "[SneakyLynk:Server] Failed to end room in DB:",
+          result.error?.message,
+        );
+        showToast(
+          "error",
+          "Couldn't close Lynk",
+          result.error?.message || "Try again. The Lynk is still open.",
+        );
+        return;
+      }
+
+      if (result.ok) {
         console.log("[SneakyLynk:Server] Room ended in DB:", id);
-      } catch (e) {
-        console.error("[SneakyLynk:Server] Failed to end room in DB:", e);
+      } else {
+        console.warn(
+          "[SneakyLynk:Server] Room already closed or unavailable:",
+          result.error?.message,
+        );
       }
     } else {
       // Non-host: leave room (decrement participant_count, auto-end if empty)
-      try {
-        await sneakyLynkApi.leaveRoom(id);
+      const result = await sneakyLynkApi.leaveRoom(id);
+      if (!result.ok && !isClosedRoomError(result.error?.message)) {
+        console.error(
+          "[SneakyLynk:Server] Failed to leave room in DB:",
+          result.error?.message,
+        );
+        showToast(
+          "error",
+          "Couldn't leave Lynk",
+          result.error?.message || "Try again.",
+        );
+        return;
+      }
+
+      if (result.ok) {
         console.log("[SneakyLynk:Server] Left room in DB:", id);
-      } catch (e) {
-        console.error("[SneakyLynk:Server] Failed to leave room in DB:", e);
+      } else {
+        console.warn(
+          "[SneakyLynk:Server] Room already closed or unavailable:",
+          result.error?.message,
+        );
       }
     }
     endRoomHistory(id, storeListeners.length);
     router.back();
-  }, [router, id, endRoomHistory, storeListeners.length, isHost]);
+  }, [router, id, endRoomHistory, storeListeners.length, isHost, showToast]);
   const handleToggleMic = useCallback(async () => {
     await videoRoom.toggleMic();
   }, [videoRoom]);
@@ -665,7 +870,8 @@ function ServerRoom({
   const [allMuted, setAllMuted] = useState(false);
 
   // ── Derived values that depend on videoRoom (also before early return) ─
-  const roomTitle = videoRoom.room?.title || paramTitle || "Room";
+  const roomTitle =
+    videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
   const roomUuid = videoRoom.room?.id || id;
 
   // ── CRITICAL: All useCallback handlers BEFORE early return ────────
@@ -768,6 +974,16 @@ function ServerRoom({
   const handleParticipantPress = useCallback((p: VideoParticipant) => {
     setActionTarget(p);
   }, []);
+
+  if (closedReason) {
+    return (
+      <ClosedRoomScreen
+        roomTitle={roomSnapshot?.title || paramTitle || "Sneaky Lynk"}
+        message={closedReason}
+        onBack={() => router.back()}
+      />
+    );
+  }
 
   // ── EARLY RETURN: Only after ALL hooks have been called ───────────
   if (connectionState === "connecting" || connectionState === "disconnected") {

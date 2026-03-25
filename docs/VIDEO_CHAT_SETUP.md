@@ -122,12 +122,12 @@ psql $DATABASE_URL -f supabase/migrations/20260203_video_chat_rls.sql
 ### 4. Deploy Edge Functions
 
 ```bash
-supabase functions deploy video_create_room
-supabase functions deploy video_join_room
-supabase functions deploy video_refresh_token
-supabase functions deploy video_kick_user
-supabase functions deploy video_ban_user
-supabase functions deploy video_end_room
+supabase functions deploy video_create_room --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+supabase functions deploy video_join_room --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+supabase functions deploy video_refresh_token --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+supabase functions deploy video_kick_user --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+supabase functions deploy video_ban_user --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+supabase functions deploy video_end_room --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
 ```
 
 ### 5. Configure Edge Function JWT Verification

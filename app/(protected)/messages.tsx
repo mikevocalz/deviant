@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {
   ArrowLeft,
@@ -22,7 +22,7 @@ import {
   Plus,
 } from "lucide-react-native";
 import { Image } from "expo-image";
-import { useCallback, useState, useRef, useMemo } from "react";
+import { useCallback, useState, useRef, useMemo, useEffect } from "react";
 import { MessagesSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -250,12 +250,13 @@ function ConversationList({
 // Sneaky Lynk tab content
 function SneakyLynkContent({
   router,
+  isActive,
 }: {
   router: ReturnType<typeof useRouter>;
+  isActive: boolean;
 }) {
   const localRooms = useLynkHistoryStore((s) => s.rooms);
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
-  const addRoom = useLynkHistoryStore((s) => s.addRoom);
   const [dbRooms, setDbRooms] = useState<LynkRecord[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -307,6 +308,18 @@ function SneakyLynkContent({
     }, [fetchRooms]),
   );
 
+  useEffect(() => {
+    if (!isActive) return;
+
+    void fetchRooms();
+
+    const interval = setInterval(() => {
+      void fetchRooms();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isActive, fetchRooms]);
+
   // Pull-to-refresh
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -314,15 +327,16 @@ function SneakyLynkContent({
     setRefreshing(false);
   }, [fetchRooms]);
 
-  // Merge: DB rooms take priority, then local-only rooms
-  // Only show rooms that are actually live (status open + participants > 0)
-  // CRITICAL: Filter out public rooms (those belong in Sneaky Lynk, not Messages)
+  // Merge: DB rooms take priority, then any local-only rooms for immediate
+  // host visibility before the live room fetch catches up.
+  // Lynks should surface in this tab only, so this tab must include the
+  // public DB rooms that other users rely on to see who's live.
   const allRooms = useCallback(() => {
     const dbIds = new Set(dbRooms.map((r) => r.id));
-    const localOnly = localRooms.filter((r) => !dbIds.has(r.id));
-    return [...dbRooms, ...localOnly].filter(
-      (r) => r.isLive && r.isPublic === false,
+    const localOnly = localRooms.filter(
+      (r) => !dbIds.has(r.id) && r.source === "sneaky_lynk",
     );
+    return [...dbRooms, ...localOnly].filter((r) => r.isLive);
   }, [dbRooms, localRooms])();
 
   const handleCreateLynk = useCallback(() => {
@@ -510,6 +524,7 @@ const lynkStyles = StyleSheet.create({
 
 function MessagesScreenContent() {
   const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
@@ -552,7 +567,12 @@ function MessagesScreenContent() {
   } = useFilteredConversations("primary");
   const { data: spamRaw = [] } = useFilteredConversations("requests");
 
-  const [activeTab, setActiveTab] = useState(0);
+  const initialTab = useMemo(() => {
+    if (tab === "requests") return 1;
+    if (tab === "lynk") return 2;
+    return 0;
+  }, [tab]);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const pagerRef = useRef<PagerView>(null);
 
   const transformConversation = useCallback(
@@ -675,6 +695,11 @@ function MessagesScreenContent() {
     [],
   );
 
+  useEffect(() => {
+    setActiveTab(initialTab);
+    pagerRef.current?.setPageWithoutAnimation(initialTab);
+  }, [initialTab]);
+
   if (isLoading) {
     return (
       <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -789,7 +814,7 @@ function MessagesScreenContent() {
       <PagerView
         ref={pagerRef}
         style={{ flex: 1 }}
-        initialPage={0}
+        initialPage={initialTab}
         onPageSelected={handlePageSelected}
         scrollEnabled={false}
       >
@@ -822,7 +847,7 @@ function MessagesScreenContent() {
           />
         </View>
         <View key="lynks" style={{ flex: 1 }}>
-          <SneakyLynkContent router={router} />
+          <SneakyLynkContent router={router} isActive={activeTab === 2} />
         </View>
       </PagerView>
     </View>

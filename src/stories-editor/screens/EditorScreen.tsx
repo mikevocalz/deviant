@@ -165,9 +165,10 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   // Set initial media and text-only flag
   React.useEffect(() => {
     setMedia(mediaUri, mediaType);
-    // Only enable text-only mode when explicitly opened with no media
-    setTextOnlyMode(!mediaUri);
-  }, [mediaUri, mediaType, setMedia, setTextOnlyMode]);
+    // Only enable text-only mode when explicitly opened from the
+    // dedicated text-only entrypoint, never from regular media editing.
+    setTextOnlyMode(initialMode === "text" && !mediaUri);
+  }, [initialMode, mediaUri, mediaType, setMedia, setTextOnlyMode]);
 
   // [REGRESSION LOCK] Apply initialMode immediately after first layout frame.
   // rAF ensures layout is committed before mode change triggers panel mount.
@@ -291,8 +292,9 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       const asset = result.assets[0];
       const type = asset.type === "video" ? "video" : "image";
       setMedia(asset.uri, type as "image" | "video");
+      setTextOnlyMode(false);
     }
-  }, [setMedia]);
+  }, [setMedia, setTextOnlyMode]);
 
   // ---- Export / Save ----
 

@@ -107,7 +107,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // Focus input after mount
   const focusDebouncer = useRef(
-    new Debouncer(() => inputRef.current?.focus(), { wait: 300 }),
+    new Debouncer(() => inputRef.current?.focus(), { wait: 80 }),
   );
   useEffect(() => {
     focusDebouncer.current.maybeExecute();
@@ -359,7 +359,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.75)",
+        backgroundColor: "rgba(0,0,0,0.18)",
       }}
     >
       {/* ---- Top Bar ---- */}

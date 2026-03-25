@@ -47,9 +47,8 @@ import { StoryTagPicker } from "@/components/stories/story-tag-picker";
 import { storyTagsApi } from "@/lib/api/stories";
 // generateVideoThumbnail disabled — expo-video-thumbnails hangs on iOS 26.3
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
-import { setPendingCrop } from "@/src/crop/crop-utils";
-import { ASPECT_RATIOS } from "@/lib/hooks/use-responsive-media";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
+import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
 
 function StoryVideoPreview({ uri }: { uri: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -127,15 +126,18 @@ function CreateStoryScreenContent() {
   const { colors } = useColorScheme();
   const transitionTo = useStoryFlowStore((s) => s.transitionTo);
   const forceIdle = useStoryFlowStore((s) => s.forceIdle);
+  const ensureHubState = useCallback(() => {
+    const flow = useStoryFlowStore.getState();
+    if (flow.state === "IDLE") {
+      flow.transitionTo("HUB");
+    }
+  }, []);
 
   // ── Responsive layout ─────────────────────────────────────────────
   const CANVAS_WIDTH = width - 32;
   const CANVAS_HEIGHT = Math.min(height * 0.55, CANVAS_WIDTH * (16 / 9));
 
   const {
-    selectedMedia,
-    mediaTypes,
-    setSelectedMedia,
     reset,
     currentIndex,
     setCurrentIndex,
@@ -155,9 +157,9 @@ function CreateStoryScreenContent() {
     setVideoThumbnail,
   } = useCreateStoryStore();
 
-  const { pickStoryMedia, recordStoryVideo, requestPermissions } =
-    useMediaPicker();
-  const createStory = useCreateStory();
+  const { pickFromLibrary, requestPermissions } = useMediaPicker();
+  const { mutate: createStoryMutate, isPending: isCreateStoryPending } =
+    useCreateStory();
   const showToast = useUIStore((s) => s.showToast);
   const {
     uploadMultiple,
@@ -167,6 +169,7 @@ function CreateStoryScreenContent() {
   } = useMediaUpload({ folder: "stories" });
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
+  const consumeEditorResult = useStoryEditorResultStore((s) => s.consumeResult);
 
   // Pick up edited URI coming back from the Skia editor
   const { editedUri, editedIndex } = useLocalSearchParams<{
@@ -174,35 +177,62 @@ function CreateStoryScreenContent() {
     editedIndex?: string;
   }>();
 
-  useEffect(() => {
-    if (editedUri && editedIndex !== undefined) {
-      const idx = parseInt(editedIndex, 10);
-      if (!isNaN(idx) && mediaAssets[idx]) {
-        // Editing existing media — replace in-place
+  const applyEditedResult = useCallback(
+    (uri: string, rawIndex?: string | number) => {
+      const idx =
+        typeof rawIndex === "number"
+          ? rawIndex
+          : Number.parseInt(rawIndex ?? "", 10);
+
+      if (!Number.isNaN(idx) && mediaAssets[idx]) {
         const updated = [...mediaAssets];
-        updated[idx] = { ...updated[idx], uri: editedUri, type: "image" };
+        updated[idx] = {
+          ...updated[idx],
+          uri,
+          type: "image",
+          kind: "image",
+        };
         setMediaAssets(updated);
-        setSelectedMedia([editedUri], ["image"]);
+        setCurrentIndex(idx);
         console.log("[Story] Applied edited image at index", idx);
-      } else if (mediaAssets.length === 0) {
-        // Text-only story — canvas snapshot returned with no existing media
+        return;
+      }
+
+      if (mediaAssets.length === 0) {
         const asset: MediaAsset = {
-          id: editedUri,
-          uri: editedUri,
+          id: uri,
+          uri,
           type: "image",
           kind: "image",
         };
         setMediaAssets([asset]);
-        setSelectedMedia([editedUri], ["image"]);
         setCurrentIndex(0);
         console.log("[Story] Applied text-only story snapshot");
       }
+    },
+    [mediaAssets, setCurrentIndex, setMediaAssets],
+  );
+
+  useEffect(() => {
+    if (editedUri && editedIndex !== undefined) {
+      applyEditedResult(editedUri, editedIndex);
     }
-  }, [editedUri, editedIndex]);
+  }, [applyEditedResult, editedUri, editedIndex]);
 
   useEffect(() => {
     requestPermissions();
   }, [requestPermissions]);
+
+  useFocusEffect(
+    useCallback(() => {
+      ensureHubState();
+
+      const editorResult = consumeEditorResult();
+      if (editorResult) {
+        applyEditedResult(editorResult.uri, editorResult.index);
+      }
+    }, [applyEditedResult, consumeEditorResult, ensureHubState]),
+  );
 
   const handleMediaSelected = useCallback(
     (media: MediaAsset[]) => {
@@ -247,10 +277,6 @@ function CreateStoryScreenContent() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const updatedAssets = [...mediaAssets, ...validMedia];
         setMediaAssets(updatedAssets);
-        setSelectedMedia(
-          updatedAssets.map((m) => m.uri),
-          updatedAssets.map((m) => m.type),
-        );
         setCurrentIndex(mediaAssets.length === 0 ? 0 : mediaAssets.length);
 
         // NOTE: Video thumbnail generation disabled — expo-video-thumbnails
@@ -260,7 +286,6 @@ function CreateStoryScreenContent() {
     [
       mediaAssets,
       setMediaAssets,
-      setSelectedMedia,
       setCurrentIndex,
       setVideoThumbnail,
       showToast,
@@ -277,32 +302,12 @@ function CreateStoryScreenContent() {
       return;
     }
     try {
-      const media = await pickStoryMedia?.({
-        maxDuration: MAX_VIDEO_DURATION,
-        maxFileSizeMB: MAX_FILE_SIZE_MB,
+      const media = await pickFromLibrary?.({
+        maxSelection: MAX_STORY_ITEMS - mediaAssets.length,
+        allowsMultipleSelection: true,
       });
       if (media && media.length > 0) {
-        // Route images through crop screen (9:16 story aspect ratio)
-        const images = media.filter((m) => m.type === "image");
-        const videos = media.filter((m) => m.type === "video");
-
-        // Add videos directly (no crop needed)
-        if (videos.length > 0) {
-          handleMediaSelected(videos);
-        }
-
-        // Route images through crop screen
-        if (images.length > 0) {
-          setPendingCrop(
-            images,
-            undefined,
-            ASPECT_RATIOS.story,
-            (croppedImages) => {
-              handleMediaSelected(croppedImages);
-            },
-          );
-          router.push("/(protected)/crop-preview" as any);
-        }
+        handleMediaSelected(media);
       }
     } catch (error) {
       showToast("error", "Error", "Failed to pick media.");
@@ -343,6 +348,7 @@ function CreateStoryScreenContent() {
   );
 
   const handleCreateTextStory = () => {
+    ensureHubState();
     transitionTo("TEXT_ONLY");
     router.push({
       pathname: "/(protected)/story/editor",
@@ -377,12 +383,10 @@ function CreateStoryScreenContent() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const updated = mediaAssets.filter((_, i) => i !== index);
     setMediaAssets(updated);
-    setSelectedMedia(
-      updated.map((m) => m.uri),
-      updated.map((m) => m.type),
-    );
     if (currentIndex >= updated.length && updated.length > 0) {
       setCurrentIndex(updated.length - 1);
+    } else if (updated.length === 0) {
+      setCurrentIndex(0);
     }
   };
 
@@ -392,30 +396,32 @@ function CreateStoryScreenContent() {
       if (!asset) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      ensureHubState();
       transitionTo(asset.type === "video" ? "EDIT_VIDEO" : "EDIT_IMAGE");
       router.push({
         pathname: "/(protected)/story/editor",
         params: {
           uri: encodeURIComponent(asset.uri),
           type: asset.type,
+          index: String(index),
           ...(initialMode && { initialMode }),
         },
       });
     },
-    [mediaAssets, router],
+    [ensureHubState, mediaAssets, router, transitionTo],
   );
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async () => {
     console.log("[Story] handleShare called", {
       isSharing,
-      isPending: createStory.isPending,
+      isPending: isCreateStoryPending,
       mediaAssetsCount: mediaAssets.length,
     });
 
-    if (isSharing || createStory.isPending) {
+    if (isSharing || isCreateStoryPending) {
       console.log("[Story] handleShare blocked:", {
         isSharing,
-        isPending: createStory.isPending,
+        isPending: isCreateStoryPending,
       });
       return;
     }
@@ -464,7 +470,7 @@ function CreateStoryScreenContent() {
       }));
       console.log("[Story] Creating story with", storyItems.length, "items");
 
-      createStory.mutate(
+      createStoryMutate(
         { items: storyItems, visibility },
         {
           onSuccess: (newStory: any) => {
@@ -500,10 +506,22 @@ function CreateStoryScreenContent() {
       setIsSharing(false);
       showToast("error", "Error", error?.message || "Something went wrong.");
     }
-  };
+  }, [
+    createStoryMutate,
+    isCreateStoryPending,
+    isSharing,
+    mediaAssets,
+    reset,
+    router,
+    setIsSharing,
+    showToast,
+    taggedUsers,
+    uploadMultiple,
+    visibility,
+  ]);
 
-  const handleClose = () => {
-    if (selectedMedia.length > 0) {
+  const handleClose = useCallback(() => {
+    if (mediaAssets.length > 0) {
       Alert.alert("Discard Story?", "You have unsaved changes.", [
         { text: "Keep Editing", style: "cancel" },
         {
@@ -520,12 +538,12 @@ function CreateStoryScreenContent() {
       forceIdle();
       router.back();
     }
-  };
+  }, [forceIdle, mediaAssets.length, reset, router]);
 
-  const currentMedia = selectedMedia[currentIndex];
-  const currentMediaType = mediaTypes[currentIndex];
-  const hasMedia = mediaAssets.length > 0;
-  const isValid = selectedMedia.length > 0;
+  const currentAsset = mediaAssets[currentIndex];
+  const currentMedia = currentAsset?.uri;
+  const currentMediaType = currentAsset?.type;
+  const isValid = mediaAssets.length > 0;
 
   // FIX: Use safe header update to prevent loops
   useSafeHeader({
@@ -561,7 +579,7 @@ function CreateStoryScreenContent() {
         </Text>
       </Pressable>
     ),
-  });
+  }, [handleClose, handleShare, isSharing, isValid]);
 
   return (
     <>
@@ -741,10 +759,10 @@ function CreateStoryScreenContent() {
             )}
 
             {/* Progress indicators */}
-            {selectedMedia.length > 1 && (
+            {mediaAssets.length > 1 && (
               <>
                 <View className="absolute top-3 left-3 right-3 flex-row gap-1">
-                  {selectedMedia.map((_, idx) => (
+                  {mediaAssets.map((_, idx) => (
                     <View
                       key={idx}
                       className={`flex-1 h-0.5 rounded-full ${idx === currentIndex ? "bg-white" : "bg-white/30"}`}
@@ -764,7 +782,7 @@ function CreateStoryScreenContent() {
                   </Pressable>
                 )}
 
-                {currentIndex < selectedMedia.length - 1 && (
+                {currentIndex < mediaAssets.length - 1 && (
                   <Pressable
                     onPress={() => {
                       nextSlide();

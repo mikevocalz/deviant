@@ -75,6 +75,7 @@ export interface JoinRoomResponse {
   user: {
     id: string;
     username?: string;
+    displayName?: string;
     avatar?: string;
     isAnonymous?: boolean;
     anonLabel?: string | null;
@@ -100,6 +101,7 @@ export interface Participant {
   oderId: string;
   userId: string;
   username?: string;
+  displayName?: string;
   avatar?: string;
   role: MemberRole;
   isLocal: boolean;
@@ -127,9 +129,12 @@ export interface VideoRoomState {
   localUser: {
     id: string;
     username?: string;
+    displayName?: string;
     avatar?: string;
     role: MemberRole;
     peerId?: string;
+    isAnonymous?: boolean;
+    anonLabel?: string | null;
   } | null;
   participants: Participant[];
   connectionState: ConnectionState;

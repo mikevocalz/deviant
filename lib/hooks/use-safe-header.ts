@@ -26,23 +26,29 @@ import type { NativeStackNavigationOptions } from "@react-navigation/native-stac
  * useSafeHeader({ headerTitle: title });
  */
 export function useSafeHeader(
-  options: Partial<NativeStackNavigationOptions>
+  options: Partial<NativeStackNavigationOptions>,
+  deps: readonly unknown[] = []
 ): void {
   const navigation = useNavigation();
   const lastOptionsRef = useRef<string>("");
+  const lastDepsRef = useRef<readonly unknown[]>([]);
 
   useLayoutEffect(() => {
     // Serialize options to detect changes
     const optionsKey = JSON.stringify(options);
+    const depsUnchanged =
+      lastDepsRef.current.length === deps.length &&
+      deps.every((dep, index) => Object.is(dep, lastDepsRef.current[index]));
     
     // Only update if options actually changed
-    if (lastOptionsRef.current === optionsKey) {
+    if (lastOptionsRef.current === optionsKey && depsUnchanged) {
       return;
     }
     
     lastOptionsRef.current = optionsKey;
+    lastDepsRef.current = deps;
     navigation.setOptions(options);
-  }, [navigation, options]);
+  }, [navigation, options, ...deps]);
 }
 
 /**
