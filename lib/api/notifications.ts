@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { getCurrentUserIdInt } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
 
 // Type exports for activity-store compatibility
 export type NotificationType =
@@ -45,6 +46,20 @@ export interface Notification {
   } | null;
   postId: string | null;
   commentId: string | null;
+}
+
+export interface LikedActivityRecord {
+  id: string;
+  entityType: "post" | "event";
+  entityId: string;
+  createdAt: string;
+  title: string;
+  previewImage?: string;
+  actor: {
+    id: string;
+    username: string;
+    avatar: string;
+  };
 }
 
 export const notificationsApi = {
@@ -229,6 +244,44 @@ export const notificationsApi = {
   },
 
   /**
+   * Get the current viewer's outgoing liked activity.
+   * Aggregates liked posts and liked events via Edge Function.
+   */
+  async getLikedActivity(limit: number = 50) {
+    try {
+      const token = await requireBetterAuthToken();
+
+      const { data, error } = await supabase.functions.invoke<{
+        items?: LikedActivityRecord[];
+        error?: string;
+      }>("get-liked-activity", {
+        body: { limit },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (error) {
+        console.error("[Notifications] getLikedActivity error:", error);
+        return { docs: [], totalDocs: 0 };
+      }
+
+      if (!data?.items) {
+        if (data?.error) {
+          console.error("[Notifications] get-liked-activity:", data.error);
+        }
+        return { docs: [], totalDocs: 0 };
+      }
+
+      return {
+        docs: data.items,
+        totalDocs: data.items.length,
+      };
+    } catch (error) {
+      console.error("[Notifications] getLikedActivity error:", error);
+      return { docs: [], totalDocs: 0 };
+    }
+  },
+
+  /**
    * Mark notification as read
    */
   async markAsRead(notificationId: string) {
@@ -303,6 +356,8 @@ export const notificationsApiClient = {
     notificationsApi.getNotifications(options.limit || 50),
   getNotifications: (limit?: number) =>
     notificationsApi.getNotifications(limit || 50),
+  getLikedActivity: (limit?: number) =>
+    notificationsApi.getLikedActivity(limit || 50),
   markAsRead: (id: string) => notificationsApi.markAsRead(id),
   markAllAsRead: () => notificationsApi.markAllAsRead(),
   getBadges: () => notificationsApi.getBadges(),

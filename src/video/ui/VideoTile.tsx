@@ -31,11 +31,21 @@ export function VideoTile({
   onPress,
   onLongPress,
 }: VideoTileProps) {
-  const { username, avatar, role, isCameraOn, isMicOn, isLocal, videoTrack } =
-    participant;
+  const {
+    username,
+    displayName,
+    avatar,
+    role,
+    isCameraOn,
+    isMicOn,
+    isLocal,
+    videoTrack,
+    isAnonymous,
+    anonLabel,
+  } = participant;
 
-  const displayName = username || "Unknown";
-  const initials = displayName.slice(0, 2).toUpperCase();
+  const resolvedName = anonLabel || username || displayName || "Guest";
+  const initials = resolvedName.slice(0, 2).toUpperCase();
 
   return (
     <Pressable
@@ -55,7 +65,7 @@ export function VideoTile({
         />
       ) : (
         <View className="flex-1 items-center justify-center bg-muted">
-          {avatar ? (
+          {avatar && !isAnonymous ? (
             <Image
               source={{ uri: avatar }}
               className={isLarge ? c.avatarXl : c.avatarLg}
@@ -81,7 +91,7 @@ export function VideoTile({
                 className="text-white text-xs font-medium"
                 numberOfLines={1}
               >
-                {isLocal ? "You" : displayName}
+                {resolvedName}
               </Text>
             </View>
             <RoleBadge role={role} />

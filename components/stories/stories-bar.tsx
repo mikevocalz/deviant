@@ -184,9 +184,15 @@ export function StoriesBar() {
   // Handle own story press — navigate to existing viewer route
   const handleMyStoryPress = useCallback(() => {
     if (myStory) {
-      router.push(`/(protected)/story/${myStory.id}` as any);
+      router.push({
+        pathname: "/(protected)/story/[id]",
+        params: {
+          id: String(myStory.id),
+          username: myStory.username || user?.username || "",
+        },
+      });
     }
-  }, [myStory, router]);
+  }, [myStory, router, user?.username]);
 
   if (isPending) {
     return <StoriesBarSkeleton />;

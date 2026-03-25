@@ -406,13 +406,23 @@ export const videoApi = {
         },
         async (payload) => {
           const member = (payload.new || payload.old) as any;
+          const isAnonymous = member.is_anonymous ?? false;
+          const anonLabel = member.anon_label ?? null;
 
-          // Fetch user details
-          const { data: userData } = await supabase
-            .from("users")
-            .select("username, avatar")
-            .eq("auth_id", member.user_id)
-            .single();
+          let userData: {
+            username?: string;
+            first_name?: string;
+            avatar?: { url?: string }[] | { url?: string } | null;
+          } | null = null;
+
+          if (!isAnonymous) {
+            const { data } = await supabase
+              .from("users")
+              .select("username, first_name, avatar:avatar_id(url)")
+              .eq("auth_id", member.user_id)
+              .single();
+            userData = data;
+          }
 
           onMemberChange(
             {
@@ -422,8 +432,19 @@ export const videoApi = {
               status: member.status,
               joinedAt: member.joined_at,
               leftAt: member.left_at,
-              username: userData?.username,
-              avatar: userData?.avatar?.url,
+              username: isAnonymous
+                ? anonLabel || "Anon"
+                : userData?.username || undefined,
+              displayName: isAnonymous
+                ? anonLabel || "Anon"
+                : userData?.first_name || userData?.username || undefined,
+              avatar: isAnonymous
+                ? undefined
+                : Array.isArray(userData?.avatar)
+                  ? userData?.avatar[0]?.url
+                  : userData?.avatar?.url,
+              isAnonymous,
+              anonLabel,
             },
             payload.eventType as "INSERT" | "UPDATE" | "DELETE",
           );

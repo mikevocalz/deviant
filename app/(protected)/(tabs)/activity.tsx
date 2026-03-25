@@ -1,4 +1,4 @@
-import { View, Text, Pressable, RefreshControl } from "react-native";
+import { View, Text, Pressable, ScrollView } from "react-native";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
@@ -23,18 +23,33 @@ import type { Activity } from "@/lib/hooks/use-activities-query";
 import {
   useActivitiesQuery,
   getRouteForActivity,
+  useLikedActivitiesQuery,
+  getRouteForLikedActivity,
 } from "@/lib/hooks/use-activities-query";
 import { useQueryClient } from "@tanstack/react-query";
-import { activityKeys } from "@/lib/hooks/use-activities-query";
+import {
+  activityKeys,
+  type LikedActivity,
+} from "@/lib/hooks/use-activities-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFollow } from "@/lib/hooks/use-follow";
-import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useBootstrapNotifications } from "@/lib/hooks/use-bootstrap-notifications";
+import { notificationsApiClient } from "@/lib/api/notifications";
+import { notificationKeys } from "@/lib/hooks/use-notifications-query";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 
-const TABS = ["All", "Follows", "Likes", "Comments", "Mentions"] as const;
+const TABS = [
+  "All",
+  "Follows",
+  "Likes",
+  "Comments",
+  "Mentions",
+  "Liked",
+] as const;
 type TabType = (typeof TABS)[number];
 
 const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
@@ -80,6 +95,34 @@ function getActivityText(activity: Activity): string {
     default:
       return "";
   }
+}
+
+function getLikedDescriptor(item: LikedActivity): string {
+  const username = item.actor.username || "someone";
+  if (item.entityType === "event") {
+    return `You liked @${username}'s event.`;
+  }
+  return `You liked @${username}'s post.`;
+}
+
+function getLikedAccent(entityType: LikedActivity["entityType"]) {
+  if (entityType === "event") {
+    return {
+      accent: "#10B981",
+      border: "rgba(16, 185, 129, 0.22)",
+      surface: "rgba(6, 35, 31, 0.42)",
+      badgeSurface: "rgba(16, 185, 129, 0.16)",
+      badgeText: "#A7F3D0",
+    };
+  }
+
+  return {
+    accent: "#FF5BFC",
+    border: "rgba(255, 91, 252, 0.22)",
+    surface: "rgba(54, 9, 49, 0.36)",
+    badgeSurface: "rgba(255, 91, 252, 0.16)",
+    badgeText: "#F9A8FF",
+  };
 }
 
 interface ActivityItemProps {
@@ -179,15 +222,182 @@ const ActivityItem = memo(
   ),
 );
 
+interface LikedItemProps {
+  item: LikedActivity;
+  onPress: (item: LikedActivity) => void;
+  onUserPress: (username: string, avatar?: string) => void;
+}
+
+const LikedItem = memo(({ item, onPress, onUserPress }: LikedItemProps) => {
+  const palette = getLikedAccent(item.entityType);
+
+  return (
+    <Pressable
+      onPress={() => onPress(item)}
+      style={{
+        marginHorizontal: 16,
+        marginBottom: 12,
+        padding: 16,
+        borderRadius: 24,
+        borderWidth: 1,
+        borderColor: palette.border,
+        backgroundColor: palette.surface,
+        overflow: "hidden",
+      }}
+    >
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 3,
+          backgroundColor: palette.accent,
+          opacity: 0.95,
+        }}
+      />
+
+      <View className="flex-row items-start">
+        <View className="flex-1 pr-3">
+          <View className="flex-row items-center mb-3">
+            <View
+              style={{
+                backgroundColor: palette.badgeSurface,
+                paddingHorizontal: 9,
+                paddingVertical: 5,
+                borderRadius: 999,
+              }}
+            >
+              <Text
+                style={{
+                  color: palette.badgeText,
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 0.6,
+                }}
+              >
+                {item.entityType === "event" ? "EVENT" : "POST"}
+              </Text>
+            </View>
+            <Text
+              style={{
+                color: "#A8A29E",
+                fontSize: 12,
+                fontWeight: "600",
+                marginLeft: 10,
+              }}
+            >
+              {item.timeAgo}
+            </Text>
+          </View>
+
+          <Text
+            style={{
+              color: "#FAFAF9",
+              fontSize: 17,
+              fontWeight: "700",
+              lineHeight: 22,
+            }}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
+
+          <Text
+            style={{
+              color: "#D6D3D1",
+              fontSize: 13,
+              lineHeight: 18,
+              marginTop: 8,
+            }}
+            numberOfLines={2}
+          >
+            {getLikedDescriptor(item)}
+          </Text>
+
+          <View className="flex-row items-center mt-4">
+            <Pressable
+              onPress={() =>
+                onUserPress(item.actor.username, item.actor.avatar)
+              }
+              className="flex-row items-center flex-1"
+            >
+              <Avatar
+                uri={item.actor.avatar}
+                username={item.actor.username}
+                size={30}
+                variant="roundedSquare"
+              />
+              <Text
+                style={{
+                  color: "#F5F5F4",
+                  fontSize: 12,
+                  fontWeight: "600",
+                  marginLeft: 8,
+                }}
+              >
+                @{item.actor.username}
+              </Text>
+            </Pressable>
+
+            <Text
+              style={{
+                color: palette.badgeText,
+                fontSize: 12,
+                fontWeight: "700",
+              }}
+            >
+              Open
+            </Text>
+          </View>
+        </View>
+
+        {item.previewImage ? (
+          <Image
+            source={{ uri: item.previewImage }}
+            style={{
+              width: 82,
+              height: 104,
+              borderRadius: 20,
+              backgroundColor: "rgba(255,255,255,0.08)",
+            }}
+          />
+        ) : (
+          <View
+            style={{
+              width: 82,
+              height: 104,
+              borderRadius: 20,
+              backgroundColor: "rgba(255,255,255,0.08)",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {item.entityType === "event" ? (
+              <Calendar size={22} color={palette.accent} />
+            ) : (
+              <Heart size={22} color={palette.accent} fill={palette.accent} />
+            )}
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
+});
+
 function ActivityScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>("All");
   const [refreshing, setRefreshing] = useState(false);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
   const queryClient = useQueryClient();
   const viewerId = useAuthStore((s) => s.user?.id) || "";
-  const trace = useScreenTrace("Activity");
+  const setNotificationsUnread = useUnreadCountsStore(
+    (s) => s.setNotificationsUnread,
+  );
+  const showToast = useUIStore((s) => s.showToast);
   useBootstrapNotifications();
 
   // TanStack Query — MMKV-persisted, instant on cold start
@@ -196,10 +406,14 @@ function ActivityScreenContent() {
     isLoading: queryLoading,
     refetch,
   } = useActivitiesQuery();
+  const {
+    data: likedQueryActivities,
+    isLoading: likedQueryLoading,
+    refetch: refetchLikedActivities,
+  } = useLikedActivitiesQuery();
 
   // Store — follow state + mutations only (query is source of truth for activities)
-  const { markActivityAsRead, markAllAsRead, subscribeToNotifications } =
-    useActivityStore();
+  const { markActivityAsRead, subscribeToNotifications } = useActivityStore();
 
   // REACTIVE follow state — subscribe to followedUsers Set so component re-renders
   const followedUsers = useActivityStore((s) => s.followedUsers);
@@ -251,10 +465,26 @@ function ActivityScreenContent() {
 
   // RC-8: Query is the SINGLE source of truth — no Zustand mirror
   const activities: Activity[] = (queryActivities || []) as Activity[];
+  const likedActivities: LikedActivity[] = (likedQueryActivities ||
+    []) as LikedActivity[];
 
   const unreadCount = useMemo(
     () => activities.filter((a) => !a.isRead).length,
     [activities],
+  );
+  const tabCounts = useMemo(
+    () => ({
+      All: activities.length,
+      Follows: activities.filter((activity) => activity.type === "follow")
+        .length,
+      Likes: activities.filter((activity) => activity.type === "like").length,
+      Comments: activities.filter((activity) => activity.type === "comment")
+        .length,
+      Mentions: activities.filter((activity) => activity.type === "mention")
+        .length,
+      Liked: likedActivities.length,
+    }),
+    [activities, likedActivities],
   );
 
   // Realtime subscription for instant notifications (follow, like, comment, etc.)
@@ -269,15 +499,23 @@ function ActivityScreenContent() {
   // Replaces aggressive invalidateQueries which forced refetch on EVERY tab switch
   useFocusEffect(
     useCallback(() => {
-      const state = queryClient.getQueryState(activityKeys.list(viewerId));
+      const queryKey =
+        activeTab === "Liked"
+          ? activityKeys.liked(viewerId)
+          : activityKeys.list(viewerId);
+      const state = queryClient.getQueryState(queryKey);
       const dataAge = state?.dataUpdatedAt
         ? Date.now() - state.dataUpdatedAt
         : Infinity;
       // Only refetch if data is older than 60s — prevents thrashing on quick tab switches
       if (dataAge > 60_000) {
-        refetch();
+        if (activeTab === "Liked") {
+          refetchLikedActivities();
+        } else {
+          refetch();
+        }
       }
-    }, [queryClient, viewerId, refetch]),
+    }, [activeTab, queryClient, viewerId, refetch, refetchLikedActivities]),
   );
 
   const filteredActivities = useMemo(
@@ -310,16 +548,22 @@ function ActivityScreenContent() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    console.log("[Activity] Refreshing activities...");
+    console.log(
+      `[Activity] Refreshing ${activeTab === "Liked" ? "liked activity" : "activities"}...`,
+    );
     try {
-      await refetch();
+      if (activeTab === "Liked") {
+        await refetchLikedActivities();
+      } else {
+        await refetch();
+      }
       console.log("[Activity] Refresh complete");
     } catch (error) {
       console.error("[Activity] Refresh failed:", error);
     } finally {
       setRefreshing(false);
     }
-  }, [refetch]);
+  }, [activeTab, refetch, refetchLikedActivities]);
 
   const handleUserPress = useCallback(
     (username: string, avatar?: string) => {
@@ -395,6 +639,75 @@ function ActivityScreenContent() {
     [markActivityAsRead, queryClient, viewerId, router],
   );
 
+  const handleLikedPress = useCallback(
+    (item: LikedActivity) => {
+      if (item.entityType === "post") {
+        navigateToPost(router, queryClient, item.entityId);
+        return;
+      }
+
+      const route = getRouteForLikedActivity(item);
+      router.push(route as any);
+    },
+    [router, queryClient],
+  );
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    if (activeTab === "Liked" || unreadCount === 0 || isMarkingAllRead) return;
+
+    const previousActivities =
+      queryClient.getQueryData<Activity[]>(activityKeys.list(viewerId)) || [];
+    const previousBadges = queryClient.getQueryData(
+      notificationKeys.badges(viewerId),
+    );
+
+    setIsMarkingAllRead(true);
+
+    queryClient.setQueryData(
+      activityKeys.list(viewerId),
+      (old: Activity[] | undefined) =>
+        old?.map((activity) => ({ ...activity, isRead: true })) ?? old,
+    );
+    queryClient.setQueryData(notificationKeys.badges(viewerId), (old: any) => ({
+      ...(old || {}),
+      unread: 0,
+      unreadCount: 0,
+      total: old?.total || 0,
+    }));
+    setNotificationsUnread(0);
+
+    try {
+      await notificationsApiClient.markAllAsRead();
+      await queryClient.invalidateQueries({
+        queryKey: activityKeys.list(viewerId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: notificationKeys.badges(viewerId),
+      });
+    } catch (error) {
+      console.error("[Activity] mark all as read failed:", error);
+      queryClient.setQueryData(activityKeys.list(viewerId), previousActivities);
+      queryClient.setQueryData(
+        notificationKeys.badges(viewerId),
+        previousBadges,
+      );
+      setNotificationsUnread(
+        previousActivities.filter((activity) => !activity.isRead).length,
+      );
+      showToast("error", "Couldn't mark all read", "Please try again.");
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  }, [
+    activeTab,
+    unreadCount,
+    isMarkingAllRead,
+    queryClient,
+    viewerId,
+    setNotificationsUnread,
+    showToast,
+  ]);
+
   // CRITICAL: All useCallback hooks MUST be before any early returns
   // to avoid "Rendered more hooks than during the previous render" error
   const renderItem = useCallback(
@@ -426,6 +739,17 @@ function ActivityScreenContent() {
     ],
   );
 
+  const renderLikedItem = useCallback(
+    ({ item }: { item: LikedActivity }) => (
+      <LikedItem
+        item={item}
+        onPress={handleLikedPress}
+        onUserPress={handleUserPress}
+      />
+    ),
+    [handleLikedPress, handleUserPress],
+  );
+
   const ListHeader = useCallback(
     () => (
       <View className="px-4 py-3">
@@ -436,7 +760,7 @@ function ActivityScreenContent() {
             <Text className="text-2xl font-bold text-foreground ml-2">
               Notifications
             </Text>
-            {unreadCount > 0 && (
+            {activeTab !== "Liked" && unreadCount > 0 && (
               <View className="ml-2 bg-primary px-2 py-0.5 rounded-full">
                 <Text className="text-xs font-semibold text-white">
                   {unreadCount}
@@ -444,15 +768,19 @@ function ActivityScreenContent() {
               </View>
             )}
           </View>
-          {unreadCount > 0 && (
+          {activeTab !== "Liked" && unreadCount > 0 && (
             <Pressable
-              onPress={markAllAsRead}
+              onPress={handleMarkAllAsRead}
+              disabled={isMarkingAllRead}
               className="flex-row items-center px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+              style={{
+                backgroundColor: "rgba(255,255,255,0.1)",
+                opacity: isMarkingAllRead ? 0.45 : 1,
+              }}
             >
               <CheckCheck size={14} color={colors.primary} />
               <Text className="text-xs font-medium text-primary ml-1">
-                Mark all read
+                {isMarkingAllRead ? "Marking..." : "Mark all read"}
               </Text>
             </Pressable>
           )}
@@ -460,44 +788,153 @@ function ActivityScreenContent() {
 
         {/* Tabs */}
         <View
-          className="flex-row justify-around items-center px-1 py-2 rounded-lg"
+          className="rounded-[16px] px-2 py-2"
           style={{
-            backgroundColor: "rgba(28, 28, 28, 0.6)",
-            borderColor: "rgba(68, 68, 68, 0.8)",
+            backgroundColor: "rgba(24, 24, 27, 0.86)",
+            borderColor: "rgba(82, 82, 91, 0.55)",
             borderWidth: 1,
-            minHeight: 44,
+            minHeight: 52,
           }}
         >
-          {TABS.map((tab) => (
-            <Pressable
-              key={tab}
-              onPress={() => setActiveTab(tab)}
-              className="flex-1 items-center justify-center py-1.5 rounded-md"
-              style={
-                activeTab === tab
-                  ? { backgroundColor: "rgba(255,255,255,0.1)" }
-                  : {}
-              }
-            >
-              <Text
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 2 }}
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab;
+              const count = tabCounts[tab];
+
+              return (
+                <Pressable
+                  key={tab}
+                  onPress={() => setActiveTab(tab)}
+                  className="flex-row items-center justify-center px-4 py-2.5 mr-2"
+                  style={{
+                    borderRadius: 14,
+                    backgroundColor: isActive
+                      ? tab === "Liked"
+                        ? "rgba(255, 91, 252, 0.14)"
+                        : "rgba(255,255,255,0.1)"
+                      : "transparent",
+                    borderWidth: 1,
+                    borderColor: isActive
+                      ? tab === "Liked"
+                        ? "rgba(255, 91, 252, 0.3)"
+                        : "rgba(255,255,255,0.08)"
+                      : "transparent",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: isActive
+                        ? "#FAFAF9"
+                        : tab === "Liked"
+                          ? "#F0ABFC"
+                          : "#A1A1AA",
+                      fontSize: 12,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {tab}
+                  </Text>
+                  {count > 0 && (
+                    <View
+                      style={{
+                        marginLeft: 8,
+                        minWidth: 20,
+                        paddingHorizontal: 6,
+                        paddingVertical: 3,
+                        borderRadius: 10,
+                        backgroundColor: isActive
+                          ? "rgba(255,255,255,0.14)"
+                          : "rgba(255,255,255,0.07)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: isActive ? "#FAFAF9" : "#D6D3D1",
+                          fontSize: 11,
+                          fontWeight: "700",
+                          textAlign: "center",
+                        }}
+                      >
+                        {count > 99 ? "99+" : count}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {activeTab === "Liked" && (
+          <View
+            style={{
+              marginTop: 14,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: "rgba(255, 91, 252, 0.18)",
+              backgroundColor: "rgba(53, 9, 50, 0.28)",
+              padding: 14,
+            }}
+          >
+            <View className="flex-row items-start">
+              <View
                 style={{
-                  color: activeTab === tab ? "#f5f5f4" : "#a3a3a3",
-                  fontSize: 11,
-                  fontWeight: "600",
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(255, 91, 252, 0.16)",
                 }}
               >
-                {tab}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <Heart size={18} color="#FF5BFC" fill="#FF5BFC" />
+              </View>
+              <View className="flex-1 ml-3">
+                <Text className="text-[15px] font-semibold text-foreground">
+                  Your liked trail
+                </Text>
+                <Text className="text-[13px] text-muted-foreground mt-1 leading-5">
+                  Every post and event you like stays here as a private history.
+                  Mark all read never touches this tab.
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
     ),
-    [activeTab, unreadCount, colors, markAllAsRead],
+    [
+      activeTab,
+      unreadCount,
+      colors,
+      tabCounts,
+      handleMarkAllAsRead,
+      isMarkingAllRead,
+    ],
   );
 
-  const ListEmpty = useCallback(
-    () => (
+  const ListEmpty = useCallback(() => {
+    if (activeTab === "Liked") {
+      return (
+        <View className="flex-1 items-center justify-center py-20">
+          <Heart size={48} color="#F472F8" fill="#F472F8" />
+          <Text className="text-lg font-semibold text-foreground mt-4">
+            {likedQueryLoading ? "Loading your likes" : "Nothing liked yet"}
+          </Text>
+          <Text className="text-sm text-muted-foreground mt-1 text-center px-8">
+            {likedQueryLoading
+              ? "Pulling together your full like history."
+              : "Likes start building here the moment you tap them, and they stay here."}
+          </Text>
+        </View>
+      );
+    }
+
+    return (
       <View className="flex-1 items-center justify-center py-20">
         <BellOff size={48} color={colors.mutedForeground} />
         <Text className="text-lg font-semibold text-foreground mt-4">
@@ -507,11 +944,11 @@ function ActivityScreenContent() {
           When someone likes, comments, or follows you, you'll see it here
         </Text>
       </View>
-    ),
-    [colors],
-  );
+    );
+  }, [activeTab, colors, likedQueryLoading]);
 
   const keyExtractor = useCallback((item: Activity) => item.id, []);
+  const likedKeyExtractor = useCallback((item: LikedActivity) => item.id, []);
 
   // Skeleton ONLY when truly no data (first ever boot, no cache)
   // With MMKV persistence, cache-hit means zero skeleton on cold start
@@ -525,20 +962,38 @@ function ActivityScreenContent() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
-      <LegendList
-        data={filteredActivities}
-        renderItem={renderItem}
-        keyExtractor={keyExtractor}
-        contentInsetAdjustmentBehavior="automatic"
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={ListEmpty}
-        showsVerticalScrollIndicator={false}
-        recycleItems
-        estimatedItemSize={80}
-        refreshing={refreshing}
-        onRefresh={onRefresh}
-        extraData={{ followedUsers, pendingFollows }}
-      />
+      {activeTab === "Liked" ? (
+        <LegendList
+          data={likedActivities}
+          renderItem={renderLikedItem}
+          keyExtractor={likedKeyExtractor}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={ListEmpty}
+          showsVerticalScrollIndicator={false}
+          recycleItems
+          estimatedItemSize={128}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+        />
+      ) : (
+        <LegendList
+          data={filteredActivities}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={ListEmpty}
+          showsVerticalScrollIndicator={false}
+          recycleItems
+          estimatedItemSize={80}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          extraData={{ followedUsers, pendingFollows }}
+        />
+      )}
     </View>
   );
 }

@@ -25,8 +25,7 @@ export const qk = {
   posts: {
     all: () => ["posts"] as const,
     detail: (postId: string) => ["posts", "detail", postId] as const,
-    byIds: (ids: string[]) =>
-      ["posts", "byIds", ids.sort().join(",")] as const,
+    byIds: (ids: string[]) => ["posts", "byIds", ids.sort().join(",")] as const,
     profile: (userId: string) => ["profilePosts", userId] as const,
   },
 
@@ -41,8 +40,7 @@ export const qk = {
   // ── Comments ──────────────────────────────────────────────────
   comments: {
     thread: (postId: string) => ["comments", "thread", postId] as const,
-    likers: (commentId: string) =>
-      ["comments", "likers", commentId] as const,
+    likers: (commentId: string) => ["comments", "likers", commentId] as const,
   },
 
   // ── Events ────────────────────────────────────────────────────
@@ -81,6 +79,7 @@ export const qk = {
   // ── Activity / Notifications ──────────────────────────────────
   activity: {
     list: (viewerId: string) => ["activities", viewerId] as const,
+    liked: (viewerId: string) => ["activities", viewerId, "liked"] as const,
     unreadCount: (viewerId: string) =>
       ["activities", "unread", viewerId] as const,
   },
@@ -112,7 +111,6 @@ export const qk = {
 
   // ── Search ────────────────────────────────────────────────────
   search: {
-    results: (query: string, tab: string) =>
-      ["search", query, tab] as const,
+    results: (query: string, tab: string) => ["search", query, tab] as const,
   },
 } as const;

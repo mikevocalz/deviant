@@ -71,6 +71,32 @@ function errorResponse(code: ErrorCode, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
+function normalizeLinks(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return normalizeLinks(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
+
 /**
  * Verify Better Auth session by calling the session endpoint
  */
@@ -175,7 +201,7 @@ Deno.serve(async (req) => {
       updateData.website = updates.website;
     }
     if (updates.links !== undefined) {
-      updateData.links = JSON.stringify(updates.links);
+      updateData.links = normalizeLinks(updates.links);
     }
     if (updates.pronouns !== undefined) {
       updateData.pronouns = updates.pronouns;
@@ -258,6 +284,7 @@ Deno.serve(async (req) => {
         website,
         links,
         pronouns,
+        gender,
         verified,
         followers_count,
         following_count,
@@ -318,6 +345,9 @@ Deno.serve(async (req) => {
         bio: updateData.bio || "",
         location: updateData.location || null,
         website: updateData.website || null,
+        links: Array.isArray(updateData.links) ? updateData.links : [],
+        pronouns: updateData.pronouns || null,
+        gender: updateData.gender || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -383,7 +413,7 @@ Deno.serve(async (req) => {
           bio: updatedUser.bio,
           location: updatedUser.location,
           website: updatedUser.website,
-          links: updatedUser.links || [],
+          links: normalizeLinks(updatedUser.links),
           pronouns: updatedUser.pronouns,
           gender: updatedUser.gender,
           avatar: (updatedUser.avatar as any)?.url,

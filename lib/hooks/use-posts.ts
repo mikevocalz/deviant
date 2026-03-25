@@ -11,6 +11,7 @@ import { useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 import { profileKeys } from "@/lib/hooks/use-profile";
+import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { isValidPostId } from "@/lib/validation/post-params";
 
 // Track in-flight like mutations per post to prevent race conditions
@@ -134,6 +135,7 @@ export function isLikePending(postId: string): boolean {
  */
 export function useLikePost() {
   const queryClient = useQueryClient();
+  const viewerId = useAuthStore((state) => state.user?.id) || "";
   const DEBOUNCE_MS = 300;
 
   const mutation = useMutation({
@@ -227,6 +229,11 @@ export function useLikePost() {
       // DO NOT use broad keys like ["users"] as this affects ALL user caches
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
       queryClient.invalidateQueries({ queryKey: ["likedPosts"] });
+      if (viewerId) {
+        queryClient.invalidateQueries({
+          queryKey: activityKeys.liked(viewerId),
+        });
+      }
     },
   });
 

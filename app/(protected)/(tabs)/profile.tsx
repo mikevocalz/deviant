@@ -55,9 +55,39 @@ import {
 import { appendCacheBuster, getAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
 
-// Edit Profile is now handled by /(protected)/profile/edit.tsx modal
-
 // mapPostToGridTile is now replaced by safeGridTiles from safe-profile-mappers.ts
+
+function safeText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function normalizeProfileLinks(value: unknown): string[] {
+  const sanitize = (items: unknown[]) =>
+    items
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  if (Array.isArray(value)) {
+    return sanitize(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return sanitize(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
 
 function ProfileScreenContent() {
   const router = useRouter();
@@ -314,11 +344,6 @@ function ProfileScreenContent() {
     }
   }, [isUpdatingAvatar, uploadSingle, user, setUser, queryClient, showToast]);
 
-  // Navigate to edit profile modal
-  const handleOpenEditSheet = useCallback(() => {
-    router.push("/(protected)/profile/edit");
-  }, [router]);
-
   // PHASE 0: Compute display values from profileData (API) with user (auth store) fallback
   // CRITICAL: profileData is the canonical source, user is fallback only
   const displayName =
@@ -339,10 +364,14 @@ function ProfileScreenContent() {
     setAvatarError(false);
   }, [avatarUri]);
   const displayUsername = profileData?.username || user?.username || "";
-  const displayBio = profileData?.bio || user?.bio;
-  const displayLocation = user?.location; // Only in auth store
-  const displayWebsite = user?.website; // Only in auth store
-  const displayLinks: string[] = (user as any)?.links || [];
+  const displayBio = safeText(profileData?.bio) || safeText(user?.bio);
+  const displayLocation =
+    safeText(profileData?.location) || safeText(user?.location);
+  const displayWebsite =
+    safeText(profileData?.website) || safeText(user?.website);
+  const displayLinks = normalizeProfileLinks(
+    (profileData as any)?.links ?? (user as any)?.links,
+  );
   const displayHashtags = user?.hashtags; // Only in auth store
   const displayFollowersCount =
     profileData?.followersCount ?? user?.followersCount ?? 0;
@@ -1136,8 +1165,6 @@ function ProfileScreenContent() {
           )}
         </View>
       </ScrollView>
-
-      {/* Edit Profile now uses modal navigation - see /(protected)/profile/edit */}
     </View>
   );
 }

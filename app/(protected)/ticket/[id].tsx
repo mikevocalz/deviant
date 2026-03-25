@@ -48,6 +48,8 @@ const TIER_ACCENT: Record<TicketTierLevel, string> = {
 
 /** Map a DB TicketRecord → the Ticket shape used by UI components */
 function dbToTicket(rec: TicketRecord): Ticket {
+  const normalizedTierName = (rec.ticket_type_name || "").toLowerCase();
+
   return {
     id: rec.id,
     eventId: String(rec.event_id),
@@ -65,9 +67,9 @@ function dbToTicket(rec: TicketRecord): Ticket {
               : "expired",
     checkedInAt: rec.checked_in_at ?? undefined,
     qrToken: rec.qr_token,
-    tier: (rec.ticket_type_name?.toLowerCase().includes("vip")
+    tier: (normalizedTierName.includes("vip")
       ? "vip"
-      : rec.ticket_type_name?.toLowerCase().includes("table")
+      : normalizedTierName.includes("table")
         ? "table"
         : (rec.purchase_amount_cents ?? 0) === 0
           ? "free"

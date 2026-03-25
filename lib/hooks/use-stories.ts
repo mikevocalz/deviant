@@ -24,6 +24,50 @@ export const storyViewKeys = {
   count: (storyId: string) => [...storyViewKeys.all, "count", storyId] as const,
 };
 
+function buildStoryGroup(
+  currentUser: ReturnType<typeof useAuthStore.getState>["user"],
+  storyData: {
+    id: string;
+    authorId?: string;
+    author?: { username?: string; avatar?: string | null };
+  },
+  items: Array<{
+    type: string;
+    url?: string;
+    thumbnail?: string;
+    text?: string;
+    textColor?: string;
+    backgroundColor?: string;
+  }>,
+  visibility?: "public" | "close_friends",
+): Story {
+  const resolvedUsername =
+    storyData.author?.username || currentUser?.username || "You";
+  const resolvedAvatar = storyData.author?.avatar || currentUser?.avatar || "";
+
+  return {
+    id: String(storyData.id),
+    userId: String(storyData.authorId || currentUser?.id || ""),
+    username: resolvedUsername,
+    avatar: resolvedAvatar,
+    hasStory: true,
+    isViewed: false,
+    isYou: true,
+    hasCloseFriendsStory: visibility === "close_friends",
+    items: items.map((item, index) => ({
+      id: `${storyData.id}-item-${index}`,
+      type: item.type as "image" | "video" | "text",
+      url: item.url,
+      thumbnail: item.thumbnail,
+      text: item.text,
+      textColor: item.textColor,
+      backgroundColor: item.backgroundColor,
+      duration: item.type === "video" ? 30000 : 5000,
+      visibility,
+    })),
+  };
+}
+
 // Fetch all stories
 export function useStories() {
   return useQuery({
@@ -58,24 +102,22 @@ export function useCreateStory() {
       // This is allowed because the story being created belongs to the current user
       // The avatar will be replaced with the server's response which comes from entity data
       queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
-        if (!old) return old;
-        const optimisticStory: Story = {
-          id: `temp-${Date.now()}`,
-          userId: currentUser?.id || "",
-          username: currentUser?.username || "You",
-          avatar: currentUser?.avatar || "",
-          isViewed: false,
-          items: (newStoryData.items || []).map((item, index) => ({
-            id: `temp-item-${index}`,
-            type: item.type as "image" | "video" | "text",
-            url: item.url,
-            thumbnail: (item as any).thumbnail,
-            text: item.text,
-            textColor: item.textColor,
-            backgroundColor: item.backgroundColor,
-          })),
-        };
-        return [optimisticStory, ...old];
+        const optimisticStory = buildStoryGroup(
+          currentUser,
+          {
+            id: `temp-${Date.now()}`,
+            authorId: currentUser?.id,
+            author: {
+              username: currentUser?.username,
+              avatar: currentUser?.avatar,
+            },
+          },
+          newStoryData.items || [],
+          newStoryData.visibility,
+        );
+        return old && old.length > 0
+          ? [optimisticStory, ...old]
+          : [optimisticStory];
       });
 
       return { previousData };
@@ -86,12 +128,51 @@ export function useCreateStory() {
         queryClient.setQueryData(storyKeys.list(), context.previousData);
       }
     },
-    onSuccess: () => {
+    onSuccess: async (createdStory, variables) => {
+      const currentUser = useAuthStore.getState().user;
+
+      queryClient.setQueryData<Story[]>(storyKeys.list(), (old) => {
+        const nextStory = buildStoryGroup(
+          currentUser,
+          {
+            id: String(createdStory.id),
+            authorId: createdStory.authorId,
+            author: createdStory.author,
+          },
+          variables.items || [],
+          variables.visibility,
+        );
+
+        if (!old || old.length === 0) return [nextStory];
+
+        let replaced = false;
+        const currentUserId = String(currentUser?.id || nextStory.userId || "");
+        const next = old.map((story) => {
+          const storyUserId = String(story.userId || "");
+          const matchesOwner =
+            storyUserId === currentUserId ||
+            story.username?.toLowerCase() === nextStory.username.toLowerCase();
+          const isTemp = String(story.id).startsWith("temp-");
+
+          if (matchesOwner && (isTemp || story.isYou)) {
+            replaced = true;
+            return {
+              ...story,
+              ...nextStory,
+            };
+          }
+
+          return story;
+        });
+
+        return replaced ? next : [nextStory, ...old];
+      });
+
       // CRITICAL: Invalidate to refetch from server so avatar comes from
       // entity data (author record), NOT authUser. Building a story object
       // here with currentUser.avatar would leak the user's latest profile
       // avatar into the story display — a SEV-0 data isolation violation.
-      queryClient.invalidateQueries({ queryKey: storyKeys.all });
+      await queryClient.invalidateQueries({ queryKey: storyKeys.list() });
     },
   });
 }

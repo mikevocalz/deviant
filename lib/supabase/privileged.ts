@@ -24,6 +24,7 @@ interface UpdateProfileParams {
   links?: string[];
   avatarUrl?: string;
   pronouns?: string;
+  gender?: string;
 }
 
 interface PrivilegedResponse<T> {
