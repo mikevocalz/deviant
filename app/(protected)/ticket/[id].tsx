@@ -79,6 +79,7 @@ function dbToTicket(rec: TicketRecord): Ticket {
     eventDate: rec.event_date || "",
     eventLocation: rec.event_location || "",
     eventImage: rec.event_image || "",
+    transferable: true, // Default to transferable for all tickets
   };
 }
 
@@ -312,9 +313,10 @@ function ViewTicketScreenContent() {
             style={[
               styles.transferBadge,
               {
-                borderColor: ticket.transferable
-                  ? "rgba(63,220,255,0.2)"
-                  : "rgba(255,255,255,0.08)",
+                borderColor:
+                  (ticket.transferable ?? true)
+                    ? "rgba(63,220,255,0.2)"
+                    : "rgba(255,255,255,0.08)",
               },
             ]}
           >
@@ -322,13 +324,16 @@ function ViewTicketScreenContent() {
               style={[
                 styles.transferText,
                 {
-                  color: ticket.transferable
-                    ? "#3FDCFF"
-                    : "rgba(255,255,255,0.25)",
+                  color:
+                    (ticket.transferable ?? true)
+                      ? "#3FDCFF"
+                      : "rgba(255,255,255,0.25)",
                 },
               ]}
             >
-              {ticket.transferable ? "Transferable" : "Non-transferable"}
+              {(ticket.transferable ?? true)
+                ? "Transferable"
+                : "Non-transferable"}
             </Text>
           </View>
         </View>
