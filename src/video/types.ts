@@ -24,6 +24,7 @@ export type EventType =
 export interface VideoRoom {
   id: string;
   title: string;
+  sweetSpicyMode?: "sweet" | "spicy";
   isPublic: boolean;
   status: RoomStatus;
   maxParticipants: number;
@@ -68,6 +69,7 @@ export interface JoinRoomResponse {
   room: {
     id: string;
     title: string;
+    sweetSpicyMode?: "sweet" | "spicy";
     fishjamRoomId: string;
   };
   token: string;

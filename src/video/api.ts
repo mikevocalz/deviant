@@ -233,6 +233,7 @@ export const videoApi = {
     return {
       id: data.id,
       title: data.title,
+      sweetSpicyMode: data.sweet_spicy_mode || "sweet",
       isPublic: data.is_public,
       status: data.status,
       maxParticipants: data.max_participants,
@@ -294,6 +295,7 @@ export const videoApi = {
     return data.map((r) => ({
       id: r.id,
       title: r.title,
+      sweetSpicyMode: r.sweet_spicy_mode || "sweet",
       isPublic: r.is_public,
       status: r.status,
       maxParticipants: r.max_participants,
@@ -329,6 +331,7 @@ export const videoApi = {
     return data.map((m: any) => ({
       id: m.video_rooms.id,
       title: m.video_rooms.title,
+      sweetSpicyMode: m.video_rooms.sweet_spicy_mode || "sweet",
       isPublic: m.video_rooms.is_public,
       status: m.video_rooms.status,
       maxParticipants: m.video_rooms.max_participants,

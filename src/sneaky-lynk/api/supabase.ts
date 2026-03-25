@@ -60,7 +60,8 @@ async function callEdgeFunction<T>(
               `[SneakyLynk] ${functionName} http error text:`,
               text,
             );
-            message = text || `${response.status} ${response.statusText}` || message;
+            message =
+              text || `${response.status} ${response.statusText}` || message;
           } catch {
             console.error(
               `[SneakyLynk] ${functionName} invoke error without readable body:`,
@@ -286,6 +287,7 @@ export const sneakyLynkApi = {
             title: r.title || "Untitled Lynk",
             topic: r.topic || "",
             description: r.description || "",
+            sweetSpicyMode: r.sweet_spicy_mode || "sweet",
             isLive: r.status === "open" && realCount > 0,
             hasVideo: r.has_video ?? false,
             isPublic: r.is_public ?? true,
@@ -350,6 +352,7 @@ export const sneakyLynkApi = {
         title: data.title || "Untitled Lynk",
         topic: data.topic || "",
         description: data.description || "",
+        sweetSpicyMode: data.sweet_spicy_mode || "sweet",
         isLive: data.status === "open",
         hasVideo: data.has_video ?? false,
         isPublic: data.is_public ?? true,
@@ -371,5 +374,12 @@ export const sneakyLynkApi = {
       console.error("[SneakyLynk] getRoomById error:", error);
       return null;
     }
+  },
+
+  async setRoomMode(
+    roomId: string,
+    mode: "sweet" | "spicy",
+  ): Promise<ApiResponse<{ roomId: string; mode: "sweet" | "spicy" }>> {
+    return callEdgeFunction("video_set_room_mode", { roomId, mode });
   },
 };

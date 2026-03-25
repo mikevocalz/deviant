@@ -131,6 +131,7 @@ function ControlButton({
   active = false,
   danger = false,
   compact = false,
+  showLabel = true,
 }: {
   icon: ReactNode;
   label: string;
@@ -138,6 +139,7 @@ function ControlButton({
   active?: boolean;
   danger?: boolean;
   compact?: boolean;
+  showLabel?: boolean;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -159,7 +161,7 @@ function ControlButton({
     }).start();
   }, [scale]);
 
-  const size = compact ? 46 : 56;
+  const size = compact ? 42 : 52;
   const labelColor = danger
     ? "#FCA5A5"
     : active
@@ -170,8 +172,8 @@ function ControlButton({
     <View
       style={{
         alignItems: "center",
-        gap: 6,
-        minWidth: compact ? 54 : 62,
+        gap: showLabel ? 5 : 0,
+        minWidth: compact ? 42 : 52,
       }}
     >
       <Animated.View style={{ transform: [{ scale }] }}>
@@ -182,6 +184,8 @@ function ControlButton({
           }}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          accessibilityRole="button"
+          accessibilityLabel={label}
         >
           <DVNTLiquidGlassIconButton
             size={size}
@@ -212,15 +216,17 @@ function ControlButton({
           </DVNTLiquidGlassIconButton>
         </Pressable>
       </Animated.View>
-      <Text
-        style={{
-          color: labelColor,
-          fontSize: compact ? 10 : 11,
-          fontWeight: "700",
-        }}
-      >
-        {label}
-      </Text>
+      {showLabel ? (
+        <Text
+          style={{
+            color: labelColor,
+            fontSize: compact ? 10 : 11,
+            fontWeight: "700",
+          }}
+        >
+          {label}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -306,9 +312,9 @@ export function ControlsBar({
       {showEmojiPicker && (
         <View style={{ alignItems: "center", marginBottom: 10 }}>
           <DVNTLiquidGlass
-            radius={28}
-            paddingH={10}
-            paddingV={10}
+            radius={18}
+            paddingH={8}
+            paddingV={8}
             style={{
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.18)",
@@ -324,15 +330,15 @@ export function ControlsBar({
                   setShowEmojiPicker(false);
                 }}
                 style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 18,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
                   alignItems: "center",
                   justifyContent: "center",
                   backgroundColor: "rgba(255,255,255,0.08)",
                 }}
               >
-                <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                <Text style={{ fontSize: 21 }}>{emoji}</Text>
               </Pressable>
             ))}
           </DVNTLiquidGlass>
@@ -345,7 +351,7 @@ export function ControlsBar({
             flexDirection: "row",
             justifyContent: "center",
             gap: 10,
-            marginBottom: 10,
+            marginBottom: 8,
           }}
         >
           {quickActions.map((action) => (
@@ -356,86 +362,95 @@ export function ControlsBar({
               onPress={action.onPress}
               active={action.active}
               icon={action.icon}
+              showLabel={false}
             />
           ))}
         </View>
       )}
 
       <DVNTLiquidGlass
-        radius={30}
-        paddingH={16}
-        paddingV={14}
+        radius={22}
+        paddingH={10}
+        paddingV={10}
         style={{
+          alignSelf: "center",
           borderWidth: 1,
           borderColor: "rgba(255,255,255,0.16)",
           backgroundColor: "rgba(5, 10, 22, 0.22)",
+          shadowColor: "#000",
+          shadowOpacity: 0.22,
+          shadowRadius: 18,
+          shadowOffset: { width: 0, height: 10 },
         }}
       >
-        <View style={{ flex: 1 }}>
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-            }}
-          >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <ControlButton
+            label={isMuted ? "Unmute microphone" : "Mute microphone"}
+            active={!isMuted}
+            onPress={onToggleMute}
+            icon={
+              isMuted ? (
+                <MicOff size={21} color="#F87171" />
+              ) : (
+                <Mic size={21} color="#F8FAFC" />
+              )
+            }
+            showLabel={false}
+          />
+
+          {hasVideo && (
             <ControlButton
-              label={isMuted ? "Muted" : "Mic"}
-              active={!isMuted}
-              onPress={onToggleMute}
+              label={isVideoEnabled ? "Turn camera off" : "Turn camera on"}
+              active={isVideoEnabled}
+              onPress={onToggleVideo}
               icon={
-                isMuted ? (
-                  <MicOff size={22} color="#F87171" />
+                isVideoEnabled ? (
+                  <Video size={21} color="#F8FAFC" />
                 ) : (
-                  <Mic size={22} color="#F8FAFC" />
+                  <VideoOff size={21} color="#F87171" />
                 )
               }
+              showLabel={false}
             />
+          )}
 
-            {hasVideo && (
-              <ControlButton
-                label={isVideoEnabled ? "Camera" : "Cam Off"}
-                active={isVideoEnabled}
-                onPress={onToggleVideo}
-                icon={
-                  isVideoEnabled ? (
-                    <Video size={22} color="#F8FAFC" />
-                  ) : (
-                    <VideoOff size={22} color="#F87171" />
-                  )
-                }
-              />
-            )}
+          <ControlButton
+            label="Open reactions"
+            active={showEmojiPicker}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setShowEmojiPicker((prev) => !prev);
+            }}
+            icon={<Heart size={21} color="#FF7BB8" />}
+            showLabel={false}
+          />
 
-            <ControlButton
-              label="React"
-              active={showEmojiPicker}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowEmojiPicker((prev) => !prev);
-              }}
-              icon={<Heart size={22} color="#FF7BB8" />}
-            />
+          <ControlButton
+            label="Open chat"
+            onPress={onOpenChat}
+            icon={<MessageCircle size={21} color="#F8FAFC" />}
+            showLabel={false}
+          />
 
-            <ControlButton
-              label="Chat"
-              onPress={onOpenChat}
-              icon={<MessageCircle size={22} color="#F8FAFC" />}
-            />
-
-            <ControlButton
-              label="Leave"
-              danger
-              onPress={() => {
-                Haptics.notificationAsync(
-                  Haptics.NotificationFeedbackType.Warning,
-                );
-                onLeave();
-              }}
-              icon={<LogOut size={22} color="#FCA5A5" />}
-            />
-          </View>
+          <ControlButton
+            label="Leave room"
+            danger
+            onPress={() => {
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Warning,
+              );
+              onLeave();
+            }}
+            icon={<LogOut size={21} color="#FCA5A5" />}
+            showLabel={false}
+          />
         </View>
       </DVNTLiquidGlass>
     </View>

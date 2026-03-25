@@ -270,8 +270,8 @@ function getGridLayout(
   screenWidth: number,
   screenHeight: number,
 ) {
-  const availableHeight = screenHeight - 200; // header + controls
-  const gap = 4;
+  const availableHeight = screenHeight - 178;
+  const gap = 6;
 
   if (count === 1) {
     return {
@@ -396,20 +396,20 @@ export function VideoGrid({
 const styles = StyleSheet.create({
   grid: {
     flex: 1,
-    gap: 8,
-    padding: 8,
+    gap: 6,
+    padding: 6,
   },
   row: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
   },
   tileOuter: {
-    borderRadius: 28,
+    borderRadius: 20,
     overflow: "hidden",
     backgroundColor: "#0A0E15",
   },
   tile: {
-    borderRadius: 26,
+    borderRadius: 18,
     overflow: "hidden",
     backgroundColor: "#10151D",
     position: "relative",
@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   anonAvatar: {
     width: 72,
     height: 72,
-    borderRadius: 24,
+    borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
@@ -452,9 +452,9 @@ const styles = StyleSheet.create({
   },
   topBadgeRow: {
     position: "absolute",
-    top: 10,
-    left: 10,
-    right: 10,
+    top: 9,
+    left: 9,
+    right: 9,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -463,9 +463,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: "rgba(4,8,16,0.58)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
@@ -476,9 +476,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   selfBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
     backgroundColor: "rgba(59,130,246,0.18)",
     borderWidth: 1,
     borderColor: "rgba(125,211,252,0.24)",
@@ -490,15 +490,15 @@ const styles = StyleSheet.create({
   },
   namePill: {
     position: "absolute",
-    left: 10,
+    left: 9,
     right: 42,
-    bottom: 10,
+    bottom: 9,
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
     backgroundColor: "rgba(4,8,16,0.62)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#8A40CF",
     paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 4,
+    borderRadius: 6,
   },
   roleBadgeText: {
     color: "#fff",
@@ -530,12 +530,12 @@ const styles = StyleSheet.create({
   },
   micBadge: {
     position: "absolute",
-    bottom: 12,
-    right: 10,
+    bottom: 10,
+    right: 9,
     backgroundColor: "rgba(4,8,16,0.72)",
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 26,
+    height: 26,
+    borderRadius: 9,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
@@ -547,7 +547,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyCard: {
-    borderRadius: 28,
+    borderRadius: 18,
     paddingHorizontal: 24,
     paddingVertical: 20,
     alignItems: "center",

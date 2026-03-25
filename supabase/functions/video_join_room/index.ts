@@ -402,7 +402,7 @@ Deno.serve(async (req) => {
 
     // Get user profile for display (skip if anonymous)
     let userPayload: Record<string, any>;
-        if (anonymous && anonLabel) {
+    if (anonymous && anonLabel) {
       userPayload = {
         id: userId,
         username: anonLabel,
@@ -438,6 +438,7 @@ Deno.serve(async (req) => {
           id: room.uuid || room.id,
           internalId: room.id,
           title: room.title,
+          sweetSpicyMode: room.sweet_spicy_mode || "sweet",
           fishjamRoomId,
         },
         token: fishjamToken,
