@@ -4,6 +4,7 @@ import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
+import { normalizeTextPostTheme } from "@/lib/posts/text-post";
 
 interface CreatePostResponse {
   ok: boolean;
@@ -32,6 +33,8 @@ async function fetchViewerLikedPostIds(
  */
 function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
+  const postKind =
+    dbPost?.[DB.posts.postKind] === "text" ? "text" : ("media" as const);
   const allMedia = (dbPost.media || []).map((m: any) => {
     const rawType: string = m[DB.postsMedia.type] || "image";
     const mimeType: string | undefined = m[DB.postsMedia.mimeType] ?? undefined;
@@ -78,6 +81,8 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
         author[DB.users.firstName] || author[DB.users.username] || "Unknown",
     },
     media,
+    kind: postKind,
+    textTheme: normalizeTextPostTheme(dbPost?.[DB.posts.textTheme]),
     caption: dbPost[DB.posts.content] || "",
     likes: Number(dbPost[DB.posts.likesCount]) || 0,
     viewerHasLiked,
@@ -86,7 +91,7 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
     location: dbPost[DB.posts.location],
     isNSFW: dbPost[DB.posts.isNsfw] || false,
     thumbnail,
-    type,
+    type: postKind === "text" ? undefined : type,
     hasMultipleImages,
   };
 }
@@ -438,6 +443,8 @@ export const postsApi = {
    */
   async createPost(data: {
     content?: string;
+    kind?: "media" | "text";
+    textTheme?: import("@/lib/types").TextPostThemeKey;
     media?: Array<{
       type: string;
       url: string;
@@ -447,13 +454,17 @@ export const postsApi = {
     }>;
     location?: string;
     isNSFW?: boolean;
-  }) {
+  }): Promise<Post> {
     try {
       console.log("[Posts] createPost via Edge Function");
 
-      // Guard: media is required — never allow empty-media posts
-      if (!data.media || data.media.length === 0) {
+      const postKind: Post["kind"] = data.kind === "text" ? "text" : "media";
+
+      if (postKind === "media" && (!data.media || data.media.length === 0)) {
         throw new Error("Post must include at least one photo or video");
+      }
+      if (postKind === "text" && !data.content?.trim()) {
+        throw new Error("Text posts need something to say");
       }
 
       const token = await requireBetterAuthToken();
@@ -462,6 +473,8 @@ export const postsApi = {
         await supabase.functions.invoke<CreatePostResponse>("create-post", {
           body: {
             content: data.content,
+            kind: postKind,
+            textTheme: data.textTheme,
             media: data.media,
             location: data.location,
             isNSFW: data.isNSFW,
@@ -483,7 +496,7 @@ export const postsApi = {
       const post = response.data.post;
       console.log("[Posts] createPost success, ID:", post.id);
 
-      return {
+      const createdPost: Post = {
         id: post.id,
         author: post.author || {
           username: "you",
@@ -495,6 +508,8 @@ export const postsApi = {
           ...m,
           type: (m.type as any) ?? "image",
         })) as import("@/lib/types").PostMediaItem[],
+        kind: postKind,
+        textTheme: normalizeTextPostTheme(data.textTheme),
         caption: data.content || "",
         likes: 0,
         comments: [],
@@ -502,12 +517,16 @@ export const postsApi = {
         location: data.location,
         isNSFW: data.isNSFW || false,
         thumbnail:
-          data.media?.[0]?.type === "video"
+          postKind === "media" && data.media?.[0]?.type === "video"
             ? (data.media[0] as any).thumbnail || data.media[0].url
             : data.media?.[0]?.url || "",
-        type: (data.media?.[0]?.type as any) || "image",
+        type:
+          postKind === "media"
+            ? (data.media?.[0]?.type as any) || "image"
+            : undefined,
         hasMultipleImages: (data.media?.length || 0) > 1,
       };
+      return createdPost;
     } catch (error) {
       console.error("[Posts] createPost error:", error);
       throw error;

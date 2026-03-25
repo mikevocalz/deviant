@@ -31,6 +31,7 @@ import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import { Galeria } from "@nandorojo/galeria";
 import { Debouncer } from "@tanstack/react-pacer";
 import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
+import { ProfilePronounsPill } from "@/components/profile/ProfilePronounsPill";
 import {
   safeGridTiles,
   type SafeGridTile,
@@ -759,11 +760,7 @@ function UserProfileScreenComponent() {
             <Text className="font-semibold text-foreground">
               {user.name || user.username}
             </Text>
-            {(user as any).pronouns && (
-              <Text className="text-muted-foreground text-[13px] mt-1">
-                {(user as any).pronouns}
-              </Text>
-            )}
+            <ProfilePronounsPill pronouns={(user as any).pronouns} />
             {user.bio && (
               <Text className="mt-1 text-sm text-foreground/90">
                 {user.bio}

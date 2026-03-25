@@ -20,12 +20,59 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { likesApi } from "@/lib/api/likes";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { postLikersKeys } from "@/lib/hooks/use-post-likers";
+import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { updatePostLikeEverywhere } from "@/lib/query/patch";
 import type { Post } from "@/lib/types";
 
 interface LikeState {
   hasLiked: boolean;
   likes: number;
+}
+
+function truncateLikedTitle(value: unknown, fallback: string): string {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return fallback;
+  if (text.length <= 96) return text;
+  return `${text.slice(0, 95).trimEnd()}...`;
+}
+
+function resolveLikedPreviewImage(post: Post | undefined): string {
+  if (!post) return "";
+  if (post.thumbnail) return post.thumbnail;
+  const firstMedia = post.media?.[0];
+  if (!firstMedia) return "";
+  if (firstMedia.type === "video") {
+    return firstMedia.thumbnail || "";
+  }
+  return firstMedia.thumbnail || firstMedia.url || "";
+}
+
+function findPostInCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  postId: string,
+): Post | undefined {
+  const detail = queryClient.getQueryData<Post>(postKeys.detail(postId));
+  if (detail) return detail;
+
+  const feed = queryClient.getQueryData<Post[]>(postKeys.feed());
+  const feedMatch = feed?.find((post) => post.id === postId);
+  if (feedMatch) return feedMatch;
+
+  const infiniteFeed = queryClient.getQueryData<any>(postKeys.feedInfinite());
+  for (const page of infiniteFeed?.pages || []) {
+    const match = page?.data?.find((post: Post) => post.id === postId);
+    if (match) return match;
+  }
+
+  const profileQueries = queryClient.getQueriesData<Post[]>({
+    queryKey: ["profilePosts"],
+  });
+  for (const [, posts] of profileQueries) {
+    const match = posts?.find((post) => post.id === postId);
+    if (match) return match;
+  }
+
+  return undefined;
 }
 
 function logCacheMutation(
@@ -109,6 +156,9 @@ export function usePostLikeState(
         "detail",
         normalizedPostId,
       ]);
+      const previousLikedActivity = viewerId
+        ? queryClient.getQueryData(activityKeys.liked(viewerId))
+        : undefined;
 
       // Compute optimistic values
       const newHasLiked = action === "like";
@@ -131,7 +181,37 @@ export function usePostLikeState(
         newLikes,
       );
 
-      return { previousLikeState, prevFeedData, prevDetailData };
+      if (viewerId && action === "like") {
+        const post = findPostInCache(queryClient, normalizedPostId);
+        const createdAt = new Date().toISOString();
+        queryClient.setQueryData(
+          activityKeys.liked(viewerId),
+          (old: any[] | undefined) => [
+            {
+              id: `optimistic-liked-post-${normalizedPostId}-${createdAt}`,
+              entityType: "post",
+              entityId: normalizedPostId,
+              actor: {
+                id: post?.author?.id || "",
+                username: post?.author?.username || "user",
+                avatar: post?.author?.avatar || "",
+              },
+              title: truncateLikedTitle(post?.caption, "A post you liked"),
+              previewImage: resolveLikedPreviewImage(post),
+              timeAgo: "Just now",
+              createdAt,
+            },
+            ...(old || []),
+          ],
+        );
+      }
+
+      return {
+        previousLikeState,
+        prevFeedData,
+        prevDetailData,
+        previousLikedActivity,
+      };
     },
     onError: (err, _variables, context) => {
       // Rollback all caches
@@ -145,6 +225,12 @@ export function usePostLikeState(
         queryClient.setQueryData(
           ["posts", "detail", normalizedPostId],
           context.prevDetailData,
+        );
+      }
+      if (viewerId && context?.previousLikedActivity !== undefined) {
+        queryClient.setQueryData(
+          activityKeys.liked(viewerId),
+          context.previousLikedActivity,
         );
       }
       // Classify error and show user-safe toast
@@ -202,6 +288,11 @@ export function usePostLikeState(
       queryClient.invalidateQueries({
         queryKey: postLikersKeys.forPost(normalizedPostId),
       });
+      if (viewerId) {
+        queryClient.invalidateQueries({
+          queryKey: activityKeys.liked(viewerId),
+        });
+      }
     },
   });
 

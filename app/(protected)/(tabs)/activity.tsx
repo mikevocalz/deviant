@@ -41,6 +41,7 @@ import { notificationsApiClient } from "@/lib/api/notifications";
 import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { usersApi } from "@/lib/api/users";
 
 const TABS = [
   "All",
@@ -132,7 +133,7 @@ interface ActivityItemProps {
   onActivityPress: (activity: Activity) => void;
   onUserPress: (username: string, avatar?: string) => void;
   onPostPress: (postId: string) => void;
-  onFollowBack: (username: string) => void;
+  onFollowBack: (activity: Activity) => void;
 }
 
 const ActivityItem = memo(
@@ -202,7 +203,7 @@ const ActivityItem = memo(
 
       {activity.type === "follow" && (
         <Pressable
-          onPress={() => onFollowBack(activity.user.username)}
+          onPress={() => onFollowBack(activity)}
           disabled={isFollowPending}
           className={`px-4 py-2 rounded-lg ml-3 ${
             isFollowed ? "bg-transparent border border-border" : "bg-primary"
@@ -588,16 +589,32 @@ function ActivityScreenContent() {
   );
 
   const handleFollowBack = useCallback(
-    (username: string) => {
-      if (pendingFollows.has(username)) return;
-      // Find the user's integer ID from activities
-      const activity = activities.find((a) => a.user.username === username);
-      const targetUserId = activity?.user?.id;
+    async (activity: Activity) => {
+      const username = activity.user.username;
+      if (!username || pendingFollows.has(username)) return;
+
+      let targetUserId = activity.user.id;
+      if (!targetUserId) {
+        try {
+          const profile = await usersApi.getProfileByUsername(username);
+          targetUserId = profile?.id;
+        } catch (error) {
+          console.error("[Activity] Failed to resolve follow target:", error);
+        }
+      }
+
       if (!targetUserId) {
         console.warn("[Activity] No userId found for", username);
+        showToast(
+          "error",
+          "Couldn't follow user",
+          "Please refresh notifications and try again.",
+        );
         return;
       }
-      const isCurrentlyFollowed = followedUsers.has(username);
+
+      const isCurrentlyFollowed =
+        activity.user.viewerFollows ?? followedUsers.has(username);
       const action = isCurrentlyFollowed ? "unfollow" : "follow";
       setPendingFollows((prev) => new Set(prev).add(username));
       followMutate(
@@ -613,7 +630,7 @@ function ActivityScreenContent() {
         },
       );
     },
-    [activities, followedUsers, followMutate, pendingFollows],
+    [followMutate, followedUsers, pendingFollows, showToast],
   );
 
   const handleActivityPress = useCallback(

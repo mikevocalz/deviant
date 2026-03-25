@@ -24,6 +24,80 @@ export const commentKeys = {
     [...commentKeys.all, "parent", parentId] as const,
 };
 
+function countCommentsTree(comments: Comment[] = []): number {
+  return comments.reduce(
+    (total, comment) => total + 1 + countCommentsTree(comment.replies || []),
+    0,
+  );
+}
+
+function findCommentMeta(
+  comments: Comment[],
+  targetId: string,
+  inheritedRootId: string | null = null,
+): { depth: number; rootId: string | null } | null {
+  for (const comment of comments) {
+    const currentRootId = inheritedRootId ?? comment.rootId ?? comment.id;
+    if (comment.id === targetId) {
+      return {
+        depth: typeof comment.depth === "number" ? comment.depth : 0,
+        rootId: currentRootId,
+      };
+    }
+    const nested = findCommentMeta(
+      comment.replies || [],
+      targetId,
+      currentRootId,
+    );
+    if (nested) return nested;
+  }
+  return null;
+}
+
+function findCommentById(
+  comments: Comment[],
+  targetId: string,
+): Comment | undefined {
+  for (const comment of comments) {
+    if (comment.id === targetId) return comment;
+    const nested = findCommentById(comment.replies || [], targetId);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
+function insertCommentIntoTree(
+  comments: Comment[],
+  parentId: string | undefined,
+  optimisticComment: Comment,
+): Comment[] {
+  if (!parentId) {
+    return [optimisticComment, ...comments];
+  }
+
+  return comments.map((comment) => {
+    if (comment.id === parentId) {
+      return {
+        ...comment,
+        replies: [...(comment.replies || []), optimisticComment],
+      };
+    }
+
+    if (comment.replies?.length) {
+      return {
+        ...comment,
+        replies: insertCommentIntoTree(
+          comment.replies,
+          parentId,
+          optimisticComment,
+        ),
+      };
+    }
+
+    return comment;
+  });
+}
+
 // Fetch comments for a post
 export function useComments(postId: string, limit?: number) {
   const queryClient = useQueryClient();
@@ -57,11 +131,12 @@ export function useComments(postId: string, limit?: number) {
 
         if (!limit || limit >= 50) {
           // Full fetch - update count
-          if (currentCount === undefined || comments.length !== currentCount) {
+          const totalComments = countCommentsTree(comments);
+          if (currentCount === undefined || totalComments !== currentCount) {
             usePostStore.setState({
               postCommentCounts: {
                 ...postCommentCounts,
-                [postId]: comments.length,
+                [postId]: totalComments,
               },
             });
           }
@@ -136,6 +211,11 @@ export function useCreateComment() {
       const previousQueries = queryClient.getQueriesData({
         queryKey: commentKeys.byPost(newComment.post),
       });
+      const previousReplyQueries = newComment.parent
+        ? queryClient.getQueriesData({
+            queryKey: commentKeys.byParent(newComment.parent),
+          })
+        : [];
 
       // Get current comment count for rollback
       const store = usePostStore.getState();
@@ -145,6 +225,19 @@ export function useCreateComment() {
       store.setCommentCount(newComment.post, previousCount + 1);
 
       // Optimistically add the new comment
+      const parentMeta = newComment.parent
+        ? previousQueries.reduce<{
+            depth: number;
+            rootId: string | null;
+          } | null>(
+            (found, [, data]) =>
+              found ||
+              (Array.isArray(data)
+                ? findCommentMeta(data, newComment.parent as string)
+                : null),
+            null,
+          )
+        : null;
       const optimisticComment: Comment = {
         id: `temp-${Date.now()}`,
         username: newComment.authorUsername || "You",
@@ -152,6 +245,10 @@ export function useCreateComment() {
         text: newComment.text,
         timeAgo: "Just now",
         likes: 0,
+        postId: newComment.post,
+        parentId: newComment.parent || null,
+        rootId: parentMeta?.rootId || null,
+        depth: newComment.parent ? (parentMeta?.depth || 0) + 1 : 0,
         replies: [],
       };
 
@@ -160,27 +257,32 @@ export function useCreateComment() {
         { queryKey: commentKeys.byPost(newComment.post) },
         (old) => {
           if (!old) return [optimisticComment];
-          // For limited queries, add to the beginning and keep only the limit
-          // For unlimited queries, just add to the end
-          const isLimitedQuery = Array.isArray(old) && old.length > 0;
-          if (isLimitedQuery) {
-            // Add new comment at the beginning (newest first)
-            const updated = [optimisticComment, ...old];
-            // If this is a limited query (like limit: 3), keep only the first N comments
-            // We can't know the exact limit, so we'll keep the same length + 1
-            // The real refetch will correct this
-            return updated;
-          }
-          return [...old, optimisticComment];
+          return insertCommentIntoTree(
+            old,
+            newComment.parent,
+            optimisticComment,
+          );
         },
       );
 
-      return { previousQueries };
+      if (newComment.parent) {
+        queryClient.setQueriesData<Comment[]>(
+          { queryKey: commentKeys.byParent(newComment.parent) },
+          (old) => [...(old || []), optimisticComment],
+        );
+      }
+
+      return { previousQueries, previousReplyQueries };
     },
     onError: (err, newComment, context) => {
       // Roll back on error - restore all previous query states
       if (context?.previousQueries) {
         context.previousQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+      if (context?.previousReplyQueries) {
+        context.previousReplyQueries.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
       }
@@ -205,14 +307,35 @@ export function useCreateComment() {
       queryClient.invalidateQueries({
         queryKey: postKeys.all,
       });
+      if (variables.parent) {
+        queryClient.invalidateQueries({
+          queryKey: commentKeys.byParent(variables.parent),
+          refetchType: "active",
+        });
+      }
     },
   });
 }
 
 // Fetch replies to a comment
 export function useReplies(parentId: string, postId: string, limit?: number) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: [...commentKeys.byParent(parentId), postId, limit || "all"],
+    placeholderData: (): Comment[] | undefined => {
+      if (!parentId || !postId) return undefined;
+      const candidates = [50, 3, "all"] as const;
+      for (const l of candidates) {
+        const cached = queryClient.getQueryData<Comment[]>([
+          ...commentKeys.byPost(postId),
+          l,
+        ]);
+        if (!Array.isArray(cached) || cached.length === 0) continue;
+        const parent = findCommentById(cached, parentId);
+        if (parent?.replies?.length) return parent.replies;
+      }
+      return undefined;
+    },
     queryFn: async () => {
       const replies = await commentsApiClient.getReplies(
         parentId,

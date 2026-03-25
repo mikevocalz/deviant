@@ -54,6 +54,7 @@ import {
 } from "@/lib/utils/safe-profile-mappers";
 import { appendCacheBuster, getAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 import { ProfileScreenGuard } from "@/components/profile/ProfileScreenGuard";
+import { ProfilePronounsPill } from "@/components/profile/ProfilePronounsPill";
 
 // mapPostToGridTile is now replaced by safeGridTiles from safe-profile-mappers.ts
 
@@ -365,6 +366,9 @@ function ProfileScreenContent() {
   }, [avatarUri]);
   const displayUsername = profileData?.username || user?.username || "";
   const displayBio = safeText(profileData?.bio) || safeText(user?.bio);
+  const displayPronouns =
+    safeText((profileData as any)?.pronouns) ||
+    safeText((user as any)?.pronouns);
   const displayLocation =
     safeText(profileData?.location) || safeText(user?.location);
   const displayWebsite =
@@ -742,6 +746,7 @@ function ProfileScreenContent() {
             <Text className="text-base font-semibold text-foreground">
               {displayName}
             </Text>
+            <ProfilePronounsPill pronouns={displayPronouns} />
             {displayBio && (
               <Text className="mt-1.5 text-sm leading-5 text-foreground/90">
                 {displayBio}

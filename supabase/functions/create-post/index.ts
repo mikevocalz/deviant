@@ -32,17 +32,22 @@ function errorResponse(code: string, message: string): Response {
 }
 
 interface MediaItem {
-  type: "image" | "video";
+  type: "image" | "video" | "gif" | "livePhoto";
   url: string;
+  thumbnail?: string;
 }
 
 interface CreatePostBody {
   content?: string;
+  kind?: "media" | "text";
+  textTheme?: "graphite" | "cobalt" | "ember" | "sage";
   location?: string;
   isNSFW?: boolean;
   visibility?: "public" | "followers" | "private";
   media?: MediaItem[];
 }
+
+const TEXT_POST_MAX_LENGTH = 500;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -98,10 +103,41 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { content, location, isNSFW, visibility, media } = body;
+    const { content, kind, textTheme, location, isNSFW, visibility, media } =
+      body;
+    const postKind = kind === "text" ? "text" : "media";
+    const normalizedTheme =
+      textTheme && ["graphite", "cobalt", "ember", "sage"].includes(textTheme)
+        ? textTheme
+        : "graphite";
 
-    // Media is REQUIRED — this is a media-first app
-    if (!media || !Array.isArray(media) || media.length === 0) {
+    if (
+      postKind === "text" &&
+      (!content || typeof content !== "string" || content.trim().length === 0)
+    ) {
+      return errorResponse(
+        "validation_error",
+        "Text posts require content",
+        400,
+      );
+    }
+
+    if (
+      postKind === "text" &&
+      typeof content === "string" &&
+      content.trim().length > TEXT_POST_MAX_LENGTH
+    ) {
+      return errorResponse(
+        "validation_error",
+        `Text posts must be ${TEXT_POST_MAX_LENGTH} characters or fewer`,
+        400,
+      );
+    }
+
+    if (
+      postKind === "media" &&
+      (!media || !Array.isArray(media) || media.length === 0)
+    ) {
       return errorResponse(
         "validation_error",
         "Post must include at least one photo or video",
@@ -110,7 +146,7 @@ Deno.serve(async (req) => {
     }
 
     // Validate each media item has a valid URL
-    for (const m of media) {
+    for (const m of media || []) {
       if (!m.url || typeof m.url !== "string" || !m.url.startsWith("http")) {
         return errorResponse(
           "validation_error",
@@ -118,10 +154,10 @@ Deno.serve(async (req) => {
           400,
         );
       }
-      if (!["image", "video"].includes(m.type)) {
+      if (!["image", "video", "gif", "livePhoto"].includes(m.type)) {
         return errorResponse(
           "validation_error",
-          "Each media item must have type 'image' or 'video'",
+          "Each media item must have a supported media type",
           400,
         );
       }
@@ -144,6 +180,8 @@ Deno.serve(async (req) => {
       .insert({
         author_id: userId,
         content: content?.trim() || "",
+        post_kind: postKind,
+        text_theme: normalizedTheme,
         location: location || null,
         is_nsfw: isNSFW || false,
         visibility: visibility || "public",
@@ -214,6 +252,8 @@ Deno.serve(async (req) => {
           authorId: String(userId),
           content: post.content,
           location: post.location,
+          kind: post.post_kind,
+          textTheme: post.text_theme,
           isNSFW: post.is_nsfw,
           visibility: post.visibility,
           likesCount: 0,

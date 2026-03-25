@@ -50,6 +50,8 @@ export interface UpdateProfileInput {
 // Post types
 export interface CreatePostInput {
   content: string;
+  kind?: "media" | "text";
+  textTheme?: import("@/lib/types").TextPostThemeKey;
   mediaUrls?: string[];
   location?: string;
   visibility?: "public" | "followers" | "private";

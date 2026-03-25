@@ -6,7 +6,7 @@
  * iOS <26:  BlurView fallback
  * Android:  solid dark surface
  */
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { BlurView } from "expo-blur";
 import { memo } from "react";
 import type { BottomSheetBackgroundProps } from "@gorhom/bottom-sheet";
@@ -15,6 +15,11 @@ import {
   safeIsLiquidGlassSupported as isLiquidGlassSupported,
 } from "@/lib/safe-native-modules";
 import Animated from "react-native-reanimated";
+import {
+  GLASS_SURFACE,
+  createGlassOuterStyle,
+  createGlassScrimStyle,
+} from "@/lib/ui/glass";
 
 const BORDER_RADIUS = 24;
 
@@ -29,14 +34,25 @@ function GlassSheetBackgroundComponent({
         effect="regular"
         style={[
           style,
+          createGlassOuterStyle(BORDER_RADIUS),
           {
             borderTopLeftRadius: BORDER_RADIUS,
             borderTopRightRadius: BORDER_RADIUS,
-            overflow: "hidden",
-            backgroundColor: "rgba(0,0,0,0.18)",
           },
         ]}
-      />
+      >
+        <View
+          pointerEvents="none"
+          style={[
+            {
+              flex: 1,
+              borderTopLeftRadius: BORDER_RADIUS,
+              borderTopRightRadius: BORDER_RADIUS,
+            },
+            createGlassScrimStyle("sheet"),
+          ]}
+        />
+      </LiquidGlassView>
     );
   }
 
@@ -47,13 +63,25 @@ function GlassSheetBackgroundComponent({
         tint="dark"
         style={[
           style,
+          createGlassOuterStyle(BORDER_RADIUS),
           {
             borderTopLeftRadius: BORDER_RADIUS,
             borderTopRightRadius: BORDER_RADIUS,
-            overflow: "hidden",
           },
         ]}
-      />
+      >
+        <View
+          pointerEvents="none"
+          style={[
+            {
+              flex: 1,
+              borderTopLeftRadius: BORDER_RADIUS,
+              borderTopRightRadius: BORDER_RADIUS,
+            },
+            createGlassScrimStyle("sheet", true),
+          ]}
+        />
+      </BlurView>
     );
   }
 
@@ -65,7 +93,9 @@ function GlassSheetBackgroundComponent({
         {
           borderTopLeftRadius: BORDER_RADIUS,
           borderTopRightRadius: BORDER_RADIUS,
-          backgroundColor: "#1a1a1a",
+          backgroundColor: GLASS_SURFACE.androidSurface,
+          borderWidth: 1,
+          borderColor: GLASS_SURFACE.borderStrong,
         },
       ]}
     />

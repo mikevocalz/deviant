@@ -14,6 +14,18 @@ interface DeleteCommentResponse {
   error?: { code: string; message: string };
 }
 
+function findCommentById(
+  comments: Comment[],
+  commentId: string,
+): Comment | undefined {
+  for (const comment of comments) {
+    if (comment.id === commentId) return comment;
+    const nested = findCommentById(comment.replies || [], commentId);
+    if (nested) return nested;
+  }
+  return undefined;
+}
+
 export const commentsApi = {
   /**
    * Get comments for a post (Edge Function — bypasses RLS)
@@ -41,10 +53,11 @@ export const commentsApi = {
         return [];
       }
       if (!data?.comments) {
-        if (data?.error) console.error("[Comments] get-post-comments:", data.error);
+        if (data?.error)
+          console.error("[Comments] get-post-comments:", data.error);
         return [];
       }
-      return data.comments.map((c) => ({ ...c, replies: [] as Comment[] }));
+      return data.comments;
     } catch (error) {
       console.error("[Comments] getComments error:", error);
       return [];
@@ -54,7 +67,7 @@ export const commentsApi = {
   /**
    * Add comment to post via Edge Function
    */
-  async addComment(postId: string, content: string) {
+  async addComment(postId: string, content: string, parentId?: string) {
     try {
       console.log("[Comments] addComment via Edge Function, postId:", postId);
 
@@ -63,7 +76,11 @@ export const commentsApi = {
 
       const { data, error } =
         await supabase.functions.invoke<AddCommentResponse>("add-comment", {
-          body: { postId: postIdInt, content },
+          body: {
+            postId: postIdInt,
+            content,
+            ...(parentId ? { parentId: parseInt(parentId, 10) } : {}),
+          },
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -96,7 +113,7 @@ export const commentsApi = {
     authorId?: string;
     clientMutationId?: string;
   }) {
-    return commentsApi.addComment(data.post, data.text);
+    return commentsApi.addComment(data.post, data.text, data.parent);
   },
 
   /**
@@ -113,19 +130,20 @@ export const commentsApi = {
       const commentIdInt = parseInt(commentId);
       if (isNaN(commentIdInt)) throw new Error("Invalid comment ID");
 
-      const { data, error } =
-        await supabase.functions.invoke<{ ok: boolean; data?: { liked: boolean; likesCount: number } }>(
-          "toggle-comment-like",
-          {
-            body: { commentId: commentIdInt, like: !isLiked },
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
+      const { data, error } = await supabase.functions.invoke<{
+        ok: boolean;
+        data?: { liked: boolean; likesCount: number };
+      }>("toggle-comment-like", {
+        body: { commentId: commentIdInt, like: !isLiked },
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       if (error) throw error;
 
       if (!data?.ok || !data?.data) {
-        throw new Error((data as any)?.error?.message || "Failed to toggle comment like");
+        throw new Error(
+          (data as any)?.error?.message || "Failed to toggle comment like",
+        );
       }
 
       return {
@@ -185,8 +203,8 @@ export const commentsApi = {
   ): Promise<Comment[]> {
     try {
       console.log("[Comments] getReplies, parentId:", parentId);
-      // TODO: Implement when nested comments are supported
-      return [];
+      const comments = await commentsApi.getComments(postId, limit);
+      return findCommentById(comments, parentId)?.replies || [];
     } catch (error) {
       console.error("[Comments] getReplies error:", error);
       return [];

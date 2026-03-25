@@ -21,6 +21,7 @@ import {
   Pause,
   UserPlus,
   Scissors,
+  Type,
 } from "lucide-react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -49,6 +50,8 @@ import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomple
 import { Switch } from "react-native";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { setPendingCrop } from "@/src/crop/crop-utils";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
+import { TEXT_POST_THEMES } from "@/lib/posts/text-post";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -57,6 +60,7 @@ const ASPECT_RATIO = 4 / 5;
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
 const MIN_CAPTION_LENGTH = 10;
+const TEXT_POST_MAX_LENGTH = 500;
 
 function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -143,9 +147,13 @@ function CreateScreenContent() {
     location,
     isNSFW,
     tags,
+    postKind,
+    textTheme,
     setCaption,
     setLocationData,
     setIsNSFW,
+    setPostKind,
+    setTextTheme,
     addTag,
     removeTag,
     reset,
@@ -179,9 +187,11 @@ function CreateScreenContent() {
   const hasVideo = selectedMedia.some((m) => m.type === "video");
   const hasPhotos = selectedMedia.some((m) => m.type === "image");
   const canAddMore = !hasVideo && selectedMedia.length < MAX_PHOTOS;
+  const isTextPost = postKind === "text";
 
-  const isValid =
-    selectedMedia.length > 0 && caption.trim().length >= MIN_CAPTION_LENGTH;
+  const isValid = isTextPost
+    ? caption.trim().length > 0 && caption.trim().length <= TEXT_POST_MAX_LENGTH
+    : selectedMedia.length > 0 && caption.trim().length >= MIN_CAPTION_LENGTH;
 
   const validateMedia = useCallback(
     (media: MediaAsset[]): MediaAsset[] => {
@@ -345,7 +355,7 @@ function CreateScreenContent() {
     setSelectedMedia(selectedMedia.filter((m) => m.id !== id));
   };
 
-  const handlePost = async () => {
+  const handlePost = useCallback(async () => {
     console.log("[Create] handlePost called!");
     console.log("[Create] isValid:", isValid);
     console.log("[Create] isUploading:", isUploading);
@@ -359,7 +369,7 @@ function CreateScreenContent() {
       return;
     }
 
-    if (selectedMedia.length === 0) {
+    if (!isTextPost && selectedMedia.length === 0) {
       showToast(
         "error",
         "No Media",
@@ -368,7 +378,21 @@ function CreateScreenContent() {
       return;
     }
 
-    if (caption.trim().length < MIN_CAPTION_LENGTH) {
+    if (isTextPost && caption.trim().length === 0) {
+      showToast("error", "Empty Post", "Write something before posting.");
+      return;
+    }
+
+    if (isTextPost && caption.trim().length > TEXT_POST_MAX_LENGTH) {
+      showToast(
+        "error",
+        "Too Long",
+        `Text posts are limited to ${TEXT_POST_MAX_LENGTH} characters.`,
+      );
+      return;
+    }
+
+    if (!isTextPost && caption.trim().length < MIN_CAPTION_LENGTH) {
       showToast(
         "error",
         "Caption Too Short",
@@ -404,41 +428,54 @@ function CreateScreenContent() {
         };
       });
 
-      console.log("[Create] Uploading media to CDN...");
-      let uploadResults;
-      try {
-        uploadResults = await uploadMultiple(mediaFiles);
-        console.log("[Create] Upload results:", JSON.stringify(uploadResults));
-      } catch (uploadError) {
-        console.error("[Create] Upload threw error:", uploadError);
-        showToast(
-          "error",
-          "Upload Failed",
-          "Could not upload media. Please try again.",
-        );
-        return;
-      }
+      let postMedia: Array<{
+        type: string;
+        url: string;
+        thumbnail?: string;
+        mimeType?: string;
+        livePhotoVideoUrl?: string;
+      }> = [];
 
-      // Check if all uploads succeeded
-      const failedUploads = uploadResults.filter((r) => !r.success);
-      if (failedUploads.length > 0) {
-        console.error("[Create] Upload failures:", failedUploads);
-        showToast(
-          "error",
-          "Upload Error",
-          `${failedUploads.length} file(s) failed to upload. Please try again.`,
-        );
-        return;
-      }
+      if (!isTextPost) {
+        console.log("[Create] Uploading media to CDN...");
+        let uploadResults;
+        try {
+          uploadResults = await uploadMultiple(mediaFiles);
+          console.log(
+            "[Create] Upload results:",
+            JSON.stringify(uploadResults),
+          );
+        } catch (uploadError) {
+          console.error("[Create] Upload threw error:", uploadError);
+          showToast(
+            "error",
+            "Upload Failed",
+            "Could not upload media. Please try again.",
+          );
+          return;
+        }
 
-      // Create post with CDN URLs (include thumbnail, kind, livePhotoVideoUrl)
-      const postMedia = uploadResults.map((r) => ({
-        type: r.kind ?? r.type,
-        url: r.url,
-        ...(r.thumbnail && { thumbnail: r.thumbnail }),
-        ...(r.mimeType && { mimeType: r.mimeType }),
-        ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
-      }));
+        const failedUploads = uploadResults.filter((r) => !r.success);
+        if (failedUploads.length > 0) {
+          console.error("[Create] Upload failures:", failedUploads);
+          showToast(
+            "error",
+            "Upload Error",
+            `${failedUploads.length} file(s) failed to upload. Please try again.`,
+          );
+          return;
+        }
+
+        postMedia = uploadResults.map((r) => ({
+          type: r.kind ?? r.type,
+          url: r.url,
+          ...(r.thumbnail && { thumbnail: r.thumbnail }),
+          ...(r.mimeType && { mimeType: r.mimeType }),
+          ...(r.livePhotoVideoUrl && {
+            livePhotoVideoUrl: r.livePhotoVideoUrl,
+          }),
+        }));
+      }
 
       console.log("[Create] Creating post with CDN URLs:", postMedia);
       console.log("[Create] Author ID:", user?.id, "Username:", user?.username);
@@ -450,6 +487,8 @@ function CreateScreenContent() {
 
       createPost(
         {
+          kind: postKind,
+          textTheme,
           content: fullContent,
           location,
           media: postMedia,
@@ -460,7 +499,7 @@ function CreateScreenContent() {
             console.log("[Create] Post created successfully:", newPost?.id);
 
             // Save placed tags to backend (fire-and-forget)
-            if (newPost?.id && placedTags.length > 0) {
+            if (!isTextPost && newPost?.id && placedTags.length > 0) {
               try {
                 await postTagsApi.addTags(
                   String(newPost.id),
@@ -500,7 +539,28 @@ function CreateScreenContent() {
       console.error("[Create] Unexpected error:", error);
       showToast("error", "Error", "Something went wrong. Please try again.");
     }
-  };
+  }, [
+    isValid,
+    isUploading,
+    isCreating,
+    selectedMedia,
+    caption,
+    showToast,
+    uploadMultiple,
+    user?.id,
+    user?.username,
+    tags,
+    createPost,
+    location,
+    isNSFW,
+    reset,
+    router,
+    placedTags,
+    setSelectedTagUsers,
+    postKind,
+    textTheme,
+    isTextPost,
+  ]);
 
   const handleClose = () => {
     if (selectedMedia.length > 0 || caption.length > 0) {
@@ -593,29 +653,202 @@ function CreateScreenContent() {
         bottomOffset={100}
         enabled={true}
       >
-        <View style={{ padding: 16 }}>
-          <UserMentionAutocomplete
-            value={caption}
-            onChangeText={setCaption}
-            placeholder="Write a caption... (use @ to mention users)"
-            multiline
-            maxLength={2200}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+          <View
             style={{
-              fontSize: 16,
-              minHeight: 80,
-            }}
-          />
-          <Text
-            style={{
-              fontSize: 12,
-              color: "#666",
-              marginTop: 8,
-              textAlign: "right",
+              flexDirection: "row",
+              gap: 10,
+              padding: 6,
+              borderRadius: 18,
+              backgroundColor: "#0E1320",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
             }}
           >
-            {caption.length}/2200
-          </Text>
+            {[
+              {
+                key: "media",
+                label: "Media post",
+                icon: ImageIcon,
+                description: "Photos or video with caption",
+              },
+              {
+                key: "text",
+                label: "Text post",
+                icon: Type,
+                description: "Threads-style conversation starter",
+              },
+            ].map((option) => {
+              const Icon = option.icon;
+              const isActive = postKind === option.key;
+              return (
+                <Pressable
+                  key={option.key}
+                  onPress={() => setPostKind(option.key as typeof postKind)}
+                  style={{
+                    flex: 1,
+                    borderRadius: 14,
+                    paddingHorizontal: 14,
+                    paddingVertical: 14,
+                    backgroundColor: isActive
+                      ? "rgba(62,164,229,0.16)"
+                      : "transparent",
+                    borderWidth: 1,
+                    borderColor: isActive
+                      ? "rgba(62,164,229,0.42)"
+                      : "transparent",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Icon size={18} color={isActive ? "#6BC5FF" : "#8B95A7"} />
+                    <Text
+                      style={{
+                        color: isActive ? "#fff" : "#C2CAD7",
+                        fontSize: 15,
+                        fontWeight: "700",
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      marginTop: 8,
+                      color: isActive
+                        ? "rgba(226,232,240,0.84)"
+                        : "rgba(148,163,184,0.68)",
+                      fontSize: 12,
+                      lineHeight: 16,
+                    }}
+                  >
+                    {option.description}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
+
+        {isTextPost ? (
+          <>
+            <View style={{ padding: 16, paddingBottom: 8 }}>
+              <TextPostSurface
+                text={caption}
+                theme={textTheme}
+                variant="composer"
+              />
+            </View>
+
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <UserMentionAutocomplete
+                value={caption}
+                onChangeText={setCaption}
+                placeholder="Say something sharp, funny, or undeniable..."
+                multiline
+                maxLength={TEXT_POST_MAX_LENGTH}
+                style={{
+                  fontSize: 18,
+                  minHeight: 120,
+                  lineHeight: 26,
+                }}
+              />
+              <View
+                style={{
+                  marginTop: 14,
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 10,
+                }}
+              >
+                {Object.values(TEXT_POST_THEMES).map((themeOption) => {
+                  const active = textTheme === themeOption.key;
+                  return (
+                    <Pressable
+                      key={themeOption.key}
+                      onPress={() => setTextTheme(themeOption.key)}
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 8,
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderRadius: 999,
+                        backgroundColor: active
+                          ? "rgba(255,255,255,0.1)"
+                          : "rgba(255,255,255,0.04)",
+                        borderWidth: 1,
+                        borderColor: active
+                          ? themeOption.accent
+                          : "rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 999,
+                          backgroundColor: themeOption.accent,
+                        }}
+                      />
+                      <Text
+                        style={{
+                          color: active ? "#fff" : "#CBD5E1",
+                          fontSize: 13,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {themeOption.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color:
+                    caption.length > TEXT_POST_MAX_LENGTH
+                      ? "#FB7185"
+                      : "#64748B",
+                  marginTop: 10,
+                  textAlign: "right",
+                }}
+              >
+                {caption.length}/{TEXT_POST_MAX_LENGTH}
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={{ padding: 16 }}>
+            <UserMentionAutocomplete
+              value={caption}
+              onChangeText={setCaption}
+              placeholder="Write a caption... (use @ to mention users)"
+              multiline
+              maxLength={2200}
+              style={{
+                fontSize: 16,
+                minHeight: 80,
+              }}
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                color: "#666",
+                marginTop: 8,
+                textAlign: "right",
+              }}
+            >
+              {caption.length}/2200
+            </Text>
+          </View>
+        )}
 
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
           <LocationAutocompleteInstagram
@@ -633,7 +866,7 @@ function CreateScreenContent() {
         </View>
 
         {/* Tag People Button */}
-        {selectedMedia.length > 0 && !hasVideo && (
+        {!isTextPost && selectedMedia.length > 0 && !hasVideo && (
           <Pressable
             onPress={() => setShowTagSheet(true)}
             style={{
@@ -788,8 +1021,9 @@ function CreateScreenContent() {
           )}
         </View>
 
-        {/* Content Rating Toggle - only show when media is selected */}
-        {selectedMedia.length > 0 && (
+        {/* Content Rating Toggle */}
+        {(selectedMedia.length > 0 ||
+          (isTextPost && caption.trim().length > 0)) && (
           <View
             style={{
               flexDirection: "row",
@@ -837,82 +1071,89 @@ function CreateScreenContent() {
           </View>
         )}
 
-        <View
-          style={{
-            flexDirection: "row",
-            paddingHorizontal: 16,
-            gap: 8,
-            marginBottom: 20,
-          }}
-        >
-          <Pressable
-            onPress={handlePickLibrary}
-            disabled={!canAddMore && selectedMedia.length > 0}
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              backgroundColor:
-                canAddMore || selectedMedia.length === 0
-                  ? "#3EA4E5"
-                  : "#1a1a1a",
-              paddingVertical: 14,
-              borderRadius: 12,
-              opacity: canAddMore || selectedMedia.length === 0 ? 1 : 0.5,
-            }}
-          >
-            <ImageIcon size={20} color="#fff" />
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Library</Text>
-          </Pressable>
+        {!isTextPost && (
+          <>
+            <View
+              style={{
+                flexDirection: "row",
+                paddingHorizontal: 16,
+                gap: 8,
+                marginBottom: 20,
+              }}
+            >
+              <Pressable
+                onPress={handlePickLibrary}
+                disabled={!canAddMore && selectedMedia.length > 0}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  backgroundColor:
+                    canAddMore || selectedMedia.length === 0
+                      ? "#3EA4E5"
+                      : "#1a1a1a",
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  opacity: canAddMore || selectedMedia.length === 0 ? 1 : 0.5,
+                }}
+              >
+                <ImageIcon size={20} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "600" }}>
+                  Library
+                </Text>
+              </Pressable>
 
-          <Pressable
-            onPress={() => handleOpenCamera("photo")}
-            disabled={hasVideo || selectedMedia.length >= MAX_PHOTOS}
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              backgroundColor: "#1a1a1a",
-              paddingVertical: 14,
-              borderRadius: 12,
-              opacity: !hasVideo && selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
-            }}
-          >
-            <Camera size={20} color="#fff" />
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Photo</Text>
-          </Pressable>
+              <Pressable
+                onPress={() => handleOpenCamera("photo")}
+                disabled={hasVideo || selectedMedia.length >= MAX_PHOTOS}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  backgroundColor: "#1a1a1a",
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  opacity:
+                    !hasVideo && selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
+                }}
+              >
+                <Camera size={20} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "600" }}>Photo</Text>
+              </Pressable>
 
-          <Pressable
-            onPress={() => handleOpenCamera("video")}
-            style={{
-              flex: 1,
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
-              backgroundColor: "#1a1a1a",
-              paddingVertical: 14,
-              borderRadius: 12,
-            }}
-          >
-            <Video size={20} color="#fff" />
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Video</Text>
-          </Pressable>
-        </View>
+              <Pressable
+                onPress={() => handleOpenCamera("video")}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  backgroundColor: "#1a1a1a",
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                }}
+              >
+                <Video size={20} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "600" }}>Video</Text>
+              </Pressable>
+            </View>
 
-        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-          <Text style={{ color: "#666", fontSize: 13 }}>
-            {hasVideo
-              ? `Video (max ${MAX_VIDEO_DURATION}s)`
-              : `Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
-          </Text>
-        </View>
+            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+              <Text style={{ color: "#666", fontSize: 13 }}>
+                {hasVideo
+                  ? `Video (max ${MAX_VIDEO_DURATION}s)`
+                  : `Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
+              </Text>
+            </View>
+          </>
+        )}
 
-        {selectedMedia.length > 0 && (
+        {!isTextPost && selectedMedia.length > 0 && (
           <View style={{ paddingHorizontal: 16, paddingBottom: 32 }}>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
               {selectedMedia.map((media, index) => (

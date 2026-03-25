@@ -80,6 +80,24 @@ export const eventKeys = {
   forYou: () => [...eventKeys.all, "forYou"] as const,
 };
 
+function findEventInCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  eventId: string,
+): Event | undefined {
+  const detail = queryClient.getQueryData<Event>(eventKeys.detail(eventId));
+  if (detail) return detail;
+
+  const queries = queryClient.getQueriesData<Event[]>({
+    queryKey: eventKeys.all,
+  });
+  for (const [, events] of queries) {
+    const match = events?.find((event) => String(event.id) === String(eventId));
+    if (match) return match;
+  }
+
+  return undefined;
+}
+
 // Fetch all events with optional filters
 // placeholderData: keepPreviousData keeps old results visible while new filter query loads
 // This prevents UI "jump" when toggling filter pills
@@ -347,6 +365,9 @@ export function useToggleEventLike() {
       const previousData = queryClient.getQueriesData({
         queryKey: eventKeys.all,
       });
+      const previousLikedActivity = viewerId
+        ? queryClient.getQueryData(activityKeys.liked(viewerId))
+        : undefined;
 
       // Helper to patch a single event in any event array cache
       const patchEvent = (old: any) => {
@@ -382,7 +403,32 @@ export function useToggleEventLike() {
         };
       });
 
-      return { previousData };
+      if (viewerId && !isLiked) {
+        const event = findEventInCache(queryClient, eventId);
+        const createdAt = new Date().toISOString();
+        queryClient.setQueryData(
+          activityKeys.liked(viewerId),
+          (old: any[] | undefined) => [
+            {
+              id: `optimistic-liked-event-${eventId}-${createdAt}`,
+              entityType: "event",
+              entityId: eventId,
+              actor: {
+                id: event?.host?.id || "",
+                username: event?.host?.username || "host",
+                avatar: event?.host?.avatar || "",
+              },
+              title: event?.title || "An event you liked",
+              previewImage: event?.image || "",
+              timeAgo: "Just now",
+              createdAt,
+            },
+            ...(old || []),
+          ],
+        );
+      }
+
+      return { previousData, previousLikedActivity };
     },
     onError: (_err, _variables, context) => {
       // Rollback all event caches
@@ -390,6 +436,12 @@ export function useToggleEventLike() {
         context.previousData.forEach(([queryKey, data]) => {
           queryClient.setQueryData(queryKey, data);
         });
+      }
+      if (viewerId && context?.previousLikedActivity !== undefined) {
+        queryClient.setQueryData(
+          activityKeys.liked(viewerId),
+          context.previousLikedActivity,
+        );
       }
     },
     onSuccess: (_result, { eventId }) => {

@@ -1,23 +1,10 @@
-/**
- * ThreadedComment Component
- *
- * Instagram-style threaded comment with:
- * - Parent comment at top
- * - Replies nested below with vertical connector line
- * - Horizontal branch connectors to each reply
- * - Proper indentation and avatar sizing
- *
- * Two levels only: Parent → Replies (no nested replies)
- */
-
+import { memo, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Heart } from "lucide-react-native";
-import { memo, useCallback } from "react";
 import { UserAvatar } from "@/components/ui/avatar";
 import { useCommentLikeState } from "@/lib/hooks/use-comment-like-state";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 
-// Render comment text with tappable @mentions
 function renderCommentText(
   text: string,
   style: any,
@@ -27,35 +14,24 @@ function renderCommentText(
   const parts = text.split(/(@\w+)/g);
   return (
     <Text style={style}>
-      {parts.map((part, i) => {
-        if (part.startsWith("@")) {
-          const username = part.slice(1);
-          return (
-            <Text
-              key={i}
-              onPress={() => onProfilePress(username)}
-              style={{ color: MENTION_COLOR, fontWeight: "800" }}
-            >
-              {part}
-            </Text>
-          );
+      {parts.map((part, index) => {
+        if (!part.startsWith("@")) {
+          return <Text key={index}>{part}</Text>;
         }
-        return <Text key={i}>{part}</Text>;
+        const username = part.slice(1);
+        return (
+          <Text
+            key={index}
+            onPress={() => onProfilePress(username)}
+            style={{ color: MENTION_COLOR, fontWeight: "800" }}
+          >
+            {part}
+          </Text>
+        );
       })}
     </Text>
   );
 }
-
-// Thread line color - more visible
-const THREAD_LINE_COLOR = "#555";
-const THREAD_LINE_WIDTH = 2;
-
-// Avatar sizes
-const PARENT_AVATAR_SIZE = 36;
-const REPLY_AVATAR_SIZE = 28;
-
-// Indentation
-const REPLY_INDENT = 48; // Aligned under parent text, not avatar
 
 export interface CommentData {
   id: string;
@@ -67,6 +43,8 @@ export interface CommentData {
   hasLiked?: boolean;
   postId?: string;
   parentId?: string | null;
+  rootId?: string | null;
+  depth?: number;
   replies?: CommentData[];
 }
 
@@ -93,13 +71,15 @@ export function CommentLikeButton({
   return (
     <Pressable onPress={toggle} disabled={isPending} style={styles.likeButton}>
       <Heart
-        size={16}
-        color={hasLiked ? "#FF5BFC" : "#666"}
+        size={15}
+        color={hasLiked ? "#FF5BFC" : "#7C8798"}
         fill={hasLiked ? "#FF5BFC" : "none"}
       />
-      <Text style={[styles.likeCount, hasLiked && styles.likeCountActive]}>
-        {likesCount > 0 ? likesCount : ""}
-      </Text>
+      {likesCount > 0 ? (
+        <Text style={[styles.likeCount, hasLiked && styles.likeCountActive]}>
+          {likesCount}
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -115,116 +95,121 @@ interface ThreadedCommentProps {
   showAllReplies?: boolean;
 }
 
-// Single Reply Item Component
-const ReplyItem = memo(function ReplyItem({
-  reply,
-  isLast,
-  onProfilePress,
-  postId,
-}: {
-  reply: CommentData;
-  isLast: boolean;
-  onProfilePress: () => void;
-  postId: string;
-}) {
-  return (
-    <View style={styles.replyRow}>
-      {/* Horizontal connector from vertical line to avatar */}
-      <View style={styles.horizontalConnector} />
+const AVATAR_SIZE = [36, 30, 24] as const;
+const MAX_DEPTH = 2;
 
-      {/* Reply content */}
-      <Pressable onPress={onProfilePress}>
-        <UserAvatar
-          uri={reply.avatar}
-          username={reply.username}
-          size={REPLY_AVATAR_SIZE}
-          variant="roundedSquare"
-        />
-      </Pressable>
-
-      <View style={styles.replyContent}>
-        <View style={styles.replyHeader}>
-          <Pressable onPress={onProfilePress}>
-            <Text style={styles.replyUsername}>{reply.username}</Text>
-          </Pressable>
-          <Text style={styles.replyTime}>{reply.timeAgo || ""}</Text>
-        </View>
-
-        {renderCommentText(reply.text, styles.replyText, onProfilePress)}
-
-        {/* Reply actions - Like only, NO reply button (2-level limit) */}
-        <View style={styles.replyActions}>
-          <CommentLikeButton
-            postId={postId}
-            commentId={reply.id}
-            initialLikes={reply.likes}
-            initialHasLiked={reply.hasLiked}
-          />
-        </View>
-      </View>
-    </View>
-  );
-});
-
-// Reply Container with vertical thread line
-const ReplyContainer = memo(function ReplyContainer({
-  replies,
-  onProfilePress,
-  maxVisible,
-  showAll,
-  onViewAll,
-  parentId,
-  postId,
-}: {
-  replies: CommentData[];
-  onProfilePress: (username: string) => void;
-  maxVisible: number;
-  showAll: boolean;
-  onViewAll?: (commentId: string) => void;
-  parentId: string;
-  postId: string;
-}) {
-  const visibleReplies = showAll ? replies : replies.slice(0, maxVisible);
-  const hasMoreReplies = !showAll && replies.length > maxVisible;
-
-  return (
-    <View style={styles.replyContainer}>
-      {/* Vertical thread line - runs full height of replies */}
-      <View style={styles.verticalThreadLine} />
-
-      {/* Replies list */}
-      <View style={styles.repliesList}>
-        {visibleReplies.map((reply, index) => (
-          <ReplyItem
-            key={reply.id}
-            reply={reply}
-            postId={postId}
-            isLast={index === visibleReplies.length - 1 && !hasMoreReplies}
-            onProfilePress={() => onProfilePress(reply.username)}
-          />
-        ))}
-
-        {/* View all replies button */}
-        {hasMoreReplies && onViewAll && (
-          <Pressable
-            onPress={() => onViewAll(parentId)}
-            style={styles.viewAllButton}
-          >
-            <View style={styles.horizontalConnector} />
-            <Text style={styles.viewAllText}>
-              View all {replies.length} replies
-            </Text>
-          </Pressable>
-        )}
-      </View>
-    </View>
-  );
-});
-
-// Main ThreadedComment Component
-function ThreadedCommentComponent({
-  postId,
+function CommentNode({
   comment,
+  postId,
+  onReply,
+  onProfilePress,
+  onViewAllReplies,
+  maxVisibleReplies,
+  showAllReplies,
+  isRoot,
+}: ThreadedCommentProps & { isRoot: boolean }) {
+  const depth = Math.min(comment.depth || 0, MAX_DEPTH);
+  const avatarSize = AVATAR_SIZE[Math.min(depth, AVATAR_SIZE.length - 1)];
+  const canReply = depth < MAX_DEPTH;
+  const replies = Array.isArray(comment.replies) ? comment.replies : [];
+  const visibleReplies =
+    isRoot && !showAllReplies ? replies.slice(0, maxVisibleReplies) : replies;
+  const hiddenReplies = replies.length - visibleReplies.length;
+
+  const handleReply = useCallback(() => {
+    onReply(comment.username, comment.id);
+  }, [comment.id, comment.username, onReply]);
+
+  return (
+    <View
+      style={[
+        styles.node,
+        depth > 0 && styles.nestedNode,
+        depth === 1 && styles.depthOne,
+        depth === 2 && styles.depthTwo,
+        isRoot && styles.rootNode,
+      ]}
+    >
+      <View style={styles.row}>
+        <Pressable onPress={() => onProfilePress(comment.username)}>
+          <UserAvatar
+            uri={comment.avatar}
+            username={comment.username}
+            size={avatarSize}
+            variant="roundedSquare"
+          />
+        </Pressable>
+
+        <View style={styles.content}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => onProfilePress(comment.username)}>
+              <Text
+                style={[styles.username, depth > 0 && styles.usernameNested]}
+              >
+                {comment.username}
+              </Text>
+            </Pressable>
+            <Text style={styles.timeAgo}>{comment.timeAgo || ""}</Text>
+          </View>
+
+          {renderCommentText(
+            comment.text,
+            [styles.body, depth > 0 && styles.bodyNested],
+            onProfilePress,
+          )}
+
+          <View style={styles.actions}>
+            <CommentLikeButton
+              postId={postId}
+              commentId={comment.id}
+              initialLikes={comment.likes}
+              initialHasLiked={comment.hasLiked}
+            />
+            {canReply ? (
+              <Pressable onPress={handleReply}>
+                <Text style={styles.replyText}>Reply</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      </View>
+
+      {visibleReplies.length > 0 ? (
+        <View style={styles.replies}>
+          {visibleReplies.map((reply) => (
+            <CommentNode
+              key={reply.id}
+              comment={reply}
+              postId={postId}
+              isHighlighted={false}
+              onReply={onReply}
+              onViewAllReplies={onViewAllReplies}
+              onProfilePress={onProfilePress}
+              maxVisibleReplies={maxVisibleReplies}
+              showAllReplies
+              isRoot={false}
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {isRoot && hiddenReplies > 0 && onViewAllReplies ? (
+        <Pressable
+          onPress={() => onViewAllReplies(comment.id)}
+          style={styles.viewAllButton}
+        >
+          <Text style={styles.viewAllText}>
+            View all {replies.length} replies
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+function ThreadedCommentComponent({
+  comment,
+  postId,
   isHighlighted = false,
   onReply,
   onViewAllReplies,
@@ -232,236 +217,130 @@ function ThreadedCommentComponent({
   maxVisibleReplies = 2,
   showAllReplies = false,
 }: ThreadedCommentProps) {
-  const hasReplies =
-    comment.replies &&
-    Array.isArray(comment.replies) &&
-    comment.replies.length > 0;
-
-  const handleReply = useCallback(() => {
-    onReply(comment.username, comment.id);
-  }, [comment.username, comment.id, onReply]);
-
   return (
-    <View style={styles.container}>
-      {/* Highlight indicator */}
-      {isHighlighted && <View style={styles.highlightBar} />}
-
-      {/* Parent comment */}
-      <View style={styles.parentRow}>
-        <Pressable onPress={() => onProfilePress(comment.username)}>
-          <UserAvatar
-            uri={comment.avatar}
-            username={comment.username}
-            size={PARENT_AVATAR_SIZE}
-            variant="roundedSquare"
-          />
-        </Pressable>
-
-        <View style={styles.parentContent}>
-          <View style={styles.parentHeader}>
-            <Pressable onPress={() => onProfilePress(comment.username)}>
-              <Text style={styles.parentUsername}>{comment.username}</Text>
-            </Pressable>
-            <Text style={styles.parentTime}>{comment.timeAgo || ""}</Text>
-          </View>
-
-          {renderCommentText(comment.text, styles.parentText, onProfilePress)}
-
-          {/* Parent actions - Like AND Reply */}
-          <View style={styles.parentActions}>
-            <CommentLikeButton
-              postId={postId}
-              commentId={comment.id}
-              initialLikes={comment.likes}
-              initialHasLiked={comment.hasLiked}
-            />
-
-            <Pressable onPress={handleReply}>
-              <Text style={styles.replyButtonText}>Reply</Text>
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
-      {/* Threaded replies */}
-      {hasReplies && (
-        <ReplyContainer
-          replies={comment.replies!}
-          postId={postId}
-          onProfilePress={onProfilePress}
-          maxVisible={maxVisibleReplies}
-          showAll={showAllReplies}
-          onViewAll={onViewAllReplies}
-          parentId={comment.id}
-        />
-      )}
+    <View style={[styles.container, isHighlighted && styles.highlighted]}>
+      {isHighlighted ? <View style={styles.highlightBar} /> : null}
+      <CommentNode
+        comment={comment}
+        postId={postId}
+        isHighlighted={isHighlighted}
+        onReply={onReply}
+        onViewAllReplies={onViewAllReplies}
+        onProfilePress={onProfilePress}
+        maxVisibleReplies={maxVisibleReplies}
+        showAllReplies={showAllReplies}
+        isRoot
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: 18,
     position: "relative",
+  },
+  highlighted: {
+    paddingLeft: 8,
   },
   highlightBar: {
     position: "absolute",
-    left: -4,
     top: 0,
     bottom: 0,
+    left: 0,
     width: 3,
+    borderRadius: 999,
     backgroundColor: "#3EA4E5",
-    borderRadius: 2,
   },
-
-  // Parent comment styles
-  parentRow: {
+  node: {
+    gap: 10,
+  },
+  rootNode: {
+    paddingRight: 2,
+  },
+  nestedNode: {
+    marginTop: 12,
+    paddingLeft: 14,
+    borderLeftWidth: 1,
+    borderLeftColor: "rgba(148,163,184,0.18)",
+  },
+  depthOne: {
+    marginLeft: 16,
+  },
+  depthTwo: {
+    marginLeft: 10,
+  },
+  row: {
     flexDirection: "row",
     gap: 12,
   },
-  parentAvatar: {
-    width: PARENT_AVATAR_SIZE,
-    height: PARENT_AVATAR_SIZE,
-    borderRadius: Math.min(Math.round(PARENT_AVATAR_SIZE * 0.18), 16),
-  },
-  parentContent: {
+  content: {
     flex: 1,
   },
-  parentHeader: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  parentUsername: {
+  username: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  usernameNested: {
+    fontSize: 13,
+  },
+  timeAgo: {
+    color: "#7C8798",
+    fontSize: 11,
     fontWeight: "600",
-    fontSize: 14,
-    color: "#fff",
   },
-  parentTime: {
-    color: "#666",
-    fontSize: 12,
-  },
-  parentText: {
+  body: {
+    color: "#E5E7EB",
     fontSize: 14,
-    marginTop: 4,
     lineHeight: 20,
-    color: "#fff",
+    marginTop: 4,
   },
-  parentActions: {
+  bodyNested: {
+    color: "#D6DCE5",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  actions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
     marginTop: 8,
   },
-  parentLikeCount: {
-    color: "#666",
-    fontSize: 12,
+  replies: {
+    marginLeft: 4,
   },
-
-  // Reply container styles
-  replyContainer: {
-    marginTop: 12,
-    marginLeft: PARENT_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2, // Align line under avatar center
-    position: "relative",
-    backgroundColor: "rgba(85, 85, 85, 0.1)", // Subtle background to show threading
-    borderRadius: 8,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  verticalThreadLine: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 12,
-    width: THREAD_LINE_WIDTH,
-    backgroundColor: THREAD_LINE_COLOR,
-    borderRadius: THREAD_LINE_WIDTH / 2,
-  },
-  repliesList: {
-    paddingLeft: REPLY_INDENT - PARENT_AVATAR_SIZE / 2, // Total indent from left edge
-  },
-
-  // Reply item styles
-  replyRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-    position: "relative",
-  },
-  horizontalConnector: {
-    position: "absolute",
-    left: -(REPLY_INDENT - PARENT_AVATAR_SIZE / 2),
-    top: REPLY_AVATAR_SIZE / 2 - THREAD_LINE_WIDTH / 2,
-    width: REPLY_INDENT - PARENT_AVATAR_SIZE / 2 - 4,
-    height: THREAD_LINE_WIDTH,
-    backgroundColor: THREAD_LINE_COLOR,
-    borderRadius: THREAD_LINE_WIDTH / 2,
-  },
-  replyAvatar: {
-    width: REPLY_AVATAR_SIZE,
-    height: REPLY_AVATAR_SIZE,
-    borderRadius: Math.min(Math.round(REPLY_AVATAR_SIZE * 0.18), 16),
-  },
-  replyContent: {
-    flex: 1,
-  },
-  replyHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  replyUsername: {
-    fontWeight: "600",
-    fontSize: 13,
-    color: "#fff",
-  },
-  replyTime: {
-    color: "#555",
-    fontSize: 11,
-  },
-  replyText: {
-    fontSize: 13,
-    marginTop: 2,
-    lineHeight: 18,
-    color: "#e0e0e0",
-  },
-  replyActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginTop: 6,
-  },
-
-  // Shared styles
   likeButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
   likeCount: {
-    color: "#555",
+    color: "#7C8798",
     fontSize: 11,
+    fontWeight: "700",
   },
   likeCountActive: {
     color: "#FF5BFC",
   },
-  replyButtonText: {
-    color: "#666",
+  replyText: {
+    color: "#94A3B8",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "700",
   },
-
-  // View all button
   viewAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 4,
-    position: "relative",
+    marginLeft: 64,
+    marginTop: 10,
   },
   viewAllText: {
-    color: "#3EA4E5",
+    color: "#60A5FA",
     fontSize: 12,
-    fontWeight: "500",
+    fontWeight: "700",
   },
 });
 
