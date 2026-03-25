@@ -239,6 +239,7 @@ export const usersApi = {
   async getProfileByAuthUserId(authId: string) {
     try {
       if (!authId) return null;
+      const currentUserId = getCurrentUserIdInt();
 
       // First try the app `users` table via auth_id
       const { data: profile } = await supabase
@@ -270,9 +271,22 @@ export const usersApi = {
         .maybeSingle();
 
       if (profile) {
+        const targetUserId = profile[DB.users.id];
+        let isFollowing = false;
+        if (currentUserId && targetUserId && currentUserId !== targetUserId) {
+          const { data: followData } = await supabase
+            .from(DB.follows.table)
+            .select("id")
+            .eq(DB.follows.followerId, currentUserId)
+            .eq(DB.follows.followingId, targetUserId)
+            .maybeSingle();
+          isFollowing = !!followData;
+        }
+
         return {
           id: String(profile[DB.users.id]),
           username: profile[DB.users.username],
+          authId: profile[DB.users.authId],
           email: profile[DB.users.email],
           firstName: profile[DB.users.firstName],
           lastName: profile[DB.users.lastName],
@@ -292,6 +306,7 @@ export const usersApi = {
           followingCount: Number(profile[DB.users.followingCount]) || 0,
           postsCount: Number(profile[DB.users.postsCount]) || 0,
           isPrivate: profile[DB.users.isPrivate] || false,
+          isFollowing,
           createdAt: profile[DB.users.createdAt],
         };
       }
@@ -308,6 +323,7 @@ export const usersApi = {
       const displayName = (authUser.name || "").trim();
       return {
         id: authId,
+        authId,
         username:
           authUser.username ||
           displayName.toLowerCase().replace(/\s+/g, "_") ||
@@ -328,6 +344,7 @@ export const usersApi = {
         followingCount: 0,
         postsCount: 0,
         isPrivate: false,
+        isFollowing: false,
         createdAt: authUser.createdAt,
       };
     } catch (error) {

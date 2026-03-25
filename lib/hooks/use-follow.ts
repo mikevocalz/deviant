@@ -26,6 +26,10 @@ interface FollowContext {
   previousViewerData?: any;
   previousAuthUser?: any;
   previousListCaches: Array<{ queryKey: readonly unknown[]; data: any }>;
+  previousAuthFallbackCaches: Array<{
+    queryKey: readonly unknown[];
+    data: any;
+  }>;
   previousActivityFollowed?: boolean;
   previousActivities?: Activity[];
 }
@@ -127,6 +131,44 @@ export function updateUserRelationshipEverywhere(
       newFollowedUsers.delete(targetUsername);
     }
     useActivityStore.setState({ followedUsers: newFollowedUsers });
+  }
+
+  return snapshots;
+}
+
+function updateAuthUserFallbackCaches(
+  queryClient: QueryClient,
+  targetUserId: string,
+  targetUsername: string | undefined,
+  newIsFollowing: boolean,
+  followersCount?: number,
+): Array<{ queryKey: readonly unknown[]; data: any }> {
+  const snapshots: Array<{ queryKey: readonly unknown[]; data: any }> = [];
+  const authQueries = queryClient.getQueriesData<any>({
+    queryKey: ["auth-user"],
+  });
+
+  for (const [queryKey, data] of authQueries) {
+    if (!data || typeof data !== "object") continue;
+
+    const matchesTarget =
+      String(data.id || "") === String(targetUserId) ||
+      String(data.authId || "") === String(targetUserId) ||
+      (!!targetUsername && data.username === targetUsername);
+
+    if (!matchesTarget) continue;
+
+    snapshots.push({ queryKey: [...queryKey], data });
+    queryClient.setQueryData(queryKey, (old: any) => {
+      if (!old) return old;
+      return {
+        ...old,
+        isFollowing: newIsFollowing,
+        ...(typeof followersCount === "number"
+          ? { followersCount: followersCount }
+          : {}),
+      };
+    });
   }
 
   return snapshots;
@@ -236,6 +278,12 @@ export function useFollow() {
         newIsFollowing,
         viewerId,
       );
+      const previousAuthFallbackCaches = updateAuthUserFallbackCaches(
+        queryClient,
+        userId,
+        username,
+        newIsFollowing,
+      );
 
       return {
         previousUserData,
@@ -243,6 +291,7 @@ export function useFollow() {
         previousViewerData,
         previousAuthUser,
         previousListCaches,
+        previousAuthFallbackCaches,
         previousActivityFollowed,
         previousActivities,
       } as FollowContext;
@@ -273,6 +322,11 @@ export function useFollow() {
       // Rollback list caches (includes activities)
       if (context?.previousListCaches) {
         for (const { queryKey, data } of context.previousListCaches) {
+          queryClient.setQueryData(queryKey, data);
+        }
+      }
+      if (context?.previousAuthFallbackCaches) {
+        for (const { queryKey, data } of context.previousAuthFallbackCaches) {
           queryClient.setQueryData(queryKey, data);
         }
       }
@@ -335,6 +389,14 @@ export function useFollow() {
         });
       }
 
+      updateAuthUserFallbackCaches(
+        queryClient,
+        variables.userId,
+        variables.username,
+        data.following,
+        data.targetFollowersCount,
+      );
+
       // Reconcile viewer's following count with server-confirmed count
       if (viewerId) {
         queryClient.setQueryData(["profile", viewerId], (old: any) => {
@@ -371,6 +433,13 @@ export function useFollow() {
         invalidations.push(
           queryClient.invalidateQueries({
             queryKey: ["profile", variables.userId],
+          }),
+        );
+      }
+      if (variables.username) {
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: ["auth-user"],
           }),
         );
       }
