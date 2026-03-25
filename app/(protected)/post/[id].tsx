@@ -135,6 +135,189 @@ class SafeMediaWrapper extends React.Component<
   }
 }
 
+function PostDetailActionBar({
+  variant = "glass",
+  isLiked,
+  likeCount,
+  commentCount,
+  isBookmarked,
+  isLikePending,
+  timeAgo,
+  onLike,
+  onComments,
+  onShare,
+  onBookmark,
+}: {
+  variant?: "glass" | "inline";
+  isLiked: boolean;
+  likeCount: number;
+  commentCount: number;
+  isBookmarked: boolean;
+  isLikePending: boolean;
+  timeAgo: string;
+  onLike: () => void;
+  onComments: () => void;
+  onShare: () => void;
+  onBookmark: () => void;
+}) {
+  const timestamp = (
+    <Text
+      style={{
+        fontSize: variant === "glass" ? 12 : 11,
+        color:
+          variant === "glass"
+            ? "rgba(255,255,255,0.6)"
+            : "rgba(226,232,240,0.62)",
+        fontWeight: "700",
+        textTransform: "uppercase",
+        ...(variant === "glass"
+          ? {
+              textShadowColor: "rgba(0,0,0,0.8)",
+              textShadowOffset: { width: 0, height: 1 },
+              textShadowRadius: 3,
+            }
+          : null),
+      }}
+    >
+      {timeAgo}
+    </Text>
+  );
+
+  const controls = (
+    <>
+      <Pressable
+        onPress={onLike}
+        disabled={isLikePending}
+        hitSlop={8}
+        style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+      >
+        <Heart
+          size={variant === "glass" ? 22 : 20}
+          color={isLiked ? "#FF5BFC" : "#fff"}
+          fill={isLiked ? "#FF5BFC" : "none"}
+        />
+        <Text
+          style={{
+            color: "#fff",
+            fontSize: variant === "glass" ? 14 : 13,
+            fontWeight: "700",
+            ...(variant === "glass"
+              ? {
+                  textShadowColor: "rgba(0,0,0,0.8)",
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 3,
+                }
+              : null),
+          }}
+        >
+          {formatLikeCount(likeCount)}
+        </Text>
+      </Pressable>
+
+      {variant === "glass" && (
+        <View
+          style={{
+            width: 1,
+            height: 18,
+            backgroundColor: "rgba(255,255,255,0.2)",
+          }}
+        />
+      )}
+
+      <Pressable
+        hitSlop={8}
+        onPress={onComments}
+        style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+      >
+        <MessageCircle size={variant === "glass" ? 22 : 20} color="#fff" />
+        <Text
+          style={{
+            color: "#fff",
+            fontSize: variant === "glass" ? 14 : 13,
+            fontWeight: "700",
+            ...(variant === "glass"
+              ? {
+                  textShadowColor: "rgba(0,0,0,0.8)",
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 3,
+                }
+              : null),
+          }}
+        >
+          {commentCount}
+        </Text>
+      </Pressable>
+
+      {variant === "glass" && (
+        <View
+          style={{
+            width: 1,
+            height: 18,
+            backgroundColor: "rgba(255,255,255,0.2)",
+          }}
+        />
+      )}
+
+      <Pressable hitSlop={8} onPress={onShare}>
+        <Send size={variant === "glass" ? 22 : 20} color="#fff" />
+      </Pressable>
+
+      {variant === "glass" && (
+        <View
+          style={{
+            width: 1,
+            height: 18,
+            backgroundColor: "rgba(255,255,255,0.2)",
+          }}
+        />
+      )}
+
+      <Pressable hitSlop={8} onPress={onBookmark}>
+        <Bookmark
+          size={variant === "glass" ? 22 : 20}
+          color={isBookmarked ? "#3FDCFF" : "#fff"}
+          fill={isBookmarked ? "#3FDCFF" : "none"}
+        />
+      </Pressable>
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginTop: 16,
+          paddingTop: 12,
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+          {controls}
+        </View>
+        {timestamp}
+      </View>
+    );
+  }
+
+  return (
+    <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
+      {controls}
+      <View
+        style={{
+          width: 1,
+          height: 18,
+          backgroundColor: "rgba(255,255,255,0.2)",
+        }}
+      />
+      {timestamp}
+    </DVNTLiquidGlass>
+  );
+}
+
 /**
  * Isolated video player — only mounts for actual video posts.
  * Keeps useVideoPlayer out of the main component to prevent
@@ -702,6 +885,14 @@ function PostDetailScreenContent() {
   }, [hasMedia, isVideo, safePost.media]);
   const isLiked = isPostLiked; // From usePostLikeState hook
   const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
+  const handleBookmarkPress = useCallback(() => {
+    const bookmarkPostId = safePost.id ? String(safePost.id) : postId;
+    if (!bookmarkPostId) return;
+    toggleBookmarkMutation.mutate({
+      postId: bookmarkPostId,
+      isBookmarked: isSaved,
+    });
+  }, [postId, safePost.id, toggleBookmarkMutation, isSaved]);
   const commentCount = comments.reduce(
     (total, comment) =>
       total +
@@ -1102,140 +1293,26 @@ function PostDetailScreenContent() {
                 zIndex: 50,
               }}
             >
-              <DVNTLiquidGlass paddingH={12} paddingV={9} radius={14}>
-                {/* Like */}
-                <Pressable
-                  onPress={() => {
-                    if (!postIdString || !post || isLikePending) return;
-                    toggleLike();
-                  }}
-                  disabled={isLikePending}
-                  hitSlop={8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <Heart
-                    size={22}
-                    color={isLiked ? "#FF5BFC" : "#fff"}
-                    fill={isLiked ? "#FF5BFC" : "none"}
-                  />
-                  <Text
-                    style={{
-                      color: "#fff",
-                      fontSize: 14,
-                      fontWeight: "600",
-                      textShadowColor: "rgba(0,0,0,0.8)",
-                      textShadowOffset: { width: 0, height: 1 },
-                      textShadowRadius: 3,
-                    }}
-                  >
-                    {formatLikeCount(likeCount)}
-                  </Text>
-                </Pressable>
-
-                <View
-                  style={{
-                    width: 1,
-                    height: 18,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                  }}
-                />
-
-                {/* Comment */}
-                <Pressable
-                  hitSlop={8}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                  onPressIn={() => {
-                    if (postIdString)
-                      screenPrefetch.comments(queryClient, postIdString);
-                  }}
-                  onPress={handlePrimaryCommentsPress}
-                >
-                  <MessageCircle size={22} color="#fff" />
-                  {commentCount > 0 && (
-                    <Text
-                      style={{
-                        color: "#fff",
-                        fontSize: 14,
-                        fontWeight: "600",
-                        textShadowColor: "rgba(0,0,0,0.8)",
-                        textShadowOffset: { width: 0, height: 1 },
-                        textShadowRadius: 3,
-                      }}
-                    >
-                      {commentCount}
-                    </Text>
-                  )}
-                </Pressable>
-
-                <View
-                  style={{
-                    width: 1,
-                    height: 18,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                  }}
-                />
-
-                {/* Share */}
-                <Pressable hitSlop={8} onPress={handleShare}>
-                  <Send size={22} color="#fff" />
-                </Pressable>
-
-                <View
-                  style={{
-                    width: 1,
-                    height: 18,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                  }}
-                />
-
-                {/* Bookmark */}
-                <Pressable
-                  onPress={() => {
-                    if (!postIdString) return;
-                    toggleBookmarkMutation.mutate({
-                      postId: postIdString,
-                      isBookmarked: isSaved,
-                    });
-                  }}
-                  hitSlop={8}
-                >
-                  <Bookmark
-                    size={22}
-                    color={isBookmarked ? "#3FDCFF" : "#fff"}
-                    fill={isBookmarked ? "#3FDCFF" : "none"}
-                  />
-                </Pressable>
-
-                <View
-                  style={{
-                    width: 1,
-                    height: 18,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                  }}
-                />
-
-                {/* Timestamp */}
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: "rgba(255,255,255,0.6)",
-                    textTransform: "uppercase",
-                    textShadowColor: "rgba(0,0,0,0.8)",
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                  }}
-                >
-                  {safePost.timeAgo}
-                </Text>
-              </DVNTLiquidGlass>
+              <PostDetailActionBar
+                variant="glass"
+                isLiked={isLiked}
+                likeCount={likeCount}
+                commentCount={commentCount}
+                isBookmarked={isBookmarked}
+                isLikePending={isLikePending}
+                timeAgo={safePost.timeAgo}
+                onLike={() => {
+                  if (!postIdString || !post || isLikePending) return;
+                  toggleLike();
+                }}
+                onComments={() => {
+                  if (postIdString)
+                    screenPrefetch.comments(queryClient, postIdString);
+                  handlePrimaryCommentsPress();
+                }}
+                onShare={handleShare}
+                onBookmark={handleBookmarkPress}
+              />
             </View>
           </View>
 
@@ -1252,6 +1329,26 @@ function PostDetailScreenContent() {
                 text={safePost?.caption || ""}
                 theme={safePost.textTheme}
                 variant="detail"
+              />
+              <PostDetailActionBar
+                variant="inline"
+                isLiked={isLiked}
+                likeCount={likeCount}
+                commentCount={commentCount}
+                isBookmarked={isBookmarked}
+                isLikePending={isLikePending}
+                timeAgo={safePost.timeAgo}
+                onLike={() => {
+                  if (!postIdString || !post || isLikePending) return;
+                  toggleLike();
+                }}
+                onComments={() => {
+                  if (postIdString)
+                    screenPrefetch.comments(queryClient, postIdString);
+                  handlePrimaryCommentsPress();
+                }}
+                onShare={handleShare}
+                onBookmark={handleBookmarkPress}
               />
             </View>
           )}

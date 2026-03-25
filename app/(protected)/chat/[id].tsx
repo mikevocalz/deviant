@@ -446,6 +446,7 @@ function ChatScreenContent() {
   // Track the resolved conversation ID so useFocusEffect can use it
   // (chatId may be a username like "ibreathereal", not a numeric conv ID)
   const resolvedConvIdRef = useRef<string | null>(null);
+  const conversationActionId = activeConvId || resolvedConvIdRef.current || "";
 
   // CRITICAL FIX: Track if initial load is complete to prevent infinite loop
   const hasLoadedInitialMessagesRef = useRef(false);
@@ -647,27 +648,24 @@ function ChatScreenContent() {
   // Load recipient info via direct conversation lookup (no ghost filter, no heavy getConversations)
   // NEVER call getOrCreateConversation(chatId) — chatId is a conversation ID, not a user ID.
   // FIX: Stabilized dependencies - use primitive currentUserId instead of object currentUser
-  const hasLoadedRecipientRef = useRef(false);
+  const loadedRecipientConversationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // GUARD: Only load once per chatId
-    if (hasLoadedRecipientRef.current) return;
-
     const loadRecipientFromConversation = async (
       queryClient: ReturnType<typeof useQueryClient>,
     ) => {
-      if (!chatId || !currentUserId) {
+      if (!activeConvId || !currentUserId) {
         setIsLoadingRecipient(false);
         return;
       }
 
       try {
-        console.log("[Chat] Loading conversation data for:", chatId);
-        hasLoadedRecipientRef.current = true;
+        console.log("[Chat] Loading conversation data for:", activeConvId);
+        loadedRecipientConversationIdRef.current = activeConvId;
 
         // Direct single-conversation query — works for new (empty) conversations too
         const conversation =
-          await messagesApiClient.getConversationById(chatId);
+          await messagesApiClient.getConversationById(activeConvId);
 
         if (conversation) {
           if (conversation.isGroup && conversation.members) {
@@ -700,7 +698,8 @@ function ChatScreenContent() {
             setIsConversationValid(false);
           }
         } else {
-          console.warn("[Chat] Conversation not found:", chatId);
+          console.warn("[Chat] Conversation not found:", activeConvId);
+          loadedRecipientConversationIdRef.current = null;
           setIsConversationValid(false);
           // CRITICAL: Orphaned conversation - invalidate cache and navigate back
           // This ensures retry will call edge function to create NEW conversation
@@ -709,7 +708,7 @@ function ChatScreenContent() {
           invalidateConversationCache(queryClient, chatId);
           console.log(
             "[Chat] Invalidated cache for orphaned conversation:",
-            chatId,
+            activeConvId,
           );
 
           useUIStore
@@ -725,6 +724,7 @@ function ChatScreenContent() {
         }
       } catch (error) {
         console.error("[Chat] Error loading conversation:", error);
+        loadedRecipientConversationIdRef.current = null;
         setIsConversationValid(false);
         // Also invalidate cache on error
         const { invalidateConversationCache } =
@@ -742,8 +742,12 @@ function ChatScreenContent() {
       }
     };
 
+    if (!activeConvId) return;
+    if (loadedRecipientConversationIdRef.current === activeConvId) return;
+
     loadRecipientFromConversation(queryClient);
   }, [
+    activeConvId,
     chatId,
     currentUserId,
     setRecipient,
@@ -770,7 +774,7 @@ function ChatScreenContent() {
 
   // Typing indicator
   const { typingUsers, handleInputChange: handleTypingChange } =
-    useTypingIndicator({ conversationId: chatId });
+    useTypingIndicator({ conversationId: activeConvId });
 
   // Cleanup: Reset chat screen state when unmounting
   useEffect(() => {
@@ -778,7 +782,7 @@ function ChatScreenContent() {
       console.log("[Chat] Unmounting, resetting screen state");
       resetChatScreen();
       hasLoadedInitialMessagesRef.current = false;
-      hasLoadedRecipientRef.current = false;
+      loadedRecipientConversationIdRef.current = null;
       selfMessageCheckDoneRef.current = false;
     };
   }, [resetChatScreen]);
@@ -1072,23 +1076,24 @@ function ChatScreenContent() {
       const last = lastTapRef.current;
       if (last.id === message.id && now - last.time < 300) {
         // Double tap detected — heart react
-        reactToMessage(chatId, message.id, "❤️");
+        if (!conversationActionId) return;
+        reactToMessage(conversationActionId, message.id, "❤️");
         lastTapRef.current = { id: "", time: 0 };
       } else {
         lastTapRef.current = { id: message.id, time: now };
       }
     },
-    [chatId, reactToMessage],
+    [conversationActionId, reactToMessage],
   );
 
   const handleReaction = useCallback(
     (emoji: string) => {
-      if (!selectedMessage) return;
-      reactToMessage(chatId, selectedMessage.id, emoji);
+      if (!selectedMessage || !conversationActionId) return;
+      reactToMessage(conversationActionId, selectedMessage.id, emoji);
       setShowMessageActions(false);
       setSelectedMessage(null);
     },
-    [selectedMessage, chatId, reactToMessage],
+    [selectedMessage, conversationActionId, reactToMessage],
   );
 
   const handleUnsendMessage = useCallback(() => {
@@ -1104,14 +1109,15 @@ function ChatScreenContent() {
           text: "Unsend",
           style: "destructive",
           onPress: () => {
-            deleteMessage(chatId, selectedMessage.id);
+            if (!conversationActionId) return;
+            deleteMessage(conversationActionId, selectedMessage.id);
             showToast("success", "Unsent", "Message removed");
             setSelectedMessage(null);
           },
         },
       ],
     );
-  }, [selectedMessage, chatId, deleteMessage, showToast]);
+  }, [selectedMessage, conversationActionId, deleteMessage, showToast]);
 
   const handleStartEdit = useCallback(() => {
     if (!selectedMessage) return;
@@ -1122,12 +1128,12 @@ function ChatScreenContent() {
   }, [selectedMessage]);
 
   const handleSaveEdit = useCallback(() => {
-    if (!editingMessage || !editText.trim()) return;
-    editMessage(chatId, editingMessage.id, editText.trim());
+    if (!editingMessage || !editText.trim() || !conversationActionId) return;
+    editMessage(conversationActionId, editingMessage.id, editText.trim());
     showToast("success", "Edited", "Message updated");
     setEditingMessage(null);
     setEditText("");
-  }, [editingMessage, editText, chatId, editMessage, showToast]);
+  }, [editingMessage, editText, conversationActionId, editMessage, showToast]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingMessage(null);

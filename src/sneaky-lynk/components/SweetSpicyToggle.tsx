@@ -4,9 +4,11 @@
  * Controlled room-mode toggle for Sneaky Lynk.
  */
 
-import { View, Text, Pressable } from "react-native";
-import { useCallback, useEffect } from "react";
+import { View, Text } from "react-native";
+import { useCallback, useEffect, useMemo } from "react";
 import Animated, {
+  cancelAnimation,
+  runOnJS,
   useSharedValue,
   useAnimatedStyle,
   withSpring,
@@ -15,6 +17,7 @@ import Animated, {
 import { Flame, Heart } from "lucide-react-native";
 import { DeccellusAdSlot } from "@/components/ads/DeccellusAdSlot";
 import * as Haptics from "expo-haptics";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 interface SweetSpicyToggleProps {
   mode: "sweet" | "spicy";
@@ -35,40 +38,93 @@ export function SweetSpicyToggle({
   const width = compact ? 154 : 240;
   const height = compact ? 34 : 40;
   const indicatorWidth = width / 2 - 4;
+  const translateDistance = width / 2;
+  const activeIndex = useSharedValue(mode === "spicy" ? 1 : 0);
+  const pressScale = useSharedValue(1);
+
+  const animateTo = useCallback(
+    (nextMode: "sweet" | "spicy") => {
+      const nextIndex = nextMode === "spicy" ? 1 : 0;
+      cancelAnimation(progress);
+      cancelAnimation(activeIndex);
+      progress.value = withSpring(nextIndex, {
+        damping: 18,
+        stiffness: 220,
+        mass: 0.8,
+      });
+      activeIndex.value = nextIndex;
+    },
+    [activeIndex, progress],
+  );
 
   useEffect(() => {
-    progress.value = withSpring(mode === "spicy" ? 1 : 0, {
-      damping: 18,
-      stiffness: 220,
-    });
-  }, [mode, progress]);
+    animateTo(mode);
+  }, [animateTo, mode]);
 
   const handleToggle = useCallback(
     (newMode: "sweet" | "spicy") => {
       if (disabled || newMode === mode) return;
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      progress.value = withSpring(newMode === "spicy" ? 1 : 0, {
-        damping: 18,
-        stiffness: 220,
-      });
+      animateTo(newMode);
       onModeChange(newMode);
     },
-    [disabled, mode, onModeChange, progress],
+    [animateTo, disabled, mode, onModeChange],
+  );
+
+  const tapGesture = useMemo(
+    () =>
+      Gesture.Tap()
+        .enabled(!disabled)
+        .onBegin(() => {
+          pressScale.value = withSpring(0.985, {
+            damping: 18,
+            stiffness: 280,
+          });
+        })
+        .onFinalize(() => {
+          pressScale.value = withSpring(1, {
+            damping: 18,
+            stiffness: 280,
+          });
+        })
+        .onEnd((event, success) => {
+          if (!success) return;
+          const nextMode = event.x >= width / 2 ? "spicy" : "sweet";
+          if (
+            disabled ||
+            nextMode === (activeIndex.value ? "spicy" : "sweet")
+          ) {
+            return;
+          }
+          activeIndex.value = nextMode === "spicy" ? 1 : 0;
+          progress.value = withSpring(activeIndex.value, {
+            damping: 18,
+            stiffness: 220,
+            mass: 0.8,
+          });
+          runOnJS(handleToggle)(nextMode);
+        }),
+    [activeIndex, disabled, handleToggle, pressScale, progress, width],
   );
 
   const indicatorStyle = useAnimatedStyle(() => ({
     transform: [
-      {
-        translateX: withSpring(progress.value * (width / 2), {
-          damping: 18,
-          stiffness: 220,
-        }),
-      },
+      { scale: pressScale.value },
+      { translateX: progress.value * translateDistance },
     ],
   }));
 
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+
   const bgStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        scale: 1,
+      },
+    ],
     backgroundColor: interpolateColor(
       progress.value,
       [0, 1],
@@ -78,96 +134,102 @@ export function SweetSpicyToggle({
 
   return (
     <View style={{ alignItems: "flex-start", gap: showAdSlot ? 8 : 0 }}>
-      <Animated.View
-        style={[
-          bgStyle,
-          {
-            width,
-            height,
-            borderRadius: compact ? 12 : 18,
-            position: "relative",
-            borderWidth: 1,
-            borderColor: disabled
-              ? "rgba(255,255,255,0.1)"
-              : "rgba(255,255,255,0.16)",
-            opacity: disabled ? 0.64 : 1,
-          },
-        ]}
-      >
-        {/* Sliding indicator */}
+      <GestureDetector gesture={tapGesture}>
         <Animated.View
           style={[
-            indicatorStyle,
+            bgStyle,
+            containerStyle,
             {
-              position: "absolute",
-              top: 2,
-              left: 2,
-              width: indicatorWidth,
-              height: height - 4,
-              borderRadius: compact ? 10 : 16,
+              width,
+              height,
+              borderRadius: compact ? 12 : 18,
+              position: "relative",
+              borderWidth: 1,
+              borderColor: disabled
+                ? "rgba(255,255,255,0.1)"
+                : "rgba(255,255,255,0.16)",
+              opacity: disabled ? 0.64 : 1,
             },
           ]}
-          className={mode === "spicy" ? "bg-red-500/30" : "bg-pink-400/30"}
-        />
-
-        {/* Sweet button */}
-        <Pressable
-          onPress={() => handleToggle("sweet")}
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: compact ? 4 : 6,
-            zIndex: 10,
-          }}
-          disabled={disabled}
         >
-          <Heart
-            size={compact ? 12 : 14}
-            color={mode === "sweet" ? "#EC4899" : "#9CA3AF"}
-            fill={mode === "sweet" ? "#EC4899" : "transparent"}
+          {/* Sliding indicator */}
+          <Animated.View
+            style={[
+              indicatorStyle,
+              {
+                position: "absolute",
+                top: 2,
+                left: 2,
+                width: indicatorWidth,
+                height: height - 4,
+                borderRadius: compact ? 10 : 16,
+                backgroundColor:
+                  mode === "spicy"
+                    ? "rgba(239, 68, 68, 0.3)"
+                    : "rgba(244, 114, 182, 0.3)",
+              },
+            ]}
           />
-          <Text
+
+          <View
             style={{
-              color: mode === "sweet" ? "#F472B6" : "#94A3B8",
-              fontSize: compact ? 11 : 12,
-              fontWeight: "700",
+              flex: 1,
+              flexDirection: "row",
+              alignItems: "stretch",
+              zIndex: 10,
             }}
           >
-            Sweet
-          </Text>
-        </Pressable>
-
-        {/* Spicy button */}
-        <Pressable
-          onPress={() => handleToggle("spicy")}
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: compact ? 4 : 6,
-            zIndex: 10,
-          }}
-          disabled={disabled}
-        >
-          <Flame
-            size={compact ? 12 : 14}
-            color={mode === "spicy" ? "#EF4444" : "#9CA3AF"}
-            fill={mode === "spicy" ? "#EF4444" : "transparent"}
-          />
-          <Text
-            style={{
-              color: mode === "spicy" ? "#F87171" : "#94A3B8",
-              fontSize: compact ? 11 : 12,
-              fontWeight: "700",
-            }}
-          >
-            Spicy
-          </Text>
-        </Pressable>
-      </Animated.View>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: compact ? 4 : 6,
+              }}
+            >
+              <Heart
+                size={compact ? 12 : 14}
+                color={mode === "sweet" ? "#EC4899" : "#9CA3AF"}
+                fill={mode === "sweet" ? "#EC4899" : "transparent"}
+              />
+              <Text
+                style={{
+                  color: mode === "sweet" ? "#F472B6" : "#94A3B8",
+                  fontSize: compact ? 11 : 12,
+                  fontWeight: "700",
+                }}
+              >
+                Sweet
+              </Text>
+            </View>
+            <View
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: compact ? 4 : 6,
+              }}
+            >
+              <Flame
+                size={compact ? 12 : 14}
+                color={mode === "spicy" ? "#EF4444" : "#9CA3AF"}
+                fill={mode === "spicy" ? "#EF4444" : "transparent"}
+              />
+              <Text
+                style={{
+                  color: mode === "spicy" ? "#F87171" : "#94A3B8",
+                  fontSize: compact ? 11 : 12,
+                  fontWeight: "700",
+                }}
+              >
+                Spicy
+              </Text>
+            </View>
+          </View>
+        </Animated.View>
+      </GestureDetector>
 
       {showAdSlot ? (
         <DeccellusAdSlot

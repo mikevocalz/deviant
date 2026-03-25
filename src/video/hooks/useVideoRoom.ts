@@ -85,6 +85,7 @@ export function useVideoRoom({
   const currentJtiRef = useRef<string | null>(null);
   const unsubscribeEventsRef = useRef<(() => void) | null>(null);
   const unsubscribeMembersRef = useRef<(() => void) | null>(null);
+  const cameraToggleInFlightRef = useRef(false);
 
   // ── Ref-wrapped external callbacks & SDK refs ───────────────────────
   // Prevents dependency cycles — callbacks read from refs, not deps.
@@ -117,6 +118,14 @@ export function useVideoRoom({
   cameraRef.current = cameraHook;
   const microphoneRef = useRef(microphoneHook);
   microphoneRef.current = microphoneHook;
+
+  useEffect(() => {
+    // Fishjam is the source of truth for local camera state. Mirror it into the
+    // room store so the Sneaky Lynk controls don't drift after failed toggles
+    // or async track publication.
+    const camera = cameraRef.current;
+    getStore().setCameraOn(!!(camera.isCameraOn || camera.cameraStream));
+  }, [cameraHook.isCameraOn, cameraHook.cameraStream, getStore]);
 
   // ── Connection state sync ───────────────────────────────────────────
   // Deps: only primitive Fishjam status values. Store bails out if unchanged.
@@ -403,12 +412,25 @@ export function useVideoRoom({
   // Zero deps on state → stable identity.
 
   const toggleCamera = useCallback(async () => {
+    if (cameraToggleInFlightRef.current) return;
+    cameraToggleInFlightRef.current = true;
+
     // CRITICAL: Use SDK's toggleCamera() — NOT startCamera().
     // startCamera() only creates the local track but does NOT publish it.
     // toggleCamera() both starts the device AND publishes the track when
     // peerStatus === "connected", so remote peers can see the video.
-    await cameraRef.current.toggleCamera();
-    getStore().toggleCamera();
+    try {
+      const error = await cameraRef.current.toggleCamera();
+
+      if (error) {
+        console.error("[useVideoRoom] Failed to toggle camera:", error);
+        onErrorRef.current?.("Failed to toggle camera");
+      }
+    } finally {
+      const camera = cameraRef.current;
+      getStore().setCameraOn(!!(camera.isCameraOn || camera.cameraStream));
+      cameraToggleInFlightRef.current = false;
+    }
   }, [getStore]);
 
   const toggleMic = useCallback(async () => {

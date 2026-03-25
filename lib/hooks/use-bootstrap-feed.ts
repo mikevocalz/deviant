@@ -24,6 +24,7 @@ import { postKeys } from "@/lib/hooks/use-posts";
 import { messageKeys } from "@/lib/hooks/use-messages";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { normalizeTextPostTheme } from "@/lib/posts/text-post";
 
 /**
  * Hydrate TanStack Query cache from bootstrap response.
@@ -37,24 +38,45 @@ function hydrateFromBootstrap(
   // 1. Seed the infinite feed query cache
   // Transform bootstrap posts to match the existing feed page format
   const feedPage = {
-    data: data.posts.map((p) => ({
-      id: p.id,
-      caption: p.caption,
-      createdAt: p.createdAt,
-      isNSFW: p.isNSFW,
-      location: p.location,
-      likes: p.likes,
-      commentsCount: p.commentsCount,
-      viewerHasLiked: p.viewerHasLiked,
-      author: {
-        id: p.author.id,
-        username: p.author.username,
-        avatar: p.author.avatar,
-        verified: p.author.verified,
-      },
-      media: p.media,
-      timeAgo: "", // Computed client-side from createdAt
-    })),
+    data: data.posts.map((p) => {
+      const media = p.media || [];
+      const hasTextContent =
+        typeof p.caption === "string" && p.caption.trim().length > 0;
+      const kind =
+        p.kind === "text" || (media.length === 0 && hasTextContent)
+          ? ("text" as const)
+          : ("media" as const);
+      const primaryMedia = media[0];
+
+      return {
+        id: p.id,
+        kind,
+        textTheme:
+          kind === "text" ? normalizeTextPostTheme(p.textTheme) : undefined,
+        caption: p.caption,
+        createdAt: p.createdAt,
+        isNSFW: p.isNSFW,
+        location: p.location,
+        likes: p.likes,
+        comments: p.commentsCount,
+        viewerHasLiked: p.viewerHasLiked,
+        author: {
+          id: p.author.id,
+          username: p.author.username,
+          avatar: p.author.avatar,
+          verified: p.author.verified,
+        },
+        media,
+        thumbnail:
+          kind === "media" && primaryMedia?.type !== "video"
+            ? primaryMedia?.url
+            : undefined,
+        type:
+          kind === "media" ? (primaryMedia?.type as any) || "image" : undefined,
+        hasMultipleImages: kind === "media" && media.length > 1,
+        timeAgo: "", // Computed client-side from createdAt
+      };
+    }),
     nextCursor: data.nextCursor,
     hasMore: data.hasMore,
   };

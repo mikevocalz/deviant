@@ -80,7 +80,15 @@ function DiscoverSection({
             <Link
               key={user.id}
               href={
-                `/(protected)/profile/${user.username}?authId=${user.id}` as any
+                {
+                  pathname: "/(protected)/profile/[username]",
+                  params: {
+                    username: user.username,
+                    authId: user.id,
+                    avatar: user.avatar || "",
+                    name: user.name || "",
+                  },
+                } as any
               }
               asChild
             >
@@ -534,9 +542,15 @@ function SearchScreenContent() {
                         <Pressable
                           key={user.id}
                           onPress={() =>
-                            router.push(
-                              `/(protected)/profile/${user.username}?authId=${user.id}` as any,
-                            )
+                            router.push({
+                              pathname: "/(protected)/profile/[username]",
+                              params: {
+                                username: user.username,
+                                authId: user.authId || user.id,
+                                avatar: user.avatar || "",
+                                name: user.name || "",
+                              },
+                            })
                           }
                           className="flex-row items-center py-3 border-b border-border"
                         >

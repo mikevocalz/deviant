@@ -32,6 +32,51 @@ function normalizeUserLinks(value: unknown): string[] {
   return [];
 }
 
+async function getViewerIdForRelationshipChecks(): Promise<number | null> {
+  const viewerId = getCurrentUserIdInt();
+  if (viewerId) return viewerId;
+
+  const viewerRow = await getCurrentUserRow();
+  return viewerRow?.id ?? null;
+}
+
+type BetterAuthUserRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  username: string | null;
+  createdAt: string | null;
+};
+
+async function getBetterAuthUserById(
+  authId: string | null | undefined,
+): Promise<BetterAuthUserRow | null> {
+  if (!authId) return null;
+
+  const { data, error } = await supabase
+    .from("user")
+    .select("id, name, email, image, username, createdAt")
+    .eq("id", authId)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[Users] getBetterAuthUserById error:", error);
+    return null;
+  }
+
+  return (data as BetterAuthUserRow | null) ?? null;
+}
+
+function buildDisplayNameParts(displayName: string | null | undefined) {
+  const trimmed = (displayName || "").trim();
+  return {
+    fullName: trimmed,
+    firstName: trimmed.split(" ")[0] || "",
+    lastName: trimmed.split(" ").slice(1).join(" ") || "",
+  };
+}
+
 export const usersApi = {
   /**
    * Get user profile by username
@@ -40,7 +85,7 @@ export const usersApi = {
     try {
       if (!username) return null;
 
-      const currentUserId = getCurrentUserIdInt();
+      const currentUserId = await getViewerIdForRelationshipChecks();
 
       // Fire user fetch + follow check in parallel (no waterfall)
       const userFetch = supabase
@@ -75,6 +120,14 @@ export const usersApi = {
 
       if (data) {
         const targetUserId = data[DB.users.id];
+        const authId = data[DB.users.authId];
+        const dbAvatar =
+          (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "";
+        const betterAuthUser =
+          !dbAvatar && authId ? await getBetterAuthUserById(authId) : null;
+        const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
+        const resolvedUsername =
+          data[DB.users.username] || betterAuthUser?.username || username;
 
         // Follow check fires only when we have both IDs and they differ
         let isFollowing = false;
@@ -90,20 +143,22 @@ export const usersApi = {
 
         return {
           id: String(targetUserId),
-          authId: data[DB.users.authId],
-          username: data[DB.users.username],
-          email: data[DB.users.email],
-          firstName: data[DB.users.firstName],
-          lastName: data[DB.users.lastName],
-          name: data[DB.users.firstName] || data[DB.users.username],
+          authId,
+          username: resolvedUsername,
+          email: data[DB.users.email] || betterAuthUser?.email || "",
+          firstName: data[DB.users.firstName] || displayNameParts.firstName,
+          lastName: data[DB.users.lastName] || displayNameParts.lastName,
+          name:
+            data[DB.users.firstName] ||
+            displayNameParts.fullName ||
+            resolvedUsername,
           bio: data[DB.users.bio] || "",
           location: data[DB.users.location],
           website: data[DB.users.website] || "",
           links: normalizeUserLinks(data[DB.users.links]),
           pronouns: data[DB.users.pronouns] || "",
           gender: data[DB.users.gender] || "",
-          avatar:
-            (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
+          avatar: dbAvatar || betterAuthUser?.image || "",
           verified: data[DB.users.verified] || false,
           followersCount: Number(data[DB.users.followersCount]) || 0,
           followingCount: Number(data[DB.users.followingCount]) || 0,
@@ -122,30 +177,16 @@ export const usersApi = {
         .maybeSingle();
 
       if (baUser) {
-        const displayName = (baUser.name || "").trim();
-        return {
-          id: baUser.id,
-          authId: baUser.id,
-          username: baUser.username || username,
-          email: baUser.email,
-          firstName: displayName.split(" ")[0] || "",
-          lastName: displayName.split(" ").slice(1).join(" ") || "",
-          name: displayName || baUser.username || "New User",
-          bio: "",
-          location: null,
-          website: "",
-          links: [],
-          pronouns: "",
-          gender: "",
-          avatar: baUser.image || "",
-          verified: false,
-          followersCount: 0,
-          followingCount: 0,
-          postsCount: 0,
-          isPrivate: false,
-          isFollowing: false,
-          createdAt: baUser.createdAt,
-        };
+        // Re-check by auth_id so freshly provisioned users do not fall back to
+        // a stale auth-only shape when the username in `users` differs or lags.
+        const authProfile = await usersApi.getProfileByAuthUserId(baUser.id);
+        if (authProfile) {
+          return {
+            ...authProfile,
+            username: authProfile.username || baUser.username || username,
+            avatar: authProfile.avatar || baUser.image || "",
+          };
+        }
       }
 
       return null;
@@ -204,21 +245,32 @@ export const usersApi = {
         return null;
       }
 
+      const authId = data[DB.users.authId];
+      const dbAvatar =
+        (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "";
+      const betterAuthUser =
+        !dbAvatar && authId ? await getBetterAuthUserById(authId) : null;
+      const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
+      const resolvedUsername =
+        data[DB.users.username] || betterAuthUser?.username || "";
+
       return {
         id: String(data[DB.users.id]),
-        username: data[DB.users.username],
-        email: data[DB.users.email],
-        firstName: data[DB.users.firstName],
-        lastName: data[DB.users.lastName],
-        name: data[DB.users.firstName] || data[DB.users.username],
+        username: resolvedUsername,
+        email: data[DB.users.email] || betterAuthUser?.email || "",
+        firstName: data[DB.users.firstName] || displayNameParts.firstName,
+        lastName: data[DB.users.lastName] || displayNameParts.lastName,
+        name:
+          data[DB.users.firstName] ||
+          displayNameParts.fullName ||
+          resolvedUsername,
         bio: data[DB.users.bio] || "",
         location: data[DB.users.location],
         website: data[DB.users.website] || "",
         links: normalizeUserLinks(data[DB.users.links]),
         pronouns: data[DB.users.pronouns] || "",
         gender: data[DB.users.gender] || "",
-        avatar:
-          (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
+        avatar: dbAvatar || betterAuthUser?.image || "",
         verified: data[DB.users.verified] || false,
         followersCount: Number(data[DB.users.followersCount]) || 0,
         followingCount: Number(data[DB.users.followingCount]) || 0,
@@ -239,7 +291,7 @@ export const usersApi = {
   async getProfileByAuthUserId(authId: string) {
     try {
       if (!authId) return null;
-      const currentUserId = getCurrentUserIdInt();
+      const currentUserId = await getViewerIdForRelationshipChecks();
 
       // First try the app `users` table via auth_id
       const { data: profile } = await supabase
@@ -272,6 +324,18 @@ export const usersApi = {
 
       if (profile) {
         const targetUserId = profile[DB.users.id];
+        const resolvedAuthId = profile[DB.users.authId];
+        const dbAvatar =
+          (profile.avatar as any)?.url ||
+          (profile.avatar as any)?.[0]?.url ||
+          "";
+        const betterAuthUser =
+          (!dbAvatar || !profile[DB.users.firstName]) && resolvedAuthId
+            ? await getBetterAuthUserById(resolvedAuthId)
+            : null;
+        const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
+        const resolvedUsername =
+          profile[DB.users.username] || betterAuthUser?.username || authId;
         let isFollowing = false;
         if (currentUserId && targetUserId && currentUserId !== targetUserId) {
           const { data: followData } = await supabase
@@ -285,22 +349,22 @@ export const usersApi = {
 
         return {
           id: String(profile[DB.users.id]),
-          username: profile[DB.users.username],
-          authId: profile[DB.users.authId],
-          email: profile[DB.users.email],
-          firstName: profile[DB.users.firstName],
-          lastName: profile[DB.users.lastName],
-          name: profile[DB.users.firstName] || profile[DB.users.username] || "",
+          username: resolvedUsername,
+          authId: resolvedAuthId,
+          email: profile[DB.users.email] || betterAuthUser?.email || "",
+          firstName: profile[DB.users.firstName] || displayNameParts.firstName,
+          lastName: profile[DB.users.lastName] || displayNameParts.lastName,
+          name:
+            profile[DB.users.firstName] ||
+            displayNameParts.fullName ||
+            resolvedUsername,
           bio: profile[DB.users.bio] || "",
           location: profile[DB.users.location],
           website: profile[DB.users.website] || "",
           links: normalizeUserLinks(profile[DB.users.links]),
           pronouns: profile[DB.users.pronouns] || "",
           gender: profile[DB.users.gender] || "",
-          avatar:
-            (profile.avatar as any)?.url ||
-            (profile.avatar as any)?.[0]?.url ||
-            "",
+          avatar: dbAvatar || betterAuthUser?.image || "",
           verified: profile[DB.users.verified] || false,
           followersCount: Number(profile[DB.users.followersCount]) || 0,
           followingCount: Number(profile[DB.users.followingCount]) || 0,
@@ -576,6 +640,7 @@ export const usersApi = {
         .select(
           `
           ${DB.users.id},
+          ${DB.users.authId},
           ${DB.users.username},
           ${DB.users.firstName},
           ${DB.users.lastName},
@@ -594,6 +659,7 @@ export const usersApi = {
 
       const docs = (data || []).map((user: any) => ({
         id: String(user[DB.users.id]),
+        authId: user[DB.users.authId] || "",
         username: user[DB.users.username] || "unknown",
         name: user[DB.users.firstName] || user[DB.users.username] || "Unknown",
         firstName: user[DB.users.firstName],
