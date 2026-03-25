@@ -42,7 +42,10 @@ export interface RoomMember {
   leftAt?: string;
   // Populated from users table
   username?: string;
+  displayName?: string;
   avatar?: string;
+  isAnonymous?: boolean;
+  anonLabel?: string | null;
 }
 
 export interface RoomEvent {

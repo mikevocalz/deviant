@@ -43,6 +43,8 @@ export interface UpdateProfileInput {
   website?: string;
   links?: string[];
   avatarUrl?: string;
+  pronouns?: string;
+  gender?: string;
 }
 
 // Post types

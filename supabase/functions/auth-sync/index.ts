@@ -45,6 +45,32 @@ function errorResponse(
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
+function normalizeLinks(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .slice(0, 4);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return normalizeLinks(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -134,6 +160,10 @@ Deno.serve(async (req) => {
         last_name,
         bio,
         location,
+        website,
+        links,
+        pronouns,
+        gender,
         verified,
         followers_count,
         following_count,
@@ -168,6 +198,10 @@ Deno.serve(async (req) => {
         last_name,
         bio,
         location,
+        website,
+        links,
+        pronouns,
+        gender,
         verified,
         followers_count,
         following_count,
@@ -260,6 +294,10 @@ Deno.serve(async (req) => {
         last_name,
         bio,
         location,
+        website,
+        links,
+        pronouns,
+        gender,
         verified,
         followers_count,
         following_count,
@@ -300,6 +338,10 @@ function formatUserResponse(data: any) {
     lastName: data.last_name,
     bio: data.bio,
     location: data.location,
+    website: data.website,
+    links: normalizeLinks(data.links),
+    pronouns: data.pronouns,
+    gender: data.gender,
     avatar: data.avatar?.url || null,
     isVerified: data.verified || false,
     postsCount: data.posts_count || 0,

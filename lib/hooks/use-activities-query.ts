@@ -9,11 +9,12 @@
  * toggleFollow) and realtime subscriptions. This hook provides the READ path.
  */
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { getPostDetailRoute } from "@/lib/routes/post-routes";
 import {
   notificationsApiClient,
   type Notification,
+  type LikedActivityRecord,
 } from "@/lib/api/notifications";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
@@ -53,10 +54,26 @@ export interface Activity {
   createdAt?: string;
 }
 
+export interface LikedActivity {
+  id: string;
+  entityType: "post" | "event";
+  entityId: string;
+  actor: {
+    id?: string;
+    username: string;
+    avatar: string;
+  };
+  title: string;
+  previewImage?: string;
+  timeAgo: string;
+  createdAt?: string;
+}
+
 // Query keys
 export const activityKeys = {
   all: ["activities"] as const,
   list: (viewerId: string) => ["activities", viewerId] as const,
+  liked: (viewerId: string) => ["activities", viewerId, "liked"] as const,
 };
 
 /**
@@ -132,6 +149,29 @@ async function fetchActivities(): Promise<Activity[]> {
   });
 }
 
+async function fetchLikedActivities(): Promise<LikedActivity[]> {
+  const result = await notificationsApiClient.getLikedActivity(50);
+
+  return (result.docs || []).map((item: LikedActivityRecord) => ({
+    id: item.id,
+    entityType: item.entityType,
+    entityId: item.entityId,
+    actor: {
+      id: item.actor?.id || "",
+      username: item.actor?.username || "user",
+      avatar: item.actor?.avatar || "",
+    },
+    title:
+      item.title ||
+      (item.entityType === "event" ? "An event you liked" : "A post you liked"),
+    previewImage: item.previewImage || "",
+    timeAgo: notificationsApiClient.formatTimeAgo(
+      item.createdAt || new Date().toISOString(),
+    ),
+    createdAt: item.createdAt || new Date().toISOString(),
+  }));
+}
+
 /**
  * TanStack Query hook for activities. Enables MMKV persistence
  * so the notifications screen renders instantly on cold start.
@@ -145,6 +185,18 @@ export function useActivitiesQuery() {
     enabled: !!viewerId,
     // Notifications are time-sensitive — override global refetchOnMount: false
     // Shows MMKV cache instantly, then silently refetches in background
+    refetchOnMount: true,
+    staleTime: STALE_TIMES.activities,
+  });
+}
+
+export function useLikedActivitiesQuery() {
+  const viewerId = useAuthStore((s) => s.user?.id) || "";
+
+  return useQuery({
+    queryKey: activityKeys.liked(viewerId),
+    queryFn: fetchLikedActivities,
+    enabled: !!viewerId,
     refetchOnMount: true,
     staleTime: STALE_TIMES.activities,
   });
@@ -192,4 +244,12 @@ export function getRouteForActivity(activity: Activity): string {
     default:
       return `/(protected)/profile/${user.username}`;
   }
+}
+
+export function getRouteForLikedActivity(activity: LikedActivity): string {
+  if (activity.entityType === "event") {
+    return `/(protected)/events/${activity.entityId}`;
+  }
+
+  return getPostDetailRoute(activity.entityId);
 }

@@ -73,6 +73,27 @@ registerPrefetch("activity", (qc, userId) => {
     },
     staleTime: STALE_TIMES.activities,
   });
+  qc.prefetchQuery({
+    queryKey: activityKeys.liked(userId),
+    queryFn: async () => {
+      const result = await nApi.getLikedActivity(50);
+      return (result.docs || []).map((item: any) => ({
+        id: String(item.id),
+        entityType: item.entityType,
+        entityId: String(item.entityId || ""),
+        actor: {
+          id: item.actor?.id || "",
+          username: item.actor?.username || "user",
+          avatar: item.actor?.avatar || "",
+        },
+        title: item.title || "",
+        previewImage: item.previewImage || "",
+        timeAgo: nApi.formatTimeAgo(item.createdAt || new Date().toISOString()),
+        createdAt: item.createdAt || new Date().toISOString(),
+      }));
+    },
+    staleTime: STALE_TIMES.activities,
+  });
 });
 
 // ── Profile Tab ───────────────────────────────────────────────────────

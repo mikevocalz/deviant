@@ -164,16 +164,25 @@ function ParticipantRow({
   onKick,
   onBan,
 }: ParticipantRowProps) {
-  const { username, avatar, role, isCameraOn, isMicOn } = participant;
-  const displayName = username || "Unknown";
-  const initials = displayName.slice(0, 2).toUpperCase();
+  const {
+    username,
+    displayName,
+    avatar,
+    role,
+    isCameraOn,
+    isMicOn,
+    isAnonymous,
+    anonLabel,
+  } = participant;
+  const resolvedName = anonLabel || username || displayName || "Guest";
+  const initials = resolvedName.slice(0, 2).toUpperCase();
 
   const [showActions, setShowActions] = React.useState(false);
 
   return (
     <View className={c.listItemBorder}>
       {/* Avatar */}
-      {avatar ? (
+      {avatar && !isAnonymous ? (
         <Image
           source={{ uri: avatar }}
           className={c.avatarMd}
@@ -191,7 +200,7 @@ function ParticipantRow({
       <View className="flex-1">
         <View className="flex-row items-center gap-2">
           <Text className={c.textSubtitle} numberOfLines={1}>
-            {displayName}
+            {resolvedName}
             {isLocal && " (You)"}
           </Text>
           <RoleBadge role={role} />

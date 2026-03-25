@@ -4,6 +4,34 @@ import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { updateProfilePrivileged } from "../supabase/privileged";
 import { requireBetterAuthToken, getCurrentUserRow } from "../auth/identity";
 
+function normalizeUserLinks(value: unknown): string[] {
+  const sanitize = (items: unknown[]) =>
+    items
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  if (Array.isArray(value)) {
+    return sanitize(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return sanitize(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
+
 export const usersApi = {
   /**
    * Get user profile by username
@@ -27,6 +55,10 @@ export const usersApi = {
           ${DB.users.lastName},
           ${DB.users.bio},
           ${DB.users.location},
+          ${DB.users.website},
+          ${DB.users.links},
+          ${DB.users.pronouns},
+          ${DB.users.gender},
           ${DB.users.verified},
           ${DB.users.followersCount},
           ${DB.users.followingCount},
@@ -66,6 +98,10 @@ export const usersApi = {
           name: data[DB.users.firstName] || data[DB.users.username],
           bio: data[DB.users.bio] || "",
           location: data[DB.users.location],
+          website: data[DB.users.website] || "",
+          links: normalizeUserLinks(data[DB.users.links]),
+          pronouns: data[DB.users.pronouns] || "",
+          gender: data[DB.users.gender] || "",
           avatar:
             (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
           verified: data[DB.users.verified] || false,
@@ -97,6 +133,10 @@ export const usersApi = {
           name: displayName || baUser.username || "New User",
           bio: "",
           location: null,
+          website: "",
+          links: [],
+          pronouns: "",
+          gender: "",
           avatar: baUser.image || "",
           verified: false,
           followersCount: 0,
@@ -140,6 +180,10 @@ export const usersApi = {
           ${DB.users.lastName},
           ${DB.users.bio},
           ${DB.users.location},
+          ${DB.users.website},
+          ${DB.users.links},
+          ${DB.users.pronouns},
+          ${DB.users.gender},
           ${DB.users.verified},
           ${DB.users.followersCount},
           ${DB.users.followingCount},
@@ -169,6 +213,10 @@ export const usersApi = {
         name: data[DB.users.firstName] || data[DB.users.username],
         bio: data[DB.users.bio] || "",
         location: data[DB.users.location],
+        website: data[DB.users.website] || "",
+        links: normalizeUserLinks(data[DB.users.links]),
+        pronouns: data[DB.users.pronouns] || "",
+        gender: data[DB.users.gender] || "",
         avatar:
           (data.avatar as any)?.url || (data.avatar as any)?.[0]?.url || "",
         verified: data[DB.users.verified] || false,
@@ -205,6 +253,10 @@ export const usersApi = {
           ${DB.users.lastName},
           ${DB.users.bio},
           ${DB.users.location},
+          ${DB.users.website},
+          ${DB.users.links},
+          ${DB.users.pronouns},
+          ${DB.users.gender},
           ${DB.users.verified},
           ${DB.users.followersCount},
           ${DB.users.followingCount},
@@ -227,6 +279,10 @@ export const usersApi = {
           name: profile[DB.users.firstName] || profile[DB.users.username] || "",
           bio: profile[DB.users.bio] || "",
           location: profile[DB.users.location],
+          website: profile[DB.users.website] || "",
+          links: normalizeUserLinks(profile[DB.users.links]),
+          pronouns: profile[DB.users.pronouns] || "",
+          gender: profile[DB.users.gender] || "",
           avatar:
             (profile.avatar as any)?.url ||
             (profile.avatar as any)?.[0]?.url ||
@@ -262,6 +318,10 @@ export const usersApi = {
         name: displayName || "New User",
         bio: "",
         location: null,
+        website: "",
+        links: [],
+        pronouns: "",
+        gender: "",
         avatar: authUser.image || "",
         verified: false,
         followersCount: 0,
@@ -285,6 +345,7 @@ export const usersApi = {
     lastName?: string;
     username?: string;
     pronouns?: string;
+    gender?: string;
     bio?: string;
     location?: string;
     name?: string;
@@ -295,22 +356,67 @@ export const usersApi = {
     try {
       console.log("[Users] updateProfile via Edge Function:", updates);
 
-      // Use Edge Function wrapper for privileged write
-      const updatedUser = await updateProfilePrivileged({
+      const primaryPayload = {
         name: updates.name,
         firstName: updates.firstName,
         lastName: updates.lastName,
-        pronouns: updates.pronouns,
         username: updates.username,
         bio: updates.bio,
         location: updates.location,
         website: updates.website,
-        links: updates.links,
         avatarUrl: updates.avatar,
-      });
+        ...(updates.pronouns !== undefined
+          ? { pronouns: updates.pronouns.trim() }
+          : {}),
+        ...(updates.gender !== undefined
+          ? { gender: updates.gender.trim() }
+          : {}),
+        ...(Array.isArray(updates.links) ? { links: updates.links } : {}),
+      };
 
-      console.log("[Users] updateProfile success:", updatedUser);
-      return updatedUser;
+      const fallbackPayload = {
+        name: updates.name,
+        firstName: updates.firstName,
+        lastName: updates.lastName,
+        username: updates.username,
+        bio: updates.bio,
+        location: updates.location,
+        website: updates.website,
+        avatarUrl: updates.avatar,
+      };
+
+      let updatedUser;
+      try {
+        updatedUser = await updateProfilePrivileged(primaryPayload);
+      } catch (error: any) {
+        const errorMessage = String(error?.message || "");
+        const usedOptionalFields =
+          "pronouns" in primaryPayload ||
+          "gender" in primaryPayload ||
+          "links" in primaryPayload;
+        const shouldRetryBasePayload =
+          usedOptionalFields &&
+          (errorMessage === "Failed to update profile" ||
+            errorMessage === "An unexpected error occurred");
+
+        if (!shouldRetryBasePayload) {
+          throw error;
+        }
+
+        console.warn(
+          "[Users] updateProfile retrying without optional fields:",
+          errorMessage,
+        );
+        updatedUser = await updateProfilePrivileged(fallbackPayload);
+      }
+
+      const normalizedUser = {
+        ...updatedUser,
+        links: normalizeUserLinks((updatedUser as any)?.links),
+      };
+
+      console.log("[Users] updateProfile success:", normalizedUser);
+      return normalizedUser;
     } catch (error) {
       console.error("[Users] updateProfile error:", error);
       throw error;

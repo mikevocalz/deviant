@@ -5,6 +5,7 @@ import {
   Pressable,
   Dimensions,
   Alert,
+  ActivityIndicator,
   Platform,
 } from "react-native";
 import {
@@ -217,7 +218,7 @@ function StoryViewerScreenContent() {
   const showToast = useUIStore((s) => s.showToast);
 
   // Fetch real stories from API
-  const { data: storiesData = [], isLoading } = useStories();
+  const { data: storiesData = [], isLoading, isFetching } = useStories();
 
   useEffect(() => {
     if (id) {
@@ -240,14 +241,20 @@ function StoryViewerScreenContent() {
 
   // Fallback: if storyId didn't match (e.g. stale ID from chat story-reply metadata),
   // try finding by username param. Group IDs change when new stories are posted.
-  if (currentStoryIndex === -1 && usernameParam) {
+  const fallbackUsername =
+    usernameParam ||
+    (String(currentStoryId || id).startsWith("temp-")
+      ? currentUser?.username
+      : undefined);
+
+  if (currentStoryIndex === -1 && fallbackUsername) {
     currentStoryIndex = availableStories.findIndex(
-      (s) => s.username?.toLowerCase() === usernameParam.toLowerCase(),
+      (s) => s.username?.toLowerCase() === fallbackUsername.toLowerCase(),
     );
     if (currentStoryIndex !== -1) {
       const found = availableStories[currentStoryIndex];
       console.log(
-        `[StoryViewer] ID miss, found by username '${usernameParam}' → id=${found.id}`,
+        `[StoryViewer] ID miss, found by username '${fallbackUsername}' → id=${found.id}`,
       );
       setCurrentStoryId(String(found.id));
     }
@@ -1010,6 +1017,25 @@ function StoryViewerScreenContent() {
     );
   }
 
+  if ((!story || !currentItem) && (isLoading || isFetching)) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#000",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <ActivityIndicator color="#fff" />
+        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
+          Finding story...
+        </Text>
+      </View>
+    );
+  }
+
   if (!story || !currentItem) {
     return (
       <View
@@ -1136,8 +1162,8 @@ function StoryViewerScreenContent() {
                 top: 0,
                 left: 0,
                 right: 0,
-                height: 180,
-                opacity: 0.45,
+                height: isImage ? 112 : 180,
+                opacity: isImage ? 0.14 : 0.3,
                 backgroundColor: "rgba(0,0,0,0.3)",
               }}
             />

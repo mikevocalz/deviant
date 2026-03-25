@@ -5,14 +5,12 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { Image } from "expo-image";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useNavigation } from "@react-navigation/native";
 import {
-  X,
   Camera,
   ChevronRight,
   Link as LinkIcon,
@@ -24,12 +22,11 @@ import { useColorScheme } from "@/lib/hooks";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { usersApi } from "@/lib/api/users";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Avatar } from "@/components/ui/avatar";
 import { appendCacheBuster } from "@/lib/media/resolveAvatarUrl";
+import { useUpdateProfile } from "@/lib/hooks/use-profile";
 
 const PRONOUNS_OPTIONS = [
   "He/Him",
@@ -51,14 +48,43 @@ const GENDER_OPTIONS = [
   "Custom",
 ];
 
+function sanitizeLinks(value: unknown[]): string[] {
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+}
+
+function normalizeLinks(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return sanitizeLinks(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return sanitizeLinks(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
+}
+
 function EditProfileScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
-  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
-  const setUser = useAuthStore((state) => state.setUser);
   const showToast = useUIStore((s) => s.showToast);
+  const updateProfile = useUpdateProfile();
   const [isSaving, setIsSaving] = useState(false);
   const [newAvatarUri, setNewAvatarUri] = useState<string | null>(null);
   const { uploadSingle, isUploading, progress } = useMediaUpload({
@@ -76,28 +102,28 @@ function EditProfileScreenContent() {
     setEditLocation,
   } = useProfileStore();
 
-  // Local-only fields (not yet persisted to DB)
   const [username, setUsername] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [pronouns, setPronouns] = useState("");
   const [gender, setGender] = useState("");
-  const [links, setLinks] = useState<string[]>((user as any)?.links || []);
+  const [links, setLinks] = useState<string[]>(() =>
+    normalizeLinks((user as any)?.links),
+  );
   const [newLink, setNewLink] = useState("");
   const [showPronouns, setShowPronouns] = useState(false);
   const [showGender, setShowGender] = useState(false);
 
-  // Username validation: 3-30 chars, alphanumeric + underscores only
   const validateUsername = (value: string): string => {
     if (!value.trim()) return "Username is required";
     if (value.length < 3) return "Must be at least 3 characters";
     if (value.length > 30) return "Must be 30 characters or less";
-    if (!/^[a-zA-Z0-9_]+$/.test(value))
+    if (!/^[a-zA-Z0-9_]+$/.test(value)) {
       return "Only letters, numbers, and underscores";
+    }
     return "";
   };
 
   const handleUsernameChange = (value: string) => {
-    // Auto-lowercase and strip invalid chars while typing
     const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, "");
     setUsername(cleaned);
     setUsernameError(validateUsername(cleaned));
@@ -158,12 +184,10 @@ function EditProfileScreenContent() {
     try {
       let avatarUrl = user.avatar;
 
-      // Upload new avatar if selected
       if (newAvatarUri) {
         try {
           const uploadResult = await uploadSingle(newAvatarUri);
           if (uploadResult.success && uploadResult.url) {
-            // CRITICAL: Cache-bust so expo-image re-downloads the new image
             avatarUrl = appendCacheBuster(uploadResult.url) || uploadResult.url;
           } else {
             showToast(
@@ -182,7 +206,6 @@ function EditProfileScreenContent() {
         }
       }
 
-      // Validate username before saving
       const trimmedUsername = username.trim().toLowerCase();
       const usernameErr = validateUsername(trimmedUsername);
       if (usernameErr) {
@@ -191,10 +214,14 @@ function EditProfileScreenContent() {
         return;
       }
 
-      const allLinks = [
-        ...(editWebsite.trim() ? [editWebsite.trim()] : []),
-        ...links,
-      ].slice(0, 4);
+      const nextPronouns = pronouns.trim();
+      const nextGender = gender.trim();
+      const allLinks = Array.from(
+        new Set([
+          ...(editWebsite.trim() ? [editWebsite.trim()] : []),
+          ...normalizeLinks(links),
+        ]),
+      ).slice(0, 4);
 
       const updateData: {
         name?: string;
@@ -212,107 +239,37 @@ function EditProfileScreenContent() {
         website: editWebsite.trim(),
         links: allLinks,
         location: editLocation.trim(),
-        pronouns: pronouns.trim(),
-        gender: gender.trim(),
+        pronouns: nextPronouns,
+        gender: nextGender,
         ...(avatarUrl ? { avatar: avatarUrl } : {}),
-        // Only include username if it changed
         ...(trimmedUsername !== (user.username || "").toLowerCase()
           ? { username: trimmedUsername }
           : {}),
       };
 
-      console.log(
-        "[EditProfile] Updating profile:",
-        JSON.stringify(updateData),
-      );
+      updateProfile.mutate(updateData, {
+        onSuccess: () => {
+          showToast("success", "Saved", "Profile updated successfully");
+        },
+        onError: (error: any) => {
+          console.error("[EditProfile] Save error:", error);
+          const errorMessage =
+            error?.message || "Failed to save profile. Please try again.";
+          showToast("error", "Error", errorMessage);
+        },
+      });
 
-      // OPTIMISTIC UPDATE: Update UI immediately for instant feedback
-      const optimisticUser = {
-        ...user,
-        name: editName.trim(),
-        username: trimmedUsername,
-        bio: editBio.trim(),
-        website: editWebsite.trim(),
-        location: editLocation.trim(),
-        avatar: avatarUrl ?? user.avatar,
-      };
-      setUser(optimisticUser);
-
-      // Optimistically patch avatar in caches
-      if (avatarUrl && avatarUrl !== user.avatar) {
-        const patchStories = (old: any) => {
-          if (!old || !Array.isArray(old)) return old;
-          return old.map((story: any) => {
-            if (
-              String(story.userId) === String(user.id) ||
-              story.username === user.username
-            ) {
-              return { ...story, avatar: avatarUrl };
-            }
-            return story;
-          });
-        };
-        queryClient.setQueryData(["stories"], patchStories);
-        queryClient.setQueryData(["stories", "list"], patchStories);
-      }
-
-      // Show optimistic success immediately
-      showToast("success", "Saved", "Profile updated successfully");
       navigation.goBack();
-
-      // Background: Persist to server
-      try {
-        const updatedUser = await usersApi.updateProfile(updateData);
-        console.log("[EditProfile] Server confirmed:", updatedUser);
-
-        // Update with server response, preserving required AppUser fields
-        setUser({
-          ...user, // Start with original user (has all counts)
-          ...optimisticUser, // Apply optimistic changes
-          ...updatedUser, // Apply server response
-          // CRITICAL: Ensure counts are preserved
-          postsCount: updatedUser.postsCount ?? user.postsCount ?? 0,
-          followersCount:
-            updatedUser.followersCount ?? user.followersCount ?? 0,
-          followingCount:
-            updatedUser.followingCount ?? user.followingCount ?? 0,
-        });
-      } catch (serverError: any) {
-        // Server update failed - rollback to original user state
-        console.error("[EditProfile] Server update failed:", serverError);
-        setUser(user);
-        showToast(
-          "warning",
-          "Sync Issue",
-          "Some changes may not have saved. Please try again.",
-        );
-      }
-
-      // Invalidate caches after successful server update
-      queryClient.invalidateQueries({ queryKey: ["authUser"] });
-      if (user?.id) {
-        queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
-      }
-      if (user?.username) {
-        queryClient.invalidateQueries({
-          queryKey: ["profile", "username", user.username],
-        });
-      }
+      return;
     } catch (error: any) {
-      // Upload or initial save error - rollback and show error
       console.error("[EditProfile] Save error:", error);
-      setUser(user);
       const errorMessage =
         error?.message || "Failed to save profile. Please try again.";
       showToast("error", "Error", errorMessage);
       setIsSaving(false);
-      return;
-    } finally {
-      setIsSaving(false);
     }
   };
 
-  // Initialize form with current user data
   useEffect(() => {
     if (user) {
       setEditName(user.name || "");
@@ -320,13 +277,18 @@ function EditProfileScreenContent() {
       setEditWebsite(user.website || "");
       setEditLocation(user.location || "");
       setUsername(user.username || "");
-      // Initialize pronouns and gender from user object
-      setPronouns(user.pronouns || "");
-      setGender(user.gender || "");
+      setPronouns(typeof user.pronouns === "string" ? user.pronouns : "");
+      setGender(typeof user.gender === "string" ? user.gender : "");
+      setLinks(normalizeLinks((user as any)?.links));
+      return;
     }
+
+    setUsername("");
+    setPronouns("");
+    setGender("");
+    setLinks([]);
   }, [user, setEditName, setEditBio, setEditWebsite, setEditLocation]);
 
-  // Shared row style
   const rowStyle = {
     flexDirection: "row" as const,
     alignItems: "center" as const,
@@ -352,7 +314,6 @@ function EditProfileScreenContent() {
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
-      {/* Header */}
       <View
         style={{
           flexDirection: "row",
@@ -396,7 +357,6 @@ function EditProfileScreenContent() {
         showsVerticalScrollIndicator={false}
         bottomOffset={100}
       >
-        {/* Avatar Section */}
         <View style={{ alignItems: "center", paddingVertical: 24 }}>
           <Pressable
             onPress={handlePickAvatar}
@@ -464,7 +424,6 @@ function EditProfileScreenContent() {
           </Pressable>
         </View>
 
-        {/* Profile Info Card */}
         <View style={{ paddingHorizontal: 16 }}>
           <Text
             style={{
@@ -487,7 +446,6 @@ function EditProfileScreenContent() {
               borderColor: colors.border,
             }}
           >
-            {/* Name */}
             <View style={rowStyle}>
               <Text style={labelStyle}>Name</Text>
               <TextInput
@@ -500,7 +458,6 @@ function EditProfileScreenContent() {
               />
             </View>
 
-            {/* Username */}
             <View style={rowStyle}>
               <Text style={labelStyle}>Username</Text>
               <TextInput
@@ -527,7 +484,6 @@ function EditProfileScreenContent() {
               </Text>
             ) : null}
 
-            {/* Pronouns */}
             <Pressable
               style={rowStyle}
               onPress={() => setShowPronouns(!showPronouns)}
@@ -618,7 +574,6 @@ function EditProfileScreenContent() {
               </View>
             )}
 
-            {/* Bio */}
             <View style={{ ...rowStyle, alignItems: "flex-start" }}>
               <Text style={{ ...labelStyle, paddingTop: 2 }}>Bio</Text>
               <TextInput
@@ -637,7 +592,6 @@ function EditProfileScreenContent() {
               />
             </View>
 
-            {/* Gender */}
             <Pressable
               style={{ ...rowStyle, borderBottomWidth: 0 }}
               onPress={() => setShowGender(!showGender)}
@@ -705,7 +659,6 @@ function EditProfileScreenContent() {
           </View>
         </View>
 
-        {/* Links Section */}
         <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
           <Text
             style={{
@@ -728,7 +681,6 @@ function EditProfileScreenContent() {
               borderColor: colors.border,
             }}
           >
-            {/* Website */}
             <View style={rowStyle}>
               <LinkIcon size={18} color={colors.mutedForeground} />
               <TextInput
@@ -742,7 +694,6 @@ function EditProfileScreenContent() {
               />
             </View>
 
-            {/* Existing links */}
             {links.map((link, index) => (
               <View key={index} style={rowStyle}>
                 <LinkIcon size={18} color={colors.mutedForeground} />
@@ -763,7 +714,6 @@ function EditProfileScreenContent() {
               </View>
             ))}
 
-            {/* Add link */}
             {links.length < 4 && (
               <View style={{ ...rowStyle, borderBottomWidth: 0 }}>
                 <Plus size={18} color={colors.primary} />
@@ -783,7 +733,6 @@ function EditProfileScreenContent() {
           </View>
         </View>
 
-        {/* Location Section */}
         <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
           <Text
             style={{
@@ -824,7 +773,6 @@ function EditProfileScreenContent() {
           </View>
         </View>
 
-        {/* Bio character count */}
         <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
           <Text
             style={{

@@ -14,7 +14,6 @@ import {
   Text,
   ScrollView,
   useWindowDimensions,
-  Platform,
 } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import {
@@ -45,10 +44,13 @@ import {
   TEXT_FONTS,
   TEXT_STYLE_PRESETS,
   CANVAS_WIDTH,
-  MIN_TEXT_FONT_SIZE,
   DEFAULT_TEXT_FONT_SIZE,
 } from "../../constants";
 import { Debouncer } from "@tanstack/react-pacer";
+import {
+  getSystemFontWeight,
+  shouldUseSystemFontFallback,
+} from "../../utils/text-support";
 
 // ---- Font size range (canvas units) ----
 const FS_MIN = 60; // ~22px on screen — always legible
@@ -280,9 +282,13 @@ export const TextEditor: React.FC<TextEditorProps> = ({
       18,
       Math.round(clampedFs * canvasToViewScale),
     );
+    const usesSystemFont = shouldUseSystemFontFallback(text);
     const baseStyle: any = {
       color: selectedColor,
-      fontFamily: selectedFont,
+      fontFamily: usesSystemFont ? undefined : selectedFont,
+      fontWeight: usesSystemFont
+        ? getSystemFontWeight(selectedFont)
+        : undefined,
       fontSize: viewFontSize,
       textAlign,
       lineHeight: viewFontSize * lineHeightMul,
@@ -329,6 +335,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
     fontSize,
     selectedColor,
     selectedFont,
+    text,
     textAlign,
     selectedStyle,
     canvasToViewScale,

@@ -22,7 +22,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ErrorBoundary as GlobalErrorBoundary } from "@/components/error-boundary";
 import {
   ArrowLeft,
-  MoreHorizontal,
+  ChevronUp,
   Users,
   EyeOff,
   Radio,
@@ -30,6 +30,7 @@ import {
   MicOff,
 } from "lucide-react-native";
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   useCameraPermission,
   useMicrophonePermission,
@@ -48,6 +49,7 @@ import {
   EjectModal,
   ChatSheet,
   RoomTimer,
+  RoomParticipantsSheet,
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
@@ -57,6 +59,12 @@ import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { audioSession } from "@/src/services/calls/audioSession";
+import { shareUrl } from "@/lib/deep-linking/share-link";
+import {
+  DVNTLiquidGlass,
+  DVNTLiquidGlassIconButton,
+} from "@/components/media/DVNTLiquidGlass";
+import { useRoomReactions } from "@/src/sneaky-lynk/hooks/useRoomReactions";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -121,11 +129,18 @@ export function ErrorBoundary({
 
 // ── Shared helpers ──────────────────────────────────────────────────
 
+function normalizeAnonLabel(label?: string | null): string | null {
+  if (!label) return null;
+  const match = label.match(/anon(?:\s+lynk)?\s+(\d+)/i);
+  if (match) return `Anon ${match[1]}`;
+  return label;
+}
+
 function buildLocalUser(authUser: any): SneakyUser {
   return {
     id: authUser?.id || "local",
     username: authUser?.username || "You",
-    displayName: authUser?.name || authUser?.username || "You",
+    displayName: authUser?.username || authUser?.name || "You",
     avatar: authUser?.avatar || "",
     isVerified: authUser?.isVerified || false,
   };
@@ -135,6 +150,69 @@ function isClosedRoomError(message?: string | null) {
   if (!message) return false;
   return /no longer open|already ended|has ended|room not found|not found/i.test(
     message,
+  );
+}
+
+type PresenceTone = "join" | "leave";
+
+interface PresenceEvent {
+  id: string;
+  label: string;
+  tone: PresenceTone;
+}
+
+function buildLynkShareUrl(roomId: string) {
+  return `https://dvntlive.app/sneaky-lynk/room/${roomId}`;
+}
+
+function PresenceToast({ event }: { event: PresenceEvent }) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: 88,
+        left: 0,
+        right: 0,
+        alignItems: "center",
+        zIndex: 40,
+      }}
+    >
+      <DVNTLiquidGlass
+        radius={999}
+        paddingH={14}
+        paddingV={10}
+        style={{
+          borderWidth: 1,
+          borderColor:
+            event.tone === "join"
+              ? "rgba(45, 212, 191, 0.28)"
+              : "rgba(248, 113, 113, 0.24)",
+          backgroundColor:
+            event.tone === "join"
+              ? "rgba(13, 24, 28, 0.24)"
+              : "rgba(24, 10, 12, 0.24)",
+        }}
+      >
+        <View
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: event.tone === "join" ? "#2DD4BF" : "#FB7185",
+          }}
+        />
+        <Text
+          style={{
+            color: "#F8FAFC",
+            fontSize: 12,
+            fontWeight: "700",
+          }}
+        >
+          {event.label}
+        </Text>
+      </DVNTLiquidGlass>
+    </View>
   );
 }
 
@@ -244,8 +322,7 @@ function PreJoinScreen({
                   Join Anonymously
                 </Text>
                 <Text className="text-xs text-muted-foreground mt-0.5">
-                  You&apos;ll appear as &quot;ANON LYNK&quot; with no profile
-                  info
+                  You&apos;ll appear as &quot;Anon 1&quot; with no profile info
                 </Text>
               </View>
             </View>
@@ -445,7 +522,6 @@ function LocalRoom({
     openChat,
     closeChat,
     hideEject,
-    promoteListener,
     reset,
   } = useRoomStore();
 
@@ -494,6 +570,8 @@ function LocalRoom({
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
+  const roomTitle = paramTitle || "Sneaky Lynk";
+
   const handleLeave = useCallback(async () => {
     // Local rooms are always hosted by the creator — end in DB too
     const result = await sneakyLynkApi.endRoom(id);
@@ -522,6 +600,12 @@ function LocalRoom({
     endRoom(id, storeListeners.length);
     router.back();
   }, [router, id, endRoom, storeListeners.length, showToast]);
+  const handleShare = useCallback(async () => {
+    await shareUrl(buildLynkShareUrl(id), {
+      title: roomTitle,
+      message: `Join "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
+    });
+  }, [id, roomTitle]);
   const handleToggleMic = useCallback(async () => {
     if (micRef.current.isMicrophoneOn) micRef.current.stopMicrophone();
     else await micRef.current.startMicrophone();
@@ -536,8 +620,6 @@ function LocalRoom({
     hideEject();
     router.back();
   }, [router, hideEject]);
-
-  const roomTitle = paramTitle || "Sneaky Lynk";
 
   // Build flat VideoParticipant[] for VideoGrid
   const allParticipants: VideoParticipant[] = [];
@@ -605,6 +687,7 @@ function LocalRoom({
       onChat={handleChat}
       onCloseChat={handleCloseChat}
       onEjectDismiss={handleEjectDismiss}
+      onShare={handleShare}
       localRole="host"
     />
   );
@@ -637,11 +720,9 @@ function ServerRoom({
 
   const {
     isHandRaised,
-    activeSpeakerId,
     isChatOpen,
     showEjectModal,
     ejectPayload,
-    coHost: storeCoHost,
     listeners: storeListeners,
     toggleHand,
     setActiveSpeakerId,
@@ -649,7 +730,6 @@ function ServerRoom({
     closeChat,
     showEject,
     hideEject,
-    promoteListener,
     reset,
   } = useRoomStore();
   const [roomSnapshot, setRoomSnapshot] = useState<SneakyRoom | null>(
@@ -660,6 +740,10 @@ function ServerRoom({
       ? "This Lynk has ended and can't be reopened."
       : null,
   );
+  const [presenceEvent, setPresenceEvent] = useState<PresenceEvent | null>(
+    null,
+  );
+  const presenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const markRoomClosed = useCallback(
     (room?: SneakyRoom | null, reason?: string) => {
       if (room) setRoomSnapshot(room);
@@ -692,18 +776,37 @@ function ServerRoom({
   });
 
   // When anonymous, use the anon label from the server response instead of real profile
-  const localUser: SneakyUser =
-    anonymous && videoRoom.localUser?.username?.startsWith("ANON LYNK")
-      ? {
-          id: videoRoom.localUser.id || authUser?.id || "local",
-          username: videoRoom.localUser.username,
-          displayName: videoRoom.localUser.username,
-          avatar: "",
-          isVerified: false,
-          isAnonymous: true,
-          anonLabel: videoRoom.localUser.username,
-        }
-      : buildLocalUser(authUser);
+  const localAnonLabel = normalizeAnonLabel(
+    videoRoom.localUser?.anonLabel || videoRoom.localUser?.username,
+  );
+  const localUser: SneakyUser = videoRoom.localUser
+    ? {
+        id: videoRoom.localUser.id || authUser?.id || "local",
+        username:
+          videoRoom.localUser.isAnonymous && localAnonLabel
+            ? localAnonLabel
+            : videoRoom.localUser.username ||
+              authUser?.username ||
+              authUser?.name ||
+              "Guest",
+        displayName:
+          videoRoom.localUser.isAnonymous && localAnonLabel
+            ? localAnonLabel
+            : videoRoom.localUser.username ||
+              videoRoom.localUser.displayName ||
+              authUser?.username ||
+              authUser?.name ||
+              "Guest",
+        avatar: videoRoom.localUser.isAnonymous
+          ? ""
+          : videoRoom.localUser.avatar || authUser?.avatar || "",
+        isVerified: videoRoom.localUser.isAnonymous
+          ? false
+          : authUser?.isVerified || false,
+        isAnonymous: videoRoom.localUser.isAnonymous || false,
+        anonLabel: videoRoom.localUser.isAnonymous ? localAnonLabel : null,
+      }
+    : buildLocalUser(authUser);
   const isHost = videoRoom.localUser?.role === "host";
   const effectiveMuted = !videoRoom.isMicOn;
   const effectiveVideoOn = videoRoom.isCameraOn;
@@ -716,6 +819,23 @@ function ServerRoom({
           | "reconnecting"
           | "disconnected");
 
+  const showPresenceEvent = useCallback((tone: PresenceTone, label: string) => {
+    if (presenceTimeoutRef.current) {
+      clearTimeout(presenceTimeoutRef.current);
+    }
+
+    setPresenceEvent({
+      id: `${tone}-${Date.now()}`,
+      tone,
+      label,
+    });
+
+    presenceTimeoutRef.current = setTimeout(() => {
+      setPresenceEvent(null);
+      presenceTimeoutRef.current = null;
+    }, 2200);
+  }, []);
+
   // Reset store on mount, request permissions
   useEffect(() => {
     reset();
@@ -727,6 +847,7 @@ function ServerRoom({
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      audioSession.startForLynk(true);
       console.log("[SneakyLynk:Server] Joining room...", id);
       const joined = await videoRoom.join();
       if (!cancelled) {
@@ -754,6 +875,38 @@ function ServerRoom({
     };
   }, [id, markRoomClosed]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (!id || !videoRoom.localUser?.id) return;
+
+    const unsubscribe = videoApi.subscribeToMembers(id, (member, eventType) => {
+      if (member.userId === videoRoom.localUser?.id) return;
+
+      const label =
+        member.anonLabel || member.displayName || member.username || "Someone";
+
+      if (eventType === "INSERT" && member.status === "active") {
+        showPresenceEvent("join", `${label} joined`);
+      }
+
+      if (
+        eventType === "UPDATE" &&
+        (member.status === "left" ||
+          member.status === "kicked" ||
+          member.status === "banned")
+      ) {
+        showPresenceEvent("leave", `${label} left`);
+      }
+    });
+
+    return () => {
+      unsubscribe?.();
+      if (presenceTimeoutRef.current) {
+        clearTimeout(presenceTimeoutRef.current);
+        presenceTimeoutRef.current = null;
+      }
+    };
+  }, [id, showPresenceEvent, videoRoom.localUser?.id]);
+
   // Start camera + mic ONLY after Fishjam peer is fully connected.
   // toggleCamera/toggleMic must be called when peerStatus === "connected",
   // otherwise the Fishjam SDK creates local tracks but never publishes them.
@@ -768,14 +921,15 @@ function ServerRoom({
           "[SneakyLynk:Server] Peer connected — starting media, isHost:",
           isHost,
         );
-        // Lynks are social rooms, not private calls. Always route audio to speaker.
-        audioSession.startForLynk(true);
+        audioSession.setSpeakerOn(true);
         if (roomHasVideo) {
           console.log("[SneakyLynk:Server] Starting camera...");
           await videoRoom.toggleCamera();
         }
-        console.log("[SneakyLynk:Server] Starting mic...");
-        await videoRoom.toggleMic();
+        if (!videoRoom.isMicOn) {
+          console.log("[SneakyLynk:Server] Starting mic...");
+          await videoRoom.toggleMic();
+        }
         console.log(
           "[SneakyLynk:Server] Media started for",
           isHost ? "host" : "participant",
@@ -786,6 +940,33 @@ function ServerRoom({
     })();
   }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Safety net: if remote peers joined but our mic never published, force it on.
+  useEffect(() => {
+    if (connectionState !== "connected") return;
+    if (videoRoom.participants.length === 0) return;
+    if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
+
+    const timer = setTimeout(async () => {
+      if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
+      console.warn(
+        "[SneakyLynk:Server] MIC_SAFETY: remote peers present but mic is still off, force-starting",
+      );
+      try {
+        await videoRoom.toggleMic();
+      } catch (error) {
+        console.warn("[SneakyLynk:Server] MIC_SAFETY failed:", error);
+      }
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [
+    connectionState,
+    videoRoom.participants.length,
+    videoRoom.isMicOn,
+    videoRoom.microphone.isMicrophoneOn,
+    videoRoom.toggleMic,
+  ]);
+
   // Speaking indicator - only clear when muted, don't auto-set when unmuted
   // Actual voice activity detection should come from Fishjam SDK
   useEffect(() => {
@@ -795,6 +976,9 @@ function ServerRoom({
     // Removed: auto-setting localUser.id as active speaker when unmuted
     // This caused talk animation to show constantly even when not speaking
   }, [effectiveMuted, setActiveSpeakerId]);
+
+  const roomTitle =
+    videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
 
   const handleLeave = useCallback(async () => {
     if (isHost) {
@@ -855,9 +1039,18 @@ function ServerRoom({
   const handleToggleVideo = useCallback(async () => {
     await videoRoom.toggleCamera();
   }, [videoRoom]);
+  const handleSwitchCamera = useCallback(async () => {
+    await videoRoom.switchCamera();
+  }, [videoRoom]);
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
+  const handleShare = useCallback(async () => {
+    await shareUrl(buildLynkShareUrl(id), {
+      title: roomTitle,
+      message: `Jump into "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
+    });
+  }, [id, roomTitle]);
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -868,10 +1061,9 @@ function ServerRoom({
     null,
   );
   const [allMuted, setAllMuted] = useState(false);
+  const [showParticipantsSheet, setShowParticipantsSheet] = useState(false);
 
   // ── Derived values that depend on videoRoom (also before early return) ─
-  const roomTitle =
-    videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
   const roomUuid = videoRoom.room?.id || id;
 
   // ── CRITICAL: All useCallback handlers BEFORE early return ────────
@@ -1001,19 +1193,17 @@ function ServerRoom({
 
   // Build SneakyUser from a Fishjam participant
   const peerToUser = (p: any): SneakyUser => {
-    const isAnon = p.isAnonymous || p.username?.startsWith("ANON LYNK");
+    const anonLabel = normalizeAnonLabel(p.anonLabel || p.username);
+    const name = anonLabel || p.username || p.displayName || "Guest";
+    const isAnon = !!(p.isAnonymous || anonLabel);
     return {
       id: p.userId || p.oderId || p.odId,
-      username: isAnon
-        ? p.anonLabel || p.username || "ANON LYNK"
-        : p.username || "User",
-      displayName: isAnon
-        ? p.anonLabel || p.username || "ANON LYNK"
-        : p.username || "User",
+      username: name,
+      displayName: name,
       avatar: isAnon ? "" : p.avatar || "",
       isVerified: false,
       isAnonymous: isAnon,
-      anonLabel: isAnon ? p.anonLabel || p.username : null,
+      anonLabel: isAnon ? anonLabel : null,
     };
   };
 
@@ -1082,9 +1272,11 @@ function ServerRoom({
         ejectPayload={ejectPayload}
         roomId={id}
         localUser={localUser}
+        presenceEvent={presenceEvent}
         onLeave={handleLeave}
         onToggleMic={handleToggleMic}
         onToggleVideo={handleToggleVideo}
+        onSwitchCamera={roomHasVideo ? handleSwitchCamera : undefined}
         onToggleHand={handleToggleHand}
         onChat={handleChat}
         onCloseChat={handleCloseChat}
@@ -1092,7 +1284,23 @@ function ServerRoom({
         onParticipantPress={isHost ? handleParticipantPress : undefined}
         onMuteAll={isHost ? handleToggleMuteAll : undefined}
         allMuted={allMuted}
+        onShare={handleShare}
         localRole={isHost ? "host" : "participant"}
+        canOpenParticipants={isHost}
+        onOpenParticipants={
+          isHost ? () => setShowParticipantsSheet(true) : undefined
+        }
+      />
+
+      <RoomParticipantsSheet
+        visible={showParticipantsSheet}
+        participants={allParticipants}
+        localUserId={localUser.id}
+        isHost={isHost}
+        onDismiss={() => setShowParticipantsSheet(false)}
+        onMute={handleMutePeer}
+        onUnmute={handleUnmutePeer}
+        onRemove={handleRemoveUser}
       />
 
       {/* Host action sheet — mute / co-host / remove */}
@@ -1138,17 +1346,22 @@ function RoomLayout({
   ejectPayload,
   roomId,
   localUser,
+  presenceEvent,
   onLeave,
   onToggleMic,
   onToggleVideo,
+  onSwitchCamera,
   onToggleHand,
   onChat,
   onCloseChat,
   onEjectDismiss,
+  onShare,
   onParticipantPress,
   onMuteAll,
   allMuted,
   localRole,
+  canOpenParticipants,
+  onOpenParticipants,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -1167,125 +1380,303 @@ function RoomLayout({
   ejectPayload: any;
   roomId: string;
   localUser: SneakyUser;
+  presenceEvent?: PresenceEvent | null;
   onLeave: () => void;
   onToggleMic: () => void;
   onToggleVideo: () => void;
+  onSwitchCamera?: () => void;
   onToggleHand: () => void;
   onChat: () => void;
   onCloseChat: () => void;
   onEjectDismiss: () => void;
+  onShare?: () => void;
   onParticipantPress?: (p: VideoParticipant) => void;
   onMuteAll?: () => void;
   allMuted?: boolean;
+  canOpenParticipants?: boolean;
+  onOpenParticipants?: () => void;
 }) {
+  const { reactions, sendReaction } = useRoomReactions({
+    roomId,
+    currentUser: localUser,
+  });
+
   return (
-    <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
-      {/* Connection Banner */}
+    <View className="flex-1 bg-background">
+      <LinearGradient
+        colors={["#090B10", "#0C1118", "#05070B"]}
+        start={{ x: 0.05, y: 0 }}
+        end={{ x: 0.95, y: 1 }}
+        style={{ position: "absolute", inset: 0 }}
+      />
+      <LinearGradient
+        colors={[
+          "rgba(56, 189, 248, 0.12)",
+          "rgba(14, 165, 233, 0.02)",
+          "transparent",
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0.8 }}
+        style={{
+          position: "absolute",
+          top: -80,
+          left: -30,
+          width: 280,
+          height: 240,
+          borderRadius: 180,
+        }}
+      />
+
       <ConnectionBanner state={connectionState} />
+      {presenceEvent ? <PresenceToast event={presenceEvent} /> : null}
 
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-        <Pressable onPress={onLeave} hitSlop={12}>
-          <ArrowLeft size={24} color="#fff" />
-        </Pressable>
-
-        <View className="flex-1 mx-4">
-          <View className="flex-row items-center justify-center gap-2">
-            <View className="flex-row items-center bg-red-500/20 px-2 py-1 rounded-full gap-1">
-              <View className="w-2 h-2 rounded-full bg-red-500" />
-              <Text className="text-red-500 text-xs font-bold">LIVE</Text>
-            </View>
-            {isHost && (
-              <View className="flex-row items-center bg-primary/20 px-2 py-1 rounded-full">
-                <Text className="text-primary text-xs font-bold">HOST</Text>
-              </View>
-            )}
-            <View className="flex-row items-center gap-1">
-              <Users size={14} color="#6B7280" />
-              <Text className="text-muted-foreground text-sm">
-                {participantCount}
-              </Text>
-            </View>
-          </View>
-          <Text
-            className="text-foreground font-semibold text-center mt-1"
-            numberOfLines={1}
+      <View className="flex-1" style={{ paddingTop: insets.top }}>
+        <View
+          style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+            }}
           >
-            {roomTitle}
-          </Text>
+            <Pressable onPress={onLeave} hitSlop={12}>
+              <DVNTLiquidGlassIconButton
+                size={46}
+                style={{
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.16)",
+                }}
+              >
+                <ArrowLeft size={20} color="#F8FAFC" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+
+            <DVNTLiquidGlass
+              radius={28}
+              paddingH={14}
+              paddingV={12}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.16)",
+                backgroundColor: "rgba(5, 10, 22, 0.22)",
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 6,
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                        paddingHorizontal: 10,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: "rgba(239, 68, 68, 0.18)",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 999,
+                          backgroundColor: "#FB7185",
+                        }}
+                      />
+                      <Text
+                        style={{
+                          color: "#FCA5A5",
+                          fontSize: 11,
+                          fontWeight: "800",
+                          letterSpacing: 0.4,
+                        }}
+                      >
+                        LIVE
+                      </Text>
+                    </View>
+                    {isHost ? (
+                      <View
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 999,
+                          backgroundColor: "rgba(59, 130, 246, 0.18)",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: "#BFDBFE",
+                            fontSize: 11,
+                            fontWeight: "800",
+                          }}
+                        >
+                          HOST
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {canOpenParticipants && onOpenParticipants ? (
+                    <Pressable onPress={onOpenParticipants}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 6,
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 999,
+                          backgroundColor: "rgba(255,255,255,0.07)",
+                          borderWidth: 1,
+                          borderColor: "rgba(255,255,255,0.1)",
+                        }}
+                      >
+                        <Users size={13} color="#CBD5E1" />
+                        <Text
+                          style={{
+                            color: "#E2E8F0",
+                            fontSize: 12,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {participantCount}
+                        </Text>
+                        <ChevronUp size={11} color="#94A3B8" />
+                      </View>
+                    </Pressable>
+                  ) : (
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <Users size={13} color="#94A3B8" />
+                      <Text
+                        style={{
+                          color: "#CBD5E1",
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        {participantCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text
+                  style={{
+                    color: "#F8FAFC",
+                    fontSize: 15,
+                    fontWeight: "800",
+                  }}
+                  numberOfLines={1}
+                >
+                  {roomTitle}
+                </Text>
+              </View>
+            </DVNTLiquidGlass>
+
+            {isHost && onMuteAll ? (
+              <Pressable onPress={onMuteAll} hitSlop={10}>
+                <DVNTLiquidGlass
+                  radius={22}
+                  paddingH={12}
+                  paddingV={10}
+                  style={{
+                    borderWidth: 1,
+                    borderColor: allMuted
+                      ? "rgba(45, 212, 191, 0.24)"
+                      : "rgba(248, 113, 113, 0.24)",
+                  }}
+                >
+                  {allMuted ? (
+                    <Mic size={16} color="#5EEAD4" />
+                  ) : (
+                    <MicOff size={16} color="#FCA5A5" />
+                  )}
+                  <Text
+                    style={{
+                      color: allMuted ? "#99F6E4" : "#FCA5A5",
+                      fontSize: 11,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {allMuted ? "Unmute" : "Mute All"}
+                  </Text>
+                </DVNTLiquidGlass>
+              </Pressable>
+            ) : (
+              <View style={{ width: 46 }} />
+            )}
+          </View>
         </View>
 
-        {/* Mute / Unmute All toggle for host */}
-        {isHost && onMuteAll ? (
-          <Pressable
-            onPress={onMuteAll}
-            hitSlop={8}
-            className={`flex-row items-center px-3 py-1.5 rounded-full gap-1.5 ${
-              allMuted ? "bg-emerald-500/20" : "bg-red-500/20"
-            }`}
-          >
-            {allMuted ? (
-              <Mic size={14} color="#10B981" />
-            ) : (
-              <MicOff size={14} color="#EF4444" />
-            )}
-            <Text
-              className={`text-xs font-bold ${
-                allMuted ? "text-emerald-400" : "text-red-400"
-              }`}
-            >
-              {allMuted ? "UNMUTE ALL" : "MUTE ALL"}
-            </Text>
-          </Pressable>
-        ) : (
-          <Pressable hitSlop={12}>
-            <MoreHorizontal size={24} color="#fff" />
-          </Pressable>
-        )}
-      </View>
+        <View
+          className="flex-1"
+          style={{ paddingHorizontal: 4, paddingBottom: 150 }}
+        >
+          <VideoGrid
+            participants={allParticipants}
+            activeSpeakers={activeSpeakers}
+            isHost={isHost}
+            onParticipantPress={onParticipantPress}
+          />
+        </View>
 
-      {/* Video Grid — Zoom-like layout for all participants */}
-      <View className="flex-1" style={{ paddingBottom: 96 }}>
-        <VideoGrid
-          participants={allParticipants}
-          activeSpeakers={activeSpeakers}
-          isHost={isHost}
-          onParticipantPress={onParticipantPress}
+        <RoomTimer onTimeUp={onLeave} />
+
+        <ControlsBar
+          isMuted={effectiveMuted}
+          isVideoEnabled={effectiveVideoOn}
+          handRaised={isHandRaised}
+          hasVideo={hasVideo ?? true}
+          localRole={localRole}
+          floatingReactions={reactions}
+          onLeave={onLeave}
+          onToggleMute={onToggleMic}
+          onToggleVideo={onToggleVideo}
+          onToggleHand={onToggleHand}
+          onOpenChat={onChat}
+          onShare={onShare}
+          onSwitchCamera={onSwitchCamera}
+          onSendReaction={sendReaction}
+        />
+
+        <EjectModal
+          visible={showEjectModal}
+          payload={ejectPayload}
+          onDismiss={onEjectDismiss}
+        />
+
+        <ChatSheet
+          isOpen={isChatOpen}
+          onClose={onCloseChat}
+          roomId={roomId}
+          currentUser={localUser}
+          participants={allParticipants.map((p) => p.user)}
         />
       </View>
-
-      {/* Room Timer — 16 min max, countdown in last 60s */}
-      <RoomTimer onTimeUp={onLeave} />
-
-      {/* Controls Bar */}
-      <ControlsBar
-        isMuted={effectiveMuted}
-        isVideoEnabled={effectiveVideoOn}
-        handRaised={isHandRaised}
-        hasVideo={hasVideo ?? true}
-        localRole={localRole}
-        onLeave={onLeave}
-        onToggleMute={onToggleMic}
-        onToggleVideo={onToggleVideo}
-        onToggleHand={onToggleHand}
-        onOpenChat={onChat}
-      />
-
-      {/* Eject Modal */}
-      <EjectModal
-        visible={showEjectModal}
-        payload={ejectPayload}
-        onDismiss={onEjectDismiss}
-      />
-
-      {/* Chat Sheet */}
-      <ChatSheet
-        isOpen={isChatOpen}
-        onClose={onCloseChat}
-        roomId={roomId}
-        currentUser={localUser}
-        participants={allParticipants.map((p) => p.user)}
-      />
     </View>
   );
 }

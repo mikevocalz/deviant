@@ -11,6 +11,8 @@ import {
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import { activityKeys } from "@/lib/hooks/use-activities-query";
 
 // Filter params for events home
 export type EventSort =
@@ -319,6 +321,7 @@ export function useLikedEvents() {
 // Toggle event like with optimistic update across all event list caches
 export function useToggleEventLike() {
   const queryClient = useQueryClient();
+  const viewerId = useAuthStore((s) => s.user?.id) || "";
 
   return useMutation({
     mutationFn: async ({
@@ -394,6 +397,11 @@ export function useToggleEventLike() {
       const uid = getCurrentUserIdInt();
       if (uid) {
         queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
+      }
+      if (viewerId) {
+        queryClient.invalidateQueries({
+          queryKey: activityKeys.liked(viewerId),
+        });
       }
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
     },

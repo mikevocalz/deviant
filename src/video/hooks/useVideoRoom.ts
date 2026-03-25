@@ -475,12 +475,24 @@ export function useVideoRoom({
       // Fishjam SDK v0.25: use distinguished tracks, fallback to legacy
       const videoTrack =
         peer.cameraTrack ??
+        peer.videoTrack ??
         peer.tracks?.find((t: any) => t.metadata?.type === "camera") ??
         null;
       const audioTrack =
         peer.microphoneTrack ??
+        peer.audioTrack ??
         peer.tracks?.find((t: any) => t.metadata?.type === "microphone") ??
         null;
+      const hasVideoTrack = !!(
+        videoTrack?.stream ||
+        videoTrack?.track ||
+        videoTrack?.trackId
+      );
+      const hasAudioTrack = !!(
+        audioTrack?.stream ||
+        audioTrack?.track ||
+        audioTrack?.trackId
+      );
 
       return {
         odId: peer.id,
@@ -493,8 +505,8 @@ export function useVideoRoom({
         avatar: metadata.avatar as string | undefined,
         role: (metadata.role as MemberRole) || "participant",
         isLocal: false,
-        isCameraOn: !!(videoTrack?.stream || videoTrack?.track),
-        isMicOn: !!(audioTrack?.stream || audioTrack?.track),
+        isCameraOn: hasVideoTrack,
+        isMicOn: hasAudioTrack,
         isScreenSharing: !!peer.screenShareVideoTrack,
         videoTrack,
         audioTrack,

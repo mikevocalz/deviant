@@ -66,6 +66,11 @@ import {
 } from "../../utils/helpers";
 import { useRenderSurface } from "../../utils/geometry";
 import { useElementTransform } from "../../hooks/useElementTransform";
+import {
+  getSystemFontFamily,
+  getSystemFontWeight,
+  shouldUseSystemFontFallback,
+} from "../../utils/text-support";
 
 // ---- Font assets — resolved from central registry ----
 const INTER_REGULAR = FONT_ASSETS["Inter-Regular"];
@@ -177,7 +182,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
     const debugFontSystem = useMemo(
       () =>
         matchFont({
-          fontFamily: "Inter",
+          fontFamily: getSystemFontFamily(),
           fontSize: 28,
           fontWeight: "400",
           fontStyle: "normal",
@@ -589,6 +594,10 @@ const TextElementRenderer: React.FC<{
   const fontSize = Math.max(element.fontSize, RENDER_MIN_FS);
   const maxWidth = element.maxWidth || CANVAS_WIDTH * 0.8;
   const textAlign = element.textAlign || "center";
+  const prefersSystemFont = useMemo(
+    () => shouldUseSystemFontFallback(content),
+    [content],
+  );
 
   const { skiaTransform: liveTransform } = useElementTransform(
     element.id,
@@ -596,15 +605,28 @@ const TextElementRenderer: React.FC<{
   );
 
   const fontAsset = FONT_ASSETS[element.fontFamily] ?? INTER_REGULAR;
-  const font = useFont(fontAsset, fontSize, (err) => {
+  const customFont = useFont(fontAsset, fontSize, (err) => {
     console.warn(
       `[TextRenderer] Font load error for "${element.fontFamily}":`,
       err,
     );
   });
+  const systemFont = useMemo(
+    () =>
+      matchFont({
+        fontFamily: getSystemFontFamily(),
+        fontSize,
+        fontWeight: getSystemFontWeight(element.fontFamily),
+        fontStyle: "normal",
+      }),
+    [fontSize, element.fontFamily],
+  );
+  const font = prefersSystemFont
+    ? (systemFont ?? customFont)
+    : (customFont ?? systemFont);
   if (__DEV__) {
     console.log(
-      `[TextRenderer] id=${element.id.slice(0, 6)} font="${element.fontFamily}" asset=${fontAsset != null} loaded=${font != null} content="${content.slice(0, 10)}" fs=${fontSize}`,
+      `[TextRenderer] id=${element.id.slice(0, 6)} font="${element.fontFamily}" asset=${fontAsset != null} loaded=${font != null} fallback=${prefersSystemFont} content="${content.slice(0, 10)}" fs=${fontSize}`,
     );
   }
   if (!font) return null;

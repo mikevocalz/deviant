@@ -1,24 +1,26 @@
-/**
- * Controls Bar Component
- * Floating glass-morphism interaction dock
- * Clubhouse x Twitter Spaces x TikTok Live aesthetic
- */
-
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Hand,
+  Heart,
+  LogOut,
   MessageCircle,
   Mic,
   MicOff,
+  RotateCcw,
+  Share2,
   Video,
   VideoOff,
-  LogOut,
-  Share2,
-  Heart,
 } from "lucide-react-native";
-import { useRef, useCallback, useState } from "react";
 import * as Haptics from "expo-haptics";
+import {
+  DVNTLiquidGlass,
+  DVNTLiquidGlassIconButton,
+} from "@/components/media/DVNTLiquidGlass";
+import type { RoomReaction } from "../hooks/useRoomReactions";
+
+const REACTION_EMOJIS = ["❤️", "🔥", "😂", "👏", "😍", "😮"];
 
 interface ControlsBarProps {
   isMuted: boolean;
@@ -26,54 +28,57 @@ interface ControlsBarProps {
   handRaised: boolean;
   hasVideo: boolean;
   localRole: "host" | "co-host" | "participant" | "listener";
+  floatingReactions?: RoomReaction[];
   onLeave: () => void;
   onToggleMute: () => void;
   onToggleVideo: () => void;
   onToggleHand: () => void;
   onOpenChat: () => void;
   onShare?: () => void;
+  onSwitchCamera?: () => void;
+  onSendReaction?: (emoji: string) => void;
 }
 
-// ── Floating emoji reaction ─────────────────────────────────────────
-const REACTION_EMOJIS = ["❤️", "", "�", "�"];
-
-function FloatingEmoji({
-  emoji,
+function FloatingReaction({
+  reaction,
   onComplete,
 }: {
-  emoji: string;
+  reaction: RoomReaction;
   onComplete: () => void;
 }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
-  const scale = useRef(new Animated.Value(0.5)).current;
-  const translateX = useRef(
-    new Animated.Value((Math.random() - 0.5) * 60),
+  const scale = useRef(new Animated.Value(0.72)).current;
+  const drift = useRef(
+    new Animated.Value(
+      reaction.isOwn ? -18 - Math.random() * 22 : 18 + Math.random() * 22,
+    ),
   ).current;
 
   useRef(
     Animated.parallel([
       Animated.timing(translateY, {
-        toValue: -200 - Math.random() * 100,
-        duration: 2000,
-        easing: Easing.out(Easing.quad),
+        toValue: -196 - Math.random() * 72,
+        duration: 2200,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.sequence([
-        Animated.timing(scale, {
-          toValue: 1.2,
-          duration: 200,
+        Animated.spring(scale, {
+          toValue: 1.08,
           useNativeDriver: true,
+          speed: 18,
+          bounciness: 8,
         }),
         Animated.timing(scale, {
           toValue: 1,
-          duration: 200,
+          duration: 160,
           useNativeDriver: true,
         }),
       ]),
       Animated.timing(opacity, {
         toValue: 0,
-        duration: 2000,
+        duration: 2200,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
       }),
@@ -81,60 +86,95 @@ function FloatingEmoji({
   ).current;
 
   return (
-    <Animated.Text
+    <Animated.View
+      pointerEvents="none"
       style={{
         position: "absolute",
-        bottom: 70,
-        right: 20,
-        fontSize: 28,
+        bottom: 122,
+        [reaction.isOwn ? "right" : "left"]: 28,
         opacity,
-        transform: [{ translateY }, { translateX }, { scale }],
+        transform: [{ translateY }, { translateX: drift }, { scale }],
       }}
     >
-      {emoji}
-    </Animated.Text>
+      <View
+        style={{
+          alignSelf: reaction.isOwn ? "flex-end" : "flex-start",
+          borderRadius: 999,
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+          backgroundColor: "rgba(4, 8, 16, 0.76)",
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          marginBottom: 8,
+        }}
+      >
+        <Text
+          style={{
+            color: "rgba(255,255,255,0.74)",
+            fontSize: 11,
+            fontWeight: "700",
+          }}
+          numberOfLines={1}
+        >
+          {reaction.senderLabel}
+        </Text>
+      </View>
+      <Text style={{ fontSize: 34 }}>{reaction.emoji}</Text>
+    </Animated.View>
   );
 }
 
-// ── Control button ──────────────────────────────────────────────────
 function ControlButton({
-  onPress,
-  isActive,
-  isDanger,
   icon,
   label,
-  size = 48,
+  onPress,
+  active = false,
+  danger = false,
+  compact = false,
 }: {
+  icon: ReactNode;
+  label: string;
   onPress: () => void;
-  isActive?: boolean;
-  isDanger?: boolean;
-  icon: React.ReactNode;
-  label?: string;
-  size?: number;
+  active?: boolean;
+  danger?: boolean;
+  compact?: boolean;
 }) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = useCallback(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.9,
+    Animated.spring(scale, {
+      toValue: 0.92,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
+      speed: 22,
+      bounciness: 5,
     }).start();
-  }, [scaleAnim]);
+  }, [scale]);
 
   const handlePressOut = useCallback(() => {
-    Animated.spring(scaleAnim, {
+    Animated.spring(scale, {
       toValue: 1,
       useNativeDriver: true,
-      speed: 50,
-      bounciness: 4,
+      speed: 22,
+      bounciness: 5,
     }).start();
-  }, [scaleAnim]);
+  }, [scale]);
+
+  const size = compact ? 46 : 56;
+  const labelColor = danger
+    ? "#FCA5A5"
+    : active
+      ? "#E2F2FF"
+      : "rgba(255,255,255,0.72)";
 
   return (
-    <View className="items-center gap-1">
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+    <View
+      style={{
+        alignItems: "center",
+        gap: 6,
+        minWidth: compact ? 54 : 62,
+      }}
+    >
+      <Animated.View style={{ transform: [{ scale }] }}>
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -142,17 +182,45 @@ function ControlButton({
           }}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          className={`items-center justify-center rounded-full ${
-            isDanger ? "bg-red-500/20" : isActive ? "bg-white/15" : "bg-white/8"
-          }`}
-          style={{ width: size, height: size }}
         >
-          {icon}
+          <DVNTLiquidGlassIconButton
+            size={size}
+            style={{
+              borderWidth: 1,
+              borderColor: danger
+                ? "rgba(248, 113, 113, 0.34)"
+                : active
+                  ? "rgba(104, 198, 255, 0.38)"
+                  : "rgba(255,255,255,0.16)",
+            }}
+          >
+            <View
+              style={{
+                width: "100%",
+                height: "100%",
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: danger
+                  ? "rgba(127, 29, 29, 0.28)"
+                  : active
+                    ? "rgba(46, 157, 255, 0.26)"
+                    : "rgba(255,255,255,0.04)",
+              }}
+            >
+              {icon}
+            </View>
+          </DVNTLiquidGlassIconButton>
         </Pressable>
       </Animated.View>
-      {label && (
-        <Text className="text-[10px] text-white/50 font-medium">{label}</Text>
-      )}
+      <Text
+        style={{
+          color: labelColor,
+          fontSize: compact ? 10 : 11,
+          fontWeight: "700",
+        }}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -163,153 +231,213 @@ export function ControlsBar({
   handRaised,
   hasVideo,
   localRole,
+  floatingReactions = [],
   onLeave,
   onToggleMute,
   onToggleVideo,
   onToggleHand,
   onOpenChat,
   onShare,
+  onSwitchCamera,
+  onSendReaction,
 }: ControlsBarProps) {
   const insets = useSafeAreaInsets();
-  const [floatingEmojis, setFloatingEmojis] = useState<
-    { id: number; emoji: string }[]
-  >([]);
-  const emojiCounter = useRef(0);
-
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const handleSendEmoji = useCallback((emoji: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const id = emojiCounter.current++;
-    setFloatingEmojis((prev) => [...prev, { id, emoji }]);
-    setShowEmojiPicker(false);
-  }, []);
-
-  const handleToggleEmojiPicker = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowEmojiPicker((prev) => !prev);
-  }, []);
-
-  const removeEmoji = useCallback((id: number) => {
-    setFloatingEmojis((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+  const quickActions = useMemo(
+    () =>
+      [
+        hasVideo && onSwitchCamera
+          ? {
+              key: "flip",
+              label: "Flip",
+              onPress: onSwitchCamera,
+              icon: <RotateCcw size={18} color="#E2F2FF" />,
+            }
+          : null,
+        {
+          key: "hand",
+          label:
+            localRole === "host" || localRole === "co-host"
+              ? "Attention"
+              : "Hand",
+          onPress: onToggleHand,
+          icon: <Hand size={18} color={handRaised ? "#FBBF24" : "#F8FAFC"} />,
+          active: handRaised,
+        },
+        onShare
+          ? {
+              key: "share",
+              label: "Invite",
+              onPress: onShare,
+              icon: <Share2 size={18} color="#F8FAFC" />,
+            }
+          : null,
+      ].filter(Boolean) as Array<{
+        key: string;
+        label: string;
+        onPress: () => void;
+        icon: ReactNode;
+        active?: boolean;
+      }>,
+    [hasVideo, onSwitchCamera, onToggleHand, handRaised, onShare, localRole],
+  );
 
   return (
-    <View style={{ paddingBottom: insets.bottom + 8 }}>
-      {/* Floating reactions */}
-      {floatingEmojis.map((e) => (
-        <FloatingEmoji
-          key={e.id}
-          emoji={e.emoji}
-          onComplete={() => removeEmoji(e.id)}
+    <View
+      pointerEvents="box-none"
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingBottom: insets.bottom + 10,
+        paddingHorizontal: 14,
+      }}
+    >
+      {floatingReactions.map((reaction) => (
+        <FloatingReaction
+          key={reaction.id}
+          reaction={reaction}
+          onComplete={() => {}}
         />
       ))}
 
-      {/* Emoji picker tray — rendered ABOVE the dock so borderRadius doesn't clip */}
       {showEmojiPicker && (
+        <View style={{ alignItems: "center", marginBottom: 10 }}>
+          <DVNTLiquidGlass
+            radius={28}
+            paddingH={10}
+            paddingV={10}
+            style={{
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.18)",
+              backgroundColor: "rgba(3, 7, 18, 0.18)",
+            }}
+          >
+            {REACTION_EMOJIS.map((emoji) => (
+              <Pressable
+                key={emoji}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  onSendReaction?.(emoji);
+                  setShowEmojiPicker(false);
+                }}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 18,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(255,255,255,0.08)",
+                }}
+              >
+                <Text style={{ fontSize: 24 }}>{emoji}</Text>
+              </Pressable>
+            ))}
+          </DVNTLiquidGlass>
+        </View>
+      )}
+
+      {quickActions.length > 0 && (
         <View
           style={{
-            alignSelf: "center",
             flexDirection: "row",
-            backgroundColor: "rgba(30, 30, 30, 0.95)",
-            borderRadius: 24,
-            paddingHorizontal: 10,
-            paddingVertical: 8,
-            gap: 6,
-            marginBottom: 8,
-            marginHorizontal: 16,
+            justifyContent: "center",
+            gap: 10,
+            marginBottom: 10,
           }}
         >
-          {REACTION_EMOJIS.map((emoji) => (
-            <Pressable
-              key={emoji}
-              onPress={() => handleSendEmoji(emoji)}
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "rgba(255,255,255,0.08)",
-              }}
-            >
-              <Text style={{ fontSize: 24 }}>{emoji}</Text>
-            </Pressable>
+          {quickActions.map((action) => (
+            <ControlButton
+              key={action.key}
+              compact
+              label={action.label}
+              onPress={action.onPress}
+              active={action.active}
+              icon={action.icon}
+            />
           ))}
         </View>
       )}
 
-      {/* Dock */}
-      <View
-        className="mx-4 flex-row items-center justify-between px-4 py-3 rounded-2xl"
-        style={{ backgroundColor: "rgba(20, 20, 20, 0.85)" }}
+      <DVNTLiquidGlass
+        radius={30}
+        paddingH={16}
+        paddingV={14}
+        style={{
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.16)",
+          backgroundColor: "rgba(5, 10, 22, 0.22)",
+        }}
       >
-        {/* Mic — all participants can toggle */}
-        <ControlButton
-          onPress={onToggleMute}
-          isActive={!isMuted}
-          icon={
-            isMuted ? (
-              <MicOff size={20} color="#EF4444" />
-            ) : (
-              <Mic size={20} color="#fff" />
-            )
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+            }}
+          >
+            <ControlButton
+              label={isMuted ? "Muted" : "Mic"}
+              active={!isMuted}
+              onPress={onToggleMute}
+              icon={
+                isMuted ? (
+                  <MicOff size={22} color="#F87171" />
+                ) : (
+                  <Mic size={22} color="#F8FAFC" />
+                )
+              }
+            />
 
-        {/* Video — all participants can toggle */}
-        {hasVideo && (
-          <ControlButton
-            onPress={onToggleVideo}
-            isActive={isVideoEnabled}
-            icon={
-              isVideoEnabled ? (
-                <Video size={20} color="#fff" />
-              ) : (
-                <VideoOff size={20} color="#EF4444" />
-              )
-            }
-          />
-        )}
+            {hasVideo && (
+              <ControlButton
+                label={isVideoEnabled ? "Camera" : "Cam Off"}
+                active={isVideoEnabled}
+                onPress={onToggleVideo}
+                icon={
+                  isVideoEnabled ? (
+                    <Video size={22} color="#F8FAFC" />
+                  ) : (
+                    <VideoOff size={22} color="#F87171" />
+                  )
+                }
+              />
+            )}
 
-        {/* Hand Raise — listeners use this to request to speak */}
-        <ControlButton
-          onPress={onToggleHand}
-          isActive={handRaised}
-          icon={<Hand size={20} color={handRaised ? "#F59E0B" : "#fff"} />}
-        />
+            <ControlButton
+              label="React"
+              active={showEmojiPicker}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                setShowEmojiPicker((prev) => !prev);
+              }}
+              icon={<Heart size={22} color="#FF7BB8" />}
+            />
 
-        {/* React — toggles emoji picker above dock */}
-        <ControlButton
-          onPress={handleToggleEmojiPicker}
-          isActive={showEmojiPicker}
-          icon={<Heart size={20} color="#FF6DC1" />}
-        />
+            <ControlButton
+              label="Chat"
+              onPress={onOpenChat}
+              icon={<MessageCircle size={22} color="#F8FAFC" />}
+            />
 
-        {/* Chat */}
-        <ControlButton
-          onPress={onOpenChat}
-          icon={<MessageCircle size={20} color="#fff" />}
-        />
-
-        {/* Share */}
-        {onShare && (
-          <ControlButton
-            onPress={onShare}
-            icon={<Share2 size={20} color="#fff" />}
-          />
-        )}
-
-        {/* Leave — danger accent */}
-        <ControlButton
-          onPress={() => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            onLeave();
-          }}
-          isDanger
-          icon={<LogOut size={20} color="#EF4444" />}
-        />
-      </View>
+            <ControlButton
+              label="Leave"
+              danger
+              onPress={() => {
+                Haptics.notificationAsync(
+                  Haptics.NotificationFeedbackType.Warning,
+                );
+                onLeave();
+              }}
+              icon={<LogOut size={22} color="#FCA5A5" />}
+            />
+          </View>
+        </View>
+      </DVNTLiquidGlass>
     </View>
   );
 }

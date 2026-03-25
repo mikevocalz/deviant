@@ -40,6 +40,27 @@ export interface RoomComment {
   isOptimistic?: boolean;
 }
 
+export type RoomCommentAuthor = NonNullable<RoomComment["author"]>;
+
+async function lookupRoomCommentAuthor(
+  authorId: string,
+): Promise<RoomCommentAuthor | undefined> {
+  const { data: userData } = await supabase
+    .from("users")
+    .select("username, first_name, avatar:avatar_id(url), verified")
+    .eq("auth_id", authorId)
+    .single();
+
+  if (!userData) return undefined;
+
+  return {
+    username: userData.username || "unknown",
+    displayName: userData.first_name || userData.username || "unknown",
+    avatar: (userData.avatar as any)?.url || "",
+    isVerified: userData.verified || false,
+  };
+}
+
 // ── Fetch comments for a room ────────────────────────────────────────
 
 export async function fetchRoomComments(
@@ -108,6 +129,7 @@ export async function postRoomComment(params: {
   rootId?: number | null;
   depth?: number;
   mentions?: Mention[];
+  author?: RoomCommentAuthor;
 }): Promise<RoomComment | null> {
   const { data, error } = await supabase
     .from("room_comments")
@@ -138,6 +160,7 @@ export async function postRoomComment(params: {
     depth: data.depth,
     mentions: data.mentions || [],
     createdAt: data.created_at,
+    author: params.author,
   };
 }
 
@@ -146,6 +169,9 @@ export async function postRoomComment(params: {
 export function subscribeToRoomComments(
   roomId: string,
   onNewComment: (comment: RoomComment) => void,
+  options?: {
+    resolveAuthor?: (authorId: string) => RoomCommentAuthor | undefined;
+  },
 ): () => void {
   const channel = supabase
     .channel(`room-comments:${roomId}`)
@@ -161,25 +187,13 @@ export function subscribeToRoomComments(
         const row = payload.new as any;
 
         // Lookup author
-        let author: RoomComment["author"] | undefined;
-        if (row.author_id) {
-          const { data: userData } = await supabase
-            .from("users")
-            .select(
-              "username, first_name, avatar:avatar_id(url), verified",
-            )
-            .eq("auth_id", row.author_id)
-            .single();
-          if (userData) {
-            author = {
-              username: userData.username || "unknown",
-              displayName:
-                userData.first_name || userData.username || "unknown",
-              avatar: (userData.avatar as any)?.url || "",
-              isVerified: userData.verified || false,
-            };
-          }
-        }
+        const author =
+          (row.author_id
+            ? options?.resolveAuthor?.(row.author_id)
+            : undefined) ||
+          (row.author_id
+            ? await lookupRoomCommentAuthor(row.author_id)
+            : undefined);
 
         onNewComment({
           id: row.id,

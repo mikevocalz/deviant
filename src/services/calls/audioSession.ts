@@ -142,6 +142,9 @@ export const audioSession = {
       _pendingMicStartCallback = null;
       _pendingSpeakerOn = null;
 
+      // Sneaky Lynk rooms are audio-first even when video is enabled.
+      // Keep the session in audio/voice-chat mode so remote audio reliably
+      // routes and starts, then explicitly push output to speaker.
       InCallManager.start({ media: "audio", auto: true });
       _isActive = true;
 

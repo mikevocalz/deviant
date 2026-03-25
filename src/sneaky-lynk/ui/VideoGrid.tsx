@@ -10,9 +10,10 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView,
   useWindowDimensions,
   StyleSheet,
-  Animated,
+  Animated as RNAnimated,
 } from "react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,9 +24,15 @@ import {
   VideoOff,
   Crown,
   EyeOff,
+  Users,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
 import type { SneakyUser } from "../types";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  LinearTransition,
+} from "react-native-reanimated";
 
 export interface VideoParticipant {
   id: string;
@@ -50,20 +57,20 @@ interface VideoGridProps {
 // ── Animated sound bars for speaking indicator ────────────────────
 
 const SpeakingBars = memo(function SpeakingBars() {
-  const bar1 = useRef(new Animated.Value(0.3)).current;
-  const bar2 = useRef(new Animated.Value(0.6)).current;
-  const bar3 = useRef(new Animated.Value(0.4)).current;
+  const bar1 = useRef(new RNAnimated.Value(0.3)).current;
+  const bar2 = useRef(new RNAnimated.Value(0.6)).current;
+  const bar3 = useRef(new RNAnimated.Value(0.4)).current;
 
   useEffect(() => {
-    const animate = (value: Animated.Value, duration: number) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(value, {
+    const animate = (value: RNAnimated.Value, duration: number) =>
+      RNAnimated.loop(
+        RNAnimated.sequence([
+          RNAnimated.timing(value, {
             toValue: 1,
             duration,
             useNativeDriver: false,
           }),
-          Animated.timing(value, {
+          RNAnimated.timing(value, {
             toValue: 0.2,
             duration,
             useNativeDriver: false,
@@ -83,7 +90,7 @@ const SpeakingBars = memo(function SpeakingBars() {
     };
   }, [bar1, bar2, bar3]);
 
-  const barStyle = (anim: Animated.Value) => ({
+  const barStyle = (anim: RNAnimated.Value) => ({
     width: 3,
     borderRadius: 1.5,
     backgroundColor: "#3FDCFF",
@@ -92,9 +99,9 @@ const SpeakingBars = memo(function SpeakingBars() {
 
   return (
     <View style={styles.speakingBars}>
-      <Animated.View style={barStyle(bar1)} />
-      <Animated.View style={barStyle(bar2)} />
-      <Animated.View style={barStyle(bar3)} />
+      <RNAnimated.View style={barStyle(bar1)} />
+      <RNAnimated.View style={barStyle(bar2)} />
+      <RNAnimated.View style={barStyle(bar3)} />
     </View>
   );
 });
@@ -106,25 +113,24 @@ const VideoTile = memo(function VideoTile({
   isSpeaking,
   tileWidth,
   tileHeight,
-  isHost,
   onPress,
 }: {
   participant: VideoParticipant;
   isSpeaking: boolean;
   tileWidth: number;
   tileHeight: number;
-  isHost: boolean;
   onPress?: () => void;
 }) {
   const { user, isCameraOn, isMicOn, videoTrack, isLocal, role } = participant;
   const hasStream = videoTrack?.stream;
   const showVideo = isCameraOn && hasStream;
   const isAnon = user.isAnonymous;
+  const label = user.anonLabel || user.username || user.displayName || "Guest";
 
   // Animated glow for speaking
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  const glowAnim = useRef(new RNAnimated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(glowAnim, {
+    RNAnimated.timing(glowAnim, {
       toValue: isSpeaking ? 1 : 0,
       duration: 250,
       useNativeDriver: false,
@@ -142,84 +148,117 @@ const VideoTile = memo(function VideoTile({
 
   return (
     <Animated.View
-      style={[
-        styles.tileOuter,
-        { width: tileWidth, height: tileHeight, borderColor, borderWidth },
-      ]}
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(160)}
+      layout={LinearTransition.springify().damping(18).stiffness(180)}
+      style={{ width: tileWidth, height: tileHeight }}
     >
-      <Pressable
-        onLongPress={onPress}
-        delayLongPress={300}
-        style={[styles.tile, { width: "100%", height: "100%" }]}
+      <RNAnimated.View
+        style={[
+          styles.tileOuter,
+          {
+            width: tileWidth,
+            height: tileHeight,
+            borderColor,
+            borderWidth,
+            shadowColor: isSpeaking ? "#3FDCFF" : "#000",
+            shadowOpacity: isSpeaking ? 0.32 : 0.14,
+            shadowRadius: isSpeaking ? 18 : 12,
+            shadowOffset: { width: 0, height: 10 },
+          },
+        ]}
       >
-        {showVideo ? (
-          <RTCView
-            mediaStream={videoTrack.stream}
-            style={StyleSheet.absoluteFill}
-            objectFit="cover"
-            mirror={isLocal}
+        <Pressable
+          onLongPress={onPress}
+          delayLongPress={260}
+          style={[styles.tile, { width: "100%", height: "100%" }]}
+        >
+          {showVideo ? (
+            <RTCView
+              mediaStream={videoTrack.stream}
+              style={StyleSheet.absoluteFill}
+              objectFit="cover"
+              mirror={isLocal}
+            />
+          ) : (
+            <LinearGradient
+              colors={["#131922", "#0D1117", "#06080D"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.avatarContainer}
+            >
+              <View style={styles.avatarHalo} />
+              {isAnon ? (
+                <View style={styles.anonAvatar}>
+                  <EyeOff size={32} color="#A8B2C6" />
+                </View>
+              ) : (
+                <Avatar
+                  uri={user.avatar}
+                  username={user.username}
+                  size={Math.min(tileWidth * 0.4, 78)}
+                  variant="roundedSquare"
+                />
+              )}
+              <Text style={styles.cameraOffText}>
+                {isCameraOn ? "Live video" : "Audio only"}
+              </Text>
+            </LinearGradient>
+          )}
+
+          <LinearGradient
+            colors={[
+              "rgba(0,0,0,0.02)",
+              "rgba(0,0,0,0.18)",
+              "rgba(0,0,0,0.82)",
+            ]}
+            style={styles.bottomGradient}
           />
-        ) : (
-          <View style={styles.avatarContainer}>
-            {isAnon ? (
-              <View style={styles.anonAvatar}>
-                <EyeOff size={32} color="#6B7280" />
+
+          <View style={styles.topBadgeRow}>
+            {!isCameraOn && (
+              <View style={styles.stateBadge}>
+                <VideoOff size={11} color="#D1D5DB" />
+                <Text style={styles.stateBadgeText}>Audio</Text>
               </View>
-            ) : (
-              <Avatar
-                uri={user.avatar}
-                username={user.username}
-                size={Math.min(tileWidth * 0.4, 72)}
-                variant="roundedSquare"
-              />
+            )}
+            {isLocal && (
+              <View style={styles.selfBadge}>
+                <Text style={styles.selfBadgeText}>You</Text>
+              </View>
             )}
           </View>
-        )}
 
-        {/* Overlay gradient at bottom */}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.75)"]}
-          style={styles.bottomGradient}
-        />
-
-        {/* Name + badges */}
-        <View style={styles.nameRow}>
-          {role === "host" && (
-            <View style={styles.hostBadge}>
-              <Crown size={8} color="#fff" />
-            </View>
-          )}
-          {role === "co-host" && (
-            <View style={styles.coHostBadge}>
-              <Text style={styles.roleBadgeText}>CO</Text>
-            </View>
-          )}
-          <Text style={styles.nameText} numberOfLines={1}>
-            {isLocal ? "You" : user.displayName || user.username}
-          </Text>
-          {user.isVerified && (
-            <BadgeCheck size={10} color="#FF6DC1" fill="#FF6DC1" />
-          )}
-        </View>
-
-        {/* Mic indicator + speaking bars */}
-        <View style={styles.micBadge}>
-          {isSpeaking ? (
-            <SpeakingBars />
-          ) : isMicOn ? (
-            <Mic size={12} color="#fff" />
-          ) : (
-            <MicOff size={12} color="#EF4444" />
-          )}
-        </View>
-
-        {/* Camera off indicator */}
-        {!isCameraOn && (
-          <View style={styles.cameraOffBadge}>
-            <VideoOff size={12} color="#9CA3AF" />
+          <View style={styles.namePill}>
+            {role === "host" && (
+              <View style={styles.hostBadge}>
+                <Crown size={8} color="#fff" />
+              </View>
+            )}
+            {role === "co-host" && (
+              <View style={styles.coHostBadge}>
+                <Text style={styles.roleBadgeText}>CO</Text>
+              </View>
+            )}
+            <Text style={styles.nameText} numberOfLines={1}>
+              {label}
+            </Text>
+            {user.isVerified && (
+              <BadgeCheck size={10} color="#7DD3FC" fill="#7DD3FC" />
+            )}
           </View>
-        )}
-      </Pressable>
+
+          <View style={styles.micBadge}>
+            {isSpeaking ? (
+              <SpeakingBars />
+            ) : isMicOn ? (
+              <Mic size={12} color="#fff" />
+            ) : (
+              <MicOff size={12} color="#F87171" />
+            )}
+          </View>
+        </Pressable>
+      </RNAnimated.View>
     </Animated.View>
   );
 });
@@ -290,7 +329,18 @@ export function VideoGrid({
   if (count === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Waiting for participants...</Text>
+        <LinearGradient
+          colors={["rgba(28,33,43,0.96)", "rgba(9,12,18,0.96)"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.emptyCard}
+        >
+          <Users size={22} color="#7DD3FC" />
+          <Text style={styles.emptyText}>Waiting for participants...</Text>
+          <Text style={styles.emptySubtext}>
+            New people will slide into the room as soon as they connect.
+          </Text>
+        </LinearGradient>
       </View>
     );
   }
@@ -301,7 +351,7 @@ export function VideoGrid({
     rows.push(participants.slice(i, i + cols));
   }
 
-  return (
+  const content = (
     <View style={styles.grid}>
       {rows.map((row, rowIndex) => (
         <View key={rowIndex} style={styles.row}>
@@ -312,13 +362,11 @@ export function VideoGrid({
               isSpeaking={activeSpeakers.has(p.user.id)}
               tileWidth={tileWidth}
               tileHeight={tileHeight}
-              isHost={isHost}
               onPress={
                 isHost && !p.isLocal ? () => onParticipantPress?.(p) : undefined
               }
             />
           ))}
-          {/* Fill empty cells in last row */}
           {row.length < cols &&
             Array.from({ length: cols - row.length }).map((_, i) => (
               <View
@@ -330,62 +378,135 @@ export function VideoGrid({
       ))}
     </View>
   );
+
+  if (count > 6) {
+    return (
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {content}
+      </ScrollView>
+    );
+  }
+
+  return content;
 }
 
 const styles = StyleSheet.create({
   grid: {
     flex: 1,
-    gap: 4,
-    padding: 4,
+    gap: 8,
+    padding: 8,
   },
   row: {
     flexDirection: "row",
-    gap: 4,
+    gap: 8,
   },
   tileOuter: {
-    borderRadius: 20,
+    borderRadius: 28,
     overflow: "hidden",
+    backgroundColor: "#0A0E15",
   },
   tile: {
-    borderRadius: 18,
+    borderRadius: 26,
     overflow: "hidden",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#10151D",
     position: "relative",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   avatarContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: "#11151E",
+    gap: 12,
+  },
+  avatarHalo: {
+    position: "absolute",
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: "rgba(125,211,252,0.08)",
   },
   anonAvatar: {
     width: 72,
     height: 72,
-    borderRadius: 20,
-    backgroundColor: "#2a2a2a",
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  cameraOffText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
+    fontWeight: "600",
   },
   bottomGradient: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    height: 40,
+    height: 76,
   },
-  nameRow: {
+  topBadgeRow: {
     position: "absolute",
-    bottom: 6,
-    left: 6,
-    right: 28,
+    top: 10,
+    left: 10,
+    right: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
+    justifyContent: "space-between",
+  },
+  stateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(4,8,16,0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  stateBadgeText: {
+    color: "#E5E7EB",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  selfBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(59,130,246,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(125,211,252,0.24)",
+  },
+  selfBadgeText: {
+    color: "#E0F2FE",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  namePill: {
+    position: "absolute",
+    left: 10,
+    right: 42,
+    bottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "rgba(4,8,16,0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   nameText: {
     color: "#fff",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
+    fontWeight: "700",
     flexShrink: 1,
   },
   hostBadge: {
@@ -409,31 +530,40 @@ const styles = StyleSheet.create({
   },
   micBadge: {
     position: "absolute",
-    bottom: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    bottom: 12,
+    right: 10,
+    backgroundColor: "rgba(4,8,16,0.72)",
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: "center",
     justifyContent: "center",
-  },
-  cameraOffBadge: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 4,
-    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   emptyContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
+  emptyCard: {
+    borderRadius: 28,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    alignItems: "center",
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
   emptyText: {
-    color: "#6B7280",
-    fontSize: 14,
+    color: "#E2E8F0",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  emptySubtext: {
+    color: "#94A3B8",
+    fontSize: 12,
+    textAlign: "center",
   },
   speakingBars: {
     flexDirection: "row",
