@@ -138,3 +138,22 @@ export async function getOrCreateConversationCached(
 
   return convId;
 }
+
+/**
+ * Invalidate conversation resolution cache for a specific identifier.
+ * Use this when a conversation creation fails or needs to be retried.
+ *
+ * @example
+ * // Clear cache for user 46 and retry
+ * invalidateConversationCache(queryClient, "46");
+ * const newConvId = await getOrCreateConversationCached(queryClient, "46");
+ */
+export function invalidateConversationCache(
+  queryClient: ReturnType<typeof useQueryClient>,
+  identifier: string,
+): void {
+  queryClient.invalidateQueries({
+    queryKey: conversationResolutionKeys.byIdentifier(identifier),
+  });
+  console.log("[ConversationResolution] Cache invalidated:", identifier);
+}

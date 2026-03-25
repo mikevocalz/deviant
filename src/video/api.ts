@@ -36,16 +36,48 @@ async function callEdgeFunction<T>(
     );
 
     if (error) {
-      console.error(`[VideoApi] ${functionName} invoke error:`, error);
-      console.error(
-        `[VideoApi] ${functionName} error details:`,
-        JSON.stringify(error),
-      );
+      let message = error.message || "Edge function error";
+      const response = (error as any)?.context;
+
+      if (response) {
+        try {
+          const payload = await response.clone().json();
+          console.error(
+            `[VideoApi] ${functionName} http error payload:`,
+            payload,
+          );
+          message =
+            payload?.error?.message ||
+            payload?.message ||
+            `${response.status} ${response.statusText}` ||
+            message;
+        } catch {
+          try {
+            const text = await response.clone().text();
+            console.error(`[VideoApi] ${functionName} http error text:`, text);
+            message =
+              text || `${response.status} ${response.statusText}` || message;
+          } catch {
+            console.error(`[VideoApi] ${functionName} invoke error:`, error);
+            console.error(
+              `[VideoApi] ${functionName} error details:`,
+              JSON.stringify(error),
+            );
+          }
+        }
+      } else {
+        console.error(`[VideoApi] ${functionName} invoke error:`, error);
+        console.error(
+          `[VideoApi] ${functionName} error details:`,
+          JSON.stringify(error),
+        );
+      }
+
       return {
         ok: false,
         error: {
           code: "internal_error",
-          message: error.message || "Edge function error",
+          message,
         },
       };
     }

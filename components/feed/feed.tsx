@@ -10,6 +10,7 @@ import { LegendList } from "@/components/list";
 import type { LegendListRef } from "@/components/list";
 import { FeedPost } from "./feed-post";
 import { FeedEventCard } from "./feed-event-card";
+import { shouldRenderInFeed } from "./renderable-posts";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
 import { useForYouEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
@@ -286,7 +287,7 @@ export function Feed() {
 
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];
-    return data.pages.flatMap((page) => page.data);
+    return data.pages.flatMap((page) => page.data).filter(shouldRenderInFeed);
   }, [data]);
 
   const firstPageImagesPrefetched = useFeedPostUIStore(

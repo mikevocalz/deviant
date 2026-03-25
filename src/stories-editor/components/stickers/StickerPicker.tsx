@@ -69,6 +69,15 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   ];
 
   const activeImagePack = IMAGE_STICKER_PACKS.find((p) => p.id === activeTab);
+  const activeImageStickers = useMemo(() => {
+    if (!activeImagePack) return [];
+    if (!searchQuery.trim()) return activeImagePack.stickers;
+
+    const q = searchQuery.trim().toLowerCase();
+    return activeImagePack.stickers.filter((sticker) =>
+      sticker.label.toLowerCase().includes(q),
+    );
+  }, [activeImagePack, searchQuery]);
 
   const twemojiStickers = useMemo(() => {
     if (activeImagePack || activeTab === "gif") return [];
@@ -146,20 +155,18 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       {/* Content */}
       <View className="flex-1 px-3">
         {activeImagePack && (
-          <FlatList
-            data={activeImagePack.stickers}
-            numColumns={3}
-            keyExtractor={(item: {
-              id: string;
-              source: number;
-              label: string;
-            }) => item.id}
-            renderItem={({
-              item,
-            }: {
-              item: { id: string; source: number; label: string };
-            }) => (
+          <ScrollView
+            key={activeImagePack.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingBottom: 40,
+              flexDirection: "row",
+              flexWrap: "wrap",
+            }}
+          >
+            {activeImageStickers.map((item) => (
               <Pressable
+                key={item.id}
                 className="items-center justify-center p-2"
                 style={{ width: imageStickerSize }}
                 onPress={() => {
@@ -187,10 +194,8 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                   {item.label}
                 </Text>
               </Pressable>
-            )}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}
-          />
+            ))}
+          </ScrollView>
         )}
 
         {isTwemojiTab && (

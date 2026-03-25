@@ -57,3 +57,33 @@ verify_jwt = false
 
 [functions.send_notification]
 verify_jwt = false
+
+[functions.video_create_room]
+verify_jwt = false
+
+[functions.video_join_room]
+verify_jwt = false
+
+[functions.video_refresh_token]
+verify_jwt = false
+
+[functions.video_end_room]
+verify_jwt = false
+
+[functions.video_leave_room]
+verify_jwt = false
+
+[functions.video_kick_user]
+verify_jwt = false
+
+[functions.video_ban_user]
+verify_jwt = false
+
+[functions.video_change_role]
+verify_jwt = false
+
+[functions.video_mute_all]
+verify_jwt = false
+
+[functions.video_mute_peer]
+verify_jwt = false

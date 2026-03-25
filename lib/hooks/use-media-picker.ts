@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as MediaLibrary from "expo-media-library";
 import { Platform } from "react-native";
@@ -43,7 +43,7 @@ export function useMediaPicker() {
   const [selectedMedia, setSelectedMedia] = useState<MediaAsset[]>([]);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
 
-  const requestPermissions = async () => {
+  const requestPermissions = useCallback(async () => {
     if (Platform.OS === "web") {
       setHasPermission(true);
       return true;
@@ -65,7 +65,7 @@ export function useMediaPicker() {
     }
 
     return granted;
-  };
+  }, []);
 
   const pickFromLibrary = async (options?: {
     maxSelection?: number;

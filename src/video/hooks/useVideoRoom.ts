@@ -275,8 +275,11 @@ export function useVideoRoom({
             peerMetadata: {
               userId: localUser?.id,
               username: localUser?.username,
+              displayName: localUser?.displayName,
               avatar: localUser?.avatar,
               role: localUser?.role,
+              isAnonymous: localUser?.isAnonymous || false,
+              anonLabel: localUser?.anonLabel || null,
             },
           });
 
@@ -328,9 +331,12 @@ export function useVideoRoom({
       s.setLocalUser({
         id: user.id,
         username: user.username,
+        displayName: user.displayName || user.username,
         avatar: user.avatar,
         role: peer.role as MemberRole,
         peerId: peer.id,
+        isAnonymous: user.isAnonymous || false,
+        anonLabel: user.anonLabel || null,
       });
 
       // Connect to Fishjam — use ref for stable identity
@@ -339,10 +345,11 @@ export function useVideoRoom({
         peerMetadata: {
           userId: user.id,
           username: user.username,
+          displayName: user.displayName || user.username,
           avatar: user.avatar,
           role: peer.role,
-          isAnonymous: (user as any).isAnonymous || false,
-          anonLabel: (user as any).anonLabel || null,
+          isAnonymous: user.isAnonymous || false,
+          anonLabel: user.anonLabel || null,
         },
       });
 
@@ -480,6 +487,9 @@ export function useVideoRoom({
         oderId: peer.id,
         userId: (metadata.userId as string) || peer.id,
         username: metadata.username as string | undefined,
+        displayName:
+          (metadata.displayName as string | undefined) ||
+          (metadata.username as string | undefined),
         avatar: metadata.avatar as string | undefined,
         role: (metadata.role as MemberRole) || "participant",
         isLocal: false,

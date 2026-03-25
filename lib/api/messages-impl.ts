@@ -458,21 +458,60 @@ export const messagesApi = {
    */
   async getOrCreateConversation(otherUserId: string) {
     try {
-      // CRITICAL VALIDATION: Prevent username from being passed
-      // Usernames can contain letters and underscores, authIds are UUIDs, user IDs are numeric
+      // Step 1: Identify input type
       const isNumeric = /^\d+$/.test(otherUserId);
       const isUUID =
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
           otherUserId,
         );
 
+      let resolvedIdentifier = otherUserId;
+
+      // CRITICAL FIX: If input is a username, look up the user to get authId/id
       if (!isNumeric && !isUUID) {
-        console.error(
-          "[Messages] INVALID INPUT: getOrCreateConversation expects authId (UUID) or numeric user.id, got:",
+        console.log(
+          "[Messages] Input appears to be username, looking up user:",
           otherUserId,
         );
-        throw new Error(
-          "Invalid user identifier. Use authId (UUID) or numeric user.id, not username.",
+        const { DB } = await import("@/lib/supabase/db-map");
+        const { data: user, error: lookupError } = await supabase
+          .from(DB.users.table)
+          .select(`${DB.users.id}, ${DB.users.authId}, ${DB.users.username}`)
+          .eq(DB.users.username, otherUserId)
+          .single();
+
+        if (lookupError || !user) {
+          console.error(
+            "[Messages] Username lookup failed:",
+            otherUserId,
+            lookupError,
+          );
+          throw new Error(
+            `User not found: ${otherUserId}${lookupError ? ` (${lookupError.message})` : ""}`,
+          );
+        }
+
+        console.log("[Messages] User lookup result:", {
+          id: user[DB.users.id],
+          auth_id: user[DB.users.authId],
+          username: user[DB.users.username],
+        });
+
+        // Prefer authId (UUID) for Better Auth compatibility
+        resolvedIdentifier = user[DB.users.authId] || String(user[DB.users.id]);
+
+        if (!resolvedIdentifier) {
+          console.error("[Messages] User has no authId or id:", user);
+          throw new Error(
+            `User ${otherUserId} exists but has no valid identifier`,
+          );
+        }
+
+        console.log(
+          "[Messages] Resolved username",
+          otherUserId,
+          "to identifier:",
+          resolvedIdentifier,
         );
       }
 
@@ -480,7 +519,7 @@ export const messagesApi = {
 
       let bodyPayload: { otherUserId?: number; otherAuthId?: string };
       try {
-        const otherUserIdInt = await resolveUserIdInt(otherUserId);
+        const otherUserIdInt = await resolveUserIdInt(resolvedIdentifier);
         bodyPayload = { otherUserId: otherUserIdInt };
       } catch (e: any) {
         if (e?.message?.startsWith("NEEDS_PROVISION:")) {
@@ -488,9 +527,23 @@ export const messagesApi = {
             otherAuthId: e.message.replace("NEEDS_PROVISION:", ""),
           };
         } else {
+          console.error(
+            "[Messages] Failed to resolve identifier:",
+            resolvedIdentifier,
+            e,
+          );
           throw e;
         }
       }
+
+      console.log(
+        "[Messages] Calling create-conversation edge function with:",
+        {
+          bodyPayload,
+          resolvedIdentifier,
+          originalInput: otherUserId,
+        },
+      );
 
       const { data: response, error } = await supabase.functions.invoke<{
         ok: boolean;
@@ -501,16 +554,35 @@ export const messagesApi = {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (error)
+      console.log("[Messages] Edge function response:", {
+        response,
+        error,
+      });
+
+      if (error) {
+        console.error("[Messages] Edge function invocation error:", error);
         throw new Error(error.message || "Failed to create conversation");
-      if (!response?.ok)
+      }
+      if (!response?.ok) {
+        console.error("[Messages] Edge function returned not ok:", response);
         throw new Error(
           response?.error?.message || "Failed to create conversation",
         );
+      }
 
-      return response.data?.conversationId || "";
+      const conversationId = response.data?.conversationId || "";
+      console.log("[Messages] Successfully created/got conversation:", {
+        conversationId,
+        isNew: response.data?.isNew,
+      });
+
+      return conversationId;
     } catch (error) {
-      console.error("[Messages] getOrCreateConversation error:", error);
+      console.error("[Messages] getOrCreateConversation FAILED:", {
+        error,
+        originalInput: otherUserId,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   },

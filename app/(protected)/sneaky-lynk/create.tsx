@@ -64,6 +64,7 @@ function CreateLynkScreenContent() {
         title: title.trim(),
         topic: description.trim() || "Live conversation",
         description: description.trim(),
+        source: "sneaky_lynk",
         isLive: true,
         hasVideo,
         isPublic,

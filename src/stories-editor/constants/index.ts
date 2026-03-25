@@ -629,12 +629,12 @@ export const IMAGE_STICKER_PACKS: ImageStickerPack[] = [
       {
         id: "ballroom-serve1",
         label: "Serve",
-        source: require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_28_14 PM.png"),
+        source: require("@/assets/images/stickers/ballroom/serve.png"),
       },
       {
         id: "ballroom-serve2",
         label: "Category Is",
-        source: require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_30_42 PM.png"),
+        source: require("@/assets/images/stickers/ballroom/category-is.png"),
       },
       {
         id: "ballroom-ate",

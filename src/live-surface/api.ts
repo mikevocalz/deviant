@@ -2,6 +2,7 @@
  * Client-side API for fetching the Live Surface payload from the Supabase Edge Function.
  */
 import { supabase } from "@/lib/supabase/client";
+import { getAuthToken } from "@/lib/auth-client";
 
 import type { LiveSurfacePayload } from "./types";
 
@@ -22,10 +23,19 @@ export async function fetchLiveSurface(opts?: {
       params.lng = String(opts.lng);
     }
 
+    const token = await getAuthToken();
+    if (!token) {
+      console.warn("[LiveSurface] No auth token available");
+      return null;
+    }
+
     const { data, error } = await supabase.functions.invoke(
       EDGE_FUNCTION_NAME,
       {
         body: params,
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
     );
 

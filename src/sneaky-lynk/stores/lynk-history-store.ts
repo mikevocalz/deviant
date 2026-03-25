@@ -14,6 +14,7 @@ export interface LynkRecord {
   title: string;
   topic: string;
   description: string;
+  source?: "sneaky_lynk" | "messages";
   isLive: boolean;
   hasVideo: boolean;
   isPublic: boolean;

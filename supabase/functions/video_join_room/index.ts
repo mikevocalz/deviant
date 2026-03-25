@@ -48,6 +48,13 @@ function generateJti(): string {
   return crypto.randomUUID();
 }
 
+function normalizeAnonLabel(label?: string | null): string | null {
+  if (!label) return null;
+  const match = label.match(/anon(?:\s+lynk)?\s+(\d+)/i);
+  if (match) return `Anon ${match[1]}`;
+  return label;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -191,14 +198,15 @@ Deno.serve(async (req) => {
         .select("id", { count: "exact", head: true })
         .eq("room_id", internalRoomId)
         .eq("is_anonymous", true);
-      anonLabel = `ANON LYNK ${(count ?? 0) + 1}`;
+      anonLabel = `Anon ${(count ?? 0) + 1}`;
+      anonLabel = normalizeAnonLabel(existingMember?.anon_label) || anonLabel;
     }
 
     if (existingMember) {
       if (existingMember.status === "active") {
         // Already in room, just refresh token
         memberRole = existingMember.role;
-        anonLabel = existingMember.anon_label || anonLabel;
+        anonLabel = normalizeAnonLabel(existingMember.anon_label) || anonLabel;
       } else if (existingMember.status === "banned") {
         return errorResponse("forbidden", "You are banned from this room");
       } else {
@@ -394,7 +402,7 @@ Deno.serve(async (req) => {
 
     // Get user profile for display (skip if anonymous)
     let userPayload: Record<string, any>;
-    if (anonymous && anonLabel) {
+        if (anonymous && anonLabel) {
       userPayload = {
         id: userId,
         username: anonLabel,
@@ -412,6 +420,7 @@ Deno.serve(async (req) => {
       userPayload = {
         id: userId,
         username: profile?.username,
+        displayName: profile?.username,
         avatar: profile?.avatar?.url,
         isAnonymous: false,
         anonLabel: null,

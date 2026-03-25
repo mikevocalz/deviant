@@ -40,6 +40,12 @@ interface CreateStoryState {
   reset: () => void;
 }
 
+const deriveMediaState = (assets: MediaAsset[]) => ({
+  mediaAssets: assets,
+  selectedMedia: assets.map((asset) => asset.uri),
+  mediaTypes: assets.map((asset) => asset.type),
+});
+
 const initialState = {
   selectedMedia: [] as string[],
   mediaTypes: [] as ("image" | "video")[],
@@ -63,7 +69,7 @@ export const useCreateStoryStore = create<CreateStoryState>((set, get) => ({
 
   setSelectedMedia: (media, types) =>
     set({ selectedMedia: media, mediaTypes: types }),
-  setMediaAssets: (assets) => set({ mediaAssets: assets }),
+  setMediaAssets: (assets) => set(deriveMediaState(assets)),
   setText: (text) => set({ text }),
   setTextColor: (color) => set({ textColor: color }),
   setBackgroundColor: (color) => set({ backgroundColor: color }),

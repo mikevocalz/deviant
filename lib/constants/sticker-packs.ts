@@ -28,8 +28,8 @@ export const LOCAL_STICKER_MODULES = {
   ],
   ballroom: [
     require("@/assets/images/stickers/ballroom/1-chop.png"),
-    require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_28_14 PM.png"),
-    require("@/assets/images/stickers/ballroom/ChatGPT Image Feb 12, 2026, 08_30_42 PM.png"),
+    require("@/assets/images/stickers/ballroom/serve.png"),
+    require("@/assets/images/stickers/ballroom/category-is.png"),
     require("@/assets/images/stickers/ballroom/ate-that.png"),
     require("@/assets/images/stickers/ballroom/tea.png"),
   ],

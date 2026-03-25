@@ -38,12 +38,45 @@ async function callEdgeFunction<T>(
     );
 
     if (error) {
-      console.error(`[SneakyLynk] ${functionName} invoke error:`, error);
+      let message = error.message || "Edge function error";
+      const response = (error as any)?.context;
+
+      if (response) {
+        try {
+          const payload = await response.clone().json();
+          console.error(
+            `[SneakyLynk] ${functionName} http error payload:`,
+            payload,
+          );
+          message =
+            payload?.error?.message ||
+            payload?.message ||
+            `${response.status} ${response.statusText}` ||
+            message;
+        } catch {
+          try {
+            const text = await response.clone().text();
+            console.error(
+              `[SneakyLynk] ${functionName} http error text:`,
+              text,
+            );
+            message = text || `${response.status} ${response.statusText}` || message;
+          } catch {
+            console.error(
+              `[SneakyLynk] ${functionName} invoke error without readable body:`,
+              error,
+            );
+          }
+        }
+      } else {
+        console.error(`[SneakyLynk] ${functionName} invoke error:`, error);
+      }
+
       return {
         ok: false,
         error: {
           code: "internal_error",
-          message: error.message || "Edge function error",
+          message,
         },
       };
     }

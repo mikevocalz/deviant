@@ -141,10 +141,29 @@ Deno.serve(async (req) => {
         .single();
 
       if (conv && !conv.is_group) {
-        return jsonResponse({
-          ok: true,
-          data: { conversationId: String(conv.id), isNew: false },
-        });
+        // CRITICAL: Verify this conversation actually has BOTH participants
+        // (prevents returning orphaned conversations with no participants)
+        const { data: participants } = await supabaseAdmin
+          .from("conversations_rels")
+          .select("users_id")
+          .eq("parent_id", conv.id)
+          .eq("path", "participants");
+
+        const participantIds = (participants || []).map((p: any) => p.users_id);
+        const hasBothParticipants =
+          participantIds.includes(myAuthId) &&
+          participantIds.includes(otherAuthId);
+
+        if (hasBothParticipants) {
+          return jsonResponse({
+            ok: true,
+            data: { conversationId: String(conv.id), isNew: false },
+          });
+        }
+        // If participants are missing, skip this orphaned conversation and continue
+        console.log(
+          `[Edge:create-conversation] Skipping orphaned conversation ${conv.id}`,
+        );
       }
     }
 
@@ -163,10 +182,26 @@ Deno.serve(async (req) => {
       );
 
     // Add participants (users_id is TEXT/auth_id)
-    await supabaseAdmin.from("conversations_rels").insert([
-      { parent_id: newConv.id, users_id: myAuthId, path: "participants" },
-      { parent_id: newConv.id, users_id: otherAuthId, path: "participants" },
-    ]);
+    const { error: participantsError } = await supabaseAdmin
+      .from("conversations_rels")
+      .insert([
+        { parent_id: newConv.id, users_id: myAuthId, path: "participants" },
+        { parent_id: newConv.id, users_id: otherAuthId, path: "participants" },
+      ]);
+
+    if (participantsError) {
+      console.error(
+        "[Edge:create-conversation] Failed to add participants:",
+        participantsError,
+      );
+      // Rollback: delete the conversation we just created
+      await supabaseAdmin.from("conversations").delete().eq("id", newConv.id);
+      return errorResponse(
+        "internal_error",
+        "Failed to add participants to conversation",
+        500,
+      );
+    }
 
     return jsonResponse({
       ok: true,

@@ -43,6 +43,7 @@ import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { FeedEventCard } from "./feed-event-card";
+import { shouldRenderInFeed } from "./renderable-posts";
 import { useForYouEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
 import type { Post } from "@/lib/types";
@@ -412,7 +413,7 @@ export function MasonryFeed() {
 
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];
-    return data.pages.flatMap((page) => page.data);
+    return data.pages.flatMap((page) => page.data).filter(shouldRenderInFeed);
   }, [data]);
 
   // Seed like states from feed data
