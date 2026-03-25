@@ -249,6 +249,7 @@ Deno.serve(async (req) => {
       title,
       topic,
       description,
+      sweet_spicy_mode: "sweet",
       has_video: hasVideo,
       is_public: isPublic,
       max_participants: maxParticipants,
@@ -265,7 +266,8 @@ Deno.serve(async (req) => {
         "[video_create_room] participant_count missing on video_rooms, retrying without it",
       );
       const fallbackInsert = { ...roomInsert };
-      delete (fallbackInsert as { participant_count?: number }).participant_count;
+      delete (fallbackInsert as { participant_count?: number })
+        .participant_count;
       roomQuery = supabase.from("video_rooms").insert(fallbackInsert).select();
       const retry = await roomQuery.single();
       room = retry.data;
@@ -321,6 +323,7 @@ Deno.serve(async (req) => {
           title: room.title,
           topic: room.topic || "",
           description: room.description || "",
+          sweetSpicyMode: room.sweet_spicy_mode || "sweet",
           hasVideo: room.has_video || false,
           isPublic: room.is_public,
           maxParticipants: room.max_participants,

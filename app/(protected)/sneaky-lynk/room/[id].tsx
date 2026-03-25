@@ -38,6 +38,7 @@ import {
 import { useCamera, useMicrophone } from "@fishjam-cloud/react-native-client";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { supabase } from "@/lib/supabase/client";
 import {
   VideoStage,
   VideoGrid,
@@ -51,6 +52,7 @@ import {
   RoomTimer,
   RoomParticipantsSheet,
 } from "@/src/sneaky-lynk/ui";
+import { SweetSpicyToggle } from "@/src/sneaky-lynk/components/SweetSpicyToggle";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
 import { videoApi } from "@/src/video/api";
@@ -689,6 +691,9 @@ function LocalRoom({
       onEjectDismiss={handleEjectDismiss}
       onShare={handleShare}
       localRole="host"
+      roomMode="sweet"
+      isUpdatingRoomMode={false}
+      onRoomModeChange={() => {}}
     />
   );
 }
@@ -740,6 +745,10 @@ function ServerRoom({
       ? "This Lynk has ended and can't be reopened."
       : null,
   );
+  const [roomMode, setRoomMode] = useState<"sweet" | "spicy">(
+    initialRoom?.sweetSpicyMode || "sweet",
+  );
+  const [isUpdatingRoomMode, setIsUpdatingRoomMode] = useState(false);
   const [presenceEvent, setPresenceEvent] = useState<PresenceEvent | null>(
     null,
   );
@@ -818,6 +827,14 @@ function ServerRoom({
           | "connected"
           | "reconnecting"
           | "disconnected");
+  const derivedRoomMode = (roomSnapshot?.sweetSpicyMode ||
+    videoRoom.room?.sweetSpicyMode ||
+    "sweet") as "sweet" | "spicy";
+
+  useEffect(() => {
+    if (isUpdatingRoomMode) return;
+    setRoomMode(derivedRoomMode);
+  }, [derivedRoomMode, isUpdatingRoomMode]);
 
   const showPresenceEvent = useCallback((tone: PresenceTone, label: string) => {
     if (presenceTimeoutRef.current) {
@@ -874,6 +891,66 @@ function ServerRoom({
       audioSession.stop();
     };
   }, [id, markRoomClosed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`video_room_meta:${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "video_rooms",
+          filter: `uuid=eq.${id}`,
+        },
+        (payload) => {
+          const room = payload.new as any;
+          const nextMode =
+            room?.sweet_spicy_mode === "spicy" ? "spicy" : "sweet";
+
+          setRoomSnapshot((prev) => ({
+            id: prev?.id || room.uuid || id,
+            createdBy: prev?.createdBy || room.created_by || "",
+            title: room.title || prev?.title || paramTitle || "Sneaky Lynk",
+            topic: room.topic || prev?.topic || "",
+            description: room.description || prev?.description || "",
+            sweetSpicyMode: nextMode,
+            isLive: room.status === "open",
+            hasVideo: room.has_video ?? prev?.hasVideo ?? roomHasVideo,
+            isPublic: room.is_public ?? prev?.isPublic ?? true,
+            status: room.status === "ended" ? "ended" : "open",
+            createdAt: room.created_at || prev?.createdAt || "",
+            endedAt: room.ended_at || prev?.endedAt || undefined,
+            host: prev?.host || {
+              id: "",
+              username: "unknown",
+              displayName: "unknown",
+              avatar: "",
+              isVerified: false,
+            },
+            speakers: prev?.speakers || [],
+            listeners: room.participant_count ?? prev?.listeners ?? 0,
+            fishjamRoomId:
+              room.fishjam_room_id || prev?.fishjamRoomId || undefined,
+          }));
+
+          if (!isUpdatingRoomMode) {
+            setRoomMode(nextMode);
+          }
+
+          if (room.status === "ended") {
+            setClosedReason("This Lynk has ended and can't be reopened.");
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, isUpdatingRoomMode, paramTitle, roomHasVideo]);
 
   useEffect(() => {
     if (!id || !videoRoom.localUser?.id) return;
@@ -1065,6 +1142,42 @@ function ServerRoom({
 
   // ── Derived values that depend on videoRoom (also before early return) ─
   const roomUuid = videoRoom.room?.id || id;
+  const handleRoomModeChange = useCallback(
+    async (nextMode: "sweet" | "spicy") => {
+      if (!isHost || nextMode === roomMode) return;
+
+      const previousMode = roomMode;
+      setIsUpdatingRoomMode(true);
+      setRoomMode(nextMode);
+      setRoomSnapshot((prev) =>
+        prev ? { ...prev, sweetSpicyMode: nextMode } : prev,
+      );
+
+      const result = await sneakyLynkApi.setRoomMode(id, nextMode);
+
+      if (!result.ok) {
+        setRoomMode(previousMode);
+        setRoomSnapshot((prev) =>
+          prev ? { ...prev, sweetSpicyMode: previousMode } : prev,
+        );
+        showToast(
+          "error",
+          "Mode Update Failed",
+          result.error?.message || "Couldn't update room mode.",
+        );
+        setIsUpdatingRoomMode(false);
+        return;
+      }
+
+      const confirmedMode = result.data?.mode || nextMode;
+      setRoomMode(confirmedMode);
+      setRoomSnapshot((prev) =>
+        prev ? { ...prev, sweetSpicyMode: confirmedMode } : prev,
+      );
+      setIsUpdatingRoomMode(false);
+    },
+    [id, isHost, roomMode, showToast],
+  );
 
   // ── CRITICAL: All useCallback handlers BEFORE early return ────────
   const handleMutePeer = useCallback(
@@ -1290,6 +1403,9 @@ function ServerRoom({
         onOpenParticipants={
           isHost ? () => setShowParticipantsSheet(true) : undefined
         }
+        roomMode={roomMode}
+        isUpdatingRoomMode={isUpdatingRoomMode}
+        onRoomModeChange={handleRoomModeChange}
       />
 
       <RoomParticipantsSheet
@@ -1362,6 +1478,9 @@ function RoomLayout({
   localRole,
   canOpenParticipants,
   onOpenParticipants,
+  roomMode,
+  isUpdatingRoomMode,
+  onRoomModeChange,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -1395,6 +1514,9 @@ function RoomLayout({
   allMuted?: boolean;
   canOpenParticipants?: boolean;
   onOpenParticipants?: () => void;
+  roomMode: "sweet" | "spicy";
+  isUpdatingRoomMode: boolean;
+  onRoomModeChange: (mode: "sweet" | "spicy") => void;
 }) {
   const { reactions, sendReaction } = useRoomReactions({
     roomId,
@@ -1432,7 +1554,7 @@ function RoomLayout({
 
       <View className="flex-1" style={{ paddingTop: insets.top }}>
         <View
-          style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12 }}
+          style={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 10 }}
         >
           <View
             style={{
@@ -1444,7 +1566,7 @@ function RoomLayout({
           >
             <Pressable onPress={onLeave} hitSlop={12}>
               <DVNTLiquidGlassIconButton
-                size={46}
+                size={42}
                 style={{
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.16)",
@@ -1455,9 +1577,9 @@ function RoomLayout({
             </Pressable>
 
             <DVNTLiquidGlass
-              radius={28}
-              paddingH={14}
-              paddingV={12}
+              radius={20}
+              paddingH={12}
+              paddingV={10}
               style={{
                 flex: 1,
                 borderWidth: 1,
@@ -1479,17 +1601,17 @@ function RoomLayout({
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      gap: 8,
+                      gap: 6,
                     }}
                   >
                     <View
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
-                        gap: 6,
-                        paddingHorizontal: 10,
-                        paddingVertical: 6,
-                        borderRadius: 999,
+                        gap: 5,
+                        paddingHorizontal: 9,
+                        paddingVertical: 5,
+                        borderRadius: 12,
                         backgroundColor: "rgba(239, 68, 68, 0.18)",
                       }}
                     >
@@ -1504,7 +1626,7 @@ function RoomLayout({
                       <Text
                         style={{
                           color: "#FCA5A5",
-                          fontSize: 11,
+                          fontSize: 10,
                           fontWeight: "800",
                           letterSpacing: 0.4,
                         }}
@@ -1515,16 +1637,16 @@ function RoomLayout({
                     {isHost ? (
                       <View
                         style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 999,
+                          paddingHorizontal: 9,
+                          paddingVertical: 5,
+                          borderRadius: 12,
                           backgroundColor: "rgba(59, 130, 246, 0.18)",
                         }}
                       >
                         <Text
                           style={{
                             color: "#BFDBFE",
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: "800",
                           }}
                         >
@@ -1540,10 +1662,10 @@ function RoomLayout({
                         style={{
                           flexDirection: "row",
                           alignItems: "center",
-                          gap: 6,
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 999,
+                          gap: 5,
+                          paddingHorizontal: 9,
+                          paddingVertical: 5,
+                          borderRadius: 12,
                           backgroundColor: "rgba(255,255,255,0.07)",
                           borderWidth: 1,
                           borderColor: "rgba(255,255,255,0.1)",
@@ -1553,7 +1675,7 @@ function RoomLayout({
                         <Text
                           style={{
                             color: "#E2E8F0",
-                            fontSize: 12,
+                            fontSize: 11,
                             fontWeight: "700",
                           }}
                         >
@@ -1574,7 +1696,7 @@ function RoomLayout({
                       <Text
                         style={{
                           color: "#CBD5E1",
-                          fontSize: 12,
+                          fontSize: 11,
                           fontWeight: "700",
                         }}
                       >
@@ -1587,23 +1709,30 @@ function RoomLayout({
                 <Text
                   style={{
                     color: "#F8FAFC",
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: "800",
                   }}
                   numberOfLines={1}
                 >
                   {roomTitle}
                 </Text>
+                <View style={{ marginTop: 8 }}>
+                  <SweetSpicyToggle
+                    mode={roomMode}
+                    onModeChange={onRoomModeChange}
+                    disabled={!isHost || isUpdatingRoomMode}
+                    compact
+                  />
+                </View>
               </View>
             </DVNTLiquidGlass>
 
             {isHost && onMuteAll ? (
               <Pressable onPress={onMuteAll} hitSlop={10}>
-                <DVNTLiquidGlass
-                  radius={22}
-                  paddingH={12}
-                  paddingV={10}
+                <DVNTLiquidGlassIconButton
+                  size={42}
                   style={{
+                    backgroundColor: "rgba(5, 10, 22, 0.22)",
                     borderWidth: 1,
                     borderColor: allMuted
                       ? "rgba(45, 212, 191, 0.24)"
@@ -1611,30 +1740,21 @@ function RoomLayout({
                   }}
                 >
                   {allMuted ? (
-                    <Mic size={16} color="#5EEAD4" />
+                    <Mic size={17} color="#5EEAD4" />
                   ) : (
-                    <MicOff size={16} color="#FCA5A5" />
+                    <MicOff size={17} color="#FCA5A5" />
                   )}
-                  <Text
-                    style={{
-                      color: allMuted ? "#99F6E4" : "#FCA5A5",
-                      fontSize: 11,
-                      fontWeight: "800",
-                    }}
-                  >
-                    {allMuted ? "Unmute" : "Mute All"}
-                  </Text>
-                </DVNTLiquidGlass>
+                </DVNTLiquidGlassIconButton>
               </Pressable>
             ) : (
-              <View style={{ width: 46 }} />
+              <View style={{ width: 42 }} />
             )}
           </View>
         </View>
 
         <View
           className="flex-1"
-          style={{ paddingHorizontal: 4, paddingBottom: 150 }}
+          style={{ paddingHorizontal: 6, paddingBottom: 126 }}
         >
           <VideoGrid
             participants={allParticipants}

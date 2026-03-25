@@ -321,6 +321,7 @@ export function useVideoRoom({
       s.setRoom({
         id: room.id,
         title: room.title,
+        sweetSpicyMode: room.sweetSpicyMode || "sweet",
         isPublic: false,
         status: "open",
         maxParticipants: 10,

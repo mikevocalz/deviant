@@ -34,6 +34,7 @@ export interface SneakyRoom {
   title: string;
   topic: string;
   description: string;
+  sweetSpicyMode?: "sweet" | "spicy";
   isLive: boolean;
   hasVideo: boolean;
   isPublic: boolean;
@@ -84,6 +85,7 @@ export interface JoinRoomResponse {
     title: string;
     topic: string;
     description: string;
+    sweetSpicyMode?: "sweet" | "spicy";
     hasVideo: boolean;
     fishjamRoomId: string;
   };

@@ -1,12 +1,11 @@
 /**
  * Sweet / Spicy Toggle
  *
- * Persisted mode on session. Shown in Sneaky Lynk room header.
- * Does NOT modify the chat screen or cards.
+ * Controlled room-mode toggle for Sneaky Lynk.
  */
 
 import { View, Text, Pressable } from "react-native";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -14,51 +13,59 @@ import Animated, {
   interpolateColor,
 } from "react-native-reanimated";
 import { Flame, Heart } from "lucide-react-native";
-import { supabase } from "@/lib/supabase/client";
 import { DeccellusAdSlot } from "@/components/ads/DeccellusAdSlot";
+import * as Haptics from "expo-haptics";
 
 interface SweetSpicyToggleProps {
-  sessionId: string;
   mode: "sweet" | "spicy";
   onModeChange: (mode: "sweet" | "spicy") => void;
-  isHost: boolean;
+  disabled?: boolean;
+  compact?: boolean;
+  showAdSlot?: boolean;
 }
 
 export function SweetSpicyToggle({
-  sessionId,
   mode,
   onModeChange,
-  isHost,
+  disabled = false,
+  compact = false,
+  showAdSlot = false,
 }: SweetSpicyToggleProps) {
   const progress = useSharedValue(mode === "spicy" ? 1 : 0);
+  const width = compact ? 154 : 240;
+  const height = compact ? 34 : 40;
+  const indicatorWidth = width / 2 - 4;
+
+  useEffect(() => {
+    progress.value = withSpring(mode === "spicy" ? 1 : 0, {
+      damping: 18,
+      stiffness: 220,
+    });
+  }, [mode, progress]);
 
   const handleToggle = useCallback(
-    async (newMode: "sweet" | "spicy") => {
-      if (!isHost) return; // Only host can toggle
-      if (newMode === mode) return;
+    (newMode: "sweet" | "spicy") => {
+      if (disabled || newMode === mode) return;
 
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       progress.value = withSpring(newMode === "spicy" ? 1 : 0, {
         damping: 18,
-        stiffness: 200,
+        stiffness: 220,
       });
-
       onModeChange(newMode);
-
-      // Persist to DB
-      try {
-        await supabase
-          .from("video_rooms")
-          .update({ sweet_spicy_mode: newMode })
-          .eq("id", sessionId);
-      } catch (err) {
-        console.error("[SweetSpicy] Update error:", err);
-      }
     },
-    [sessionId, mode, isHost, onModeChange],
+    [disabled, mode, onModeChange, progress],
   );
 
   const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: withSpring(progress.value * 120, { damping: 18, stiffness: 200 }) }],
+    transform: [
+      {
+        translateX: withSpring(progress.value * (width / 2), {
+          damping: 18,
+          stiffness: 220,
+        }),
+      },
+    ],
   }));
 
   const bgStyle = useAnimatedStyle(() => ({
@@ -70,10 +77,22 @@ export function SweetSpicyToggle({
   }));
 
   return (
-    <View className="items-center gap-2">
+    <View style={{ alignItems: "flex-start", gap: showAdSlot ? 8 : 0 }}>
       <Animated.View
-        style={[bgStyle, { borderRadius: 24, position: "relative" }]}
-        className="flex-row h-10 w-60 border border-border"
+        style={[
+          bgStyle,
+          {
+            width,
+            height,
+            borderRadius: compact ? 12 : 18,
+            position: "relative",
+            borderWidth: 1,
+            borderColor: disabled
+              ? "rgba(255,255,255,0.1)"
+              : "rgba(255,255,255,0.16)",
+            opacity: disabled ? 0.64 : 1,
+          },
+        ]}
       >
         {/* Sliding indicator */}
         <Animated.View
@@ -83,9 +102,9 @@ export function SweetSpicyToggle({
               position: "absolute",
               top: 2,
               left: 2,
-              width: 116,
-              height: 32,
-              borderRadius: 20,
+              width: indicatorWidth,
+              height: height - 4,
+              borderRadius: compact ? 10 : 16,
             },
           ]}
           className={mode === "spicy" ? "bg-red-500/30" : "bg-pink-400/30"}
@@ -94,16 +113,27 @@ export function SweetSpicyToggle({
         {/* Sweet button */}
         <Pressable
           onPress={() => handleToggle("sweet")}
-          className="flex-1 flex-row items-center justify-center gap-1.5 z-10"
-          disabled={!isHost}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: compact ? 4 : 6,
+            zIndex: 10,
+          }}
+          disabled={disabled}
         >
           <Heart
-            size={14}
+            size={compact ? 12 : 14}
             color={mode === "sweet" ? "#EC4899" : "#9CA3AF"}
             fill={mode === "sweet" ? "#EC4899" : "transparent"}
           />
           <Text
-            className={`text-xs font-sans-semibold ${mode === "sweet" ? "text-pink-400" : "text-muted-foreground"}`}
+            style={{
+              color: mode === "sweet" ? "#F472B6" : "#94A3B8",
+              fontSize: compact ? 11 : 12,
+              fontWeight: "700",
+            }}
           >
             Sweet
           </Text>
@@ -112,27 +142,39 @@ export function SweetSpicyToggle({
         {/* Spicy button */}
         <Pressable
           onPress={() => handleToggle("spicy")}
-          className="flex-1 flex-row items-center justify-center gap-1.5 z-10"
-          disabled={!isHost}
+          style={{
+            flex: 1,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: compact ? 4 : 6,
+            zIndex: 10,
+          }}
+          disabled={disabled}
         >
           <Flame
-            size={14}
+            size={compact ? 12 : 14}
             color={mode === "spicy" ? "#EF4444" : "#9CA3AF"}
             fill={mode === "spicy" ? "#EF4444" : "transparent"}
           />
           <Text
-            className={`text-xs font-sans-semibold ${mode === "spicy" ? "text-red-400" : "text-muted-foreground"}`}
+            style={{
+              color: mode === "spicy" ? "#F87171" : "#94A3B8",
+              fontSize: compact ? 11 : 12,
+              fontWeight: "700",
+            }}
           >
             Spicy
           </Text>
         </Pressable>
       </Animated.View>
 
-      {/* Decellus ad slot for Sweet/Spicy toggle */}
-      <DeccellusAdSlot
-        placementKey="SWEET_SPICY_TOGGLE"
-        style={{ width: 240, marginTop: 4 }}
-      />
+      {showAdSlot ? (
+        <DeccellusAdSlot
+          placementKey="SWEET_SPICY_TOGGLE"
+          style={{ width: width + 4, marginTop: 4 }}
+        />
+      ) : null}
     </View>
   );
 }
