@@ -356,12 +356,25 @@ function CreateScreenContent() {
   };
 
   const handlePost = useCallback(async () => {
+    const {
+      selectedMedia: currentSelectedMedia,
+      caption: currentCaption,
+      location: currentLocation,
+      isNSFW: currentIsNSFW,
+      tags: currentTags,
+      placedTags: currentPlacedTags,
+      postKind: currentPostKind,
+      textTheme: currentTextTheme,
+    } = useCreatePostStore.getState();
+    const isTextSubmission = currentPostKind === "text";
+    const trimmedCaption = currentCaption.trim();
+
     console.log("[Create] handlePost called!");
-    console.log("[Create] isValid:", isValid);
     console.log("[Create] isUploading:", isUploading);
     console.log("[Create] isCreating:", isCreating);
-    console.log("[Create] selectedMedia:", selectedMedia.length);
-    console.log("[Create] caption length:", caption.trim().length);
+    console.log("[Create] postKind:", currentPostKind);
+    console.log("[Create] selectedMedia:", currentSelectedMedia.length);
+    console.log("[Create] caption length:", trimmedCaption.length);
 
     // Prevent double submission
     if (isCreating || isUploading) {
@@ -369,7 +382,7 @@ function CreateScreenContent() {
       return;
     }
 
-    if (!isTextPost && selectedMedia.length === 0) {
+    if (!isTextSubmission && currentSelectedMedia.length === 0) {
       showToast(
         "error",
         "No Media",
@@ -378,12 +391,12 @@ function CreateScreenContent() {
       return;
     }
 
-    if (isTextPost && caption.trim().length === 0) {
+    if (isTextSubmission && trimmedCaption.length === 0) {
       showToast("error", "Empty Post", "Write something before posting.");
       return;
     }
 
-    if (isTextPost && caption.trim().length > TEXT_POST_MAX_LENGTH) {
+    if (isTextSubmission && trimmedCaption.length > TEXT_POST_MAX_LENGTH) {
       showToast(
         "error",
         "Too Long",
@@ -392,22 +405,25 @@ function CreateScreenContent() {
       return;
     }
 
-    if (!isTextPost && caption.trim().length < MIN_CAPTION_LENGTH) {
+    if (!isTextSubmission && trimmedCaption.length < MIN_CAPTION_LENGTH) {
       showToast(
         "error",
         "Caption Too Short",
-        `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${caption.trim().length}`,
+        `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${trimmedCaption.length}`,
       );
       return;
     }
 
     try {
       console.log("[Create] Starting post creation...");
-      console.log("[Create] Selected media count:", selectedMedia.length);
+      console.log(
+        "[Create] Selected media count:",
+        currentSelectedMedia.length,
+      );
 
       // Upload media to Bunny.net CDN
       // Use editedUri if user explicitly edited, otherwise use original uri
-      const mediaFiles = selectedMedia.map((m) => {
+      const mediaFiles = currentSelectedMedia.map((m) => {
         const uploadUri = m.editorOpened && m.editedUri ? m.editedUri : m.uri;
         if (__DEV__) {
           console.log("[MediaPipeline] UPLOAD:", {
@@ -436,7 +452,7 @@ function CreateScreenContent() {
         livePhotoVideoUrl?: string;
       }> = [];
 
-      if (!isTextPost) {
+      if (!isTextSubmission) {
         console.log("[Create] Uploading media to CDN...");
         let uploadResults;
         try {
@@ -482,28 +498,34 @@ function CreateScreenContent() {
 
       // Append tags as hashtags to the caption content
       const tagsString =
-        tags.length > 0 ? "\n" + tags.map((t) => `#${t}`).join(" ") : "";
-      const fullContent = caption + tagsString;
+        currentTags.length > 0
+          ? "\n" + currentTags.map((t) => `#${t}`).join(" ")
+          : "";
+      const fullContent = currentCaption + tagsString;
 
       createPost(
         {
-          kind: postKind,
-          textTheme,
+          kind: isTextSubmission ? "text" : "media",
+          textTheme: currentTextTheme,
           content: fullContent,
-          location,
+          location: currentLocation,
           media: postMedia,
-          isNSFW,
+          isNSFW: currentIsNSFW,
         },
         {
           onSuccess: async (newPost) => {
             console.log("[Create] Post created successfully:", newPost?.id);
 
             // Save placed tags to backend (fire-and-forget)
-            if (!isTextPost && newPost?.id && placedTags.length > 0) {
+            if (
+              !isTextSubmission &&
+              newPost?.id &&
+              currentPlacedTags.length > 0
+            ) {
               try {
                 await postTagsApi.addTags(
                   String(newPost.id),
-                  placedTags.map((t) => ({
+                  currentPlacedTags.map((t) => ({
                     userId: t.userId,
                     x: t.x,
                     y: t.y,
@@ -540,26 +562,16 @@ function CreateScreenContent() {
       showToast("error", "Error", "Something went wrong. Please try again.");
     }
   }, [
-    isValid,
     isUploading,
     isCreating,
-    selectedMedia,
-    caption,
     showToast,
     uploadMultiple,
     user?.id,
     user?.username,
-    tags,
     createPost,
-    location,
-    isNSFW,
     reset,
     router,
-    placedTags,
     setSelectedTagUsers,
-    postKind,
-    textTheme,
-    isTextPost,
   ]);
 
   const handleClose = () => {

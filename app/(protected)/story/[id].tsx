@@ -616,18 +616,18 @@ function StoryViewerScreenContent() {
   // FIX: Replace useState with Zustand
   const { showViewersSheet, setShowViewersSheet } = useStoryViewerScreenStore();
   const currentItemId = currentItem?.id;
-  // story_views.story_id is an integer FK to stories.id (parent),
-  // NOT the hex string item ID from stories_items
-  const storyParentId = story?.id ? String(story.id) : undefined;
+  // story_views.story_id points to the concrete stories row for the
+  // currently visible item, not the grouped author-level story id.
+  const viewableStoryId = currentItemId ? String(currentItemId) : undefined;
   const { data: viewerCount = 0 } = useStoryViewerCount(
-    isOwnStory ? storyParentId : undefined,
+    isOwnStory ? viewableStoryId : undefined,
   );
 
   // Delete story mutation
   const deleteStoryMutation = useDeleteStory();
 
   const handleDeleteStory = useCallback(() => {
-    if (!storyParentId) return;
+    if (!viewableStoryId) return;
     isPaused.current = true;
     cancelAnimation(progress);
     try {
@@ -652,7 +652,7 @@ function StoryViewerScreenContent() {
           text: "Delete",
           style: "destructive",
           onPress: () => {
-            deleteStoryMutation.mutate(storyParentId, {
+            deleteStoryMutation.mutate(viewableStoryId, {
               onSuccess: () => {
                 showToast("success", "Deleted", "Story deleted");
                 markExiting();
@@ -676,7 +676,7 @@ function StoryViewerScreenContent() {
       ],
     );
   }, [
-    storyParentId,
+    viewableStoryId,
     player,
     progress,
     cancelAnimation,
@@ -702,18 +702,18 @@ function StoryViewerScreenContent() {
       viewTimerRef.current = null;
     }
 
-    if (!storyParentId || isOwnStory) return;
-    if (recordedViewsRef.current.has(storyParentId)) {
+    if (!viewableStoryId || isOwnStory) return;
+    if (recordedViewsRef.current.has(viewableStoryId)) {
       if (__DEV__) {
         console.log(
-          `[StoryViewer] View already recorded for story ${storyParentId}, skipping`,
+          `[StoryViewer] View already recorded for story ${viewableStoryId}, skipping`,
         );
       }
       return;
     }
 
     // Debounce: wait 500ms before recording to ensure user actually viewed the story
-    const capturedId = storyParentId;
+    const capturedId = viewableStoryId;
     viewTimerRef.current = setTimeout(() => {
       if (__DEV__) {
         console.log(
@@ -730,7 +730,7 @@ function StoryViewerScreenContent() {
         viewTimerRef.current = null;
       }
     };
-  }, [storyParentId, isOwnStory]);
+  }, [viewableStoryId, isOwnStory]);
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
@@ -1483,7 +1483,7 @@ function StoryViewerScreenContent() {
 
           {/* ── STORY VIEWERS SHEET ───────────────────────────────────────── */}
           <StoryViewersSheet
-            storyId={storyParentId}
+            storyId={viewableStoryId}
             visible={showViewersSheet}
             onClose={() => {
               setShowViewersSheet(false);

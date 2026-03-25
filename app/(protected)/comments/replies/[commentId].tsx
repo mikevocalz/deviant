@@ -1,42 +1,71 @@
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  Platform,
-} from "react-native";
+import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import {
   KeyboardController,
   KeyboardProvider,
   KeyboardAvoidingView,
 } from "react-native-keyboard-controller";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { Image } from "expo-image";
-import { Send, Heart } from "lucide-react-native";
-import { MENTION_COLOR } from "@/src/constants/mentions";
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useCallback,
-  useState,
-  useRef,
-} from "react";
+import { Send, X } from "lucide-react-native";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useReplies, useCreateComment } from "@/lib/hooks/use-comments";
 import { useCommentsStore } from "@/lib/stores/comments-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import type { Comment } from "@/lib/types";
-import { Avatar as UserAvatar } from "@/components/ui/avatar";
-import { CommentLikeButton } from "@/components/comments/threaded-comment";
+import {
+  ThreadedComment,
+  type CommentData,
+} from "@/components/comments/threaded-comment";
 import { usersApi } from "@/lib/api/users";
 import { useQuery } from "@tanstack/react-query";
+
+function mapCommentTree(comment: any): CommentData {
+  return {
+    id: comment.id,
+    username: comment.username,
+    avatar: comment.avatar,
+    text: comment.text,
+    timeAgo: comment.timeAgo,
+    likes: comment.likes,
+    hasLiked: comment.hasLiked,
+    depth: comment.depth,
+    parentId: comment.parentId,
+    rootId: comment.rootId,
+    replies: Array.isArray(comment.replies)
+      ? comment.replies
+          .filter(
+            (reply: any) => reply && reply.id && reply.username && reply.text,
+          )
+          .map(mapCommentTree)
+      : [],
+  };
+}
+
+function collectCommenters(
+  comments: any[],
+  currentUsername?: string,
+  acc: { username: string; avatar?: string }[] = [],
+  seen = new Set<string>(),
+) {
+  for (const comment of comments) {
+    if (
+      comment?.username &&
+      !seen.has(comment.username) &&
+      comment.username !== currentUsername
+    ) {
+      seen.add(comment.username);
+      acc.push({ username: comment.username, avatar: comment.avatar });
+    }
+    if (Array.isArray(comment?.replies)) {
+      collectCommenters(comment.replies, currentUsername, acc, seen);
+    }
+  }
+  return acc;
+}
 
 function RepliesScreenContent() {
   const { commentId, postId } = useLocalSearchParams<{
@@ -44,8 +73,12 @@ function RepliesScreenContent() {
     postId?: string;
   }>();
   const router = useRouter();
-  const navigation = useNavigation();
-  const { newComment: reply, setNewComment: setReply } = useCommentsStore();
+  const {
+    newComment: reply,
+    replyingTo,
+    setNewComment: setReply,
+    setReplyingTo,
+  } = useCommentsStore();
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const insets = useSafeAreaInsets();
@@ -78,32 +111,20 @@ function RepliesScreenContent() {
       await createCommentMutation.mutateAsync({
         post: postId,
         text: reply.trim(),
-        parent: commentId,
+        parent: replyingTo || commentId,
         authorUsername: user.username,
         authorId: user.id,
       });
       setReply("");
+      setReplyingTo(null);
       KeyboardController.dismiss();
     } catch (error: any) {
       showToast("error", "Error", error?.message || "Failed to post reply");
     }
   };
 
-  // Extract unique commenters for @mention autocomplete (instant local results)
   const commenters = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { username: string; avatar?: string }[] = [];
-    for (const r of replies) {
-      if (
-        r.username &&
-        !seen.has(r.username) &&
-        r.username !== user?.username
-      ) {
-        seen.add(r.username);
-        result.push({ username: r.username, avatar: r.avatar });
-      }
-    }
-    return result;
+    return collectCommenters(replies, user?.username);
   }, [replies, user?.username]);
 
   const mentionQuery = useMemo(() => {
@@ -165,7 +186,32 @@ function RepliesScreenContent() {
     [reply, cursorPos, setReply],
   );
 
-  // Handle keyboard dismiss - not needed for react-native-keyboard-controller
+  const handleReply = useCallback(
+    (username: string, commentIdParam: string) => {
+      if (!username || !commentIdParam) return;
+      setReplyingTo(commentIdParam);
+      setReply(`@${username} `);
+      inputRef.current?.focus();
+    },
+    [setReplyingTo, setReply],
+  );
+
+  const handleProfilePress = useCallback(
+    (username: string, avatar?: string) => {
+      if (!username) return;
+      router.push({
+        pathname: `/(protected)/profile/${username}`,
+        params: avatar ? { avatar } : {},
+      } as any);
+    },
+    [router],
+  );
+
+  useEffect(() => {
+    return () => {
+      setReplyingTo(null);
+    };
+  }, [setReplyingTo]);
 
   // FIX: Use safe header update to prevent loops
   useSafeHeader({
@@ -193,86 +239,19 @@ function RepliesScreenContent() {
               <Text style={{ color: "#999" }}>No replies yet</Text>
             </View>
           ) : (
-            replies.map((item: Comment) => (
-              <View key={item.id} style={{ marginBottom: 20 }}>
-                <View style={{ flexDirection: "row", gap: 12 }}>
-                  <UserAvatar
-                    uri={item.avatar}
-                    username={item.username}
-                    size={36}
-                    variant="roundedSquare"
-                  />
-                  <View style={{ flex: 1 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontWeight: "600",
-                          fontSize: 14,
-                          color: "#fff",
-                        }}
-                      >
-                        {item.username}
-                      </Text>
-                      <Text style={{ color: "#999", fontSize: 12 }}>
-                        {item.timeAgo}
-                      </Text>
-                    </View>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        marginTop: 4,
-                        lineHeight: 20,
-                        color: "#fff",
-                      }}
-                    >
-                      {item.text
-                        .split(/(@\w+)/g)
-                        .map((part: string, i: number) =>
-                          part.startsWith("@") ? (
-                            <Text
-                              key={i}
-                              onPress={() =>
-                                router.push(
-                                  `/(protected)/profile/${part.slice(1)}` as any,
-                                )
-                              }
-                              style={{
-                                color: MENTION_COLOR,
-                                fontWeight: "600",
-                              }}
-                            >
-                              {part}
-                            </Text>
-                          ) : (
-                            <Text key={i}>{part}</Text>
-                          ),
-                        )}
-                    </Text>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 16,
-                        marginTop: 8,
-                      }}
-                    >
-                      <CommentLikeButton
-                        postId={postId || ""}
-                        commentId={item.id}
-                        initialLikes={item.likes}
-                        initialHasLiked={item.hasLiked}
-                      />
-                    </View>
-                  </View>
-                </View>
-              </View>
-            ))
+            replies
+              .filter((item) => item && item.id && item.username && item.text)
+              .map((item) => (
+                <ThreadedComment
+                  key={item.id}
+                  postId={postId || ""}
+                  comment={mapCommentTree(item)}
+                  onReply={handleReply}
+                  onProfilePress={handleProfilePress}
+                  maxVisibleReplies={100}
+                  showAllReplies
+                />
+              ))
           )}
         </ScrollView>
 
@@ -286,6 +265,30 @@ function RepliesScreenContent() {
               paddingVertical: 12,
             }}
           >
+            {replyingTo && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{ color: "#666", fontSize: 12 }}>
+                  Replying in thread
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setReplyingTo(null);
+                    setReply("");
+                    KeyboardController.dismiss();
+                  }}
+                  hitSlop={12}
+                >
+                  <X size={16} color="#666" />
+                </Pressable>
+              </View>
+            )}
             {/* @mention autocomplete dropdown */}
             {mentionSuggestions.length > 0 && (
               <View
