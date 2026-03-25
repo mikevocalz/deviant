@@ -36,6 +36,7 @@ import { PostDetailSkeleton } from "@/components/skeletons";
 import { usePost, useDeletePost } from "@/lib/hooks/use-posts";
 import { useComments } from "@/lib/hooks/use-comments";
 import { CommentLikeButton } from "@/components/comments/threaded-comment";
+import { CommentsSheet } from "@/components/comments-sheet";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { useVideoPlayerStore } from "@/lib/stores/video-player-store";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
@@ -79,6 +80,7 @@ import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
 import { Galeria } from "@nandorojo/galeria";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
 import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
 import {
   useSharedValue,
   withSpring,
@@ -485,6 +487,7 @@ function PostDetailScreenContent() {
   // FIX: Replace useState with Zustand to comply with project mandate
   const { showActionSheet, setShowActionSheet, resetPostDetailScreen } =
     usePostDetailScreenStore();
+  const [showCommentsSheet, setShowCommentsSheet] = useState(false);
 
   const deletePostMutation = useDeletePost();
   const bookmarkStore = useBookmarkStore();
@@ -668,13 +671,22 @@ function PostDetailScreenContent() {
 
   // CRITICAL: Compute all derived values and useMemo BEFORE early returns
   // These must be called unconditionally to maintain stable hook count
-  const isVideo = safePost.media?.[0]?.type === "video";
+  const isTextPost = safePost.kind === "text";
+  const isVideo = !isTextPost && safePost.media?.[0]?.type === "video";
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&
     safePost.media.length > 0;
   const hasMultipleMedia = hasMedia && safePost.media.length > 1 && !isVideo;
   const postIdString = safePost.id ? String(safePost.id) : postId;
+  const handlePrimaryCommentsPress = useCallback(() => {
+    if (!postIdString) return;
+    if (isTextPost) {
+      router.push(`/(protected)/comments/${postIdString}`);
+      return;
+    }
+    setShowCommentsSheet(true);
+  }, [isTextPost, postIdString, router]);
 
   // Collect valid image URLs for Galeria full-screen viewer
   const imageUrls = useMemo(() => {
@@ -690,7 +702,16 @@ function PostDetailScreenContent() {
   }, [hasMedia, isVideo, safePost.media]);
   const isLiked = isPostLiked; // From usePostLikeState hook
   const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
-  const commentCount = comments.length;
+  const commentCount = comments.reduce(
+    (total, comment) =>
+      total +
+      1 +
+      (comment.replies || []).reduce(
+        (nested, reply) => nested + 1 + (reply.replies?.length || 0),
+        0,
+      ),
+    0,
+  );
 
   // EARLY RETURNS: Only AFTER all hooks have been called
   // Invalid params - show error UI
@@ -1135,10 +1156,7 @@ function PostDetailScreenContent() {
                     if (postIdString)
                       screenPrefetch.comments(queryClient, postIdString);
                   }}
-                  onPress={() => {
-                    if (postIdString)
-                      router.push(`/(protected)/comments/${postIdString}`);
-                  }}
+                  onPress={handlePrimaryCommentsPress}
                 >
                   <MessageCircle size={22} color="#fff" />
                   {commentCount > 0 && (
@@ -1221,25 +1239,25 @@ function PostDetailScreenContent() {
             </View>
           </View>
 
-          {/* Text-only post - shown when no media */}
-          {!hasMedia && (
+          {/* Text-only post */}
+          {isTextPost && (
             <View
               style={{
                 width: SCREEN_WIDTH,
-                minHeight: SCREEN_WIDTH * 0.6,
-                paddingHorizontal: 24,
-                paddingVertical: 32,
+                paddingHorizontal: 20,
+                paddingVertical: 18,
               }}
-              className="bg-card items-center justify-center"
             >
-              <Text className="text-foreground text-lg font-semibold text-center leading-7">
-                {safePost?.caption || ""}
-              </Text>
+              <TextPostSurface
+                text={safePost?.caption || ""}
+                theme={safePost.textTheme}
+                variant="detail"
+              />
             </View>
           )}
 
           {/* Caption */}
-          {safePost.caption && (
+          {safePost.caption && !isTextPost && (
             <View className="px-4 py-3">
               <Text
                 style={{
@@ -1427,6 +1445,11 @@ function PostDetailScreenContent() {
         onEdit={handleActionEdit}
         onDelete={handleActionDelete}
         onShare={handleShare}
+      />
+      <CommentsSheet
+        visible={showCommentsSheet}
+        onClose={() => setShowCommentsSheet(false)}
+        postId={showCommentsSheet ? postIdString : null}
       />
     </SafeAreaView>
   );

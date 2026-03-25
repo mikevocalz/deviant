@@ -13,6 +13,7 @@ import {
   SafeLiquidGlassView as LiquidGlassView,
   safeIsLiquidGlassSupported as isLiquidGlassSupported,
 } from "@/lib/safe-native-modules";
+import { createGlassOuterStyle, createGlassScrimStyle } from "@/lib/ui/glass";
 
 interface DVNTLiquidGlassProps {
   children: React.ReactNode;
@@ -51,9 +52,9 @@ function DVNTLiquidGlassComponent({
       <LiquidGlassView
         effect="regular"
         interactive
-        style={[{ borderRadius: radius, overflow: "hidden" }, style]}
+        style={[createGlassOuterStyle(radius), style]}
       >
-        <View style={{ backgroundColor: "rgba(0,0,0,0.25)" }}>{inner}</View>
+        <View style={createGlassScrimStyle("pill")}>{inner}</View>
       </LiquidGlassView>
     );
   }
@@ -62,17 +63,9 @@ function DVNTLiquidGlassComponent({
     <BlurView
       intensity={18}
       tint="dark"
-      style={[
-        {
-          borderRadius: radius,
-          overflow: "hidden",
-          borderWidth: 0.5,
-          borderColor: "rgba(255,255,255,0.22)",
-        },
-        style,
-      ]}
+      style={[createGlassOuterStyle(radius), style]}
     >
-      <View style={{ backgroundColor: "rgba(0,0,0,0.45)" }}>{inner}</View>
+      <View style={createGlassScrimStyle("pill", true)}>{inner}</View>
     </BlurView>
   );
 }
@@ -100,11 +93,10 @@ function DVNTLiquidGlassIconButtonComponent({
         effect="regular"
         interactive
         style={[
+          createGlassOuterStyle(radius),
           {
             width: size,
             height: size,
-            borderRadius: radius,
-            overflow: "hidden",
           },
           style,
         ]}
@@ -114,7 +106,7 @@ function DVNTLiquidGlassIconButtonComponent({
             flex: 1,
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.25)",
+            ...createGlassScrimStyle("pill"),
           }}
         >
           {children}
@@ -128,13 +120,10 @@ function DVNTLiquidGlassIconButtonComponent({
       intensity={18}
       tint="dark"
       style={[
+        createGlassOuterStyle(radius),
         {
           width: size,
           height: size,
-          borderRadius: radius,
-          overflow: "hidden",
-          borderWidth: 0.5,
-          borderColor: "rgba(255,255,255,0.22)",
         },
         style,
       ]}
@@ -144,7 +133,7 @@ function DVNTLiquidGlassIconButtonComponent({
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "rgba(0,0,0,0.45)",
+          ...createGlassScrimStyle("pill", true),
         }}
       >
         {children}

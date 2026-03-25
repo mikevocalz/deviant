@@ -8,10 +8,14 @@ export type Comment = {
   hasLiked?: boolean;
   postId?: string;
   parentId?: string | null;
+  rootId?: string | null;
+  depth?: number;
   replies?: Comment[];
 };
 
 export type MediaKind = "image" | "gif" | "video" | "livePhoto";
+export type PostKind = "media" | "text";
+export type TextPostThemeKey = "graphite" | "cobalt" | "ember" | "sage";
 
 export type PostMediaItem = {
   type: MediaKind;
@@ -31,6 +35,8 @@ export type Post = {
     name?: string;
   };
   media: PostMediaItem[];
+  kind?: PostKind;
+  textTheme?: TextPostThemeKey;
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API

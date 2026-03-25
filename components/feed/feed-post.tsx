@@ -71,6 +71,7 @@ import {
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
@@ -100,6 +101,8 @@ interface FeedPostProps {
     id?: string;
   };
   media: import("@/lib/types").PostMediaItem[];
+  kind?: import("@/lib/types").PostKind;
+  textTheme?: import("@/lib/types").TextPostThemeKey;
   caption?: string;
   likes: number;
   viewerHasLiked?: boolean;
@@ -143,6 +146,8 @@ function FeedPostComponent({
   id,
   author,
   media,
+  kind,
+  textTheme,
   caption,
   likes,
   viewerHasLiked = false,
@@ -207,9 +212,11 @@ function FeedPostComponent({
   const cardInnerWidthRef = useRef(mediaSize);
   const videoViewRef = useRef<ElementRef<typeof VideoView>>(null);
 
+  const isTextPost = kind === "text";
   const hasMedia = media && media.length > 0;
-  const isVideo = hasMedia && media[0]?.type === "video";
-  const hasMultipleMedia = hasMedia && media.length > 1 && !isVideo;
+  const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";
+  const hasMultipleMedia =
+    !isTextPost && hasMedia && media.length > 1 && !isVideo;
   const currentSlide = currentSlides[id] || 0;
 
   const isFocused = useIsFocused();
@@ -314,6 +321,15 @@ function FeedPostComponent({
     toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
   }, [id, bookmarkStore, toggleBookmarkMutation]);
 
+  const handleCommentsPress = useCallback(() => {
+    if (!id) return;
+    if (isTextPost) {
+      router.push(`/(protected)/comments/${id}` as any);
+      return;
+    }
+    setCommentsSheetPostId(id);
+  }, [id, isTextPost, router, setCommentsSheetPostId]);
+
   const handleScroll = useCallback(
     (event: any) => {
       const w = cardInnerWidthRef.current || mediaSize;
@@ -400,8 +416,148 @@ function FeedPostComponent({
           overflow: "hidden",
         }}
       >
-        {/* ── Media block ───────────────────────────────────────────── */}
-        {hasMedia && (
+        {isTextPost ? (
+          <View style={{ padding: 16 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 14,
+              }}
+            >
+              <Pressable
+                onPress={handleProfilePress}
+                style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+              >
+                <Avatar
+                  uri={author?.avatar}
+                  username={author?.username || "User"}
+                  size={38}
+                  variant="roundedSquare"
+                />
+                <View style={{ maxWidth: 220 }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {author?.username}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: "rgba(226,232,240,0.68)",
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
+                  >
+                    {[location, isNSFW ? "Spicy" : null, timeAgo]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Text>
+                </View>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setActionSheetPostId(id)}
+                hitSlop={12}
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.08)",
+                }}
+              >
+                <MoreHorizontal size={20} color="#fff" />
+              </Pressable>
+            </View>
+
+            <Pressable onPress={handlePostPress}>
+              <TextPostSurface
+                text={caption}
+                theme={textTheme}
+                variant="feed"
+              />
+            </Pressable>
+
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: 16,
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 18 }}
+              >
+                <Pressable
+                  onPress={handleLike}
+                  disabled={isLikePending}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Heart
+                    size={20}
+                    color={hasLiked ? "#FF5BFC" : "#fff"}
+                    fill={hasLiked ? "#FF5BFC" : "none"}
+                  />
+                  <Text
+                    style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                  >
+                    {formatLikeCount(likesCount)}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPressIn={() => id && prefetchComments(id)}
+                  onPress={handleCommentsPress}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <MessageCircle size={20} color="#fff" />
+                  <Text
+                    style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                  >
+                    {commentCount || 0}
+                  </Text>
+                </Pressable>
+
+                <Pressable onPress={() => setShareSheetPostId(id)} hitSlop={8}>
+                  <Send size={20} color="#fff" />
+                </Pressable>
+
+                <Pressable onPress={handleSave} hitSlop={8}>
+                  <Bookmark
+                    size={20}
+                    color={isBookmarked ? "#3FDCFF" : "#fff"}
+                    fill={isBookmarked ? "#3FDCFF" : "none"}
+                  />
+                </Pressable>
+              </View>
+
+              <Text
+                style={{
+                  color: "rgba(226,232,240,0.62)",
+                  fontSize: 11,
+                  fontWeight: "700",
+                  textTransform: "uppercase",
+                }}
+              >
+                {timeAgo}
+              </Text>
+            </View>
+          </View>
+        ) : hasMedia ? (
           <View
             onLayout={(e) => {
               const w = e.nativeEvent.layout.width;
@@ -668,7 +824,7 @@ function FeedPostComponent({
                   hitSlop={8}
                   style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
                   onPressIn={() => id && prefetchComments(id)}
-                  onPress={() => id && setCommentsSheetPostId(id)}
+                  onPress={handleCommentsPress}
                 >
                   <MessageCircle size={22} color="#fff" />
                   {commentCount > 0 && (
@@ -775,7 +931,7 @@ function FeedPostComponent({
               />
             )}
           </View>
-        )}
+        ) : null}
       </Article>
 
       {/* Sheets (CommentsSheet, PostActionSheet, ShareToInboxSheet) rendered at Feed level */}

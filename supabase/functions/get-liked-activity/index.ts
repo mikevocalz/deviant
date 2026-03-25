@@ -82,6 +82,82 @@ function truncate(value: unknown, maxLength: number, fallback: string): string {
   return `${text.slice(0, maxLength - 1).trimEnd()}...`;
 }
 
+async function loadLikedRows(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  userId: number,
+  limit: number,
+) {
+  const { data: historyRows, error: historyError } = await supabaseAdmin
+    .from("liked_activity_history")
+    .select("id, entity_type, entity_id, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (!historyError) {
+    return historyRows || [];
+  }
+
+  const isMissingHistoryTable =
+    historyError.code === "42P01" ||
+    historyError.message?.toLowerCase().includes("does not exist");
+
+  if (!isMissingHistoryTable) {
+    throw historyError;
+  }
+
+  console.warn(
+    "[Edge:get-liked-activity] liked_activity_history missing, falling back to live likes tables",
+  );
+
+  const [
+    { data: postLikes, error: postLikesError },
+    { data: eventLikes, error: eventLikesError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("likes")
+      .select("id, post_id, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+    supabaseAdmin
+      .from("event_likes")
+      .select("id, event_id, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  ]);
+
+  if (postLikesError || eventLikesError) {
+    console.error("[Edge:get-liked-activity] fallback likes load error:", {
+      postLikesError,
+      eventLikesError,
+    });
+    throw postLikesError || eventLikesError;
+  }
+
+  return [
+    ...(postLikes || []).map((row: any) => ({
+      id: row.id,
+      entity_type: "post",
+      entity_id: row.post_id,
+      created_at: row.created_at,
+    })),
+    ...(eventLikes || []).map((row: any) => ({
+      id: row.id,
+      entity_type: "event",
+      entity_id: row.event_id,
+      created_at: row.created_at,
+    })),
+  ]
+    .sort(
+      (a, b) =>
+        new Date(b.created_at || 0).getTime() -
+        new Date(a.created_at || 0).getTime(),
+    )
+    .slice(0, limit);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -144,22 +220,7 @@ Deno.serve(async (req) => {
       // Default limit is fine.
     }
 
-    const { data: historyRows, error: historyError } = await supabaseAdmin
-      .from("liked_activity_history")
-      .select("id, entity_type, entity_id, created_at")
-      .eq("user_id", userData.id)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (historyError) {
-      console.error(
-        "[Edge:get-liked-activity] liked history load error:",
-        historyError,
-      );
-      return jsonResponse({ error: "Failed to load liked activity" }, 500);
-    }
-
-    const rows = historyRows || [];
+    const rows = await loadLikedRows(supabaseAdmin, userData.id, limit);
     const postIds = [
       ...new Set(
         rows

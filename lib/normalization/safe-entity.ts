@@ -27,6 +27,8 @@ export function normalizePost(
         name: "Unknown User",
       },
       media: [],
+      kind: "media",
+      textTheme: "graphite",
       caption: "",
       likes: 0,
       viewerHasLiked: false,

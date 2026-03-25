@@ -27,6 +27,7 @@ import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { LegendList } from "@/components/list";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -105,7 +106,14 @@ const GridCell = memo(function GridCell({
       testID={`profile.${userId}.gridTile.${tile.id}`}
     >
       <View style={[styles.cellInner, { width, height, borderRadius }]}>
-        {tile.kind === "video" ? (
+        {tile.kind === "text" ? (
+          <TextPostSurface
+            text={tile.text}
+            theme={tile.textTheme}
+            variant="grid"
+            style={{ minHeight: height, height }}
+          />
+        ) : tile.kind === "video" ? (
           <VideoThumbnailCell
             videoUrl={tile.videoUrl ?? ""}
             coverUrl={tile.coverUrl}

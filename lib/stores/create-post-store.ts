@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
+import type { PostKind, TextPostThemeKey } from "@/lib/types";
 
 interface LocationData {
   name: string;
@@ -26,6 +27,8 @@ interface CreatePostState {
   tags: string[];
   placedTags: PlacedPostTag[];
   isNSFW: boolean;
+  postKind: PostKind;
+  textTheme: TextPostThemeKey;
   step: "select" | "edit" | "location";
   isUploading: boolean;
   uploadProgress: number;
@@ -50,6 +53,8 @@ interface CreatePostState {
     y: number,
   ) => void;
   setIsNSFW: (isNSFW: boolean) => void;
+  setPostKind: (postKind: PostKind) => void;
+  setTextTheme: (textTheme: TextPostThemeKey) => void;
   setStep: (step: "select" | "edit" | "location") => void;
   startUpload: () => void;
   setUploadProgress: (progress: number) => void;
@@ -66,6 +71,8 @@ const initialState = {
   tags: [] as string[],
   placedTags: [] as PlacedPostTag[],
   isNSFW: false,
+  postKind: "media" as PostKind,
+  textTheme: "graphite" as TextPostThemeKey,
   step: "select" as const,
   isUploading: false,
   uploadProgress: 0,
@@ -142,6 +149,8 @@ export const useCreatePostStore = create<CreatePostState>((set, get) => ({
     });
   },
   setIsNSFW: (isNSFW) => set({ isNSFW }),
+  setPostKind: (postKind) => set({ postKind }),
+  setTextTheme: (textTheme) => set({ textTheme }),
   setStep: (step) => set({ step }),
   startUpload: () => set({ isUploading: true, uploadProgress: 0 }),
   setUploadProgress: (progress) => set({ uploadProgress: progress }),

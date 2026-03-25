@@ -40,6 +40,7 @@ import {
   LocationAutocompleteV3,
   type LocationData,
 } from "@/components/ui/location-autocomplete-v3";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const columnWidth = (SCREEN_WIDTH - 8) / 3;
@@ -454,6 +455,7 @@ function SearchScreenContent() {
                       {searchResults.map((post: any) => {
                         const firstMedia = post.media?.[0];
                         const thumbnail = firstMedia?.url;
+                        const isTextPost = post.kind === "text";
                         const isVideo = firstMedia?.type === "video";
 
                         return (
@@ -474,9 +476,16 @@ function SearchScreenContent() {
                               className="flex-1 overflow-hidden bg-secondary"
                               style={{ borderRadius: 8 }}
                             >
-                              {thumbnail &&
-                              (thumbnail.startsWith("http://") ||
-                                thumbnail.startsWith("https://")) ? (
+                              {isTextPost ? (
+                                <TextPostSurface
+                                  text={post.caption}
+                                  theme={post.textTheme}
+                                  variant="grid"
+                                  style={{ minHeight: "100%", height: "100%" }}
+                                />
+                              ) : thumbnail &&
+                                (thumbnail.startsWith("http://") ||
+                                  thumbnail.startsWith("https://")) ? (
                                 <>
                                   <Image
                                     source={{ uri: thumbnail }}
@@ -496,7 +505,7 @@ function SearchScreenContent() {
                               ) : (
                                 <View className="w-full h-full items-center justify-center">
                                   <Text className="text-muted-foreground text-xs">
-                                    No media
+                                    No preview
                                   </Text>
                                 </View>
                               )}
@@ -560,6 +569,7 @@ function SearchScreenContent() {
                         {searchResults.map((post: any) => {
                           const firstMedia = post.media?.[0];
                           const thumbnail = firstMedia?.url;
+                          const isTextPost = post.kind === "text";
                           const isVideo = firstMedia?.type === "video";
 
                           return (
@@ -580,9 +590,19 @@ function SearchScreenContent() {
                                 className="flex-1 overflow-hidden bg-secondary"
                                 style={{ borderRadius: 8 }}
                               >
-                                {thumbnail &&
-                                (thumbnail.startsWith("http://") ||
-                                  thumbnail.startsWith("https://")) ? (
+                                {isTextPost ? (
+                                  <TextPostSurface
+                                    text={post.caption}
+                                    theme={post.textTheme}
+                                    variant="grid"
+                                    style={{
+                                      minHeight: "100%",
+                                      height: "100%",
+                                    }}
+                                  />
+                                ) : thumbnail &&
+                                  (thumbnail.startsWith("http://") ||
+                                    thumbnail.startsWith("https://")) ? (
                                   <>
                                     <Image
                                       source={{ uri: thumbnail }}
@@ -605,7 +625,7 @@ function SearchScreenContent() {
                                 ) : (
                                   <View className="w-full h-full items-center justify-center">
                                     <Text className="text-muted-foreground text-xs">
-                                      No media
+                                      No preview
                                     </Text>
                                   </View>
                                 )}

@@ -1,5 +1,6 @@
-import { supabase } from '../supabase/client';
-import { DB } from '../supabase/db-map';
+import { supabase } from "../supabase/client";
+import { DB } from "../supabase/db-map";
+import { normalizeTextPostTheme } from "@/lib/posts/text-post";
 
 export const searchApi = {
   /**
@@ -7,15 +8,16 @@ export const searchApi = {
    */
   async searchPosts(query: string, limit: number = 50) {
     try {
-      console.log('[Search] searchPosts, query:', query);
-      
+      console.log("[Search] searchPosts, query:", query);
+
       if (!query || query.length < 1) {
         return { docs: [], totalDocs: 0 };
       }
 
       const { data, error, count } = await supabase
         .from(DB.posts.table)
-        .select(`
+        .select(
+          `
           *,
           author:${DB.posts.authorId}(
             ${DB.users.id},
@@ -28,9 +30,11 @@ export const searchApi = {
             type,
             url
           )
-        `, { count: 'exact' })
+        `,
+          { count: "exact" },
+        )
         .ilike(DB.posts.content, `%${query}%`)
-        .eq(DB.posts.visibility, 'public')
+        .eq(DB.posts.visibility, "public")
         .order(DB.posts.createdAt, { ascending: false })
         .limit(limit);
 
@@ -39,16 +43,21 @@ export const searchApi = {
       const docs = (data || []).map((post: any) => ({
         id: String(post[DB.posts.id]),
         author: {
-          username: post.author?.[DB.users.username] || 'unknown',
-          avatar: post.author?.avatar?.url || '',
+          username: post.author?.[DB.users.username] || "unknown",
+          avatar: post.author?.avatar?.url || "",
           verified: post.author?.[DB.users.verified] || false,
-          name: post.author?.[DB.users.firstName] || post.author?.[DB.users.username] || 'Unknown',
+          name:
+            post.author?.[DB.users.firstName] ||
+            post.author?.[DB.users.username] ||
+            "Unknown",
         },
         media: (post.media || []).map((m: any) => ({
-          type: m.type || 'image',
-          url: m.url || '',
+          type: m.type || "image",
+          url: m.url || "",
         })),
-        caption: post[DB.posts.content] || '',
+        kind: post[DB.posts.postKind] === "text" ? "text" : "media",
+        textTheme: normalizeTextPostTheme(post[DB.posts.textTheme]),
+        caption: post[DB.posts.content] || "",
         likes: Number(post[DB.posts.likesCount]) || 0,
         comments: [],
         timeAgo: formatTimeAgo(post[DB.posts.createdAt]),
@@ -57,7 +66,7 @@ export const searchApi = {
 
       return { docs, totalDocs: count || 0 };
     } catch (error) {
-      console.error('[Search] searchPosts error:', error);
+      console.error("[Search] searchPosts error:", error);
       return { docs: [], totalDocs: 0 };
     }
   },
@@ -67,15 +76,16 @@ export const searchApi = {
    */
   async searchUsers(query: string, limit: number = 50) {
     try {
-      console.log('[Search] searchUsers, query:', query);
-      
+      console.log("[Search] searchUsers, query:", query);
+
       if (!query || query.length < 1) {
         return { docs: [], totalDocs: 0 };
       }
 
       const { data, error, count } = await supabase
         .from(DB.users.table)
-        .select(`
+        .select(
+          `
           ${DB.users.id},
           ${DB.users.username},
           ${DB.users.firstName},
@@ -84,32 +94,36 @@ export const searchApi = {
           ${DB.users.verified},
           ${DB.users.followersCount},
           avatar:${DB.users.avatarId}(url)
-        `, { count: 'exact' })
-        .or(`${DB.users.username}.ilike.%${query}%,${DB.users.firstName}.ilike.%${query}%`)
+        `,
+          { count: "exact" },
+        )
+        .or(
+          `${DB.users.username}.ilike.%${query}%,${DB.users.firstName}.ilike.%${query}%`,
+        )
         .limit(limit);
 
       if (error) throw error;
 
       const docs = (data || []).map((user: any) => ({
         id: String(user[DB.users.id]),
-        username: user[DB.users.username] || 'unknown',
-        name: user[DB.users.firstName] || user[DB.users.username] || 'Unknown',
-        avatar: user.avatar?.url || '',
-        bio: user[DB.users.bio] || '',
+        username: user[DB.users.username] || "unknown",
+        name: user[DB.users.firstName] || user[DB.users.username] || "Unknown",
+        avatar: user.avatar?.url || "",
+        bio: user[DB.users.bio] || "",
         verified: user[DB.users.verified] || false,
         followersCount: Number(user[DB.users.followersCount]) || 0,
       }));
 
       return { docs, totalDocs: count || 0 };
     } catch (error) {
-      console.error('[Search] searchUsers error:', error);
+      console.error("[Search] searchUsers error:", error);
       return { docs: [], totalDocs: 0 };
     }
   },
 };
 
 function formatTimeAgo(dateString: string): string {
-  if (!dateString) return 'Just now';
+  if (!dateString) return "Just now";
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -118,7 +132,7 @@ function formatTimeAgo(dateString: string): string {
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffSecs < 60) return 'Just now';
+  if (diffSecs < 60) return "Just now";
   if (diffMins < 60) return `${diffMins}m`;
   if (diffHours < 24) return `${diffHours}h`;
   if (diffDays < 7) return `${diffDays}d`;

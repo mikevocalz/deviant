@@ -1,6 +1,6 @@
 /**
  * Edge Function: get-post-comments
- * Fetch comments for a post with author + hasLiked. Uses service role to bypass RLS.
+ * Fetch comments for a post with nested replies up to depth 2.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -12,6 +12,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 function formatTimeAgo(dateString: string): string {
   if (!dateString) return "Just now";
@@ -29,51 +36,39 @@ function formatTimeAgo(dateString: string): string {
   return `${Math.floor(diffDays / 7)}w`;
 }
 
-interface CommentRow {
+interface CommentNode {
   id: string;
+  postId: string;
   username: string;
   avatar: string;
   text: string;
   timeAgo: string;
   likes: number;
   hasLiked: boolean;
+  parentId: string | null;
+  rootId: string | null;
+  depth: number;
+  replies: CommentNode[];
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
+  if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
   try {
     const body = await req.json().catch(() => ({}));
-    const postId = body?.postId != null ? String(body.postId) : null;
+    const postId = body?.postId != null ? Number(body.postId) : NaN;
     const limit = Math.min(Math.max(Number(body?.limit) || 50, 1), 100);
-    if (!postId) {
-      return new Response(JSON.stringify({ error: "postId is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const postIdInt = parseInt(postId);
-    if (isNaN(postIdInt)) {
-      return new Response(JSON.stringify({ error: "Invalid postId" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+    if (!Number.isFinite(postId) || postId <= 0) {
+      return json({ error: "Invalid postId" }, 400);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Server configuration error" }, 500);
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -90,6 +85,7 @@ Deno.serve(async (req) => {
         .select("userId, expiresAt")
         .eq("token", token)
         .single();
+
       if (sessionData && new Date(sessionData.expiresAt) >= new Date()) {
         const userData = await resolveOrProvisionUser(
           supabaseAdmin,
@@ -100,55 +96,93 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: commentsData, error } = await supabaseAdmin
+    const { data: rootComments, error: rootError } = await supabaseAdmin
       .from("comments")
       .select(
-        `id, content, likes_count, created_at, author:author_id(id, username, first_name, avatar:avatar_id(url))`,
+        "id, post_id, content, likes_count, created_at, parent_id, root_id, depth, author:author_id(id, username, first_name, avatar:avatar_id(url))",
       )
-      .eq("post_id", postIdInt)
+      .eq("post_id", postId)
+      .is("parent_id", null)
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    if (error) {
-      console.error("[Edge:get-post-comments] Supabase error:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (rootError) {
+      console.error("[Edge:get-post-comments] root query error:", rootError);
+      return json({ error: rootError.message }, 500);
     }
 
-    const commentIds = (commentsData || []).map((c: any) => c.id);
+    const rootIds = (rootComments || []).map((comment: any) => comment.id);
+    const { data: replyComments, error: replyError } = rootIds.length
+      ? await supabaseAdmin
+          .from("comments")
+          .select(
+            "id, post_id, content, likes_count, created_at, parent_id, root_id, depth, author:author_id(id, username, first_name, avatar:avatar_id(url))",
+          )
+          .eq("post_id", postId)
+          .in("root_id", rootIds)
+          .order("created_at", { ascending: true })
+      : { data: [], error: null };
+
+    if (replyError) {
+      console.error("[Edge:get-post-comments] reply query error:", replyError);
+      return json({ error: replyError.message }, 500);
+    }
+
+    const allRows = [...(rootComments || []), ...(replyComments || [])];
+    const allIds = allRows.map((row: any) => row.id);
+
     let likedCommentIds = new Set<number>();
-    if (viewerId && commentIds.length > 0) {
+    if (viewerId && allIds.length > 0) {
       const { data: likesData } = await supabaseAdmin
         .from("comment_likes")
         .select("comment_id")
-        .in("comment_id", commentIds)
+        .in("comment_id", allIds)
         .eq("user_id", viewerId);
       likedCommentIds = new Set(
-        (likesData || []).map((l: any) => l.comment_id),
+        (likesData || []).map((row: any) => row.comment_id),
       );
     }
 
-    const comments: CommentRow[] = (commentsData || []).map((c: any) => ({
-      id: String(c.id),
-      username: c.author?.username || "unknown",
-      avatar: c.author?.avatar?.url || "",
-      text: c.content || "",
-      timeAgo: formatTimeAgo(c.created_at),
-      likes: Number(c.likes_count) || 0,
-      hasLiked: viewerId ? likedCommentIds.has(c.id) : false,
-    }));
-
-    return new Response(JSON.stringify({ comments }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const toNode = (row: any): CommentNode => ({
+      id: String(row.id),
+      postId: String(row.post_id),
+      username: row.author?.username || "unknown",
+      avatar: row.author?.avatar?.url || "",
+      text: row.content || "",
+      timeAgo: formatTimeAgo(row.created_at),
+      likes: Number(row.likes_count) || 0,
+      hasLiked: viewerId ? likedCommentIds.has(row.id) : false,
+      parentId: row.parent_id != null ? String(row.parent_id) : null,
+      rootId: row.root_id != null ? String(row.root_id) : null,
+      depth: Number(row.depth) || 0,
+      replies: [],
     });
+
+    const nodeMap = new Map<string, CommentNode>();
+    for (const row of allRows) {
+      const node = toNode(row);
+      nodeMap.set(node.id, node);
+    }
+
+    const roots: CommentNode[] = [];
+    for (const row of rootComments || []) {
+      const root = nodeMap.get(String(row.id));
+      if (root) roots.push(root);
+    }
+
+    for (const row of replyComments || []) {
+      const node = nodeMap.get(String(row.id));
+      if (!node) continue;
+      const parentId = row.parent_id != null ? String(row.parent_id) : null;
+      if (!parentId) continue;
+      const parent = nodeMap.get(parentId);
+      if (!parent) continue;
+      parent.replies.push(node);
+    }
+
+    return json({ comments: roots });
   } catch (err) {
     console.error("[Edge:get-post-comments] Unexpected error:", err);
-    return new Response(
-      JSON.stringify({ error: "An unexpected error occurred" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
+    return json({ error: "An unexpected error occurred" }, 500);
   }
 });

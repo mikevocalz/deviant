@@ -32,10 +32,12 @@ export interface SafeProfileData {
  */
 export interface SafeGridTile {
   id: string;
-  kind: "image" | "gif" | "livePhoto" | "carousel" | "video";
+  kind: "image" | "gif" | "livePhoto" | "carousel" | "video" | "text";
   coverUrl: string | null;
   videoUrl: string | null;
   mediaCount: number;
+  text?: string;
+  textTheme?: import("@/lib/types").TextPostThemeKey;
   // Flag for invalid tiles that should not be rendered
   _isValid: boolean;
 }
@@ -115,6 +117,8 @@ export function safeGridTile(post: any): SafeGridTile {
         coverUrl: null,
         videoUrl: null,
         mediaCount: 0,
+        text: "",
+        textTheme: "graphite",
         _isValid: false,
       };
     }
@@ -127,6 +131,8 @@ export function safeGridTile(post: any): SafeGridTile {
         coverUrl: null,
         videoUrl: null,
         mediaCount: 0,
+        text: "",
+        textTheme: "graphite",
         _isValid: false,
       };
     }
@@ -135,9 +141,12 @@ export function safeGridTile(post: any): SafeGridTile {
     const mediaCount = media.length;
 
     // Determine kind
-    let kind: "image" | "gif" | "livePhoto" | "carousel" | "video" = "image";
+    let kind: "image" | "gif" | "livePhoto" | "carousel" | "video" | "text" =
+      post.kind === "text" ? "text" : "image";
     const firstType = media[0]?.type;
-    if (mediaCount > 1) {
+    if (kind === "text") {
+      kind = "text";
+    } else if (mediaCount > 1) {
       kind = "carousel";
     } else if (firstType === "video") {
       kind = "video";
@@ -177,6 +186,8 @@ export function safeGridTile(post: any): SafeGridTile {
       coverUrl,
       videoUrl,
       mediaCount,
+      text: typeof post.caption === "string" ? post.caption : "",
+      textTheme: post.textTheme || "graphite",
       _isValid: true,
     };
   } catch (error) {
@@ -187,6 +198,8 @@ export function safeGridTile(post: any): SafeGridTile {
       coverUrl: null,
       videoUrl: null,
       mediaCount: 0,
+      text: "",
+      textTheme: "graphite",
       _isValid: false,
     };
   }

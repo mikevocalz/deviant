@@ -39,6 +39,50 @@ function generateMutationId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+function mapCommentTree(comment: any): CommentData {
+  return {
+    id: comment.id,
+    username: comment.username,
+    avatar: comment.avatar,
+    text: comment.text,
+    timeAgo: comment.timeAgo,
+    likes: comment.likes,
+    hasLiked: comment.hasLiked,
+    depth: comment.depth,
+    parentId: comment.parentId,
+    rootId: comment.rootId,
+    replies: Array.isArray(comment.replies)
+      ? comment.replies
+          .filter(
+            (reply: any) => reply && reply.id && reply.username && reply.text,
+          )
+          .map(mapCommentTree)
+      : [],
+  };
+}
+
+function collectCommenters(
+  comments: any[],
+  currentUsername?: string,
+  acc: { username: string; avatar?: string }[] = [],
+  seen = new Set<string>(),
+) {
+  for (const comment of comments) {
+    if (
+      comment?.username &&
+      !seen.has(comment.username) &&
+      comment.username !== currentUsername
+    ) {
+      seen.add(comment.username);
+      acc.push({ username: comment.username, avatar: comment.avatar });
+    }
+    if (Array.isArray(comment?.replies)) {
+      collectCommenters(comment.replies, currentUsername, acc, seen);
+    }
+  }
+  return acc;
+}
+
 function CommentsScreenContent() {
   const { postId } = useLocalSearchParams<{ postId: string }>();
   const { commentId } = useLocalSearchParams<{ commentId?: string }>();
@@ -197,21 +241,7 @@ function CommentsScreenContent() {
 
   // Extract unique commenters for @mention autocomplete (instant local results)
   const commenters = useMemo(() => {
-    const seen = new Set<string>();
-    const result: { username: string; avatar?: string }[] = [];
-    const addUser = (u: string, a?: string) => {
-      if (u && !seen.has(u) && u !== user?.username) {
-        seen.add(u);
-        result.push({ username: u, avatar: a });
-      }
-    };
-    for (const c of comments) {
-      addUser(c.username, c.avatar);
-      if (c.replies) {
-        for (const r of c.replies) addUser(r.username, r.avatar);
-      }
-    }
-    return result;
+    return collectCommenters(comments, user?.username);
   }, [comments, user?.username]);
 
   // Detect @mention query from cursor position
@@ -384,24 +414,7 @@ function CommentsScreenContent() {
                     const isHighlightedComment = item.id === commentId;
 
                     // Transform to CommentData format for ThreadedComment component
-                    const commentData: CommentData = {
-                      id: item.id,
-                      username: item.username,
-                      avatar: item.avatar,
-                      text: item.text,
-                      timeAgo: item.timeAgo,
-                      likes: item.likes,
-                      replies: item.replies
-                        ?.filter((r) => r && r.id && r.username && r.text)
-                        .map((r) => ({
-                          id: r.id,
-                          username: r.username,
-                          avatar: r.avatar,
-                          text: r.text,
-                          timeAgo: r.timeAgo,
-                          likes: r.likes,
-                        })),
-                    };
+                    const commentData = mapCommentTree(item);
 
                     return (
                       <ThreadedComment

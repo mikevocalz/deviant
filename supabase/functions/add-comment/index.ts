@@ -85,14 +85,14 @@ Deno.serve(async (req) => {
       return errorResponse("rate_limited", "Too many comments. Slow down.");
     }
 
-    let body: { postId: number; content: string };
+    let body: { postId: number; content: string; parentId?: number | null };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { postId, content } = body;
+    const { postId, content, parentId } = body;
     if (!postId || typeof postId !== "number") {
       return errorResponse(
         "validation_error",
@@ -119,12 +119,61 @@ Deno.serve(async (req) => {
     const userId = userData.id;
     console.log("[Edge:add-comment] User:", userId, "Post:", postId);
 
+    let normalizedParentId: number | null = null;
+    let rootId: number | null = null;
+    let depth = 0;
+    let parentAuthorId: number | null = null;
+
+    if (parentId != null) {
+      const { data: parentComment, error: parentError } = await supabaseAdmin
+        .from("comments")
+        .select("id, post_id, author_id, parent_id, root_id, depth")
+        .eq("id", parentId)
+        .single();
+
+      if (parentError || !parentComment) {
+        return errorResponse(
+          "validation_error",
+          "Parent comment not found",
+          400,
+        );
+      }
+
+      if (Number(parentComment.post_id) !== postId) {
+        return errorResponse(
+          "validation_error",
+          "Replies must belong to the same post",
+          400,
+        );
+      }
+
+      const parentDepth = Number(parentComment.depth) || 0;
+      if (parentDepth >= 2) {
+        return errorResponse(
+          "validation_error",
+          "Replies are limited to 2 levels",
+          400,
+        );
+      }
+
+      normalizedParentId = Number(parentComment.id);
+      rootId =
+        parentComment.root_id != null
+          ? Number(parentComment.root_id)
+          : Number(parentComment.id);
+      depth = parentDepth + 1;
+      parentAuthorId = Number(parentComment.author_id) || null;
+    }
+
     // Insert comment
     const { data: comment, error: insertError } = await supabaseAdmin
       .from("comments")
       .insert({
         post_id: postId,
         author_id: userId,
+        parent_id: normalizedParentId,
+        root_id: rootId,
+        depth,
         content: content.trim(),
       })
       .select()
@@ -149,17 +198,27 @@ Deno.serve(async (req) => {
         .eq("id", postId)
         .single();
 
+      const recipients = new Set<number>();
       if (post && post.author_id && post.author_id !== userId) {
-        await supabaseAdmin.from("notifications").insert({
-          recipient_id: post.author_id,
-          actor_id: userId,
-          type: "comment",
-          entity_type: "post",
-          entity_id: String(postId),
-        });
+        recipients.add(Number(post.author_id));
+      }
+      if (parentAuthorId && parentAuthorId !== userId) {
+        recipients.add(parentAuthorId);
+      }
+
+      if (recipients.size > 0) {
+        await supabaseAdmin.from("notifications").insert(
+          [...recipients].map((recipientId) => ({
+            recipient_id: recipientId,
+            actor_id: userId,
+            type: "comment",
+            entity_type: "post",
+            entity_id: String(postId),
+          })),
+        );
         console.log(
-          "[Edge:add-comment] Comment notification sent to post author:",
-          post.author_id,
+          "[Edge:add-comment] Comment notifications sent:",
+          recipients.size,
         );
       }
     } catch (notifErr) {
@@ -217,6 +276,9 @@ Deno.serve(async (req) => {
         comment: {
           id: String(comment.id),
           postId: String(comment.post_id),
+          parentId: comment.parent_id ? String(comment.parent_id) : null,
+          rootId: comment.root_id ? String(comment.root_id) : null,
+          depth: Number(comment.depth) || 0,
           content: comment.content,
           createdAt: comment.created_at,
           author: {

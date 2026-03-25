@@ -357,12 +357,21 @@ export function useCreatePost() {
               ...m,
               type: (m.type as any) ?? "image",
             })),
+            kind:
+              newPostData.kind === "text"
+                ? ("text" as const)
+                : ("media" as const),
+            textTheme: newPostData.textTheme || "graphite",
             caption: newPostData.content || "",
             likes: 0,
             comments: [],
             timeAgo: "Just now",
             location: newPostData.location,
             isNSFW: newPostData.isNSFW || false,
+            type:
+              newPostData.kind === "text"
+                ? undefined
+                : (newPostData.media?.[0]?.type as any) || "image",
           };
           return {
             ...old,
@@ -393,12 +402,21 @@ export function useCreatePost() {
             type: ((m.type as any) ??
               "image") as import("@/lib/types").MediaKind,
           })),
+          kind:
+            newPostData.kind === "text"
+              ? ("text" as const)
+              : ("media" as const),
+          textTheme: newPostData.textTheme || "graphite",
           caption: newPostData.content || "",
           likes: 0,
           comments: [],
           timeAgo: "Just now",
           location: newPostData.location,
           isNSFW: newPostData.isNSFW || false,
+          type:
+            newPostData.kind === "text"
+              ? undefined
+              : (newPostData.media?.[0]?.type as any) || "image",
         };
         return [optimisticPost, ...old];
       });
@@ -422,6 +440,11 @@ export function useCreatePost() {
                 ...m,
                 type: (m.type as any) ?? "image",
               })),
+              kind:
+                newPostData.kind === "text"
+                  ? ("text" as const)
+                  : ("media" as const),
+              textTheme: newPostData.textTheme || "graphite",
               caption: newPostData.content || "",
               likes: 0,
               comments: [],
@@ -429,6 +452,10 @@ export function useCreatePost() {
               createdAt: new Date().toISOString(),
               location: newPostData.location,
               isNSFW: newPostData.isNSFW || false,
+              type:
+                newPostData.kind === "text"
+                  ? undefined
+                  : (newPostData.media?.[0]?.type as any) || "image",
             };
             return [optimisticPost, ...old];
           },

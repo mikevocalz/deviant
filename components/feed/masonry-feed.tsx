@@ -49,6 +49,7 @@ import type { Event } from "@/lib/hooks/use-events";
 import type { Post } from "@/lib/types";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import * as Haptics from "expo-haptics";
+import { TextPostSurface } from "@/components/post/TextPostSurface";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -165,6 +166,7 @@ const MasonryCell = memo(function MasonryCell({
   }, [toggleLike]);
 
   const media = post.media?.[0];
+  const isTextPost = post.kind === "text";
   const isVideo = media?.type === "video";
   const isCarousel = (post.media?.length || 0) > 1;
   const isGif = media?.type === "gif";
@@ -176,7 +178,14 @@ const MasonryCell = memo(function MasonryCell({
   return (
     <Pressable onPress={handlePress} style={{ marginBottom: COLUMN_GAP }}>
       <View style={[styles.cell, { width, height, borderRadius: CELL_RADIUS }]}>
-        {isVideo ? (
+        {isTextPost ? (
+          <TextPostSurface
+            text={post.caption}
+            theme={post.textTheme}
+            variant="grid"
+            style={{ minHeight: height, height }}
+          />
+        ) : isVideo ? (
           <VideoThumb
             videoUrl={media?.url || ""}
             coverUrl={coverUrl}

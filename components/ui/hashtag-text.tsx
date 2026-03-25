@@ -15,6 +15,7 @@ interface HashtagTextProps {
   style?: any;
   textStyle?: any;
   color?: string; // Explicit text color - REQUIRED for visibility
+  numberOfLines?: number;
 }
 
 interface TextPart {
@@ -32,6 +33,7 @@ export function HashtagText({
   style,
   textStyle,
   color = DEFAULT_TEXT_COLOR,
+  numberOfLines,
 }: HashtagTextProps) {
   const router = useRouter();
 
@@ -105,7 +107,10 @@ export function HashtagText({
   if (!text) return null;
 
   return (
-    <Text style={[styles.container, style, textStyle, { color }]}>
+    <Text
+      style={[styles.container, style, textStyle, { color }]}
+      numberOfLines={numberOfLines}
+    >
       {parts.map((part, index) => {
         if (part.type === "hashtag") {
           return (
