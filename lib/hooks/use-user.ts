@@ -7,6 +7,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usersApi } from "@/lib/api/users";
+import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 
 function findCachedUserSnapshot(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -63,7 +64,7 @@ export function useUser(username: string | null | undefined) {
       username && username.length > 0
         ? () => findCachedUserSnapshot(queryClient, username)
         : undefined,
-    // Inherits global staleTime (5min) + refetchOnMount: false
-    // Follow/unfollow freshness handled by cache invalidation in mutation
+    staleTime: STALE_TIMES.profileOther,
+    refetchOnMount: "always",
   });
 }
