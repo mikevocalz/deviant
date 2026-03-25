@@ -8,6 +8,7 @@
  */
 
 import { supabase } from "../supabase/client";
+import type { TextPostThemeKey } from "@/lib/types";
 
 export interface BootstrapFeedResponse {
   posts: BootstrapPost[];
@@ -21,6 +22,8 @@ export interface BootstrapFeedResponse {
 export interface BootstrapPost {
   id: string;
   caption: string;
+  kind?: "media" | "text";
+  textTheme?: TextPostThemeKey | null;
   createdAt: string;
   isNSFW: boolean;
   location: string | null;

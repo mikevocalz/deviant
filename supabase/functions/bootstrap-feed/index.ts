@@ -82,7 +82,7 @@ Deno.serve(async (req: Request) => {
         .from("posts")
         .select(
           `
-          id, content, created_at, visibility, is_nsfw, location,
+          id, content, post_kind, text_theme, created_at, visibility, is_nsfw, location,
           likes_count, comments_count,
           author:users!posts_author_id_users_id_fk(
             id, username, first_name, verified,
@@ -172,6 +172,8 @@ Deno.serve(async (req: Request) => {
       return {
         id: pid,
         caption: p.content || "",
+        kind: p.post_kind === "text" ? "text" : "media",
+        textTheme: p.text_theme || null,
         createdAt: p.created_at,
         isNSFW: p.is_nsfw || false,
         location: p.location || null,

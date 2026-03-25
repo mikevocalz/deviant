@@ -478,30 +478,49 @@ export const messagesApi = {
           .from(DB.users.table)
           .select(`${DB.users.id}, ${DB.users.authId}, ${DB.users.username}`)
           .eq(DB.users.username, otherUserId)
-          .single();
+          .maybeSingle();
 
-        if (lookupError || !user) {
-          console.error(
-            "[Messages] Username lookup failed:",
-            otherUserId,
-            lookupError,
-          );
-          throw new Error(
-            `User not found: ${otherUserId}${lookupError ? ` (${lookupError.message})` : ""}`,
-          );
+        if (user) {
+          console.log("[Messages] User lookup result:", {
+            id: user[DB.users.id],
+            auth_id: user[DB.users.authId],
+            username: user[DB.users.username],
+          });
+
+          // Prefer authId for Better Auth compatibility
+          resolvedIdentifier =
+            user[DB.users.authId] || String(user[DB.users.id]);
+        } else {
+          const { data: authUser, error: authLookupError } = await supabase
+            .from("user")
+            .select("id, username")
+            .eq("username", otherUserId)
+            .maybeSingle();
+
+          if (authLookupError || !authUser?.id) {
+            console.error(
+              "[Messages] Username lookup failed:",
+              otherUserId,
+              lookupError || authLookupError,
+            );
+            throw new Error(
+              `User not found: ${otherUserId}${authLookupError ? ` (${authLookupError.message})` : lookupError ? ` (${lookupError.message})` : ""}`,
+            );
+          }
+
+          console.log("[Messages] Better Auth username lookup result:", {
+            auth_id: authUser.id,
+            username: authUser.username,
+          });
+
+          resolvedIdentifier = authUser.id;
         }
 
-        console.log("[Messages] User lookup result:", {
-          id: user[DB.users.id],
-          auth_id: user[DB.users.authId],
-          username: user[DB.users.username],
-        });
-
-        // Prefer authId (UUID) for Better Auth compatibility
-        resolvedIdentifier = user[DB.users.authId] || String(user[DB.users.id]);
-
         if (!resolvedIdentifier) {
-          console.error("[Messages] User has no authId or id:", user);
+          console.error(
+            "[Messages] User has no authId or id after username lookup:",
+            otherUserId,
+          );
           throw new Error(
             `User ${otherUserId} exists but has no valid identifier`,
           );

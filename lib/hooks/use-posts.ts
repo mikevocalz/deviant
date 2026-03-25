@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueryClient,
   useInfiniteQuery,
+  QueryClient,
 } from "@tanstack/react-query";
 import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/posts";
@@ -16,6 +17,34 @@ import { isValidPostId } from "@/lib/validation/post-params";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
+
+function findCachedPostSnapshot(
+  queryClient: QueryClient,
+  postId: string,
+): Post | undefined {
+  const direct = queryClient.getQueryData<Post>(postKeys.detail(postId));
+  if (direct) return direct;
+
+  const feed = queryClient.getQueryData<Post[]>(postKeys.feed());
+  const feedMatch = feed?.find((post: Post) => post.id === postId);
+  if (feedMatch) return feedMatch;
+
+  const infiniteFeed = queryClient.getQueryData<any>(postKeys.feedInfinite());
+  const pagedMatch = infiniteFeed?.pages
+    ?.flatMap((page: any) => page?.data || [])
+    ?.find((post: Post) => post.id === postId);
+  if (pagedMatch) return pagedMatch;
+
+  const profileQueries = queryClient.getQueriesData<Post[]>({
+    queryKey: ["profilePosts"],
+  });
+  for (const [, posts] of profileQueries) {
+    const match = posts?.find((post: Post) => post.id === postId);
+    if (match) return match;
+  }
+
+  return undefined;
+}
 
 /**
  * Query key factory for posts
@@ -79,6 +108,8 @@ export function useProfilePosts(userId: string) {
 // Fetch single post by ID
 // CRITICAL: This is the canonical query for Post Detail - always ID-driven
 export function usePost(id: string) {
+  const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: postKeys.detail(id),
     queryFn: () => {
@@ -94,6 +125,9 @@ export function usePost(id: string) {
       // Retry network errors up to 2 times
       return failureCount < 2;
     },
+    placeholderData: isValidPostId(id)
+      ? () => findCachedPostSnapshot(queryClient, id)
+      : undefined,
     staleTime: STALE_TIMES.postDetail,
   });
 }

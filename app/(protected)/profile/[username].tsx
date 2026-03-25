@@ -23,11 +23,11 @@ import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { usersApi } from "@/lib/api/users";
-import { Image } from "expo-image";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { navigateToChat } from "@/lib/navigation/chat-routes";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
+import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
 import { Galeria } from "@nandorojo/galeria";
 import { Debouncer } from "@tanstack/react-pacer";
 import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
@@ -403,19 +403,29 @@ function UserProfileScreenComponent() {
     : (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null) ||
       (avatarParam && avatarParam.length > 0 ? avatarParam : null);
   const user = { ...rawUser, avatar: resolvedAvatar || undefined };
+  const profileAvatarUrl = resolveAvatarUrl(
+    user.avatar,
+    __DEV__ ? `Profile:${user.username}` : undefined,
+  );
 
   // Create a followMutation-like object for compatibility
   const followMutation = {
     isPending: isFollowPending,
     mutate: followMutate,
   };
+  const followTargetId = String(
+    (user as any).authId || user.id || authId || "",
+  );
+  const messageTargetId = String(
+    (user as any).authId || user.id || authId || "",
+  );
 
   const handleFollowPress = useCallback(() => {
-    if (!user.id || !username) return;
+    if (!followTargetId || !username) return;
 
     const action = isFollowing ? "unfollow" : "follow";
-    followMutate({ userId: user.id, action, username });
-  }, [user.id, username, isFollowing, followMutate]);
+    followMutate({ userId: followTargetId, action, username });
+  }, [followMutate, followTargetId, isFollowing, username]);
 
   // State for message button loading
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
@@ -438,7 +448,7 @@ function UserProfileScreenComponent() {
   );
 
   const handleMessagePress = useCallback(async () => {
-    if (!user.id || creatingConvRef.current) return;
+    if (!messageTargetId || creatingConvRef.current) return;
 
     // Fast path 1: check conversations cache for existing numeric conversation ID
     const allConvCaches = queryClient.getQueriesData<any[]>({
@@ -449,7 +459,8 @@ function UserProfileScreenComponent() {
       const match = data.find(
         (c: any) =>
           c?.user?.id === String(user.id) ||
-          c?.user?.authId === String(user.id) ||
+          c?.user?.authId === String((user as any).authId || authId || "") ||
+          c?.user?.authId === messageTargetId ||
           c?.user?.username === username,
       );
       if (match?.id) {
@@ -499,7 +510,7 @@ function UserProfileScreenComponent() {
     safetyResetRef.current.maybeExecute();
     try {
       // CRITICAL: Must pass authId (UUID) or integer user.id, NOT username
-      const identifier = (user as any).authId || user.id;
+      const identifier = messageTargetId;
 
       // DEFENSIVE CHECK: Ensure we're not accidentally passing username
       if (
@@ -546,6 +557,8 @@ function UserProfileScreenComponent() {
       setIsCreatingConversation(false);
     }
   }, [
+    authId,
+    messageTargetId,
     user.id,
     user.username,
     user.name,
@@ -659,20 +672,14 @@ function UserProfileScreenComponent() {
         <View className="p-4">
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              {user.avatar ? (
-                <Galeria urls={[user.avatar]}>
+              {profileAvatarUrl ? (
+                <Galeria urls={[profileAvatarUrl]}>
                   <Galeria.Image index={0}>
-                    <Image
-                      source={{ uri: user.avatar }}
-                      style={{
-                        width: 80,
-                        height: 80,
-                        borderRadius: Math.min(Math.round(80 * 0.18), 16),
-                        borderWidth: 1.5,
-                        borderColor: "#34A2DF",
-                      }}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
+                    <Avatar
+                      uri={profileAvatarUrl}
+                      username={user.username}
+                      size={80}
+                      variant="roundedSquare"
                     />
                   </Galeria.Image>
                 </Galeria>
@@ -806,7 +813,7 @@ function UserProfileScreenComponent() {
               <>
                 <Pressable
                   onPress={handleFollowPress}
-                  disabled={followMutation.isPending || !user.id}
+                  disabled={followMutation.isPending || !followTargetId}
                   style={{ flex: 1 }}
                 >
                   <Motion.View
@@ -815,7 +822,7 @@ function UserProfileScreenComponent() {
                     style={[
                       styles.primaryButton,
                       isFollowing && styles.secondaryButton,
-                      (followMutation.isPending || !user.id) && {
+                      (followMutation.isPending || !followTargetId) && {
                         opacity: 0.5,
                       },
                     ]}
@@ -835,7 +842,7 @@ function UserProfileScreenComponent() {
                 </Pressable>
                 <Pressable
                   onPress={handleMessagePress}
-                  disabled={isCreatingConversation || !user.id}
+                  disabled={isCreatingConversation || !messageTargetId}
                   style={{ flex: 1 }}
                 >
                   <Motion.View
@@ -843,7 +850,9 @@ function UserProfileScreenComponent() {
                     transition={{ type: "spring", damping: 15, stiffness: 400 }}
                     style={[
                       styles.secondaryButton,
-                      (isCreatingConversation || !user.id) && { opacity: 0.5 },
+                      (isCreatingConversation || !messageTargetId) && {
+                        opacity: 0.5,
+                      },
                     ]}
                   >
                     <Text className="font-semibold text-secondary-foreground">

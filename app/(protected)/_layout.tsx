@@ -233,7 +233,7 @@ export default function ProtectedLayout() {
           options={{ ...fullScreenModalConfig, headerShown: true }}
         />
         <Stack.Screen
-          name="events/[id]"
+          name="events/[id]/index"
           options={{
             animation: "fade",
             animationDuration: 300,
@@ -260,7 +260,7 @@ export default function ProtectedLayout() {
         <Stack.Screen name="crop-preview" options={{ headerShown: true }} />
         <Stack.Screen name="chat" />
         <Stack.Screen
-          name="call/[roomId]"
+          name="call"
           options={{ presentation: "fullScreenModal", animation: "fade" }}
         />
         <Stack.Screen
