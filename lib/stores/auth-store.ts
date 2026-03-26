@@ -11,6 +11,56 @@ import { logAuth } from "@/lib/auth/auth-logger";
 // NOTE: syncAuthUser and clearUserRowCache are imported LAZILY (inline)
 // to break the require cycle: auth-store -> privileged -> identity -> auth-store
 
+function pickNonEmptyString(
+  primary: string | undefined,
+  fallback: string | undefined,
+) {
+  const primaryValue = typeof primary === "string" ? primary.trim() : "";
+  if (primaryValue) return primaryValue;
+  const fallbackValue = typeof fallback === "string" ? fallback.trim() : "";
+  return fallbackValue || "";
+}
+
+function pickStringArray(
+  primary: string[] | undefined,
+  fallback: string[] | undefined,
+) {
+  if (Array.isArray(primary) && primary.length > 0) return primary;
+  if (Array.isArray(fallback) && fallback.length > 0) return fallback;
+  return [];
+}
+
+function mergeSyncedUserWithProfile(
+  syncedUser: AppUser,
+  payloadProfile: AppUser | null,
+): AppUser {
+  if (!payloadProfile) return syncedUser;
+
+  return {
+    ...syncedUser,
+    authId: syncedUser.authId || payloadProfile.authId,
+    username:
+      pickNonEmptyString(syncedUser.username, payloadProfile.username) ||
+      syncedUser.username,
+    name:
+      pickNonEmptyString(syncedUser.name, payloadProfile.name) ||
+      syncedUser.name,
+    avatar: pickNonEmptyString(syncedUser.avatar, payloadProfile.avatar),
+    bio: pickNonEmptyString(syncedUser.bio, payloadProfile.bio),
+    website: pickNonEmptyString(syncedUser.website, payloadProfile.website),
+    location: pickNonEmptyString(syncedUser.location, payloadProfile.location),
+    pronouns: pickNonEmptyString(syncedUser.pronouns, payloadProfile.pronouns),
+    gender: pickNonEmptyString(syncedUser.gender, payloadProfile.gender),
+    links: pickStringArray(syncedUser.links, payloadProfile.links),
+    postsCount: syncedUser.postsCount || payloadProfile.postsCount || 0,
+    followersCount:
+      syncedUser.followersCount || payloadProfile.followersCount || 0,
+    followingCount:
+      syncedUser.followingCount || payloadProfile.followingCount || 0,
+    isVerified: syncedUser.isVerified || payloadProfile.isVerified,
+  };
+}
+
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
 
 interface AuthStore {
@@ -265,12 +315,28 @@ export const useAuthStore = create<AuthStore>()(
                 // Retry immediately — the first call already paid the cold-start cost
                 syncedUser = await syncAuthUser();
               }
+              let mergedUser = syncedUser;
+              try {
+                const payloadProfile = await auth.getProfile(
+                  session.user.id,
+                  session.user.email,
+                );
+                mergedUser = mergeSyncedUserWithProfile(
+                  syncedUser,
+                  payloadProfile,
+                );
+              } catch (profileMergeError) {
+                console.warn(
+                  "[AuthStore] profile merge after auth-sync failed:",
+                  profileMergeError,
+                );
+              }
               console.log(
                 "[AuthStore] User synced via Edge Function, ID:",
-                syncedUser.id,
+                mergedUser.id,
               );
               set({
-                user: syncedUser,
+                user: mergedUser,
                 isAuthenticated: true,
                 authStatus: "authenticated" as AuthStatus,
               });

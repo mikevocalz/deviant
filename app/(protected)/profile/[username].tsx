@@ -357,6 +357,7 @@ function UserProfileScreenComponent() {
     isLoading: isLoadingUser,
     isError,
     error,
+    isPlaceholderData: isPlaceholderUserData,
   } = useUser(safeUsername || "");
 
   // Fallback: fetch from Better Auth `user` table if no app profile found
@@ -364,12 +365,47 @@ function UserProfileScreenComponent() {
     queryKey: ["auth-user", previewAuthId],
     queryFn: () => usersApi.getProfileByAuthUserId(previewAuthId!),
     enabled: !!previewAuthId && !userData && !isLoadingUser,
+    refetchOnMount: "always",
   });
 
   // Merge: prefer app profile, fall back to auth user
   const resolvedUserData = userData || authUserData;
   const isLoading =
     isLoadingUser || (!userData && !!previewAuthId && isLoadingAuthUser);
+
+  const resolvedFollowState =
+    !isPlaceholderUserData &&
+    typeof (resolvedUserData as any)?.isFollowing === "boolean"
+      ? Boolean((resolvedUserData as any)?.isFollowing)
+      : previewIsFollowing;
+  const isFollowing = resolvedFollowState === true;
+
+  const shouldKeepPreviewCounts =
+    isPlaceholderUserData &&
+    (previewPostsCount !== undefined ||
+      previewFollowersCount !== undefined ||
+      previewFollowingCount !== undefined);
+
+  const resolvedCounts = shouldKeepPreviewCounts
+    ? {
+        postsCount: previewPostsCount,
+        followersCount: previewFollowersCount,
+        followingCount: previewFollowingCount,
+      }
+    : {
+        postsCount:
+          typeof (resolvedUserData as any)?.postsCount === "number"
+            ? (resolvedUserData as any).postsCount
+            : previewPostsCount,
+        followersCount:
+          typeof (resolvedUserData as any)?.followersCount === "number"
+            ? (resolvedUserData as any).followersCount
+            : previewFollowersCount,
+        followingCount:
+          typeof (resolvedUserData as any)?.followingCount === "number"
+            ? (resolvedUserData as any).followingCount
+            : previewFollowingCount,
+      };
 
   // Fetch user posts — fires in parallel with user query (no waterfall)
   const { data: userPostsRaw = [], isLoading: isLoadingPosts } =
@@ -381,12 +417,6 @@ function UserProfileScreenComponent() {
     [userPostsRaw],
   );
 
-  // Follow state — never default to false during transition.
-  const resolvedFollowState =
-    typeof (resolvedUserData as any)?.isFollowing === "boolean"
-      ? Boolean((resolvedUserData as any)?.isFollowing)
-      : previewIsFollowing;
-  const isFollowing = resolvedFollowState === true;
   const {
     mutate: followMutate,
     isPending: isFollowPending,
@@ -453,11 +483,21 @@ function UserProfileScreenComponent() {
     name: previewName || "",
     avatar: previewAvatar || undefined,
     bio: "",
-    postsCount: previewPostsCount,
-    followersCount: previewFollowersCount,
-    followingCount: previewFollowingCount,
-    isFollowing: previewIsFollowing,
+    postsCount: resolvedCounts.postsCount,
+    followersCount: resolvedCounts.followersCount,
+    followingCount: resolvedCounts.followingCount,
+    isFollowing: resolvedFollowState,
   };
+  const mergeableResolvedUserData =
+    isPlaceholderUserData && resolvedUserData
+      ? {
+          ...(resolvedUserData as Record<string, unknown>),
+          postsCount: resolvedCounts.postsCount,
+          followersCount: resolvedCounts.followersCount,
+          followingCount: resolvedCounts.followingCount,
+          isFollowing: resolvedFollowState,
+        }
+      : (resolvedUserData as Record<string, unknown> | undefined);
   const rawUser = mergeDefinedUser(
     mergeDefinedUser(
       basePreviewUser,
@@ -465,7 +505,7 @@ function UserProfileScreenComponent() {
         | Record<string, unknown>
         | undefined,
     ),
-    resolvedUserData as Record<string, unknown> | undefined,
+    mergeableResolvedUserData,
   );
 
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
