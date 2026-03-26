@@ -26,9 +26,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string): Response {
+function errorResponse(code: string, message: string, status = 200): Response {
   console.error(`[Edge:create-post] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+  return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
 interface MediaItem {

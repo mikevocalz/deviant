@@ -26,8 +26,8 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+function errorResponse(code: string, message: string, status = 200): Response {
+  return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
 Deno.serve(async (req) => {
@@ -101,6 +101,7 @@ Deno.serve(async (req) => {
     // Delete all dependent rows first (foreign keys may not have ON DELETE CASCADE)
     await Promise.all([
       supabaseAdmin.from("posts_media").delete().eq("parent_id", postId),
+      supabaseAdmin.from("post_text_slides").delete().eq("post_id", postId),
       supabaseAdmin.from("comments").delete().eq("post_id", postId),
       supabaseAdmin.from("post_likes").delete().eq("post_id", postId),
       supabaseAdmin.from("bookmarks").delete().eq("post_id", postId),
