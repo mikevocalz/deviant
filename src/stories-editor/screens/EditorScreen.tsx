@@ -601,8 +601,14 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       },
     ) => {
       updateElement(id, { transform } as any);
+      const element = useEditorStore
+        .getState()
+        .elements.find((candidate) => candidate.id === id);
+      if (element?.type === "sticker") {
+        selectElement(null);
+      }
     },
-    [updateElement],
+    [selectElement, updateElement],
   );
 
   const handleElementDoubleTap = useCallback(
