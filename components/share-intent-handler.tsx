@@ -1,20 +1,21 @@
 import { useEffect } from "react";
-import { useRouter } from "expo-router";
 import { useShareIntentSafe } from "@/lib/safe-native-modules";
 import { useSpotifyShareStore } from "@/lib/spotify/spotify-share-store";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
+import { useAppStore } from "@/lib/stores/app-store";
 
 type ShareFile = { path: string; mimeType?: string };
 
 export function ShareIntentHandler() {
-  const router = useRouter();
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentSafe();
   const processSharedText = useSpotifyShareStore((s) => s.processSharedText);
   const setOpenedFromShareIntent = useDeepLinkStore((s) => s.setOpenedFromShareIntent);
+  const setPendingShareIntentRoute = useAppStore(
+    (s) => s.setPendingShareIntentRoute,
+  );
 
   useEffect(() => {
     if (!hasShareIntent || !shareIntent || typeof shareIntent !== "object") return;
-    setOpenedFromShareIntent(false); // Clear so next launch uses normal timing
     try {
       const s = shareIntent as {
         text?: string;
@@ -29,13 +30,14 @@ export function ShareIntentHandler() {
           const isVideo =
             first.mimeType?.startsWith("video/") ||
             !!first.path.match(/\.(mp4|mov|webm)$/i);
-          router.replace({
+          setPendingShareIntentRoute({
             pathname: "/(protected)/story/editor",
             params: {
               uri: encodeURIComponent(first.path),
               type: isVideo ? "video" : "image",
             },
           });
+          setOpenedFromShareIntent(false); // Clear so next launch uses normal timing
           resetShareIntent();
           return;
         }
@@ -49,11 +51,19 @@ export function ShareIntentHandler() {
       console.warn("[ShareIntentHandler] Error processing share:", e);
     }
     try {
+      setOpenedFromShareIntent(false);
       resetShareIntent();
     } catch {
       // noop
     }
-  }, [hasShareIntent, shareIntent, processSharedText, resetShareIntent, router, setOpenedFromShareIntent]);
+  }, [
+    hasShareIntent,
+    processSharedText,
+    resetShareIntent,
+    setOpenedFromShareIntent,
+    setPendingShareIntentRoute,
+    shareIntent,
+  ]);
 
   return null;
 }
